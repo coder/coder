@@ -1,10 +1,9 @@
-package coderd_test
+package archive_test
 
 import (
 	"archive/tar"
 	"archive/zip"
 	"bytes"
-	"io"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -12,13 +11,12 @@ import (
 	"runtime"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/xerrors"
 
-	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/archive"
+	"github.com/coder/coder/v2/archive/archivetest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -30,18 +28,17 @@ func TestCreateTarFromZip(t *testing.T) {
 
 	// Read a zip file we prepared earlier
 	ctx := testutil.Context(t, testutil.WaitShort)
-	zipBytes, err := os.ReadFile(filepath.Join("testdata", "test.zip"))
-	require.NoError(t, err, "failed to read sample zip file")
+	zipBytes := archivetest.TestZipFileBytes()
 	// Assert invariant
-	assertSampleZipFile(t, zipBytes)
+	archivetest.AssertSampleZipFile(t, zipBytes)
 
 	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	require.NoError(t, err, "failed to parse sample zip file")
 
-	tarBytes, err := coderd.CreateTarFromZip(zr)
+	tarBytes, err := archive.CreateTarFromZip(zr, int64(len(zipBytes)))
 	require.NoError(t, err, "failed to convert zip to tar")
 
-	assertSampleTarFile(t, tarBytes)
+	archivetest.AssertSampleTarFile(t, tarBytes)
 
 	tempDir := t.TempDir()
 	tempFilePath := filepath.Join(tempDir, "test.tar")
@@ -60,14 +57,13 @@ func TestCreateZipFromTar(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		tarBytes, err := os.ReadFile(filepath.Join(".", "testdata", "test.tar"))
-		require.NoError(t, err, "failed to read sample tar file")
+		tarBytes := archivetest.TestTarFileBytes()
 
 		tr := tar.NewReader(bytes.NewReader(tarBytes))
-		zipBytes, err := coderd.CreateZipFromTar(tr)
+		zipBytes, err := archive.CreateZipFromTar(tr, int64(len(tarBytes)))
 		require.NoError(t, err)
 
-		assertSampleZipFile(t, zipBytes)
+		archivetest.AssertSampleZipFile(t, zipBytes)
 
 		tempDir := t.TempDir()
 		tempFilePath := filepath.Join(tempDir, "test.zip")
@@ -99,7 +95,7 @@ func TestCreateZipFromTar(t *testing.T) {
 
 		// When: we convert this to a zip
 		tr := tar.NewReader(&tarBytes)
-		zipBytes, err := coderd.CreateZipFromTar(tr)
+		zipBytes, err := archive.CreateZipFromTar(tr, int64(tarBytes.Len()))
 		require.NoError(t, err)
 
 		// Then: the resulting zip should contain a corresponding directory
@@ -133,7 +129,7 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 			if checkModePerm {
 				assert.Equal(t, fs.ModePerm&0o755, stat.Mode().Perm(), "expected mode 0755 on directory")
 			}
-			assert.Equal(t, archiveRefTime(t).UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
+			assert.Equal(t, archivetest.ArchiveRefTime(t).UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
 		case "/test/hello.txt":
 			stat, err := os.Stat(path)
 			assert.NoError(t, err, "failed to stat path %q", path)
@@ -167,85 +163,4 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 
 		return nil
 	})
-}
-
-func assertSampleTarFile(t *testing.T, tarBytes []byte) {
-	t.Helper()
-
-	tr := tar.NewReader(bytes.NewReader(tarBytes))
-	for {
-		hdr, err := tr.Next()
-		if err != nil {
-			if err == io.EOF {
-				return
-			}
-			require.NoError(t, err)
-		}
-
-		// Note: ignoring timezones here.
-		require.Equal(t, archiveRefTime(t).UTC(), hdr.ModTime.UTC())
-
-		switch hdr.Name {
-		case "test/":
-			require.Equal(t, hdr.Typeflag, byte(tar.TypeDir))
-		case "test/hello.txt":
-			require.Equal(t, hdr.Typeflag, byte(tar.TypeReg))
-			bs, err := io.ReadAll(tr)
-			if err != nil && !xerrors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
-			require.Equal(t, "hello", string(bs))
-		case "test/dir/":
-			require.Equal(t, hdr.Typeflag, byte(tar.TypeDir))
-		case "test/dir/world.txt":
-			require.Equal(t, hdr.Typeflag, byte(tar.TypeReg))
-			bs, err := io.ReadAll(tr)
-			if err != nil && !xerrors.Is(err, io.EOF) {
-				require.NoError(t, err)
-			}
-			require.Equal(t, "world", string(bs))
-		default:
-			require.Failf(t, "unexpected file in tar", hdr.Name)
-		}
-	}
-}
-
-func assertSampleZipFile(t *testing.T, zipBytes []byte) {
-	t.Helper()
-
-	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
-	require.NoError(t, err)
-
-	for _, f := range zr.File {
-		// Note: ignoring timezones here.
-		require.Equal(t, archiveRefTime(t).UTC(), f.Modified.UTC())
-		switch f.Name {
-		case "test/", "test/dir/":
-			// directory
-		case "test/hello.txt":
-			rc, err := f.Open()
-			require.NoError(t, err)
-			bs, err := io.ReadAll(rc)
-			_ = rc.Close()
-			require.NoError(t, err)
-			require.Equal(t, "hello", string(bs))
-		case "test/dir/world.txt":
-			rc, err := f.Open()
-			require.NoError(t, err)
-			bs, err := io.ReadAll(rc)
-			_ = rc.Close()
-			require.NoError(t, err)
-			require.Equal(t, "world", string(bs))
-		default:
-			require.Failf(t, "unexpected file in zip", f.Name)
-		}
-	}
-}
-
-// archiveRefTime is the Go reference time. The contents of the sample tar and zip files
-// in testdata/ all have their modtimes set to the below in some timezone.
-func archiveRefTime(t *testing.T) time.Time {
-	locMST, err := time.LoadLocation("MST")
-	require.NoError(t, err, "failed to load MST timezone")
-	return time.Date(2006, 1, 2, 3, 4, 5, 0, locMST)
 }

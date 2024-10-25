@@ -1,4 +1,4 @@
-package coderd
+package archive
 
 import (
 	"archive/tar"
@@ -10,21 +10,22 @@ import (
 	"strings"
 )
 
-func CreateTarFromZip(zipReader *zip.Reader) ([]byte, error) {
+// CreateTarFromZip converts the given zipReader to a tar archive.
+func CreateTarFromZip(zipReader *zip.Reader, maxSize int64) ([]byte, error) {
 	var tarBuffer bytes.Buffer
-	err := writeTarArchive(&tarBuffer, zipReader)
+	err := writeTarArchive(&tarBuffer, zipReader, maxSize)
 	if err != nil {
 		return nil, err
 	}
 	return tarBuffer.Bytes(), nil
 }
 
-func writeTarArchive(w io.Writer, zipReader *zip.Reader) error {
+func writeTarArchive(w io.Writer, zipReader *zip.Reader, maxSize int64) error {
 	tarWriter := tar.NewWriter(w)
 	defer tarWriter.Close()
 
 	for _, file := range zipReader.File {
-		err := processFileInZipArchive(file, tarWriter)
+		err := processFileInZipArchive(file, tarWriter, maxSize)
 		if err != nil {
 			return err
 		}
@@ -32,7 +33,7 @@ func writeTarArchive(w io.Writer, zipReader *zip.Reader) error {
 	return nil
 }
 
-func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
+func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer, maxSize int64) error {
 	fileReader, err := file.Open()
 	if err != nil {
 		return err
@@ -52,7 +53,7 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 		return err
 	}
 
-	n, err := io.CopyN(tarWriter, fileReader, httpFileMaxBytes)
+	n, err := io.CopyN(tarWriter, fileReader, maxSize)
 	log.Println(file.Name, n, err)
 	if errors.Is(err, io.EOF) {
 		err = nil
@@ -60,16 +61,18 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer) error {
 	return err
 }
 
-func CreateZipFromTar(tarReader *tar.Reader) ([]byte, error) {
+// CreateZipFromTar converts the given tarReader to a zip archive.
+func CreateZipFromTar(tarReader *tar.Reader, maxSize int64) ([]byte, error) {
 	var zipBuffer bytes.Buffer
-	err := WriteZipArchive(&zipBuffer, tarReader)
+	err := WriteZip(&zipBuffer, tarReader, maxSize)
 	if err != nil {
 		return nil, err
 	}
 	return zipBuffer.Bytes(), nil
 }
 
-func WriteZipArchive(w io.Writer, tarReader *tar.Reader) error {
+// WriteZip writes the given tarReader to w.
+func WriteZip(w io.Writer, tarReader *tar.Reader, maxSize int64) error {
 	zipWriter := zip.NewWriter(w)
 	defer zipWriter.Close()
 
@@ -100,7 +103,7 @@ func WriteZipArchive(w io.Writer, tarReader *tar.Reader) error {
 			return err
 		}
 
-		_, err = io.CopyN(zipEntry, tarReader, httpFileMaxBytes)
+		_, err = io.CopyN(zipEntry, tarReader, maxSize)
 		if errors.Is(err, io.EOF) {
 			err = nil
 		}
