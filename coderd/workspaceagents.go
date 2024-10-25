@@ -32,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -852,8 +853,12 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	)
 	if resumeToken != "" {
 		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(resumeToken)
-		if err != nil {
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
+		// If the token is missing the key ID, it's probably an old token in which
+		// case we just want to generate a new peer ID.
+		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+			peerID = uuid.New()
+		} else if err != nil {
 			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
 				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
 				Detail:  err.Error(),
@@ -862,9 +867,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 				},
 			})
 			return
+		} else {
+			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+				slog.F("peer_id", peerID.String()))
 		}
-		api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
-			slog.F("peer_id", peerID.String()))
 	}
 
 	api.WebsocketWaitMutex.Lock()

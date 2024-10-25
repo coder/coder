@@ -228,6 +228,42 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	// See cryptokeys package.
+	subjectCryptoKeyRotator = rbac.Subject{
+		FriendlyName: "Crypto Key Rotator",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "keyrotator"},
+				DisplayName: "Key Rotator",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	// See cryptokeys package.
+	subjectCryptoKeyReader = rbac.Subject{
+		FriendlyName: "Crypto Key Reader",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "keyrotator"},
+				DisplayName: "Key Rotator",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceCryptoKey.Type: {policy.WildcardSymbol},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		FriendlyName: "System",
 		ID:           uuid.Nil.String(),
@@ -279,6 +315,16 @@ func AsAutostart(ctx context.Context) context.Context {
 // for unhanger.Detector to function.
 func AsHangDetector(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectHangDetector)
+}
+
+// AsKeyRotator returns a context with an actor that has permissions required for rotating crypto keys.
+func AsKeyRotator(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyRotator)
+}
+
+// AsKeyReader returns a context with an actor that has permissions required for reading crypto keys.
+func AsKeyReader(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyReader)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
