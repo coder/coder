@@ -54,6 +54,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func openTestDb(t *testing.T) string {
+	connectionURL, cleanup, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+	return connectionURL
+}
+
 func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Valid", func(t *testing.T) {
@@ -207,9 +214,7 @@ func TestServer(t *testing.T) {
 	// reachable.
 	t.Run("LocalAccessURL", func(t *testing.T) {
 		t.Parallel()
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, cfg := clitest.New(t,
 			"server",
@@ -233,9 +238,7 @@ func TestServer(t *testing.T) {
 	// and that a warning is printed for a host that cannot be resolved.
 	t.Run("RemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, cfg := clitest.New(t,
 			"server",
@@ -258,9 +261,7 @@ func TestServer(t *testing.T) {
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, cfg := clitest.New(t,
 			"server",
@@ -284,9 +285,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		root, _ := clitest.New(t,
 			"server",
@@ -295,7 +294,7 @@ func TestServer(t *testing.T) {
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
 		)
-		err = root.WithContext(ctx).Run()
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 
@@ -304,9 +303,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		root, _ := clitest.New(t,
 			"server",
@@ -318,7 +315,7 @@ func TestServer(t *testing.T) {
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
 		)
-		err = root.WithContext(ctx).Run()
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSBadClientAuth", func(t *testing.T) {
@@ -326,9 +323,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		root, _ := clitest.New(t,
 			"server",
@@ -340,7 +335,7 @@ func TestServer(t *testing.T) {
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
 		)
-		err = root.WithContext(ctx).Run()
+		err := root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSInvalid", func(t *testing.T) {
@@ -383,9 +378,7 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
-				connectionURL, closeFunc, err := dbtestutil.Open()
-				require.NoError(t, err)
-				defer closeFunc()
+				connectionURL := openTestDb(t)
 
 				args := []string{
 					"server",
@@ -396,7 +389,7 @@ func TestServer(t *testing.T) {
 				}
 				args = append(args, c.args...)
 				root, _ := clitest.New(t, args...)
-				err = root.WithContext(ctx).Run()
+				err := root.WithContext(ctx).Run()
 				require.Error(t, err)
 				t.Logf("args: %v", args)
 				require.ErrorContains(t, err, c.errContains)
@@ -408,9 +401,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		certPath, keyPath := generateTLSCertificate(t)
 		root, cfg := clitest.New(t,
@@ -439,7 +430,7 @@ func TestServer(t *testing.T) {
 			},
 		}
 		defer client.HTTPClient.CloseIdleConnections()
-		_, err = client.HasFirstUser(ctx)
+		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 	})
 	t.Run("TLSValidMultiple", func(t *testing.T) {
@@ -447,9 +438,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		cert1Path, key1Path := generateTLSCertificate(t, "alpaca.com")
 		cert2Path, key2Path := generateTLSCertificate(t, "*.llama.com")
@@ -515,7 +504,7 @@ func TestServer(t *testing.T) {
 		// Use the first certificate and hostname.
 		client.URL.Host = "alpaca.com:443"
 		expectAddr = "alpaca.com:443"
-		_, err = client.HasFirstUser(ctx)
+		_, err := client.HasFirstUser(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt64(&dials))
 
@@ -532,9 +521,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		certPath, keyPath := generateTLSCertificate(t)
 		inv, _ := clitest.New(t,
@@ -664,9 +651,7 @@ func TestServer(t *testing.T) {
 					httpListenAddr = ":0"
 				}
 
-				connectionURL, closeFunc, err := dbtestutil.Open()
-				require.NoError(t, err)
-				defer closeFunc()
+				connectionURL := openTestDb(t)
 
 				certPath, keyPath := generateTLSCertificate(t)
 				flags := []string{
@@ -782,14 +767,9 @@ func TestServer(t *testing.T) {
 	t.Run("CanListenUnspecifiedv4", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		connectionURL := openTestDb(t)
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
-
-		inv, cfg := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server",
 			"--postgres-url", connectionURL,
 			"--http-address", "0.0.0.0:0",
@@ -802,27 +782,14 @@ func TestServer(t *testing.T) {
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
 
-		// We wait here to ensure the database is ready.
-		// If you finish the test while the database is still
-		// bootstrapping, you will see a hanging goroutine from pubsub's listener.
-		accessURL := waitAccessURL(t, cfg)
-		require.Equal(t, "http", accessURL.Scheme)
-		client := codersdk.New(accessURL)
-		_, err = client.HasFirstUser(ctx)
-		require.NoError(t, err)
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
+		connectionURL := openTestDb(t)
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
-
-		inv, cfg := clitest.New(t,
+		inv, _ := clitest.New(t,
 			"server",
 			"--postgres-url", connectionURL,
 			"--http-address", "[::]:0",
@@ -834,15 +801,6 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("Started HTTP listener at")
 		pty.ExpectMatch("http://[::]:")
-
-		// We wait here to ensure the database is ready.
-		// If you finish the test while the database is still
-		// bootstrapping, you will see a hanging goroutine from pubsub's listener.
-		accessURL := waitAccessURL(t, cfg)
-		require.Equal(t, "http", accessURL.Scheme)
-		client := codersdk.New(accessURL)
-		_, err = client.HasFirstUser(ctx)
-		require.NoError(t, err)
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {
@@ -850,9 +808,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, _ := clitest.New(t,
 			"server",
@@ -861,7 +817,7 @@ func TestServer(t *testing.T) {
 			"--tls-enable=false",
 			"--tls-address", "",
 		)
-		err = inv.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "tls-address")
 	})
@@ -871,9 +827,7 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, _ := clitest.New(t,
 			"server",
@@ -881,7 +835,7 @@ func TestServer(t *testing.T) {
 			"--tls-enable=true",
 			"--tls-address", "",
 		)
-		err = inv.WithContext(ctx).Run()
+		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must not be empty")
 	})
@@ -898,9 +852,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, cfg := clitest.New(t,
 				"server",
@@ -919,7 +871,7 @@ func TestServer(t *testing.T) {
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "http", accessURL.Scheme)
 			client := codersdk.New(accessURL)
-			_, err = client.HasFirstUser(ctx)
+			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
 		})
 
@@ -928,9 +880,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			certPath, keyPath := generateTLSCertificate(t)
 			root, cfg := clitest.New(t,
@@ -962,7 +912,7 @@ func TestServer(t *testing.T) {
 				},
 			}
 			defer client.HTTPClient.CloseIdleConnections()
-			_, err = client.HasFirstUser(ctx)
+			_, err := client.HasFirstUser(ctx)
 			require.NoError(t, err)
 		})
 	})
@@ -970,9 +920,7 @@ func TestServer(t *testing.T) {
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, _ := clitest.New(t,
 			"server",
@@ -1008,9 +956,7 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, _ := clitest.New(t,
 			"server",
@@ -1036,9 +982,7 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, cfg := clitest.New(t,
 				"server",
@@ -1096,9 +1040,7 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, cfg := clitest.New(t,
 				"server",
@@ -1146,9 +1088,7 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 
 		fakeRedirect := "https://fake-url.com"
-		connectionURL, closeFunc, err := dbtestutil.Open()
-		require.NoError(t, err)
-		defer closeFunc()
+		connectionURL := openTestDb(t)
 
 		inv, cfg := clitest.New(t,
 			"server",
@@ -1197,9 +1137,7 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, cfg := clitest.New(t,
 				"server",
@@ -1277,9 +1215,7 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, cfg := clitest.New(t,
 				"server",
@@ -1375,9 +1311,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			root, cfg := clitest.New(t,
 				"server",
@@ -1406,9 +1340,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			val := "100"
 			root, cfg := clitest.New(t,
@@ -1439,9 +1371,7 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			root, cfg := clitest.New(t,
 				"server",
@@ -1494,9 +1424,7 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1517,9 +1445,7 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1540,9 +1466,7 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			root, _ := clitest.New(t,
 				"server",
@@ -1566,9 +1490,7 @@ func TestServer(t *testing.T) {
 
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			inv, _ := clitest.New(t,
 				"server",
@@ -1602,9 +1524,7 @@ func TestServer(t *testing.T) {
 			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
 			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
@@ -1647,9 +1567,7 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
-			connectionURL, closeFunc, err := dbtestutil.Open()
-			require.NoError(t, err)
-			defer closeFunc()
+			connectionURL := openTestDb(t)
 
 			args := []string{
 				"server",
@@ -1739,9 +1657,7 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	// Postgres + race detector + CI = slow.
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
@@ -1758,7 +1674,7 @@ func TestServer_Production(t *testing.T) {
 	accessURL := waitAccessURL(t, cfg)
 	client := codersdk.New(accessURL)
 
-	_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
+	_, err := client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
 	require.NoError(t, err)
 }
 
@@ -1773,9 +1689,7 @@ func TestServer_InterruptShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	root, cfg := clitest.New(t,
 		"server",
@@ -1809,9 +1723,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	root, cfg := clitest.New(t,
 		"server",
@@ -1840,7 +1752,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	// has started and access URL is propagated.
 	stopFunc()
 	pty.ExpectMatch("waiting for provisioner jobs to complete")
-	err = <-serverErr
+	err := <-serverErr
 	require.NoError(t, err)
 }
 
@@ -1966,9 +1878,7 @@ func TestServer_InvalidDERP(t *testing.T) {
 
 	// Try to start a server with the built-in DERP server disabled and no
 	// external DERP map.
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	inv, _ := clitest.New(t,
 		"server",
@@ -1979,7 +1889,7 @@ func TestServer_InvalidDERP(t *testing.T) {
 		"--derp-server-stun-addresses", "disable",
 		"--block-direct-connections",
 	)
-	err = inv.Run()
+	err := inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
 }
@@ -1996,9 +1906,7 @@ func TestServer_DisabledDERP(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	// Try to start a server with the built-in DERP server disabled and an
 	// external DERP map.
