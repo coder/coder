@@ -59,6 +59,13 @@ def print_flaky_tests(test_results: Dict[str, Dict[str, int]]):
         if results['pass'] > 0 and results['fail'] > 0:
             print(f"Test is flaky: {test}")
 
+def print_score_totals(test_results: Dict[str, Dict[str, int]]):
+    totals = [sum(results.values()) for results in test_results.values()]
+    total_counts = {}
+    for total in totals:
+        total_counts[total] = total_counts.get(total, 0) + 1
+    print(f"Total counts: {total_counts}")
+
 def main():
     parser = argparse.ArgumentParser(description="Process test timing files.")
     parser.add_argument('directory', type=Path, help="Directory containing timing files")
@@ -71,6 +78,7 @@ def main():
     test_results = load_and_process_files(args.directory)
     print_failed_tests(test_results)
     print_flaky_tests(test_results)
+    print_score_totals(test_results)
 
 if __name__ == "__main__":
     main()
