@@ -23,6 +23,8 @@ export const checks = {
 	viewNotificationTemplate: "viewNotificationTemplate",
 } as const satisfies Record<string, string>;
 
+type PermissionType = keyof typeof checks;
+
 export const permissionsToCheck = {
 	[checks.viewAllUsers]: {
 		object: {
@@ -147,6 +149,6 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
-} as const satisfies Record<string, AuthorizationCheck>;
+} as const satisfies Record<PermissionType, AuthorizationCheck>;
 
-export type Permissions = Record<keyof typeof permissionsToCheck, boolean>;
+export type Permissions = Record<PermissionType, boolean>;
