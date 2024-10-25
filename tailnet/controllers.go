@@ -359,3 +359,84 @@ func NewInMemoryCoordinatorClient(
 	)
 	return c
 }
+
+type DERPMapSetter interface {
+	SetDERPMap(derpMap *tailcfg.DERPMap)
+}
+
+type basicDERPController struct {
+	logger slog.Logger
+	setter DERPMapSetter
+}
+
+func (b *basicDERPController) New(client DERPClient) CloserWaiter {
+	l := &derpSetLoop{
+		logger:       b.logger,
+		setter:       b.setter,
+		client:       client,
+		errChan:      make(chan error, 1),
+		recvLoopDone: make(chan struct{}),
+	}
+	go l.recvLoop()
+	return l
+}
+
+func NewBasicDERPController(logger slog.Logger, setter DERPMapSetter) DERPController {
+	return &basicDERPController{
+		logger: logger,
+		setter: setter,
+	}
+}
+
+type derpSetLoop struct {
+	logger slog.Logger
+	setter DERPMapSetter
+	client DERPClient
+
+	sync.Mutex
+	closed       bool
+	errChan      chan error
+	recvLoopDone chan struct{}
+}
+
+func (l *derpSetLoop) Close(ctx context.Context) error {
+	l.Lock()
+	defer l.Unlock()
+	if l.closed {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-l.recvLoopDone:
+			return nil
+		}
+	}
+	l.closed = true
+	cErr := l.client.Close()
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-l.recvLoopDone:
+		return cErr
+	}
+}
+
+func (l *derpSetLoop) Wait() <-chan error {
+	return l.errChan
+}
+
+func (l *derpSetLoop) recvLoop() {
+	defer close(l.recvLoopDone)
+	for {
+		dm, err := l.client.Recv()
+		if err != nil {
+			l.logger.Debug(context.Background(), "failed to receive DERP message", slog.Error(err))
+			select {
+			case l.errChan <- err:
+			default:
+			}
+			return
+		}
+		l.logger.Debug(context.Background(), "got new DERP Map", slog.F("derp_map", dm))
+		l.setter.SetDERPMap(dm)
+	}
+}

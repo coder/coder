@@ -440,7 +440,6 @@ func TestTailnetAPIConnector_TelemetryUnimplemented(t *testing.T) {
 		coordinateURL: "",
 		clock:         quartz.NewReal(),
 		dialOptions:   &websocket.DialOptions{},
-		conn:          nil,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 		customDialFn: func() (proto.DRPCTailnetClient, error) {
@@ -481,7 +480,6 @@ func TestTailnetAPIConnector_TelemetryNotRecognised(t *testing.T) {
 		coordinateURL: "",
 		clock:         quartz.NewReal(),
 		dialOptions:   &websocket.DialOptions{},
-		conn:          nil,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 		customDialFn: func() (proto.DRPCTailnetClient, error) {

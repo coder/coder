@@ -12,6 +12,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -280,4 +281,73 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 	f.Lock()
 	defer f.Unlock()
 	f.callback = callback
+}
+
+func TestNewBasicDERPController_Mainline(t *testing.T) {
+	t.Parallel()
+	fs := make(chan *tailcfg.DERPMap)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	fc := fakeDERPClient{
+		ch: make(chan *tailcfg.DERPMap),
+	}
+	c := uut.New(fc)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	expectDM := &tailcfg.DERPMap{}
+	testutil.RequireSendCtx(ctx, t, fc.ch, expectDM)
+	gotDM := testutil.RequireRecvCtx(ctx, t, fs)
+	require.Equal(t, expectDM, gotDM)
+	err := c.Close(ctx)
+	require.NoError(t, err)
+	err = testutil.RequireRecvCtx(ctx, t, c.Wait())
+	require.ErrorIs(t, err, io.EOF)
+	// ensure Close is idempotent
+	err = c.Close(ctx)
+	require.NoError(t, err)
+}
+
+func TestNewBasicDERPController_RecvErr(t *testing.T) {
+	t.Parallel()
+	fs := make(chan *tailcfg.DERPMap)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	expectedErr := xerrors.New("a bad thing happened")
+	fc := fakeDERPClient{
+		ch:  make(chan *tailcfg.DERPMap),
+		err: expectedErr,
+	}
+	c := uut.New(fc)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	err := testutil.RequireRecvCtx(ctx, t, c.Wait())
+	require.ErrorIs(t, err, expectedErr)
+	// ensure Close is idempotent
+	err = c.Close(ctx)
+	require.NoError(t, err)
+}
+
+type fakeSetter chan *tailcfg.DERPMap
+
+func (s fakeSetter) SetDERPMap(derpMap *tailcfg.DERPMap) {
+	s <- derpMap
+}
+
+type fakeDERPClient struct {
+	ch  chan *tailcfg.DERPMap
+	err error
+}
+
+func (f fakeDERPClient) Close() error {
+	close(f.ch)
+	return nil
+}
+
+func (f fakeDERPClient) Recv() (*tailcfg.DERPMap, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	dm, ok := <-f.ch
+	if ok {
+		return dm, nil
+	}
+	return nil, io.EOF
 }

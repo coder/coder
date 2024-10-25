@@ -18,7 +18,6 @@ import (
 	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
-	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -37,7 +36,7 @@ var tailnetConnectorGracefulTimeout = time.Second
 // @typescript-ignore tailnetConn
 type tailnetConn interface {
 	tailnet.Coordinatee
-	SetDERPMap(derpMap *tailcfg.DERPMap)
+	tailnet.DERPMapSetter
 }
 
 // tailnetAPIConnector dials the tailnet API (v2+) and then uses the API with a tailnet.Conn to
@@ -65,7 +64,7 @@ type tailnetAPIConnector struct {
 	coordinateURL string
 	clock         quartz.Clock
 	dialOptions   *websocket.DialOptions
-	conn          tailnetConn
+	derpCtrl      tailnet.DERPController
 	coordCtrl     tailnet.CoordinationController
 	customDialFn  func() (proto.DRPCTailnetClient, error)
 
@@ -91,7 +90,6 @@ func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uui
 		coordinateURL: coordinateURL,
 		clock:         clock,
 		dialOptions:   dialOptions,
-		conn:          nil,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
 	}
@@ -112,7 +110,7 @@ func (tac *tailnetAPIConnector) manageGracefulTimeout() {
 
 // Runs a tailnetAPIConnector using the provided connection
 func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
-	tac.conn = conn
+	tac.derpCtrl = tailnet.NewBasicDERPController(tac.logger, conn)
 	tac.coordCtrl = tailnet.NewSingleDestController(tac.logger, conn, tac.agentID)
 	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
 	go tac.manageGracefulTimeout()
@@ -294,7 +292,9 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 }
 
 func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
-	s, err := client.StreamDERPMaps(tac.ctx, &proto.StreamDERPMapsRequest{})
+	s := &tailnet.DERPFromDRPCWrapper{}
+	var err error
+	s.Client, err = client.StreamDERPMaps(tac.ctx, &proto.StreamDERPMapsRequest{})
 	if err != nil {
 		return xerrors.Errorf("failed to connect to StreamDERPMaps RPC: %w", err)
 	}
@@ -304,21 +304,15 @@ func (tac *tailnetAPIConnector) derpMap(client proto.DRPCTailnetClient) error {
 			tac.logger.Debug(tac.ctx, "error closing StreamDERPMaps RPC", slog.Error(cErr))
 		}
 	}()
-	for {
-		dmp, err := s.Recv()
-		if err != nil {
-			if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
-				return nil
-			}
-			if !xerrors.Is(err, io.EOF) {
-				tac.logger.Error(tac.ctx, "error receiving DERP Map", slog.Error(err))
-			}
-			return err
-		}
-		tac.logger.Debug(tac.ctx, "got new DERP Map", slog.F("derp_map", dmp))
-		dm := tailnet.DERPMapFromProto(dmp)
-		tac.conn.SetDERPMap(dm)
+	cw := tac.derpCtrl.New(s)
+	err = <-cw.Wait()
+	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+		return nil
 	}
+	if err != nil && !xerrors.Is(err, io.EOF) {
+		tac.logger.Error(tac.ctx, "error receiving DERP Map", slog.Error(err))
+	}
+	return err
 }
 
 func (tac *tailnetAPIConnector) refreshToken(ctx context.Context, client proto.DRPCTailnetClient) {
