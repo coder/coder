@@ -41,13 +41,9 @@ const OrganizationSettingsPage: FC = () => {
 		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
-	if (!activeOrganization || !organizations.includes(activeOrganization)) {
-		return <EmptyState message="Organization not found" />;
-	}
-
-	// Redirect /organizations => /organizations/default-org, or if they cannot edit
-	// the default org, then the first org they can edit, if any.
-	if (!activeOrganization.name) {
+	// Redirect /organizations => /organizations/default-org, or if they cannot
+	// edit the default org, then the first org they can edit, if any.
+	if (!activeOrganization?.name) {
 		// .find will stop at the first match found; make sure default
 		// organizations are placed first
 		const editableOrg = [...organizations]
@@ -65,14 +61,20 @@ const OrganizationSettingsPage: FC = () => {
 		if (editableOrg) {
 			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
 		}
+
+		return <EmptyState message="No organizations found" />;
 	}
 
-	// The user may not be able to edit this org but they can still see it because
-	// they can edit members, etc.  In this case they will be shown a read-only
-	// summary page instead of the settings form.
-	// Similarly, if the feature is not entitled then the user will not be able to
-	// edit the organization.
-	if (
+	if (!activeOrganization || !organizations.includes(activeOrganization)) {
+		return <EmptyState message="Organization not found" />;
+	}
+
+	// The user may not be able to edit this org but they can still see it
+	// because they can edit members, etc. In this case they will be shown a
+	// read-only summary page instead of the settings form.
+	// Similarly, if the feature is not entitled then the user will not be able
+	// to edit the organization.
+	const userCannotEditOrg =
 		/**
 		 * @todo 2024-10-25 - MES - Do not remove the ?. chaining, even though
 		 * the compiler will let you do it
@@ -81,8 +83,8 @@ const OrganizationSettingsPage: FC = () => {
 		 * to deal with the case where a key does not exist in a Record
 		 */
 		!permissions[activeOrganization.id]?.editOrganization ||
-		!feats.multiple_organizations
-	) {
+		!feats.multiple_organizations;
+	if (userCannotEditOrg) {
 		return <OrganizationSummaryPageView organization={activeOrganization} />;
 	}
 
