@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, within } from "@storybook/test";
 import {
+	type Organization,
 	type Workspace,
 	type WorkspaceStatus,
 	WorkspaceStatuses,
@@ -269,6 +270,12 @@ export const InvalidPageNumber: Story = {
 	},
 };
 
+const mockOrganization: Organization = {
+	...MockOrganization,
+	name: "limbus-co",
+	display_name: "Limbus Company, LLC",
+};
+
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
@@ -276,13 +283,8 @@ export const ShowOrganizations: Story = {
 
 	parameters: {
 		showOrganizations: true,
-		organizations: [
-			{
-				...MockOrganization,
-				name: "limbus-co",
-				display_name: "Limbus Company, LLC",
-			},
-		],
+		activeOrganization: mockOrganization,
+		organizations: [mockOrganization],
 	},
 
 	play: async ({ canvasElement }) => {

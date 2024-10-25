@@ -8,7 +8,7 @@ import {
 import type { CustomRoleRequest } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -19,13 +19,15 @@ import CreateEditRolePageView from "./CreateEditRolePageView";
 export const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+	const { activeOrganization } = useDashboard();
 	const { organization: organizationName, roleName } = useParams() as {
 		organization: string;
 		roleName: string;
 	};
-	const { organizations } = useManagementSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+
+	const permissionsQuery = useQuery(
+		organizationPermissions(activeOrganization?.id),
+	);
 	const createOrganizationRoleMutation = useMutation(
 		createOrganizationRole(queryClient, organizationName),
 	);

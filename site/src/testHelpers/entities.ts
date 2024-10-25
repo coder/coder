@@ -2766,12 +2766,37 @@ export const MockPermissions: Permissions = {
 	viewUpdateCheck: true,
 	viewDeploymentStats: true,
 	viewExternalAuthConfig: true,
+	readWorkspaceProxies: true,
 	editWorkspaceProxies: true,
 	createOrganization: true,
 	editAnyOrganization: true,
 	viewAnyGroup: true,
 	createGroup: true,
 	viewAllLicenses: true,
+	viewNotificationTemplate: true,
+};
+
+export const MockNoPermissions: Permissions = {
+	createTemplates: false,
+	createUser: false,
+	deleteTemplates: false,
+	updateTemplates: false,
+	viewAllUsers: false,
+	updateUsers: false,
+	viewAnyAuditLog: false,
+	viewDeploymentValues: false,
+	editDeploymentValues: false,
+	viewUpdateCheck: false,
+	viewDeploymentStats: false,
+	viewExternalAuthConfig: false,
+	readWorkspaceProxies: false,
+	editWorkspaceProxies: false,
+	createOrganization: false,
+	editAnyOrganization: false,
+	viewAnyGroup: false,
+	createGroup: false,
+	viewAllLicenses: false,
+	viewNotificationTemplate: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

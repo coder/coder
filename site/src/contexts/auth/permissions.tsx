@@ -1,3 +1,5 @@
+import type { AuthorizationCheck } from "api/typesGenerated";
+
 export const checks = {
 	viewAllUsers: "viewAllUsers",
 	updateUsers: "updateUsers",
@@ -11,13 +13,17 @@ export const checks = {
 	viewUpdateCheck: "viewUpdateCheck",
 	viewExternalAuthConfig: "viewExternalAuthConfig",
 	viewDeploymentStats: "viewDeploymentStats",
+	readWorkspaceProxies: "readWorkspaceProxies",
 	editWorkspaceProxies: "editWorkspaceProxies",
 	createOrganization: "createOrganization",
 	editAnyOrganization: "editAnyOrganization",
 	viewAnyGroup: "viewAnyGroup",
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
-} as const;
+	viewNotificationTemplate: "viewNotificationTemplate",
+} as const satisfies Record<string, string>;
+
+type PermissionType = keyof typeof checks;
 
 export const permissionsToCheck = {
 	[checks.viewAllUsers]: {
@@ -94,6 +100,12 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
+	[checks.readWorkspaceProxies]: {
+		object: {
+			resource_type: "workspace_proxy",
+		},
+		action: "read",
+	},
 	[checks.editWorkspaceProxies]: {
 		object: {
 			resource_type: "workspace_proxy",
@@ -116,7 +128,6 @@ export const permissionsToCheck = {
 	[checks.viewAnyGroup]: {
 		object: {
 			resource_type: "group",
-			org_id: "any",
 		},
 		action: "read",
 	},
@@ -132,6 +143,12 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
-} as const;
+	[checks.viewNotificationTemplate]: {
+		object: {
+			resource_type: "notification_template",
+		},
+		action: "read",
+	},
+} as const satisfies Record<PermissionType, AuthorizationCheck>;
 
-export type Permissions = Record<keyof typeof permissionsToCheck, boolean>;
+export type Permissions = Record<PermissionType, boolean>;

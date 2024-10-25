@@ -9,8 +9,8 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -24,9 +24,10 @@ export const GroupsPage: FC = () => {
 		organization: string;
 	};
 	const groupsQuery = useQuery(groupsByOrganization(organizationName));
-	const { organizations } = useManagementSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const { organizations, activeOrganization } = useDashboard();
+	const permissionsQuery = useQuery(
+		organizationPermissions(activeOrganization?.id),
+	);
 
 	useEffect(() => {
 		if (groupsQuery.error) {
@@ -57,7 +58,7 @@ export const GroupsPage: FC = () => {
 		throw new Error("No default organization found");
 	}
 
-	if (!organization) {
+	if (!activeOrganization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
