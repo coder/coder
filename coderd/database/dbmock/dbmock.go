@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -3489,7 +3488,7 @@ func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 a
 }
 
 // InTx mocks base method.
-func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *sql.TxOptions) error {
+func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *database.TxOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InTx", arg0, arg1)
 	ret0, _ := ret[0].(error)

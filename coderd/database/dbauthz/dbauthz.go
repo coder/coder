@@ -558,7 +558,7 @@ func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 }
 
 // InTx runs the given function in a transaction.
-func (q *querier) InTx(function func(querier database.Store) error, txOpts *sql.TxOptions) error {
+func (q *querier) InTx(function func(querier database.Store) error, txOpts *database.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
 		// Wrap the transaction store in a querier.
 		wrapped := New(tx, q.auth, q.log, q.acs)

@@ -161,8 +161,9 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 				}
 			}
 			return nil
-		}, &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
+		}, &database.TxOptions{
+			Isolation:    sql.LevelRepeatableRead,
+			TxIdentifier: "rotate_keys",
 		})
 }
 
