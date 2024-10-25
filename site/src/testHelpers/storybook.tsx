@@ -25,9 +25,16 @@ export const withDashboardProvider = (
 		features = [],
 		experiments = [],
 		showOrganizations = false,
-		organizations = [MockDefaultOrganization],
-		activeOrganization = organizations[0] ?? MockDefaultOrganization,
 	} = parameters;
+
+	// Only set a default value for activeOrganizations if the original
+	// organizations array wasn't specified. In some cases, we want to have a
+	// list of organizations, but not have one be active
+	let { organizations, activeOrganization } = parameters;
+	if (organizations === undefined) {
+		organizations = [MockDefaultOrganization];
+		activeOrganization = MockDefaultOrganization;
+	}
 
 	const entitlements: Entitlements = {
 		...MockEntitlements,
