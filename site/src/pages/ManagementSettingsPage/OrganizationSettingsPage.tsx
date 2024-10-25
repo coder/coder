@@ -3,7 +3,6 @@ import {
 	organizationsPermissions,
 	updateOrganization,
 } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -13,7 +12,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { canEditOrganization } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
 
@@ -29,13 +28,8 @@ const OrganizationSettingsPage: FC = () => {
 	const deleteOrganizationMutation = useMutation(
 		deleteOrganization(queryClient),
 	);
-
-	const organization =
-		organizations && activeOrganization
-			? getOrganizationByName(organizations, activeOrganization.name)
-			: undefined;
 	const permissionsQuery = useQuery(
-		organizationsPermissions(organizations?.map((o) => o.id)),
+		organizationsPermissions(organizations.map((o) => o.id)),
 	);
 
 	if (permissionsQuery.isLoading) {
@@ -47,25 +41,30 @@ const OrganizationSettingsPage: FC = () => {
 		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
+	if (!activeOrganization || !organizations.includes(activeOrganization)) {
+		return <EmptyState message="Organization not found" />;
+	}
+
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
-	if (!activeOrganization?.name) {
+	if (!activeOrganization.name) {
+		// .find will stop at the first match found; make sure default
+		// organizations are placed first
 		const editableOrg = [...organizations]
 			.sort((a, b) => {
-				// Prefer default org (it may not be first).
-				// JavaScript will happily subtract booleans, but use numbers to keep
-				// the compiler happy.
-				return (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0);
+				if (a.is_default && !b.is_default) {
+					return -1;
+				}
+				if (b.is_default && !a.is_default) {
+					return 1;
+				}
+				return 0;
 			})
 			.find((org) => canEditOrganization(permissions[org.id]));
+
 		if (editableOrg) {
 			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
 		}
-		return <EmptyState message="No organizations found" />;
-	}
-
-	if (!organization) {
-		return <EmptyState message="Organization not found" />;
 	}
 
 	// The user may not be able to edit this org but they can still see it because
@@ -74,10 +73,17 @@ const OrganizationSettingsPage: FC = () => {
 	// Similarly, if the feature is not entitled then the user will not be able to
 	// edit the organization.
 	if (
-		!permissions[organization.id]?.editOrganization ||
+		/**
+		 * @todo 2024-10-25 - MES - Do not remove the ?. chaining, even though
+		 * the compiler will let you do it
+		 *
+		 * We need to tighten up the compiler settings more so that we're forced
+		 * to deal with the case where a key does not exist in a Record
+		 */
+		!permissions[activeOrganization.id]?.editOrganization ||
 		!feats.multiple_organizations
 	) {
-		return <OrganizationSummaryPageView organization={organization} />;
+		return <OrganizationSummaryPageView organization={activeOrganization} />;
 	}
 
 	const error =
@@ -85,19 +91,19 @@ const OrganizationSettingsPage: FC = () => {
 
 	return (
 		<OrganizationSettingsPageView
-			organization={organization}
+			organization={activeOrganization}
 			error={error}
 			onSubmit={async (values) => {
 				const updatedOrganization =
 					await updateOrganizationMutation.mutateAsync({
-						organizationId: organization.id,
+						organizationId: activeOrganization.id,
 						req: values,
 					});
 				navigate(`/organizations/${updatedOrganization.name}`);
 				displaySuccess("Organization settings updated.");
 			}}
 			onDeleteOrganization={() => {
-				deleteOrganizationMutation.mutate(organization.id);
+				deleteOrganizationMutation.mutate(activeOrganization.id);
 				displaySuccess("Organization deleted.");
 				navigate("/organizations");
 			}}
@@ -106,10 +112,3 @@ const OrganizationSettingsPage: FC = () => {
 };
 
 export default OrganizationSettingsPage;
-
-const getOrganizationByName = (
-	organizations: readonly Organization[],
-	name: string,
-) => {
-	return organizations.find((org) => org.name === name);
-};

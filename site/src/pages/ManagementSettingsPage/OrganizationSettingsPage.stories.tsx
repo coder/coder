@@ -3,6 +3,7 @@ import { reactRouterParameters } from "storybook-addon-remix-react-router";
 import {
 	MockDefaultOrganization,
 	MockOrganization,
+	MockOrganization2,
 	MockUser,
 } from "testHelpers/entities";
 import {
@@ -39,7 +40,7 @@ type Story = StoryObj<typeof OrganizationSettingsPage>;
 
 export const NoRedirectableOrganizations: Story = {
 	parameters: {
-		organizations: [],
+		organizations: [MockDefaultOrganization],
 		activeOrganization: undefined,
 	},
 };
@@ -47,10 +48,7 @@ export const NoRedirectableOrganizations: Story = {
 export const OrganizationDoesNotExist: Story = {
 	parameters: {
 		organizations: [MockDefaultOrganization],
-		activeOrganization: {
-			...MockOrganization,
-			name: "does-not-exist",
-		},
+		activeOrganization: MockOrganization2,
 		reactRouter: reactRouterParameters({
 			location: { pathParams: { organization: "does-not-exist" } },
 			routing: { path: "/organizations/:organization" },
