@@ -698,7 +698,15 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}()
 
 			options.Database = database.New(sqlDB)
-			ps, err := pubsub.New(ctx, logger.Named("pubsub"), sqlDB, dbURL)
+
+			// Some tests finish so fast that they exit while pubsub.New is running.
+			// However, pubsub.New starts a goroutine to listen for events. If the
+			// context is canceled before pubsub.New returns, the goroutine isn't
+			// cleaned up and the test fails.
+			// Using an uncancellable context prevents pubsub.New from being interrupted
+			// and allows such tests to exit cleanly.
+			uncancellableCtx := context.WithoutCancel(ctx)
+			ps, err := pubsub.New(uncancellableCtx, logger.Named("pubsub"), sqlDB, dbURL)
 			if err != nil {
 				return xerrors.Errorf("create pubsub: %w", err)
 			}
@@ -2666,7 +2674,13 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	// Some tests finish so fast that they exit while ConnectToPostgres is running.
+	// However, ConnectToPostgres starts a goroutine to open new connections. If the
+	// context is canceled, the goroutine isn't cleaned up and the test fails.
+	// Using an uncancellable context prevents ConnectToPostgres from being interrupted
+	// and allows such tests to exit cleanly.
+	uncancellableCtx := context.Background()
+	sqlDB, err := ConnectToPostgres(uncancellableCtx, logger, sqlDriver, dbURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}
