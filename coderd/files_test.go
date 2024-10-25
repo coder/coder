@@ -10,9 +10,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/fileszip"
 	"github.com/coder/coder/v2/fileszip/filesziptest"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -133,7 +133,7 @@ func TestDownload(t *testing.T) {
 		tarball := filesziptest.TestTarFileBytes()
 
 		tarReader := tar.NewReader(bytes.NewReader(tarball))
-		expectedZip, err := coderd.CreateZipFromTar(tarReader)
+		expectedZip, err := fileszip.CreateZipFromTar(tarReader, 10240)
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)

@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/cli/clitest"
-	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/fileszip"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -95,7 +95,7 @@ func TestTemplatePull_Stdout(t *testing.T) {
 
 	// Verify .zip format
 	tarReader := tar.NewReader(bytes.NewReader(expected))
-	expectedZip, err := coderd.CreateZipFromTar(tarReader)
+	expectedZip, err := fileszip.CreateZipFromTar(tarReader, int64(len(expected)))
 	require.NoError(t, err)
 
 	inv, root = clitest.New(t, "templates", "pull", "--zip", template.Name)
