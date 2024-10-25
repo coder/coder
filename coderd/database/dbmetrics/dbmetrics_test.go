@@ -22,7 +22,7 @@ func TestInTxMetrics(t *testing.T) {
 
 	successLabels := prometheus.Labels{
 		"success": "true",
-		"id":      "",
+		"tx_id":   "",
 	}
 	const inTxHistMetricName = "coderd_db_tx_duration_seconds"
 	const inTxCountMetricName = "coderd_db_tx_executions_count"
@@ -86,7 +86,7 @@ func TestInTxMetrics(t *testing.T) {
 		// Check that the metrics are registered
 		inTxHistMetric := promhelp.HistogramValue(t, reg, inTxHistMetricName, prometheus.Labels{
 			"success": "false",
-			"id":      id,
+			"tx_id":   id,
 		})
 		require.NotNil(t, inTxHistMetric)
 		require.Equal(t, uint64(1), inTxHistMetric.GetSampleCount())
@@ -94,7 +94,7 @@ func TestInTxMetrics(t *testing.T) {
 		inTxCountMetric := promhelp.CounterValue(t, reg, inTxCountMetricName, prometheus.Labels{
 			"success": "false",
 			"retries": "1",
-			"id":      id,
+			"tx_id":   id,
 		})
 		require.NotNil(t, inTxCountMetric)
 		require.Equal(t, 1, inTxCountMetric)
