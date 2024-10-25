@@ -1,6 +1,10 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { MockDefaultOrganization, MockUser } from "testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization,
+	MockUser,
+} from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,
@@ -35,13 +39,18 @@ type Story = StoryObj<typeof OrganizationSettingsPage>;
 
 export const NoRedirectableOrganizations: Story = {
 	parameters: {
+		organizations: [],
 		activeOrganization: undefined,
 	},
 };
 
 export const OrganizationDoesNotExist: Story = {
 	parameters: {
-		activeOrganization: undefined,
+		organizations: [MockDefaultOrganization],
+		activeOrganization: {
+			...MockOrganization,
+			name: "does-not-exist",
+		},
 		reactRouter: reactRouterParameters({
 			location: { pathParams: { organization: "does-not-exist" } },
 			routing: { path: "/organizations/:organization" },
