@@ -767,8 +767,9 @@ test-postgres: test-postgres-docker
 	$(GIT_FLAGS)  DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
+		--jsonfile-timing-events="result/$(shell date +%Y-%m-%d)/$(shell date +%Y-%m-%d-%H-%M-%S)-timings.json" \
 		--packages="./..." -- \
-		-timeout=20m \
+		-timeout=3m \
 		-failfast \
 		-count=1
 .PHONY: test-postgres
@@ -798,7 +799,7 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
+		postgres:${POSTGRES_VERSION}-alpine \
 		-c shared_buffers=1GB \
 		-c work_mem=1GB \
 		-c effective_cache_size=1GB \
