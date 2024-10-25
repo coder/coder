@@ -63,47 +63,45 @@ const isManagementRoutePermitted = (
 	// Switch logic for deployment routes should mirror the conditions used to
 	// display the sidebar tabs from SidebarView.tsx
 	const href = locationPath.replace(/^\/deployment/, "");
-	switch (href) {
-		case "/": {
-			return true;
-		}
-		case "/general": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/licenses": {
-			return permissions.viewAllLicenses;
-		}
-		case "/appearance": {
-			return permissions.editDeploymentValues;
-		}
-		case "/userauth": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/external-auth": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/network": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/workspace-proxies": {
-			return permissions.readWorkspaceProxies;
-		}
-		case "/security": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/observability": {
-			return permissions.viewDeploymentValues;
-		}
-		case "/users": {
-			return permissions.viewAllUsers;
-		}
-		case "/notifications": {
-			return permissions.viewNotificationTemplate;
-		}
-		default: {
-			return false;
-		}
+
+	if (href === "/" || href === "") {
+		return true;
 	}
+	if (href.startsWith("/general")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/licenses")) {
+		return permissions.viewAllLicenses;
+	}
+	if (href.startsWith("/appearance")) {
+		return permissions.editDeploymentValues;
+	}
+	if (href.startsWith("/userauth")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/external-auth")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/network")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/workspace-proxies")) {
+		return permissions.readWorkspaceProxies;
+	}
+	if (href.startsWith("/security")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/observability")) {
+		return permissions.viewDeploymentValues;
+	}
+	if (href.startsWith("/users")) {
+		return permissions.viewAllUsers;
+	}
+	if (href.startsWith("/notifications")) {
+		return permissions.viewNotificationTemplate;
+	}
+
+	return false;
 };
 
 /**
