@@ -207,9 +207,13 @@ func TestServer(t *testing.T) {
 	// reachable.
 	t.Run("LocalAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
@@ -229,10 +233,13 @@ func TestServer(t *testing.T) {
 	// and that a warning is printed for a host that cannot be resolved.
 	t.Run("RemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
 
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
@@ -251,9 +258,13 @@ func TestServer(t *testing.T) {
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
@@ -273,14 +284,18 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.WithContext(ctx).Run()
+		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 
@@ -289,9 +304,13 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -299,7 +318,7 @@ func TestServer(t *testing.T) {
 			"--tls-min-version", "tls9",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.WithContext(ctx).Run()
+		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSBadClientAuth", func(t *testing.T) {
@@ -307,9 +326,13 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -317,7 +340,7 @@ func TestServer(t *testing.T) {
 			"--tls-client-auth", "something",
 			"--cache-dir", t.TempDir(),
 		)
-		err := root.WithContext(ctx).Run()
+		err = root.WithContext(ctx).Run()
 		require.Error(t, err)
 	})
 	t.Run("TLSInvalid", func(t *testing.T) {
@@ -360,16 +383,20 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
+				connectionURL, closeFunc, err := dbtestutil.Open()
+				require.NoError(t, err)
+				defer closeFunc()
+
 				args := []string{
 					"server",
-					"--in-memory",
+					"--postgres-url", connectionURL,
 					"--http-address", ":0",
 					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
 				}
 				args = append(args, c.args...)
 				root, _ := clitest.New(t, args...)
-				err := root.WithContext(ctx).Run()
+				err = root.WithContext(ctx).Run()
 				require.Error(t, err)
 				t.Logf("args: %v", args)
 				require.ErrorContains(t, err, c.errContains)
@@ -381,10 +408,14 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		certPath, keyPath := generateTLSCertificate(t)
 		root, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -408,7 +439,7 @@ func TestServer(t *testing.T) {
 			},
 		}
 		defer client.HTTPClient.CloseIdleConnections()
-		_, err := client.HasFirstUser(ctx)
+		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 	})
 	t.Run("TLSValidMultiple", func(t *testing.T) {
@@ -416,11 +447,15 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		cert1Path, key1Path := generateTLSCertificate(t, "alpaca.com")
 		cert2Path, key2Path := generateTLSCertificate(t, "*.llama.com")
 		root, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -480,7 +515,7 @@ func TestServer(t *testing.T) {
 		// Use the first certificate and hostname.
 		client.URL.Host = "alpaca.com:443"
 		expectAddr = "alpaca.com:443"
-		_, err := client.HasFirstUser(ctx)
+		_, err = client.HasFirstUser(ctx)
 		require.NoError(t, err)
 		require.EqualValues(t, 1, atomic.LoadInt64(&dials))
 
@@ -497,10 +532,14 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		certPath, keyPath := generateTLSCertificate(t)
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -625,10 +664,14 @@ func TestServer(t *testing.T) {
 					httpListenAddr = ":0"
 				}
 
+				connectionURL, closeFunc, err := dbtestutil.Open()
+				require.NoError(t, err)
+				defer closeFunc()
+
 				certPath, keyPath := generateTLSCertificate(t)
 				flags := []string{
 					"server",
-					"--in-memory",
+					"--postgres-url", connectionURL,
 					"--cache-dir", t.TempDir(),
 					"--http-address", httpListenAddr,
 				}
@@ -738,41 +781,35 @@ func TestServer(t *testing.T) {
 
 	t.Run("CanListenUnspecifiedv4", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
 
-		root, _ := clitest.New(t,
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
+		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "0.0.0.0:0",
 			"--access-url", "http://example.com",
 		)
 
-		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-		serverStop := make(chan error, 1)
-		go func() {
-			err := root.WithContext(ctx).Run()
-			if err != nil {
-				t.Error(err)
-			}
-			close(serverStop)
-		}()
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
-
-		cancelFunc()
-		<-serverStop
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
 		t.Parallel()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "[::]:0",
 			"--access-url", "http://example.com",
 		)
@@ -789,14 +826,18 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":80",
 			"--tls-enable=false",
 			"--tls-address", "",
 		)
-		err := inv.WithContext(ctx).Run()
+		err = inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "tls-address")
 	})
@@ -806,13 +847,17 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--tls-enable=true",
 			"--tls-address", "",
 		)
-		err := inv.WithContext(ctx).Run()
+		err = inv.WithContext(ctx).Run()
 		require.Error(t, err)
 		require.ErrorContains(t, err, "must not be empty")
 	})
@@ -829,9 +874,13 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--address", ":0",
 				"--access-url", "http://example.com",
 				"--cache-dir", t.TempDir(),
@@ -846,7 +895,7 @@ func TestServer(t *testing.T) {
 			accessURL := waitAccessURL(t, cfg)
 			require.Equal(t, "http", accessURL.Scheme)
 			client := codersdk.New(accessURL)
-			_, err := client.HasFirstUser(ctx)
+			_, err = client.HasFirstUser(ctx)
 			require.NoError(t, err)
 		})
 
@@ -855,10 +904,14 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			certPath, keyPath := generateTLSCertificate(t)
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--address", ":0",
 				"--access-url", "https://example.com",
 				"--tls-enable",
@@ -885,7 +938,7 @@ func TestServer(t *testing.T) {
 				},
 			}
 			defer client.HTTPClient.CloseIdleConnections()
-			_, err := client.HasFirstUser(ctx)
+			_, err = client.HasFirstUser(ctx)
 			require.NoError(t, err)
 		})
 	})
@@ -893,9 +946,13 @@ func TestServer(t *testing.T) {
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--trace=true",
@@ -927,9 +984,13 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--telemetry",
@@ -951,9 +1012,13 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
@@ -1007,9 +1072,13 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
@@ -1053,9 +1122,13 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 
 		fakeRedirect := "https://fake-url.com"
+		connectionURL, closeFunc, err := dbtestutil.Open()
+		require.NoError(t, err)
+		defer closeFunc()
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--oauth2-github-allow-everyone",
@@ -1100,9 +1173,13 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
@@ -1176,9 +1253,13 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
@@ -1270,9 +1351,13 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 			)
@@ -1297,10 +1382,14 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			val := "100"
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", val,
@@ -1326,9 +1415,13 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", "-1",
@@ -1377,10 +1470,14 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1396,10 +1493,14 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1415,10 +1516,14 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1437,10 +1542,14 @@ func TestServer(t *testing.T) {
 
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			inv, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1469,6 +1578,10 @@ func TestServer(t *testing.T) {
 			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
 			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
 			// This is why we wait extra long below for server to listen on
@@ -1476,7 +1589,7 @@ func TestServer(t *testing.T) {
 			inv, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1510,9 +1623,13 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			connectionURL, closeFunc, err := dbtestutil.Open()
+			require.NoError(t, err)
+			defer closeFunc()
+
 			args := []string{
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
@@ -1632,9 +1749,13 @@ func TestServer_InterruptShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closeFunc()
+
 	root, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
@@ -1664,9 +1785,13 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closeFunc()
+
 	root, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
@@ -1691,7 +1816,7 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	// has started and access URL is propagated.
 	stopFunc()
 	pty.ExpectMatch("waiting for provisioner jobs to complete")
-	err := <-serverErr
+	err = <-serverErr
 	require.NoError(t, err)
 }
 
@@ -1817,16 +1942,20 @@ func TestServer_InvalidDERP(t *testing.T) {
 
 	// Try to start a server with the built-in DERP server disabled and no
 	// external DERP map.
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closeFunc()
+
 	inv, _ := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
 		"--derp-server-stun-addresses", "disable",
 		"--block-direct-connections",
 	)
-	err := inv.Run()
+	err = inv.Run()
 	require.Error(t, err)
 	require.ErrorContains(t, err, "A valid DERP map is required for networking to work")
 }
@@ -1843,11 +1972,15 @@ func TestServer_DisabledDERP(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
+	connectionURL, closeFunc, err := dbtestutil.Open()
+	require.NoError(t, err)
+	defer closeFunc()
+
 	// Try to start a server with the built-in DERP server disabled and an
 	// external DERP map.
 	inv, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
