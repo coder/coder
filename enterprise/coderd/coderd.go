@@ -457,6 +457,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
+			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)

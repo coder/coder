@@ -3623,6 +3623,23 @@ const docTemplate = `{
                 }
             }
         },
+        "/scim/v2/ServiceProviderConfig": {
+            "get": {
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Service Provider Config",
+                "operationId": "scim-get-service-provider-config",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/scim/v2/Users": {
             "get": {
                 "security": [

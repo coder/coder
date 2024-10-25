@@ -140,9 +140,15 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
+			// verify scim is enabled
+			res, err := client.Request(ctx, http.MethodGet, "/scim/v2/ServiceProviderConfig", nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
 			// when
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)

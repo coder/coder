@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"net/http"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -21,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/scim"
 )
 
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
@@ -32,6 +34,69 @@ func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 	}
 
 	return len(api.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.SCIMAPIKey) == 1
+}
+
+// scimServiceProviderConfig returns a static SCIM service provider configuration.
+//
+// @Summary SCIM 2.0: Service Provider Config
+// @ID scim-get-service-provider-config
+// @Produce application/scim+json
+// @Tags Enterprise
+// @Success 200
+// @Router /scim/v2/ServiceProviderConfig [get]
+func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Request) {
+	// No auth needed to query this endpoint.
+
+	rw.Header().Set("Content-Type", spec.ApplicationScimJson)
+	rw.WriteHeader(http.StatusOK)
+
+	// providerUpdated is the last time the static provider config was updated.
+	// Increment this time if you make any changes to the provider config.
+	providerUpdated := time.Date(2024, 10, 25, 17, 0, 0, 0, time.UTC)
+	var location string
+	locURL, err := api.AccessURL.Parse("/scim/v2/ServiceProviderConfig")
+	if err == nil {
+		location = locURL.String()
+	}
+
+	enc := json.NewEncoder(rw)
+	enc.SetEscapeHTML(true)
+	_ = enc.Encode(scim.ServiceProviderConfig{
+		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"},
+		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+		Patch: scim.Supported{
+			Supported: true,
+		},
+		Bulk: scim.BulkSupported{
+			Supported: false,
+		},
+		Filter: scim.FilterSupported{
+			Supported: false,
+		},
+		ChangePassword: scim.Supported{
+			Supported: false,
+		},
+		Sort: scim.Supported{
+			Supported: false,
+		},
+		ETag: scim.Supported{
+			Supported: false,
+		},
+		AuthSchemes: []scim.AuthenticationScheme{
+			{
+				Type:        "oauthbearertoken",
+				Name:        "HTTP Header Authentication",
+				Description: "Authentication scheme using the Authorization header with the shared token",
+				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+			},
+		},
+		Meta: scim.ServiceProviderMeta{
+			Created:      providerUpdated,
+			LastModified: providerUpdated,
+			Location:     location,
+			ResourceType: "ServiceProviderConfig",
+		},
+	})
 }
 
 // scimGetUsers intentionally always returns no users. This is done to always force
