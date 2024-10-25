@@ -8997,6 +8997,12 @@ const docTemplate = `{
                 },
                 "status": {
                     "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
                 }
             }
         },

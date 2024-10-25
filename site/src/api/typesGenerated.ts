@@ -40,6 +40,8 @@ export interface AgentScriptTiming {
 	readonly stage: string;
 	readonly status: string;
 	readonly display_name: string;
+	readonly workspace_agent_id: string;
+	readonly workspace_agent_name: string;
 }
 
 // From codersdk/templates.go

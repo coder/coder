@@ -1002,12 +1002,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	}
 	for _, t := range agentScriptTimings {
 		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
-			StartedAt:   t.StartedAt,
-			EndedAt:     t.EndedAt,
-			ExitCode:    t.ExitCode,
-			Stage:       string(t.Stage),
-			Status:      string(t.Status),
-			DisplayName: t.DisplayName,
+			StartedAt:          t.StartedAt,
+			EndedAt:            t.EndedAt,
+			ExitCode:           t.ExitCode,
+			Stage:              string(t.Stage),
+			Status:             string(t.Status),
+			DisplayName:        t.DisplayName,
+			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
+			WorkspaceAgentName: t.WorkspaceAgentName,
 		})
 	}
 

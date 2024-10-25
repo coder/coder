@@ -358,20 +358,24 @@
 	"exit_code": 0,
 	"stage": "string",
 	"started_at": "2019-08-24T14:15:22Z",
-	"status": "string"
+	"status": "string",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `display_name` | string  | false    |              |             |
-| `ended_at`     | string  | false    |              |             |
-| `exit_code`    | integer | false    |              |             |
-| `stage`        | string  | false    |              |             |
-| `started_at`   | string  | false    |              |             |
-| `status`       | string  | false    |              |             |
+| Name                   | Type    | Required | Restrictions | Description |
+| ---------------------- | ------- | -------- | ------------ | ----------- |
+| `display_name`         | string  | false    |              |             |
+| `ended_at`             | string  | false    |              |             |
+| `exit_code`            | integer | false    |              |             |
+| `stage`                | string  | false    |              |             |
+| `started_at`           | string  | false    |              |             |
+| `status`               | string  | false    |              |             |
+| `workspace_agent_id`   | string  | false    |              |             |
+| `workspace_agent_name` | string  | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -7384,7 +7388,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"exit_code": 0,
 			"stage": "string",
 			"started_at": "2019-08-24T14:15:22Z",
-			"status": "string"
+			"status": "string",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
 		}
 	],
 	"provisioner_timings": [

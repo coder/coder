@@ -1320,6 +1320,8 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+			require.Equal(t, agent.ID.String(), timingRes.WorkspaceAgentID)
+			require.Equal(t, agent.Name, timingRes.WorkspaceAgentName)
 		}
 	})
 

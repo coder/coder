@@ -186,12 +186,14 @@ type ProvisionerTiming struct {
 }
 
 type AgentScriptTiming struct {
-	StartedAt   time.Time `json:"started_at" format:"date-time"`
-	EndedAt     time.Time `json:"ended_at" format:"date-time"`
-	ExitCode    int32     `json:"exit_code"`
-	Stage       string    `json:"stage"`
-	Status      string    `json:"status"`
-	DisplayName string    `json:"display_name"`
+	StartedAt          time.Time `json:"started_at" format:"date-time"`
+	EndedAt            time.Time `json:"ended_at" format:"date-time"`
+	ExitCode           int32     `json:"exit_code"`
+	Stage              string    `json:"stage"`
+	Status             string    `json:"status"`
+	DisplayName        string    `json:"display_name"`
+	WorkspaceAgentID   string    `json:"workspace_agent_id"`
+	WorkspaceAgentName string    `json:"workspace_agent_name"`
 }
 
 type WorkspaceBuildTimings struct {
