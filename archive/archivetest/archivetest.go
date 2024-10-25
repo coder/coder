@@ -1,4 +1,4 @@
-package filesziptest
+package archivetest
 
 import (
 	"archive/tar"
@@ -19,14 +19,17 @@ var testTarFileBytes []byte
 //go:embed testdata/test.zip
 var testZipFileBytes []byte
 
+// TestTarFileBytes returns the content of testdata/test.tar
 func TestTarFileBytes() []byte {
 	return append([]byte{}, testTarFileBytes...)
 }
 
+// TestZipFileBytes returns the content of testdata/test.zip
 func TestZipFileBytes() []byte {
 	return append([]byte{}, testZipFileBytes...)
 }
 
+// AssertSampleTarfile compares the content of tarBytes against testdata/test.tar.
 func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 	t.Helper()
 
@@ -68,6 +71,7 @@ func AssertSampleTarFile(t *testing.T, tarBytes []byte) {
 	}
 }
 
+// AssertSampleZipFile compares the content of zipBytes against testdata/test.zip.
 func AssertSampleZipFile(t *testing.T, zipBytes []byte) {
 	t.Helper()
 

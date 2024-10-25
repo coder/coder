@@ -16,12 +16,12 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/fileszip"
 )
 
 const (
@@ -76,7 +76,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data, err = fileszip.CreateTarFromZip(zipReader, httpFileMaxBytes)
+		data, err = archive.CreateTarFromZip(zipReader, httpFileMaxBytes)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error processing .zip archive.",
@@ -182,7 +182,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 
 		rw.Header().Set("Content-Type", codersdk.ContentTypeZip)
 		rw.WriteHeader(http.StatusOK)
-		err = fileszip.WriteZipArchive(rw, tar.NewReader(bytes.NewReader(file.Data)), httpFileMaxBytes)
+		err = archive.WriteZip(rw, tar.NewReader(bytes.NewReader(file.Data)), httpFileMaxBytes)
 		if err != nil {
 			api.Logger.Error(ctx, "invalid .zip archive", slog.F("file_id", fileID), slog.F("mimetype", file.Mimetype), slog.Error(err))
 		}

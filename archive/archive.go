@@ -1,4 +1,4 @@
-package fileszip
+package archive
 
 import (
 	"archive/tar"
@@ -10,6 +10,7 @@ import (
 	"strings"
 )
 
+// CreateTarFromZip converts the given zipReader to a tar archive.
 func CreateTarFromZip(zipReader *zip.Reader, maxSize int64) ([]byte, error) {
 	var tarBuffer bytes.Buffer
 	err := writeTarArchive(&tarBuffer, zipReader, maxSize)
@@ -60,16 +61,18 @@ func processFileInZipArchive(file *zip.File, tarWriter *tar.Writer, maxSize int6
 	return err
 }
 
+// CreateZipFromTar converts the given tarReader to a zip archive.
 func CreateZipFromTar(tarReader *tar.Reader, maxSize int64) ([]byte, error) {
 	var zipBuffer bytes.Buffer
-	err := WriteZipArchive(&zipBuffer, tarReader, maxSize)
+	err := WriteZip(&zipBuffer, tarReader, maxSize)
 	if err != nil {
 		return nil, err
 	}
 	return zipBuffer.Bytes(), nil
 }
 
-func WriteZipArchive(w io.Writer, tarReader *tar.Reader, maxSize int64) error {
+// WriteZip writes the given tarReader to w.
+func WriteZip(w io.Writer, tarReader *tar.Reader, maxSize int64) error {
 	zipWriter := zip.NewWriter(w)
 	defer zipWriter.Close()
 

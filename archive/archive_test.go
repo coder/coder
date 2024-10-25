@@ -1,4 +1,4 @@
-package fileszip_test
+package archive_test
 
 import (
 	"archive/tar"
@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/fileszip"
-	"github.com/coder/coder/v2/fileszip/filesziptest"
+	"github.com/coder/coder/v2/archive"
+	"github.com/coder/coder/v2/archive/archivetest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -28,17 +28,17 @@ func TestCreateTarFromZip(t *testing.T) {
 
 	// Read a zip file we prepared earlier
 	ctx := testutil.Context(t, testutil.WaitShort)
-	zipBytes := filesziptest.TestZipFileBytes()
+	zipBytes := archivetest.TestZipFileBytes()
 	// Assert invariant
-	filesziptest.AssertSampleZipFile(t, zipBytes)
+	archivetest.AssertSampleZipFile(t, zipBytes)
 
 	zr, err := zip.NewReader(bytes.NewReader(zipBytes), int64(len(zipBytes)))
 	require.NoError(t, err, "failed to parse sample zip file")
 
-	tarBytes, err := fileszip.CreateTarFromZip(zr, 10240)
+	tarBytes, err := archive.CreateTarFromZip(zr, int64(len(zipBytes)))
 	require.NoError(t, err, "failed to convert zip to tar")
 
-	filesziptest.AssertSampleTarFile(t, tarBytes)
+	archivetest.AssertSampleTarFile(t, tarBytes)
 
 	tempDir := t.TempDir()
 	tempFilePath := filepath.Join(tempDir, "test.tar")
@@ -57,13 +57,13 @@ func TestCreateZipFromTar(t *testing.T) {
 	}
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
-		tarBytes := filesziptest.TestTarFileBytes()
+		tarBytes := archivetest.TestTarFileBytes()
 
 		tr := tar.NewReader(bytes.NewReader(tarBytes))
-		zipBytes, err := fileszip.CreateZipFromTar(tr, 10240)
+		zipBytes, err := archive.CreateZipFromTar(tr, int64(len(tarBytes)))
 		require.NoError(t, err)
 
-		filesziptest.AssertSampleZipFile(t, zipBytes)
+		archivetest.AssertSampleZipFile(t, zipBytes)
 
 		tempDir := t.TempDir()
 		tempFilePath := filepath.Join(tempDir, "test.zip")
@@ -95,7 +95,7 @@ func TestCreateZipFromTar(t *testing.T) {
 
 		// When: we convert this to a zip
 		tr := tar.NewReader(&tarBytes)
-		zipBytes, err := fileszip.CreateZipFromTar(tr, 10240)
+		zipBytes, err := archive.CreateZipFromTar(tr, int64(tarBytes.Len()))
 		require.NoError(t, err)
 
 		// Then: the resulting zip should contain a corresponding directory
@@ -129,7 +129,7 @@ func assertExtractedFiles(t *testing.T, dir string, checkModePerm bool) {
 			if checkModePerm {
 				assert.Equal(t, fs.ModePerm&0o755, stat.Mode().Perm(), "expected mode 0755 on directory")
 			}
-			assert.Equal(t, filesziptest.ArchiveRefTime(t).UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
+			assert.Equal(t, archivetest.ArchiveRefTime(t).UTC(), stat.ModTime().UTC(), "unexpected modtime of %q", path)
 		case "/test/hello.txt":
 			stat, err := os.Stat(path)
 			assert.NoError(t, err, "failed to stat path %q", path)
