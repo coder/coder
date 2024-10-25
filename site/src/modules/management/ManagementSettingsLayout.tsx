@@ -47,11 +47,15 @@ export const canEditOrganization = (
 	);
 };
 
-const isManagementRoutePermitted = (
+export const isManagementRoutePermitted = (
 	locationPath: string,
 	permissions: Permissions,
 	showOrganizations: boolean,
 ): boolean => {
+	if (!locationPath.startsWith("/")) {
+		return false;
+	}
+
 	if (locationPath.startsWith("/organizations")) {
 		return showOrganizations;
 	}
@@ -65,7 +69,8 @@ const isManagementRoutePermitted = (
 	const href = locationPath.replace(/^\/deployment/, "");
 
 	if (href === "/" || href === "") {
-		return true;
+		const hasAtLeastOnePermission = Object.values(permissions).some((v) => v);
+		return hasAtLeastOnePermission;
 	}
 	if (href.startsWith("/general")) {
 		return permissions.viewDeploymentValues;
@@ -99,6 +104,9 @@ const isManagementRoutePermitted = (
 	}
 	if (href.startsWith("/notifications")) {
 		return permissions.viewNotificationTemplate;
+	}
+	if (href.startsWith("/oauth2-provider")) {
+		return permissions.viewExternalAuthConfig;
 	}
 
 	return false;
