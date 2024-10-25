@@ -41,7 +41,7 @@ func NewDBMetrics(s database.Store, logger slog.Logger, reg prometheus.Registere
 		// retries = Executions - 1 (as 1 execute is expected)
 		"retries",
 		// Uniquely naming some transactions can help debug reoccurring errors.
-		"id",
+		"tx_id",
 	})
 	reg.MustRegister(txRetries)
 
@@ -54,7 +54,7 @@ func NewDBMetrics(s database.Store, logger slog.Logger, reg prometheus.Registere
 	}, []string{
 		"success", // Did the InTx function return an error?
 		// Uniquely naming some transactions can help debug reoccurring errors.
-		"id",
+		"tx_id",
 	})
 	reg.MustRegister(txDuration)
 	return &metricsStore{
@@ -82,13 +82,13 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 	// So IDs should be used sparingly to prevent too much bloat.
 	m.txDuration.With(prometheus.Labels{
 		"success": strconv.FormatBool(err == nil),
-		"id":      options.TxIdentifier, // Can be empty string for unlabeled
+		"tx_id":   options.TxIdentifier, // Can be empty string for unlabeled
 	}).Observe(dur.Seconds())
 
 	m.txRetries.With(prometheus.Labels{
 		"success": strconv.FormatBool(err == nil),
 		"retries": strconv.FormatInt(int64(options.ExecutionCount()-1), 10),
-		"id":      options.TxIdentifier, // Can be empty string for unlabeled
+		"tx_id":   options.TxIdentifier, // Can be empty string for unlabeled
 	}).Inc()
 
 	// Log all serializable transactions that are retried.
@@ -109,7 +109,7 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 			// since the first error was a serialization error.
 			slog.Error(err), // Might be nil, that is ok!
 			slog.F("executions", options.ExecutionCount()),
-			slog.F("id", options.TxIdentifier),
+			slog.F("tx_id", options.TxIdentifier),
 			slog.F("duration", dur),
 		)
 	}
