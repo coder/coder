@@ -60,8 +60,8 @@ const isManagementRoutePermitted = (
 		return false;
 	}
 
-	// Switch logic for deployment routes should mirror the conditions used to
-	// display the sidebar tabs from SidebarView.tsx
+	// Logic for deployment routes should mirror the conditions used to display
+	// the sidebar tabs from SidebarView.tsx
 	const href = locationPath.replace(/^\/deployment/, "");
 
 	if (href === "/" || href === "") {
