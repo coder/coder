@@ -782,11 +782,14 @@ func TestServer(t *testing.T) {
 	t.Run("CanListenUnspecifiedv4", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
 		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
-		inv, _ := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--postgres-url", connectionURL,
 			"--http-address", "0.0.0.0:0",
@@ -798,16 +801,28 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
+
+		// We wait here to ensure the database is ready.
+		// If you finish the test while the database is still
+		// bootstrapping, you will see a hanging goroutine from pubsub's listener.
+		accessURL := waitAccessURL(t, cfg)
+		require.Equal(t, "http", accessURL.Scheme)
+		client := codersdk.New(accessURL)
+		_, err = client.HasFirstUser(ctx)
+		require.NoError(t, err)
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
 		t.Parallel()
 
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		defer cancelFunc()
+
 		connectionURL, closeFunc, err := dbtestutil.Open()
 		require.NoError(t, err)
 		defer closeFunc()
 
-		inv, _ := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--postgres-url", connectionURL,
 			"--http-address", "[::]:0",
@@ -819,6 +834,15 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("Started HTTP listener at")
 		pty.ExpectMatch("http://[::]:")
+
+		// We wait here to ensure the database is ready.
+		// If you finish the test while the database is still
+		// bootstrapping, you will see a hanging goroutine from pubsub's listener.
+		accessURL := waitAccessURL(t, cfg)
+		require.Equal(t, "http", accessURL.Scheme)
+		client := codersdk.New(accessURL)
+		_, err = client.HasFirstUser(ctx)
+		require.NoError(t, err)
 	})
 
 	t.Run("NoAddress", func(t *testing.T) {
