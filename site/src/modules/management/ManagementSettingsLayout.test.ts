@@ -1,7 +1,7 @@
-import type { Permissions } from "contexts/auth/permissions";
-import { isManagementRoutePermitted } from "./ManagementSettingsLayout";
-import { MockNoPermissions, MockPermissions } from "testHelpers/entities";
 import { Permission } from "api/typesGenerated";
+import type { Permissions } from "contexts/auth/permissions";
+import { MockNoPermissions, MockPermissions } from "testHelpers/entities";
+import { isManagementRoutePermitted } from "./ManagementSettingsLayout";
 
 describe(isManagementRoutePermitted.name, () => {
 	describe("General behavior", () => {
