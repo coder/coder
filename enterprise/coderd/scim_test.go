@@ -82,7 +82,7 @@ func TestScim(t *testing.T) {
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
 			require.NoError(t, err)
 			defer res.Body.Close()
-			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+			assert.Equal(t, http.StatusForbidden, res.StatusCode)
 		})
 
 		t.Run("noAuth", func(t *testing.T) {
@@ -362,7 +362,7 @@ func TestScim(t *testing.T) {
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
-			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+			assert.Equal(t, http.StatusForbidden, res.StatusCode)
 		})
 
 		t.Run("noAuth", func(t *testing.T) {
