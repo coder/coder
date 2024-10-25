@@ -9,7 +9,7 @@ import (
 	"github.com/mitchellh/go-wordwrap"
 
 	"github.com/coder/coder/v2/coderd/tracing"
-	"github.com/coder/coder/v2/provisioner/terraform/tfextract"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -26,12 +26,12 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
-	workspaceTags, err := tfextract.WorkspaceTags(ctx, s.logger, module)
+	workspaceTags, err := tfparse.WorkspaceTags(ctx, s.logger, module)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)
 	}
 
-	templateVariables, err := tfextract.LoadTerraformVariables(module)
+	templateVariables, err := tfparse.LoadTerraformVariables(module)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load template variables: %v", err)
 	}

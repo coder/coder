@@ -1,4 +1,4 @@
-package tfextract
+package tfparse
 
 import (
 	"context"
