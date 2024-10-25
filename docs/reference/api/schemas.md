@@ -349,6 +349,26 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentConnectionTiming
+
+```json
+{
+	"ended_at": "2019-08-24T14:15:22Z",
+	"started_at": "2019-08-24T14:15:22Z",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type   | Required | Restrictions | Description |
+| ---------------------- | ------ | -------- | ------------ | ----------- |
+| `ended_at`             | string | false    |              |             |
+| `started_at`           | string | false    |              |             |
+| `workspace_agent_id`   | string | false    |              |             |
+| `workspace_agent_name` | string | false    |              |             |
+
 ## codersdk.AgentScriptTiming
 
 ```json
@@ -7381,6 +7401,14 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+	"agent_connection_timings": [
+		{
+			"ended_at": "2019-08-24T14:15:22Z",
+			"started_at": "2019-08-24T14:15:22Z",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
+		}
+	],
 	"agent_script_timings": [
 		{
 			"display_name": "string",
@@ -7409,10 +7437,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                              | Required | Restrictions | Description |
-| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
-| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+| Name                       | Type                                                                      | Required | Restrictions | Description |
+| -------------------------- | ------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `agent_connection_timings` | array of [codersdk.AgentConnectionTiming](#codersdkagentconnectiontiming) | false    |              |             |
+| `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              |             |
+| `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |             |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 

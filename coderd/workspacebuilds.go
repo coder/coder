@@ -984,9 +984,23 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
 	}
 
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace resources: %w", err)
+	}
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agents: %w", err)
+	}
+
 	res := codersdk.WorkspaceBuildTimings{
-		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
-		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+		ProvisionerTimings:     make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+		AgentScriptTimings:     make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+		AgentConnectionTimings: make([]codersdk.AgentConnectionTiming, 0, len(agents)),
 	}
 
 	for _, t := range provisionerTimings {
@@ -1010,6 +1024,14 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			DisplayName:        t.DisplayName,
 			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
 			WorkspaceAgentName: t.WorkspaceAgentName,
+		})
+	}
+	for _, agent := range agents {
+		res.AgentConnectionTimings = append(res.AgentConnectionTimings, codersdk.AgentConnectionTiming{
+			WorkspaceAgentID:   agent.ID.String(),
+			WorkspaceAgentName: agent.Name,
+			StartedAt:          agent.CreatedAt,
+			EndedAt:            agent.FirstConnectedAt.Time,
 		})
 	}
 

@@ -33,6 +33,14 @@ export interface AddLicenseRequest {
 }
 
 // From codersdk/workspacebuilds.go
+export interface AgentConnectionTiming {
+	readonly started_at: string;
+	readonly ended_at: string;
+	readonly workspace_agent_id: string;
+	readonly workspace_agent_name: string;
+}
+
+// From codersdk/workspacebuilds.go
 export interface AgentScriptTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
@@ -1987,6 +1995,7 @@ export interface WorkspaceBuildParameter {
 export interface WorkspaceBuildTimings {
 	readonly provisioner_timings: Readonly<Array<ProvisionerTiming>>;
 	readonly agent_script_timings: Readonly<Array<AgentScriptTiming>>;
+	readonly agent_connection_timings: Readonly<Array<AgentConnectionTiming>>;
 }
 
 // From codersdk/workspaces.go

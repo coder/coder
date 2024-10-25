@@ -8975,6 +8975,25 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentConnectionTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -14755,6 +14774,12 @@ const docTemplate = `{
         "codersdk.WorkspaceBuildTimings": {
             "type": "object",
             "properties": {
+                "agent_connection_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentConnectionTiming"
+                    }
+                },
                 "agent_script_timings": {
                     "type": "array",
                     "items": {

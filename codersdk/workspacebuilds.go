@@ -196,9 +196,17 @@ type AgentScriptTiming struct {
 	WorkspaceAgentName string    `json:"workspace_agent_name"`
 }
 
+type AgentConnectionTiming struct {
+	StartedAt          time.Time `json:"started_at" format:"date-time"`
+	EndedAt            time.Time `json:"ended_at" format:"date-time"`
+	WorkspaceAgentID   string    `json:"workspace_agent_id"`
+	WorkspaceAgentName string    `json:"workspace_agent_name"`
+}
+
 type WorkspaceBuildTimings struct {
-	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
-	AgentScriptTimings []AgentScriptTiming `json:"agent_script_timings"`
+	ProvisionerTimings     []ProvisionerTiming     `json:"provisioner_timings"`
+	AgentScriptTimings     []AgentScriptTiming     `json:"agent_script_timings"`
+	AgentConnectionTimings []AgentConnectionTiming `json:"agent_connection_timings"`
 }
 
 func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (WorkspaceBuildTimings, error) {
