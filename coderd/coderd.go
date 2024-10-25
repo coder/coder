@@ -271,6 +271,10 @@ type Options struct {
 
 // @BasePath /api/v2
 
+// @securitydefinitions.apiKey Authorization
+// @in header
+// @name Authorizaiton
+
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
 // @name Coder-Session-Token

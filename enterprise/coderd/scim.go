@@ -40,7 +40,7 @@ func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 //
 // @Summary SCIM 2.0: Get users
 // @ID scim-get-users
-// @Security CoderSessionToken
+// @Security Authorization
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Success 200
@@ -67,7 +67,7 @@ func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary SCIM 2.0: Get user by ID
 // @ID scim-get-user-by-id
-// @Security CoderSessionToken
+// @Security Authorization
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Param id path string true "User ID" format(uuid)
@@ -118,7 +118,7 @@ var SCIMAuditAdditionalFields = map[string]string{
 //
 // @Summary SCIM 2.0: Create new user
 // @ID scim-create-new-user
-// @Security CoderSessionToken
+// @Security Authorization
 // @Produce json
 // @Tags Enterprise
 // @Param request body coderd.SCIMUser true "New user"
@@ -254,7 +254,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 //
 // @Summary SCIM 2.0: Update user account
 // @ID scim-update-user-status
-// @Security CoderSessionToken
+// @Security Authorization
 // @Produce application/scim+json
 // @Tags Enterprise
 // @Param id path string true "User ID" format(uuid)

@@ -3193,7 +3193,7 @@
 			"get": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -3209,7 +3209,7 @@
 			"post": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/json"],
@@ -3241,7 +3241,7 @@
 			"get": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -3267,7 +3267,7 @@
 			"patch": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -14902,6 +14902,11 @@
 		}
 	},
 	"securityDefinitions": {
+		"Authorization": {
+			"type": "apiKey",
+			"name": "Authorizaiton",
+			"in": "header"
+		},
 		"CoderSessionToken": {
 			"type": "apiKey",
 			"name": "Coder-Session-Token",
