@@ -96,7 +96,7 @@ jobs:
           # version in the comments will differ. This is also defined in
           # ci.yaml.
           set -x
-          cd dogfood
+          cd dogfood/contents
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
           protoc_path=/usr/local/bin/protoc
           docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
@@ -143,16 +143,6 @@ jobs:
           name: trivy
           path: trivy-results.sarif
           retention-days: 7
-
-      # Prisma cloud scan runs last because it fails the entire job if it
-      # detects vulnerabilities. :|
-      - name: Run Prisma Cloud image scan
-        uses: PaloAltoNetworks/prisma-cloud-scan@124b48d8325c23f58a35da0f1b4d9a6b54301d05 # v1.6.7
-        with:
-          pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
-          pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
-          pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
-          image_name: ${{ steps.build.outputs.image }}
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}

@@ -30,7 +30,8 @@ var (
 
 // Template-related events.
 var (
-	TemplateTemplateDeleted = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
+	TemplateTemplateDeleted    = uuid.MustParse("29a09665-2a4c-403f-9648-54301670e7be")
+	TemplateTemplateDeprecated = uuid.MustParse("f40fae84-55a2-42cd-99fa-b41c1ca64894")
 
 	TemplateWorkspaceBuildsFailedReport = uuid.MustParse("34a20db2-e9cc-4a93-b0e4-8569699d7a00")
 )

@@ -90,6 +90,7 @@ jobs:
               - "coderd/**"
               - "enterprise/**"
               - "examples/*"
+              - "helm/**"
               - "provisioner/**"
               - "provisionerd/**"
               - "provisionersdk/**"

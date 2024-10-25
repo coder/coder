@@ -140,8 +140,7 @@ spec:
             weight: 1
       containers:
       - args:
-        - arg1
-        - arg2
+        - server
         command:
         - /opt/coder
         env:
@@ -188,4 +187,11 @@ spec:
       restartPolicy: Always
       serviceAccountName: coder
       terminationGracePeriodSeconds: 60
+      topologySpreadConstraints:
+      - labelSelector:
+          matchLabels:
+            app.kubernetes.io/instance: coder
+        maxSkew: 1
+        topologyKey: kubernetes.io/hostname
+        whenUnsatisfiable: DoNotSchedule
       volumes: []
