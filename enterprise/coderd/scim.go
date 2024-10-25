@@ -23,17 +23,6 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (api *API) scimEnabledMW(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-		if !api.Entitlements.Enabled(codersdk.FeatureSCIM) {
-			httpapi.RouteNotFound(rw)
-			return
-		}
-
-		next.ServeHTTP(rw, r)
-	})
-}
-
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
 	bearer := []byte("Bearer ")
 	hdr := []byte(r.Header.Get("Authorization"))
