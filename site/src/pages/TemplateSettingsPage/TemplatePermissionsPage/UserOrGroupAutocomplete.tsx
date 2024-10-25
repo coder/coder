@@ -74,7 +74,7 @@ export const UserOrGroupAutocomplete: FC<UserOrGroupAutocompleteProps> = ({
 			}}
 			onClose={() => {
 				setAutoComplete({
-					value: isGroup(value) ? value.display_name : value?.email ?? "",
+					value: isGroup(value) ? value.display_name : (value?.email ?? ""),
 					open: false,
 				});
 			}}

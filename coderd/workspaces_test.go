@@ -392,7 +392,7 @@ func TestResolveAutostart(t *testing.T) {
 	defer cancel()
 
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
-	resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:          member.ID,
 		OrganizationID:   owner.OrganizationID,
 		AutomaticUpdates: database.AutomaticUpdatesAlways,
@@ -456,22 +456,22 @@ func TestWorkspacesSortOrder(t *testing.T) {
 	})
 
 	// c-workspace should be running
-	wsbC := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+	wsbC := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "c-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	// b-workspace should be stopped
-	wsbB := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	wsbB := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "b-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// a-workspace should be running
-	wsbA := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
+	wsbA := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "a-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Do()
 
 	// d-workspace should be stopped
-	wsbD := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "d-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	wsbD := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "d-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// e-workspace should also be stopped
-	wsbE := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "e-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	wsbE := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "e-workspace", OwnerID: secondUser.ID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	// f-workspace is also stopped, but is marked as favorite
-	wsbF := dbfake.WorkspaceBuild(t, db, database.Workspace{Name: "f-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
+	wsbF := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{Name: "f-workspace", OwnerID: firstUser.UserID, OrganizationID: firstUser.OrganizationID}).Seed(database.WorkspaceBuild{Transition: database.WorkspaceTransitionStop}).Do()
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
@@ -905,7 +905,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 		CreatedBy:       owner.UserID,
 	})
 
-	makeWorkspace := func(workspace database.Workspace, job database.ProvisionerJob, transition database.WorkspaceTransition) (database.Workspace, database.WorkspaceBuild, database.ProvisionerJob) {
+	makeWorkspace := func(workspace database.WorkspaceTable, job database.ProvisionerJob, transition database.WorkspaceTransition) (database.WorkspaceTable, database.WorkspaceBuild, database.ProvisionerJob) {
 		db := db
 
 		workspace.OwnerID = owner.UserID
@@ -940,21 +940,21 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}
 
 	// pending
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusPending),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Valid: false},
 	}, database.WorkspaceTransitionStart)
 
 	// starting
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusStarting),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionStart)
 
 	// running
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusRunning),
 	}, database.ProvisionerJob{
 		CompletedAt: sql.NullTime{Time: time.Now(), Valid: true},
@@ -962,14 +962,14 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// stopping
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusStopping),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionStop)
 
 	// stopped
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusStopped),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -977,7 +977,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStop)
 
 	// failed -- delete
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusFailed) + "-deleted",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -986,7 +986,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionDelete)
 
 	// failed -- stop
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusFailed) + "-stopped",
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -995,7 +995,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStop)
 
 	// canceling
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusCanceling),
 	}, database.ProvisionerJob{
 		StartedAt:  sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -1003,7 +1003,7 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// canceled
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusCanceled),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -1012,14 +1012,14 @@ func TestWorkspaceFilterAllStatus(t *testing.T) {
 	}, database.WorkspaceTransitionStart)
 
 	// deleting
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusDeleting),
 	}, database.ProvisionerJob{
 		StartedAt: sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
 	}, database.WorkspaceTransitionDelete)
 
 	// deleted
-	makeWorkspace(database.Workspace{
+	makeWorkspace(database.WorkspaceTable{
 		Name: string(database.WorkspaceStatusDeleted),
 	}, database.ProvisionerJob{
 		StartedAt:   sql.NullTime{Time: time.Now().Add(time.Second * -2), Valid: true},
@@ -1567,14 +1567,14 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		dormantWorkspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dormantWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			TemplateID:     template.ID,
 			OwnerID:        user.UserID,
 			OrganizationID: user.OrganizationID,
 		}).Do().Workspace
 
 		// Create another workspace to validate that we do not return active workspaces.
-		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			TemplateID:     template.ID,
 			OwnerID:        user.UserID,
 			OrganizationID: user.OrganizationID,
@@ -3246,8 +3246,8 @@ func TestWorkspaceFavoriteUnfavorite(t *testing.T) {
 		owner                = coderdtest.CreateFirstUser(t, client)
 		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 		// This will be our 'favorite' workspace
-		wsb1 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
-		wsb2 = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
+		wsb1 = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		wsb2 = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: owner.UserID, OrganizationID: owner.OrganizationID}).Do()
 	)
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -3324,7 +3324,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		tmpDir := t.TempDir()
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -3371,7 +3371,7 @@ func TestWorkspaceUsageTracking(t *testing.T) {
 			ActivityBumpMillis: 8 * time.Hour.Milliseconds(),
 		})
 		require.NoError(t, err)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 			TemplateID:     template.ID,
@@ -3560,165 +3560,109 @@ func TestWorkspaceNotifications(t *testing.T) {
 func TestWorkspaceTimings(t *testing.T) {
 	t.Parallel()
 
-	// Setup a base template for the workspaces
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
 		Pubsub:   pubsub,
 	})
-	owner := coderdtest.CreateFirstUser(t, client)
-	file := dbgen.File(t, db, database.File{
-		CreatedBy: owner.UserID,
-	})
-	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-		OrganizationID: owner.OrganizationID,
-		InitiatorID:    owner.UserID,
-		WorkerID:       uuid.NullUUID{},
-		FileID:         file.ID,
-		Tags: database.StringMap{
-			"custom": "true",
-		},
-	})
-	version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		OrganizationID: owner.OrganizationID,
-		JobID:          versionJob.ID,
-		CreatedBy:      owner.UserID,
-	})
-	template := dbgen.Template(t, db, database.Template{
-		OrganizationID:  owner.OrganizationID,
-		ActiveVersionID: version.ID,
-		CreatedBy:       owner.UserID,
-	})
+	coderdtest.CreateFirstUser(t, client)
 
-	// Since the tests run in parallel, we need to create a new workspace for
-	// each test to avoid fetching the wrong latest build.
-	type workspaceWithBuild struct {
-		database.Workspace
-		build database.WorkspaceBuild
-	}
-	makeWorkspace := func() workspaceWithBuild {
-		ws := dbgen.Workspace(t, db, database.Workspace{
+	t.Run("LatestBuild", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a workspace with many builds, provisioner, and agent script timings
+		db, pubsub := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: db,
+			Pubsub:   pubsub,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		file := dbgen.File(t, db, database.File{
+			CreatedBy: owner.UserID,
+		})
+		versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+			OrganizationID: owner.OrganizationID,
+			InitiatorID:    owner.UserID,
+			FileID:         file.ID,
+			Tags: database.StringMap{
+				"custom": "true",
+			},
+		})
+		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: owner.OrganizationID,
+			JobID:          versionJob.ID,
+			CreatedBy:      owner.UserID,
+		})
+		template := dbgen.Template(t, db, database.Template{
+			OrganizationID:  owner.OrganizationID,
+			ActiveVersionID: version.ID,
+			CreatedBy:       owner.UserID,
+		})
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     template.ID,
-			// Generate unique name for the workspace
-			Name: "test-workspace-" + uuid.New().String(),
 		})
-		jobID := uuid.New()
-		job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
-			ID:             jobID,
-			OrganizationID: owner.OrganizationID,
-			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Tags:           database.StringMap{jobID.String(): "true"},
+
+		// Create multiple builds
+		var buildNumber int32
+		makeBuild := func() database.WorkspaceBuild {
+			buildNumber++
+			jobID := uuid.New()
+			job := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
+				ID:             jobID,
+				OrganizationID: owner.OrganizationID,
+				Tags:           database.StringMap{jobID.String(): "true"},
+			})
+			return dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				WorkspaceID:       ws.ID,
+				TemplateVersionID: version.ID,
+				InitiatorID:       owner.UserID,
+				JobID:             job.ID,
+				BuildNumber:       buildNumber,
+			})
+		}
+		makeBuild()
+		makeBuild()
+		latestBuild := makeBuild()
+
+		// Add provisioner timings
+		dbgen.ProvisionerJobTimings(t, db, latestBuild, 5)
+
+		// Add agent script timings
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: latestBuild.JobID,
 		})
-		build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			WorkspaceID:       ws.ID,
-			TemplateVersionID: version.ID,
-			BuildNumber:       1,
-			Transition:        database.WorkspaceTransitionStart,
-			InitiatorID:       owner.UserID,
-			JobID:             job.ID,
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
 		})
-		return workspaceWithBuild{
-			Workspace: ws,
-			build:     build,
-		}
-	}
-
-	makeProvisionerTimings := func(jobID uuid.UUID, count int) []database.ProvisionerJobTiming {
-		// Use the database.ProvisionerJobTiming struct to mock timings data instead
-		// of directly creating database.InsertProvisionerJobTimingsParams. This
-		// approach makes the mock data easier to understand, as
-		// database.InsertProvisionerJobTimingsParams requires slices of each field
-		// for batch inserts.
-		timings := make([]database.ProvisionerJobTiming, count)
-		now := time.Now()
-		for i := range count {
-			startedAt := now.Add(-time.Hour + time.Duration(i)*time.Minute)
-			endedAt := startedAt.Add(time.Minute)
-			timings[i] = database.ProvisionerJobTiming{
-				StartedAt: startedAt,
-				EndedAt:   endedAt,
-				Stage:     database.ProvisionerJobTimingStageInit,
-				Action:    string(database.AuditActionCreate),
-				Source:    "source",
-				Resource:  fmt.Sprintf("resource[%d]", i),
-			}
-		}
-		insertParams := database.InsertProvisionerJobTimingsParams{
-			JobID: jobID,
-		}
-		for _, timing := range timings {
-			insertParams.StartedAt = append(insertParams.StartedAt, timing.StartedAt)
-			insertParams.EndedAt = append(insertParams.EndedAt, timing.EndedAt)
-			insertParams.Stage = append(insertParams.Stage, timing.Stage)
-			insertParams.Action = append(insertParams.Action, timing.Action)
-			insertParams.Source = append(insertParams.Source, timing.Source)
-			insertParams.Resource = append(insertParams.Resource, timing.Resource)
-		}
-		return dbgen.ProvisionerJobTimings(t, db, insertParams)
-	}
-
-	// Given
-	testCases := []struct {
-		name               string
-		provisionerTimings int
-		workspace          workspaceWithBuild
-		error              bool
-	}{
-		{
-			name:               "workspace with 5 provisioner timings",
-			provisionerTimings: 5,
-			workspace:          makeWorkspace(),
-		},
-		{
-			name:               "workspace with 2 provisioner timings",
-			provisionerTimings: 2,
-			workspace:          makeWorkspace(),
-		},
-		{
-			name:               "workspace with 0 provisioner timings",
-			provisionerTimings: 0,
-			workspace:          makeWorkspace(),
-		},
-		{
-			name:               "workspace not found",
-			provisionerTimings: 0,
-			workspace:          workspaceWithBuild{},
-			error:              true,
-		},
-	}
-
-	for _, tc := range testCases {
-		tc := tc
-		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
-
-			// Generate timings based on test config
-			generatedTimings := makeProvisionerTimings(tc.workspace.build.JobID, tc.provisionerTimings)
-			res, err := client.WorkspaceTimings(context.Background(), tc.workspace.ID)
-
-			// When error is expected, than an error is returned
-			if tc.error {
-				require.Error(t, err)
-				return
-			}
-
-			// When success is expected, than no error is returned and the length and
-			// fields are correctly returned
-			require.NoError(t, err)
-			require.Len(t, res.ProvisionerTimings, tc.provisionerTimings)
-			for i := range res.ProvisionerTimings {
-				timingRes := res.ProvisionerTimings[i]
-				genTiming := generatedTimings[i]
-				require.Equal(t, genTiming.Resource, timingRes.Resource)
-				require.Equal(t, genTiming.Action, timingRes.Action)
-				require.Equal(t, string(genTiming.Stage), timingRes.Stage)
-				require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
-				require.Equal(t, genTiming.Source, timingRes.Source)
-				require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
-				require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
-			}
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
 		})
-	}
+		dbgen.WorkspaceAgentScriptTimings(t, db, script, 3)
+
+		// When: fetching the timings
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceTimings(ctx, ws.ID)
+
+		// Then: expect the timings to be returned
+		require.NoError(t, err)
+		require.Len(t, res.ProvisionerTimings, 5)
+		require.Len(t, res.AgentScriptTimings, 3)
+	})
+
+	t.Run("NonExistentWorkspace", func(t *testing.T) {
+		t.Parallel()
+
+		// When: fetching an inexistent workspace
+		workspaceID := uuid.New()
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		_, err := client.WorkspaceTimings(ctx, workspaceID)
+
+		// Then: expect a not found error
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "not found")
+	})
 }

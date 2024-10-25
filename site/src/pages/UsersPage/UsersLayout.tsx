@@ -19,13 +19,11 @@ import {
 
 export const UsersLayout: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { experiments } = useDashboard();
+	const { showOrganizations } = useDashboard();
 	const navigate = useNavigate();
 	const feats = useFeatureVisibility();
 	const location = useLocation();
 	const activeTab = location.pathname.endsWith("groups") ? "groups" : "users";
-
-	const canViewOrganizations = experiments.includes("multi-organization");
 
 	return (
 		<>
@@ -59,7 +57,7 @@ export const UsersLayout: FC = () => {
 				</PageHeader>
 			</Margins>
 
-			{!canViewOrganizations && (
+			{!showOrganizations && (
 				<Tabs
 					css={{ marginBottom: 40, marginTop: -TAB_PADDING_Y }}
 					active={activeTab}

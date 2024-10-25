@@ -30,12 +30,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -68,54 +63,9 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})
 
-	t.Run("AnotherOrg", func(t *testing.T) {
-		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			ProvisionerDaemonPSK: "provisionersftw",
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureExternalProvisionerDaemons: 1,
-					codersdk.FeatureMultipleOrganizations:      1,
-				},
-			},
-		})
-		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
-		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.ID.String())
-		err := conf.URL().Write(client.URL.String())
-		require.NoError(t, err)
-		pty := ptytest.New(t).Attach(inv)
-		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
-		defer cancel()
-		clitest.Start(t, inv)
-		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
-
-		var daemons []codersdk.ProvisionerDaemon
-		require.Eventually(t, func() bool {
-			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
-			if err != nil {
-				return false
-			}
-			return len(daemons) == 1
-		}, testutil.WaitShort, testutil.IntervalSlow)
-		assert.Equal(t, "org-daemon", daemons[0].Name)
-		assert.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
-		assert.Equal(t, buildinfo.Version(), daemons[0].Version)
-		assert.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
-	})
-
 	t.Run("AnotherOrgByNameWithUser", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -126,39 +76,13 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		})
 		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, anotherOrg.ID, rbac.RoleTemplateAdmin())
-		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
+		inv, conf := newCLI(t, "provisionerd", "start", "--name", "org-daemon", "--org", anotherOrg.Name)
 		clitest.SetupConfig(t, anotherClient, conf)
 		pty := ptytest.New(t).Attach(inv)
 		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
 		defer cancel()
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
-	})
-
-	t.Run("AnotherOrgByNameNoUser", func(t *testing.T) {
-		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
-		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			ProvisionerDaemonPSK: "provisionersftw",
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureExternalProvisionerDaemons: 1,
-					codersdk.FeatureMultipleOrganizations:      1,
-				},
-			},
-		})
-		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
-		inv, conf := newCLI(t, "provisionerd", "start", "--psk=provisionersftw", "--name", "org-daemon", "--org", anotherOrg.Name)
-		err := conf.URL().Write(client.URL.String())
-		require.NoError(t, err)
-		ctx, cancel := context.WithTimeout(inv.Context(), testutil.WaitLong)
-		defer cancel()
-		err = inv.WithContext(ctx).Run()
-		require.ErrorContains(t, err, "must provide an org ID when not authenticated as a user and organization is specified")
 	})
 
 	t.Run("NoUserNoPSK", func(t *testing.T) {
@@ -290,12 +214,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 
 	t.Run("ScopeUserAnotherOrg", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -339,8 +258,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -348,9 +265,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -385,8 +299,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -394,9 +306,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -416,8 +325,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -425,9 +332,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureExternalProvisionerDaemons: 1,
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
-			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
 			},
 		})
 		// nolint:gocritic // test
@@ -447,8 +351,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments.Append(string(codersdk.ExperimentMultiOrganization))
 		client, _ := coderdenttest.New(t, &coderdenttest.Options{
 			ProvisionerDaemonPSK: "provisionersftw",
 			LicenseOptions: &coderdenttest.LicenseOptions{
@@ -457,9 +359,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 					codersdk.FeatureMultipleOrganizations:      1,
 				},
 			},
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 		})
 		anotherOrg := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{})
 		// nolint:gocritic // test
@@ -467,7 +366,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 			Name: "dont-TEST-me",
 		})
 		require.NoError(t, err)
-		inv, conf := newCLI(t, "provisionerd", "start", "--org", anotherOrg.ID.String(), "--key", res.Key, "--name=matt-daemon")
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
 		err = conf.URL().Write(client.URL.String())
 		require.NoError(t, err)
 		pty := ptytest.New(t).Attach(inv)

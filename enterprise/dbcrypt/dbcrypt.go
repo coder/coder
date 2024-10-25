@@ -60,7 +60,7 @@ type dbCrypt struct {
 	database.Store
 }
 
-func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptions) error {
+func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return db.Store.InTx(func(s database.Store) error {
 		return function(&dbCrypt{
 			primaryCipherDigest: db.primaryCipherDigest,
@@ -321,6 +321,21 @@ func (db *dbCrypt) UpdateCryptoKeyDeletesAt(ctx context.Context, arg database.Up
 	return key, nil
 }
 
+func (db *dbCrypt) GetCryptoKeysByFeature(ctx context.Context, feature database.CryptoKeyFeature) ([]database.CryptoKey, error) {
+	keys, err := db.Store.GetCryptoKeysByFeature(ctx, feature)
+	if err != nil {
+		return nil, err
+	}
+
+	for i := range keys {
+		if err := db.decryptField(&keys[i].Secret.String, keys[i].SecretKeyID); err != nil {
+			return nil, err
+		}
+	}
+
+	return keys, nil
+}
+
 func (db *dbCrypt) encryptField(field *string, digest *sql.NullString) error {
 	// If no cipher is loaded, then we can't encrypt anything!
 	if db.ciphers == nil || db.primaryCipherDigest == "" {
@@ -430,5 +445,5 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
 		})
-	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 }

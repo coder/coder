@@ -21,13 +21,8 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 	error,
 }) => {
 	const navigate = useNavigate();
-	const { entitlements, experiments } = useDashboard();
-	const { multiple_organizations: organizationsEnabled } =
-		useFeatureVisibility();
+	const { entitlements, showOrganizations } = useDashboard();
 	const formPermissions = getFormPermissions(entitlements);
-
-	const showOrganizationPicker =
-		experiments.includes("multi-organization") && organizationsEnabled;
 
 	const uploadFileMutation = useMutation(uploadFile());
 	const uploadedFile = uploadFileMutation.data;
@@ -61,7 +56,7 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 				onRemove: uploadFileMutation.reset,
 				file: uploadFileMutation.variables,
 			}}
-			showOrganizationPicker={showOrganizationPicker}
+			showOrganizationPicker={showOrganizations}
 			onSubmit={async (formData) => {
 				await onCreateTemplate({
 					organization: formData.organization,

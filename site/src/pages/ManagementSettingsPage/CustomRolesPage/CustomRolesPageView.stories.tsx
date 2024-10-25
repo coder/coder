@@ -15,7 +15,8 @@ type Story = StoryObj<typeof CustomRolesPageView>;
 
 export const NotEnabled: Story = {
 	args: {
-		roles: [MockRoleWithOrgPermissions],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [MockRoleWithOrgPermissions],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: false,
 	},
@@ -23,7 +24,8 @@ export const NotEnabled: Story = {
 
 export const NotEnabledEmptyTable: Story = {
 	args: {
-		roles: [],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: false,
 	},
@@ -31,7 +33,8 @@ export const NotEnabledEmptyTable: Story = {
 
 export const Enabled: Story = {
 	args: {
-		roles: [MockRoleWithOrgPermissions],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [MockRoleWithOrgPermissions],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
@@ -39,7 +42,8 @@ export const Enabled: Story = {
 
 export const RoleWithoutPermissions: Story = {
 	args: {
-		roles: [MockOrganizationAuditorRole],
+		builtInRoles: [MockOrganizationAuditorRole],
+		customRoles: [MockOrganizationAuditorRole],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
@@ -47,13 +51,14 @@ export const RoleWithoutPermissions: Story = {
 
 export const EmptyDisplayName: Story = {
 	args: {
-		roles: [
+		customRoles: [
 			{
 				...MockRoleWithOrgPermissions,
 				name: "my-custom-role",
 				display_name: "",
 			},
 		],
+		builtInRoles: [MockRoleWithOrgPermissions],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},
@@ -61,7 +66,8 @@ export const EmptyDisplayName: Story = {
 
 export const EmptyTableUserWithoutPermission: Story = {
 	args: {
-		roles: [],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: false,
 		isCustomRolesEnabled: true,
 	},
@@ -69,7 +75,8 @@ export const EmptyTableUserWithoutPermission: Story = {
 
 export const EmptyTableUserWithPermission: Story = {
 	args: {
-		roles: [],
+		builtInRoles: [MockRoleWithOrgPermissions],
+		customRoles: [],
 		canAssignOrgRole: true,
 		isCustomRolesEnabled: true,
 	},

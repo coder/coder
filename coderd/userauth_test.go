@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -27,10 +30,13 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1315,6 +1321,7 @@ func TestUserOIDC(t *testing.T) {
 
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
@@ -1322,15 +1329,17 @@ func TestUserOIDC(t *testing.T) {
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+
 		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
 			ToType:   codersdk.LoginTypeOIDC,
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
-		fake.LoginWithClient(t, user, claims, func(r *http.Request) {
+		_, _ = fake.LoginWithClient(t, user, claims, func(r *http.Request) {
 			r.URL.RawQuery = url.Values{
 				"oidc_merge_state": {convertResponse.StateString},
 			}.Encode()
@@ -1340,6 +1349,99 @@ func TestUserOIDC(t *testing.T) {
 				r.AddCookie(cookie)
 			}
 		})
+
+		info, err := client.User(ctx, userData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
+	})
+
+	t.Run("BadJWT", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = slogtest.Make(t, nil)
+		)
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		db, ps := dbtestutil.NewDB(t)
+		fetcher := &cryptokeys.DBFetcher{
+			DB: db,
+		}
+
+		kc, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.NoError(t, err)
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:             auditor,
+			OIDCConfig:          cfg,
+			Database:            db,
+			Pubsub:              ps,
+			OIDCConvertKeyCache: kc,
+		})
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		claims := jwt.MapClaims{
+			"email": userData.Email,
+		}
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		// Update the cookie to use a bad signing key. We're asserting the behavior of the scenario
+		// where a JWT gets minted on an old version of Coder but gets verified on a new version.
+		_, resp := fake.AttemptLogin(t, user, claims, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+
+			cookies := user.HTTPClient.Jar.Cookies(user.URL)
+			for i, cookie := range cookies {
+				if cookie.Name != coderd.OAuthConvertCookieValue {
+					continue
+				}
+
+				jwt := cookie.Value
+				var claims coderd.OAuthConvertStateClaims
+				err := jwtutils.Verify(ctx, kc, jwt, &claims)
+				require.NoError(t, err)
+				badJWT := generateBadJWT(t, claims)
+				cookie.Value = badJWT
+				cookies[i] = cookie
+			}
+
+			user.HTTPClient.Jar.SetCookies(user.URL, cookies)
+
+			for _, cookie := range cookies {
+				fmt.Printf("cookie: %+v\n", cookie)
+				r.AddCookie(cookie)
+			}
+		})
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var respErr codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&respErr)
+		require.NoError(t, err)
+		require.Contains(t, respErr.Message, "Using an invalid jwt to authorize this action.")
 	})
 
 	t.Run("AlternateUsername", func(t *testing.T) {
@@ -1654,6 +1756,326 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	require.Equal(t, found.LoginType, codersdk.LoginTypeOIDC)
 }
 
+func TestUserForgotPassword(t *testing.T) {
+	t.Parallel()
+
+	const oldPassword = "SomeSecurePassword!"
+	const newPassword = "SomeNewSecurePassword!"
+
+	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
+		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		require.Equal(t, userID, notif.UserID)
+		require.Equal(t, 1, len(notif.Targets))
+		require.Equal(t, userID, notif.Targets[0])
+	}
+
+	requireCanLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    email,
+			Password: password,
+		})
+		require.NoError(t, err)
+	}
+
+	requireCannotLogin := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, password string) {
+		_, err := client.LoginWithPassword(ctx, codersdk.LoginWithPasswordRequest{
+			Email:    email,
+			Password: password,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusUnauthorized, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or password.")
+	}
+
+	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *testutil.FakeNotificationsEnqueuer, email string, userID uuid.UUID) string {
+		notifsSent := len(notifyEnq.Sent)
+
+		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
+		require.NoError(t, err)
+
+		require.Equal(t, notifsSent+1, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[notifsSent]
+		requireOneTimePasscodeNotification(t, notif, userID)
+		return notif.Labels["one_time_passcode"]
+	}
+
+	requireChangePasswordWithOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, passcode string, password string) {
+		err := client.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           email,
+			OneTimePasscode: passcode,
+			Password:        password,
+		})
+		require.NoError(t, err)
+	}
+
+	t.Run("CanChangePassword", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		// First try to login before changing our password. We expected this to error
+		// as we haven't change the password yet.
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		requireChangePasswordWithOneTimePasscode(t, ctx, anotherClient, anotherUser.Email, oneTimePasscode, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+
+		// We now need to check that the one-time passcode isn't valid.
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        newPassword + "!",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword+"!")
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+	})
+
+	t.Run("OneTimePasscodeExpires", func(t *testing.T) {
+		t.Parallel()
+
+		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer:         notifyEnq,
+			OneTimePasscodeValidityPeriod: oneTimePasscodeValidityPeriod,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		// Wait for long enough so that the token expires
+		time.Sleep(oneTimePasscodeValidityPeriod + 1*time.Millisecond)
+
+		// Try to change password with an expired one time passcode.
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode.")
+
+		// Ensure that the password was not changed.
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: uuid.New().String(),
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: uuid.New().String(), // Use a different UUID to the one expected
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		_ = requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: "",
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Validation failed.")
+		require.Equal(t, 1, len(apiErr.Validations))
+		require.Equal(t, "one_time_passcode", apiErr.Validations[0].Field)
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, newPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		err := anotherClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           anotherUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        "notstrong",
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Invalid password.")
+		require.Equal(t, 1, len(apiErr.Validations))
+		require.Equal(t, "password", apiErr.Validations[0].Field)
+
+		requireCannotLogin(t, ctx, anotherClient, anotherUser.Email, "notstrong")
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, anotherUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+		thirdClient, thirdUser := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		// Request a One-Time Passcode for `anotherUser`
+		oneTimePasscode := requireRequestOneTimePasscode(t, ctx, anotherClient, notifyEnq, anotherUser.Email, anotherUser.ID)
+
+		// Ensure we cannot change the password for `thirdUser` with `anotherUser`'s One-Time Passcode.
+		err := thirdClient.ChangePasswordWithOneTimePasscode(ctx, codersdk.ChangePasswordWithOneTimePasscodeRequest{
+			Email:           thirdUser.Email,
+			OneTimePasscode: oneTimePasscode,
+			Password:        newPassword,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Incorrect email or one-time passcode")
+
+		requireCannotLogin(t, ctx, thirdClient, thirdUser.Email, newPassword)
+		requireCanLogin(t, ctx, thirdClient, thirdUser.Email, oldPassword)
+		requireCanLogin(t, ctx, anotherClient, anotherUser.Email, oldPassword)
+	})
+
+	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
+		t.Parallel()
+
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			NotificationsEnqueuer: notifyEnq,
+		})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		anotherClient, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
+
+		err := anotherClient.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{
+			Email: "not-a-member@coder.com",
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, 1, len(notifyEnq.Sent))
+
+		notif := notifyEnq.Sent[0]
+		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+	})
+}
+
 func oauth2Callback(t *testing.T, client *codersdk.Client, opts ...func(*http.Request)) *http.Response {
 	client.HTTPClient.CheckRedirect = func(req *http.Request, via []*http.Request) error {
 		return http.ErrUseLastResponse
@@ -1700,4 +2122,25 @@ func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
 	require.NoError(t, err)
 	seed["random_data"] = junk
 	return seed
+}
+
+// generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
+func generateBadJWT(t *testing.T, claims interface{}) string {
+	t.Helper()
+
+	var buf [64]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS512,
+		Key:       buf[:],
+	}, nil)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
 }

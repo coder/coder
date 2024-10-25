@@ -54,6 +54,7 @@ type Manager struct {
 
 	runOnce  sync.Once
 	stopOnce sync.Once
+	doneOnce sync.Once
 	stop     chan any
 	done     chan any
 
@@ -108,7 +109,7 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 		stop: make(chan any),
 		done: make(chan any),
 
-		handlers: defaultHandlers(cfg, helpers, log),
+		handlers: defaultHandlers(cfg, log),
 		helpers:  helpers,
 
 		clock: quartz.NewReal(),
@@ -120,9 +121,9 @@ func NewManager(cfg codersdk.NotificationsConfig, store Store, helpers template.
 }
 
 // defaultHandlers builds a set of known handlers; panics if any error occurs as these handlers should be valid at compile time.
-func defaultHandlers(cfg codersdk.NotificationsConfig, helpers template.FuncMap, log slog.Logger) map[database.NotificationMethod]Handler {
+func defaultHandlers(cfg codersdk.NotificationsConfig, log slog.Logger) map[database.NotificationMethod]Handler {
 	return map[database.NotificationMethod]Handler{
-		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, helpers, log.Named("dispatcher.smtp")),
+		database.NotificationMethodSmtp:    dispatch.NewSMTPHandler(cfg.SMTP, log.Named("dispatcher.smtp")),
 		database.NotificationMethodWebhook: dispatch.NewWebhookHandler(cfg.Webhook, log.Named("dispatcher.webhook")),
 	}
 }
@@ -153,7 +154,9 @@ func (m *Manager) Run(ctx context.Context) {
 // events, creating a notifier, and publishing bulk dispatch result updates to the store.
 func (m *Manager) loop(ctx context.Context) error {
 	defer func() {
-		close(m.done)
+		m.doneOnce.Do(func() {
+			close(m.done)
+		})
 		m.log.Info(context.Background(), "notification manager stopped")
 	}()
 
@@ -171,9 +174,9 @@ func (m *Manager) loop(ctx context.Context) error {
 	var eg errgroup.Group
 
 	// Create a notifier to run concurrently, which will handle dequeueing and dispatching notifications.
-	m.notifier = newNotifier(m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
+	m.notifier = newNotifier(ctx, m.cfg, uuid.New(), m.log, m.store, m.handlers, m.helpers, m.metrics, m.clock)
 	eg.Go(func() error {
-		return m.notifier.run(ctx, m.success, m.failure)
+		return m.notifier.run(m.success, m.failure)
 	})
 
 	// Periodically flush notification state changes to the store.
@@ -364,7 +367,9 @@ func (m *Manager) Stop(ctx context.Context) error {
 		// If the notifier hasn't been started, we don't need to wait for anything.
 		// This is only really during testing when we want to enqueue messages only but not deliver them.
 		if m.notifier == nil {
-			close(m.done)
+			m.doneOnce.Do(func() {
+				close(m.done)
+			})
 		} else {
 			m.notifier.stop()
 		}

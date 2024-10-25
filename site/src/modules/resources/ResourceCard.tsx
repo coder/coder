@@ -6,7 +6,7 @@ import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { Stack } from "components/Stack/Stack";
-import { Children, type FC, type PropsWithChildren, useState } from "react";
+import { Children, type FC, useState } from "react";
 import { ResourceAvatar } from "./ResourceAvatar";
 import { SensitiveValue } from "./SensitiveValue";
 
@@ -75,14 +75,6 @@ export interface ResourceCardProps {
 	agentRow: (agent: WorkspaceAgent) => JSX.Element;
 }
 
-const p: FC<PropsWithChildren> = ({ children }) => {
-	const childrens = Children.toArray(children);
-	if (childrens.every((child) => typeof child === "string")) {
-		return <CopyableValue value={childrens.join("")}>{children}</CopyableValue>;
-	}
-	return <>{children}</>;
-};
-
 export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const [shouldDisplayAllMetadata, setShouldDisplayAllMetadata] =
 		useState(false);
@@ -95,7 +87,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 	const mLength =
 		resource.daily_cost > 0
 			? (resource.metadata?.length ?? 0) + 1
-			: resource.metadata?.length ?? 0;
+			: (resource.metadata?.length ?? 0);
 
 	const gridWidth = mLength === 1 ? 1 : 4;
 
@@ -146,7 +138,25 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 									{meta.sensitive ? (
 										<SensitiveValue value={meta.value} />
 									) : (
-										<MemoizedInlineMarkdown components={{ p }}>
+										<MemoizedInlineMarkdown
+											components={{
+												p: ({ children }) => {
+													const childrens = Children.toArray(children);
+													if (
+														childrens.every(
+															(child) => typeof child === "string",
+														)
+													) {
+														return (
+															<CopyableValue value={childrens.join("")}>
+																{children}
+															</CopyableValue>
+														);
+													}
+													return <>{children}</>;
+												},
+											}}
+										>
 											{meta.value}
 										</MemoizedInlineMarkdown>
 									)}

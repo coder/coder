@@ -20,12 +20,7 @@ func TestEnterpriseMembers(t *testing.T) {
 
 	t.Run("Remove", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -104,12 +99,7 @@ func TestEnterpriseMembers(t *testing.T) {
 	t.Run("PostUser", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -145,12 +135,7 @@ func TestEnterpriseMembers(t *testing.T) {
 
 	t.Run("PostUserNotExists", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,
@@ -174,12 +159,7 @@ func TestEnterpriseMembers(t *testing.T) {
 	t.Run("ListNotInOrg", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		owner, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureMultipleOrganizations: 1,

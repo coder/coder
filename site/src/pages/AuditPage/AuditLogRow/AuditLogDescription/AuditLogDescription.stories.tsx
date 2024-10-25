@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import {
 	MockAuditLog,
+	MockAuditLogRequestPasswordReset,
 	MockAuditLogSuccessfulLogin,
 	MockAuditLogUnsuccessfulLoginKnownUser,
 	MockAuditLogWithWorkspaceBuild,
@@ -54,6 +55,12 @@ export const SuccessLogin: Story = {
 export const UnsuccessfulLoginForUnknownUser: Story = {
 	args: {
 		auditLog: MockAuditLogUnsuccessfulLoginKnownUser,
+	},
+};
+
+export const RequestPasswordReset: Story = {
+	args: {
+		auditLog: MockAuditLogRequestPasswordReset,
 	},
 };
 

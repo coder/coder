@@ -104,8 +104,9 @@ func (c *committer) CommitQuota(
 		permit = true
 		consumed = newConsumed
 		return nil
-	}, &sql.TxOptions{
-		Isolation: sql.LevelSerializable,
+	}, &database.TxOptions{
+		Isolation:    sql.LevelSerializable,
+		TxIdentifier: "commit_quota",
 	})
 	if err != nil {
 		return nil, err

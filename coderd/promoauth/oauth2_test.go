@@ -3,24 +3,19 @@ package promoauth_test
 import (
 	"context"
 	"fmt"
-	"io"
 	"net/http"
-	"net/http/httptest"
 	"net/url"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	ptestutil "github.com/prometheus/client_golang/prometheus/testutil"
-	io_prometheus_client "github.com/prometheus/client_model/go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"golang.org/x/oauth2"
 
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/testutil"
@@ -34,7 +29,7 @@ func TestInstrument(t *testing.T) {
 	reg := prometheus.NewRegistry()
 	t.Cleanup(func() {
 		if t.Failed() {
-			t.Log(registryDump(reg))
+			t.Log(promhelp.RegistryDump(reg))
 		}
 	})
 
@@ -46,7 +41,7 @@ func TestInstrument(t *testing.T) {
 	const metricname = "coderd_oauth2_external_requests_total"
 	count := func(source string) int {
 		labels["source"] = source
-		return counterValue(t, reg, "coderd_oauth2_external_requests_total", labels)
+		return promhelp.CounterValue(t, reg, "coderd_oauth2_external_requests_total", labels)
 	}
 
 	factory := promoauth.NewFactory(reg)
@@ -58,7 +53,7 @@ func TestInstrument(t *testing.T) {
 	}
 
 	// 0 Requests before we start
-	require.Nil(t, metricValue(t, reg, metricname, labels), "no metrics at start")
+	require.Nil(t, promhelp.MetricValue(t, reg, metricname, labels), "no metrics at start")
 
 	noClientCtx := ctx
 	// This should never be done, but promoauth should not break the default client
@@ -94,7 +89,7 @@ func TestInstrument(t *testing.T) {
 	// Verify the default client was not broken. This check is added because we
 	// extend the http.DefaultTransport. If a `.Clone()` is not done, this can be
 	// mis-used. It is cheap to run this quick check.
-	snapshot := registryDump(reg)
+	snapshot := promhelp.RegistryDump(reg)
 	req, err := http.NewRequestWithContext(ctx, http.MethodGet,
 		must[*url.URL](t)(idp.IssuerURL().Parse("/.well-known/openid-configuration")).String(), nil)
 	require.NoError(t, err)
@@ -103,7 +98,7 @@ func TestInstrument(t *testing.T) {
 	require.NoError(t, err)
 	_ = resp.Body.Close()
 
-	require.NoError(t, compare(reg, snapshot), "http default client corrupted")
+	require.NoError(t, promhelp.Compare(reg, snapshot), "http default client corrupted")
 }
 
 func TestGithubRateLimits(t *testing.T) {
@@ -214,35 +209,24 @@ func TestGithubRateLimits(t *testing.T) {
 			}
 			pass := true
 			if !c.ExpectNoMetrics {
-				pass = pass && assert.Equal(t, gaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), c.Limit, "limit")
-				pass = pass && assert.Equal(t, gaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_remaining", labels), c.Remaining, "remaining")
-				pass = pass && assert.Equal(t, gaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_used", labels), c.Used, "used")
+				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), c.Limit, "limit")
+				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_remaining", labels), c.Remaining, "remaining")
+				pass = pass && assert.Equal(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_used", labels), c.Used, "used")
 				if !c.at.IsZero() {
 					until := c.Reset.Sub(c.at)
 					// Float accuracy is not great, so we allow a delta of 2
-					pass = pass && assert.InDelta(t, gaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_reset_in_seconds", labels), int(until.Seconds()), 2, "reset in")
+					pass = pass && assert.InDelta(t, promhelp.GaugeValue(t, reg, "coderd_oauth2_external_requests_rate_limit_reset_in_seconds", labels), int(until.Seconds()), 2, "reset in")
 				}
 			} else {
-				pass = pass && assert.Nil(t, metricValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), "not exists")
+				pass = pass && assert.Nil(t, promhelp.MetricValue(t, reg, "coderd_oauth2_external_requests_rate_limit_total", labels), "not exists")
 			}
 
 			// Helpful debugging
 			if !pass {
-				t.Log(registryDump(reg))
+				t.Log(promhelp.RegistryDump(reg))
 			}
 		})
 	}
-}
-
-func registryDump(reg *prometheus.Registry) string {
-	h := promhttp.HandlerFor(reg, promhttp.HandlerOpts{})
-	rec := httptest.NewRecorder()
-	req, _ := http.NewRequestWithContext(context.Background(), http.MethodGet, "/", nil)
-	h.ServeHTTP(rec, req)
-	resp := rec.Result()
-	data, _ := io.ReadAll(resp.Body)
-	_ = resp.Body.Close()
-	return string(data)
 }
 
 func must[V any](t *testing.T) func(v V, err error) V {
@@ -251,40 +235,4 @@ func must[V any](t *testing.T) func(v V, err error) V {
 		require.NoError(t, err)
 		return v
 	}
-}
-
-func gaugeValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
-	labeled := metricValue(t, reg, metricName, labels)
-	require.NotNilf(t, labeled, "metric %q with labels %v not found", metricName, labels)
-	return int(labeled.GetGauge().GetValue())
-}
-
-func counterValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) int {
-	labeled := metricValue(t, reg, metricName, labels)
-	require.NotNilf(t, labeled, "metric %q with labels %v not found", metricName, labels)
-	return int(labeled.GetCounter().GetValue())
-}
-
-func compare(reg prometheus.Gatherer, compare string) error {
-	return ptestutil.GatherAndCompare(reg, strings.NewReader(compare))
-}
-
-func metricValue(t testing.TB, reg prometheus.Gatherer, metricName string, labels prometheus.Labels) *io_prometheus_client.Metric {
-	metrics, err := reg.Gather()
-	require.NoError(t, err)
-
-	for _, m := range metrics {
-		if m.GetName() == metricName {
-			for _, labeled := range m.GetMetric() {
-				mLables := make(prometheus.Labels)
-				for _, v := range labeled.GetLabel() {
-					mLables[v.GetName()] = v.GetValue()
-				}
-				if maps.Equal(mLables, labels) {
-					return labeled
-				}
-			}
-		}
-	}
-	return nil
 }

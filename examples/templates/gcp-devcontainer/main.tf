@@ -172,6 +172,9 @@ locals {
   # The startup script will write this to a file, which the Docker run command will reference.
   docker_env_list_base64 = base64encode(join("\n", [for k, v in local.docker_env_input : "${k}=${v}"]))
 
+  # Builder image will either be the builder image parameter, or the cached image, if cache is provided.
+  builder_image = try(envbuilder_cached_image.cached[0].image, data.coder_parameter.devcontainer_builder.value)
+
   # The GCP VM needs a startup script to set up the environment and start the container. Defining this here.
   # NOTE: make sure to test changes by uncommenting the local_file resource at the bottom of this file
   # and running `terraform apply` to see the generated script. You should also run shellcheck on the script
@@ -214,7 +217,7 @@ locals {
      -v /home/${local.linux_user}/envbuilder:/workspaces \
      -v /var/run/docker.sock:/var/run/docker.sock \
      --env-file /home/${local.linux_user}/env.txt \
-      ${data.coder_parameter.devcontainer_builder.value}
+    ${local.builder_image}
   META
 }
 
@@ -312,7 +315,7 @@ resource "coder_agent" "dev" {
 module "code-server" {
   count    = data.coder_workspace.me.start_count
   source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.17"
+  version  = "1.0.18"
   agent_id = coder_agent.dev[0].id
 }
 

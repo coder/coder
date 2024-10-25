@@ -88,6 +88,14 @@ var testCases = []testCase{
 		name:          "sa_extra_rules",
 		expectedError: "",
 	},
+	{
+		name:          "sa_disabled",
+		expectedError: "",
+	},
+	{
+		name:          "topology",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

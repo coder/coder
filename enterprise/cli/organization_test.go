@@ -25,12 +25,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureCustomRoles: 1,
@@ -68,12 +63,7 @@ func TestEditOrganizationRoles(t *testing.T) {
 	t.Run("InvalidRole", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles)}
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureCustomRoles: 1,
@@ -119,12 +109,9 @@ func TestShowOrganizations(t *testing.T) {
 	t.Run("OnlyID", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				DeploymentValues:         dv,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -159,12 +146,9 @@ func TestShowOrganizations(t *testing.T) {
 
 	t.Run("UsingFlag", func(t *testing.T) {
 		t.Parallel()
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
-				DeploymentValues:         dv,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{

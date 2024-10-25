@@ -804,8 +804,12 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 	}
 }
 
+func removeTrailingVersionInfo(v string) string {
+	return strings.Split(strings.Split(v, "-")[0], "+")[0]
+}
+
 func DefaultDocsURL() string {
-	version := strings.Split(buildinfo.Version(), "-")[0]
+	version := removeTrailingVersionInfo(buildinfo.Version())
 	if version == "v0.0.0" {
 		return "https://coder.com/docs"
 	}
@@ -1353,14 +1357,18 @@ when required by your organization's security policy.`,
 			Default: strings.Join(agentmetrics.LabelAll, ","),
 		},
 		{
-			Name:        "Prometheus Collect Database Metrics",
-			Description: "Collect database metrics (may increase charges for metrics storage).",
-			Flag:        "prometheus-collect-db-metrics",
-			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
-			Value:       &c.Prometheus.CollectDBMetrics,
-			Group:       &deploymentGroupIntrospectionPrometheus,
-			YAML:        "collect_db_metrics",
-			Default:     "false",
+			Name: "Prometheus Collect Database Metrics",
+			// Some db metrics like transaction information will still be collected.
+			// Query metrics blow up the number of unique time series with labels
+			// and can be very expensive. So default to not capturing query metrics.
+			Description: "Collect database query metrics (may increase charges for metrics storage). " +
+				"If set to false, a reduced set of database metrics are still collected.",
+			Flag:    "prometheus-collect-db-metrics",
+			Env:     "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:   &c.Prometheus.CollectDBMetrics,
+			Group:   &deploymentGroupIntrospectionPrometheus,
+			YAML:    "collect_db_metrics",
+			Default: "false",
 		},
 		// Pprof settings
 		{
@@ -2893,8 +2901,6 @@ const (
 	// Add new experiments here!
 	ExperimentExample            Experiment = "example"              // This isn't used for anything.
 	ExperimentAutoFillParameters Experiment = "auto-fill-parameters" // This should not be taken out of experiments until we have redesigned the feature.
-	ExperimentMultiOrganization  Experiment = "multi-organization"   // Requires organization context for interactions, default org is assumed.
-	ExperimentCustomRoles        Experiment = "custom-roles"         // Allows creating runtime custom roles.
 	ExperimentNotifications      Experiment = "notifications"        // Sends notifications via SMTP and webhooks following certain events.
 	ExperimentWorkspaceUsage     Experiment = "workspace-usage"      // Enables the new workspace usage tracking.
 )
@@ -2903,7 +2909,7 @@ const (
 // users to opt-in to via --experimental='*'.
 // Experiments that are not ready for consumption by all users should
 // not be included here and will be essentially hidden.
-var ExperimentsAll = Experiments{ExperimentNotifications}
+var ExperimentsAll = Experiments{}
 
 // Experiments is a list of experiments.
 // Multiple experiments may be enabled at the same time.
@@ -3102,4 +3108,35 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 
 	var sshConfig SSHConfigResponse
 	return sshConfig, json.NewDecoder(res.Body).Decode(&sshConfig)
+}
+
+type CryptoKeyFeature string
+
+const (
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	//nolint:gosec // This denotes a type of key, not a literal.
+	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
+	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
+)
+
+type CryptoKey struct {
+	Feature   CryptoKeyFeature `json:"feature"`
+	Secret    string           `json:"secret"`
+	DeletesAt time.Time        `json:"deletes_at" format:"date-time"`
+	Sequence  int32            `json:"sequence"`
+	StartsAt  time.Time        `json:"starts_at" format:"date-time"`
+}
+
+func (c CryptoKey) CanSign(now time.Time) bool {
+	now = now.UTC()
+	isAfterStartsAt := !c.StartsAt.IsZero() && !now.Before(c.StartsAt)
+	return isAfterStartsAt && c.CanVerify(now)
+}
+
+func (c CryptoKey) CanVerify(now time.Time) bool {
+	now = now.UTC()
+	hasSecret := c.Secret != ""
+	beforeDelete := c.DeletesAt.IsZero() || now.Before(c.DeletesAt)
+	return hasSecret && beforeDelete
 }

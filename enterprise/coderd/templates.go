@@ -66,7 +66,9 @@ func (api *API) templateAvailablePermissions(rw http.ResponseWriter, r *http.Req
 			httpapi.InternalServerError(rw, err)
 			return
 		}
-		memberCount, err := api.Database.GetGroupMembersCountByGroupID(ctx, group.Group.ID)
+
+		// nolint:gocritic
+		memberCount, err := api.Database.GetGroupMembersCountByGroupID(dbauthz.AsSystemRestricted(ctx), group.Group.ID)
 		if err != nil {
 			httpapi.InternalServerError(rw, err)
 			return
@@ -354,12 +356,9 @@ func (api *API) RequireFeatureMW(feat codersdk.FeatureName) func(http.Handler) h
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			// Entitlement must be enabled.
 			if !api.Entitlements.Enabled(feat) {
-				licenseType := "a Premium"
-				if feat.Enterprise() {
-					licenseType = "an Enterprise"
-				}
+				// All feature warnings should be "Premium", not "Enterprise".
 				httpapi.Write(r.Context(), rw, http.StatusForbidden, codersdk.Response{
-					Message: fmt.Sprintf("%s is %s feature. Contact sales!", feat.Humanize(), licenseType),
+					Message: fmt.Sprintf("%s is a Premium feature. Contact sales!", feat.Humanize()),
 				})
 				return
 			}

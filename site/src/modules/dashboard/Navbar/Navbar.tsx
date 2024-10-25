@@ -12,15 +12,14 @@ export const Navbar: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 
-	const { appearance, experiments } = useDashboard();
+	const { appearance, showOrganizations } = useDashboard();
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const canViewAuditLog =
 		featureVisibility.audit_log && Boolean(permissions.viewAnyAuditLog);
 	const canViewDeployment = Boolean(permissions.viewDeploymentValues);
 	const canViewOrganizations =
-		Boolean(permissions.editAnyOrganization) &&
-		experiments.includes("multi-organization");
+		Boolean(permissions.editAnyOrganization) && showOrganizations;
 	const canViewAllUsers = Boolean(permissions.viewAllUsers);
 	const proxyContextValue = useProxy();
 	const canViewHealth = canViewDeployment;

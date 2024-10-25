@@ -138,14 +138,15 @@ func AllAppSharingLevelValues() []AppSharingLevel {
 type AuditAction string
 
 const (
-	AuditActionCreate   AuditAction = "create"
-	AuditActionWrite    AuditAction = "write"
-	AuditActionDelete   AuditAction = "delete"
-	AuditActionStart    AuditAction = "start"
-	AuditActionStop     AuditAction = "stop"
-	AuditActionLogin    AuditAction = "login"
-	AuditActionLogout   AuditAction = "logout"
-	AuditActionRegister AuditAction = "register"
+	AuditActionCreate               AuditAction = "create"
+	AuditActionWrite                AuditAction = "write"
+	AuditActionDelete               AuditAction = "delete"
+	AuditActionStart                AuditAction = "start"
+	AuditActionStop                 AuditAction = "stop"
+	AuditActionLogin                AuditAction = "login"
+	AuditActionLogout               AuditAction = "logout"
+	AuditActionRegister             AuditAction = "register"
+	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
 )
 
 func (e *AuditAction) Scan(src interface{}) error {
@@ -192,7 +193,8 @@ func (e AuditAction) Valid() bool {
 		AuditActionStop,
 		AuditActionLogin,
 		AuditActionLogout,
-		AuditActionRegister:
+		AuditActionRegister,
+		AuditActionRequestPasswordReset:
 		return true
 	}
 	return false
@@ -208,6 +210,7 @@ func AllAuditActionValues() []AuditAction {
 		AuditActionLogin,
 		AuditActionLogout,
 		AuditActionRegister,
+		AuditActionRequestPasswordReset,
 	}
 }
 
@@ -342,9 +345,10 @@ func AllBuildReasonValues() []BuildReason {
 type CryptoKeyFeature string
 
 const (
-	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
-	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWorkspaceAppsToken  CryptoKeyFeature = "workspace_apps_token"
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -384,8 +388,9 @@ func (ns NullCryptoKeyFeature) Value() (driver.Value, error) {
 
 func (e CryptoKeyFeature) Valid() bool {
 	switch e {
-	case CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+	case CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume:
 		return true
 	}
@@ -394,8 +399,9 @@ func (e CryptoKeyFeature) Valid() bool {
 
 func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 	return []CryptoKeyFeature{
-		CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 	}
 }
@@ -1881,6 +1887,133 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+// What stage the script was ran in.
+type WorkspaceAgentScriptTimingStage string
+
+const (
+	WorkspaceAgentScriptTimingStageStart WorkspaceAgentScriptTimingStage = "start"
+	WorkspaceAgentScriptTimingStageStop  WorkspaceAgentScriptTimingStage = "stop"
+	WorkspaceAgentScriptTimingStageCron  WorkspaceAgentScriptTimingStage = "cron"
+)
+
+func (e *WorkspaceAgentScriptTimingStage) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStage(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStage: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStage struct {
+	WorkspaceAgentScriptTimingStage WorkspaceAgentScriptTimingStage `json:"workspace_agent_script_timing_stage"`
+	Valid                           bool                            `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStage is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStage) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStage, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStage.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStage) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStage), nil
+}
+
+func (e WorkspaceAgentScriptTimingStage) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStageValues() []WorkspaceAgentScriptTimingStage {
+	return []WorkspaceAgentScriptTimingStage{
+		WorkspaceAgentScriptTimingStageStart,
+		WorkspaceAgentScriptTimingStageStop,
+		WorkspaceAgentScriptTimingStageCron,
+	}
+}
+
+// What the exit status of the script is.
+type WorkspaceAgentScriptTimingStatus string
+
+const (
+	WorkspaceAgentScriptTimingStatusOk            WorkspaceAgentScriptTimingStatus = "ok"
+	WorkspaceAgentScriptTimingStatusExitFailure   WorkspaceAgentScriptTimingStatus = "exit_failure"
+	WorkspaceAgentScriptTimingStatusTimedOut      WorkspaceAgentScriptTimingStatus = "timed_out"
+	WorkspaceAgentScriptTimingStatusPipesLeftOpen WorkspaceAgentScriptTimingStatus = "pipes_left_open"
+)
+
+func (e *WorkspaceAgentScriptTimingStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	case string:
+		*e = WorkspaceAgentScriptTimingStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentScriptTimingStatus: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentScriptTimingStatus struct {
+	WorkspaceAgentScriptTimingStatus WorkspaceAgentScriptTimingStatus `json:"workspace_agent_script_timing_status"`
+	Valid                            bool                             `json:"valid"` // Valid is true if WorkspaceAgentScriptTimingStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentScriptTimingStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentScriptTimingStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentScriptTimingStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentScriptTimingStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentScriptTimingStatus), nil
+}
+
+func (e WorkspaceAgentScriptTimingStatus) Valid() bool {
+	switch e {
+	case WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentScriptTimingStatusValues() []WorkspaceAgentScriptTimingStatus {
+	return []WorkspaceAgentScriptTimingStatus{
+		WorkspaceAgentScriptTimingStatusOk,
+		WorkspaceAgentScriptTimingStatusExitFailure,
+		WorkspaceAgentScriptTimingStatusTimedOut,
+		WorkspaceAgentScriptTimingStatusPipesLeftOpen,
+	}
+}
+
 type WorkspaceAgentSubsystem string
 
 const (
@@ -2742,6 +2875,12 @@ type User struct {
 	Name string `db:"name" json:"name"`
 	// The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.
 	GithubComUserID sql.NullInt64 `db:"github_com_user_id" json:"github_com_user_id"`
+	// A hash of the one-time-passcode given to the user.
+	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
+	// The time when the one-time-passcode expires.
+	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if the user should be forced to change their password.
+	MustResetPassword bool `db:"must_reset_password" json:"must_reset_password"`
 }
 
 type UserLink struct {
@@ -2766,23 +2905,33 @@ type VisibleUser struct {
 	AvatarURL string    `db:"avatar_url" json:"avatar_url"`
 }
 
+// Joins in the display name information such as username, avatar, and organization name.
 type Workspace struct {
-	ID                uuid.UUID        `db:"id" json:"id"`
-	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
-	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
-	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
-	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
-	Deleted           bool             `db:"deleted" json:"deleted"`
-	Name              string           `db:"name" json:"name"`
-	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
-	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
-	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
-	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
-	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
-	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
-	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite bool `db:"favorite" json:"favorite"`
+	ID                      uuid.UUID        `db:"id" json:"id"`
+	CreatedAt               time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID                 uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID          uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID              uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted                 bool             `db:"deleted" json:"deleted"`
+	Name                    string           `db:"name" json:"name"`
+	AutostartSchedule       sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl                     sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt              time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt               sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt              sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	Favorite                bool             `db:"favorite" json:"favorite"`
+	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
+	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
+	OrganizationName        string           `db:"organization_name" json:"organization_name"`
+	OrganizationDisplayName string           `db:"organization_display_name" json:"organization_display_name"`
+	OrganizationIcon        string           `db:"organization_icon" json:"organization_icon"`
+	OrganizationDescription string           `db:"organization_description" json:"organization_description"`
+	TemplateName            string           `db:"template_name" json:"template_name"`
+	TemplateDisplayName     string           `db:"template_display_name" json:"template_display_name"`
+	TemplateIcon            string           `db:"template_icon" json:"template_icon"`
+	TemplateDescription     string           `db:"template_description" json:"template_description"`
 }
 
 type WorkspaceAgent struct {
@@ -2881,6 +3030,16 @@ type WorkspaceAgentScript struct {
 	RunOnStop        bool      `db:"run_on_stop" json:"run_on_stop"`
 	TimeoutSeconds   int32     `db:"timeout_seconds" json:"timeout_seconds"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
+	ID               uuid.UUID `db:"id" json:"id"`
+}
+
+type WorkspaceAgentScriptTiming struct {
+	ScriptID  uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt   time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode  int32                            `db:"exit_code" json:"exit_code"`
+	Stage     WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status    WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
 }
 
 type WorkspaceAgentStat struct {
@@ -3037,4 +3196,23 @@ type WorkspaceResourceMetadatum struct {
 	Value               sql.NullString `db:"value" json:"value"`
 	Sensitive           bool           `db:"sensitive" json:"sensitive"`
 	ID                  int64          `db:"id" json:"id"`
+}
+
+type WorkspaceTable struct {
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted           bool             `db:"deleted" json:"deleted"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	// Favorite is true if the workspace owner has favorited the workspace.
+	Favorite bool `db:"favorite" json:"favorite"`
 }

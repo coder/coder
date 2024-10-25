@@ -80,8 +80,19 @@ data "coder_parameter" "region" {
   }
 }
 
+# This file is mounted as a Kubernetes secret on provisioner pods.
+# It contains the required credentials for the envbuilder cache repo.
+variable "envbuilder_cache_dockerconfigjson_path" {
+  type      = string
+  sensitive = true
+}
+
 provider "docker" {
   host = lookup(local.docker_host, data.coder_parameter.region.value)
+  registry_auth {
+    address     = "us-central1-docker.pkg.dev"
+    config_file = pathexpand(var.envbuilder_cache_dockerconfigjson_path)
+  }
 }
 
 provider "coder" {}
@@ -326,7 +337,7 @@ resource "docker_volume" "workspaces" {
 # This file is mounted as a Kubernetes secret on provisioner pods.
 # It contains the required credentials for the envbuilder cache repo.
 data "local_sensitive_file" "envbuilder_cache_dockerconfigjson" {
-  filename = "/home/coder/envbuilder-cache-dockerconfig.json"
+  filename = var.envbuilder_cache_dockerconfigjson_path
 }
 
 data "docker_registry_image" "envbuilder" {

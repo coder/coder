@@ -42,18 +42,11 @@ export const AppearanceForm: FC<AppearanceFormProps> = ({
 					themes={[themes.dark, themes.light]}
 					onSelect={() => onChangeTheme("auto")}
 				/>
-
 				<ThemePreviewButton
 					displayName="Dark"
 					active={currentTheme === "dark"}
 					theme={themes.dark}
 					onSelect={() => onChangeTheme("dark")}
-				/>
-				<ThemePreviewButton
-					displayName="Dark blue"
-					active={currentTheme === "darkBlue"}
-					theme={themes.darkBlue}
-					onSelect={() => onChangeTheme("darkBlue")}
 				/>
 				<ThemePreviewButton
 					displayName="Light"
@@ -175,23 +168,23 @@ const ThemePreview: FC<ThemePreviewProps> = ({
 				<div css={styles.page}>
 					<div css={styles.header}>
 						<div css={styles.headerLinks}>
-							<div css={[styles.headerLink, styles.activeHeaderLink]}></div>
-							<div css={styles.headerLink}></div>
-							<div css={styles.headerLink}></div>
+							<div css={[styles.headerLink, styles.activeHeaderLink]} />
+							<div css={styles.headerLink} />
+							<div css={styles.headerLink} />
 						</div>
 						<div css={styles.headerLinks}>
-							<div css={styles.proxy}></div>
-							<div css={styles.user}></div>
+							<div css={styles.proxy} />
+							<div css={styles.user} />
 						</div>
 					</div>
 					<div css={styles.body}>
-						<div css={styles.title}></div>
+						<div css={styles.title} />
 						<div css={styles.table}>
-							<div css={styles.tableHeader}></div>
-							<div css={styles.workspace}></div>
-							<div css={styles.workspace}></div>
-							<div css={styles.workspace}></div>
-							<div css={styles.workspace}></div>
+							<div css={styles.tableHeader} />
+							<div css={styles.workspace} />
+							<div css={styles.workspace} />
+							<div css={styles.workspace} />
+							<div css={styles.workspace} />
 						</div>
 					</div>
 				</div>

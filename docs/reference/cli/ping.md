@@ -32,9 +32,8 @@ Specifies how long to wait for a ping to complete.
 
 ### -n, --num
 
-|         |                  |
-| ------- | ---------------- |
-| Type    | <code>int</code> |
-| Default | <code>10</code>  |
+|      |                  |
+| ---- | ---------------- |
+| Type | <code>int</code> |
 
-Specifies the number of pings to perform.
+Specifies the number of pings to perform. By default, pings will continue until interrupted.

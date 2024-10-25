@@ -51,7 +51,7 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 
 	return (
 		<Filter
-			learnMoreLink={docs("/admin/audit-logs#filtering-logs")}
+			learnMoreLink={docs("/admin/security/audit-logs#filtering-logs")}
 			presets={PRESET_FILTERS}
 			isLoading={menus.user.isInitializing}
 			filter={filter}
@@ -81,7 +81,7 @@ export const AuditFilter: FC<AuditFilterProps> = ({ filter, error, menus }) => {
 export const useActionFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const actionOptions: SelectFilterOption[] = AuditActions.map((action) => ({
 		value: action,
 		label: capitalize(action),
@@ -119,7 +119,7 @@ const ActionMenu: FC<ActionMenuProps> = ({ menu, width }) => {
 export const useResourceTypeFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const actionOptions: SelectFilterOption[] = ResourceTypes.map((type) => {
 		let label = capitalize(type);
 

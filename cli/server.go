@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -32,6 +31,7 @@ import (
 	"sync/atomic"
 	"time"
 
+	"github.com/charmbracelet/lipgloss"
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/coreos/go-systemd/daemon"
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
@@ -55,14 +55,16 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"github.com/coder/coder/v2/coderd/entitlements"
-	"github.com/coder/coder/v2/coderd/notifications/reports"
-	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/pretty"
 	"github.com/coder/quartz"
 	"github.com/coder/retry"
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
+
+	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/notifications/reports"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/clilog"
@@ -95,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
-	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -483,8 +484,20 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				)
 			}
 
-			// A newline is added before for visibility in terminal output.
-			cliui.Infof(inv.Stdout, "\nView the Web UI: %s", vals.AccessURL.String())
+			accessURL := vals.AccessURL.String()
+			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+				Border(lipgloss.DoubleBorder()).
+				Align(lipgloss.Center).
+				Padding(0, 3).
+				BorderForeground(lipgloss.Color("12")).
+				Render(fmt.Sprintf("View the Web UI:\n%s",
+					pretty.Sprint(cliui.DefaultStyles.Hyperlink, accessURL))))
+			if buildinfo.HasSite() {
+				err = openURL(inv, accessURL)
+				if err == nil {
+					cliui.Infof(inv.Stdout, "Opening local browser... You can disable this by passing --no-open.\n")
+				}
+			}
 
 			// Used for zero-trust instance identity with Google Cloud.
 			googleTokenValidator, err := idtoken.NewValidator(ctx, option.WithoutAuthentication())
@@ -671,10 +684,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.OIDCConfig = oc
 			}
 
-			experiments := coderd.ReadExperiments(
-				options.Logger, options.DeploymentValues.Experiments.Value(),
-			)
-
 			// We'll read from this channel in the select below that tracks shutdown.  If it remains
 			// nil, that case of the select will just never fire, but it's important not to have a
 			// "bare" read on this channel.
@@ -708,7 +717,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
-				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
+				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
+			} else {
+				options.Database = dbmetrics.NewDBMetrics(options.Database, options.Logger, options.PrometheusRegistry)
 			}
 
 			var deploymentID string
@@ -731,89 +742,30 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return xerrors.Errorf("set deployment id: %w", err)
 					}
 				}
-
-				// Read the app signing key from the DB. We store it hex encoded
-				// since the config table uses strings for the value and we
-				// don't want to deal with automatic encoding issues.
-				appSecurityKeyStr, err := tx.GetAppSecurityKey(ctx)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("get app signing key: %w", err)
-				}
-				// If the string in the DB is an invalid hex string or the
-				// length is not equal to the current key length, generate a new
-				// one.
-				//
-				// If the key is regenerated, old signed tokens and encrypted
-				// strings will become invalid. New signed app tokens will be
-				// generated automatically on failure. Any workspace app token
-				// smuggling operations in progress may fail, although with a
-				// helpful error.
-				if decoded, err := hex.DecodeString(appSecurityKeyStr); err != nil || len(decoded) != len(workspaceapps.SecurityKey{}) {
-					b := make([]byte, len(workspaceapps.SecurityKey{}))
-					_, err := rand.Read(b)
-					if err != nil {
-						return xerrors.Errorf("generate fresh app signing key: %w", err)
-					}
-
-					appSecurityKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertAppSecurityKey(ctx, appSecurityKeyStr)
-					if err != nil {
-						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
-					}
-				}
-
-				appSecurityKey, err := workspaceapps.KeyFromString(appSecurityKeyStr)
-				if err != nil {
-					return xerrors.Errorf("decode app signing key from database: %w", err)
-				}
-
-				options.AppSecurityKey = appSecurityKey
-
-				// Read the oauth signing key from the database. Like the app security, generate a new one
-				// if it is invalid for any reason.
-				oauthSigningKeyStr, err := tx.GetOAuthSigningKey(ctx)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("get app oauth signing key: %w", err)
-				}
-				if decoded, err := hex.DecodeString(oauthSigningKeyStr); err != nil || len(decoded) != len(options.OAuthSigningKey) {
-					b := make([]byte, len(options.OAuthSigningKey))
-					_, err := rand.Read(b)
-					if err != nil {
-						return xerrors.Errorf("generate fresh oauth signing key: %w", err)
-					}
-
-					oauthSigningKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertOAuthSigningKey(ctx, oauthSigningKeyStr)
-					if err != nil {
-						return xerrors.Errorf("insert freshly generated oauth signing key to database: %w", err)
-					}
-				}
-
-				oauthKeyBytes, err := hex.DecodeString(oauthSigningKeyStr)
-				if err != nil {
-					return xerrors.Errorf("decode oauth signing key from database: %w", err)
-				}
-				if len(oauthKeyBytes) != len(options.OAuthSigningKey) {
-					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(oauthKeyBytes))
-				}
-				copy(options.OAuthSigningKey[:], oauthKeyBytes)
-				if options.OAuthSigningKey == [32]byte{} {
-					return xerrors.Errorf("oauth signing key in database is empty")
-				}
-
-				// Read the coordinator resume token signing key from the
-				// database.
-				resumeTokenKey, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, tx)
-				if err != nil {
-					return xerrors.Errorf("get coordinator resume token key from database: %w", err)
-				}
-				options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeTokenKey, quartz.NewReal(), tailnet.DefaultResumeTokenExpiry)
-
 				return nil
 			}, nil)
 			if err != nil {
-				return err
+				return xerrors.Errorf("set deployment id: %w", err)
 			}
+
+			fetcher := &cryptokeys.DBFetcher{
+				DB: options.Database,
+			}
+
+			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+				logger,
+				fetcher,
+				codersdk.CryptoKeyFeatureTailnetResume,
+			)
+			if err != nil {
+				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
+			}
+
+			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+				resumeKeycache,
+				quartz.NewReal(),
+				tailnet.DefaultResumeTokenExpiry,
+			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
@@ -938,6 +890,33 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("write config url: %w", err)
 			}
 
+			// Manage notifications.
+			cfg := options.DeploymentValues.Notifications
+			metrics := notifications.NewMetrics(options.PrometheusRegistry)
+			helpers := templateHelpers(options)
+
+			// The enqueuer is responsible for enqueueing notifications to the given store.
+			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			}
+			options.NotificationsEnqueuer = enqueuer
+
+			// The notification manager is responsible for:
+			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+			//   - keeping the store updated with status updates
+			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+			if err != nil {
+				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+			}
+
+			// nolint:gocritic // TODO: create own role.
+			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+
+			// Run report generator to distribute periodic reports.
+			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+			defer notificationReportGenerator.Close()
+
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
 			// avoid leaving dangling goroutines waiting for the
@@ -993,38 +972,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			)
 			options.WorkspaceUsageTracker = tracker
 			defer tracker.Close()
-
-			// Manage notifications.
-			var (
-				notificationsManager *notifications.Manager
-			)
-			if experiments.Enabled(codersdk.ExperimentNotifications) {
-				cfg := options.DeploymentValues.Notifications
-				metrics := notifications.NewMetrics(options.PrometheusRegistry)
-				helpers := templateHelpers(options)
-
-				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
-				}
-				options.NotificationsEnqueuer = enqueuer
-
-				// The notification manager is responsible for:
-				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-				if err != nil {
-					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-				}
-
-				// nolint:gocritic // TODO: create own role.
-				notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
-
-				// Run report generator to distribute periodic reports.
-				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-				defer notificationReportGenerator.Close()
-			}
 
 			// Wrap the server in middleware that redirects to the access URL if
 			// the request is not to a local IP.
@@ -1145,19 +1092,17 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			if notificationsManager != nil {
-				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
-				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
-				// their leases expire after a period of time and will be re-queued for sending.
-				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
-				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
-				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
-				if err != nil {
-					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
-						"this may result in duplicate notifications being sent: %s\n", err)
-				} else {
-					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
-				}
+			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+			// their leases expire after a period of time and will be re-queued for sending.
+			// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+			if err != nil {
+				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+					"this may result in duplicate notifications being sent: %s\n", err)
+			} else {
+				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
 			}
 
 			// Shut down provisioners before waiting for WebSockets
@@ -1438,6 +1383,7 @@ func newProvisionerDaemon(
 
 	// Omit any duplicates
 	provisionerTypes = slice.Unique(provisionerTypes)
+	provisionerLogger := logger.Named(fmt.Sprintf("provisionerd-%s", name))
 
 	// Populate the connector with the supported types.
 	connector := provisionerd.LocalProvisioners{}
@@ -1494,7 +1440,7 @@ func newProvisionerDaemon(
 				err := terraform.Serve(ctx, &terraform.ServeOptions{
 					ServeOptions: &provisionersdk.ServeOptions{
 						Listener:      terraformServer,
-						Logger:        logger.Named("terraform"),
+						Logger:        provisionerLogger,
 						WorkDirectory: workDir,
 					},
 					CachePath: tfDir,
@@ -1519,7 +1465,7 @@ func newProvisionerDaemon(
 		// in provisionerdserver.go to learn more!
 		return coderAPI.CreateInMemoryProvisionerDaemon(dialCtx, name, provisionerTypes)
 	}, &provisionerd.Options{
-		Logger:              logger.Named(fmt.Sprintf("provisionerd-%s", name)),
+		Logger:              provisionerLogger,
 		UpdateInterval:      time.Second,
 		ForceCancelInterval: cfg.Provisioner.ForceCancelInterval.Value(),
 		Connector:           connector,

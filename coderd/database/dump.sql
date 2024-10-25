@@ -19,7 +19,8 @@ CREATE TYPE audit_action AS ENUM (
     'stop',
     'login',
     'logout',
-    'register'
+    'register',
+    'request_password_reset'
 );
 
 CREATE TYPE automatic_updates AS ENUM (
@@ -37,7 +38,8 @@ CREATE TYPE build_reason AS ENUM (
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
-    'workspace_apps',
+    'workspace_apps_token',
+    'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume'
 );
@@ -215,6 +217,23 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'shutdown_error',
     'off'
 );
+
+CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
+    'start',
+    'stop',
+    'cron'
+);
+
+COMMENT ON TYPE workspace_agent_script_timing_stage IS 'What stage the script was ran in.';
+
+CREATE TYPE workspace_agent_script_timing_status AS ENUM (
+    'ok',
+    'exit_failure',
+    'timed_out',
+    'pipes_left_open'
+);
+
+COMMENT ON TYPE workspace_agent_script_timing_status IS 'What the exit status of the script is.';
 
 CREATE TYPE workspace_agent_subsystem AS ENUM (
     'envbuilder',
@@ -646,7 +665,11 @@ CREATE TABLE users (
     quiet_hours_schedule text DEFAULT ''::text NOT NULL,
     theme_preference text DEFAULT ''::text NOT NULL,
     name text DEFAULT ''::text NOT NULL,
-    github_com_user_id bigint
+    github_com_user_id bigint,
+    hashed_one_time_passcode bytea,
+    one_time_passcode_expires_at timestamp with time zone,
+    must_reset_password boolean DEFAULT false NOT NULL,
+    CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
 COMMENT ON COLUMN users.quiet_hours_schedule IS 'Daily (!) cron schedule (with optional CRON_TZ) signifying the start of the user''s quiet hours. If empty, the default quiet hours on the instance is used instead.';
@@ -656,6 +679,12 @@ COMMENT ON COLUMN users.theme_preference IS '"" can be interpreted as "the user 
 COMMENT ON COLUMN users.name IS 'Name of the Coder user';
 
 COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID. At time of implementation, this is used to check if the user has starred the Coder repository.';
+
+COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
+
+COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.must_reset_password IS 'Determines if the user should be forced to change their password.';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -1355,6 +1384,15 @@ CREATE TABLE workspace_agent_port_share (
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
 );
 
+CREATE TABLE workspace_agent_script_timings (
+    script_id uuid NOT NULL,
+    started_at timestamp with time zone NOT NULL,
+    ended_at timestamp with time zone NOT NULL,
+    exit_code integer NOT NULL,
+    stage workspace_agent_script_timing_stage NOT NULL,
+    status workspace_agent_script_timing_status NOT NULL
+);
+
 CREATE TABLE workspace_agent_scripts (
     workspace_agent_id uuid NOT NULL,
     log_source_id uuid NOT NULL,
@@ -1366,7 +1404,8 @@ CREATE TABLE workspace_agent_scripts (
     run_on_start boolean NOT NULL,
     run_on_stop boolean NOT NULL,
     timeout_seconds integer NOT NULL,
-    display_name text NOT NULL
+    display_name text NOT NULL,
+    id uuid DEFAULT gen_random_uuid() NOT NULL
 );
 
 CREATE SEQUENCE workspace_agent_startup_logs_id_seq
@@ -1663,6 +1702,39 @@ CREATE TABLE workspaces (
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
+CREATE VIEW workspaces_expanded AS
+ SELECT workspaces.id,
+    workspaces.created_at,
+    workspaces.updated_at,
+    workspaces.owner_id,
+    workspaces.organization_id,
+    workspaces.template_id,
+    workspaces.deleted,
+    workspaces.name,
+    workspaces.autostart_schedule,
+    workspaces.ttl,
+    workspaces.last_used_at,
+    workspaces.dormant_at,
+    workspaces.deleting_at,
+    workspaces.automatic_updates,
+    workspaces.favorite,
+    visible_users.avatar_url AS owner_avatar_url,
+    visible_users.username AS owner_username,
+    organizations.name AS organization_name,
+    organizations.display_name AS organization_display_name,
+    organizations.icon AS organization_icon,
+    organizations.description AS organization_description,
+    templates.name AS template_name,
+    templates.display_name AS template_display_name,
+    templates.icon AS template_icon,
+    templates.description AS template_description
+   FROM (((workspaces
+     JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
+     JOIN organizations ON ((workspaces.organization_id = organizations.id)))
+     JOIN templates ON ((workspaces.template_id = templates.id)));
+
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
+
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
 ALTER TABLE ONLY provisioner_job_logs ALTER COLUMN id SET DEFAULT nextval('provisioner_job_logs_id_seq'::regclass);
@@ -1857,6 +1929,12 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_pkey PRIMARY KEY (workspace_id, agent_name, port);
+
+ALTER TABLE ONLY workspace_agent_script_timings
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_started_at_key UNIQUE (script_id, started_at);
+
+ALTER TABLE ONLY workspace_agent_scripts
+    ADD CONSTRAINT workspace_agent_scripts_id_key UNIQUE (id);
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
@@ -2224,6 +2302,9 @@ ALTER TABLE ONLY workspace_agent_metadata
 
 ALTER TABLE ONLY workspace_agent_port_share
     ADD CONSTRAINT workspace_agent_port_share_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_script_timings
+    ADD CONSTRAINT workspace_agent_script_timings_script_id_fkey FOREIGN KEY (script_id) REFERENCES workspace_agent_scripts(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_scripts
     ADD CONSTRAINT workspace_agent_scripts_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;

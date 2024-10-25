@@ -236,7 +236,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			CompressionMode: websocket.CompressionDisabled,
 		})
 
-	ip := tailnet.IP()
+	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	var header http.Header
 	if headerTransport, ok := c.client.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
 		header = headerTransport.Header

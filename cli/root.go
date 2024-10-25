@@ -411,7 +411,7 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		{
 			Flag:        varNoOpen,
 			Env:         "CODER_NO_OPEN",
-			Description: "Suppress opening the browser after logging in.",
+			Description: "Suppress opening the browser when logging in, or starting the server.",
 			Value:       serpent.BoolOf(&r.noOpen),
 			Hidden:      true,
 			Group:       globalGroup,
@@ -695,14 +695,7 @@ func namedWorkspace(ctx context.Context, client *codersdk.Client, identifier str
 func initAppearance(client *codersdk.Client, outConfig *codersdk.AppearanceConfig) serpent.MiddlewareFunc {
 	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
 		return func(inv *serpent.Invocation) error {
-			var err error
-			cfg, err := client.Appearance(inv.Context())
-			if err != nil {
-				var sdkErr *codersdk.Error
-				if !(xerrors.As(err, &sdkErr) && sdkErr.StatusCode() == http.StatusNotFound) {
-					return err
-				}
-			}
+			cfg, _ := client.Appearance(inv.Context())
 			if cfg.DocsURL == "" {
 				cfg.DocsURL = codersdk.DefaultDocsURL()
 			}
@@ -1123,7 +1116,16 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 //nolint:errorlint
 func traceError(err error) string {
 	if uw, ok := err.(interface{ Unwrap() error }); ok {
-		a, b := err.Error(), uw.Unwrap().Error()
+		var a, b string
+		if err != nil {
+			a = err.Error()
+		}
+		if uw != nil {
+			uwerr := uw.Unwrap()
+			if uwerr != nil {
+				b = uwerr.Error()
+			}
+		}
 		c := strings.TrimSuffix(a, b)
 		return c
 	}

@@ -1419,7 +1419,9 @@ func TestTemplateNotifications(t *testing.T) {
 				// Setup template
 				version  = coderdtest.CreateTemplateVersion(t, client, initiator.OrganizationID, nil)
 				_        = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-				template = coderdtest.CreateTemplate(t, client, initiator.OrganizationID, version.ID)
+				template = coderdtest.CreateTemplate(t, client, initiator.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+					ctr.DisplayName = "Bobby's Template"
+				})
 			)
 
 			// Setup users with different roles
@@ -1454,7 +1456,7 @@ func TestTemplateNotifications(t *testing.T) {
 				require.Contains(t, notifiedUsers, n.UserID)
 				require.Contains(t, n.Targets, template.ID)
 				require.Contains(t, n.Targets, template.OrganizationID)
-				require.Equal(t, n.Labels["name"], template.Name)
+				require.Equal(t, n.Labels["name"], template.DisplayName)
 				require.Equal(t, n.Labels["initiator"], coderdtest.FirstUserParams.Username)
 			}
 		})

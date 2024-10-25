@@ -29,8 +29,8 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
-			if !workspace.Outdated && !parameterFlags.promptRichParameters && !parameterFlags.promptBuildOptions && len(parameterFlags.buildOptions) == 0 {
-				_, _ = fmt.Fprintf(inv.Stdout, "Workspace isn't outdated!\n")
+			if !workspace.Outdated && !parameterFlags.promptRichParameters && !parameterFlags.promptEphemeralParameters && len(parameterFlags.ephemeralParameters) == 0 {
+				_, _ = fmt.Fprintf(inv.Stdout, "Workspace is up-to-date.\n")
 				return nil
 			}
 

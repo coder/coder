@@ -7,10 +7,13 @@ import (
 	"io"
 	"net/http"
 	"net/http/cookiejar"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
+	"golang.org/x/exp/maps"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
 
@@ -274,12 +277,24 @@ func (c *Client) ServeProvisionerDaemon(ctx context.Context, req ServeProvisione
 	return proto.NewDRPCProvisionerDaemonClient(drpc.MultiplexedConn(session)), nil
 }
 
+type ProvisionerKeyTags map[string]string
+
+func (p ProvisionerKeyTags) String() string {
+	keys := maps.Keys(p)
+	slices.Sort(keys)
+	tags := []string{}
+	for _, key := range keys {
+		tags = append(tags, fmt.Sprintf("%s=%s", key, p[key]))
+	}
+	return strings.Join(tags, " ")
+}
+
 type ProvisionerKey struct {
-	ID             uuid.UUID         `json:"id" table:"-" format:"uuid"`
-	CreatedAt      time.Time         `json:"created_at" table:"created at" format:"date-time"`
-	OrganizationID uuid.UUID         `json:"organization" table:"organization id" format:"uuid"`
-	Name           string            `json:"name" table:"name,default_sort"`
-	Tags           map[string]string `json:"tags" table:"tags"`
+	ID             uuid.UUID          `json:"id" table:"-" format:"uuid"`
+	CreatedAt      time.Time          `json:"created_at" table:"created at" format:"date-time"`
+	OrganizationID uuid.UUID          `json:"organization" table:"-" format:"uuid"`
+	Name           string             `json:"name" table:"name,default_sort"`
+	Tags           ProvisionerKeyTags `json:"tags" table:"tags"`
 	// HashedSecret - never include the access token in the API response
 }
 

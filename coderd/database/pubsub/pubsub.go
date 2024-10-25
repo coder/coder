@@ -413,7 +413,7 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 
 	logger := d.logger.With(slog.F("network", network), slog.F("address", address), slog.F("timeout_ms", timeoutMS))
 
-	logger.Info(ctx, "pubsub dialing postgres")
+	logger.Debug(ctx, "pubsub dialing postgres")
 	start := time.Now()
 	conn, err := d.d.DialContext(ctx, network, address)
 	if err != nil {
@@ -421,7 +421,7 @@ func (d logDialer) DialContext(ctx context.Context, network, address string) (ne
 		return nil, err
 	}
 	elapsed := time.Since(start)
-	logger.Info(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
+	logger.Debug(ctx, "pubsub postgres TCP connection established", slog.F("elapsed_ms", elapsed.Milliseconds()))
 	return conn, nil
 }
 
@@ -466,7 +466,7 @@ func (p *PGPubsub) startListener(ctx context.Context, connectURL string) error {
 		Listener: pq.NewConnectorListener(connector, connectURL, time.Second, time.Minute, func(t pq.ListenerEventType, err error) {
 			switch t {
 			case pq.ListenerEventConnected:
-				p.logger.Info(ctx, "pubsub connected to postgres")
+				p.logger.Debug(ctx, "pubsub connected to postgres")
 				p.connected.Set(1.0)
 			case pq.ListenerEventDisconnected:
 				p.logger.Error(ctx, "pubsub disconnected from postgres", slog.Error(err))
@@ -618,7 +618,7 @@ func New(startCtx context.Context, logger slog.Logger, db *sql.DB, connectURL st
 		return nil, err
 	}
 	go p.listen()
-	logger.Info(startCtx, "pubsub has started")
+	logger.Debug(startCtx, "pubsub has started")
 	return p, nil
 }
 

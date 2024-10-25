@@ -6,15 +6,15 @@ environments. However, some changes to your configuration are necessary.
 > This is a general comparison. Keep reading for a full tutorial running Coder
 > offline with Kubernetes or Docker.
 
-|                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                 |
-| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                  |
-| Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                          |
-| STUN               | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/ users can still connect via [relayed connections](../networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
-| DERP               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../networking/index.md#relayed-connections).                                                                                                                                   | By default, Coder's built-in DERP relay can be used, or [custom relays](../networking/index.md#custom-relays).                                                                                                                                      |
-| PostgreSQL         | If no [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                            | An external database is required, you must specify a [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url)                                                                                                                         |
-| Telemetry          | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                 |
-| Update check       | By default, Coder checks for updates from [GitHub releases](https:/github.com/coder/coder/releases)                                                                                                                                                                | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                          |
+|                    | Public deployments                                                                                                                                                                                                                                                 | Offline deployments                                                                                                                                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Terraform binary   | By default, Coder downloads Terraform binary from [releases.hashicorp.com](https://releases.hashicorp.com)                                                                                                                                                         | Terraform binary must be included in `PATH` for the VM or container image. [Supported versions](https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24)                                                                        |
+| Terraform registry | Coder templates will attempt to download providers from [registry.terraform.io](https://registry.terraform.io) or [custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) specified in each template | [Custom source addresses](https://developer.hashicorp.com/terraform/language/providers/requirements#source-addresses) can be specified in each Coder template, or a custom registry/mirror can be used. More details below                                |
+| STUN               | By default, Coder uses Google's public STUN server for direct workspace connections                                                                                                                                                                                | STUN can be safely [disabled](../reference/ users can still connect via [relayed connections](../admin/networking/index.md#-geo-distribution). Alternatively, you can set a [custom DERP server](../reference/cli/server.md#--derp-server-stun-addresses) |
+| DERP               | By default, Coder's built-in DERP relay can be used, or [Tailscale's public relays](../admin/networking/index.md#relayed-connections).                                                                                                                             | By default, Coder's built-in DERP relay can be used, or [custom relays](../admin/networking/index.md#custom-relays).                                                                                                                                      |
+| PostgreSQL         | If no [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url) is specified, Coder will download Postgres from [repo1.maven.org](https://repo1.maven.org)                                                                                            | An external database is required, you must specify a [PostgreSQL connection URL](../reference/cli/server.md#--postgres-url)                                                                                                                               |
+| Telemetry          | Telemetry is on by default, and [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                          | Telemetry [can be disabled](../reference/cli/server.md#--telemetry)                                                                                                                                                                                       |
+| Update check       | By default, Coder checks for updates from [GitHub releases](https://github.com/coder/coder/releases)                                                                                                                                                               | Update checks [can be disabled](../reference/cli/server.md#--update-check)                                                                                                                                                                                |
 
 ## Offline container images
 
@@ -117,7 +117,7 @@ ENV TF_CLI_CONFIG_FILE=/home/coder/.terraformrc
 > [example templates](https://github.com/coder/coder/tree/main/examples/templates)
 > you intend to use.
 
-```hcl
+```tf
 # filesystem-mirror-example.tfrc
 provider_installation {
   filesystem_mirror {
@@ -126,7 +126,7 @@ provider_installation {
 }
 ```
 
-```hcl
+```tf
 # network-mirror-example.tfrc
 provider_installation {
   network_mirror {
@@ -233,7 +233,7 @@ accessible for your team to use.
 ## Coder Modules
 
 To use Coder modules in offline installations please follow the instructions
-[here](../templates/modules.md#offline-installations).
+[here](../admin/templates/extending-templates/modules.md#offline-installations).
 
 ## Firewall exceptions
 
@@ -249,7 +249,7 @@ Coder is installed.
 ## JetBrains IDEs
 
 Gateway, JetBrains' remote development product that works with Coder,
-[has documented offline deployment steps.](../ides/gateway.md#jetbrains-gateway-in-an-offline-environment)
+[has documented offline deployment steps.](../user-guides/workspace-access/jetbrains.md#jetbrains-gateway-in-an-offline-environment)
 
 ## Microsoft VS Code Remote - SSH
 
@@ -261,3 +261,8 @@ local machine has outbound HTTPS (port 443) connectivity to:
 - update.code.visualstudio.com
 - vscode.blob.core.windows.net
 - \*.vo.msecnd.net
+
+## Next steps
+
+- [Create your first template](../tutorials/template-from-scratch.md)
+- [Control plane configuration](../admin/setup/index.md)

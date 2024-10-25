@@ -1124,15 +1124,20 @@ func (s *server) notifyWorkspaceManualBuildFailed(ctx context.Context, workspace
 	}
 
 	for _, templateAdmin := range templateAdmins {
+		templateNameLabel := template.DisplayName
+		if templateNameLabel == "" {
+			templateNameLabel = template.Name
+		}
+		labels := map[string]string{
+			"name":                     workspace.Name,
+			"template_name":            templateNameLabel,
+			"template_version_name":    templateVersion.Name,
+			"initiator":                build.InitiatorByUsername,
+			"workspace_owner_username": workspaceOwner.Username,
+			"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
+		}
 		if _, err := s.NotificationsEnqueuer.Enqueue(ctx, templateAdmin.ID, notifications.TemplateWorkspaceManualBuildFailed,
-			map[string]string{
-				"name":                     workspace.Name,
-				"template_name":            template.Name,
-				"template_version_name":    templateVersion.Name,
-				"initiator":                build.InitiatorByUsername,
-				"workspace_owner_username": workspaceOwner.Username,
-				"workspace_build_number":   strconv.Itoa(int(build.BuildNumber)),
-			}, "provisionerdserver",
+			labels, "provisionerdserver",
 			// Associate this notification with all the related entities.
 			workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
 		); err != nil {
@@ -1401,7 +1406,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
-				Workspace:                   workspace,
+				Workspace:                   workspace.WorkspaceTable(),
 				// Allowed to be the empty string.
 				WorkspaceAutostart: workspace.AutostartSchedule.String,
 			})
@@ -1818,6 +1823,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
+		scriptIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		scriptDisplayName := make([]string, 0, len(prAgent.Scripts))
 		scriptLogPaths := make([]string, 0, len(prAgent.Scripts))
 		scriptSources := make([]string, 0, len(prAgent.Scripts))
@@ -1831,6 +1837,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			logSourceIDs = append(logSourceIDs, uuid.New())
 			logSourceDisplayNames = append(logSourceDisplayNames, script.DisplayName)
 			logSourceIcons = append(logSourceIcons, script.Icon)
+			scriptIDs = append(scriptIDs, uuid.New())
 			scriptDisplayName = append(scriptDisplayName, script.DisplayName)
 			scriptLogPaths = append(scriptLogPaths, script.LogPath)
 			scriptSources = append(scriptSources, script.Script)
@@ -1864,6 +1871,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			RunOnStart:       scriptRunOnStart,
 			RunOnStop:        scriptRunOnStop,
 			DisplayName:      scriptDisplayName,
+			ID:               scriptIDs,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert agent scripts: %w", err)

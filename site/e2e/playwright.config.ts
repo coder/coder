@@ -70,6 +70,11 @@ export default defineConfig({
 	],
 	reporter: [["./reporter.ts"]],
 	use: {
+		// It'd be very nice to add this, but there are some tests that need
+		// tweaking to make it work consistently (notably, ones that wait for agent
+		// stats on the workspace page. The default is like 50 seconds, which is
+		// way too long and makes it painful to wait for test runs in CI.
+		// actionTimeout: 5000, // 5 seconds
 		baseURL: `http://localhost:${coderPort}`,
 		video: "retain-on-failure",
 		...(wsEndpoint
@@ -148,7 +153,7 @@ export default defineConfig({
 				gitAuth.validatePath,
 			),
 			CODER_PPROF_ADDRESS: `127.0.0.1:${coderdPProfPort}`,
-			CODER_EXPERIMENTS: `multi-organization,${e2eFakeExperiment1},${e2eFakeExperiment2}`,
+			CODER_EXPERIMENTS: `${e2eFakeExperiment1},${e2eFakeExperiment2}`,
 
 			// Tests for Deployment / User Authentication / OIDC
 			CODER_OIDC_ISSUER_URL: "https://accounts.google.com",

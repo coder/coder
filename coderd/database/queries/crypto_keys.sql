@@ -3,6 +3,13 @@ SELECT *
 FROM crypto_keys
 WHERE secret IS NOT NULL;
 
+-- name: GetCryptoKeysByFeature :many
+SELECT *
+FROM crypto_keys
+WHERE feature = $1
+AND secret IS NOT NULL
+ORDER BY sequence DESC;
+
 -- name: GetLatestCryptoKeyByFeature :one
 SELECT *
 FROM crypto_keys

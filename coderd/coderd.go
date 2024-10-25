@@ -37,11 +37,13 @@ import (
 	"tailscale.com/util/singleflight"
 
 	"cdr.dev/slog"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
+
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
-	"github.com/coder/quartz"
-	"github.com/coder/serpent"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/buildinfo"
@@ -184,9 +186,6 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
-	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
-	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey workspaceapps.SecurityKey
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -247,6 +246,15 @@ type Options struct {
 
 	// IDPSync holds all configured values for syncing external IDP users into Coder.
 	IDPSync idpsync.IDPSync
+
+	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
+	OneTimePasscodeValidityPeriod time.Duration
+
+	// Keycaches
+	AppSigningKeyCache    cryptokeys.SigningKeycache
+	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache   cryptokeys.SigningKeycache
+	Clock                 quartz.Clock
 }
 
 // @title Coder API
@@ -352,6 +360,9 @@ func New(options *Options) *API {
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
 	}
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
+	}
 	if options.DERPServer == nil && options.DeploymentValues.DERP.Server.Enable {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
 	}
@@ -389,6 +400,9 @@ func New(options *Options) *API {
 	if options.UserQuietHoursScheduleStore.Load() == nil {
 		v := schedule.NewAGPLUserQuietHoursScheduleStore()
 		options.UserQuietHoursScheduleStore.Store(&v)
+	}
+	if options.OneTimePasscodeValidityPeriod == 0 {
+		options.OneTimePasscodeValidityPeriod = 20 * time.Minute
 	}
 
 	if options.StatsBatcher == nil {
@@ -441,6 +455,49 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
+
+	fetcher := &cryptokeys.DBFetcher{
+		DB: options.Database,
+	}
+
+	if options.OIDCConvertKeyCache == nil {
+		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("oidc_convert_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureOIDCConvert,
+		)
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		}
+	}
+
+	if options.AppSigningKeyCache == nil {
+		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("app_signing_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+		)
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+		}
+	}
+
+	if options.AppEncryptionKeyCache == nil {
+		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		)
+		if err != nil {
+			options.Logger.Critical(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+		}
+	}
+
+	// Start a background process that rotates keys. We intentionally start this after the caches
+	// are created to force initial requests for a key to populate the caches. This helps catch
+	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -461,7 +518,7 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSecurityKey,
+			options.AppSigningKeyCache,
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
@@ -603,7 +660,7 @@ func New(options *Options) *API {
 		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
 	})
 	if err != nil {
-		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
+		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -625,9 +682,6 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	if options.AppSecurityKey.IsZero() {
-		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
-	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -639,11 +693,11 @@ func New(options *Options) *API {
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
-		AppSecurityKey:      options.AppSecurityKey,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
+		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
@@ -987,6 +1041,8 @@ func New(options *Options) *API {
 				// This value is intentionally increased during tests.
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
+				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
 						r.Use(
@@ -1168,6 +1224,7 @@ func New(options *Options) *API {
 			r.Get("/parameters", api.workspaceBuildParameters)
 			r.Get("/resources", api.workspaceBuildResourcesDeprecated)
 			r.Get("/state", api.workspaceBuildState)
+			r.Get("/timings", api.workspaceBuildTimings)
 		})
 		r.Route("/authcheck", func(r chi.Router) {
 			r.Use(apiKeyMiddleware)
@@ -1261,10 +1318,7 @@ func New(options *Options) *API {
 			})
 		})
 		r.Route("/notifications", func(r chi.Router) {
-			r.Use(
-				apiKeyMiddleware,
-				httpmw.RequireExperiment(api.Experiments, codersdk.ExperimentNotifications),
-			)
+			r.Use(apiKeyMiddleware)
 			r.Get("/settings", api.notificationsSettings)
 			r.Put("/settings", api.putNotificationsSettings)
 			r.Route("/templates", func(r chi.Router) {
@@ -1431,6 +1485,9 @@ func (api *API) Close() error {
 	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
 	_ = api.NetworkTelemetryBatcher.Close()
+	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.AppSigningKeyCache.Close()
+	_ = api.AppEncryptionKeyCache.Close()
 	return nil
 }
 
@@ -1509,7 +1566,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 	}
 
 	mux := drpcmux.New()
-	api.Logger.Info(dialCtx, "starting in-memory provisioner daemon", slog.F("name", name))
+	api.Logger.Debug(dialCtx, "starting in-memory provisioner daemon", slog.F("name", name))
 	logger := api.Logger.Named(fmt.Sprintf("inmem-provisionerd-%s", name))
 	srv, err := provisionerdserver.NewServer(
 		api.ctx, // use the same ctx as the API

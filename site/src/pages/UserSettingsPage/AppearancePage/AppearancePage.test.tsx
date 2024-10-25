@@ -21,24 +21,6 @@ describe("appearance page", () => {
 		expect(API.updateAppearanceSettings).toBeCalledTimes(0);
 	});
 
-	it("changes theme to dark blue", async () => {
-		renderWithAuth(<AppearancePage />);
-
-		jest.spyOn(API, "updateAppearanceSettings").mockResolvedValueOnce({
-			...MockUser,
-			theme_preference: "darkBlue",
-		});
-
-		const darkBlue = await screen.findByText("Dark blue");
-		await userEvent.click(darkBlue);
-
-		// Check if the API was called correctly
-		expect(API.updateAppearanceSettings).toBeCalledTimes(1);
-		expect(API.updateAppearanceSettings).toHaveBeenCalledWith("me", {
-			theme_preference: "darkBlue",
-		});
-	});
-
 	it("changes theme to light", async () => {
 		renderWithAuth(<AppearancePage />);
 

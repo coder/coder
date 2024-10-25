@@ -59,10 +59,11 @@ func Test_ProxyServer_Headers(t *testing.T) {
 	assert.EqualValues(t, 1, atomic.LoadInt64(&called))
 }
 
+//nolint:paralleltest,tparallel // Test uses a static port.
 func TestWorkspaceProxy_Server_PrometheusEnabled(t *testing.T) {
-	t.Parallel()
-
-	prometheusPort := testutil.RandomPort(t)
+	// Ephemeral ports have a tendency to conflict and fail with `bind: address already in use` error.
+	// This workaround forces a static port for Prometheus that hopefully won't be used by other tests.
+	prometheusPort := 32002
 
 	var wg sync.WaitGroup
 	wg.Add(1)

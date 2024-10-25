@@ -50,12 +50,7 @@ func TestCreateWorkspace(t *testing.T) {
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureTemplateRBAC:          1,
@@ -195,12 +190,7 @@ func TestCreateUserWorkspace(t *testing.T) {
 	t.Run("NoTemplateAccess", func(t *testing.T) {
 		t.Parallel()
 
-		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		client, first := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
 					codersdk.FeatureTemplateRBAC:          1,
@@ -459,7 +449,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			TimeTilDormantMillis: inactiveTTL.Milliseconds(),
 		})
 
-		resp := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		resp := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 			TemplateID:     template.ID,
@@ -1270,18 +1260,18 @@ func TestWorkspacesFiltering(t *testing.T) {
 			CreatedBy:      owner.UserID,
 		}).Do()
 
-		dormantWS1 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dormantWS1 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 		}).Do().Workspace
 
-		dormantWS2 := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		dormantWS2 := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     resp.Template.ID,
 		}).Do().Workspace
 
-		_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+		_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        templateAdmin.ID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     resp.Template.ID,
@@ -1458,7 +1448,7 @@ func TestResolveAutostart(t *testing.T) {
 
 	client, member := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
 
-	workspace := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	workspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 		TemplateID:     version1.Template.ID,
@@ -1484,12 +1474,9 @@ func TestResolveAutostart(t *testing.T) {
 func TestAdminViewAllWorkspaces(t *testing.T) {
 	t.Parallel()
 
-	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	client, user := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			DeploymentValues:         dv,
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{

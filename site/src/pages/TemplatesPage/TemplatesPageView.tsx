@@ -38,7 +38,6 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -76,7 +75,7 @@ const TemplateHelpTooltip: FC = () => {
 				<HelpTooltipTitle>{Language.templateTooltipTitle}</HelpTooltipTitle>
 				<HelpTooltipText>{Language.templateTooltipText}</HelpTooltipText>
 				<HelpTooltipLinksGroup>
-					<HelpTooltipLink href={docs("/templates")}>
+					<HelpTooltipLink href={docs("/admin/templates")}>
 						{Language.templateTooltipLink}
 					</HelpTooltipLink>
 				</HelpTooltipLinksGroup>
@@ -193,31 +192,27 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	examples,
 	templates,
 }) => {
-	const { experiments } = useDashboard();
 	const isLoading = !templates;
 	const isEmpty = templates && templates.length === 0;
 	const navigate = useNavigate();
-	const multiOrgExperimentEnabled = experiments.includes("multi-organization");
 
-	const createTemplateAction = () => {
-		return multiOrgExperimentEnabled ? (
-			<Button
-				startIcon={<AddIcon />}
-				variant="contained"
-				onClick={() => {
-					navigate("/starter-templates");
-				}}
-			>
-				Create Template
-			</Button>
-		) : (
-			<CreateTemplateButton onNavigate={navigate} />
-		);
-	};
+	const createTemplateAction = showOrganizations ? (
+		<Button
+			startIcon={<AddIcon />}
+			variant="contained"
+			onClick={() => {
+				navigate("/starter-templates");
+			}}
+		>
+			Create Template
+		</Button>
+	) : (
+		<CreateTemplateButton onNavigate={navigate} />
+	);
 
 	return (
 		<Margins>
-			<PageHeader actions={canCreateTemplates && createTemplateAction()}>
+			<PageHeader actions={canCreateTemplates && createTemplateAction}>
 				<PageHeaderTitle>
 					<Stack spacing={1} direction="row" alignItems="center">
 						Templates

@@ -135,9 +135,14 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		return
 	}
 
+	templateNameLabel := template.DisplayName
+	if templateNameLabel == "" {
+		templateNameLabel = template.Name
+	}
+
 	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
-			"name":      template.Name,
+			"name":      templateNameLabel,
 			"initiator": initiator.Username,
 		}, "api-templates-delete",
 		// Associate this notification with all the related entities.
@@ -462,7 +467,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		templateVersionAudit.New = newTemplateVersion
 
 		return nil
-	}, nil)
+	}, database.DefaultTXOptions().WithID("postTemplate"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting template.",
@@ -840,6 +845,12 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if template.Deprecated != updated.Deprecated && updated.Deprecated != "" {
+		if err := api.notifyUsersOfTemplateDeprecation(ctx, updated); err != nil {
+			api.Logger.Error(ctx, "failed to notify users of template deprecation", slog.Error(err))
+		}
+	}
+
 	if updated.UpdatedAt.IsZero() {
 		aReq.New = template
 		rw.WriteHeader(http.StatusNotModified)
@@ -848,6 +859,42 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
+}
+
+func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template database.Template) error {
+	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		TemplateIDs: []uuid.UUID{template.ID},
+	})
+	if err != nil {
+		return xerrors.Errorf("get workspaces by template id: %w", err)
+	}
+
+	users := make(map[uuid.UUID]struct{})
+	for _, workspace := range workspaces {
+		users[workspace.OwnerID] = struct{}{}
+	}
+
+	errs := []error{}
+
+	for userID := range users {
+		_, err = api.NotificationsEnqueuer.Enqueue(
+			//nolint:gocritic // We need the system auth context to be able to send the deprecation notification.
+			dbauthz.AsSystemRestricted(ctx),
+			userID,
+			notifications.TemplateTemplateDeprecated,
+			map[string]string{
+				"template":     template.Name,
+				"message":      template.Deprecated,
+				"organization": template.OrganizationName,
+			},
+			"notify-users-of-template-deprecation",
+		)
+		if err != nil {
+			errs = append(errs, xerrors.Errorf("enqueue notification: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // @Summary Get template DAUs by ID

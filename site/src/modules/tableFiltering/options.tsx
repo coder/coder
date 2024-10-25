@@ -25,7 +25,7 @@ import type { FC } from "react";
 export const useOrganizationsFilterMenu = ({
 	value,
 	onChange,
-}: Pick<UseFilterMenuOptions<SelectFilterOption>, "value" | "onChange">) => {
+}: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	return useFilterMenu({
 		onChange,
 		value,

@@ -3,12 +3,7 @@ import type { WorkspaceResource } from "api/typesGenerated";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { MemoizedInlineMarkdown } from "components/Markdown/Markdown";
 import { SensitiveValue } from "modules/resources/SensitiveValue";
-import {
-	Children,
-	type FC,
-	type HTMLAttributes,
-	type PropsWithChildren,
-} from "react";
+import { Children, type FC, type HTMLAttributes } from "react";
 
 type ResourceMetadataProps = Omit<HTMLAttributes<HTMLElement>, "resource"> & {
 	resource: WorkspaceResource;
@@ -41,7 +36,25 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
 							{meta.sensitive ? (
 								<SensitiveValue value={meta.value} />
 							) : (
-								<MemoizedInlineMarkdown components={{ p: MetaValue }}>
+								<MemoizedInlineMarkdown
+									components={{
+										p: ({ children }) => {
+											const childrenArray = Children.toArray(children);
+											if (
+												childrenArray.every(
+													(child) => typeof child === "string",
+												)
+											) {
+												return (
+													<CopyableValue value={childrenArray.join("")}>
+														{children}
+													</CopyableValue>
+												);
+											}
+											return <>{children}</>;
+										},
+									}}
+								>
 									{meta.value}
 								</MemoizedInlineMarkdown>
 							)}
@@ -52,16 +65,6 @@ export const ResourceMetadata: FC<ResourceMetadataProps> = ({
 			})}
 		</header>
 	);
-};
-
-const MetaValue: FC<PropsWithChildren> = ({ children }) => {
-	const childrenArray = Children.toArray(children);
-	if (childrenArray.every((child) => typeof child === "string")) {
-		return (
-			<CopyableValue value={childrenArray.join("")}>{children}</CopyableValue>
-		);
-	}
-	return <>{children}</>;
 };
 
 const styles = {

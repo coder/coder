@@ -200,6 +200,15 @@ func versionFromBinaryPath(ctx context.Context, binaryPath string) (*version.Ver
 	return version.NewVersion(vj.Version)
 }
 
+type textFileBusyError struct {
+	exitErr *exec.ExitError
+	stderr  string
+}
+
+func (e *textFileBusyError) Error() string {
+	return "text file busy: " + e.exitErr.String()
+}
+
 func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 	ctx, span := e.server.startTrace(ctx, tracing.FuncName())
 	defer span.End()
@@ -216,13 +225,24 @@ func (e *executor) init(ctx, killCtx context.Context, logr logSink) error {
 		<-doneErr
 	}()
 
+	// As a special case, we want to look for the error "text file busy" in the stderr output of
+	// the init command, so we also take a copy of the stderr into an in memory buffer.
+	errBuf := newBufferedWriteCloser(errWriter)
+
 	args := []string{
 		"init",
 		"-no-color",
 		"-input=false",
 	}
 
-	return e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errWriter)
+	err := e.execWriteOutput(ctx, killCtx, args, e.basicEnv(), outWriter, errBuf)
+	var exitErr *exec.ExitError
+	if xerrors.As(err, &exitErr) {
+		if bytes.Contains(errBuf.b.Bytes(), []byte("text file busy")) {
+			return &textFileBusyError{exitErr: exitErr, stderr: errBuf.b.String()}
+		}
+	}
+	return err
 }
 
 func getPlanFilePath(workdir string) string {
@@ -706,4 +726,27 @@ func (sw syncWriter) Write(p []byte) (n int, err error) {
 	sw.mut.Lock()
 	defer sw.mut.Unlock()
 	return sw.w.Write(p)
+}
+
+type bufferedWriteCloser struct {
+	wc io.WriteCloser
+	b  bytes.Buffer
+}
+
+func newBufferedWriteCloser(wc io.WriteCloser) *bufferedWriteCloser {
+	return &bufferedWriteCloser{
+		wc: wc,
+	}
+}
+
+func (b *bufferedWriteCloser) Write(p []byte) (int, error) {
+	n, err := b.b.Write(p)
+	if err != nil {
+		return n, err
+	}
+	return b.wc.Write(p)
+}
+
+func (b *bufferedWriteCloser) Close() error {
+	return b.wc.Close()
 }

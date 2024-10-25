@@ -60,7 +60,7 @@ describe("OrganizationSettingsPage", () => {
 		);
 		await renderPage();
 		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
+		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
 			MockDefaultOrganization.name,
 		);
 	});
@@ -82,7 +82,7 @@ describe("OrganizationSettingsPage", () => {
 		);
 		await renderPage();
 		const form = screen.getByTestId("org-settings-form");
-		expect(within(form).getByRole("textbox", { name: "Name" })).toHaveValue(
+		expect(within(form).getByRole("textbox", { name: "Slug" })).toHaveValue(
 			MockOrganization2.name,
 		);
 	});

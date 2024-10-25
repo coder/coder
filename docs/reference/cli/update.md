@@ -35,6 +35,24 @@ Build option value in the format "name=value".
 
 Prompt for one-time build options defined with ephemeral parameters.
 
+### --ephemeral-parameter
+
+|             |                                         |
+| ----------- | --------------------------------------- |
+| Type        | <code>string-array</code>               |
+| Environment | <code>$CODER_EPHEMERAL_PARAMETER</code> |
+
+Set the value of ephemeral parameters defined in the template. The format is "name=value".
+
+### --prompt-ephemeral-parameters
+
+|             |                                                 |
+| ----------- | ----------------------------------------------- |
+| Type        | <code>bool</code>                               |
+| Environment | <code>$CODER_PROMPT_EPHEMERAL_PARAMETERS</code> |
+
+Prompt to set values of ephemeral parameters defined in the template. If a value has been set via --ephemeral-parameter, it will not be prompted for.
+
 ### --parameter
 
 |             |                                    |
@@ -51,7 +69,7 @@ Rich parameter value in the format "name=value".
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_RICH_PARAMETER_FILE</code> |
 
-Specify a file path with values for rich parameters defined in the template.
+Specify a file path with values for rich parameters defined in the template. The file should be in YAML format, containing key-value pairs for the parameters.
 
 ### --parameter-default
 

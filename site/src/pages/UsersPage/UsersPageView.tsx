@@ -63,32 +63,27 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 	authMethods,
 	groupsByUserId,
 	usersQuery,
-	canViewOrganizations,
 	canCreateUser,
 }) => {
 	const navigate = useNavigate();
 
 	return (
 		<>
-			{canViewOrganizations && (
-				<PageHeader
-					css={{ paddingTop: 0 }}
-					actions={
-						<>
-							{canCreateUser && (
-								<Button
-									onClick={() => navigate("create")}
-									startIcon={<PersonAdd />}
-								>
-									Create user
-								</Button>
-							)}
-						</>
-					}
-				>
-					<PageHeaderTitle>Users</PageHeaderTitle>
-				</PageHeader>
-			)}
+			<PageHeader
+				css={{ paddingTop: 0 }}
+				actions={
+					canCreateUser && (
+						<Button
+							onClick={() => navigate("create")}
+							startIcon={<PersonAdd />}
+						>
+							Create user
+						</Button>
+					)
+				}
+			>
+				<PageHeaderTitle>Users</PageHeaderTitle>
+			</PageHeader>
 
 			<UsersFilter {...filterProps} />
 

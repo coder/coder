@@ -397,12 +397,12 @@ func TestCryptoKeys(t *testing.T) {
 		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
-		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.Equal(t, "test", key.Secret.String)
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
-		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
@@ -415,7 +415,7 @@ func TestCryptoKeys(t *testing.T) {
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
 		key, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -423,7 +423,7 @@ func TestCryptoKeys(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
 		key, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -448,6 +448,35 @@ func TestCryptoKeys(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "test", key.Secret.String)
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
+	})
+
+	t.Run("GetCryptoKeysByFeature", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		expected := dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Sequence: 2,
+			Feature:  database.CryptoKeyFeatureTailnetResume,
+			Secret:   sql.NullString{String: "test", Valid: true},
+		})
+		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+			Sequence: 43,
+		})
+		keys, err := crypt.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		require.Equal(t, "test", keys[0].Secret.String)
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+		require.Equal(t, expected.Sequence, keys[0].Sequence)
+		require.Equal(t, expected.Feature, keys[0].Feature)
+
+		keys, err = db.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
+		require.NoError(t, err)
+		require.Len(t, keys, 1)
+		requireEncryptedEquals(t, ciphers[0], keys[0].Secret.String, "test")
+		require.Equal(t, ciphers[0].HexDigest(), keys[0].SecretKeyID.String)
+		require.Equal(t, expected.Sequence, keys[0].Sequence)
+		require.Equal(t, expected.Feature, keys[0].Feature)
 	})
 
 	t.Run("DecryptErr", func(t *testing.T) {
@@ -744,7 +773,7 @@ func TestEncryptDecryptField(t *testing.T) {
 
 func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+		func(f func(store database.Store) error, _ *database.TxOptions) error {
 			return f(mdb)
 		},
 	)

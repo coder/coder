@@ -10,31 +10,32 @@ import (
 	"go/ast"
 	"go/parser"
 	"go/token"
+	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
 	"os"
 	"path/filepath"
+	"regexp"
 	"slices"
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"testing"
+	"text/template"
 	"time"
 
-	"golang.org/x/xerrors"
-
-	"github.com/coder/quartz"
-
+	"github.com/emersion/go-sasl"
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	smtpmock "github.com/mocktools/go-smtp-mock/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
+	"golang.org/x/xerrors"
 
-	"github.com/coder/serpent"
-
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -42,12 +43,14 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
-	"github.com/coder/coder/v2/coderd/notifications/render"
+	"github.com/coder/coder/v2/coderd/notifications/dispatch/smtptest"
 	"github.com/coder/coder/v2/coderd/notifications/types"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/syncmap"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
+	"github.com/coder/serpent"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -69,24 +72,25 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	method := database.NotificationMethodSmtp
 
 	// GIVEN: a manager with standard config but a faked dispatch handler
 	handler := &fakeHandler{}
-	interceptor := &syncInterceptor{Store: api.Database}
+	interceptor := &syncInterceptor{Store: store}
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Ensure retries don't interfere with the test
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: 2 messages are enqueued
 	sid, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"type": "success"}, "test")
@@ -111,13 +115,13 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// THEN: we verify that the store contains notifications in their expected state
-	success, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	success, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusSent,
 		Limit:  10,
 	})
 	require.NoError(t, err)
 	require.Len(t, success, 1)
-	failed, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	failed, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusTemporaryFailure,
 		Limit:  10,
 	})
@@ -132,7 +136,8 @@ func TestSMTPDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// start mock SMTP server
 	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
@@ -153,17 +158,17 @@ func TestSMTPDispatch(t *testing.T) {
 		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
 		Hello:     "localhost",
 	}
-	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, defaultHelpers(), api.Logger.Named("smtp")))
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: a message is enqueued
 	msgID, err := enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{}, "test")
@@ -193,7 +198,8 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
 	// Mock server to simulate webhook endpoint.
@@ -218,12 +224,12 @@ func TestWebhookDispatch(t *testing.T) {
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
 	}
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	const (
@@ -231,7 +237,7 @@ func TestWebhookDispatch(t *testing.T) {
 		name     = "Robert McBobbington"
 		username = "bob"
 	)
-	user := dbgen.User(t, api.Database, database.User{
+	user := dbgen.User(t, store, database.User{
 		Email:    email,
 		Username: username,
 		Name:     name,
@@ -249,7 +255,7 @@ func TestWebhookDispatch(t *testing.T) {
 
 	// THEN: the webhook is received by the mock server and has the expected contents
 	payload := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, sent)
-	require.EqualValues(t, "1.0", payload.Version)
+	require.EqualValues(t, "1.1", payload.Version)
 	require.Equal(t, *msgID, payload.MsgID)
 	require.Equal(t, payload.Payload.Labels, input)
 	require.Equal(t, payload.Payload.UserEmail, email)
@@ -272,39 +278,22 @@ func TestBackpressure(t *testing.T) {
 		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
 	}
 
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort))
 
-	// Mock server to simulate webhook endpoint.
-	var received atomic.Int32
-	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		var payload dispatch.WebhookPayload
-		err := json.NewDecoder(r.Body).Decode(&payload)
-		assert.NoError(t, err)
-
-		w.WriteHeader(http.StatusOK)
-		_, err = w.Write([]byte("noted."))
-		assert.NoError(t, err)
-
-		received.Add(1)
-	}))
-	defer server.Close()
-
-	endpoint, err := url.Parse(server.URL)
-	require.NoError(t, err)
-
-	method := database.NotificationMethodWebhook
+	const method = database.NotificationMethodWebhook
 	cfg := defaultNotificationsConfig(method)
-	cfg.Webhook = codersdk.NotificationsWebhookConfig{
-		Endpoint: *serpent.URLOf(endpoint),
-	}
 
 	// Tune the queue to fetch often.
 	const fetchInterval = time.Millisecond * 200
 	const batchSize = 10
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
 	cfg.LeaseCount = serpent.Int64(batchSize)
+	// never time out for this test
+	cfg.LeasePeriod = serpent.Duration(time.Hour)
+	cfg.DispatchTimeout = serpent.Duration(time.Hour - time.Millisecond)
 
 	// Shrink buffers down and increase flush interval to provoke backpressure.
 	// Flush buffers every 5 fetch intervals.
@@ -312,45 +301,99 @@ func TestBackpressure(t *testing.T) {
 	cfg.StoreSyncInterval = serpent.Duration(syncInterval)
 	cfg.StoreSyncBufferSize = serpent.Int64(2)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, api.Logger.Named("webhook")))
+	handler := &chanHandler{calls: make(chan dispatchCall)}
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: api.Database}
+	storeInterceptor := &syncInterceptor{Store: store}
+
+	mClock := quartz.NewMock(t)
+	syncTrap := mClock.Trap().NewTicker("Manager", "storeSync")
+	defer syncTrap.Close()
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
 
 	// GIVEN: a notification manager whose updates will be intercepted
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(),
+		logger.Named("manager"), notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: a set of notifications are enqueued, which causes backpressure due to the batchSize which can be processed per fetch
 	const totalMessages = 30
-	for i := 0; i < totalMessages; i++ {
+	for i := range totalMessages {
 		_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted, map[string]string{"i": fmt.Sprintf("%d", i)}, "test")
 		require.NoError(t, err)
 	}
 
 	// Start the notifier.
 	mgr.Run(ctx)
+	syncTrap.MustWait(ctx).Release()
+	fetchTrap.MustWait(ctx).Release()
 
 	// THEN:
 
-	// Wait for 3 fetch intervals, then check progress.
-	time.Sleep(fetchInterval * 3)
+	// Trigger a fetch
+	w := mClock.Advance(fetchInterval)
 
-	// We expect the notifier will have dispatched ONLY the initial batch of messages.
-	// In other words, the notifier should have dispatched 3 batches by now, but because the buffered updates have not
-	// been processed: there is backpressure.
-	require.EqualValues(t, batchSize, handler.sent.Load()+handler.err.Load())
+	// one batch of dispatches is sent
+	for range batchSize {
+		call := testutil.RequireRecvCtx(ctx, t, handler.calls)
+		testutil.RequireSendCtx(ctx, t, call.result, dispatchResult{
+			retryable: false,
+			err:       nil,
+		})
+	}
+
+	// The first fetch will not complete, because of the short sync buffer of 2. This is the
+	// backpressure.
+	select {
+	case <-time.After(testutil.IntervalMedium):
+		// success
+	case <-w.Done():
+		t.Fatal("fetch completed despite backpressure")
+	}
+
 	// We expect that the store will have received NO updates.
 	require.EqualValues(t, 0, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 
 	// However, when we Stop() the manager the backpressure will be relieved and the buffered updates will ALL be flushed,
 	// since all the goroutines that were blocked (on writing updates to the buffer) will be unblocked and will complete.
-	require.NoError(t, mgr.Stop(ctx))
+	// Stop() waits for the in-progress flush to complete, meaning we have to advance the time such that sync triggers
+	// a total of (batchSize/StoreSyncBufferSize)-1 times. The -1 is because once we run the penultimate sync, it
+	// clears space in the buffer for the last dispatches of the batch, which allows graceful shutdown to continue
+	// immediately, without waiting for the last trigger.
+	stopErr := make(chan error, 1)
+	go func() {
+		stopErr <- mgr.Stop(ctx)
+	}()
+	elapsed := fetchInterval
+	syncEnd := time.Duration(batchSize/cfg.StoreSyncBufferSize.Value()-1) * cfg.StoreSyncInterval.Value()
+	t.Logf("will advance until %dms have elapsed", syncEnd.Milliseconds())
+	for elapsed < syncEnd {
+		d, wt := mClock.AdvanceNext()
+		elapsed += d
+		t.Logf("elapsed: %dms", elapsed.Milliseconds())
+		// fetches complete immediately, since TickerFunc only allows one call to the callback in flight at at time.
+		wt.MustWait(ctx)
+		if elapsed%cfg.StoreSyncInterval.Value() == 0 {
+			numSent := cfg.StoreSyncBufferSize.Value() * int64(elapsed/cfg.StoreSyncInterval.Value())
+			t.Logf("waiting for %d messages", numSent)
+			require.Eventually(t, func() bool {
+				// need greater or equal because the last set of messages can come immediately due
+				// to graceful shut down
+				return int64(storeInterceptor.sent.Load()) >= numSent
+			}, testutil.WaitShort, testutil.IntervalFast)
+		}
+	}
+	t.Logf("done advancing")
+	// The batch completes
+	w.MustWait(ctx)
+
+	require.NoError(t, testutil.RequireRecvCtx(ctx, t, stopErr))
 	require.EqualValues(t, batchSize, storeInterceptor.sent.Load()+storeInterceptor.failed.Load())
 }
 
@@ -365,7 +408,8 @@ func TestRetries(t *testing.T) {
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// GIVEN: a mock HTTP server which will receive webhooksand a map to track the dispatch attempts
 
@@ -410,21 +454,21 @@ func TestRetries(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Second) // query uses second-precision
 	cfg.FetchInterval = serpent.Duration(time.Millisecond * 100)
 
-	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, api.Logger.Named("webhook")))
+	handler := newDispatchInterceptor(dispatch.NewWebhookHandler(cfg.Webhook, logger.Named("webhook")))
 
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: api.Database}
+	storeInterceptor := &syncInterceptor{Store: store}
 
-	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: a few notifications are enqueued, which will all fail until their final retry (determined by the mock server)
 	const msgCount = 5
@@ -458,7 +502,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// GIVEN: a manager which has its updates intercepted and paused until measurements can be taken
 
@@ -473,18 +518,18 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	cfg.LeasePeriod = serpent.Duration(leasePeriod)
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod - time.Millisecond)
 
-	noopInterceptor := newNoopStoreSyncer(api.Database)
+	noopInterceptor := newNoopStoreSyncer(store)
 
 	// nolint:gocritic // Unit test.
 	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsSystemRestricted(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
-	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: a few notifications are enqueued which will all succeed
 	var msgs []string
@@ -505,7 +550,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	cancelManagerCtx()
 
 	// Fetch any messages currently in "leased" status, and verify that they're exactly the ones we enqueued.
-	leased, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	leased, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusLeased,
 		Limit:  msgCount,
 	})
@@ -525,9 +570,9 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 
 	// Start a new notification manager.
 	// Intercept calls to submit the buffered updates to the store.
-	storeInterceptor := &syncInterceptor{Store: api.Database}
+	storeInterceptor := &syncInterceptor{Store: store}
 	handler := newDispatchInterceptor(&fakeHandler{})
-	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err = notifications.NewManager(cfg, storeInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 
@@ -544,7 +589,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	}, testutil.WaitLong, testutil.IntervalFast)
 
 	// Validate that no more messages are in "leased" status.
-	leased, err = api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	leased, err = store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusLeased,
 		Limit:  msgCount,
 	})
@@ -556,7 +601,8 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 func TestInvalidConfig(t *testing.T) {
 	t.Parallel()
 
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// GIVEN: invalid config with dispatch period <= lease period
 	const (
@@ -568,7 +614,7 @@ func TestInvalidConfig(t *testing.T) {
 	cfg.DispatchTimeout = serpent.Duration(leasePeriod)
 
 	// WHEN: the manager is created with invalid config
-	_, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	_, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 
 	// THEN: the manager will fail to be created, citing invalid config as error
 	require.ErrorIs(t, err, notifications.ErrInvalidDispatchTimeout)
@@ -581,29 +627,30 @@ func TestNotifierPaused(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// Prepare the test.
 	handler := &fakeHandler{}
 	method := database.NotificationMethodSmtp
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	const fetchInterval = time.Millisecond * 100
 	cfg := defaultNotificationsConfig(method)
 	cfg.FetchInterval = serpent.Duration(fetchInterval)
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{method: handler})
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// Pause the notifier.
 	settingsJSON, err := json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: true})
 	require.NoError(t, err)
-	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	err = store.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
 	// Start the manager so that notifications are processed, except it will be paused at this point.
@@ -616,7 +663,7 @@ func TestNotifierPaused(t *testing.T) {
 	require.NoError(t, err)
 
 	// Ensure we have a pending message and it's the expected one.
-	pendingMessages, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+	pendingMessages, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 		Status: database.NotificationMessageStatusPending,
 		Limit:  10,
 	})
@@ -637,7 +684,7 @@ func TestNotifierPaused(t *testing.T) {
 	// Unpause the notifier.
 	settingsJSON, err = json.Marshal(&codersdk.NotificationsSettings{NotifierPaused: false})
 	require.NoError(t, err)
-	err = api.Database.UpsertNotificationsSettings(ctx, string(settingsJSON))
+	err = store.UpsertNotificationsSettings(ctx, string(settingsJSON))
 	require.NoError(t, err)
 
 	// Notifier is running again, message should be dequeued.
@@ -684,23 +731,38 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 	return out, nil
 }
 
-func TestNotificationTemplatesCanRender(t *testing.T) {
+func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
 	}
 
+	const (
+		username = "bob"
+		password = "🤫"
+
+		hello = "localhost"
+
+		from = "system@coder.com"
+		hint = "run \"DB=ci make update-golden-files\" and commit the changes"
+	)
+
 	tests := []struct {
 		name    string
 		id      uuid.UUID
 		payload types.MessagePayload
+
+		appName string
+		logoURL string
 	}{
 		{
 			name: "TemplateWorkspaceDeleted",
 			id:   notifications.TemplateWorkspaceDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":      "bobby-workspace",
 					"reason":    "autodeleted due to dormancy",
@@ -712,7 +774,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutobuildFailed",
 			id:   notifications.TemplateWorkspaceAutobuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":   "bobby-workspace",
 					"reason": "autostart",
@@ -723,7 +787,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceDormant",
 			id:   notifications.TemplateWorkspaceDormant,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "breached the template's threshold for inactivity",
@@ -737,7 +803,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceAutoUpdated",
 			id:   notifications.TemplateWorkspaceAutoUpdated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_version_name":    "1.0",
@@ -749,7 +817,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceMarkedForDeletion",
 			id:   notifications.TemplateWorkspaceMarkedForDeletion,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":           "bobby-workspace",
 					"reason":         "template updated to new dormancy policy",
@@ -762,9 +832,13 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountCreated",
 			id:   notifications.TemplateUserAccountCreated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"created_account_name": "bobby",
+					"created_account_name":      "bobby",
+					"created_account_user_name": "William Tables",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -772,9 +846,13 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountDeleted",
 			id:   notifications.TemplateUserAccountDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"deleted_account_name": "bobby",
+					"deleted_account_name":      "bobby",
+					"deleted_account_user_name": "William Tables",
+					"initiator":                 "rob",
 				},
 			},
 		},
@@ -782,9 +860,13 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountSuspended",
 			id:   notifications.TemplateUserAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"suspended_account_name": "bobby",
+					"suspended_account_name":      "bobby",
+					"suspended_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -792,9 +874,13 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateUserAccountActivated",
 			id:   notifications.TemplateUserAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"activated_account_name": "bobby",
+					"activated_account_name":      "bobby",
+					"activated_account_user_name": "William Tables",
+					"initiator":                   "rob",
 				},
 			},
 		},
@@ -802,9 +888,12 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountSuspended",
 			id:   notifications.TemplateYourAccountSuspended,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"suspended_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},
@@ -812,9 +901,12 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateYourAccountActivated",
 			id:   notifications.TemplateYourAccountActivated,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"activated_account_name": "bobby",
+					"initiator":              "rob",
 				},
 			},
 		},
@@ -822,9 +914,11 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateTemplateDeleted",
 			id:   notifications.TemplateTemplateDeleted,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
-					"name":      "bobby-template",
+					"name":      "Bobby's Template",
 					"initiator": "rob",
 				},
 			},
@@ -833,7 +927,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceManualBuildFailed",
 			id:   notifications.TemplateWorkspaceManualBuildFailed,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"name":                     "bobby-workspace",
 					"template_name":            "bobby-template",
@@ -848,7 +944,9 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 			name: "TemplateWorkspaceBuildsFailedReport",
 			id:   notifications.TemplateWorkspaceBuildsFailedReport,
 			payload: types.MessagePayload{
-				UserName: "Bobby",
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
 				Labels: map[string]string{
 					"template_name":         "bobby-first-template",
 					"template_display_name": "Bobby First Template",
@@ -895,8 +993,51 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateUserRequestedOneTimePasscode",
+			id:   notifications.TemplateUserRequestedOneTimePasscode,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby/drop-table+user@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"one_time_passcode": "fad9020b-6562-4cdb-87f1-0486f1bea415",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceDeleted_CustomAppearance",
+			id:   notifications.TemplateWorkspaceDeleted,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"name":      "bobby-workspace",
+					"reason":    "autodeleted due to dormancy",
+					"initiator": "autobuild",
+				},
+			},
+			appName: "Custom Application Name",
+			logoURL: "https://custom.application/logo.png",
+		},
+		{
+			name: "TemplateTemplateDeprecated",
+			id:   notifications.TemplateTemplateDeprecated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"template":     "alpha",
+					"message":      "This template has been replaced by beta",
+					"organization": "coder",
+				},
+			},
+		},
 	}
 
+	// We must have a test case for every notification_template. This is enforced below:
 	allTemplates, err := enumerateAllTemplates(t)
 	require.NoError(t, err)
 	for _, name := range allTemplates {
@@ -916,49 +1057,314 @@ func TestNotificationTemplatesCanRender(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 
-			_, _, sql := dbtestutil.NewDBWithSQLDB(t)
+			t.Run("smtp", func(t *testing.T) {
+				t.Parallel()
 
-			var (
-				titleTmpl string
-				bodyTmpl  string
-			)
-			err := sql.
-				QueryRow("SELECT title_template, body_template FROM notification_templates WHERE id = $1 LIMIT 1", tc.id).
-				Scan(&titleTmpl, &bodyTmpl)
-			require.NoError(t, err, "failed to query body template for template:", tc.id)
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
 
-			title, err := render.GoTemplate(titleTmpl, tc.payload, defaultHelpers())
-			require.NotContainsf(t, title, render.NoValue, "template %q is missing a label value", tc.name)
-			require.NoError(t, err, "failed to render notification title template")
-			require.NotEmpty(t, title, "title should not be empty")
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
 
-			body, err := render.GoTemplate(bodyTmpl, tc.payload, defaultHelpers())
-			require.NoError(t, err, "failed to render notification body template")
-			require.NotEmpty(t, body, "body should not be empty")
+				// nolint:gocritic // Unit test.
+				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 
-			partialName := strings.Split(t.Name(), "/")[1]
-			bodyGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-body.md.golden")
-			titleGoldenFile := filepath.Join("testdata", "rendered-templates", partialName+"-title.md.golden")
+				// smtp config shared between client and server
+				smtpConfig := codersdk.NotificationsEmailConfig{
+					Hello: hello,
+					From:  from,
 
-			if *updateGoldenFiles {
-				err = os.MkdirAll(filepath.Dir(bodyGoldenFile), 0o755)
-				require.NoError(t, err, "want no error creating golden file directory")
-				err = os.WriteFile(bodyGoldenFile, []byte(body), 0o600)
-				require.NoError(t, err, "want no error writing body golden file")
-				err = os.WriteFile(titleGoldenFile, []byte(title), 0o600)
-				require.NoError(t, err, "want no error writing title golden file")
-				return
-			}
+					Auth: codersdk.NotificationsEmailAuthConfig{
+						Username: username,
+						Password: password,
+					},
+				}
 
-			wantBody, err := os.ReadFile(bodyGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
-			wantTitle, err := os.ReadFile(titleGoldenFile)
-			require.NoError(t, err, "open golden file, run \"DB=ci make update-golden-files\" and commit the changes")
+				// Spin up the mock SMTP server
+				backend := smtptest.NewBackend(smtptest.Config{
+					AuthMechanisms: []string{sasl.Login},
 
-			require.Equal(t, string(wantBody), body, "body should be equal")
-			require.Equal(t, string(wantTitle), title, "title should be equal")
+					AcceptedIdentity: smtpConfig.Auth.Identity.String(),
+					AcceptedUsername: username,
+					AcceptedPassword: password,
+				})
+
+				// Create a mock SMTP server which conditionally listens for plain or TLS connections.
+				srv, listen, err := smtptest.CreateMockSMTPServer(backend, false)
+				require.NoError(t, err)
+				t.Cleanup(func() {
+					err := srv.Shutdown(ctx)
+					require.NoError(t, err)
+				})
+
+				var hp serpent.HostPort
+				require.NoError(t, hp.Set(listen.Addr().String()))
+				smtpConfig.Smarthost = hp
+
+				// Start mock SMTP server in the background.
+				var wg sync.WaitGroup
+				wg.Add(1)
+				go func() {
+					defer wg.Done()
+					assert.NoError(t, srv.Serve(listen))
+				}()
+
+				// Wait for the server to become pingable.
+				require.Eventually(t, func() bool {
+					cl, err := smtptest.PingClient(listen, false, smtpConfig.TLS.StartTLS.Value())
+					if err != nil {
+						t.Logf("smtp not yet dialable: %s", err)
+						return false
+					}
+
+					if err = cl.Noop(); err != nil {
+						t.Logf("smtp not yet noopable: %s", err)
+						return false
+					}
+
+					if err = cl.Close(); err != nil {
+						t.Logf("smtp didn't close properly: %s", err)
+						return false
+					}
+
+					return true
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				smtpCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+				smtpCfg.SMTP = smtpConfig
+
+				smtpManager, err := notifications.NewManager(
+					smtpCfg,
+					*db,
+					defaultHelpers(),
+					createMetrics(),
+					logger.Named("manager"),
+				)
+				require.NoError(t, err)
+
+				// we apply ApplicationName and LogoURL changes directly in the db
+				// as appearance changes are enterprise features and we do not want to mix those
+				// can't use the api
+				if tc.appName != "" {
+					err = (*db).UpsertApplicationName(ctx, "Custom Application")
+					require.NoError(t, err)
+				}
+
+				if tc.logoURL != "" {
+					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
+					require.NoError(t, err)
+				}
+
+				smtpManager.Run(ctx)
+
+				notificationCfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+
+				smtpEnqueuer, err := notifications.NewStoreEnqueuer(
+					notificationCfg,
+					*db,
+					defaultHelpers(),
+					logger.Named("enqueuer"),
+					quartz.NewReal(),
+				)
+				require.NoError(t, err)
+
+				_, err = smtpEnqueuer.EnqueueWithData(
+					ctx,
+					user.ID,
+					tc.id,
+					tc.payload.Labels,
+					tc.payload.Data,
+					user.Username,
+					user.ID,
+				)
+				require.NoError(t, err)
+
+				// Wait for the message to be fetched
+				var msg *smtptest.Message
+				require.Eventually(t, func() bool {
+					msg = backend.LastMessage()
+					return msg != nil && len(msg.Contents) > 0
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				body := normalizeGoldenEmail([]byte(msg.Contents))
+
+				err = smtpManager.Stop(ctx)
+				require.NoError(t, err)
+
+				partialName := strings.Split(t.Name(), "/")[1]
+				goldenFile := filepath.Join("testdata", "rendered-templates", "smtp", partialName+".html.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, body, 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+					return
+				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Empty(
+					t,
+					cmp.Diff(wantBody, body),
+					fmt.Sprintf("golden file mismatch: %s. If this is expected, %s. (-want +got). ", goldenFile, hint),
+				)
+			})
+
+			t.Run("webhook", func(t *testing.T) {
+				t.Parallel()
+
+				// Spin up the DB
+				db, logger, user := func() (*database.Store, *slog.Logger, *codersdk.User) {
+					adminClient, _, api := coderdtest.NewWithAPI(t, nil)
+					db := api.Database
+					firstUser := coderdtest.CreateFirstUser(t, adminClient)
+
+					_, user := coderdtest.CreateAnotherUserMutators(
+						t,
+						adminClient,
+						firstUser.OrganizationID,
+						[]rbac.RoleIdentifier{rbac.RoleUserAdmin()},
+						func(r *codersdk.CreateUserRequestWithOrgs) {
+							r.Username = tc.payload.UserUsername
+							r.Email = tc.payload.UserEmail
+							r.Name = tc.payload.UserName
+						},
+					)
+					return &db, &api.Logger, &user
+				}()
+
+				// nolint:gocritic // Unit test.
+				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+
+				// Spin up the mock webhook server
+				var body []byte
+				var readErr error
+				var webhookReceived bool
+				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					w.WriteHeader(http.StatusOK)
+
+					body, readErr = io.ReadAll(r.Body)
+					webhookReceived = true
+				}))
+				t.Cleanup(server.Close)
+
+				endpoint, err := url.Parse(server.URL)
+				require.NoError(t, err)
+
+				webhookCfg := defaultNotificationsConfig(database.NotificationMethodWebhook)
+
+				webhookCfg.Webhook = codersdk.NotificationsWebhookConfig{
+					Endpoint: *serpent.URLOf(endpoint),
+				}
+
+				webhookManager, err := notifications.NewManager(
+					webhookCfg,
+					*db,
+					defaultHelpers(),
+					createMetrics(),
+					logger.Named("manager"),
+				)
+				require.NoError(t, err)
+
+				webhookManager.Run(ctx)
+
+				httpEnqueuer, err := notifications.NewStoreEnqueuer(
+					defaultNotificationsConfig(database.NotificationMethodWebhook),
+					*db,
+					defaultHelpers(),
+					logger.Named("enqueuer"),
+					quartz.NewReal(),
+				)
+				require.NoError(t, err)
+
+				_, err = httpEnqueuer.EnqueueWithData(
+					ctx,
+					user.ID,
+					tc.id,
+					tc.payload.Labels,
+					tc.payload.Data,
+					user.Username,
+					user.ID,
+				)
+				require.NoError(t, err)
+
+				require.Eventually(t, func() bool {
+					return webhookReceived
+				}, testutil.WaitShort, testutil.IntervalFast)
+
+				require.NoError(t, err)
+
+				// Handle the body that was read in the http server here.
+				// We need to do it here because we can't call require.* in a separate goroutine, such as the http server handler
+				require.NoError(t, readErr)
+				var prettyJSON bytes.Buffer
+				err = json.Indent(&prettyJSON, body, "", "  ")
+				require.NoError(t, err)
+
+				content := normalizeGoldenWebhook(prettyJSON.Bytes())
+
+				partialName := strings.Split(t.Name(), "/")[1]
+				goldenFile := filepath.Join("testdata", "rendered-templates", "webhook", partialName+".json.golden")
+				if *updateGoldenFiles {
+					err = os.MkdirAll(filepath.Dir(goldenFile), 0o755)
+					require.NoError(t, err, "want no error creating golden file directory")
+					err = os.WriteFile(goldenFile, content, 0o600)
+					require.NoError(t, err, "want no error writing body golden file")
+					return
+				}
+
+				wantBody, err := os.ReadFile(goldenFile)
+				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
+			})
 		})
 	}
+}
+
+func normalizeGoldenEmail(content []byte) []byte {
+	const (
+		constantDate      = "Fri, 11 Oct 2024 09:03:06 +0000"
+		constantMessageID = "02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48"
+		constantBoundary  = "bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4"
+	)
+
+	dateRegex := regexp.MustCompile(`Date: .+`)
+	messageIDRegex := regexp.MustCompile(`Message-Id: .+`)
+	boundaryRegex := regexp.MustCompile(`boundary=([0-9a-zA-Z]+)`)
+	submatches := boundaryRegex.FindSubmatch(content)
+	if len(submatches) == 0 {
+		return content
+	}
+
+	boundary := submatches[1]
+
+	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
+	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
+	content = bytes.ReplaceAll(content, boundary, []byte(constantBoundary))
+
+	return content
+}
+
+func normalizeGoldenWebhook(content []byte) []byte {
+	const constantUUID = "00000000-0000-0000-0000-000000000000"
+	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
+	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+
+	return content
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template
@@ -972,17 +1378,18 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: the user has a preference set to not receive the "workspace deleted" notification
 	templateID := notifications.TemplateWorkspaceDeleted
-	n, err := api.Database.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+	n, err := store.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
 		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
@@ -1007,20 +1414,21 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// GIVEN: a notification is enqueued which has not (yet) been disabled
 	templateID := notifications.TemplateWorkspaceDeleted
@@ -1028,7 +1436,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 	require.NoError(t, err)
 
 	// Disable the notification template.
-	n, err := api.Database.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
+	n, err := store.UpdateUserNotificationPreferences(ctx, database.UpdateUserNotificationPreferencesParams{
 		UserID:                  user.ID,
 		NotificationTemplateIds: []uuid.UUID{templateID},
 		Disableds:               []bool{true},
@@ -1041,7 +1449,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 
 	// THEN: the message should not be sent, and must be set to "inhibited"
 	require.EventuallyWithT(t, func(ct *assert.CollectT) {
-		m, err := api.Database.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
+		m, err := store.GetNotificationMessagesByStatus(ctx, database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusInhibited,
 			Limit:  10,
 		})
@@ -1063,7 +1471,8 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	received := make(chan uuid.UUID, 1)
 
@@ -1098,12 +1507,12 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	// GIVEN: a notification template which has a method explicitly set
 	var (
-		template      = notifications.TemplateWorkspaceDormant
+		tmpl          = notifications.TemplateWorkspaceDormant
 		defaultMethod = database.NotificationMethodSmtp
 		customMethod  = database.NotificationMethodWebhook
 	)
-	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     template,
+	out, err := store.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+		ID:     tmpl,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -1120,18 +1529,18 @@ func TestCustomNotificationMethod(t *testing.T) {
 		Endpoint: *serpent.URLOf(endpoint),
 	}
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = mgr.Stop(ctx)
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger, quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
 	// WHEN: a notification of that template is enqueued, it should be delivered with the configured method - not the default.
-	user := createSampleUser(t, api.Database)
-	msgID, err := enq.Enqueue(ctx, user.ID, template, map[string]string{}, "test")
+	user := createSampleUser(t, store)
+	msgID, err := enq.Enqueue(ctx, user.ID, tmpl, map[string]string{}, "test")
 	require.NoError(t, err)
 
 	// THEN: the notification should be received by the custom dispatch method
@@ -1187,7 +1596,6 @@ func createOpts(t *testing.T) *coderdtest.Options {
 	t.Helper()
 
 	dt := coderdtest.DeploymentValues(t)
-	dt.Experiments = []string{string(codersdk.ExperimentNotifications)}
 	return &coderdtest.Options{
 		DeploymentValues: dt,
 	}
@@ -1204,12 +1612,13 @@ func TestNotificationDuplicates(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), createMetrics(), api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), createMetrics(), logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -1219,9 +1628,9 @@ func TestNotificationDuplicates(t *testing.T) {
 	mClock := quartz.NewMock(t)
 	mClock.Set(time.Date(2024, 1, 15, 9, 0, 0, 0, time.UTC))
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), mClock)
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), mClock)
 	require.NoError(t, err)
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// GIVEN: two notifications are enqueued with identical properties.
 	_, err = enq.Enqueue(ctx, user.ID, notifications.TemplateWorkspaceDeleted,
@@ -1247,7 +1656,7 @@ type fakeHandler struct {
 	succeeded, failed []string
 }
 
-func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string) (dispatch.DeliveryFunc, error) {
+func (f *fakeHandler) Dispatcher(payload types.MessagePayload, _, _ string, _ template.FuncMap) (dispatch.DeliveryFunc, error) {
 	return func(_ context.Context, msgID uuid.UUID) (retryable bool, err error) {
 		f.mu.Lock()
 		defer f.mu.Unlock()

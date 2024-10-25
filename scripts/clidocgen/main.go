@@ -14,12 +14,12 @@ import (
 
 // route is an individual page object in the docs manifest.json.
 type route struct {
-	Title       string  `json:"title,omitempty"`
-	Description string  `json:"description,omitempty"`
-	Path        string  `json:"path,omitempty"`
-	IconPath    string  `json:"icon_path,omitempty"`
-	State       string  `json:"state,omitempty"`
-	Children    []route `json:"children,omitempty"`
+	Title       string   `json:"title,omitempty"`
+	Description string   `json:"description,omitempty"`
+	Path        string   `json:"path,omitempty"`
+	IconPath    string   `json:"icon_path,omitempty"`
+	State       []string `json:"state,omitempty"`
+	Children    []route  `json:"children,omitempty"`
 }
 
 // manifest describes the entire documentation index.

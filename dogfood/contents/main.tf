@@ -99,20 +99,20 @@ data "coder_workspace_owner" "me" {}
 
 module "slackme" {
   source           = "registry.coder.com/modules/slackme/coder"
-  version          = "1.0.2"
+  version          = ">= 1.0.0"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
   source   = "registry.coder.com/modules/dotfiles/coder"
-  version  = "1.0.15"
+  version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
   source   = "registry.coder.com/modules/git-clone/coder"
-  version  = "1.0.12"
+  version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
   base_dir = local.repo_base_dir
@@ -120,13 +120,13 @@ module "git-clone" {
 
 module "personalize" {
   source   = "registry.coder.com/modules/personalize/coder"
-  version  = "1.0.2"
+  version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
   source                  = "registry.coder.com/modules/code-server/coder"
-  version                 = "1.0.15"
+  version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
@@ -134,7 +134,7 @@ module "code-server" {
 
 module "jetbrains_gateway" {
   source         = "registry.coder.com/modules/jetbrains-gateway/coder"
-  version        = "1.0.13"
+  version        = ">= 1.0.0"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
   folder         = local.repo_dir
@@ -144,15 +144,23 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source   = "registry.coder.com/modules/filebrowser/coder"
-  version  = "1.0.8"
-  agent_id = coder_agent.dev.id
+  source     = "registry.coder.com/modules/filebrowser/coder"
+  version    = ">= 1.0.0"
+  agent_id   = coder_agent.dev.id
+  agent_name = "dev"
 }
 
 module "coder-login" {
   source   = "registry.coder.com/modules/coder-login/coder"
-  version  = "1.0.15"
+  version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
+}
+
+module "cursor" {
+  source   = "registry.coder.com/modules/cursor/coder"
+  version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
 }
 
 resource "coder_agent" "dev" {

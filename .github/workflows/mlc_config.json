@@ -13,6 +13,12 @@
 			"pattern": "docs.github.com"
 		},
 		{
+			"pattern": "github.com/<your_github_handle>"
+		},
+		{
+			"pattern": "imgur.com"
+		},
+		{
 			"pattern": "support.google.com"
 		},
 		{

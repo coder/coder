@@ -9,7 +9,7 @@ import { ThemeProvider } from "contexts/ThemeProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { ManagementSettingsLayout } from "pages/ManagementSettingsPage/ManagementSettingsLayout";
+import { ManagementSettingsLayout } from "modules/management/ManagementSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import type { ReactNode } from "react";

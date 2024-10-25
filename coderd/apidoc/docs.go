@@ -5253,6 +5253,62 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/otp/change-password": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Change password with a one-time passcode",
+                "operationId": "change-password-with-a-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "Change password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ChangePasswordWithOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/users/otp/request": {
+            "post": {
+                "consumes": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Request one-time passcode",
+                "operationId": "request-one-time-passcode",
+                "parameters": [
+                    {
+                        "description": "One-time passcode request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RequestOneTimePasscodeRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "204": {
+                        "description": "No Content"
+                    }
+                }
+            }
+        },
         "/users/roles": {
             "get": {
                 "security": [
@@ -7417,6 +7473,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build timings by ID",
+                "operationId": "get-workspace-build-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceproxies": {
             "get": {
                 "security": [
@@ -7533,6 +7624,43 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                },
+                "x-apidocgen": {
+                    "skip": true
+                }
+            }
+        },
+        "/workspaceproxies/me/crypto-keys": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get workspace proxy crypto keys",
+                "operationId": "get-workspace-proxy-crypto-keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feature key",
+                        "name": "feature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/wsproxysdk.CryptoKeysResponse"
+                        }
                     }
                 },
                 "x-apidocgen": {
@@ -8422,7 +8550,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
                 }
@@ -8856,6 +8984,31 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentScriptTiming": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "type": "string"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
@@ -8972,7 +9125,8 @@ const docTemplate = `{
                 "stop",
                 "login",
                 "logout",
-                "register"
+                "register",
+                "request_password_reset"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -8982,7 +9136,8 @@ const docTemplate = `{
                 "AuditActionStop",
                 "AuditActionLogin",
                 "AuditActionLogout",
-                "AuditActionRegister"
+                "AuditActionRegister",
+                "AuditActionRequestPasswordReset"
             ]
         },
         "codersdk.AuditDiff": {
@@ -9264,6 +9419,26 @@ const docTemplate = `{
                 "BuildReasonAutostart",
                 "BuildReasonAutostop"
             ]
+        },
+        "codersdk.ChangePasswordWithOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email",
+                "one_time_passcode",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
+                },
+                "one_time_passcode": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string"
+                }
+            }
         },
         "codersdk.ConnectionLatency": {
             "type": "object",
@@ -9820,6 +9995,43 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.CryptoKey": {
+            "type": "object",
+            "properties": {
+                "deletes_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "feature": {
+                    "$ref": "#/definitions/codersdk.CryptoKeyFeature"
+                },
+                "secret": {
+                    "type": "string"
+                },
+                "sequence": {
+                    "type": "integer"
+                },
+                "starts_at": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.CryptoKeyFeature": {
+            "type": "string",
+            "enum": [
+                "workspace_apps_api_key",
+                "workspace_apps_token",
+                "oidc_convert",
+                "tailnet_resume"
+            ],
+            "x-enum-varnames": [
+                "CryptoKeyFeatureWorkspaceAppsAPIKey",
+                "CryptoKeyFeatureWorkspaceAppsToken",
+                "CryptoKeyFeatureOIDCConvert",
+                "CryptoKeyFeatureTailnetResume"
+            ]
+        },
         "codersdk.CustomRoleRequest": {
             "type": "object",
             "properties": {
@@ -10280,24 +10492,18 @@ const docTemplate = `{
             "enum": [
                 "example",
                 "auto-fill-parameters",
-                "multi-organization",
-                "custom-roles",
                 "notifications",
                 "workspace-usage"
             ],
             "x-enum-comments": {
                 "ExperimentAutoFillParameters": "This should not be taken out of experiments until we have redesigned the feature.",
-                "ExperimentCustomRoles": "Allows creating runtime custom roles.",
                 "ExperimentExample": "This isn't used for anything.",
-                "ExperimentMultiOrganization": "Requires organization context for interactions, default org is assumed.",
                 "ExperimentNotifications": "Sends notifications via SMTP and webhooks following certain events.",
                 "ExperimentWorkspaceUsage": "Enables the new workspace usage tracking."
             },
             "x-enum-varnames": [
                 "ExperimentExample",
                 "ExperimentAutoFillParameters",
-                "ExperimentMultiOrganization",
-                "ExperimentCustomRoles",
                 "ExperimentNotifications",
                 "ExperimentWorkspaceUsage"
             ]
@@ -11857,10 +12063,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "tags": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
+                    "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
                 }
             }
         },
@@ -11876,6 +12079,12 @@ const docTemplate = `{
                 "key": {
                     "$ref": "#/definitions/codersdk.ProvisionerKey"
                 }
+            }
+        },
+        "codersdk.ProvisionerKeyTags": {
+            "type": "object",
+            "additionalProperties": {
+                "type": "string"
             }
         },
         "codersdk.ProvisionerLogLevel": {
@@ -12243,6 +12452,18 @@ const docTemplate = `{
                 "relay_address": {
                     "description": "RelayAddress is the accessible address to relay DERP connections.",
                     "type": "string"
+                }
+            }
+        },
+        "codersdk.RequestOneTimePasscodeRequest": {
+            "type": "object",
+            "required": [
+                "email"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string",
+                    "format": "email"
                 }
             }
         },
@@ -14263,6 +14484,10 @@ const docTemplate = `{
                 "display_name": {
                     "type": "string"
                 },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
                 "log_path": {
                     "type": "string"
                 },
@@ -14532,6 +14757,23 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildTimings": {
+            "type": "object",
+            "properties": {
+                "agent_script_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
+                "provisioner_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -14774,17 +15016,6 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
-        },
-        "codersdk.WorkspaceTimings": {
-            "type": "object",
-            "properties": {
-                "provisioner_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
-                    }
-                }
-            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",
@@ -15951,6 +16182,17 @@ const docTemplate = `{
                 }
             }
         },
+        "wsproxysdk.CryptoKeysResponse": {
+            "type": "object",
+            "properties": {
+                "crypto_keys": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.CryptoKey"
+                    }
+                }
+            }
+        },
         "wsproxysdk.DeregisterWorkspaceProxyRequest": {
             "type": "object",
             "properties": {
@@ -16013,9 +16255,6 @@ const docTemplate = `{
         "wsproxysdk.RegisterWorkspaceProxyResponse": {
             "type": "object",
             "properties": {
-                "app_security_key": {
-                    "type": "string"
-                },
                 "derp_force_websockets": {
                     "type": "boolean"
                 },

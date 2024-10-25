@@ -11,16 +11,16 @@ runs:
   using: "composite"
   steps:
     - name: Install pnpm
-      uses: pnpm/action-setup@v3
-      with:
-        version: 9.6
+      uses: pnpm/action-setup@fe02b34f77f8bc703788d5817da081398fad5dd2 # v4.0.0
+
     - name: Setup Node
-      uses: actions/setup-node@v4.0.3
+      uses: actions/setup-node@0a44ba7841725637a19e28fa30b79a866c81b0a6 # v4.0.4
       with:
         node-version: 20.16.0
         # See https://github.com/actions/setup-node#caching-global-packages-data
         cache: "pnpm"
         cache-dependency-path: ${{ inputs.directory }}/pnpm-lock.yaml
+
     - name: Install root node_modules
       shell: bash
       run: ./scripts/pnpm_install.sh

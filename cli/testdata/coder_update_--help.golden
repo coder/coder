@@ -14,9 +14,15 @@ OPTIONS:
 
       --build-option string-array, $CODER_BUILD_OPTION
           Build option value in the format "name=value".
+          DEPRECATED: Use --ephemeral-parameter instead.
 
       --build-options bool
           Prompt for one-time build options defined with ephemeral parameters.
+          DEPRECATED: Use --prompt-ephemeral-parameters instead.
+
+      --ephemeral-parameter string-array, $CODER_EPHEMERAL_PARAMETER
+          Set the value of ephemeral parameters defined in the template. The
+          format is "name=value".
 
       --parameter string-array, $CODER_RICH_PARAMETER
           Rich parameter value in the format "name=value".
@@ -24,9 +30,15 @@ OPTIONS:
       --parameter-default string-array, $CODER_RICH_PARAMETER_DEFAULT
           Rich parameter default values in the format "name=value".
 
+      --prompt-ephemeral-parameters bool, $CODER_PROMPT_EPHEMERAL_PARAMETERS
+          Prompt to set values of ephemeral parameters defined in the template.
+          If a value has been set via --ephemeral-parameter, it will not be
+          prompted for.
+
       --rich-parameter-file string, $CODER_RICH_PARAMETER_FILE
           Specify a file path with values for rich parameters defined in the
-          template.
+          template. The file should be in YAML format, containing key-value
+          pairs for the parameters.
 
 ———
 Run `coder --help` for a list of global options.

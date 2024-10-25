@@ -108,6 +108,7 @@ func TestGetManifest(t *testing.T) {
 		}
 		scripts = []database.WorkspaceAgentScript{
 			{
+				ID:               uuid.New(),
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/1",
@@ -119,6 +120,7 @@ func TestGetManifest(t *testing.T) {
 				TimeoutSeconds:   60,
 			},
 			{
+				ID:               uuid.New(),
 				WorkspaceAgentID: agent.ID,
 				LogSourceID:      uuid.New(),
 				LogPath:          "/cool/log/path/2",
@@ -227,6 +229,7 @@ func TestGetManifest(t *testing.T) {
 		}
 		protoScripts = []*agentproto.WorkspaceAgentScript{
 			{
+				Id:               scripts[0].ID[:],
 				LogSourceId:      scripts[0].LogSourceID[:],
 				LogPath:          scripts[0].LogPath,
 				Script:           scripts[0].Script,
@@ -237,6 +240,7 @@ func TestGetManifest(t *testing.T) {
 				Timeout:          durationpb.New(time.Duration(scripts[0].TimeoutSeconds) * time.Second),
 			},
 			{
+				Id:               scripts[1].ID[:],
 				LogSourceId:      scripts[1].LogSourceID[:],
 				LogPath:          scripts[1].LogPath,
 				Script:           scripts[1].Script,

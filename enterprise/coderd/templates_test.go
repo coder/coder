@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"net/http"
+	"slices"
 	"testing"
 	"time"
 
@@ -38,9 +39,11 @@ func TestTemplates(t *testing.T) {
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 
+		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
+				NotificationsEnqueuer:    notifyEnq,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -48,10 +51,23 @@ func TestTemplates(t *testing.T) {
 				},
 			},
 		})
-		client, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		client, secondUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+		otherClient, otherUser := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID, rbac.RoleTemplateAdmin())
+
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		_ = coderdtest.CreateWorkspace(t, owner, template.ID)
+		_ = coderdtest.CreateWorkspace(t, client, template.ID)
+
+		// Create another template for testing that users of another template do not
+		// get a notification.
+		secondVersion := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		secondTemplate := coderdtest.CreateTemplate(t, client, user.OrganizationID, secondVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, secondVersion.ID)
+
+		_ = coderdtest.CreateWorkspace(t, otherClient, secondTemplate.ID)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -64,6 +80,32 @@ func TestTemplates(t *testing.T) {
 		// AGPL cannot deprecate, expect no change
 		assert.True(t, updated.Deprecated)
 		assert.NotEmpty(t, updated.DeprecationMessage)
+
+		notifs := []*testutil.Notification{}
+		for _, notif := range notifyEnq.Sent {
+			if notif.TemplateID == notifications.TemplateTemplateDeprecated {
+				notifs = append(notifs, notif)
+			}
+		}
+		require.Equal(t, 2, len(notifs))
+
+		expectedSentTo := []string{user.UserID.String(), secondUser.ID.String()}
+		slices.Sort(expectedSentTo)
+
+		sentTo := []string{}
+		for _, notif := range notifs {
+			sentTo = append(sentTo, notif.UserID.String())
+		}
+		slices.Sort(sentTo)
+
+		// Require the notification to have only been sent to the expected users
+		assert.Equal(t, expectedSentTo, sentTo)
+
+		// The previous check should verify this but we're double checking that
+		// the notification wasn't sent to users not using the template.
+		for _, notif := range notifs {
+			assert.NotEqual(t, otherUser.ID, notif.UserID)
+		}
 
 		_, err = client.CreateWorkspace(ctx, user.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
 			TemplateID: template.ID,
@@ -732,7 +774,6 @@ func TestTemplates(t *testing.T) {
 		t.Parallel()
 
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentCustomRoles), string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, _ := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         dv,
@@ -782,7 +823,6 @@ func TestTemplates(t *testing.T) {
 	t.Run("MultipleOrganizations", func(t *testing.T) {
 		t.Parallel()
 		dv := coderdtest.DeploymentValues(t)
-		dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
@@ -1496,6 +1536,10 @@ func TestUpdateTemplateACL(t *testing.T) {
 			},
 		}
 
+		// Group adds complexity to the /available endpoint
+		// Intentionally omit user2
+		coderdtest.CreateGroup(t, client, user.OrganizationID, "some-group", user3)
+
 		ctx := testutil.Context(t, testutil.WaitLong)
 
 		err := client1.UpdateTemplateACL(ctx, template.ID, req)
@@ -1735,7 +1779,6 @@ func TestTemplateAccess(t *testing.T) {
 	t.Cleanup(cancel)
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			DeploymentValues: dv,
@@ -1946,7 +1989,6 @@ func TestMultipleOrganizationTemplates(t *testing.T) {
 	t.Parallel()
 
 	dv := coderdtest.DeploymentValues(t)
-	dv.Experiments = []string{string(codersdk.ExperimentMultiOrganization)}
 	ownerClient, first := coderdenttest.New(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
 			// This only affects the first org.

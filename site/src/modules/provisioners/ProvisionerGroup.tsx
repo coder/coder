@@ -1,6 +1,7 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import Business from "@mui/icons-material/Business";
-import Person from "@mui/icons-material/Person";
+import BusinessIcon from "@mui/icons-material/Business";
+import PersonIcon from "@mui/icons-material/Person";
+import TagIcon from "@mui/icons-material/Sell";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
@@ -20,56 +21,101 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import { ProvisionerTag } from "./ProvisionerTag";
 
-type ProvisionerGroupType = "builtin" | "psk" | "key";
+type ProvisionerGroupType = "builtin" | "userAuth" | "psk" | "key";
 
 interface ProvisionerGroupProps {
-	readonly buildInfo?: BuildInfoResponse;
-	readonly keyName?: string;
+	readonly buildInfo: BuildInfoResponse;
+	readonly keyName: string;
+	readonly keyTags: Record<string, string>;
 	readonly type: ProvisionerGroupType;
-	readonly provisioners: ProvisionerDaemon[];
+	readonly provisioners: readonly ProvisionerDaemon[];
+}
+
+function isSimpleTagSet(tags: Record<string, string>) {
+	const numberOfExtraTags = Object.keys(tags).filter(
+		(key) => key !== "scope" && key !== "owner",
+	).length;
+	return (
+		numberOfExtraTags === 0 && tags.scope === "organization" && !tags.owner
+	);
 }
 
 export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 	buildInfo,
 	keyName,
+	keyTags,
 	type,
 	provisioners,
 }) => {
-	const [provisioner] = provisioners;
 	const theme = useTheme();
 
 	const [showDetails, setShowDetails] = useState(false);
 
-	const daemonScope = provisioner.tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const firstProvisioner = provisioners[0];
+	if (!firstProvisioner) {
+		return null;
+	}
 
-	const provisionerVersion = provisioner.version;
+	const daemonScope = firstProvisioner.tags.scope || "organization";
 	const allProvisionersAreSameVersion = provisioners.every(
-		(provisioner) => provisioner.version === provisionerVersion,
+		(it) => it.version === firstProvisioner.version,
 	);
-	const upToDate =
-		allProvisionersAreSameVersion && buildInfo?.version === provisioner.version;
+	const provisionerVersion = allProvisionersAreSameVersion
+		? firstProvisioner.version
+		: null;
 	const provisionerCount =
 		provisioners.length === 1
 			? "1 provisioner"
 			: `${provisioners.length} provisioners`;
-
-	const extraTags = Object.entries(provisioner.tags).filter(
+	const extraTags = Object.entries(keyTags).filter(
 		([key]) => key !== "scope" && key !== "owner",
 	);
 
+	let warnings = 0;
+	let provisionersWithWarnings = 0;
+	const provisionersWithWarningInfo = provisioners.map((it) => {
+		const outOfDate = it.version !== buildInfo.version;
+		const warningCount = outOfDate ? 1 : 0;
+		warnings += warningCount;
+		if (warnings > 0) {
+			provisionersWithWarnings++;
+		}
+
+		return { ...it, warningCount, outOfDate };
+	});
+
+	const hasWarning = warnings > 0;
+	const warningsCount =
+		warnings === 0
+			? "No warnings"
+			: warnings === 1
+				? "1 warning"
+				: `${warnings} warnings`;
+	const provisionersWithWarningsCount =
+		provisionersWithWarnings === 1
+			? "1 provisioner"
+			: `${provisionersWithWarnings} provisioners`;
+
+	const hasMultipleTagVariants =
+		(type === "psk" || type === "userAuth") &&
+		provisioners.some((it) => !isSimpleTagSet(it.tags));
+
 	return (
 		<div
-			css={{
-				borderRadius: 8,
-				border: `1px solid ${theme.palette.divider}`,
-				fontSize: 14,
-			}}
+			css={[
+				{
+					borderRadius: 8,
+					border: `1px solid ${theme.palette.divider}`,
+					fontSize: 14,
+				},
+				hasWarning && styles.warningBorder,
+			]}
 		>
 			<header
 				css={{
@@ -80,48 +126,41 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					gap: 24,
 				}}
 			>
-				<div
-					css={{
-						display: "flex",
-						alignItems: "center",
-						gap: 24,
-						objectFit: "fill",
-					}}
-				>
-					{type === "builtin" && (
-						<div css={{ lineHeight: "160%" }}>
-							<BuiltinProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash; Built-in
-							</span>
-						</div>
-					)}
-					{type === "psk" && (
-						<div css={{ lineHeight: "160%" }}>
-							<PskProvisionerTitle />
-							<span css={{ color: theme.palette.text.secondary }}>
-								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
-									<code>{provisionerVersion}</code>
-								) : (
-									<span>Multiple versions</span>
-								)}
-							</span>
-						</div>
-					)}
-					{type === "key" && (
-						<div css={{ lineHeight: "160%" }}>
+				<div css={{ display: "flex", alignItems: "center", gap: 16 }}>
+					<StatusIndicator color={hasWarning ? "warning" : "success"} />
+					<div
+						css={{
+							display: "flex",
+							flexDirection: "column",
+							lineHeight: 1.5,
+						}}
+					>
+						{type === "builtin" && (
+							<>
+								<BuiltinProvisionerTitle />
+								<span css={{ color: theme.palette.text.secondary }}>
+									{provisionerCount} &mdash; Built-in
+								</span>
+							</>
+						)}
+
+						{type === "userAuth" && <UserAuthProvisionerTitle />}
+
+						{type === "psk" && <PskProvisionerTitle />}
+						{type === "key" && (
 							<h4 css={styles.groupTitle}>Key group &ndash; {keyName}</h4>
+						)}
+						{type !== "builtin" && (
 							<span css={{ color: theme.palette.text.secondary }}>
 								{provisionerCount} &mdash;{" "}
-								{allProvisionersAreSameVersion ? (
+								{provisionerVersion ? (
 									<code>{provisionerVersion}</code>
 								) : (
 									<span>Multiple versions</span>
 								)}
 							</span>
-						</div>
-					)}
+						)}
+					</div>
 				</div>
 				<div
 					css={{
@@ -132,11 +171,26 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 						justifyContent: "right",
 					}}
 				>
-					<Tooltip title="Scope">
-						<Pill size="lg" icon={iconScope}>
-							<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+					{!hasMultipleTagVariants ? (
+						<Tooltip title="Scope">
+							<Pill
+								size="lg"
+								icon={
+									daemonScope === "organization" ? (
+										<BusinessIcon />
+									) : (
+										<PersonIcon />
+									)
+								}
+							>
+								<span css={{ textTransform: "capitalize" }}>{daemonScope}</span>
+							</Pill>
+						</Tooltip>
+					) : (
+						<Pill size="lg" icon={<TagIcon />}>
+							Multiple tags
 						</Pill>
-					</Tooltip>
+					)}
 					{type === "key" &&
 						extraTags.map(([key, value]) => (
 							<ProvisionerTag key={key} tagName={key} tagValue={value} />
@@ -148,21 +202,23 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 				<div
 					css={{
 						padding: "0 24px 24px",
-						display: "flex",
+						display: "grid",
 						gap: 12,
-						flexWrap: "wrap",
+						gridTemplateColumns: "repeat(auto-fill, minmax(385px, 1fr))",
 					}}
 				>
-					{provisioners.map((provisioner) => (
+					{provisionersWithWarningInfo.map((provisioner) => (
 						<div
 							key={provisioner.id}
-							css={{
-								borderRadius: 8,
-								border: `1px solid ${theme.palette.divider}`,
-								fontSize: 14,
-								padding: "14px 18px",
-								width: 375,
-							}}
+							css={[
+								{
+									borderRadius: 8,
+									border: `1px solid ${theme.palette.divider}`,
+									fontSize: 14,
+									padding: "14px 18px",
+								},
+								provisioner.warningCount > 0 && styles.warningBorder,
+							]}
 						>
 							<Stack
 								direction="row"
@@ -195,8 +251,8 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 										)}
 									</span>
 								</div>
-								{type === "psk" && (
-									<PskProvisionerTags tags={provisioner.tags} />
+								{hasMultipleTagVariants && (
+									<InlineProvisionerTags tags={provisioner.tags} />
 								)}
 							</Stack>
 						</div>
@@ -215,7 +271,10 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					color: theme.palette.text.secondary,
 				}}
 			>
-				<span>No warnings from {provisionerCount}</span>
+				<span>
+					{warningsCount} from{" "}
+					{hasWarning ? provisionersWithWarningsCount : provisionerCount}
+				</span>
 				<Button
 					variant="text"
 					css={{
@@ -236,7 +295,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 };
 
 interface ProvisionerVersionPopoverProps {
-	buildInfo?: BuildInfoResponse;
+	buildInfo: BuildInfoResponse;
 	provisioner: ProvisionerDaemon;
 }
 
@@ -248,11 +307,9 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span>
-					{buildInfo
-						? provisioner.version === buildInfo.version
-							? "Up to date"
-							: "Out of date"
-						: provisioner.version}
+					{provisioner.version === buildInfo.version
+						? "Up to date"
+						: "Out of date"}
 				</span>
 			</PopoverTrigger>
 			<PopoverContent
@@ -268,7 +325,7 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 				<p css={styles.text}>{provisioner.version}</p>
 				<h4 css={styles.versionPopoverTitle}>Protocol version</h4>
 				<p css={styles.text}>{provisioner.api_version}</p>
-				{provisioner.api_version !== buildInfo?.provisioner_api_version && (
+				{provisioner.api_version !== buildInfo.provisioner_api_version && (
 					<p css={[styles.text, { fontSize: 13 }]}>
 						This provisioner is out of date. You may experience issues when
 						using a provisioner version that doesn’t match your Coder
@@ -281,13 +338,14 @@ const ProvisionerVersionPopover: FC<ProvisionerVersionPopoverProps> = ({
 	);
 };
 
-interface PskProvisionerTagsProps {
+interface InlineProvisionerTagsProps {
 	tags: Record<string, string>;
 }
 
-const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
+const InlineProvisionerTags: FC<InlineProvisionerTagsProps> = ({ tags }) => {
 	const daemonScope = tags.scope || "organization";
-	const iconScope = daemonScope === "organization" ? <Business /> : <Person />;
+	const iconScope =
+		daemonScope === "organization" ? <BusinessIcon /> : <PersonIcon />;
 
 	const extraTags = Object.entries(tags).filter(
 		([tag]) => tag !== "scope" && tag !== "owner",
@@ -313,6 +371,7 @@ const PskProvisionerTags: FC<PskProvisionerTagsProps> = ({ tags }) => {
 				css={{
 					"& .MuiPaper-root": {
 						padding: 20,
+						minWidth: "unset",
 						maxWidth: 340,
 						width: "fit-content",
 					},
@@ -357,6 +416,30 @@ const BuiltinProvisionerTitle: FC = () => {
 	);
 };
 
+const UserAuthProvisionerTitle: FC = () => {
+	return (
+		<h4 css={styles.groupTitle}>
+			<Stack direction="row" alignItems="end" spacing={1}>
+				<span>User-authenticated provisioners</span>
+				<HelpTooltip>
+					<HelpTooltipTrigger />
+					<HelpTooltipContent>
+						<HelpTooltipTitle>User-authenticated provisioners</HelpTooltipTitle>
+						<HelpTooltipText>
+							These provisioners are connected by users using the{" "}
+							<code>coder</code> CLI, and are authorized by the users
+							credentials. They can be tagged to only run provisioner jobs for
+							that user. User-authenticated provisioners are only available for
+							the default organization.{" "}
+							<Link href={docs("/")}>Learn more&hellip;</Link>
+						</HelpTooltipText>
+					</HelpTooltipContent>
+				</HelpTooltip>
+			</Stack>
+		</h4>
+	);
+};
+
 const PskProvisionerTitle: FC = () => {
 	return (
 		<h4 css={styles.groupTitle}>
@@ -379,6 +462,10 @@ const PskProvisionerTitle: FC = () => {
 };
 
 const styles = {
+	warningBorder: (theme) => ({
+		borderColor: theme.roles.warning.fill.outline,
+	}),
+
 	groupTitle: {
 		fontWeight: 500,
 		margin: 0,
@@ -389,7 +476,7 @@ const styles = {
 		marginBottom: 0,
 		color: theme.palette.text.primary,
 		fontSize: 14,
-		lineHeight: "150%",
+		lineHeight: 1.5,
 		fontWeight: 600,
 	}),
 

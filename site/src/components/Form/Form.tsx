@@ -170,7 +170,7 @@ const styles = {
 	formSectionInfoTitle: (theme) => ({
 		fontSize: 20,
 		color: theme.palette.text.primary,
-		fontWeight: 400,
+		fontWeight: 500,
 		margin: 0,
 		marginBottom: 8,
 		display: "flex",
