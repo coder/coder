@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -500,6 +501,46 @@ func TestMultiReplica_EmptyRelayAddress_DisabledDERP(t *testing.T) {
 			require.NoError(t, mgr.PublishUpdate())
 		}
 		cancel()
+	}
+}
+
+func TestSCIMDisabled(t *testing.T) {
+	t.Parallel()
+
+	cli, _ := coderdenttest.New(t, &coderdenttest.Options{})
+
+	checkPaths := []string{
+		"/scim/v2",
+		"/scim/v2/",
+		"/scim/v2/users",
+		"/scim/v2/Users",
+		"/scim/v2/Users/",
+		"/scim/v2/random/path/that/is/long",
+		"/scim/v2/random/path/that/is/long.txt",
+	}
+
+	for _, p := range checkPaths {
+		p := p
+		t.Run(p, func(t *testing.T) {
+			t.Parallel()
+
+			u, err := cli.URL.Parse(p)
+			require.NoError(t, err)
+
+			req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+
+			resp, err := http.DefaultClient.Do(req)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusNotFound, resp.StatusCode)
+
+			var apiError codersdk.Response
+			err = json.NewDecoder(resp.Body).Decode(&apiError)
+			require.NoError(t, err)
+
+			require.Contains(t, apiError.Message, "SCIM is disabled")
+		})
 	}
 }
 

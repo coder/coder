@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -11,6 +12,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
@@ -20,9 +22,14 @@ import (
 func TestWorkspaceAgentReportStats(t *testing.T) {
 	t.Parallel()
 
-	client, db := coderdtest.NewWithDatabase(t, nil)
+	tickCh := make(chan time.Time)
+	flushCh := make(chan int, 1)
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+		WorkspaceUsageTrackerFlush: flushCh,
+		WorkspaceUsageTrackerTick:  tickCh,
+	})
 	user := coderdtest.CreateFirstUser(t, client)
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 	}).WithAgent().Do()
@@ -53,6 +60,10 @@ func TestWorkspaceAgentReportStats(t *testing.T) {
 	})
 	require.NoError(t, err)
 
+	tickCh <- dbtime.Now()
+	count := <-flushCh
+	require.Equal(t, 1, count, "expected one flush with one id")
+
 	newWorkspace, err := client.Workspace(context.Background(), r.Workspace.ID)
 	require.NoError(t, err)
 
@@ -72,7 +83,7 @@ func TestAgentAPI_LargeManifest(t *testing.T) {
 	for i := range longScript {
 		longScript[i] = 'q'
 	}
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: adminUser.OrganizationID,
 		OwnerID:        adminUser.UserID,
 	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {

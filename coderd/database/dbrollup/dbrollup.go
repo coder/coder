@@ -108,7 +108,7 @@ func (r *Rolluper) start(ctx context.Context) {
 
 				ev.TemplateUsageStats = true
 				return tx.UpsertTemplateUsageStats(ctx)
-			}, nil)
+			}, database.DefaultTXOptions().WithID("db_rollup"))
 		})
 
 		err := eg.Wait()

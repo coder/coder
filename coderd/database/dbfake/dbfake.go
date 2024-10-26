@@ -32,7 +32,7 @@ var ownerCtx = dbauthz.As(context.Background(), rbac.Subject{
 })
 
 type WorkspaceResponse struct {
-	Workspace  database.Workspace
+	Workspace  database.WorkspaceTable
 	Build      database.WorkspaceBuild
 	AgentToken string
 	TemplateVersionResponse
@@ -44,7 +44,7 @@ type WorkspaceBuildBuilder struct {
 	t          testing.TB
 	db         database.Store
 	ps         pubsub.Pubsub
-	ws         database.Workspace
+	ws         database.WorkspaceTable
 	seed       database.WorkspaceBuild
 	resources  []*sdkproto.Resource
 	params     []database.WorkspaceBuildParameter
@@ -60,7 +60,7 @@ type workspaceBuildDisposition struct {
 // Pass a database.Workspace{} with a nil ID to also generate a new workspace.
 // Omitting the template ID on a workspace will also generate a new template
 // with a template version.
-func WorkspaceBuild(t testing.TB, db database.Store, ws database.Workspace) WorkspaceBuildBuilder {
+func WorkspaceBuild(t testing.TB, db database.Store, ws database.WorkspaceTable) WorkspaceBuildBuilder {
 	return WorkspaceBuildBuilder{t: t, db: db, ws: ws}
 }
 

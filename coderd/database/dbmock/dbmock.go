@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -3234,10 +3233,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildsCreatedAfter(arg0, arg1 any) 
 }
 
 // GetWorkspaceByAgentID mocks base method.
-func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
+func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.Workspace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceByAgentID", arg0, arg1)
-	ret0, _ := ret[0].(database.GetWorkspaceByAgentIDRow)
+	ret0, _ := ret[0].(database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3474,10 +3473,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 any) *gomock.Call {
 }
 
 // GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3489,7 +3488,7 @@ func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 a
 }
 
 // InTx mocks base method.
-func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *sql.TxOptions) error {
+func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *database.TxOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InTx", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -4021,10 +4020,10 @@ func (mr *MockStoreMockRecorder) InsertUserLink(arg0, arg1 any) *gomock.Call {
 }
 
 // InsertWorkspace mocks base method.
-func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5041,10 +5040,10 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(arg0, arg1 any) *gomock.Call {
 }
 
 // UpdateWorkspace mocks base method.
-func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5224,10 +5223,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceDeletedByID(arg0, arg1 any) *gom
 }
 
 // UpdateWorkspaceDormantDeletingAt mocks base method.
-func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceDormantDeletingAt", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5296,10 +5295,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 any) *gomock.Call
 }
 
 // UpdateWorkspacesDormantDeletingAtByTemplateID mocks base method.
-func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
+func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspacesDormantDeletingAtByTemplateID", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

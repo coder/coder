@@ -32,11 +32,25 @@ args:
 env:
 - name: CODER_PROMETHEUS_ADDRESS
   value: "0.0.0.0:2112"
+{{- if and (empty .Values.provisionerDaemon.pskSecretName) (empty .Values.provisionerDaemon.keySecretName) }}
+{{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified." }}
+{{- else if and (.Values.provisionerDaemon.pskSecretName) (.Values.provisionerDaemon.keySecretName) }}
+{{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both." }}
+{{- end }}
+{{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK
   valueFrom:
     secretKeyRef:
       name: {{ .Values.provisionerDaemon.pskSecretName | quote }}
       key: psk
+{{- end }}
+{{- if and .Values.provisionerDaemon.keySecretName .Values.provisionerDaemon.keySecretKey }}
+- name: CODER_PROVISIONER_DAEMON_KEY
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.provisionerDaemon.keySecretName | quote }}
+      key: {{ .Values.provisionerDaemon.keySecretKey | quote }}
+{{- end }}
 {{- if include "provisioner.tags" . }}
 - name: CODER_PROVISIONERD_TAGS
   value: {{ include "provisioner.tags" . }}

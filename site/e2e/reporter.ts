@@ -10,7 +10,7 @@ import type {
 	TestResult,
 } from "@playwright/test/reporter";
 import { API } from "api/api";
-import { coderdPProfPort, enterpriseLicense } from "./constants";
+import { coderdPProfPort, license } from "./constants";
 
 class CoderReporter implements Reporter {
 	config: FullConfig | null = null;
@@ -108,9 +108,9 @@ class CoderReporter implements Reporter {
 
 	onEnd(result: FullResult) {
 		console.info(`==> Tests ${result.status}`);
-		if (!enterpriseLicense) {
+		if (!license) {
 			console.info(
-				"==> Enterprise tests were skipped, because no license was provided",
+				"==> Tests that require a license were skipped, because no license was provided",
 			);
 		}
 		console.info(`${this.passedCount} passed`);

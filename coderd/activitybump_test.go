@@ -125,7 +125,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 			}
 
 			// maxTimeDrift is how long we are willing wait for a deadline to
-			// be increased. Since it could have been bumped at the intial
+			// be increased. Since it could have been bumped at the initial
 			maxTimeDrift := testutil.WaitMedium
 
 			updatedAfter := dbtime.Now()

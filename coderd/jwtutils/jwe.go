@@ -27,7 +27,7 @@ type DecryptKeyProvider interface {
 func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, error) {
 	id, key, err := e.EncryptingKey(ctx)
 	if err != nil {
-		return "", xerrors.Errorf("get signing key: %w", err)
+		return "", xerrors.Errorf("encrypting key: %w", err)
 	}
 
 	encrypter, err := jose.NewEncrypter(
@@ -65,6 +65,12 @@ func Encrypt(ctx context.Context, e EncryptKeyProvider, claims Claims) (string, 
 	return compact, nil
 }
 
+func WithDecryptExpected(expected jwt.Expected) func(*DecryptOptions) {
+	return func(opts *DecryptOptions) {
+		opts.RegisteredClaims = expected
+	}
+}
+
 // DecryptOptions are options for decrypting a JWE.
 type DecryptOptions struct {
 	RegisteredClaims           jwt.Expected
@@ -100,7 +106,7 @@ func Decrypt(ctx context.Context, d DecryptKeyProvider, token string, claims Cla
 
 	kid := object.Header.KeyID
 	if kid == "" {
-		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
+		return ErrMissingKeyID
 	}
 
 	key, err := d.DecryptingKey(ctx, kid)

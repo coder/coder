@@ -66,7 +66,7 @@ func New(ctx context.Context, logger slog.Logger, db database.Store, clk quartz.
 			logger.Info(ctx, "purged old database entries", slog.F("duration", clk.Since(start)))
 
 			return nil
-		}, nil); err != nil {
+		}, database.DefaultTXOptions().WithID("db_purge")); err != nil {
 			logger.Error(ctx, "failed to purge old database entries", slog.Error(err))
 			return
 		}

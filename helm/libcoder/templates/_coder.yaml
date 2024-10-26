@@ -43,6 +43,10 @@ spec:
       nodeSelector:
       {{ toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.coder.topologySpreadConstraints }}
+      topologySpreadConstraints:
+      {{- toYaml . | nindent 8 }}
+      {{- end }}
       {{- with .Values.coder.initContainers }}
       initContainers:
       {{ toYaml . | nindent 8 }}
