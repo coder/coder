@@ -166,7 +166,7 @@ func Workspaces(ctx context.Context, logger slog.Logger, registerer prometheus.R
 
 		workspaceLatestBuildStatuses.Reset()
 		for _, w := range ws {
-			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.Username, string(w.LatestBuildTransition)).Add(1)
+			workspaceLatestBuildStatuses.WithLabelValues(string(w.LatestBuildStatus), w.TemplateName, w.TemplateVersionName.String, w.OwnerUsername, string(w.LatestBuildTransition)).Add(1)
 		}
 	}
 

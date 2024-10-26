@@ -90,7 +90,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
-		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+		w1 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 
 		w1wb1pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID, Error: jobError, ErrorCode: jobErrorCode, CompletedAt: sql.NullTime{Time: now.Add(-6 * dayDuration), Valid: true}})
 		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: w1.ID, BuildNumber: 1, TemplateVersionID: t1v1.ID, JobID: w1wb1pj.ID, CreatedAt: now.Add(-2 * dayDuration), Transition: database.WorkspaceTransitionStart, Reason: database.BuildReasonInitiator})
@@ -164,10 +164,10 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t2v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-2-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t2.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
-		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
-		w2 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
-		w3 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
-		w4 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
+		w1 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+		w2 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
+		w3 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+		w4 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t2.ID, OwnerID: user2.ID, OrganizationID: org.ID})
 
 		// When: first run
 		notifEnq.Clear()
@@ -330,7 +330,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t1v2 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-2", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
-		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+		w1 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 
 		// When: first run
 		notifEnq.Clear()
@@ -427,7 +427,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		t1v1 := dbgen.TemplateVersion(t, db, database.TemplateVersion{Name: "template-1-version-1", CreatedBy: templateAdmin1.ID, OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true}, JobID: uuid.New()})
 
 		// Workspaces
-		w1 := dbgen.Workspace(t, db, database.Workspace{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
+		w1 := dbgen.Workspace(t, db, database.WorkspaceTable{TemplateID: t1.ID, OwnerID: user1.ID, OrganizationID: org.ID})
 
 		// When: first run
 		notifEnq.Clear()

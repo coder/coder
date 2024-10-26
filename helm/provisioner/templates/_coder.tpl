@@ -34,6 +34,8 @@ env:
   value: "0.0.0.0:2112"
 {{- if and (empty .Values.provisionerDaemon.pskSecretName) (empty .Values.provisionerDaemon.keySecretName) }}
 {{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified." }}
+{{- else if and (.Values.provisionerDaemon.pskSecretName) (.Values.provisionerDaemon.keySecretName) }}
+{{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both." }}
 {{- end }}
 {{- if .Values.provisionerDaemon.pskSecretName }}
 - name: CODER_PROVISIONER_DAEMON_PSK

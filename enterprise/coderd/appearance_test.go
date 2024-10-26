@@ -148,7 +148,7 @@ func TestAnnouncementBanners(t *testing.T) {
 		err := client.UpdateAppearance(ctx, cfg)
 		require.NoError(t, err)
 
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()

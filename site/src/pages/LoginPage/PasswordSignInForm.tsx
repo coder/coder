@@ -1,8 +1,10 @@
 import LoadingButton from "@mui/lab/LoadingButton";
+import Link from "@mui/material/Link";
 import TextField from "@mui/material/TextField";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
+import { Link as RouterLink } from "react-router-dom";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 import { Language } from "./SignInForm";
@@ -65,6 +67,17 @@ export const PasswordSignInForm: FC<PasswordSignInFormProps> = ({
 				>
 					{Language.passwordSignIn}
 				</LoadingButton>
+				<Link
+					component={RouterLink}
+					to="/reset-password"
+					css={{
+						fontSize: 12,
+						fontWeight: 500,
+						lineHeight: "16px",
+					}}
+				>
+					Forgot password?
+				</Link>
 			</Stack>
 		</form>
 	);

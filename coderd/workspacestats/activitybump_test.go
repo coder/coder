@@ -191,7 +191,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 						ActiveVersionID: templateVersion.ID,
 						CreatedBy:       user.ID,
 					})
-					ws = dbgen.Workspace(t, db, database.Workspace{
+					ws = dbgen.Workspace(t, db, database.WorkspaceTable{
 						OwnerID:        user.ID,
 						OrganizationID: org.ID,
 						TemplateID:     template.ID,
