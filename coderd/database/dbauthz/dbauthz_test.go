@@ -654,9 +654,8 @@ func (s *MethodTestSuite) TestLicense() {
 		check.Args(l.ID).Asserts(l, policy.ActionDelete)
 	}))
 	s.Run("GetDeploymentID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args().Asserts().Returns("")
+		db.InsertDeploymentID(context.Background(), "value")
+		check.Args().Asserts().Returns("value")
 	}))
 	s.Run("GetDefaultProxyConfig", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts().Returns(database.GetDefaultProxyConfigRow{
@@ -704,14 +703,14 @@ func (s *MethodTestSuite) TestOrganization() {
 		check.Args(o.Name).Asserts(o, policy.ActionRead).Returns(o)
 	}))
 	s.Run("GetOrganizationIDsByMemberIDs", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		oa := dbgen.Organization(s.T(), db, database.Organization{})
 		ob := dbgen.Organization(s.T(), db, database.Organization{})
-		ma := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: oa.ID})
-		mb := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: ob.ID})
+		ua := dbgen.User(s.T(), db, database.User{})
+		ub := dbgen.User(s.T(), db, database.User{})
+		ma := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: oa.ID, UserID: ua.ID})
+		mb := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{OrganizationID: ob.ID, UserID: ub.ID})
 		check.Args([]uuid.UUID{ma.UserID, mb.UserID}).
-			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead)
+			Asserts(rbac.ResourceUserObject(ma.UserID), policy.ActionRead, rbac.ResourceUserObject(mb.UserID), policy.ActionRead).OutOfOrder()
 	}))
 	s.Run("GetOrganizations", s.Subtest(func(db database.Store, check *expects) {
 		def, _ := db.GetDefaultOrganization(context.Background())
@@ -746,8 +745,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
 		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
@@ -759,10 +756,8 @@ func (s *MethodTestSuite) TestOrganization() {
 			// Reads the org member before it tries to delete it
 			member, policy.ActionRead,
 			member, policy.ActionDelete).
-			// SQL Filter returns a 404
 			WithNotAuthorized("no rows").
-			WithCancelled("no rows").
-			Errors(sql.ErrNoRows)
+			WithCancelled("fetch object: context canceled")
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
@@ -798,8 +793,6 @@ func (s *MethodTestSuite) TestOrganization() {
 		)
 	}))
 	s.Run("UpdateMemberRoles", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
 		mem := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{
@@ -816,7 +809,7 @@ func (s *MethodTestSuite) TestOrganization() {
 			OrgID:        o.ID,
 		}).
 			WithNotAuthorized(sql.ErrNoRows.Error()).
-			WithCancelled(sql.ErrNoRows.Error()).
+			WithCancelled("fetch object: context canceled").
 			Asserts(
 				mem, policy.ActionRead,
 				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
@@ -867,14 +860,14 @@ func (s *MethodTestSuite) TestWorkspaceProxy() {
 
 func (s *MethodTestSuite) TestTemplate() {
 	s.Run("GetPreviousTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		tvid := uuid.New()
 		now := time.Now()
+		u := dbgen.User(s.T(), db, database.User{})
 		o1 := dbgen.Organization(s.T(), db, database.Organization{})
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			OrganizationID:  o1.ID,
 			ActiveVersionID: tvid,
+			CreatedBy:       u.ID,
 		})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			CreatedAt:      now.Add(-time.Hour),
@@ -882,12 +875,14 @@ func (s *MethodTestSuite) TestTemplate() {
 			Name:           t1.Name,
 			OrganizationID: o1.ID,
 			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+			CreatedBy:      u.ID,
 		})
 		b := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			CreatedAt:      now.Add(-2 * time.Hour),
-			Name:           t1.Name,
+			Name:           t1.Name + "b",
 			OrganizationID: o1.ID,
 			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+			CreatedBy:      u.ID,
 		})
 		check.Args(database.GetPreviousTemplateVersionParams{
 			Name:           t1.Name,
@@ -1007,9 +1002,12 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(now.Add(-time.Hour)).Asserts(rbac.ResourceTemplate.All(), policy.ActionRead)
 	}))
 	s.Run("GetTemplatesWithFilter", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		a := dbgen.Template(s.T(), db, database.Template{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{})
+		a := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
 		// No asserts because SQLFilter.
 		check.Args(database.GetTemplatesWithFilterParams{}).
 			Asserts().Returns(slice.New(a))
