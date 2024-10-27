@@ -9683,6 +9683,15 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 	return i, err
 }
 
+const disableForeignKeys = `-- name: DisableForeignKeys :exec
+SET session_replication_role = 'replica'
+`
+
+func (q *sqlQuerier) DisableForeignKeys(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, disableForeignKeys)
+	return err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.debug_context

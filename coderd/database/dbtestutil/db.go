@@ -304,3 +304,7 @@ func normalizeDump(schema []byte) []byte {
 
 	return schema
 }
+
+func DisableForeignKeys(t *testing.T, db database.Store) {
+	require.NoError(t, db.DisableForeignKeys(context.Background()))
+}

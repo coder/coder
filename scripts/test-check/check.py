@@ -37,7 +37,7 @@ def load_and_process_files(directory: Path) -> Dict[str, Dict[str, int]]:
                     assert isinstance(result.Test, str)
                     assert isinstance(result.Elapsed, (int, float))
                     
-                    test_key = f"{result.Package}/{result.Test}"
+                    test_key = f"{result.Package},{result.Test}"
                     if test_key not in test_results:
                         test_results[test_key] = {'pass': 0, 'fail': 0, 'skip': 0}
                     
