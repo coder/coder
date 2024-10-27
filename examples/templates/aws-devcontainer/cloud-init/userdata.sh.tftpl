@@ -13,7 +13,6 @@ fi
 # Set up Docker credentials
 mkdir -p "/home/${linux_user}/.docker"
 
-# NOTE: do we want to use the templating engine's ifs instead?
 if [ -n "${docker_config_json_base64}" ]; then
 	# Write the Docker config JSON to disk if it is provided.
 	printf "%s" "${docker_config_json_base64}" | base64 -d | tee "/home/${linux_user}/.docker/config.json"
