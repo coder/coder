@@ -18,8 +18,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
-// Open creates a new PostgreSQL database instance.  With DB_FROM environment variable set, it clones a database
-// from the provided template.  With the environment variable unset, it creates a new Docker container running postgres.
+// Open creates a new PostgreSQL database instance.
 func Open() (string, func(), error) {
 	var (
 		username = "postgres"
@@ -141,16 +140,6 @@ func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
 	}
 
 	return nil
-}
-
-func CreateDatabaseTest() error {
-	return createDatabaseFromTemplate(CreateDatabaseArgs{
-		Username: "postgres",
-		Password: "postgres",
-		Host:     "127.0.0.1",
-		Port:     "5432",
-		DBName:   "my_beautiful_db",
-	})
 }
 
 // OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic
