@@ -2257,48 +2257,48 @@ func (s *MethodTestSuite) TestExtraMethods() {
 }
 
 func (s *MethodTestSuite) TestTailnetFunctions() {
-	s.Run("CleanTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("CleanTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("CleanTailnetLostPeers", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("CleanTailnetLostPeers", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("CleanTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("CleanTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetClientSubscriptionsParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetTunnelsParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteCoordinator", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteCoordinator", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteTailnetAgent", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteTailnetAgentParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetClient", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteTailnetClient", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientSubscriptionParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteTailnetPeer", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteTailnetPeerParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
 			Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetTunnel", s.Subtest(func(_ database.Store, check *expects) {
+	s.Run("DeleteTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.DeleteTailnetTunnelParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
 			Errors(sql.ErrNoRows)
@@ -2474,9 +2474,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.UpsertDefaultProxyParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetUserLinkByLinkedID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		l := dbgen.UserLink(s.T(), db, database.UserLink{})
+		u := dbgen.User(s.T(), db, database.User{})
+		l := dbgen.UserLink(s.T(), db, database.UserLink{UserID: u.ID})
 		check.Args(l.LinkedID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(l)
 	}))
 	s.Run("GetUserLinkByUserIDLoginType", s.Subtest(func(db database.Store, check *expects) {
