@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -114,7 +115,9 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		s.methodAccounting[methodName]++
 
 		db, _ := dbtestutil.NewDB(t)
-		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
+		fakeAuthorizer := &coderdtest.FakeAuthorizer{
+			RegoAuthorizer: rbac.NewAuthorizer(prometheus.NewRegistry()),
+		}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}
@@ -216,7 +219,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				}
 			}
 
-			rec.AssertActor(s.T(), actor, pairs...)
+			if testCase.outOfOrder {
+				rec.AssertOutOfOrder(s.T(), actor, pairs...)
+			} else {
+				rec.AssertActor(s.T(), actor, pairs...)
+			}
 			s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
 		})
 	}
@@ -235,6 +242,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
+		az.OverrideSQLFilter("FALSE")
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -327,6 +335,14 @@ type expects struct {
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
 	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
+	outOfOrder          bool
+}
+
+// OutOfOrder is optional. It controls whether the assertions should be
+// asserted in order.
+func (m *expects) OutOfOrder() *expects {
+	m.outOfOrder = true
+	return m
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.

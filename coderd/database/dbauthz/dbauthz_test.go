@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
+	"fmt"
 	"net"
 	"reflect"
 	"strings"
@@ -11,6 +12,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/sqlc-dev/pqtype"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -140,7 +142,9 @@ func TestDBAuthzRecursive(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	q := dbauthz.New(db, &coderdtest.RecordingAuthorizer{
-		Wrapped: &coderdtest.FakeAuthorizer{},
+		Wrapped: &coderdtest.FakeAuthorizer{
+			RegoAuthorizer: rbac.NewAuthorizer(prometheus.NewRegistry()),
+		},
 	}, slog.Make(), coderdtest.AccessControlStorePointer())
 	actor := rbac.Subject{
 		ID:     uuid.NewString(),
@@ -1159,17 +1163,18 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.GetUserLatencyInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Errors(sql.ErrNoRows)
+		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
+			Returns([]database.GetUserActivityInsightsRow{})
 	}))
 	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateParameterInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByInterval", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.GetTemplateInsightsByIntervalParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
+		check.Args(database.GetTemplateInsightsByIntervalParams{
+			IntervalDays: 7,
+			StartTime:    dbtime.Now().Add(-time.Hour * 24 * 7),
+			EndTime:      dbtime.Now(),
+		}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateInsightsByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
@@ -1181,9 +1186,8 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(database.GetTemplateAppInsightsByTemplateParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights)
 	}))
 	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).Errors(sql.ErrNoRows)
+		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
+			Returns([]database.TemplateUsageStat{})
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -2621,7 +2625,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns(slice.New(tv1, tv2, tv3))
 	}))
 	s.Run("GetParameterSchemasByJobID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
@@ -2629,7 +2632,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: tv.JobID})
 		check.Args(job.ID).
-			Asserts(tpl, policy.ActionRead).Errors(sql.ErrNoRows)
+			Asserts(tpl, policy.ActionRead).Returns([]database.ParameterSchema{})
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeys(s.T(), db)
@@ -2720,14 +2723,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("AcquireProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		// TODO: we need to create a ProvisionerJob resource
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			StartedAt: sql.NullTime{Valid: false},
+			UpdatedAt: time.Now(),
 		})
-		check.Args(database.AcquireProvisionerJobParams{OrganizationID: j.OrganizationID, Types: []database.ProvisionerType{j.Provisioner}, Tags: must(json.Marshal(j.Tags))}).
-			Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
+		check.Args(database.AcquireProvisionerJobParams{
+			StartedAt:      sql.NullTime{Valid: true, Time: time.Now()},
+			OrganizationID: j.OrganizationID,
+			Types:          []database.ProvisionerType{j.Provisioner},
+			Tags:           must(json.Marshal(j.Tags)),
+		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
 	}))
 	s.Run("UpdateProvisionerJobWithCompleteByID", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: we need to create a ProvisionerJob resource
@@ -2745,7 +2751,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		// TODO: we need to create a ProvisionerJob resource
 		check.Args(database.InsertProvisionerJobParams{
@@ -2753,6 +2758,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			Input:         json.RawMessage("{}"),
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
 	s.Run("InsertProvisionerJobLogs", s.Subtest(func(db database.Store, check *expects) {
@@ -2770,18 +2776,19 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pd := rbac.ResourceProvisionerDaemon.InOrg(org.ID)
 		check.Args(database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
 		}).Asserts(pd, policy.ActionCreate)
 		check.Args(database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeUser,
 				provisionersdk.TagOwner: "11111111-1111-1111-1111-111111111111",
@@ -2789,19 +2796,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(pd.WithOwner("11111111-1111-1111-1111-111111111111"), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersionParameter", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{})
 		check.Args(database.InsertTemplateVersionParameterParams{
 			TemplateVersionID: v.ID,
+			Options:           json.RawMessage("{}"),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
-		r := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{})
 		check.Args(database.InsertWorkspaceResourceParams{
-			ID:         r.ID,
+			ID:         uuid.New(),
 			Transition: database.WorkspaceTransitionStart,
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
@@ -2839,17 +2844,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.GetTemplateDAUsParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetActiveWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkspaceBuild{})
 	}))
 	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(int32(0)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("UpsertAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -2948,9 +2949,8 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertTemplateVersionWorkspaceTagParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateInactiveUsersToDormant", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.UpdateInactiveUsersToDormantParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).Errors(sql.ErrNoRows)
+		check.Args(database.UpdateInactiveUsersToDormantParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).
+			Returns([]database.UpdateInactiveUsersToDormantRow{})
 	}))
 	s.Run("GetWorkspaceUniqueOwnerCountByTemplateIDs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args([]uuid.UUID{uuid.New()}).Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -3093,6 +3093,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
 	}))
+	s.Run("DisableForeignKeys", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts()
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
@@ -3122,11 +3125,10 @@ func (s *MethodTestSuite) TestNotifications() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		// TODO: update this test once we have a specific role for notifications
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead).
+			Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
 		// TODO: update this test once we have a specific role for notifications
@@ -3138,10 +3140,10 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	// Notification templates
 	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
-		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead)
+		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
+			Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.NotificationTemplateKindSystem).
@@ -3184,14 +3186,22 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))
 	s.Run("GetOAuth2ProviderAppsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			UserID: user.ID,
 		})
-		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
-		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
+		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
+		require.NoError(s.T(), err)
+		createdAt := time.Now().In(loc).Round(time.Microsecond)
+		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		})
+		_ = dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
+			CreatedAt: createdAt,
+			UpdatedAt: createdAt,
+		})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
@@ -3199,6 +3209,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
 				AppSecretID: secret.ID,
 				APIKeyID:    key.ID,
+				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
 			})
 		}
 		check.Args(user.ID).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead).Returns([]database.GetOAuth2ProviderAppsByUserIDRow{
@@ -3208,6 +3219,8 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 					CallbackURL: app.CallbackURL,
 					Icon:        app.Icon,
 					Name:        app.Name,
+					CreatedAt:   createdAt,
+					UpdatedAt:   createdAt,
 				},
 				TokenCount: 5,
 			},
@@ -3217,11 +3230,12 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		app.Name = "my-new-name"
-		app.UpdatedAt = time.Now()
+		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
+		require.NoError(s.T(), err)
+		app.UpdatedAt = time.Now().In(loc).Round(time.Microsecond)
 		check.Args(database.UpdateOAuth2ProviderAppByIDParams{
 			ID:          app.ID,
 			Name:        app.Name,
@@ -3237,21 +3251,23 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 
 func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 	s.Run("GetOAuth2ProviderAppSecretsByAppID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		app1 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		app2 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secrets := []database.OAuth2ProviderAppSecret{
 			dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
-				AppID:     app1.ID,
-				CreatedAt: time.Now().Add(-time.Hour), // For ordering.
+				AppID:        app1.ID,
+				CreatedAt:    time.Now().Add(-time.Hour), // For ordering.
+				SecretPrefix: []byte("1"),
 			}),
 			dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
-				AppID: app1.ID,
+				AppID:        app1.ID,
+				SecretPrefix: []byte("2"),
 			}),
 		}
 		_ = dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
-			AppID: app2.ID,
+			AppID:        app2.ID,
+			SecretPrefix: []byte("3"),
 		})
 		check.Args(app1.ID).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionRead).Returns(secrets)
 	}))
@@ -3276,13 +3292,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		secret.LastUsedAt = sql.NullTime{Time: time.Now(), Valid: true}
+		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
+		require.NoError(s.T(), err)
+		secret.LastUsedAt = sql.NullTime{Time: time.Now().In(loc).Round(time.Microsecond), Valid: true}
 		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
 			ID:         secret.ID,
 			LastUsedAt: secret.LastUsedAt,
@@ -3334,14 +3351,14 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(code.ID).Asserts(code, policy.ActionDelete)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodesByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		for i := 0; i < 5; i++ {
 			_ = dbgen.OAuth2ProviderAppCode(s.T(), db, database.OAuth2ProviderAppCode{
-				AppID:  app.ID,
-				UserID: user.ID,
+				AppID:        app.ID,
+				UserID:       user.ID,
+				SecretPrefix: []byte(fmt.Sprintf("%d", i)),
 			})
 		}
 		check.Args(database.DeleteOAuth2ProviderAppCodesByAppAndUserIDParams{
@@ -3382,7 +3399,6 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		check.Args(token.HashPrefix).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
 	s.Run("DeleteOAuth2ProviderAppTokensByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
@@ -3396,6 +3412,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 			_ = dbgen.OAuth2ProviderAppToken(s.T(), db, database.OAuth2ProviderAppToken{
 				AppSecretID: secret.ID,
 				APIKeyID:    key.ID,
+				HashPrefix:  []byte(fmt.Sprintf("%d", i)),
 			})
 		}
 		check.Args(database.DeleteOAuth2ProviderAppTokensByAppAndUserIDParams{
