@@ -797,15 +797,8 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		postgres:${POSTGRES_VERSION}-alpine \
-		-c shared_buffers=1GB \
-		-c work_mem=1GB \
-		-c effective_cache_size=1GB \
-		-c max_connections=1000 \
-		-c fsync=off \
-		-c synchronous_commit=off \
-		-c full_page_writes=off \
-		-c log_statement=all
+		postgres:${POSTGRES_VERSION} \
+		-c max_connections=1000
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"
