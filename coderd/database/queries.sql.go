@@ -7116,7 +7116,10 @@ SET
 	updated_at = now()
 WHERE
 	name = lower($5)
-	AND organization_id = $6
+	AND CASE
+		WHEN $6 :: uuid IS NULL THEN organization_id IS NULL
+		ELSE organization_id = $6 :: uuid
+	END
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 

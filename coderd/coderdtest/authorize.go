@@ -359,6 +359,7 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
 	RegoAuthorizer    *rbac.RegoAuthorizer
+	sqlFilter         string
 }
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
@@ -368,6 +369,12 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 	d.ConditionalReturn = func(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
 		return err
 	}
+	return d
+}
+
+// OverrideSQLFilter overrides the SQL filter for the FakeAuthorizer.
+func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
+	d.sqlFilter = filter
 	return d
 }
 
@@ -408,6 +415,9 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 }
 
 func (f *fakePreparedAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	if f.Original.sqlFilter != "" {
+		return f.Original.sqlFilter, nil
+	}
 	return f.PreparedRegoAuthorizer.CompileToSQL(ctx, cfg)
 }
 

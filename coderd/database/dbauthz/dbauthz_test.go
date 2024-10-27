@@ -296,7 +296,7 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
 			LimitOpt: 10,
-		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead)
+		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
 	s.Run("GetAuthorizedAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeys(s.T(), db)
@@ -1013,7 +1013,6 @@ func (s *MethodTestSuite) TestTemplate() {
 			Asserts().Returns(slice.New(a))
 	}))
 	s.Run("GetAuthorizedTemplates", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		a := dbgen.Template(s.T(), db, database.Template{})
 		// No asserts because SQLFilter.
@@ -1135,16 +1134,22 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateTemplateVersionExternalAuthProvidersByJobID", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		jobID := uuid.New()
-		t1 := dbgen.Template(s.T(), db, database.Template{})
+		u := dbgen.User(s.T(), db, database.User{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		t1 := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: o.ID,
+			CreatedBy:      u.ID,
+		})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
-			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
-			JobID:      jobID,
+			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
+			CreatedBy:      u.ID,
+			OrganizationID: o.ID,
+			JobID:          jobID,
 		})
 		check.Args(database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
-			JobID: jobID,
+			JobID:                 jobID,
+			ExternalAuthProviders: json.RawMessage("{}"),
 		}).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetTemplateInsights", s.Subtest(func(db database.Store, check *expects) {
@@ -1238,20 +1243,18 @@ func (s *MethodTestSuite) TestUser() {
 			Asserts()
 	}))
 	s.Run("InsertUser", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		check.Args(database.InsertUserParams{
 			ID:        uuid.New(),
 			LoginType: database.LoginTypePassword,
+			RBACRoles: []string{},
 		}).Asserts(rbac.ResourceAssignRole, policy.ActionAssign, rbac.ResourceUser, policy.ActionCreate)
 	}))
 	s.Run("InsertUserLink", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.InsertUserLinkParams{
-			UserID:    u.ID,
-			LoginType: database.LoginTypeOIDC,
+			UserID:       u.ID,
+			LoginType:    database.LoginTypeOIDC,
+			DebugContext: json.RawMessage("{}"),
 		}).Asserts(u, policy.ActionUpdate)
 	}))
 	s.Run("UpdateUserDeletedByID", s.Subtest(func(db database.Store, check *expects) {
@@ -1271,11 +1274,11 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(u, policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("UpdateUserHashedOneTimePasscode", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		u := dbgen.User(s.T(), db, database.User{})
 		check.Args(database.UpdateUserHashedOneTimePasscodeParams{
-			ID: u.ID,
+			ID:                       u.ID,
+			HashedOneTimePasscode:    []byte{},
+			OneTimePasscodeExpiresAt: sql.NullTime{Time: u.CreatedAt, Valid: true},
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateUserQuietHoursSchedule", s.Subtest(func(db database.Store, check *expects) {
@@ -1437,7 +1440,6 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceAssignRole, policy.ActionDelete)
 	}))
 	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{})
 		// Blank is no perms in the role
@@ -1450,8 +1452,6 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate)
 	}))
 	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
 			OrganizationID: uuid.NullUUID{
 				UUID:  uuid.Nil,
@@ -1953,9 +1953,10 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(w, policy.ActionUpdate).Returns(expected)
 	}))
 	s.Run("UpdateWorkspaceDormantDeletingAt", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		o := dbgen.Organization(s.T(), db, database.Organization{})
+		u := dbgen.User(s.T(), db, database.User{ID: o.ID})
+		tpl := dbgen.Template(s.T(), db, database.Template{OrganizationID: o.ID, CreatedBy: u.ID})
+		w := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, OrganizationID: o.ID, TemplateID: tpl.ID})
 		check.Args(database.UpdateWorkspaceDormantDeletingAtParams{
 			ID: w.ID,
 		}).Asserts(w, policy.ActionUpdate)
@@ -2129,12 +2130,12 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 
 func (s *MethodTestSuite) TestProvisionerKeys() {
 	s.Run("InsertProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
+		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
+		s.Require().NoError(err)
 		pk := database.ProvisionerKey{
 			ID:             uuid.New(),
-			CreatedAt:      time.Now(),
+			CreatedAt:      time.Now().In(loc).Round(time.Millisecond),
 			OrganizationID: org.ID,
 			Name:           strings.ToLower(coderdtest.RandomName(s.T())),
 			HashedSecret:   []byte(coderdtest.RandomName(s.T())),
@@ -2167,8 +2168,6 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 		}).Asserts(pk, policy.ActionRead).Returns(pk)
 	}))
 	s.Run("ListProvisionerKeysByOrganization", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
 		pks := []database.ProvisionerKey{
@@ -2177,13 +2176,12 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 				CreatedAt:      pk.CreatedAt,
 				OrganizationID: pk.OrganizationID,
 				Name:           pk.Name,
+				HashedSecret:   []byte{},
 			},
 		}
 		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
 	}))
 	s.Run("ListProvisionerKeysByOrganizationExcludeReserved", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pk := dbgen.ProvisionerKey(s.T(), db, database.ProvisionerKey{OrganizationID: org.ID})
 		pks := []database.ProvisionerKey{
@@ -2192,6 +2190,7 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 				CreatedAt:      pk.CreatedAt,
 				OrganizationID: pk.OrganizationID,
 				Name:           pk.Name,
+				HashedSecret:   []byte{},
 			},
 		}
 		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
@@ -2205,9 +2204,9 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 
 func (s *MethodTestSuite) TestExtraMethods() {
 	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
@@ -2216,11 +2215,11 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args().Asserts(d, policy.ActionRead)
 	}))
 	s.Run("GetProvisionerDaemonsByOrganization", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
@@ -2231,9 +2230,9 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args(org.ID).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
 	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
@@ -2242,9 +2241,9 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("UpdateProvisionerDaemonLastSeenAt", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			}),
@@ -2258,57 +2257,51 @@ func (s *MethodTestSuite) TestExtraMethods() {
 }
 
 func (s *MethodTestSuite) TestTailnetFunctions() {
-	s.Run("CleanTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("CleanTailnetLostPeers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetLostPeers", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("CleanTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetClientSubscriptionsParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetTunnelsParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteCoordinator", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteCoordinator", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
+	s.Run("DeleteTailnetAgent", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetAgentParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetClient", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
+	s.Run("DeleteTailnetClient", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientSubscriptionParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
 	}))
-	s.Run("DeleteTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
+	s.Run("DeleteTailnetPeer", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetPeerParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			Errors(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
-		dbtestutil.DisableForeignKeys(s.T(), db)
+	s.Run("DeleteTailnetTunnel", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetTunnelParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetAllTailnetAgents", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().
@@ -2347,15 +2340,13 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
 	s.Run("UpsertTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.UpsertTailnetAgentParams{}).
+		check.Args(database.UpsertTailnetAgentParams{Node: json.RawMessage("{}")}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetClient", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.UpsertTailnetClientParams{}).
+		check.Args(database.UpsertTailnetClientParams{Node: json.RawMessage("{}")}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
@@ -2380,9 +2371,8 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate)
 	}))
 	s.Run("UpdateTailnetPeerStatusByCoordinator", s.Subtest(func(db database.Store, check *expects) {
-		s.T().Skip("hugos migration")
 		dbtestutil.DisableForeignKeys(s.T(), db)
-		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{}).
+		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{Status: database.TailnetStatusOk}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 }

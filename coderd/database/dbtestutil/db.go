@@ -77,6 +77,8 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 	return db, ps, sqlDB
 }
 
+var DefaultTimezone = "Canada/Newfoundland"
+
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
@@ -106,7 +108,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		// - It has a non-UTC offset
 		// - It has a fractional hour UTC offset
 		// - It includes a daylight savings time component
-		o.fixedTimezone = "Canada/Newfoundland"
+		o.fixedTimezone = DefaultTimezone
 	}
 	dbName := dbNameFromConnectionURL(t, connectionURL)
 	setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
