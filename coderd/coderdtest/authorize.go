@@ -400,10 +400,13 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
+// CompileToSQL returns a compiled version of the authorizer that respects
+// the ConditionalReturn function of the FakeAuthorizer.
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	if f.Original.ConditionalReturn != nil {
+		return "FALSE", nil
+	}
+	return "TRUE", nil
 }
 
 // Random rbac helper funcs
