@@ -26,6 +26,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("APIKey", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp, _ := dbgen.APIKey(t, db, database.APIKey{})
 		require.Equal(t, exp, must(db.GetAPIKeyByID(context.Background(), exp.ID)))
 	})
@@ -40,7 +41,8 @@ func TestGenerator(t *testing.T) {
 	t.Run("UserLink", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		exp := dbgen.UserLink(t, db, database.UserLink{})
+		u := dbgen.User(t, db, database.User{})
+		exp := dbgen.UserLink(t, db, database.UserLink{UserID: u.ID})
 		require.Equal(t, exp, must(db.GetUserLinkByLinkedID(context.Background(), exp.LinkedID)))
 	})
 
@@ -57,6 +59,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceResource", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{})
 		require.Equal(t, exp, must(db.GetWorkspaceResourceByID(context.Background(), exp.ID)))
 	})
@@ -64,6 +67,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceApp", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.WorkspaceApp(t, db, database.WorkspaceApp{})
 		require.Equal(t, exp, must(db.GetWorkspaceAppsByAgentID(context.Background(), exp.AgentID))[0])
 	})
@@ -71,6 +75,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceResourceMetadata", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.WorkspaceResourceMetadatums(t, db, database.WorkspaceResourceMetadatum{})
 		require.Equal(t, exp, must(db.GetWorkspaceResourceMetadataByResourceIDs(context.Background(), []uuid.UUID{exp[0].WorkspaceResourceID})))
 	})
@@ -93,6 +98,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("Group", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.Group(t, db, database.Group{})
 		require.Equal(t, exp, must(db.GetGroupByID(context.Background(), exp.ID)))
 	})
@@ -100,6 +106,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("GroupMember", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		g := dbgen.Group(t, db, database.Group{})
 		u := dbgen.User(t, db, database.User{})
 		gm := dbgen.GroupMember(t, db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
@@ -118,7 +125,9 @@ func TestGenerator(t *testing.T) {
 	t.Run("OrganizationMember", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		exp := dbgen.OrganizationMember(t, db, database.OrganizationMember{})
+		o := dbgen.Organization(t, db, database.Organization{})
+		u := dbgen.User(t, db, database.User{})
+		exp := dbgen.OrganizationMember(t, db, database.OrganizationMember{OrganizationID: o.ID, UserID: u.ID})
 		require.Equal(t, exp, must(database.ExpectOne(db.OrganizationMembers(context.Background(), database.OrganizationMembersParams{
 			OrganizationID: exp.OrganizationID,
 			UserID:         exp.UserID,
@@ -128,6 +137,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.Workspace(t, db, database.Workspace{})
 		require.Equal(t, exp, must(db.GetWorkspaceByID(context.Background(), exp.ID)))
 	})
@@ -135,6 +145,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceAgent", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		require.Equal(t, exp, must(db.GetWorkspaceAgentByID(context.Background(), exp.ID)))
 	})
@@ -142,6 +153,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.Template(t, db, database.Template{})
 		require.Equal(t, exp, must(db.GetTemplateByID(context.Background(), exp.ID)))
 	})
@@ -149,6 +161,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("TemplateVersion", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
 		require.Equal(t, exp, must(db.GetTemplateVersionByID(context.Background(), exp.ID)))
 	})
@@ -156,6 +169,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceBuild", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{})
 		require.Equal(t, exp, must(db.GetWorkspaceBuildByID(context.Background(), exp.ID)))
 	})
@@ -170,6 +184,7 @@ func TestGenerator(t *testing.T) {
 	t.Run("SSHKey", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.GitSSHKey(t, db, database.GitSSHKey{})
 		require.Equal(t, exp, must(db.GetGitSSHKey(context.Background(), exp.UserID)))
 	})
@@ -177,13 +192,15 @@ func TestGenerator(t *testing.T) {
 	t.Run("WorkspaceBuildParameters", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		exp := dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{{}, {}, {}})
+		dbtestutil.DisableForeignKeys(t, db)
+		exp := dbgen.WorkspaceBuildParameters(t, db, []database.WorkspaceBuildParameter{{Name: "name1", Value: "value1"}, {Name: "name2", Value: "value2"}, {Name: "name3", Value: "value3"}})
 		require.Equal(t, exp, must(db.GetWorkspaceBuildParameters(context.Background(), exp[0].WorkspaceBuildID)))
 	})
 
 	t.Run("TemplateVersionParameter", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		exp := dbgen.TemplateVersionParameter(t, db, database.TemplateVersionParameter{})
 		actual := must(db.GetTemplateVersionParameters(context.Background(), exp.TemplateVersionID))
 		require.Len(t, actual, 1)
