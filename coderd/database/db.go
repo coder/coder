@@ -144,7 +144,7 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	// We do not want to duplicate those retries.
 	if !inTx && sqlOpts.Isolation == sql.LevelSerializable {
 		// This is an arbitrarily chosen number.
-		const retryAmount = 3
+		const retryAmount = 1
 		var err error
 		attempts := 0
 		for attempts = 0; attempts < retryAmount; attempts++ {

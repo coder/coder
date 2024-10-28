@@ -316,75 +316,41 @@ func TestWorkspaceSerialization(t *testing.T) {
 	}
 
 	db, ps := dbtestutil.NewDB(t)
-	//c := &coderd.Committer{
-	//	Log:      slogtest.Make(t, nil),
-	//	Database: db,
-	//}
 	var _ = ps
 
-	org := dbgen.Organization(t, db, database.Organization{})
-
-	ctx := testutil.Context(t, testutil.WaitLong)
-	ctx = dbauthz.AsSystemRestricted(ctx)
-	group, err := db.InsertAllUsersGroup(ctx, org.ID)
-	require.NoError(t, err)
-
-	group, err = db.UpdateGroupByID(ctx, database.UpdateGroupByIDParams{
-		Name:           group.Name,
-		DisplayName:    group.DisplayName,
-		AvatarURL:      group.AvatarURL,
-		QuotaAllowance: 100,
-		ID:             group.ID,
-	})
-	require.NoError(t, err)
-
 	user := dbgen.User(t, db, database.User{})
+	otherUser := dbgen.User(t, db, database.User{})
 
-	dbgen.OrganizationMember(t, db, database.OrganizationMember{
-		UserID:         user.ID,
-		OrganizationID: org.ID,
-		CreatedAt:      dbtime.Now(),
-		UpdatedAt:      dbtime.Now(),
-		Roles:          []string{},
-	})
+	org := dbfake.Organization(t, db).
+		EveryoneAllowance(20).
+		Members(user, otherUser).
+		Group(database.Group{
+			QuotaAllowance: 10,
+		}, user, otherUser).
+		Group(database.Group{
+			QuotaAllowance: 10,
+		}, user).
+		Do()
 
-	tpl := dbgen.Template(t, db, database.Template{
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
-	tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
-		TemplateID: uuid.NullUUID{
-			UUID:  tpl.ID,
-			Valid: true,
-		},
-		OrganizationID: org.ID,
-		CreatedBy:      user.ID,
-	})
+	otherOrg := dbfake.Organization(t, db).
+		EveryoneAllowance(20).
+		Members(user, otherUser).
+		Group(database.Group{
+			QuotaAllowance: 10,
+		}, user, otherUser).
+		Group(database.Group{
+			QuotaAllowance: 10,
+		}, user).
+		Do()
 
-	seed := database.WorkspaceBuild{
-		TemplateVersionID: tplVersion.ID,
-	}
-	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		TemplateID:     tpl.ID,
-	})
-
-	workspaceResp := dbfake.WorkspaceBuild(t, db, workspace).Seed(seed).Do()
-
-	workspaceTwo := dbgen.Workspace(t, db, database.WorkspaceTable{
-		OrganizationID: org.ID,
-		OwnerID:        user.ID,
-		TemplateID:     tpl.ID,
-	})
-	workspaceTwoResp := dbfake.WorkspaceBuild(t, db, workspaceTwo).Seed(seed).Do()
+	var _ = otherOrg
 
 	// TX mixing tests. **DO NOT** run these in parallel.
 	// The goal here is to mess around with different ordering of
 	// transactions and queries.
 
 	// UpdateBuildDeadline bumps a workspace deadline while doing a quota
-	// commit.
+	// commit to the same workspace build.
 	//
 	// Note: This passes if the interrupt is run before 'GetQuota()'
 	// Passing orders:
@@ -408,16 +374,21 @@ func TestWorkspaceSerialization(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
+		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.Org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+
 		bumpDeadline := func() {
-			err = db.InTx(func(db database.Store) error {
+			err := db.InTx(func(db database.Store) error {
 				err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					Deadline:    dbtime.Now(),
 					MaxDeadline: dbtime.Now(),
 					UpdatedAt:   dbtime.Now(),
-					ID:          workspaceResp.Build.ID,
+					ID:          myWorkspace.Build.ID,
 				})
 				return err
-			}, &sql.TxOptions{
+			}, &database.TxOptions{
 				Isolation: sql.LevelSerializable,
 			})
 			assert.NoError(t, err)
@@ -427,189 +398,13 @@ func TestWorkspaceSerialization(t *testing.T) {
 		// Start TX
 		// Run order
 
-		quota := newCommitter(t, db, workspace, workspaceResp.Build)
+		quota := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
 		quota.GetQuota(ctx, t)                         // Step 1
 		bumpDeadline()                                 // Interrupt
 		quota.GetAllowance(ctx, t)                     // Step 2
 		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
 		// End commit
 		require.NoError(t, quota.Done())
-	})
-
-	t.Run("UpdateOtherBuildDeadline", func(t *testing.T) {
-		//  +------------------------------+------------------+
-		//  | Begin Tx                     |                  |
-		//  +------------------------------+------------------+
-		//  | GetQuota(user)               |                  |
-		//  +------------------------------+------------------+
-		//  |                              | BumpDeadline(w2) |
-		//  +------------------------------+------------------+
-		//  | GetAllowance(user)           |                  |
-		//  +------------------------------+------------------+
-		//  | UpdateWorkspaceBuildCost(w1) |                  |
-		//  +------------------------------+------------------+
-		//  | CommitTx()                   |                  |
-		//  +------------------------------+------------------+
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		bumpDeadline := func() {
-			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-				Deadline:    dbtime.Now(),
-				MaxDeadline: dbtime.Now(),
-				UpdatedAt:   dbtime.Now(),
-				ID:          workspaceTwoResp.Build.ID,
-			})
-			require.NoError(t, err)
-		}
-
-		// Start TX
-		// Run order
-
-		quota := newCommitter(t, db, workspace, workspaceResp.Build)
-		quota.GetQuota(ctx, t)                         // Step 1
-		bumpDeadline()                                 // Interrupt
-		quota.GetAllowance(ctx, t)                     // Step 2
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
-		// End commit
-		require.NoError(t, quota.Done())
-	})
-
-	t.Run("ReadCost", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		readCost := func() {
-			_, err := db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
-				OwnerID:        workspace.OwnerID,
-				OrganizationID: workspace.OrganizationID,
-			})
-			require.NoError(t, err)
-		}
-
-		// Start TX
-		// Run order
-
-		quota := newCommitter(t, db, workspace, workspaceResp.Build)
-		quota.GetQuota(ctx, t)                         // Step 1
-		readCost()                                     // Interrupt
-		quota.GetAllowance(ctx, t)                     // Step 2
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
-
-		// End commit
-		require.NoError(t, quota.Done())
-	})
-
-	t.Run("AutoBuild", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		auto := newautobuild(t, db, workspace, workspaceResp.Build)
-		quota := newCommitter(t, db, workspace, workspaceResp.Build)
-
-		// Run order
-		auto.DoAllReads(ctx, t)
-
-		quota.GetQuota(ctx, t) // Step 1
-		auto.DoAllReads(ctx, t)
-
-		quota.GetAllowance(ctx, t) // Step 2
-		auto.DoAllReads(ctx, t)
-
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
-		auto.DoAllReads(ctx, t)
-		auto.DoAllWrites(ctx, t)
-
-		// End commit
-		require.NoError(t, auto.Done())
-		require.NoError(t, quota.Done())
-	})
-
-	t.Run("DoubleCommit", func(t *testing.T) {
-		//  +---------------------+---------------------+
-		//  | W1 Quota Tx         | W2 Quota Tx         |
-		//  +---------------------+---------------------+
-		//  | Begin Tx            |                     |
-		//  +---------------------+---------------------+
-		//  |                     | Begin Tx            |
-		//  +---------------------+---------------------+
-		//  | GetQuota(w1)        |                     |
-		//  +---------------------+---------------------+
-		//  | GetAllowance(w1)    |                     |
-		//  +---------------------+---------------------+
-		//  | UpdateBuildCost(w1) |                     |
-		//  +---------------------+---------------------+
-		//  |                     | UpdateBuildCost(w2) |
-		//  +---------------------+---------------------+
-		//  |                     | GetQuota(w2)        |
-		//  +---------------------+---------------------+
-		//  |                     | GetAllowance(w2)    |
-		//  +---------------------+---------------------+
-		//  | CommitTx()          |                     |
-		//  +---------------------+---------------------+
-		//  |                     | CommitTx()          |
-		//  +---------------------+---------------------+
-		// pq: could not serialize access due to read/write dependencies among transactions
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		one := newCommitter(t, db, workspace, workspaceResp.Build)
-		two := newCommitter(t, db, workspaceTwo, workspaceTwoResp.Build)
-
-		var _, _ = one, two
-		// Run order
-		one.GetQuota(ctx, t)
-		one.GetAllowance(ctx, t)
-
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		two.GetQuota(ctx, t)
-		two.GetAllowance(ctx, t)
-		two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		// End commit
-		require.NoError(t, one.Done())
-		require.NoError(t, two.Done())
-	})
-
-	t.Run("BumpLastUsedAt", func(t *testing.T) {
-		//  +---------------------+----------------------------------+
-		//  | W1 Quota Tx         |                                  |
-		//  +---------------------+----------------------------------+
-		//  | Begin Tx            |                                  |
-		//  +---------------------+----------------------------------+
-		//  | GetQuota(w1)        |                                  |
-		//  +---------------------+----------------------------------+
-		//  | GetAllowance(w1)    |                                  |
-		//  +---------------------+----------------------------------+
-		//  |                     | UpdateWorkspaceBuildDeadline(w1) |
-		//  +---------------------+----------------------------------+
-		//  | UpdateBuildCost(w1) |                                  |
-		//  +---------------------+----------------------------------+
-		//  | CommitTx()          |                                  |
-		//  +---------------------+----------------------------------+
-		// pq: could not serialize access due to concurrent update
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		one := newCommitter(t, db, workspace, workspaceResp.Build)
-
-		// Run order
-		one.GetQuota(ctx, t)
-		one.GetAllowance(ctx, t)
-
-		err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
-			Deadline:    dbtime.Now(),
-			MaxDeadline: dbtime.Now(),
-			UpdatedAt:   dbtime.Now(),
-			ID:          workspaceResp.Build.ID,
-		})
-		assert.NoError(t, err)
-
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		// End commit
-		assert.NoError(t, one.Done())
 	})
 
 	t.Run("ActivityBump", func(t *testing.T) {
@@ -632,15 +427,20 @@ func TestWorkspaceSerialization(t *testing.T) {
 		ctx := testutil.Context(t, testutil.WaitShort)
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
-		one := newCommitter(t, db, workspace, workspaceResp.Build)
+		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.Org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+
+		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
 
 		// Run order
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
 
-		err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+		err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
 			NextAutostart: time.Now(),
-			WorkspaceID:   workspaceResp.Workspace.ID,
+			WorkspaceID:   myWorkspace.Workspace.ID,
 		})
 
 		assert.NoError(t, err)
@@ -651,106 +451,528 @@ func TestWorkspaceSerialization(t *testing.T) {
 		assert.NoError(t, one.Done())
 	})
 
-	t.Run("UserMod", func(t *testing.T) {
-		//  +---------------------+----------------------------------+
-		//  | W1 Quota Tx         |                                  |
-		//  +---------------------+----------------------------------+
-		//  | Begin Tx            |                                  |
-		//  +---------------------+----------------------------------+
-		//  | GetQuota(w1)        |                                  |
-		//  +---------------------+----------------------------------+
-		//  | GetAllowance(w1)    |                                  |
-		//  +---------------------+----------------------------------+
-		//  |                     | UpdateWorkspaceBuildDeadline(w1) |
-		//  +---------------------+----------------------------------+
-		//  | UpdateBuildCost(w1) |                                  |
-		//  +---------------------+----------------------------------+
-		//  | CommitTx()          |                                  |
-		//  +---------------------+----------------------------------+
-		// pq: could not serialize access due to concurrent update
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
-			OrganizationID: org.ID,
-			UserID:         user.ID,
-		})
-
-		one := newCommitter(t, db, workspace, workspaceResp.Build)
-
-		// Run order
-
-		err = db.RemoveUserFromAllGroups(ctx, user.ID)
-		assert.NoError(t, err)
-
-		err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
-			OrganizationID: org.ID,
-			UserID:         user.ID,
-		})
-		assert.NoError(t, err)
-
-		err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			NextAutostart: time.Now(),
-			WorkspaceID:   workspaceResp.Workspace.ID,
-		})
-
-		one.GetQuota(ctx, t)
-		one.GetAllowance(ctx, t)
-
-		err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			NextAutostart: time.Now(),
-			WorkspaceID:   workspaceResp.Workspace.ID,
-		})
-
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			NextAutostart: time.Now(),
-			WorkspaceID:   workspaceResp.Workspace.ID,
-		})
-
-		// End commit
-		assert.NoError(t, one.Done())
-	})
-
-	// TODO: Try to fail a non-repeatable read only transaction
-	t.Run("ReadStale", func(t *testing.T) {
-		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
-
-		three := newCommitter(t, db, workspace, workspaceTwoResp.Build)
-		two := newCommitter(t, db, workspaceTwo, workspaceResp.Build)
-		one := newCommitter(t, db, workspace, workspaceResp.Build)
-		three.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		// Run order
-
-		fmt.Println("1", one.GetQuota(ctx, t))
-		one.GetAllowance(ctx, t)
-
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-
-		fmt.Println("1a", one.GetQuota(ctx, t))
-
-		fmt.Println("2a", two.GetQuota(ctx, t))
-		two.GetAllowance(ctx, t)
-
-		// End commit
-		assert.NoError(t, one.Done())
-
-		fmt.Println("2a", two.GetQuota(ctx, t))
-		two.GetAllowance(ctx, t)
-
-		assert.NoError(t, two.Done())
-		assert.NoError(t, three.Done())
-
-		//allow, err = db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
-		//	OwnerID:        user.ID,
-		//	OrganizationID: org.ID,
-		//})
-		//require.NoError(t, err)
-		//fmt.Println(allow)
-	})
+	// Workspace
+	// User: 1
+	// Tpl: 1
+	// Org: 1
+	//myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.Org.ID,
+	//	OwnerID:        user.ID,
+	//}).Do()
+	//
+	//// Workspace
+	//// User: 1
+	//// Tpl: 1
+	//// Org: 1
+	//mySecondWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.Org.ID,
+	//	OwnerID:        user.ID,
+	//	TemplateID:     myWorkspace.Workspace.TemplateID,
+	//}).Do()
+	//
+	//// Workspace
+	//// User: 1
+	//// Tpl: 2
+	//// Org: 1
+	//myThirdWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.Org.ID,
+	//	OwnerID:        user.ID,
+	//}).Do()
+	//
+	//// Workspace
+	//// User: 1
+	//// Tpl: 3
+	//// Org: 2
+	//myFourthWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: otherOrg.Org.ID,
+	//	OwnerID:        user.ID,
+	//}).Do()
+	//
+	//// Workspace
+	//// User: 2
+	//// Tpl: 1
+	//// Org: 1
+	//otherWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.Org.ID,
+	//	OwnerID:        otherUser.ID,
+	//}).Do()
+	//
+	//workspaceThree := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.Org.ID,
+	//	OwnerID:        otherUser.ID,
+	//	TemplateID:     workspaceResp.Workspace.TemplateID,
+	//}).Do()
+	//workspaceThreeResp := dbfake.WorkspaceBuild(t, db, workspaceThree).Seed(seed).Do()
+	//
+	//ctx := testutil.Context(t, testutil.WaitLong)
+	//ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//// Include all user's groups
+	//
+	//tpl := dbgen.Template(t, db, database.Template{
+	//	OrganizationID: org.ID,
+	//	CreatedBy:      user.ID,
+	//})
+	//tplVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+	//	TemplateID: uuid.NullUUID{
+	//		UUID:  tpl.ID,
+	//		Valid: true,
+	//	},
+	//	OrganizationID: org.ID,
+	//	CreatedBy:      user.ID,
+	//})
+	//
+	//seed := database.WorkspaceBuild{
+	//	TemplateVersionID: tplVersion.ID,
+	//}
+	//workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.ID,
+	//	OwnerID:        user.ID,
+	//	TemplateID:     tpl.ID,
+	//})
+	//
+	//workspaceResp := dbfake.WorkspaceBuild(t, db, workspace).Seed(seed).Do()
+	//
+	//workspaceTwo := dbgen.Workspace(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.ID,
+	//	OwnerID:        user.ID,
+	//	TemplateID:     tpl.ID,
+	//})
+	//workspaceTwoResp := dbfake.WorkspaceBuild(t, db, workspaceTwo).Seed(seed).Do()
+	//
+	//workspaceThree := dbgen.Workspace(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.ID,
+	//	OwnerID:        otherUser.ID,
+	//	TemplateID:     tpl.ID,
+	//})
+	//workspaceThreeResp := dbfake.WorkspaceBuild(t, db, workspaceThree).Seed(seed).Do()
+	//
+	//workspaceFour := dbgen.Workspace(t, db, database.WorkspaceTable{
+	//	OrganizationID: org.ID,
+	//	OwnerID:        otherUser.ID,
+	//	TemplateID:     tpl.ID,
+	//})
+	//workspaceThreeResp := dbfake.WorkspaceBuild(t, db, workspaceThree).Seed(seed).Do()
+	//
+	//// TX mixing tests. **DO NOT** run these in parallel.
+	//// The goal here is to mess around with different ordering of
+	//// transactions and queries.
+	//
+	//// UpdateBuildDeadline bumps a workspace deadline while doing a quota
+	//// commit.
+	////
+	//// Note: This passes if the interrupt is run before 'GetQuota()'
+	//// Passing orders:
+	////	- BeginTX -> Bump! -> GetQuota -> GetAllowance -> UpdateCost -> EndTx
+	////  - BeginTX -> GetQuota -> GetAllowance -> UpdateCost -> Bump! -> EndTx
+	//t.Run("UpdateBuildDeadline", func(t *testing.T) {
+	//	//  +------------------------------+------------------+
+	//	//  | Begin Tx                     |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | GetQuota(user)               |                  |
+	//	//  +------------------------------+------------------+
+	//	//  |                              | BumpDeadline(w1) |
+	//	//  +------------------------------+------------------+
+	//	//  | GetAllowance(user)           |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | UpdateWorkspaceBuildCost(w1) |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | CommitTx()                   |                  |
+	//	//  +------------------------------+------------------+
+	//	// pq: could not serialize access due to concurrent update
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	bumpDeadline := func() {
+	//		err = db.InTx(func(db database.Store) error {
+	//			err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+	//				Deadline:    dbtime.Now(),
+	//				MaxDeadline: dbtime.Now(),
+	//				UpdatedAt:   dbtime.Now(),
+	//				ID:          workspaceResp.Build.ID,
+	//			})
+	//			return err
+	//		}, &database.TxOptions{
+	//			Isolation: sql.LevelSerializable,
+	//		})
+	//		assert.NoError(t, err)
+	//
+	//	}
+	//
+	//	// Start TX
+	//	// Run order
+	//
+	//	quota := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	quota.GetQuota(ctx, t)                         // Step 1
+	//	bumpDeadline()                                 // Interrupt
+	//	quota.GetAllowance(ctx, t)                     // Step 2
+	//	quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+	//	// End commit
+	//	require.NoError(t, quota.Done())
+	//})
+	//
+	//t.Run("UpdateOtherBuildDeadline", func(t *testing.T) {
+	//	//  +------------------------------+------------------+
+	//	//  | Begin Tx                     |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | GetQuota(user)               |                  |
+	//	//  +------------------------------+------------------+
+	//	//  |                              | BumpDeadline(w2) |
+	//	//  +------------------------------+------------------+
+	//	//  | GetAllowance(user)           |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | UpdateWorkspaceBuildCost(w1) |                  |
+	//	//  +------------------------------+------------------+
+	//	//  | CommitTx()                   |                  |
+	//	//  +------------------------------+------------------+
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	bumpDeadline := func() {
+	//		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+	//			Deadline:    dbtime.Now(),
+	//			MaxDeadline: dbtime.Now(),
+	//			UpdatedAt:   dbtime.Now(),
+	//			ID:          workspaceTwoResp.Build.ID,
+	//		})
+	//		require.NoError(t, err)
+	//	}
+	//
+	//	// Start TX
+	//	// Run order
+	//
+	//	quota := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	quota.GetQuota(ctx, t)                         // Step 1
+	//	bumpDeadline()                                 // Interrupt
+	//	quota.GetAllowance(ctx, t)                     // Step 2
+	//	quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+	//	// End commit
+	//	require.NoError(t, quota.Done())
+	//})
+	//
+	//t.Run("ReadCost", func(t *testing.T) {
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	readCost := func() {
+	//		_, err := db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+	//			OwnerID:        workspace.OwnerID,
+	//			OrganizationID: workspace.OrganizationID,
+	//		})
+	//		require.NoError(t, err)
+	//	}
+	//
+	//	// Start TX
+	//	// Run order
+	//
+	//	quota := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	quota.GetQuota(ctx, t)                         // Step 1
+	//	readCost()                                     // Interrupt
+	//	quota.GetAllowance(ctx, t)                     // Step 2
+	//	quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+	//
+	//	// End commit
+	//	require.NoError(t, quota.Done())
+	//})
+	//
+	//t.Run("AutoBuild", func(t *testing.T) {
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	auto := newautobuild(t, db, workspace, workspaceResp.Build)
+	//	quota := newCommitter(t, db, workspace, workspaceResp.Build)
+	//
+	//	// Run order
+	//	auto.DoAllReads(ctx, t)
+	//
+	//	quota.GetQuota(ctx, t) // Step 1
+	//	auto.DoAllReads(ctx, t)
+	//
+	//	quota.GetAllowance(ctx, t) // Step 2
+	//	auto.DoAllReads(ctx, t)
+	//
+	//	quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+	//	auto.DoAllReads(ctx, t)
+	//	auto.DoAllWrites(ctx, t)
+	//
+	//	// End commit
+	//	require.NoError(t, auto.Done())
+	//	require.NoError(t, quota.Done())
+	//})
+	//
+	//t.Run("DoubleCommit", func(t *testing.T) {
+	//	//  +---------------------+---------------------+
+	//	//  | W1 Quota Tx         | W2 Quota Tx         |
+	//	//  +---------------------+---------------------+
+	//	//  | Begin Tx            |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | Begin Tx            |
+	//	//  +---------------------+---------------------+
+	//	//  | GetQuota(w1)        |                     |
+	//	//  +---------------------+---------------------+
+	//	//  | GetAllowance(w1)    |                     |
+	//	//  +---------------------+---------------------+
+	//	//  | UpdateBuildCost(w1) |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | UpdateBuildCost(w2) |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | GetQuota(w2)        |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | GetAllowance(w2)    |
+	//	//  +---------------------+---------------------+
+	//	//  | CommitTx()          |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | CommitTx()          |
+	//	//  +---------------------+---------------------+
+	//	// pq: could not serialize access due to read/write dependencies among transactions
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	two := newCommitter(t, db, workspaceTwo, workspaceTwoResp.Build)
+	//
+	//	var _, _ = one, two
+	//	// Run order
+	//	one.GetQuota(ctx, t)
+	//	one.GetAllowance(ctx, t)
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	two.GetQuota(ctx, t)
+	//	two.GetAllowance(ctx, t)
+	//	two.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//	assert.NoError(t, two.Done())
+	//})
+	//
+	//t.Run("DifferentUserCommit", func(t *testing.T) {
+	//	//  +---------------------+---------------------+
+	//	//  | W1 Quota Tx         | W2 Quota Tx         |
+	//	//  +---------------------+---------------------+
+	//	//  | Begin Tx            |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | Begin Tx            |
+	//	//  +---------------------+---------------------+
+	//	//  | GetQuota(w1)        |                     |
+	//	//  +---------------------+---------------------+
+	//	//  | GetAllowance(w1)    |                     |
+	//	//  +---------------------+---------------------+
+	//	//  | UpdateBuildCost(w1) |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | UpdateBuildCost(w3) |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | GetQuota(w3)        |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | GetAllowance(w3)    |
+	//	//  +---------------------+---------------------+
+	//	//  | CommitTx()          |                     |
+	//	//  +---------------------+---------------------+
+	//	//  |                     | CommitTx()          |
+	//	//  +---------------------+---------------------+
+	//	// pq: could not serialize access due to read/write dependencies among transactions
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	three := newCommitter(t, db, workspaceTwo, workspaceThreeResp.Build)
+	//
+	//	var _, _ = one, three
+	//	// Run order
+	//	one.GetQuota(ctx, t)
+	//	one.GetAllowance(ctx, t)
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	three.GetQuota(ctx, t)
+	//	three.GetAllowance(ctx, t)
+	//	three.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//	assert.NoError(t, three.Done())
+	//})
+	//
+	//t.Run("BumpLastUsedAt", func(t *testing.T) {
+	//	//  +---------------------+----------------------------------+
+	//	//  | W1 Quota Tx         |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | Begin Tx            |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetQuota(w1)        |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetAllowance(w1)    |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  |                     | UpdateWorkspaceBuildDeadline(w1) |
+	//	//  +---------------------+----------------------------------+
+	//	//  | UpdateBuildCost(w1) |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | CommitTx()          |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	// pq: could not serialize access due to concurrent update
+	//	ctx := testutil.Context(t, testutil.WaitShort)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//
+	//	// Run order
+	//	one.GetQuota(ctx, t)
+	//	one.GetAllowance(ctx, t)
+	//
+	//	err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+	//		Deadline:    dbtime.Now(),
+	//		MaxDeadline: dbtime.Now(),
+	//		UpdatedAt:   dbtime.Now(),
+	//		ID:          workspaceResp.Build.ID,
+	//	})
+	//	assert.NoError(t, err)
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//})
+	//
+	//t.Run("ActivityBump", func(t *testing.T) {
+	//	//  +---------------------+----------------------------------+
+	//	//  | W1 Quota Tx         |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | Begin Tx            |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetQuota(w1)        |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetAllowance(w1)    |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  |                     | ActivityBump(w1) |
+	//	//  +---------------------+----------------------------------+
+	//	//  | UpdateBuildCost(w1) |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | CommitTx()          |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	// pq: could not serialize access due to concurrent update
+	//	ctx := testutil.Context(t, testutil.WaitShort)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//
+	//	// Run order
+	//	one.GetQuota(ctx, t)
+	//	one.GetAllowance(ctx, t)
+	//
+	//	err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+	//		NextAutostart: time.Now(),
+	//		WorkspaceID:   workspaceResp.Workspace.ID,
+	//	})
+	//
+	//	assert.NoError(t, err)
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//})
+	//
+	//t.Run("UserMod", func(t *testing.T) {
+	//	//  +---------------------+----------------------------------+
+	//	//  | W1 Quota Tx         |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | Begin Tx            |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetQuota(w1)        |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | GetAllowance(w1)    |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  |                     | UpdateWorkspaceBuildDeadline(w1) |
+	//	//  +---------------------+----------------------------------+
+	//	//  | UpdateBuildCost(w1) |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	//  | CommitTx()          |                                  |
+	//	//  +---------------------+----------------------------------+
+	//	// pq: could not serialize access due to concurrent update
+	//	ctx := testutil.Context(t, testutil.WaitShort)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	db.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
+	//		OrganizationID: org.ID,
+	//		UserID:         user.ID,
+	//	})
+	//
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//
+	//	// Run order
+	//
+	//	err = db.RemoveUserFromAllGroups(ctx, user.ID)
+	//	assert.NoError(t, err)
+	//
+	//	err = db.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
+	//		OrganizationID: org.ID,
+	//		UserID:         user.ID,
+	//	})
+	//	assert.NoError(t, err)
+	//
+	//	err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+	//		NextAutostart: time.Now(),
+	//		WorkspaceID:   workspaceResp.Workspace.ID,
+	//	})
+	//
+	//	one.GetQuota(ctx, t)
+	//	one.GetAllowance(ctx, t)
+	//
+	//	err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+	//		NextAutostart: time.Now(),
+	//		WorkspaceID:   workspaceResp.Workspace.ID,
+	//	})
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	err = db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+	//		NextAutostart: time.Now(),
+	//		WorkspaceID:   workspaceResp.Workspace.ID,
+	//	})
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//})
+	//
+	//// TODO: Try to fail a non-repeatable read only transaction
+	//t.Run("ReadStale", func(t *testing.T) {
+	//	ctx := testutil.Context(t, testutil.WaitLong)
+	//	ctx = dbauthz.AsSystemRestricted(ctx)
+	//
+	//	three := newCommitter(t, db, workspace, workspaceTwoResp.Build)
+	//	two := newCommitter(t, db, workspaceTwo, workspaceResp.Build)
+	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
+	//	three.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	// Run order
+	//
+	//	fmt.Println("1", one.GetQuota(ctx, t))
+	//	one.GetAllowance(ctx, t)
+	//
+	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+	//
+	//	fmt.Println("1a", one.GetQuota(ctx, t))
+	//
+	//	fmt.Println("2a", two.GetQuota(ctx, t))
+	//	two.GetAllowance(ctx, t)
+	//
+	//	// End commit
+	//	assert.NoError(t, one.Done())
+	//
+	//	fmt.Println("2a", two.GetQuota(ctx, t))
+	//	two.GetAllowance(ctx, t)
+	//
+	//	assert.NoError(t, two.Done())
+	//	assert.NoError(t, three.Done())
+	//
+	//	//allow, err = db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
+	//	//	OwnerID:        user.ID,
+	//	//	OrganizationID: org.ID,
+	//	//})
+	//	//require.NoError(t, err)
+	//	//fmt.Println(allow)
+	//})
 
 	// Autobuild, then quota, then autobuild read agin in the same tx
 	// https://www.richardstrnad.ch/posts/go-sql-how-to-get-detailed-error/
@@ -810,7 +1032,7 @@ type autobuilder struct {
 }
 
 func newautobuild(t *testing.T, db database.Store, workspace database.WorkspaceTable, b database.WorkspaceBuild) *autobuilder {
-	quotaTX := dbtestutil.StartTx(t, db, &sql.TxOptions{
+	quotaTX := dbtestutil.StartTx(t, db, &database.TxOptions{
 		Isolation: sql.LevelRepeatableRead,
 	})
 	return &autobuilder{DBTx: quotaTX, w: workspace, b: b}
@@ -923,6 +1145,7 @@ func (c *autobuilder) Done() error {
 // committer does what the CommitQuota does, but allows
 // stepping through the actions in the tx and controlling the
 // timing.
+// This is a nice wrapper to make the tests more concise.
 type committer struct {
 	DBTx *dbtestutil.DBTx
 	w    database.WorkspaceTable
@@ -930,7 +1153,7 @@ type committer struct {
 }
 
 func newCommitter(t *testing.T, db database.Store, workspace database.WorkspaceTable, build database.WorkspaceBuild) *committer {
-	quotaTX := dbtestutil.StartTx(t, db, &sql.TxOptions{
+	quotaTX := dbtestutil.StartTx(t, db, &database.TxOptions{
 		Isolation: sql.LevelSerializable,
 		ReadOnly:  false,
 	})

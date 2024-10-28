@@ -1,7 +1,6 @@
 package dbtestutil
 
 import (
-	"database/sql"
 	"sync"
 	"testing"
 
@@ -18,7 +17,7 @@ type DBTx struct {
 
 // StartTx starts a transaction and returns a DBTx object. This allows running
 // 2 transactions concurrently in a test more easily.
-func StartTx(t *testing.T, db database.Store, opts *sql.TxOptions) *DBTx {
+func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 	errC := make(chan error)
 	finalErr := make(chan error)
 	txC := make(chan database.Store)
