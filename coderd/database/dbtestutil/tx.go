@@ -10,13 +10,21 @@ import (
 type DBTx struct {
 	database.Store
 	mu       sync.Mutex
-	err      error
-	errC     chan error
+	done     chan error
 	finalErr chan error
 }
 
 // StartTx starts a transaction and returns a DBTx object. This allows running
 // 2 transactions concurrently in a test more easily.
+// Example:
+//
+//	a := StartTx(t, db, opts)
+//	b := StartTx(t, db, opts)
+//
+//	a.GetUsers(...)
+//	b.GetUsers(...)
+//
+//	require.NoError(t, a.Done()
 func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 	errC := make(chan error)
 	finalErr := make(chan error)
@@ -34,9 +42,16 @@ func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 			})
 			count++
 			if count > 1 {
+				// If you recursively call InTx, then don't use this.
 				t.Logf("InTx called more than once: %d", count)
+				t.Fatal("InTx called more than once, this is not allowed with the StartTx helper")
 			}
-			return <-errC
+
+			select {
+			case _, _ = <-errC:
+			}
+			// Just return nil. The caller should be checking their own errors.
+			return nil
 		}, opts)
 		finalErr <- err
 	}()
@@ -44,13 +59,7 @@ func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 	txStore := <-txC
 	close(txC)
 
-	return &DBTx{Store: txStore, errC: errC, finalErr: finalErr}
-}
-
-func (tx *DBTx) SetError(err error) {
-	tx.mu.Lock()
-	defer tx.mu.Unlock()
-	tx.err = err
+	return &DBTx{Store: txStore, done: errC, finalErr: finalErr}
 }
 
 // Done can only be called once. If you call it twice, it will panic.
@@ -58,7 +67,6 @@ func (tx *DBTx) Done() error {
 	tx.mu.Lock()
 	defer tx.mu.Unlock()
 
-	tx.errC <- tx.err
-	close(tx.errC)
+	close(tx.done)
 	return <-tx.finalErr
 }

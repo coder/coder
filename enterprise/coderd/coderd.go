@@ -701,7 +701,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureTemplateRBAC); shouldUpdate(initial, changed, enabled) {
 			if enabled {
-				committer := Committer{
+				committer := committer{
 					Log:      api.Logger.Named("quota_committer"),
 					Database: api.Database,
 				}
