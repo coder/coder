@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"math"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // A Controller connects to the tailnet control plane, and then uses the control protocols to
@@ -522,4 +524,143 @@ func sendTelemetry(
 		)
 	}
 	return false
+}
+
+type basicResumeTokenController struct {
+	logger slog.Logger
+
+	sync.Mutex
+	token     *proto.RefreshResumeTokenResponse
+	refresher *basicResumeTokenRefresher
+
+	// for testing
+	clock quartz.Clock
+}
+
+func (b *basicResumeTokenController) New(client ResumeTokenClient) CloserWaiter {
+	b.Lock()
+	defer b.Unlock()
+	if b.refresher != nil {
+		cErr := b.refresher.Close(context.Background())
+		if cErr != nil {
+			b.logger.Debug(context.Background(), "closed previous refresher", slog.Error(cErr))
+		}
+	}
+	b.refresher = newBasicResumeTokenRefresher(b.logger, b.clock, b, client)
+	return b.refresher
+}
+
+func (b *basicResumeTokenController) Token() (string, bool) {
+	b.Lock()
+	defer b.Unlock()
+	if b.token == nil {
+		return "", false
+	}
+	if b.token.ExpiresAt.AsTime().Before(b.clock.Now()) {
+		return "", false
+	}
+	return b.token.Token, true
+}
+
+func NewBasicResumeTokenController(logger slog.Logger, clock quartz.Clock) ResumeTokenController {
+	return &basicResumeTokenController{
+		logger: logger,
+		clock:  clock,
+	}
+}
+
+type basicResumeTokenRefresher struct {
+	logger slog.Logger
+	ctx    context.Context
+	cancel context.CancelFunc
+	ctrl   *basicResumeTokenController
+	client ResumeTokenClient
+	errCh  chan error
+
+	sync.Mutex
+	closed bool
+	timer  *quartz.Timer
+}
+
+func (r *basicResumeTokenRefresher) Close(_ context.Context) error {
+	r.cancel()
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		return nil
+	}
+	r.closed = true
+	r.timer.Stop()
+	select {
+	case r.errCh <- nil:
+	default: // already have an error
+	}
+	return nil
+}
+
+func (r *basicResumeTokenRefresher) Wait() <-chan error {
+	return r.errCh
+}
+
+const never time.Duration = math.MaxInt64
+
+func newBasicResumeTokenRefresher(
+	logger slog.Logger, clock quartz.Clock,
+	ctrl *basicResumeTokenController, client ResumeTokenClient,
+) *basicResumeTokenRefresher {
+	r := &basicResumeTokenRefresher{
+		logger: logger,
+		ctrl:   ctrl,
+		client: client,
+		errCh:  make(chan error, 1),
+	}
+	r.ctx, r.cancel = context.WithCancel(context.Background())
+	r.timer = clock.AfterFunc(never, r.refresh)
+	go r.refresh()
+	return r
+}
+
+func (r *basicResumeTokenRefresher) refresh() {
+	if r.ctx.Err() != nil {
+		return // context done, no need to refresh
+	}
+	res, err := r.client.RefreshResumeToken(r.ctx, &proto.RefreshResumeTokenRequest{})
+	if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+		// these can only come from being closed, no need to log
+		select {
+		case r.errCh <- nil:
+		default: // already have an error
+		}
+		return
+	}
+	if err != nil {
+		r.logger.Error(r.ctx, "error refreshing coordinator resume token", slog.Error(err))
+		select {
+		case r.errCh <- err:
+		default: // already have an error
+		}
+		return
+	}
+	r.logger.Debug(r.ctx, "refreshed coordinator resume token",
+		slog.F("expires_at", res.GetExpiresAt()),
+		slog.F("refresh_in", res.GetRefreshIn()),
+	)
+	r.ctrl.Lock()
+	if r.ctrl.refresher == r { // don't overwrite if we're not the current refresher
+		r.ctrl.token = res
+	} else {
+		r.logger.Debug(context.Background(), "not writing token because we have a new client")
+	}
+	r.ctrl.Unlock()
+	dur := res.RefreshIn.AsDuration()
+	if dur <= 0 {
+		// A sensible delay to refresh again.
+		dur = 30 * time.Minute
+	}
+	r.Lock()
+	defer r.Unlock()
+	if r.closed {
+		return
+	}
+	r.timer.Reset(dur, "basicResumeTokenRefresher", "refresh")
 }
