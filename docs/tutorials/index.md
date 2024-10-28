@@ -2,7 +2,7 @@
 
 Here you can find a list of employee-written guides on Coder for OSS and
 Enterprise. These tutorials are hosted on our
-[Github](https://github.com/coder/coder/) where you can leave feedback or
+[GitHub](https://github.com/coder/coder/) where you can leave feedback or
 request new topics to be covered.
 
 <children>
