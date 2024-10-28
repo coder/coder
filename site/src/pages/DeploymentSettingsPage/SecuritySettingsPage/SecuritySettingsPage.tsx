@@ -1,10 +1,10 @@
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const SecuritySettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();

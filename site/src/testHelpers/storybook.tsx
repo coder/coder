@@ -7,6 +7,7 @@ import { GlobalSnackbar } from "components/GlobalSnackbar/GlobalSnackbar";
 import { AuthProvider } from "contexts/auth/AuthProvider";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { DashboardContext } from "modules/dashboard/DashboardProvider";
+import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
 import { ManagementSettingsContext } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useQueryClient } from "react-query";
@@ -16,7 +17,6 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 } from "./entities";
-import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
 
 export const withDashboardProvider = (
 	Story: FC,

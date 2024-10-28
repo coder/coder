@@ -6,6 +6,8 @@ import {
 } from "api/queries/notifications";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
@@ -15,8 +17,6 @@ import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 
 export const NotificationsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();

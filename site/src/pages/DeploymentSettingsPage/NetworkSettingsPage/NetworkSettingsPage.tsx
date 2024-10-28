@@ -1,9 +1,9 @@
 import { Loader } from "components/Loader/Loader";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const NetworkSettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();
