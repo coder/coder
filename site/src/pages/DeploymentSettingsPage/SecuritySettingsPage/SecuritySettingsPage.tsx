@@ -1,13 +1,13 @@
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { SecuritySettingsPageView } from "./SecuritySettingsPageView";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const SecuritySettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 	const { entitlements } = useDashboard();
 
 	return (
@@ -16,9 +16,9 @@ const SecuritySettingsPage: FC = () => {
 				<title>{pageTitle("Security Settings")}</title>
 			</Helmet>
 
-			{deploymentValues ? (
+			{deploymentConfig ? (
 				<SecuritySettingsPageView
-					options={deploymentValues.options}
+					options={deploymentConfig.options}
 					featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
 				/>
 			) : (

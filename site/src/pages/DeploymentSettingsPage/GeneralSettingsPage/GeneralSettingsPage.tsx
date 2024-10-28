@@ -3,15 +3,15 @@ import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const GeneralSettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 	const deploymentDAUsQuery = useQuery(deploymentDAUs());
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
@@ -30,9 +30,9 @@ const GeneralSettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("General Settings")}</title>
 			</Helmet>
-			{deploymentValues ? (
+			{deploymentConfig ? (
 				<GeneralSettingsPageView
-					deploymentOptions={deploymentValues.options}
+					deploymentOptions={deploymentConfig.options}
 					deploymentDAUs={deploymentDAUsQuery.data}
 					deploymentDAUsError={deploymentDAUsQuery.error}
 					entitlements={entitlementsQuery.data}

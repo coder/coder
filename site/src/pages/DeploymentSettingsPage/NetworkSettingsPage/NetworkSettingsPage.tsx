@@ -1,12 +1,12 @@
 import { Loader } from "components/Loader/Loader";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { NetworkSettingsPageView } from "./NetworkSettingsPageView";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const NetworkSettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 
 	return (
 		<>
@@ -14,8 +14,8 @@ const NetworkSettingsPage: FC = () => {
 				<title>{pageTitle("Network Settings")}</title>
 			</Helmet>
 
-			{deploymentValues ? (
-				<NetworkSettingsPageView options={deploymentValues.options} />
+			{deploymentConfig ? (
+				<NetworkSettingsPageView options={deploymentConfig.options} />
 			) : (
 				<Loader />
 			)}

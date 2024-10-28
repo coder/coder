@@ -1,14 +1,14 @@
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ObservabilitySettingsPageView } from "./ObservabilitySettingsPageView";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const ObservabilitySettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 	const { entitlements } = useDashboard();
 	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 
@@ -18,9 +18,9 @@ const ObservabilitySettingsPage: FC = () => {
 				<title>{pageTitle("Observability Settings")}</title>
 			</Helmet>
 
-			{deploymentValues ? (
+			{deploymentConfig ? (
 				<ObservabilitySettingsPageView
-					options={deploymentValues.options}
+					options={deploymentConfig.options}
 					featureAuditLogEnabled={entitlements.features.audit_log.enabled}
 					isPremium={hasPremiumLicense}
 				/>

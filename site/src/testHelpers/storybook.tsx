@@ -16,6 +16,7 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 } from "./entities";
+import { DeploymentSettingsContext } from "modules/management/DeploymentSettingsProvider";
 
 export const withDashboardProvider = (
 	Story: FC,
@@ -131,12 +132,15 @@ export const withManagementSettingsProvider = (Story: FC) => {
 	return (
 		<ManagementSettingsContext.Provider
 			value={{
-				deploymentValues: MockDeploymentConfig,
 				organizations: [MockDefaultOrganization],
 				organization: MockDefaultOrganization,
 			}}
 		>
-			<Story />
+			<DeploymentSettingsContext.Provider
+				value={{ deploymentConfig: MockDeploymentConfig }}
+			>
+				<Story />
+			</DeploymentSettingsContext.Provider>
 		</ManagementSettingsContext.Provider>
 	);
 };

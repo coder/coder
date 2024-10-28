@@ -1,12 +1,12 @@
 import { Loader } from "components/Loader/Loader";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { ExternalAuthSettingsPageView } from "./ExternalAuthSettingsPageView";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 
 const ExternalAuthSettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 
 	return (
 		<>
@@ -14,8 +14,8 @@ const ExternalAuthSettingsPage: FC = () => {
 				<title>{pageTitle("External Authentication Settings")}</title>
 			</Helmet>
 
-			{deploymentValues ? (
-				<ExternalAuthSettingsPageView config={deploymentValues.config} />
+			{deploymentConfig ? (
+				<ExternalAuthSettingsPageView config={deploymentConfig.config} />
 			) : (
 				<Loader />
 			)}
