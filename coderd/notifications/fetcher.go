@@ -38,6 +38,10 @@ func (n *notifier) fetchAppName(ctx context.Context) (string, error) {
 		}
 		return "", xerrors.Errorf("get application name: %w", err)
 	}
+
+	if appName == "" {
+		appName = notificationsDefaultAppName
+	}
 	return appName, nil
 }
 
@@ -48,6 +52,10 @@ func (n *notifier) fetchLogoURL(ctx context.Context) (string, error) {
 			return notificationsDefaultLogoURL, nil
 		}
 		return "", xerrors.Errorf("get logo URL: %w", err)
+	}
+
+	if logoURL == "" {
+		logoURL = notificationsDefaultLogoURL
 	}
 	return logoURL, nil
 }
