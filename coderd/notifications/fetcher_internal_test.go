@@ -78,7 +78,6 @@ func TestNotifier_FetchHelpers(t *testing.T) {
 
 		ctx := context.Background()
 		_, err := n.fetchHelpers(ctx)
-		require.Error(t, err)
 		require.ErrorContains(t, err, "get logo URL")
 	})
 }
