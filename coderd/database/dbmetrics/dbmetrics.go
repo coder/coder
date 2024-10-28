@@ -74,6 +74,11 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 		options = database.DefaultTXOptions()
 	}
 
+	if options.TxIdentifier == "" {
+		// empty strings are hard to deal with in grafana
+		options.TxIdentifier = "unlabeled"
+	}
+
 	start := time.Now()
 	err := m.Store.InTx(f, options)
 	dur := time.Since(start)
@@ -82,13 +87,13 @@ func (m metricsStore) InTx(f func(database.Store) error, options *database.TxOpt
 	// So IDs should be used sparingly to prevent too much bloat.
 	m.txDuration.With(prometheus.Labels{
 		"success": strconv.FormatBool(err == nil),
-		"tx_id":   options.TxIdentifier, // Can be empty string for unlabeled
+		"tx_id":   options.TxIdentifier,
 	}).Observe(dur.Seconds())
 
 	m.txRetries.With(prometheus.Labels{
 		"success": strconv.FormatBool(err == nil),
 		"retries": strconv.FormatInt(int64(options.ExecutionCount()-1), 10),
-		"tx_id":   options.TxIdentifier, // Can be empty string for unlabeled
+		"tx_id":   options.TxIdentifier,
 	}).Inc()
 
 	// Log all serializable transactions that are retried.
