@@ -325,7 +325,6 @@ func TestUpdateStates(t *testing.T) {
 						"dean": 2,
 					},
 					ConnectionCount: 3,
-					SessionCountSsh: 3,
 				},
 			}
 		)
@@ -410,7 +409,11 @@ func TestUpdateStates(t *testing.T) {
 			}
 			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
-			wut                        = workspacestats.NewTracker(dbM)
+			tickCh                     = make(chan time.Time)
+			flushCh                    = make(chan int, 1)
+			wut                        = workspacestats.NewTracker(dbM,
+				workspacestats.TrackerWithTickFlush(tickCh, flushCh),
+			)
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -476,14 +479,38 @@ func TestUpdateStates(t *testing.T) {
 		// Workspace gets fetched.
 		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
+		// We expect an activity bump because ConnectionCount > 0.
+		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
+			WorkspaceID:   workspace.ID,
+			NextAutostart: time.Time{}.UTC(),
+		}).Return(nil)
+
+		// Workspace last used at gets bumped.
+		dbM.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs:        []uuid.UUID{workspace.ID},
+			LastUsedAt: now,
+		}).Return(nil)
+
 		// User gets fetched to hit the UpdateAgentMetricsFn.
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
+
+		// Ensure that pubsub notifications are sent.
+		notifyDescription := make(chan []byte)
+		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
+			go func() {
+				notifyDescription <- description
+			}()
+		})
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
+
+		tickCh <- now
+		count := <-flushCh
+		require.Equal(t, 1, count, "expected one flush with one id")
 
 		batcher.Mu.Lock()
 		defer batcher.Mu.Unlock()
@@ -492,6 +519,13 @@ func TestUpdateStates(t *testing.T) {
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountJetbrains)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountVscode)
 		require.EqualValues(t, 0, batcher.LastStats.SessionCountReconnectingPty)
+		ctx := testutil.Context(t, testutil.WaitShort)
+		select {
+		case <-ctx.Done():
+			t.Error("timed out while waiting for pubsub notification")
+		case description := <-notifyDescription:
+			require.Equal(t, description, []byte{})
+		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
 }
