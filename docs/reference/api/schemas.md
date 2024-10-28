@@ -3605,9 +3605,9 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 | Name     | Type                                                       | Required | Restrictions | Description |
 | -------- | ---------------------------------------------------------- | -------- | ------------ | ----------- |
-| `github` | [codersdk.OAuth2GitHubConfig](#codersdkoauth2githubconfig) | false    |              |             |
+| `github` | [codersdk.OAuth2GithubConfig](#codersdkoauth2githubconfig) | false    |              |             |
 
-## codersdk.OAuth2GitHubConfig
+## codersdk.OAuth2GithubConfig
 
 ```json
 {
