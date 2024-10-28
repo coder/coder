@@ -13,12 +13,7 @@ const NetworkSettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("Network Settings")}</title>
 			</Helmet>
-
-			{deploymentConfig ? (
-				<NetworkSettingsPageView options={deploymentConfig.options} />
-			) : (
-				<Loader />
-			)}
+			<NetworkSettingsPageView options={deploymentConfig.options} />
 		</>
 	);
 };

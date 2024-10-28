@@ -20,7 +20,7 @@ export const useDeploymentSettings = (): DeploymentSettingsValue => {
 	const context = useContext(DeploymentSettingsContext);
 	if (!context) {
 		throw new Error(
-			"useDeploymentSettings should be used inside of DeploymentSettingsLayout",
+			`${useDeploymentSettings.name} should be used inside of ${DeploymentSettingsProvider.name}`,
 		);
 	}
 
@@ -39,6 +39,9 @@ const DeploymentSettingsProvider: FC = () => {
 		permissions.editAnyOrganization ||
 		permissions.viewAnyAuditLog;
 
+	// Not a huge problem to unload the content in the event of an error,
+	// because the sidebar rendering isn't tied to this. Even if the user hits
+	// a 403 error, they'll still have navigation options
 	if (deploymentConfigQuery.error) {
 		return <ErrorAlert error={deploymentConfigQuery.error} />;
 	}

@@ -55,12 +55,17 @@ const OrganizationSettingsPage: FC = () => {
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
 	if (!organizationName) {
+		// .find will stop at the first match found; make sure default
+		// organizations are placed first
 		const editableOrg = [...organizations]
 			.sort((a, b) => {
-				// Prefer default org (it may not be first).
-				// JavaScript will happily subtract booleans, but use numbers to keep
-				// the compiler happy.
-				return (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0);
+				if (a.is_default && !b.is_default) {
+					return -1;
+				}
+				if (b.is_default && !a.is_default) {
+					return 1;
+				}
+				return 0;
 			})
 			.find((org) => canEditOrganization(permissions[org.id]));
 		if (editableOrg) {

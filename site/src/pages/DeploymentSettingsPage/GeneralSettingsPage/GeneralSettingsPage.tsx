@@ -1,7 +1,6 @@
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
-import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
@@ -30,18 +29,14 @@ const GeneralSettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("General Settings")}</title>
 			</Helmet>
-			{deploymentConfig ? (
-				<GeneralSettingsPageView
-					deploymentOptions={deploymentConfig.options}
-					deploymentDAUs={deploymentDAUsQuery.data}
-					deploymentDAUsError={deploymentDAUsQuery.error}
-					entitlements={entitlementsQuery.data}
-					invalidExperiments={invalidExperiments}
-					safeExperiments={safeExperiments}
-				/>
-			) : (
-				<Loader />
-			)}
+			<GeneralSettingsPageView
+				deploymentOptions={deploymentConfig.options}
+				deploymentDAUs={deploymentDAUsQuery.data}
+				deploymentDAUsError={deploymentDAUsQuery.error}
+				entitlements={entitlementsQuery.data}
+				invalidExperiments={invalidExperiments}
+				safeExperiments={safeExperiments}
+			/>
 		</>
 	);
 };

@@ -74,7 +74,7 @@ const ManagementSettingsLayout: FC = () => {
 				<Margins>
 					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
 						<Sidebar />
-						<main css={{ width: "100%" }}>
+						<main css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>

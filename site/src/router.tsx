@@ -434,14 +434,11 @@ export const router = createBrowserRouter(
 					<Route path="/deployment" element={<ManagementSettingsLayout />}>
 						<Route element={<DeploymentSettingsProvider />}>
 							<Route path="general" element={<GeneralSettingsPage />} />
-							<Route path="licenses" element={<LicensesSettingsPage />} />
-							<Route path="licenses/add" element={<AddNewLicensePage />} />
 							<Route path="security" element={<SecuritySettingsPage />} />
 							<Route
 								path="observability"
 								element={<ObservabilitySettingsPage />}
 							/>
-							<Route path="appearance" element={<AppearanceSettingsPage />} />
 							<Route path="network" element={<NetworkSettingsPage />} />
 							<Route path="userauth" element={<UserAuthSettingsPage />} />
 							<Route
@@ -449,24 +446,25 @@ export const router = createBrowserRouter(
 								element={<ExternalAuthSettingsPage />}
 							/>
 
-							<Route path="oauth2-provider">
-								<Route index element={<NotFoundPage />} />
-								<Route path="apps">
-									<Route index element={<OAuth2AppsSettingsPage />} />
-									<Route path="add" element={<CreateOAuth2AppPage />} />
-									<Route path=":appId" element={<EditOAuth2AppPage />} />
-								</Route>
-							</Route>
-
-							<Route
-								path="workspace-proxies"
-								element={<WorkspaceProxyPage />}
-							/>
-
 							<Route
 								path="notifications"
 								element={<DeploymentNotificationsPage />}
 							/>
+						</Route>
+
+						<Route path="licenses">
+							<Route index element={<LicensesSettingsPage />} />
+							<Route path="add" element={<AddNewLicensePage />} />
+						</Route>
+						<Route path="appearance" element={<AppearanceSettingsPage />} />
+						<Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
+						<Route path="oauth2-provider">
+							<Route index element={<NotFoundPage />} />
+							<Route path="apps">
+								<Route index element={<OAuth2AppsSettingsPage />} />
+								<Route path="add" element={<CreateOAuth2AppPage />} />
+								<Route path=":appId" element={<EditOAuth2AppPage />} />
+							</Route>
 						</Route>
 
 						<Route path="users" element={<UsersPage />} />

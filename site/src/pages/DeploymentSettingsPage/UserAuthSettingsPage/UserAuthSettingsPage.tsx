@@ -13,12 +13,7 @@ const UserAuthSettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("User Authentication Settings")}</title>
 			</Helmet>
-
-			{deploymentConfig ? (
-				<UserAuthSettingsPageView options={deploymentConfig.options} />
-			) : (
-				<Loader />
-			)}
+			<UserAuthSettingsPageView options={deploymentConfig.options} />
 		</>
 	);
 };

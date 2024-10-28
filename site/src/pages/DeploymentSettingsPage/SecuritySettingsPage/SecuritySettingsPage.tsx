@@ -15,15 +15,10 @@ const SecuritySettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("Security Settings")}</title>
 			</Helmet>
-
-			{deploymentConfig ? (
-				<SecuritySettingsPageView
-					options={deploymentConfig.options}
-					featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
-				/>
-			) : (
-				<Loader />
-			)}
+			<SecuritySettingsPageView
+				options={deploymentConfig.options}
+				featureBrowserOnlyEnabled={entitlements.features.browser_only.enabled}
+			/>
 		</>
 	);
 };

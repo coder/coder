@@ -13,12 +13,7 @@ const ExternalAuthSettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("External Authentication Settings")}</title>
 			</Helmet>
-
-			{deploymentConfig ? (
-				<ExternalAuthSettingsPageView config={deploymentConfig.config} />
-			) : (
-				<Loader />
-			)}
+			<ExternalAuthSettingsPageView config={deploymentConfig.config} />
 		</>
 	);
 };

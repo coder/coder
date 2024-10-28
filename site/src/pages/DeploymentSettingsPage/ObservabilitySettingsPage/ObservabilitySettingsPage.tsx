@@ -1,4 +1,3 @@
-import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
@@ -17,16 +16,11 @@ const ObservabilitySettingsPage: FC = () => {
 			<Helmet>
 				<title>{pageTitle("Observability Settings")}</title>
 			</Helmet>
-
-			{deploymentConfig ? (
-				<ObservabilitySettingsPageView
-					options={deploymentConfig.options}
-					featureAuditLogEnabled={entitlements.features.audit_log.enabled}
-					isPremium={hasPremiumLicense}
-				/>
-			) : (
-				<Loader />
-			)}
+			<ObservabilitySettingsPageView
+				options={deploymentConfig.options}
+				featureAuditLogEnabled={entitlements.features.audit_log.enabled}
+				isPremium={hasPremiumLicense}
+			/>
 		</>
 	);
 };

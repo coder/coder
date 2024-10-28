@@ -11,15 +11,14 @@ import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 
 export const NotificationsPage: FC = () => {
-	const [searchParams] = useSearchParams();
 	const { deploymentConfig } = useDeploymentSettings();
 	const [templatesByGroup, dispatchMethods] = useQueries({
 		queries: [
@@ -30,10 +29,12 @@ export const NotificationsPage: FC = () => {
 			notificationDispatchMethods(),
 		],
 	});
-	const ready =
-		templatesByGroup.data && dispatchMethods.data && deploymentConfig;
-	const tab = searchParams.get("tab") || "events";
+	const tabState = useSearchParamsKey({
+		key: "tab",
+		defaultValue: "events",
+	});
 
+	const ready = !!(templatesByGroup.data && dispatchMethods.data);
 	return (
 		<>
 			<Helmet>
@@ -45,7 +46,7 @@ export const NotificationsPage: FC = () => {
 				layout="fluid"
 				featureStage={"beta"}
 			>
-				<Tabs active={tab}>
+				<Tabs active={tabState.value}>
 					<TabsList>
 						<TabLink to="?tab=events" value="events">
 							Events
@@ -58,7 +59,7 @@ export const NotificationsPage: FC = () => {
 
 				<div css={styles.content}>
 					{ready ? (
-						tab === "events" ? (
+						tabState.value === "events" ? (
 							<NotificationEvents
 								templatesByGroup={templatesByGroup.data}
 								deploymentConfig={deploymentConfig.config}
@@ -71,7 +72,7 @@ export const NotificationsPage: FC = () => {
 							/>
 						) : (
 							<OptionsTable
-								options={deploymentConfig?.options.filter((o) =>
+								options={deploymentConfig.options.filter((o) =>
 									deploymentGroupHasParent(o.group, "Notifications"),
 								)}
 							/>
