@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorOutline from "@mui/icons-material/ErrorOutline";
-import { InputBaseComponentProps } from "@mui/material";
+import type { InputBaseComponentProps } from "@mui/material/InputBase";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
