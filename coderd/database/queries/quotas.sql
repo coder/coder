@@ -18,14 +18,19 @@ INNER JOIN groups ON
 WITH latest_builds AS (
 SELECT
 	DISTINCT ON
-	(workspace_id) id,
-	workspace_id,
-	daily_cost
+	(wb.workspace_id) wb.id,
+	wb.workspace_id,
+	wb.daily_cost
 FROM
 	workspace_builds wb
+-- This INNER JOIN prevents a
+INNER JOIN
+	workspaces on wb.workspace_id = workspaces.id
+WHERE
+	workspaces.owner_id = @owner_id
 ORDER BY
-	workspace_id,
-	created_at DESC
+	wb.workspace_id,
+	wb.created_at DESC
 )
 SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
