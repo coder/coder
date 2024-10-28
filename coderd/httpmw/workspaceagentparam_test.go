@@ -68,6 +68,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 	t.Run("None", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceBuildParam(db))
 		rtr.Get("/", nil)
@@ -83,6 +84,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 	t.Run("NotFound", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		rtr := chi.NewRouter()
 		rtr.Use(httpmw.ExtractWorkspaceAgentParam(db))
 		rtr.Get("/", nil)
@@ -100,6 +102,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 	t.Run("NotAuthorized", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		fakeAuthz := (&coderdtest.FakeAuthorizer{}).AlwaysReturn(xerrors.Errorf("constant failure"))
 		dbFail := dbauthz.New(db, fakeAuthz, slog.Make(), coderdtest.AccessControlStorePointer())
 
@@ -130,6 +133,7 @@ func TestWorkspaceAgentParam(t *testing.T) {
 	t.Run("WorkspaceAgent", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

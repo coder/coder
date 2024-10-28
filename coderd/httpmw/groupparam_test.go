@@ -24,10 +24,11 @@ func TestGroupParam(t *testing.T) {
 
 		var (
 			db, _ = dbtestutil.NewDB(t)
-			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
+		dbtestutil.DisableForeignKeys(t, db)
+		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()
 		router.Use(httpmw.ExtractGroupParam(db))
@@ -53,10 +54,11 @@ func TestGroupParam(t *testing.T) {
 
 		var (
 			db, _ = dbtestutil.NewDB(t)
-			group = dbgen.Group(t, db, database.Group{})
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
+		dbtestutil.DisableForeignKeys(t, db)
+		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()
 		router.Use(httpmw.ExtractGroupParam(db))

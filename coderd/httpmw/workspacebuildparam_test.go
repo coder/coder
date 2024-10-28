@@ -21,6 +21,7 @@ func TestWorkspaceBuildParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Workspace) {
+		dbtestutil.DisableForeignKeys(nil, db)
 		var (
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{

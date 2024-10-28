@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -531,10 +530,12 @@ func TestAPIKey(t *testing.T) {
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
 
+		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
+		require.NoError(t, err)
 		oauthToken := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
-			Expiry:       dbtime.Now().AddDate(0, 0, 1),
+			Expiry:       dbtime.Now().AddDate(0, 0, 1).In(loc),
 		}
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
@@ -584,7 +585,7 @@ func TestAPIKey(t *testing.T) {
 		gotAPIKey, err := db.GetAPIKeyByID(r.Context(), sentAPIKey.ID)
 		require.NoError(t, err)
 
-		require.Equal(t, net.ParseIP("1.1.1.1"), gotAPIKey.IPAddress.IPNet.IP)
+		require.Equal(t, "1.1.1.1", gotAPIKey.IPAddress.IPNet.IP.String())
 	})
 
 	t.Run("RedirectToLogin", func(t *testing.T) {
