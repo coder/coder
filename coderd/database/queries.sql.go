@@ -9687,7 +9687,22 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 }
 
 const disableForeignKeys = `-- name: DisableForeignKeys :exec
-SET session_replication_role = 'replica'
+DO $$
+DECLARE
+    table_record record;
+BEGIN
+    FOR table_record IN 
+        SELECT table_schema, table_name 
+        FROM information_schema.tables 
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+        AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
+                    table_record.table_schema, 
+                    table_record.table_name);
+    END LOOP;
+END;
+$$
 `
 
 func (q *sqlQuerier) DisableForeignKeys(ctx context.Context) error {
