@@ -212,6 +212,12 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		time.Sleep(time.Second * 3)
 		sshConn, err := conn.SSHClient(ctx)
 		require.NoError(t, err)
+		sess, err := sshConn.NewSession()
+		require.NoError(t, err)
+		err = sess.Shell()
+		require.NoError(t, err)
+		err = sess.Close()
+		require.NoError(t, err)
 		_ = sshConn.Close()
 
 		assertBumped(true)

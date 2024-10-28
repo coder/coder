@@ -27,10 +27,11 @@ type localForwardChannelData struct {
 type JetbrainsChannelWatcher struct {
 	gossh.NewChannel
 	jetbrainsCounter *atomic.Int64
+	jetbrainsSeen    *atomic.Bool
 	logger           slog.Logger
 }
 
-func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64) gossh.NewChannel {
+func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel gossh.NewChannel, counter *atomic.Int64, seen *atomic.Bool) gossh.NewChannel {
 	d := localForwardChannelData{}
 	if err := gossh.Unmarshal(newChannel.ExtraData(), &d); err != nil {
 		// If the data fails to unmarshal, do nothing.
@@ -60,6 +61,7 @@ func NewJetbrainsChannelWatcher(ctx ssh.Context, logger slog.Logger, newChannel 
 	return &JetbrainsChannelWatcher{
 		NewChannel:       newChannel,
 		jetbrainsCounter: counter,
+		jetbrainsSeen:    seen,
 		logger:           logger.With(slog.F("destination_port", d.DestPort)),
 	}
 }
@@ -70,6 +72,7 @@ func (w *JetbrainsChannelWatcher) Accept() (gossh.Channel, <-chan *gossh.Request
 		return c, r, err
 	}
 	w.jetbrainsCounter.Add(1)
+	w.jetbrainsSeen.Store(true)
 	// nolint: gocritic // JetBrains is a proper noun and should be capitalized
 	w.logger.Debug(context.Background(), "JetBrains watcher accepted channel")
 
