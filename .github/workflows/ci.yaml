@@ -234,7 +234,7 @@ jobs:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.docs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.docs-only == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
