@@ -417,7 +417,50 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		//  | GetAllowance(w1)    |                                  |
 		//  +---------------------+----------------------------------+
-		//  |                     | ActivityBump(w1) |
+		//  |                     | ActivityBump(w1                  |
+		//  +---------------------+----------------------------------+
+		//  | UpdateBuildCost(w1) |                                  |
+		//  +---------------------+----------------------------------+
+		//  | CommitTx()          |                                  |
+		//  +---------------------+----------------------------------+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx = dbauthz.AsSystemRestricted(ctx)
+
+		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+			OrganizationID: org.Org.ID,
+			OwnerID:        user.ID,
+		}).Do()
+
+		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
+
+		// Run order
+		one.GetQuota(ctx, t)
+		one.GetAllowance(ctx, t)
+
+		err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
+			NextAutostart: time.Now(),
+			WorkspaceID:   myWorkspace.Workspace.ID,
+		})
+
+		assert.NoError(t, err)
+
+		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+
+		// End commit
+		assert.NoError(t, one.Done())
+	})
+
+	t.Run("BumpLastUsedAt", func(t *testing.T) {
+		//  +---------------------+----------------------------------+
+		//  | W1 Quota Tx         |                                  |
+		//  +---------------------+----------------------------------+
+		//  | Begin Tx            |                                  |
+		//  +---------------------+----------------------------------+
+		//  | GetQuota(w1)        |                                  |
+		//  +---------------------+----------------------------------+
+		//  | GetAllowance(w1)    |                                  |
+		//  +---------------------+----------------------------------+
+		//  |                     | UpdateWorkspaceBuildDeadline(w1) |
 		//  +---------------------+----------------------------------+
 		//  | UpdateBuildCost(w1) |                                  |
 		//  +---------------------+----------------------------------+
@@ -438,11 +481,12 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
 
-		err := db.ActivityBumpWorkspace(ctx, database.ActivityBumpWorkspaceParams{
-			NextAutostart: time.Now(),
-			WorkspaceID:   myWorkspace.Workspace.ID,
+		err := db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+			Deadline:    dbtime.Now(),
+			MaxDeadline: dbtime.Now(),
+			UpdatedAt:   dbtime.Now(),
+			ID:          myWorkspace.Build.ID,
 		})
-
 		assert.NoError(t, err)
 
 		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
@@ -935,44 +979,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 	//	assert.NoError(t, one.Done())
 	//})
 	//
-	//// TODO: Try to fail a non-repeatable read only transaction
-	//t.Run("ReadStale", func(t *testing.T) {
-	//	ctx := testutil.Context(t, testutil.WaitLong)
-	//	ctx = dbauthz.AsSystemRestricted(ctx)
-	//
-	//	three := newCommitter(t, db, workspace, workspaceTwoResp.Build)
-	//	two := newCommitter(t, db, workspaceTwo, workspaceResp.Build)
-	//	one := newCommitter(t, db, workspace, workspaceResp.Build)
-	//	three.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-	//
-	//	// Run order
-	//
-	//	fmt.Println("1", one.GetQuota(ctx, t))
-	//	one.GetAllowance(ctx, t)
-	//
-	//	one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
-	//
-	//	fmt.Println("1a", one.GetQuota(ctx, t))
-	//
-	//	fmt.Println("2a", two.GetQuota(ctx, t))
-	//	two.GetAllowance(ctx, t)
-	//
-	//	// End commit
-	//	assert.NoError(t, one.Done())
-	//
-	//	fmt.Println("2a", two.GetQuota(ctx, t))
-	//	two.GetAllowance(ctx, t)
-	//
-	//	assert.NoError(t, two.Done())
-	//	assert.NoError(t, three.Done())
-	//
-	//	//allow, err = db.GetQuotaConsumedForUser(ctx, database.GetQuotaConsumedForUserParams{
-	//	//	OwnerID:        user.ID,
-	//	//	OrganizationID: org.ID,
-	//	//})
-	//	//require.NoError(t, err)
-	//	//fmt.Println(allow)
-	//})
 
 	// Autobuild, then quota, then autobuild read agin in the same tx
 	// https://www.richardstrnad.ch/posts/go-sql-how-to-get-detailed-error/
