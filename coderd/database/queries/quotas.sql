@@ -23,11 +23,14 @@ SELECT
 	wb.daily_cost
 FROM
 	workspace_builds wb
--- This INNER JOIN prevents a
+-- This INNER JOIN prevents a seq scan of the workspace_builds table.
+-- Limit the rows to the absolute minimum required, which is all workspaces
+-- in a given organization for a given user.
 INNER JOIN
 	workspaces on wb.workspace_id = workspaces.id
 WHERE
-	workspaces.owner_id = @owner_id
+	workspaces.owner_id = @owner_id AND
+	workspaces.organization_id = @organization_id
 ORDER BY
 	wb.workspace_id,
 	wb.created_at DESC
@@ -38,8 +41,8 @@ FROM
 	workspaces
 JOIN latest_builds ON
 	latest_builds.workspace_id = workspaces.id
-WHERE NOT
-	deleted AND
+WHERE
+	NOT deleted AND
 	workspaces.owner_id = @owner_id AND
 	workspaces.organization_id = @organization_id
 ;
