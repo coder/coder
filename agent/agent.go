@@ -1503,12 +1503,6 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 
 	stats.SessionCountReconnectingPty = a.connCountReconnectingPTY.Load()
 
-	// if we've seen sessions but currently have no connections we
-	// just count the sum of the sessions as connections
-	if stats.ConnectionCount == 0 {
-		stats.ConnectionCount = stats.SessionCountSsh + stats.SessionCountVscode + stats.SessionCountJetbrains + stats.SessionCountReconnectingPty
-	}
-
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")
 	var wg sync.WaitGroup

@@ -105,9 +105,6 @@ type Server struct {
 	connCountVSCode     atomic.Int64
 	connCountJetBrains  atomic.Int64
 	connCountSSHSession atomic.Int64
-	seenVSCode          atomic.Bool
-	seenJetBrains       atomic.Bool
-	seenSSHSession      atomic.Bool
 
 	metrics *sshServerMetrics
 }
@@ -170,7 +167,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 		ChannelHandlers: map[string]ssh.ChannelHandler{
 			"direct-tcpip": func(srv *ssh.Server, conn *gossh.ServerConn, newChan gossh.NewChannel, ctx ssh.Context) {
 				// Wrapper is designed to find and track JetBrains Gateway connections.
-				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, newChan, &s.connCountJetBrains, &s.seenJetBrains)
+				wrapped := NewJetbrainsChannelWatcher(ctx, s.logger, newChan, &s.connCountJetBrains)
 				ssh.DirectTCPIPHandler(srv, conn, wrapped, ctx)
 			},
 			"direct-streamlocal@openssh.com": directStreamLocalHandler,
@@ -248,31 +245,10 @@ type ConnStats struct {
 }
 
 func (s *Server) ConnStats() ConnStats {
-	// if we have 0 active connections, but we have seen a connection
-	// since the last time we collected, count it as 1 so that workspace
-	// activity is properly counted.
-	sshCount := s.connCountSSHSession.Load()
-	if sshCount == 0 && s.seenSSHSession.Load() {
-		sshCount = 1
-	}
-	vscode := s.connCountVSCode.Load()
-	if vscode == 0 && s.seenVSCode.Load() {
-		vscode = 1
-	}
-	jetbrains := s.connCountJetBrains.Load()
-	if jetbrains == 0 && s.seenJetBrains.Load() {
-		jetbrains = 1
-	}
-
-	// Reset the seen trackers for the next collection.
-	s.seenSSHSession.Store(false)
-	s.seenVSCode.Store(false)
-	s.seenJetBrains.Store(false)
-
 	return ConnStats{
-		Sessions:  sshCount,
-		VSCode:    vscode,
-		JetBrains: jetbrains,
+		Sessions:  s.connCountSSHSession.Load(),
+		VSCode:    s.connCountVSCode.Load(),
+		JetBrains: s.connCountJetBrains.Load(),
 	}
 }
 
@@ -416,14 +392,12 @@ func (s *Server) sessionStart(logger slog.Logger, session ssh.Session, extraEnv 
 	switch magicType {
 	case MagicSessionTypeVSCode:
 		s.connCountVSCode.Add(1)
-		s.seenVSCode.Store(true)
 		defer s.connCountVSCode.Add(-1)
 	case MagicSessionTypeJetBrains:
 		// Do nothing here because JetBrains launches hundreds of ssh sessions.
 		// We instead track JetBrains in the single persistent tcp forwarding channel.
 	case "":
 		s.connCountSSHSession.Add(1)
-		s.seenSSHSession.Store(true)
 		defer s.connCountSSHSession.Add(-1)
 	default:
 		logger.Warn(ctx, "invalid magic ssh session type specified", slog.F("type", magicType))
