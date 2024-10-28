@@ -15,7 +15,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";

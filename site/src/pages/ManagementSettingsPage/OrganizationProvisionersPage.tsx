@@ -14,13 +14,14 @@ const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { entitlements } = useDashboard();
 	const { organizations } = useManagementSettings();
+	const { entitlements } = useDashboard();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
 
 	const organization = organizations?.find((o) => o.name === organizationName);
+	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
+
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}

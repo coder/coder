@@ -20,14 +20,13 @@ export const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 
-	const { organizations } = useManagementSettings();
 	const { organization: organizationName, roleName } = useParams() as {
 		organization: string;
 		roleName: string;
 	};
+	const { organizations } = useManagementSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-
 	const createOrganizationRoleMutation = useMutation(
 		createOrganizationRole(queryClient, organizationName),
 	);
