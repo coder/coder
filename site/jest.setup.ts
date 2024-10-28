@@ -48,7 +48,7 @@ global.ResizeObserver = require("resize-observer-polyfill");
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {
 	value: {
-		getRandomValues: (b: NodeJS.ArrayBufferView) => crypto.randomFillSync(b),
+		getRandomValues: crypto.randomFillSync,
 	},
 });
 

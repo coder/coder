@@ -3,8 +3,7 @@ import { Navigate } from "react-router-dom";
 
 export interface RequirePermissionProps {
 	children?: ReactNode;
-	permitted: boolean;
-	unpermittedRedirect?: `/${string}`;
+	isFeatureVisible: boolean;
 }
 
 /**
@@ -12,11 +11,10 @@ export interface RequirePermissionProps {
  */
 export const RequirePermission: FC<RequirePermissionProps> = ({
 	children,
-	permitted,
-	unpermittedRedirect = "/workspaces",
+	isFeatureVisible,
 }) => {
-	if (!permitted) {
-		return <Navigate to={unpermittedRedirect} replace />;
+	if (!isFeatureVisible) {
+		return <Navigate to="/workspaces" />;
 	}
 
 	return <>{children}</>;

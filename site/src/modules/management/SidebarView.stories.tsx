@@ -96,7 +96,9 @@ export const NoDeploymentValues: Story = {
 };
 
 export const NoPermissions: Story = {
-	args: { permissions: MockNoPermissions },
+	args: {
+		permissions: MockNoPermissions,
+	},
 };
 
 export const NoSelected: Story = {

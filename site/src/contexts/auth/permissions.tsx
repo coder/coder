@@ -23,7 +23,10 @@ export const checks = {
 	viewNotificationTemplate: "viewNotificationTemplate",
 } as const satisfies Record<string, string>;
 
-type PermissionType = keyof typeof checks;
+// Type expression seems a little redundant (`keyof typeof checks` has the same
+// result), just because each key-value pair is currently symmetrical; this may
+// change down the line
+type PermissionValue = (typeof checks)[keyof typeof checks];
 
 export const permissionsToCheck = {
 	[checks.viewAllUsers]: {
@@ -149,6 +152,6 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
-} as const satisfies Record<PermissionType, AuthorizationCheck>;
+} as const satisfies Record<PermissionValue, AuthorizationCheck>;
 
-export type Permissions = Record<PermissionType, boolean>;
+export type Permissions = Record<PermissionValue, boolean>;

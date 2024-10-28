@@ -1,26 +1,22 @@
-import type { DeploymentConfig } from "api/api";
-import { deploymentConfig } from "api/queries/deployment";
-import type { AuthorizationResponse } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
-import type { Permissions } from "contexts/auth/permissions";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
-import { useQuery } from "react-query";
-import { Outlet, useLocation } from "react-router-dom";
+import { Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
-
-type ManagementSettingsValue = Readonly<{
-	deploymentValues: DeploymentConfig | undefined;
-}>;
 
 export const ManagementSettingsContext = createContext<
 	ManagementSettingsValue | undefined
 >(undefined);
+
+type ManagementSettingsValue = Readonly<{
+	organizations: readonly Organization[];
+	organization?: Organization;
+}>;
 
 export const useManagementSettings = (): ManagementSettingsValue => {
 	const context = useContext(ManagementSettingsContext);
@@ -47,134 +43,47 @@ export const canEditOrganization = (
 	);
 };
 
-export const isManagementRoutePermitted = (
-	locationPath: string,
-	permissions: Permissions,
-	showOrganizations: boolean,
-): boolean => {
-	if (!locationPath.startsWith("/")) {
-		return false;
-	}
-
-	if (locationPath.startsWith("/organizations")) {
-		return showOrganizations;
-	}
-
-	if (!locationPath.startsWith("/deployment")) {
-		return false;
-	}
-
-	// Logic for deployment routes should mirror the conditions used to display
-	// the sidebar tabs from SidebarView.tsx
-	const href = locationPath.replace(/^\/deployment/, "");
-
-	if (href === "/" || href === "") {
-		const hasAtLeastOnePermission = Object.values(permissions).some((v) => v);
-		return hasAtLeastOnePermission;
-	}
-	if (href.startsWith("/general")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/licenses")) {
-		return permissions.viewAllLicenses;
-	}
-	if (href.startsWith("/appearance")) {
-		return permissions.editDeploymentValues;
-	}
-	if (href.startsWith("/userauth")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/external-auth")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/network")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/workspace-proxies")) {
-		return permissions.readWorkspaceProxies;
-	}
-	if (href.startsWith("/security")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/observability")) {
-		return permissions.viewDeploymentValues;
-	}
-	if (href.startsWith("/users")) {
-		return permissions.viewAllUsers;
-	}
-	if (href.startsWith("/notifications")) {
-		return permissions.viewNotificationTemplate;
-	}
-	if (href.startsWith("/oauth2-provider")) {
-		return permissions.viewExternalAuthConfig;
-	}
-
-	return false;
-};
-
-/**
- * A multi-org capable settings page layout.
- *
- * If multi-org is not enabled or licensed, this is the wrong layout to use.
- * See DeploySettingsLayoutInner instead.
- */
-export const ManagementSettingsLayout: FC = () => {
-	const location = useLocation();
-	const { showOrganizations } = useDashboard();
+const ManagementSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
-	const deploymentConfigQuery = useQuery({
-		...deploymentConfig(),
-		enabled: permissions.viewDeploymentValues,
-	});
+	const { organizations } = useDashboard();
+	const { organization: orgName } = useParams() as {
+		organization?: string;
+	};
 
-	// Have to make check more specific, because if the query is disabled, it
-	// will be forever stuck in the loading state. The loading state is only
-	// relevant to owners right now
-	if (permissions.viewDeploymentValues && deploymentConfigQuery.isLoading) {
-		return <Loader />;
-	}
-
-	const canViewAtLeastOneTab =
+	// The deployment settings page also contains users, audit logs, groups and
+	// organizations, so this page must be visible if you can see any of these.
+	const canViewDeploymentSettingsPage =
 		permissions.viewDeploymentValues ||
 		permissions.viewAllUsers ||
 		permissions.editAnyOrganization ||
 		permissions.viewAnyAuditLog;
 
+	const organization =
+		organizations && orgName
+			? organizations.find((org) => org.name === orgName)
+			: undefined;
+
 	return (
-		<RequirePermission
-			permitted={
-				canViewAtLeastOneTab &&
-				isManagementRoutePermitted(
-					location.pathname,
-					permissions,
-					showOrganizations,
-				)
-			}
-			unpermittedRedirect={
-				canViewAtLeastOneTab && !location.pathname.startsWith("/deployment")
-					? "/deployment"
-					: "/workspaces"
-			}
-		>
-			<Margins>
-				<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-					<Sidebar />
-
-					<main css={{ flexGrow: 1 }}>
-						{deploymentConfigQuery.isError && (
-							<ErrorAlert error={deploymentConfigQuery.error} />
-						)}
-
-						<ManagementSettingsContext.Provider
-							value={{ deploymentValues: deploymentConfigQuery.data }}
-						>
+		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
+			<ManagementSettingsContext.Provider
+				value={{
+					organizations,
+					organization,
+				}}
+			>
+				<Margins>
+					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
+						<Sidebar />
+						<main css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>
-						</ManagementSettingsContext.Provider>
-					</main>
-				</Stack>
-			</Margins>
+						</main>
+					</Stack>
+				</Margins>
+			</ManagementSettingsContext.Provider>
 		</RequirePermission>
 	);
 };
+
+export default ManagementSettingsLayout;

@@ -240,8 +240,6 @@ interface OrganizationSettingsNavigationProps {
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
 > = ({ active, organization }) => {
-	const { experiments } = useDashboard();
-
 	return (
 		<>
 			<SidebarNavItem

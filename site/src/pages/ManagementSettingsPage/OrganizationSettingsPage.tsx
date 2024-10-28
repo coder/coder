@@ -3,21 +3,27 @@ import {
 	organizationsPermissions,
 	updateOrganization,
 } from "api/queries/organizations";
+import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { canEditOrganization } from "modules/management/ManagementSettingsLayout";
+import {
+	canEditOrganization,
+	useManagementSettings,
+} from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
 
 const OrganizationSettingsPage: FC = () => {
-	const { organizations, activeOrganization } = useDashboard();
+	const { organization: organizationName } = useParams() as {
+		organization?: string;
+	};
+	const { organizations } = useManagementSettings();
 	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();
@@ -28,8 +34,13 @@ const OrganizationSettingsPage: FC = () => {
 	const deleteOrganizationMutation = useMutation(
 		deleteOrganization(queryClient),
 	);
+
+	const organization =
+		organizations && organizationName
+			? getOrganizationByName(organizations, organizationName)
+			: undefined;
 	const permissionsQuery = useQuery(
-		organizationsPermissions(organizations.map((o) => o.id)),
+		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 
 	if (permissionsQuery.isLoading) {
@@ -41,9 +52,9 @@ const OrganizationSettingsPage: FC = () => {
 		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
-	// Redirect /organizations => /organizations/default-org, or if they cannot
-	// edit the default org, then the first org they can edit, if any.
-	if (!activeOrganization?.name) {
+	// Redirect /organizations => /organizations/default-org, or if they cannot edit
+	// the default org, then the first org they can edit, if any.
+	if (!organizationName) {
 		// .find will stop at the first match found; make sure default
 		// organizations are placed first
 		const editableOrg = [...organizations]
@@ -57,35 +68,26 @@ const OrganizationSettingsPage: FC = () => {
 				return 0;
 			})
 			.find((org) => canEditOrganization(permissions[org.id]));
-
 		if (editableOrg) {
 			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
 		}
-
 		return <EmptyState message="No organizations found" />;
 	}
 
-	if (!activeOrganization || !organizations.includes(activeOrganization)) {
+	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
-	// The user may not be able to edit this org but they can still see it
-	// because they can edit members, etc. In this case they will be shown a
-	// read-only summary page instead of the settings form.
-	// Similarly, if the feature is not entitled then the user will not be able
-	// to edit the organization.
-	const userCannotEditOrg =
-		/**
-		 * @todo 2024-10-25 - MES - Do not remove the ?. chaining, even though
-		 * the compiler will let you do it
-		 *
-		 * We need to tighten up the compiler settings more so that we're forced
-		 * to deal with the case where a key does not exist in a Record
-		 */
-		!permissions[activeOrganization.id]?.editOrganization ||
-		!feats.multiple_organizations;
-	if (userCannotEditOrg) {
-		return <OrganizationSummaryPageView organization={activeOrganization} />;
+	// The user may not be able to edit this org but they can still see it because
+	// they can edit members, etc.  In this case they will be shown a read-only
+	// summary page instead of the settings form.
+	// Similarly, if the feature is not entitled then the user will not be able to
+	// edit the organization.
+	if (
+		!permissions[organization.id]?.editOrganization ||
+		!feats.multiple_organizations
+	) {
+		return <OrganizationSummaryPageView organization={organization} />;
 	}
 
 	const error =
@@ -93,19 +95,19 @@ const OrganizationSettingsPage: FC = () => {
 
 	return (
 		<OrganizationSettingsPageView
-			organization={activeOrganization}
+			organization={organization}
 			error={error}
 			onSubmit={async (values) => {
 				const updatedOrganization =
 					await updateOrganizationMutation.mutateAsync({
-						organizationId: activeOrganization.id,
+						organizationId: organization.id,
 						req: values,
 					});
 				navigate(`/organizations/${updatedOrganization.name}`);
 				displaySuccess("Organization settings updated.");
 			}}
 			onDeleteOrganization={() => {
-				deleteOrganizationMutation.mutate(activeOrganization.id);
+				deleteOrganizationMutation.mutate(organization.id);
 				displaySuccess("Organization deleted.");
 				navigate("/organizations");
 			}}
@@ -114,3 +116,10 @@ const OrganizationSettingsPage: FC = () => {
 };
 
 export default OrganizationSettingsPage;
+
+const getOrganizationByName = (
+	organizations: readonly Organization[],
+	name: string,
+) => {
+	return organizations.find((org) => org.name === name);
+};
