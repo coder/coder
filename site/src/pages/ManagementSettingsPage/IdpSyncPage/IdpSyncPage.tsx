@@ -12,6 +12,7 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
@@ -27,7 +28,8 @@ export const IdpSyncPage: FC = () => {
 	};
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
-	const { activeOrganization } = useDashboard();
+	const { organizations } = useManagementSettings();
+	const organization = organizations?.find((o) => o.name === organizationName);
 
 	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
 		useQueries({
@@ -38,7 +40,7 @@ export const IdpSyncPage: FC = () => {
 			],
 		});
 
-	if (!activeOrganization) {
+	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
 
@@ -93,7 +95,7 @@ export const IdpSyncPage: FC = () => {
 						roleSyncSettings={roleIdpSyncSettingsQuery.data}
 						groups={groupsQuery.data}
 						groupsMap={groupsMap}
-						organization={activeOrganization}
+						organization={organization}
 						error={error}
 					/>
 				</Cond>

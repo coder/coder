@@ -1,7 +1,10 @@
 import { organizationsPermissions } from "api/queries/organizations";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { canEditOrganization } from "modules/management/ManagementSettingsLayout";
+import {
+	canEditOrganization,
+	useManagementSettings,
+} from "modules/management/ManagementSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { useLocation, useParams } from "react-router-dom";
@@ -17,7 +20,10 @@ import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
 export const Sidebar: FC = () => {
 	const location = useLocation();
 	const { permissions } = useAuthenticated();
-	const { organizations, activeOrganization } = useDashboard();
+	const { organizations } = useManagementSettings();
+	const { organization: organizationName } = useParams() as {
+		organization?: string;
+	};
 
 	const orgPermissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
@@ -46,7 +52,7 @@ export const Sidebar: FC = () => {
 			// the user is on /organizations but has no editable organizations to
 			// which we can redirect.
 			activeSettings={location.pathname.startsWith("/deployment")}
-			activeOrganizationName={activeOrganization?.name}
+			activeOrganizationName={organizationName}
 			organizations={editableOrgs}
 			permissions={permissions}
 		/>

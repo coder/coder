@@ -562,7 +562,6 @@ describe("WorkspacePage", () => {
 						entitlements: MockEntitlements,
 						experiments: [],
 						organizations: [MockOrganization],
-						activeOrganization: MockOrganization,
 						showOrganizations: true,
 					}}
 				>

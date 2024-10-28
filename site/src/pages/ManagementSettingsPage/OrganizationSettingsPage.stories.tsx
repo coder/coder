@@ -38,17 +38,10 @@ const meta: Meta<typeof OrganizationSettingsPage> = {
 export default meta;
 type Story = StoryObj<typeof OrganizationSettingsPage>;
 
-export const NoRedirectableOrganizations: Story = {
-	parameters: {
-		organizations: [MockDefaultOrganization],
-		activeOrganization: undefined,
-	},
-};
+export const NoRedirectableOrganizations: Story = {};
 
 export const OrganizationDoesNotExist: Story = {
 	parameters: {
-		organizations: [MockDefaultOrganization],
-		activeOrganization: MockOrganization2,
 		reactRouter: reactRouterParameters({
 			location: { pathParams: { organization: "does-not-exist" } },
 			routing: { path: "/organizations/:organization" },

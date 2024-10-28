@@ -16,6 +16,7 @@ import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -50,10 +51,9 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { activeOrganization } = useDashboard();
-	const permissionsQuery = useQuery(
-		organizationPermissions(activeOrganization?.id),
-	);
+	const { organizations } = useManagementSettings();
+	const organization = organizations?.find((o) => o.name === organizationName);
+	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();

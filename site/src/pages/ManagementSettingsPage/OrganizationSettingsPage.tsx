@@ -35,10 +35,7 @@ const OrganizationSettingsPage: FC = () => {
 		deleteOrganization(queryClient),
 	);
 
-	const organization =
-		organizations && organizationName
-			? getOrganizationByName(organizations, organizationName)
-			: undefined;
+	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
@@ -116,10 +113,3 @@ const OrganizationSettingsPage: FC = () => {
 };
 
 export default OrganizationSettingsPage;
-
-const getOrganizationByName = (
-	organizations: readonly Organization[],
-	name: string,
-) => {
-	return organizations.find((org) => org.name === name);
-};

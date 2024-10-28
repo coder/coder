@@ -270,12 +270,6 @@ export const InvalidPageNumber: Story = {
 	},
 };
 
-const mockOrganization: Organization = {
-	...MockOrganization,
-	name: "limbus-co",
-	display_name: "Limbus Company, LLC",
-};
-
 export const ShowOrganizations: Story = {
 	args: {
 		workspaces: [{ ...MockWorkspace, organization_name: "limbus-co" }],
@@ -283,8 +277,13 @@ export const ShowOrganizations: Story = {
 
 	parameters: {
 		showOrganizations: true,
-		activeOrganization: mockOrganization,
-		organizations: [mockOrganization],
+		organizations: [
+			{
+				...MockOrganization,
+				name: "limbus-co",
+				display_name: "Limbus Company, LLC",
+			},
+		],
 	},
 
 	play: async ({ canvasElement }) => {
