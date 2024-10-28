@@ -1,7 +1,7 @@
 # FAQs
 
-Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
-come from our community and enterprise customers, feel free to
+Frequently asked questions on Coder OSS and licensed deployments. These FAQs
+come from our community and customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our

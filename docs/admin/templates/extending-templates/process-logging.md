@@ -17,7 +17,7 @@ Please note that these logs are not recorded or captured by the Coder
 organization in any way, shape, or form.
 
 > This is an [Premium or Enterprise](https://coder.com/pricing) feature. To
-> learn more about Coder Enterprise, please
+> learn more about Coder licensing, please
 > [contact sales](https://coder.com/contact).
 
 ## How this works

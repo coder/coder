@@ -173,8 +173,8 @@ example, running 10 provisioner containers will allow 10 users to start
 workspaces at the same time.
 
 By default, the Coder server runs 3 built-in provisioner daemons, but the
-_Enterprise_ Coder release allows for running external provisioners to separate
-the load caused by workspace provisioning on the `coderd` nodes.
+_Premium_ Coder release allows for running external provisioners to separate the
+load caused by workspace provisioning on the `coderd` nodes.
 
 #### Scaling formula
 

@@ -51,7 +51,7 @@ for your workspace.
 
 ## Autostop requirement (enterprise) (premium)
 
-Enterprise template admins may enforce a required stop for workspaces to apply
+Licensed template admins may enforce a required stop for workspaces to apply
 updates or undergo maintenance. These stops ignore any active connections or
 inactivity bumps. Rather than being specified with a CRON, admins set a
 frequency for updates, either in **days** or **weeks**. Workspaces will apply
@@ -106,5 +106,5 @@ durations. Template admins configure an inactivity period after which your
 workspaces will gain a `dormant` badge. A separate period determines how long
 workspaces will remain in the dormant state before automatic deletion.
 
-Enterprise admins may also configure failure cleanup, which will automatically
+Licensed admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.
