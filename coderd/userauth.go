@@ -450,8 +450,9 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 // @Router /users/validate-password [post]
 func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	var (
-		ctx   = r.Context()
-		valid = true
+		ctx     = r.Context()
+		valid   = true
+		details = ""
 	)
 
 	var req codersdk.ValidateUserPasswordRequest
@@ -462,10 +463,12 @@ func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
 	err := userpassword.Validate(req.Password)
 	if err != nil {
 		valid = false
+		details = err.Error()
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ValidateUserPasswordResponse{
-		Valid: valid,
+		Valid:   valid,
+		Details: details,
 	})
 }
 

@@ -212,6 +212,7 @@ curl -X POST http://coder-server:8080/api/v2/users/validate-password \
 
 ```json
 {
+	"details": "string",
 	"valid": true
 }
 ```

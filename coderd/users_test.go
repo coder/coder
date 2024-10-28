@@ -1112,8 +1112,6 @@ func TestUpdateUserPassword(t *testing.T) {
 	// FIXME: Re-enable the tests once real logic changed
 	// Currently there's no check in code to validate that users have to put the old password
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
-		t.Skip()
-
 		t.Parallel()
 		client := coderdtest.New(t, nil)
 		owner := coderdtest.CreateFirstUser(t, client)

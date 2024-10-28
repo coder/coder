@@ -14041,6 +14041,9 @@ const docTemplate = `{
         "codersdk.ValidateUserPasswordResponse": {
             "type": "object",
             "properties": {
+                "details": {
+                    "type": "string"
+                },
                 "valid": {
                     "type": "boolean"
                 }

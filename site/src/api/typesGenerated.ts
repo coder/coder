@@ -1775,6 +1775,7 @@ export interface ValidateUserPasswordRequest {
 // From codersdk/users.go
 export interface ValidateUserPasswordResponse {
 	readonly valid: boolean;
+	readonly details: string;
 }
 
 // From codersdk/client.go

@@ -6413,15 +6413,17 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+	"details": "string",
 	"valid": true
 }
 ```
 
 ### Properties
 
-| Name    | Type    | Required | Restrictions | Description |
-| ------- | ------- | -------- | ------------ | ----------- |
-| `valid` | boolean | false    |              |             |
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `details` | string  | false    |              |             |
+| `valid`   | boolean | false    |              |             |
 
 ## codersdk.ValidationError
 

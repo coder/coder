@@ -181,7 +181,8 @@ type ValidateUserPasswordRequest struct {
 }
 
 type ValidateUserPasswordResponse struct {
-	Valid bool `json:"valid"`
+	Valid   bool   `json:"valid"`
+	Details string `json:"details"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
