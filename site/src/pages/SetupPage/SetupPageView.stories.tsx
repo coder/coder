@@ -31,6 +31,12 @@ export const TrialError: Story = {
 	},
 };
 
+export const PasswordValidation: Story = {
+	args: {
+		passwordValidator: { valid: false, details: "Password is too short" },
+	},
+};
+
 export const Loading: Story = {
 	args: {
 		isLoading: true,

@@ -20,12 +20,15 @@ export const CreateUserPage: FC = () => {
 	const authMethodsQuery = useQuery(authMethods());
 	const validatePasswordMutation = useMutation(validatePassword());
 
-	const [passwordIsValid, setPasswordIsValid] = useState(false);
+	const [passwordValidator, setPasswordValidator] = useState({
+		valid: false,
+		details: "",
+	});
 
 	const validateUserPassword = async (password: string) => {
 		validatePasswordMutation.mutate(password, {
 			onSuccess: (data) => {
-				setPasswordIsValid(data);
+				setPasswordValidator({ valid: data.valid, details: data.details });
 			},
 		});
 	};
@@ -53,7 +56,7 @@ export const CreateUserPage: FC = () => {
 					navigate("..", { relative: "path" });
 				}}
 				onPasswordChange={debouncedValidateUserPassword}
-				passwordIsValid={passwordIsValid}
+				passwordValidator={passwordValidator}
 				isLoading={createUserMutation.isLoading}
 			/>
 		</Margins>

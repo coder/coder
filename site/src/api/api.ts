@@ -1322,11 +1322,13 @@ class ApiMethods {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 
-	validateUserPassword = async (password: string): Promise<boolean> => {
+	validateUserPassword = async (
+		password: string,
+	): Promise<TypesGen.ValidateUserPasswordResponse> => {
 		const response = await this.axios.post("/api/v2/users/validate-password", {
 			password,
 		});
-		return response.data.valid;
+		return response.data;
 	};
 
 	getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {

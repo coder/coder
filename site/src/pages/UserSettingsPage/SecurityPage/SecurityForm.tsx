@@ -1,5 +1,6 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
@@ -42,7 +43,7 @@ export interface SecurityFormProps {
 	disabled: boolean;
 	isLoading: boolean;
 	onPasswordChange: (password: string) => void;
-	passwordIsValid: boolean;
+	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	onSubmit: (values: SecurityFormValues) => void;
 	error?: unknown;
 }
@@ -51,7 +52,7 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 	disabled,
 	isLoading,
 	onPasswordChange,
-	passwordIsValid,
+	passwordValidator,
 	onSubmit,
 	error,
 }) => {
@@ -96,10 +97,10 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 						autoComplete="password"
 						fullWidth
 						label={Language.newPasswordLabel}
-						error={!!(form.values.password !== "" && !passwordIsValid)}
+						error={!!(form.values.password !== "" && !passwordValidator.valid)}
 						helperText={
-							form.values.password !== "" && !passwordIsValid
-								? "Password is not strong enough."
+							form.values.password !== "" && !passwordValidator.valid
+								? passwordValidator.details
 								: ""
 						}
 						type="password"

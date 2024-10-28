@@ -29,12 +29,15 @@ export const SecurityPage: FC = () => {
 	});
 	const singleSignOnSection = useSingleSignOnSection();
 
-	const [passwordIsValid, setPasswordIsValid] = useState(false);
+	const [passwordValidator, setPasswordValidator] = useState({
+		valid: false,
+		details: "",
+	});
 
 	const validateUserPassword = async (password: string) => {
 		validatePasswordMutation.mutate(password, {
 			onSuccess: (data) => {
-				setPasswordIsValid(data);
+				setPasswordValidator({ valid: data.valid, details: data.details });
 			},
 		});
 	};
@@ -56,7 +59,7 @@ export const SecurityPage: FC = () => {
 					error: updatePasswordMutation.error,
 					isLoading: updatePasswordMutation.isLoading,
 					onPasswordChange: debouncedValidateUserPassword,
-					passwordIsValid: passwordIsValid,
+					passwordValidator: passwordValidator,
 					onSubmit: async (data) => {
 						await updatePasswordMutation.mutateAsync({
 							userId: me.id,

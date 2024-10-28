@@ -64,7 +64,7 @@ export interface CreateUserFormProps {
 	onSubmit: (user: TypesGen.CreateUserRequestWithOrgs) => void;
 	onCancel: () => void;
 	onPasswordChange: (password: string) => void;
-	passwordIsValid: boolean;
+	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	error?: unknown;
 	isLoading: boolean;
 	authMethods?: TypesGen.AuthMethods;
@@ -91,7 +91,7 @@ export const CreateUserForm: FC<
 	onSubmit,
 	onCancel,
 	onPasswordChange,
-	passwordIsValid,
+	passwordValidator,
 	error,
 	isLoading,
 	authMethods,
@@ -206,15 +206,15 @@ export const CreateUserForm: FC<
 								(form.values.login_type !== "password" &&
 									"No password required for this login type") ||
 								(form.values.password !== "" &&
-									!passwordIsValid &&
-									"password is not strong enough."),
+									!passwordValidator.valid &&
+									passwordValidator.details),
 						})}
 						autoComplete="current-password"
 						fullWidth
 						id="password"
 						data-testid="password-input"
 						disabled={form.values.login_type !== "password"}
-						error={!!(form.values.password !== "" && !passwordIsValid)}
+						error={!!(form.values.password !== "" && !passwordValidator.valid)}
 						label={Language.passwordLabel}
 						type="password"
 					/>

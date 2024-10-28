@@ -29,7 +29,10 @@ export const SetupPage: FC = () => {
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const navigate = useNavigate();
 
-	const [passwordIsValid, setPasswordIsValid] = useState(false);
+	const [passwordValidator, setPasswordValidator] = useState({
+		valid: false,
+		details: "",
+	});
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -43,7 +46,7 @@ export const SetupPage: FC = () => {
 	const validateUserPassword = async (password: string) => {
 		validatePasswordMutation.mutate(password, {
 			onSuccess: (data) => {
-				setPasswordIsValid(data);
+				setPasswordValidator({ valid: data.valid, details: data.details });
 			},
 		});
 	};
@@ -74,7 +77,7 @@ export const SetupPage: FC = () => {
 			</Helmet>
 			<SetupPageView
 				onPasswordChange={debouncedValidateUserPassword}
-				passwordIsValid={passwordIsValid}
+				passwordValidator={passwordValidator}
 				isLoading={isSigningIn || createFirstUserMutation.isLoading}
 				error={createFirstUserMutation.error}
 				onSubmit={async (firstUser) => {

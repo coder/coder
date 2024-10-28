@@ -84,7 +84,7 @@ const numberOfDevelopersOptions = [
 export interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
 	onPasswordChange?: (password: string) => void;
-	passwordIsValid?: boolean;
+	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	error?: unknown;
 	isLoading?: boolean;
 }
@@ -92,7 +92,7 @@ export interface SetupPageViewProps {
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
 	onPasswordChange,
-	passwordIsValid = true,
+	passwordValidator,
 	error,
 	isLoading,
 }) => {
@@ -183,9 +183,9 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						id="password"
 						label={Language.passwordLabel}
 						type="password"
-						error={!!(form.values.password !== "" && !passwordIsValid)}
+						error={!!(form.values.password !== "" && !passwordValidator.valid)}
 						helperText={
-							!passwordIsValid ? "Password is not strong enough." : ""
+							!passwordValidator.valid ? passwordValidator.details : ""
 						}
 					/>
 					<label

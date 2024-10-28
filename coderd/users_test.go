@@ -1109,8 +1109,6 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
-	// FIXME: Re-enable the tests once real logic changed
-	// Currently there's no check in code to validate that users have to put the old password
 	t.Run("MemberCantUpdateOwnPasswordWithoutOldPassword", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
