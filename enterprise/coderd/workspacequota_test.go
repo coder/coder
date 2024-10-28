@@ -634,7 +634,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+---------------------+
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
-		// pq: could not serialize access due to read/write dependencies among tra
+		// pq: could not serialize access due to read/write dependencies among transactions
 		ctx := testutil.Context(t, testutil.WaitLong)
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
