@@ -10,9 +10,26 @@ import (
 	"golang.org/x/xerrors"
 )
 
+var ErrMissingKeyID = xerrors.New("missing key ID")
+
 const (
 	keyIDHeaderKey = "kid"
 )
+
+// RegisteredClaims is a convenience type for embedding jwt.Claims. It should be
+// preferred over embedding jwt.Claims directly since it will ensure that certain fields are set.
+type RegisteredClaims jwt.Claims
+
+func (r RegisteredClaims) Validate(e jwt.Expected) error {
+	if r.Expiry == nil {
+		return xerrors.Errorf("expiry is required")
+	}
+	if e.Time.IsZero() {
+		return xerrors.Errorf("expected time is required")
+	}
+
+	return (jwt.Claims(r)).Validate(e)
+}
 
 // Claims defines the payload for a JWT. Most callers
 // should embed jwt.Claims
@@ -23,6 +40,11 @@ type Claims interface {
 const (
 	signingAlgo = jose.HS512
 )
+
+type SigningKeyManager interface {
+	SigningKeyProvider
+	VerifyKeyProvider
+}
 
 type SigningKeyProvider interface {
 	SigningKey(ctx context.Context) (id string, key interface{}, err error)
@@ -75,6 +97,12 @@ type VerifyOptions struct {
 	SignatureAlgorithm jose.SignatureAlgorithm
 }
 
+func WithVerifyExpected(expected jwt.Expected) func(*VerifyOptions) {
+	return func(opts *VerifyOptions) {
+		opts.RegisteredClaims = expected
+	}
+}
+
 // Verify verifies that a token was signed by the provided key. It unmarshals into the provided claims.
 func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claims, opts ...func(*VerifyOptions)) error {
 	options := VerifyOptions{
@@ -105,7 +133,7 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 
 	kid := signature.Header.KeyID
 	if kid == "" {
-		return xerrors.Errorf("expected %q header to be a string", keyIDHeaderKey)
+		return ErrMissingKeyID
 	}
 
 	key, err := v.VerifyingKey(ctx, kid)
@@ -124,4 +152,36 @@ func Verify(ctx context.Context, v VerifyKeyProvider, token string, claims Claim
 	}
 
 	return claims.Validate(options.RegisteredClaims)
+}
+
+// StaticKey fulfills the SigningKeycache and EncryptionKeycache interfaces. Useful for testing.
+type StaticKey struct {
+	ID  string
+	Key interface{}
+}
+
+func (s StaticKey) SigningKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) VerifyingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (s StaticKey) EncryptingKey(_ context.Context) (string, interface{}, error) {
+	return s.ID, s.Key, nil
+}
+
+func (s StaticKey) DecryptingKey(_ context.Context, id string) (interface{}, error) {
+	if id != s.ID {
+		return nil, xerrors.Errorf("invalid id %q", id)
+	}
+	return s.Key, nil
+}
+
+func (StaticKey) Close() error {
+	return nil
 }

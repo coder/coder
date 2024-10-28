@@ -1454,7 +1454,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"deletes_at": "2019-08-24T14:15:22Z",
-	"feature": "workspace_apps",
+	"feature": "workspace_apps_api_key",
 	"secret": "string",
 	"sequence": 0,
 	"starts_at": "2019-08-24T14:15:22Z"
@@ -1474,18 +1474,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ## codersdk.CryptoKeyFeature
 
 ```json
-"workspace_apps"
+"workspace_apps_api_key"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value            |
-| ---------------- |
-| `workspace_apps` |
-| `oidc_convert`   |
-| `tailnet_resume` |
+| Value                    |
+| ------------------------ |
+| `workspace_apps_api_key` |
+| `workspace_apps_token`   |
+| `oidc_convert`           |
+| `tailnet_resume`         |
 
 ## codersdk.CustomRoleRequest
 
@@ -9893,7 +9894,7 @@ _None_
 	"crypto_keys": [
 		{
 			"deletes_at": "2019-08-24T14:15:22Z",
-			"feature": "workspace_apps",
+			"feature": "workspace_apps_api_key",
 			"secret": "string",
 			"sequence": 0,
 			"starts_at": "2019-08-24T14:15:22Z"
@@ -9971,7 +9972,6 @@ _None_
 
 ```json
 {
-	"app_security_key": "string",
 	"derp_force_websockets": true,
 	"derp_map": {
 		"homeParams": {
@@ -10052,7 +10052,6 @@ _None_
 
 | Name                    | Type                                          | Required | Restrictions | Description                                                                            |
 | ----------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `app_security_key`      | string                                        | false    |              |                                                                                        |
 | `derp_force_websockets` | boolean                                       | false    |              |                                                                                        |
 | `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
 | `derp_mesh_key`         | string                                        | false    |              |                                                                                        |

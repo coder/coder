@@ -122,5 +122,5 @@ log entry:
 
 ## Enabling this feature
 
-This feature is only available with an enterprise license.
+This feature is only available with an premium license.
 [Learn more](../licensing/index.md)

@@ -345,9 +345,10 @@ func AllBuildReasonValues() []BuildReason {
 type CryptoKeyFeature string
 
 const (
-	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
-	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWorkspaceAppsToken  CryptoKeyFeature = "workspace_apps_token"
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -387,8 +388,9 @@ func (ns NullCryptoKeyFeature) Value() (driver.Value, error) {
 
 func (e CryptoKeyFeature) Valid() bool {
 	switch e {
-	case CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+	case CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume:
 		return true
 	}
@@ -397,8 +399,9 @@ func (e CryptoKeyFeature) Valid() bool {
 
 func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 	return []CryptoKeyFeature{
-		CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 	}
 }
