@@ -1,11 +1,3 @@
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers/Multiple
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers/One
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers/OneWithExpired
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestWorkspaceLatestBuildStatuses
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestWorkspaceLatestBuildStatuses/Multiple
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestWorkspaceLatestBuildTotals
-github.com/coder/coder/v2/coderd/prometheusmetrics,TestWorkspaceLatestBuildTotals/Multiple
 github.com/coder/coder/v2/coderd/provisionerdserver,TestAcquireJob/Deprecated_InitiatorNotFound
 github.com/coder/coder/v2/coderd/provisionerdserver,TestAcquireJob/Deprecated_TemplateVersionDryRun
 github.com/coder/coder/v2/coderd/provisionerdserver,TestAcquireJob/Deprecated_TemplateVersionImport

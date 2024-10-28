@@ -57,6 +57,7 @@ func TestActiveUsers(t *testing.T) {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeys(t, db)
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -67,6 +68,7 @@ func TestActiveUsers(t *testing.T) {
 		Name: "OneWithExpired",
 		Database: func(t *testing.T) database.Store {
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeys(t, db)
 
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
@@ -84,6 +86,7 @@ func TestActiveUsers(t *testing.T) {
 		Name: "Multiple",
 		Database: func(t *testing.T) database.Store {
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeys(t, db)
 			dbgen.APIKey(t, db, database.APIKey{
 				LastUsed: dbtime.Now(),
 			})
@@ -131,6 +134,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		Name: "Multiple",
 		Database: func() database.Store {
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeys(t, db)
 			insertCanceled(t, db)
 			insertFailed(t, db)
 			insertFailed(t, db)
@@ -205,6 +209,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		Name: "Multiple",
 		Database: func() database.Store {
 			db, _ := dbtestutil.NewDB(t)
+			dbtestutil.DisableForeignKeys(t, db)
 			insertTemplates(t, db)
 			insertCanceled(t, db)
 			insertFailed(t, db)
@@ -673,7 +678,9 @@ func insertUser(t *testing.T, db database.Store) database.User {
 	user, err := db.InsertUser(context.Background(), database.InsertUserParams{
 		ID:        uuid.New(),
 		Username:  username,
+		Email:     username + "@example.com",
 		LoginType: database.LoginTypeNone,
+		RBACRoles: []string{},
 	})
 	require.NoError(t, err)
 
@@ -708,6 +715,7 @@ func insertRunning(t *testing.T, db database.Store) database.ProvisionerJob {
 		Provisioner:   database.ProvisionerTypeEcho,
 		StorageMethod: database.ProvisionerStorageMethodFile,
 		Type:          database.ProvisionerJobTypeWorkspaceBuild,
+		Input:         json.RawMessage("{}"),
 	})
 	require.NoError(t, err)
 	err = db.InsertWorkspaceBuild(context.Background(), database.InsertWorkspaceBuildParams{
@@ -728,6 +736,7 @@ func insertRunning(t *testing.T, db database.Store) database.ProvisionerJob {
 			Valid: true,
 		},
 		Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		Tags:  must(json.Marshal(job.Tags)),
 	})
 	require.NoError(t, err)
 	return job
