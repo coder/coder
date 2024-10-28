@@ -1,9 +1,3 @@
-github.com/coder/coder/v2/coderd/metricscache,TestCache_BuildTime
-github.com/coder/coder/v2/coderd/metricscache,TestCache_BuildTime/empty
-github.com/coder/coder/v2/coderd/metricscache,TestCache_BuildTime/one/start
-github.com/coder/coder/v2/coderd/metricscache,TestCache_BuildTime/three/delete
-github.com/coder/coder/v2/coderd/metricscache,TestCache_BuildTime/two/stop
-github.com/coder/coder/v2/coderd/metricscache,TestCache_TemplateWorkspaceOwners
 github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers
 github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers/Multiple
 github.com/coder/coder/v2/coderd/prometheusmetrics,TestActiveUsers/One

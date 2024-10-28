@@ -27,11 +27,14 @@ func Open() (string, func(), error) {
 		port     = "5432"
 	)
 
-	dbName, err := cryptorand.StringCharset(cryptorand.Lower, 10)
+	// use a time-based prefix to make it easier to find the database
+	// when debugging
+	now := time.Now().Format("test_2006_01_02_15_04_05")
+	dbSuffix, err := cryptorand.StringCharset(cryptorand.Lower, 10)
 	if err != nil {
-		return "", nil, xerrors.Errorf("generate db name: %w", err)
+		return "", nil, xerrors.Errorf("generate db suffix: %w", err)
 	}
-	dbName = "test_" + dbName
+	dbName := now + "_" + dbSuffix
 
 	if err := createDatabaseFromTemplate(CreateDatabaseArgs{
 		Username: username,
