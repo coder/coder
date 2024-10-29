@@ -115,8 +115,8 @@ existing one.
 |    -     | `--notifications-email-tls-cert-file`     | `CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
 |    -     | `--notifications-email-tls-cert-key-file` | `CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
 
-**NOTE:** you _MUST_ use `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` if your smarthost
-supports TLS on a port other than `465`.
+**NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
+on a port other than `465`.
 
 ### Send emails using G-Suite
 
@@ -126,9 +126,9 @@ After setting the required fields above:
    account you wish to send from
 2. Set the following configuration options:
    ```
-   CODER_NOTIFICATIONS_EMAIL_SMARTHOST=smtp.gmail.com:465
-   CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME=<user>@<domain>
-   CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD="<app password created above>"
+   CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
+   CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
+   CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
    ```
 
 See
@@ -142,10 +142,10 @@ After setting the required fields above:
 1. Setup an account on Microsoft 365 or outlook.com
 2. Set the following configuration options:
    ```
-   CODER_NOTIFICATIONS_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
-   CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS=true
-   CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME=<user>@<domain>
-   CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD="<account password>"
+   CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
+   CODER_EMAIL_TLS_STARTTLS=true
+   CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
+   CODER_EMAIL_AUTH_PASSWORD="<account password>"
    ```
 
 See
