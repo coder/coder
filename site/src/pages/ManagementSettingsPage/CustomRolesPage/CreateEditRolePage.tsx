@@ -19,6 +19,7 @@ import CreateEditRolePageView from "./CreateEditRolePageView";
 export const CreateEditRolePage: FC = () => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
+
 	const { organization: organizationName, roleName } = useParams() as {
 		organization: string;
 		roleName: string;

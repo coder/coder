@@ -83,6 +83,8 @@ sql:
           template_with_name: Template
           workspace_build: WorkspaceBuildTable
           workspace_build_with_user: WorkspaceBuild
+          workspace: WorkspaceTable
+          workspaces_expanded: Workspace
           template_version: TemplateVersionTable
           template_version_with_user: TemplateVersion
           api_key: APIKey
@@ -133,6 +135,8 @@ sql:
           api_key_id: APIKeyID
           callback_url: CallbackURL
           login_type_oauth2_provider_app: LoginTypeOAuth2ProviderApp
+          crypto_key_feature_workspace_apps_api_key: CryptoKeyFeatureWorkspaceAppsAPIKey
+          crypto_key_feature_oidc_convert: CryptoKeyFeatureOIDCConvert
 rules:
   - name: do-not-use-public-schema-in-queries
     message: "do not use public schema in queries"

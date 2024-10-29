@@ -35,6 +35,7 @@ test("setup deployment", async ({ page }) => {
 		expect(constants.license.split(".").length).toBe(3); // otherwise it's invalid
 
 		await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
+		await expect(page).toHaveTitle("License Settings - Coder");
 
 		await page.getByText("Add a license").click();
 		await page.getByRole("textbox").fill(constants.license);

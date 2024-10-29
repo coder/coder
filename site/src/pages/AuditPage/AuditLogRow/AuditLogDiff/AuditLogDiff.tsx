@@ -9,6 +9,14 @@ const getDiffValue = (value: unknown): string => {
 		return `"${value}"`;
 	}
 
+	if (isTimeObject(value)) {
+		if (!value.Valid) {
+			return "null";
+		}
+
+		return new Date(value.Time).toLocaleString();
+	}
+
 	if (Array.isArray(value)) {
 		const values = value.map((v) => getDiffValue(v));
 		return `[${values.join(", ")}]`;
@@ -19,6 +27,19 @@ const getDiffValue = (value: unknown): string => {
 	}
 
 	return String(value);
+};
+
+const isTimeObject = (
+	value: unknown,
+): value is { Time: string; Valid: boolean } => {
+	return (
+		value !== null &&
+		typeof value === "object" &&
+		"Time" in value &&
+		typeof value.Time === "string" &&
+		"Valid" in value &&
+		typeof value.Valid === "boolean"
+	);
 };
 
 interface AuditLogDiffProps {

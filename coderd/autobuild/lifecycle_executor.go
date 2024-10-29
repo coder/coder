@@ -234,21 +234,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// threshold for inactivity.
 					if reason == database.BuildReasonDormancy {
 						wsOld := ws
-						ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+						wsNew, err := tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 							ID: ws.ID,
 							DormantAt: sql.NullTime{
 								Time:  dbtime.Now(),
 								Valid: true,
 							},
 						})
-
-						auditLog = &auditParams{
-							Old: wsOld,
-							New: ws,
-						}
 						if err != nil {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
+
+						auditLog = &auditParams{
+							Old: wsOld.WorkspaceTable(),
+							New: wsNew,
+						}
+						// To keep the `ws` accurate without doing a sql fetch
+						ws.DormantAt = wsNew.DormantAt
 
 						shouldNotifyDormancy = true
 
@@ -283,7 +285,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					// Run with RepeatableRead isolation so that the build process sees the same data
 					// as our calculation that determines whether an autobuild is necessary.
-				}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+				}, &database.TxOptions{
+					Isolation:    sql.LevelRepeatableRead,
+					TxIdentifier: "lifecycle",
+				})
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.
@@ -510,8 +515,8 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 }
 
 type auditParams struct {
-	Old     database.Workspace
-	New     database.Workspace
+	Old     database.WorkspaceTable
+	New     database.WorkspaceTable
 	Success bool
 }
 
@@ -521,7 +526,7 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 		status = http.StatusOK
 	}
 
-	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Workspace]{
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
 		Audit:          auditor,
 		Log:            log,
 		UserID:         params.New.OwnerID,

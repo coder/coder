@@ -28,7 +28,7 @@ func TestStatePull(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		wantState := []byte("some state")
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
@@ -49,7 +49,7 @@ func TestStatePull(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		wantState := []byte("some state")
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).
@@ -69,7 +69,7 @@ func TestStatePull(t *testing.T) {
 		owner := coderdtest.CreateFirstUser(t, client)
 		_, taUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		wantState := []byte("some state")
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        taUser.ID,
 		}).

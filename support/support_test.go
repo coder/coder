@@ -199,7 +199,7 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 			CreatedBy:      user.UserID,
 		}).
 		Do()
-	wbr := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	wbr := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		TemplateID:     tv.Template.ID,

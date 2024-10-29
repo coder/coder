@@ -5,14 +5,13 @@ import (
 	"bytes"
 	"context"
 	"net/http"
-	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/archive"
+	"github.com/coder/coder/v2/archive/archivetest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -84,8 +83,8 @@ func TestDownload(t *testing.T) {
 		// given
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
-		tarball, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
-		require.NoError(t, err)
+
+		tarball := archivetest.TestTarFileBytes()
 
 		// when
 		resp, err := client.Upload(ctx, codersdk.ContentTypeTar, bytes.NewReader(tarball))
@@ -97,7 +96,7 @@ func TestDownload(t *testing.T) {
 		require.Len(t, data, len(tarball))
 		require.Equal(t, codersdk.ContentTypeTar, contentType)
 		require.Equal(t, tarball, data)
-		assertSampleTarFile(t, data)
+		archivetest.AssertSampleTarFile(t, data)
 	})
 
 	t.Run("InsertZip_DownloadTar", func(t *testing.T) {
@@ -106,8 +105,7 @@ func TestDownload(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// given
-		zipContent, err := os.ReadFile(filepath.Join("testdata", "test.zip"))
-		require.NoError(t, err)
+		zipContent := archivetest.TestZipFileBytes()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
@@ -123,7 +121,7 @@ func TestDownload(t *testing.T) {
 
 		// Note: creating a zip from a tar will result in some loss of information
 		// as zip files do not store UNIX user:group data.
-		assertSampleTarFile(t, data)
+		archivetest.AssertSampleTarFile(t, data)
 	})
 
 	t.Run("InsertTar_DownloadZip", func(t *testing.T) {
@@ -132,11 +130,10 @@ func TestDownload(t *testing.T) {
 		_ = coderdtest.CreateFirstUser(t, client)
 
 		// given
-		tarball, err := os.ReadFile(filepath.Join("testdata", "test.tar"))
-		require.NoError(t, err)
+		tarball := archivetest.TestTarFileBytes()
 
 		tarReader := tar.NewReader(bytes.NewReader(tarball))
-		expectedZip, err := coderd.CreateZipFromTar(tarReader)
+		expectedZip, err := archive.CreateZipFromTar(tarReader, 10240)
 		require.NoError(t, err)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -151,6 +148,6 @@ func TestDownload(t *testing.T) {
 		// then
 		require.Equal(t, codersdk.ContentTypeZip, contentType)
 		require.Equal(t, expectedZip, data)
-		assertSampleZipFile(t, data)
+		archivetest.AssertSampleZipFile(t, data)
 	})
 }

@@ -2167,6 +2167,25 @@ class ApiMethods {
 		);
 		return res.data;
 	};
+
+	requestOneTimePassword = async (
+		req: TypesGen.RequestOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/request", req);
+	};
+
+	changePasswordWithOTP = async (
+		req: TypesGen.ChangePasswordWithOneTimePasscodeRequest,
+	) => {
+		await this.axios.post<void>("/api/v2/users/otp/change-password", req);
+	};
+
+	workspaceBuildTimings = async (workspaceBuildId: string) => {
+		const res = await this.axios.get<TypesGen.WorkspaceBuildTimings>(
+			`/api/v2/workspacebuilds/${workspaceBuildId}/timings`,
+		);
+		return res.data;
+	};
 }
 
 // This is a hard coded CSRF token/cookie pair for local development. In prod,

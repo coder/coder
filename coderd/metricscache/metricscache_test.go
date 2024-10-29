@@ -49,7 +49,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		"TemplateWorkspaceOwners never populated 0 owners",
 	)
 
-	dbgen.Workspace(t, db, database.Workspace{
+	dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user1.ID,
 	})
@@ -61,7 +61,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		"TemplateWorkspaceOwners never populated 1 owner",
 	)
 
-	workspace2 := dbgen.Workspace(t, db, database.Workspace{
+	workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user2.ID,
 	})
@@ -74,7 +74,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	)
 
 	// 3rd workspace should not be counted since we have the same owner as workspace2.
-	dbgen.Workspace(t, db, database.Workspace{
+	dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user1.ID,
 	})

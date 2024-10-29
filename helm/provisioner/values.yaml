@@ -193,11 +193,25 @@ coder:
 # provisionerDaemon -- Provisioner Daemon configuration options
 provisionerDaemon:
   # provisionerDaemon.pskSecretName -- The name of the Kubernetes secret that contains the
-  # Pre-Shared Key (PSK) to use to authenticate with Coder.  The secret must be in the same namespace
-  # as the Helm deployment, and contain an item called "psk" which contains the pre-shared key.
+  # Pre-Shared Key (PSK) to use to authenticate with Coder. The secret must be
+  # in the same namespace as the Helm deployment, and contain an item called
+  # "psk" which contains the pre-shared key.
+  # NOTE: We no longer recommend using PSKs. Please consider using provisioner
+  # keys instead. They have a number of benefits, including the ability to
+  # rotate them easily.
   pskSecretName: "coder-provisioner-psk"
 
-  # provisionerDaemon.tags -- Tags to filter provisioner jobs by
+  # provisionerDaemon.keySecretName -- The name of the Kubernetes
+  # secret that contains a provisioner key to use to authenticate with Coder.
+  # See: https://coder.com/docs/admin/provisioners#authentication
+  keySecretName: ""
+  # provisionerDaemon.keySecretKey -- The key of the Kubernetes
+  # secret specified in provisionerDaemon.keySecretName that contains
+  # the provisioner key. Defaults to "key".
+  keySecretKey: "key"
+
+  # provisionerDaemon.tags -- Tags to filter provisioner jobs by.
+  # See: https://coder.com/docs/admin/provisioners#provisioner-tags
   tags:
     {}
     # location: usa

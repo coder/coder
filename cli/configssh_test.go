@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 	"sync"
@@ -63,6 +64,10 @@ func sshConfigFileRead(t *testing.T, name string) string {
 func TestConfigSSH(t *testing.T) {
 	t.Parallel()
 
+	if runtime.GOOS == "windows" {
+		t.Skip("See coder/internal#117")
+	}
+
 	const hostname = "test-coder."
 	const expectedKey = "ConnectionAttempts"
 	const removeKey = "ConnectTimeout"
@@ -78,7 +83,7 @@ func TestConfigSSH(t *testing.T) {
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: owner.OrganizationID,
 		OwnerID:        memberUser.ID,
 	}).WithAgent().Do()
@@ -642,7 +647,7 @@ func TestConfigSSH_FileWriteAndOptionsFlow(t *testing.T) {
 			client, db := coderdtest.NewWithDatabase(t, nil)
 			user := coderdtest.CreateFirstUser(t, client)
 			if tt.hasAgent {
-				_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+				_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 					OrganizationID: user.OrganizationID,
 					OwnerID:        user.UserID,
 				}).WithAgent().Do()
@@ -762,7 +767,7 @@ func TestConfigSSH_Hostnames(t *testing.T) {
 			owner := coderdtest.CreateFirstUser(t, client)
 			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
-			r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+			r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 				OrganizationID: owner.OrganizationID,
 				OwnerID:        memberUser.ID,
 			}).Resource(resources...).Do()

@@ -2,19 +2,15 @@ import { cx } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
-import type {
-	AuthorizationResponse,
-	Experiments,
-	Organization,
-} from "api/typesGenerated";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import type { Permissions } from "contexts/auth/permissions";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToUsers } from "modules/navigation";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 
@@ -30,7 +26,7 @@ interface SidebarProps {
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
 }
 
 /**
@@ -72,7 +68,7 @@ interface DeploymentSettingsNavigationProps {
 	/** Whether a deployment setting page is being viewed. */
 	active: boolean;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
 }
 
 /**
@@ -130,10 +126,11 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					{permissions.viewDeploymentValues && (
 						<SidebarNavSubItem href="network">Network</SidebarNavSubItem>
 					)}
-					{/* All users can view workspace regions.  */}
-					<SidebarNavSubItem href="workspace-proxies">
-						Workspace Proxies
-					</SidebarNavSubItem>
+					{permissions.readWorkspaceProxies && (
+						<SidebarNavSubItem href="workspace-proxies">
+							Workspace Proxies
+						</SidebarNavSubItem>
+					)}
 					{permissions.viewDeploymentValues && (
 						<SidebarNavSubItem href="security">Security</SidebarNavSubItem>
 					)}
@@ -145,12 +142,14 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					{permissions.viewAllUsers && (
 						<SidebarNavSubItem href="users">Users</SidebarNavSubItem>
 					)}
-					<SidebarNavSubItem href="notifications">
-						<Stack direction="row" alignItems="center" spacing={1}>
-							<span>Notifications</span>
-							<FeatureStageBadge contentType="beta" size="sm" />
-						</Stack>
-					</SidebarNavSubItem>
+					{permissions.viewNotificationTemplate && (
+						<SidebarNavSubItem href="notifications">
+							<Stack direction="row" alignItems="center" spacing={1}>
+								<span>Notifications</span>
+								<FeatureStageBadge contentType="beta" size="sm" />
+							</Stack>
+						</SidebarNavSubItem>
+					)}
 				</Stack>
 			)}
 		</div>
@@ -167,7 +166,7 @@ interface OrganizationsSettingsNavigationProps {
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
 }
 
 /**
@@ -241,8 +240,6 @@ interface OrganizationSettingsNavigationProps {
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
 > = ({ active, organization }) => {
-	const { experiments } = useDashboard();
-
 	return (
 		<>
 			<SidebarNavItem

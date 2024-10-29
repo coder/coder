@@ -53,7 +53,7 @@ func TestSupportBundle(t *testing.T) {
 			DeploymentValues: dc.Values,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -132,7 +132,7 @@ func TestSupportBundle(t *testing.T) {
 			DeploymentValues: dc.Values,
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: admin.OrganizationID,
 			OwnerID:        admin.UserID,
 		}).Do() // without agent!
@@ -151,7 +151,7 @@ func TestSupportBundle(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        member.ID,
 		}).WithAgent().Do()

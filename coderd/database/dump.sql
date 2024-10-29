@@ -19,7 +19,8 @@ CREATE TYPE audit_action AS ENUM (
     'stop',
     'login',
     'logout',
-    'register'
+    'register',
+    'request_password_reset'
 );
 
 CREATE TYPE automatic_updates AS ENUM (
@@ -37,7 +38,8 @@ CREATE TYPE build_reason AS ENUM (
 );
 
 CREATE TYPE crypto_key_feature AS ENUM (
-    'workspace_apps',
+    'workspace_apps_token',
+    'workspace_apps_api_key',
     'oidc_convert',
     'tailnet_resume'
 );
@@ -666,7 +668,6 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
-    must_reset_password boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -681,8 +682,6 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
-
-COMMENT ON COLUMN users.must_reset_password IS 'Determines if the user should be forced to change their password.';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -1699,6 +1698,39 @@ CREATE TABLE workspaces (
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspaces_expanded AS
+ SELECT workspaces.id,
+    workspaces.created_at,
+    workspaces.updated_at,
+    workspaces.owner_id,
+    workspaces.organization_id,
+    workspaces.template_id,
+    workspaces.deleted,
+    workspaces.name,
+    workspaces.autostart_schedule,
+    workspaces.ttl,
+    workspaces.last_used_at,
+    workspaces.dormant_at,
+    workspaces.deleting_at,
+    workspaces.automatic_updates,
+    workspaces.favorite,
+    visible_users.avatar_url AS owner_avatar_url,
+    visible_users.username AS owner_username,
+    organizations.name AS organization_name,
+    organizations.display_name AS organization_display_name,
+    organizations.icon AS organization_icon,
+    organizations.description AS organization_description,
+    templates.name AS template_name,
+    templates.display_name AS template_display_name,
+    templates.icon AS template_icon,
+    templates.description AS template_description
+   FROM (((workspaces
+     JOIN visible_users ON ((workspaces.owner_id = visible_users.id)))
+     JOIN organizations ON ((workspaces.organization_id = organizations.id)))
+     JOIN templates ON ((workspaces.template_id = templates.id)));
+
+COMMENT ON VIEW workspaces_expanded IS 'Joins in the display name information such as username, avatar, and organization name.';
 
 ALTER TABLE ONLY licenses ALTER COLUMN id SET DEFAULT nextval('licenses_id_seq'::regclass);
 
