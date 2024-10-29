@@ -1,7 +1,4 @@
-import type { DeploymentConfig } from "api/api";
-import { deploymentConfig } from "api/queries/deployment";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
@@ -9,7 +6,6 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
-import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
 import { Sidebar } from "./Sidebar";
 
@@ -18,7 +14,6 @@ export const ManagementSettingsContext = createContext<
 >(undefined);
 
 type ManagementSettingsValue = Readonly<{
-	deploymentValues: DeploymentConfig;
 	organizations: readonly Organization[];
 	organization?: Organization;
 }>;
@@ -48,15 +43,8 @@ export const canEditOrganization = (
 	);
 };
 
-/**
- * A multi-org capable settings page layout.
- *
- * If multi-org is not enabled or licensed, this is the wrong layout to use.
- * See DeploySettingsLayoutInner instead.
- */
-export const ManagementSettingsLayout: FC = () => {
+const ManagementSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
-	const deploymentConfigQuery = useQuery(deploymentConfig());
 	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
@@ -70,14 +58,6 @@ export const ManagementSettingsLayout: FC = () => {
 		permissions.editAnyOrganization ||
 		permissions.viewAnyAuditLog;
 
-	if (deploymentConfigQuery.error) {
-		return <ErrorAlert error={deploymentConfigQuery.error} />;
-	}
-
-	if (!deploymentConfigQuery.data) {
-		return <Loader />;
-	}
-
 	const organization =
 		organizations && orgName
 			? organizations.find((org) => org.name === orgName)
@@ -87,7 +67,6 @@ export const ManagementSettingsLayout: FC = () => {
 		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
 			<ManagementSettingsContext.Provider
 				value={{
-					deploymentValues: deploymentConfigQuery.data,
 					organizations,
 					organization,
 				}}
@@ -95,7 +74,7 @@ export const ManagementSettingsLayout: FC = () => {
 				<Margins>
 					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
 						<Sidebar />
-						<main css={{ width: "100%" }}>
+						<main css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>
@@ -106,3 +85,5 @@ export const ManagementSettingsLayout: FC = () => {
 		</RequirePermission>
 	);
 };
+
+export default ManagementSettingsLayout;

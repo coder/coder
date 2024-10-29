@@ -19,6 +19,11 @@ for d in */; do
 		continue
 	fi
 
+	if [[ $name == "timings-aggregation" ]]; then
+		popd
+		continue
+	fi
+
 	terraform init -upgrade
 	terraform plan -out terraform.tfplan
 	terraform show -json ./terraform.tfplan | jq >"$name".tfplan.json

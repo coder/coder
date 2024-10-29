@@ -365,7 +365,7 @@ func (tx *fakeTx) releaseLocks() {
 }
 
 // InTx doesn't rollback data properly for in-memory yet.
-func (q *FakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) error {
+func (q *FakeQuerier) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 	tx := &fakeTx{
@@ -374,6 +374,9 @@ func (q *FakeQuerier) InTx(fn func(database.Store) error, _ *sql.TxOptions) erro
 	}
 	defer tx.releaseLocks()
 
+	if opts != nil {
+		database.IncrementExecutionCount(opts)
+	}
 	return fn(tx)
 }
 

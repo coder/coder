@@ -1,7 +1,7 @@
 # Releases
 
 Coder releases are cut directly from main in our
-[Github](https://github.com/coder/coder) on the first Tuesday of each month.
+[GitHub](https://github.com/coder/coder) on the first Tuesday of each month.
 
 We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
@@ -38,7 +38,7 @@ only for security issues or CVEs.
 ## Installing stable
 
 When installing Coder, we generally advise specifying the desired version from
-our Github [releases page](https://github.com/coder/coder/releases).
+our GitHub [releases page](https://github.com/coder/coder/releases).
 
 You can also use our `install.sh` script with the `stable` flag to install the
 latest stable release:

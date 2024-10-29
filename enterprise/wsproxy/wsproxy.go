@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -130,6 +131,13 @@ type Server struct {
 	// the moon's token.
 	SDKClient *wsproxysdk.Client
 
+	// apiKeyEncryptionKeycache manages the encryption keys for smuggling API
+	// tokens to the alternate domain when using workspace apps.
+	apiKeyEncryptionKeycache cryptokeys.EncryptionKeycache
+	// appTokenSigningKeycache manages the signing keys for signing the app
+	// tokens we use for workspace apps.
+	appTokenSigningKeycache cryptokeys.SigningKeycache
+
 	// DERP
 	derpMesh                *derpmesh.Mesh
 	derpMeshTLSConfig       *tls.Config
@@ -195,19 +203,42 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	encryptionCache, err := cryptokeys.NewEncryptionCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+	)
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("create api key encryption cache: %w", err)
+	}
+	signingCache, err := cryptokeys.NewSigningCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+	)
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("create api token signing cache: %w", err)
+	}
+
 	r := chi.NewRouter()
 	s := &Server{
-		Options:            opts,
-		Handler:            r,
-		DashboardURL:       opts.DashboardURL,
-		Logger:             opts.Logger.Named("net.workspace-proxy"),
-		TracerProvider:     opts.Tracing,
-		PrometheusRegistry: opts.PrometheusRegistry,
-		SDKClient:          client,
-		derpMesh:           derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
-		derpMeshTLSConfig:  meshTLSConfig,
-		ctx:                ctx,
-		cancel:             cancel,
+		ctx:    ctx,
+		cancel: cancel,
+
+		Options:                  opts,
+		Handler:                  r,
+		DashboardURL:             opts.DashboardURL,
+		Logger:                   opts.Logger.Named("net.workspace-proxy"),
+		TracerProvider:           opts.Tracing,
+		PrometheusRegistry:       opts.PrometheusRegistry,
+		SDKClient:                client,
+		derpMesh:                 derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
+		derpMeshTLSConfig:        meshTLSConfig,
+		apiKeyEncryptionKeycache: encryptionCache,
+		appTokenSigningKeycache:  signingCache,
 	}
 
 	// Register the workspace proxy with the primary coderd instance and start a
@@ -238,11 +269,6 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	err = s.handleRegister(regResp)
 	if err != nil {
 		return nil, xerrors.Errorf("handle register: %w", err)
-	}
-
-	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
-	if err != nil {
-		return nil, xerrors.Errorf("parse app security key: %w", err)
 	}
 
 	agentProvider, err := coderd.NewServerTailnet(ctx,
@@ -277,20 +303,21 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &TokenProvider{
-			DashboardURL: opts.DashboardURL,
-			AccessURL:    opts.AccessURL,
-			AppHostname:  opts.AppHostname,
-			Client:       client,
-			SecurityKey:  secKey,
-			Logger:       s.Logger.Named("proxy_token_provider"),
+			DashboardURL:             opts.DashboardURL,
+			AccessURL:                opts.AccessURL,
+			AppHostname:              opts.AppHostname,
+			Client:                   client,
+			TokenSigningKeycache:     signingCache,
+			APIKeyEncryptionKeycache: encryptionCache,
+			Logger:                   s.Logger.Named("proxy_token_provider"),
 		},
-		AppSecurityKey: secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 
-		AgentProvider:  agentProvider,
-		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
+		AgentProvider:            agentProvider,
+		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
+		APIKeyEncryptionKeycache: encryptionCache,
 	}
 
 	derpHandler := derphttp.Handler(derpServer)
@@ -435,6 +462,8 @@ func (s *Server) Close() error {
 		err = multierror.Append(err, agentProviderErr)
 	}
 	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
+	_ = s.appTokenSigningKeycache.Close()
+	_ = s.apiKeyEncryptionKeycache.Close()
 	return err
 }
 

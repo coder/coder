@@ -35,10 +35,7 @@ const OrganizationSettingsPage: FC = () => {
 		deleteOrganization(queryClient),
 	);
 
-	const organization =
-		organizations && organizationName
-			? getOrganizationByName(organizations, organizationName)
-			: undefined;
+	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
@@ -55,13 +52,10 @@ const OrganizationSettingsPage: FC = () => {
 	// Redirect /organizations => /organizations/default-org, or if they cannot edit
 	// the default org, then the first org they can edit, if any.
 	if (!organizationName) {
+		// .find will stop at the first match found; make sure default
+		// organizations are placed first
 		const editableOrg = [...organizations]
-			.sort((a, b) => {
-				// Prefer default org (it may not be first).
-				// JavaScript will happily subtract booleans, but use numbers to keep
-				// the compiler happy.
-				return (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0);
-			})
+			.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0))
 			.find((org) => canEditOrganization(permissions[org.id]));
 		if (editableOrg) {
 			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
@@ -111,10 +105,3 @@ const OrganizationSettingsPage: FC = () => {
 };
 
 export default OrganizationSettingsPage;
-
-const getOrganizationByName = (
-	organizations: readonly Organization[],
-	name: string,
-) => {
-	return organizations.find((org) => org.name === name);
-};

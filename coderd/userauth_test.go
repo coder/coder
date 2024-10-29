@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -27,10 +30,12 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
@@ -1316,6 +1321,7 @@ func TestUserOIDC(t *testing.T) {
 
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
@@ -1323,15 +1329,17 @@ func TestUserOIDC(t *testing.T) {
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+
 		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
 			ToType:   codersdk.LoginTypeOIDC,
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
-		fake.LoginWithClient(t, user, claims, func(r *http.Request) {
+		_, _ = fake.LoginWithClient(t, user, claims, func(r *http.Request) {
 			r.URL.RawQuery = url.Values{
 				"oidc_merge_state": {convertResponse.StateString},
 			}.Encode()
@@ -1341,6 +1349,99 @@ func TestUserOIDC(t *testing.T) {
 				r.AddCookie(cookie)
 			}
 		})
+
+		info, err := client.User(ctx, userData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
+	})
+
+	t.Run("BadJWT", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = slogtest.Make(t, nil)
+		)
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		db, ps := dbtestutil.NewDB(t)
+		fetcher := &cryptokeys.DBFetcher{
+			DB: db,
+		}
+
+		kc, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.NoError(t, err)
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:             auditor,
+			OIDCConfig:          cfg,
+			Database:            db,
+			Pubsub:              ps,
+			OIDCConvertKeyCache: kc,
+		})
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		claims := jwt.MapClaims{
+			"email": userData.Email,
+		}
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		// Update the cookie to use a bad signing key. We're asserting the behavior of the scenario
+		// where a JWT gets minted on an old version of Coder but gets verified on a new version.
+		_, resp := fake.AttemptLogin(t, user, claims, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+
+			cookies := user.HTTPClient.Jar.Cookies(user.URL)
+			for i, cookie := range cookies {
+				if cookie.Name != coderd.OAuthConvertCookieValue {
+					continue
+				}
+
+				jwt := cookie.Value
+				var claims coderd.OAuthConvertStateClaims
+				err := jwtutils.Verify(ctx, kc, jwt, &claims)
+				require.NoError(t, err)
+				badJWT := generateBadJWT(t, claims)
+				cookie.Value = badJWT
+				cookies[i] = cookie
+			}
+
+			user.HTTPClient.Jar.SetCookies(user.URL, cookies)
+
+			for _, cookie := range cookies {
+				fmt.Printf("cookie: %+v\n", cookie)
+				r.AddCookie(cookie)
+			}
+		})
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var respErr codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&respErr)
+		require.NoError(t, err)
+		require.Contains(t, respErr.Message, "Using an invalid jwt to authorize this action.")
 	})
 
 	t.Run("AlternateUsername", func(t *testing.T) {
@@ -2021,4 +2122,25 @@ func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
 	require.NoError(t, err)
 	seed["random_data"] = junk
 	return seed
+}
+
+// generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
+func generateBadJWT(t *testing.T, claims interface{}) string {
+	t.Helper()
+
+	var buf [64]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS512,
+		Key:       buf[:],
+	}, nil)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
 }
