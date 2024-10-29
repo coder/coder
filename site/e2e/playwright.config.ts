@@ -65,7 +65,7 @@ export default defineConfig({
 			testMatch: /.*\.spec\.ts/,
 			dependencies: ["testsSetup"],
 			use: { storageState },
-			timeout: 50_000,
+			timeout: 30_000,
 		},
 	],
 	reporter: [["./reporter.ts"]],
@@ -88,6 +88,7 @@ export default defineConfig({
 						args: ["--disable-webgl"],
 					},
 				}),
+		actionTimeout: 5000,
 	},
 	webServer: {
 		url: `http://localhost:${coderPort}/api/v2/deployment/config`,

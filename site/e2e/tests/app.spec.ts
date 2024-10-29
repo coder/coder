@@ -13,6 +13,8 @@ import { beforeCoderTest } from "../hooks";
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("app", async ({ context, page }) => {
+	test.setTimeout(75000);
+
 	const appContent = "Hello World";
 	const token = randomUUID();
 	const srv = http
