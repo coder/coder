@@ -32,8 +32,6 @@ import {
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
 
-
-
 type ResourceTiming = {
 	name: string;
 	source: string;
@@ -172,5 +170,5 @@ function getLegendsByAction(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.active.outline,
 			},
 		},
-	}
+	};
 }

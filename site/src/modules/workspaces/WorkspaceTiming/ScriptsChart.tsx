@@ -1,3 +1,4 @@
+import { type Theme, useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
 import { Bar } from "./Chart/Bar";
 import {
@@ -27,7 +28,6 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
-import { type Theme, useTheme } from "@emotion/react";
 
 type ScriptTiming = {
 	name: string;
@@ -54,7 +54,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
-	const theme = useTheme()
+	const theme = useTheme();
 	const legendsByStatus = getLegendsByStatus(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
 		(s) => legendsByStatus[s],
@@ -154,5 +154,5 @@ function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
 				stroke: theme.roles.warning.outline,
 			},
 		},
-	}
-};
+	};
+}

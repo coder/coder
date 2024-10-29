@@ -52,7 +52,7 @@ const styles = {
 		gap: spaceBetweenBlocks,
 		alignItems: "center",
 	},
-	block: (theme) =>({
+	block: (theme) => ({
 		borderRadius: 4,
 		height: 18,
 		backgroundColor: theme.roles.active.background,
