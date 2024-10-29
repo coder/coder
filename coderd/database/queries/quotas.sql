@@ -43,6 +43,9 @@ JOIN latest_builds ON
 	latest_builds.workspace_id = workspaces.id
 WHERE
 	NOT deleted AND
+	-- We can likely remove these conditions since we check above.
+	-- But it does not hurt to be defensive and make sure future query changes
+	-- do not break anything.
 	workspaces.owner_id = @owner_id AND
 	workspaces.organization_id = @organization_id
 ;

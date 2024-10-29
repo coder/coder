@@ -48,12 +48,20 @@ type DBTX interface {
 	GetContext(ctx context.Context, dest interface{}, query string, args ...interface{}) error
 }
 
+func WithSerialRetryCount(count int) func(*sqlQuerier) {
+	return func(q *sqlQuerier) {
+		q.serialRetryCount = count
+	}
+}
+
 // New creates a new database store using a SQL database connection.
-func New(sdb *sql.DB) Store {
+func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
 	return &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
+		// This is an arbitrary number.
+		serialRetryCount: 3,
 	}
 }
 
@@ -104,6 +112,10 @@ type querier interface {
 type sqlQuerier struct {
 	sdb *sqlx.DB
 	db  DBTX
+
+	// serialRetryCount is the number of times to retry a transaction
+	// if it fails with a serialization error.
+	serialRetryCount int
 }
 
 func (*sqlQuerier) Wrappers() []string {
@@ -143,11 +155,9 @@ func (q *sqlQuerier) InTx(function func(Store) error, txOpts *TxOptions) error {
 	// If we are in a transaction already, the parent InTx call will handle the retry.
 	// We do not want to duplicate those retries.
 	if !inTx && sqlOpts.Isolation == sql.LevelSerializable {
-		// This is an arbitrarily chosen number.
-		const retryAmount = 1
 		var err error
 		attempts := 0
-		for attempts = 0; attempts < retryAmount; attempts++ {
+		for attempts = 0; attempts < q.serialRetryCount; attempts++ {
 			txOpts.executionCount++
 			err = q.runTx(function, sqlOpts)
 			if err == nil {

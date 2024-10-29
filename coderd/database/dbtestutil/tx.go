@@ -26,7 +26,7 @@ type DBTx struct {
 //
 //	require.NoError(t, a.Done()
 func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
-	errC := make(chan error)
+	done := make(chan error)
 	finalErr := make(chan error)
 	txC := make(chan database.Store)
 
@@ -47,9 +47,7 @@ func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 				t.Fatal("InTx called more than once, this is not allowed with the StartTx helper")
 			}
 
-			select {
-			case _, _ = <-errC:
-			}
+			<-done
 			// Just return nil. The caller should be checking their own errors.
 			return nil
 		}, opts)
@@ -59,7 +57,7 @@ func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 	txStore := <-txC
 	close(txC)
 
-	return &DBTx{Store: txStore, done: errC, finalErr: finalErr}
+	return &DBTx{Store: txStore, done: done, finalErr: finalErr}
 }
 
 // Done can only be called once. If you call it twice, it will panic.

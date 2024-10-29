@@ -67,6 +67,7 @@ func (b OrganizationBuilder) Do() OrganizationResponse {
 	org := dbgen.Organization(b.t, b.db, b.seed)
 
 	ctx := testutil.Context(b.t, testutil.WaitShort)
+	//nolint:gocritic // builder code needs perms
 	ctx = dbauthz.AsSystemRestricted(ctx)
 	everyone, err := b.db.InsertAllUsersGroup(ctx, org.ID)
 	require.NoError(b.t, err)

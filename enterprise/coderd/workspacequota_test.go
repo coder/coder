@@ -306,12 +306,12 @@ func TestWorkspaceQuota(t *testing.T) {
 	})
 }
 
-// DB=ci DB_FROM=cikggwjxbths
+// nolint:paralleltest // Tests must run serially
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
-		panic("We should only run this test with postgres")
+		t.Skip("Serialization errors only occur in postgres")
 	}
 
 	db, ps := dbtestutil.NewDB(t)
@@ -342,8 +342,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		}, user).
 		Do()
 
-	var _ = otherOrg
-
 	// TX mixing tests. **DO NOT** run these in parallel.
 	// The goal here is to mess around with different ordering of
 	// transactions and queries.
@@ -373,6 +371,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -426,6 +425,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +------------------------------+------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -456,7 +456,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 				Isolation: sql.LevelSerializable,
 			})
 			assert.NoError(t, err)
-
 		}
 
 		// Start TX
@@ -491,6 +490,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -540,6 +540,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -583,6 +584,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		// Works!
 		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 		var err error
 
@@ -637,6 +639,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -695,6 +698,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  |                     | CommitTx()          |
 		//  +---------------------+---------------------+
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
@@ -756,6 +760,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+---------------------+
 		// pq: could not serialize access due to read/write dependencies among transactions
 		ctx := testutil.Context(t, testutil.WaitLong)
+		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		myWorkspace := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
