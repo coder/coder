@@ -3,8 +3,7 @@ package workspacesdk
 import (
 	"context"
 	"io"
-	"net/http"
-	"net/http/httptest"
+	"net"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -13,16 +12,10 @@ import (
 	"github.com/hashicorp/yamux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"nhooyr.io/websocket"
-	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/apiversion"
-	"github.com/coder/coder/v2/coderd/httpapi"
-	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -63,31 +56,26 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sws, err := websocket.Accept(w, r, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
-		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
+	dialer := &pipeDialer{
+		ctx:    testCtx,
+		logger: logger,
+		t:      t,
+		svc:    svc,
+		streamID: tailnet.StreamID{
 			Name: "client",
 			ID:   clientID,
 			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
-		})
-		assert.NoError(t, err)
-	}))
+		},
+	}
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger.Named("tac"), agentID, svr.URL,
-		quartz.NewReal(), &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger.Named("tac"), agentID, dialer, quartz.NewReal())
 	uut.runConnector(fConn)
 
 	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
 	reqTun := testutil.RequireRecvCtx(ctx, t, call.Reqs)
 	require.NotNil(t, reqTun.AddTunnel)
-
-	_ = testutil.RequireRecvCtx(ctx, t, uut.connected)
 
 	// simulate a problem with DERPMaps by sending nil
 	testutil.RequireSendCtx(ctx, t, derpMapCh, nil)
@@ -107,259 +95,6 @@ func TestTailnetAPIConnector_Disconnects(t *testing.T) {
 	require.NotNil(t, reqDisc)
 	require.NotNil(t, reqDisc.Disconnect)
 	close(call.Resps)
-}
-
-func TestTailnetAPIConnector_UplevelVersion(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	agentID := uuid.UUID{0x55}
-
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sVer := apiversion.New(proto.CurrentMajor, proto.CurrentMinor-1)
-
-		// the following matches what Coderd does;
-		// c.f. coderd/workspaceagents.go: workspaceAgentClientCoordinate
-		cVer := r.URL.Query().Get("version")
-		if err := sVer.Validate(cVer); err != nil {
-			httpapi.Write(ctx, w, http.StatusBadRequest, codersdk.Response{
-				Message: AgentAPIMismatchMessage,
-				Validations: []codersdk.ValidationError{
-					{Field: "version", Detail: err.Error()},
-				},
-			})
-			return
-		}
-	}))
-
-	fConn := newFakeTailnetConn()
-
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
-	uut.runConnector(fConn)
-
-	err := testutil.RequireRecvCtx(ctx, t, uut.connected)
-	var sdkErr *codersdk.Error
-	require.ErrorAs(t, err, &sdkErr)
-	require.Equal(t, http.StatusBadRequest, sdkErr.StatusCode())
-	require.Equal(t, AgentAPIMismatchMessage, sdkErr.Message)
-	require.NotEmpty(t, sdkErr.Helper)
-}
-
-func TestTailnetAPIConnector_ResumeToken(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
-	agentID := uuid.UUID{0x55}
-	fCoord := tailnettest.NewFakeCoordinator()
-	var coord tailnet.Coordinator = fCoord
-	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
-	coordPtr.Store(&coord)
-	derpMapCh := make(chan *tailcfg.DERPMap)
-	defer close(derpMapCh)
-
-	clock := quartz.NewMock(t)
-	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
-	require.NoError(t, err)
-	mgr := jwtutils.StaticKey{
-		ID:  "123",
-		Key: resumeTokenSigningKey[:],
-	}
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
-	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  logger,
-		CoordPtr:                &coordPtr,
-		DERPMapUpdateFrequency:  time.Millisecond,
-		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
-		NetworkTelemetryHandler: func([]*proto.TelemetryEvent) {},
-		ResumeTokenProvider:     resumeTokenProvider,
-	})
-	require.NoError(t, err)
-
-	var (
-		websocketConnCh   = make(chan *websocket.Conn, 64)
-		expectResumeToken = ""
-	)
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Accept a resume_token query parameter to use the same peer ID. This
-		// behavior matches the actual client coordinate route.
-		var (
-			peerID      = uuid.New()
-			resumeToken = r.URL.Query().Get("resume_token")
-		)
-		t.Logf("received resume token: %s", resumeToken)
-		assert.Equal(t, expectResumeToken, resumeToken)
-		if resumeToken != "" {
-			peerID, err = resumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
-			assert.NoError(t, err, "failed to parse resume token")
-			if err != nil {
-				httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-					Message: CoordinateAPIInvalidResumeToken,
-					Detail:  err.Error(),
-					Validations: []codersdk.ValidationError{
-						{Field: "resume_token", Detail: CoordinateAPIInvalidResumeToken},
-					},
-				})
-				return
-			}
-		}
-
-		sws, err := websocket.Accept(w, r, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		testutil.RequireSendCtx(ctx, t, websocketConnCh, sws)
-		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
-		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
-			Name: "client",
-			ID:   peerID,
-			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
-		})
-		assert.NoError(t, err)
-	}))
-
-	fConn := newFakeTailnetConn()
-
-	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
-	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
-	defer newTickerTrap.Close()
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, clock, &websocket.DialOptions{})
-	uut.runConnector(fConn)
-
-	// Fetch first token. We don't need to advance the clock since we use a
-	// channel with a single item to immediately fetch.
-	newTickerTrap.MustWait(ctx).Release()
-	// We call ticker.Reset after each token fetch to apply the refresh duration
-	// requested by the server.
-	trappedReset := tickerResetTrap.MustWait(ctx)
-	trappedReset.Release()
-	require.NotNil(t, uut.resumeToken)
-	originalResumeToken := uut.resumeToken.Token
-
-	// Fetch second token.
-	waiter := clock.Advance(trappedReset.Duration)
-	waiter.MustWait(ctx)
-	trappedReset = tickerResetTrap.MustWait(ctx)
-	trappedReset.Release()
-	require.NotNil(t, uut.resumeToken)
-	require.NotEqual(t, originalResumeToken, uut.resumeToken.Token)
-	expectResumeToken = uut.resumeToken.Token
-	t.Logf("expecting resume token: %s", expectResumeToken)
-
-	// Sever the connection and expect it to reconnect with the resume token.
-	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
-	_ = wsConn.Close(websocket.StatusGoingAway, "test")
-
-	// Wait for the resume token to be refreshed.
-	trappedTicker := newTickerTrap.MustWait(ctx)
-	// Advance the clock slightly to ensure the new JWT is different.
-	clock.Advance(time.Second).MustWait(ctx)
-	trappedTicker.Release()
-	trappedReset = tickerResetTrap.MustWait(ctx)
-	trappedReset.Release()
-
-	// The resume token should have changed again.
-	require.NotNil(t, uut.resumeToken)
-	require.NotEqual(t, expectResumeToken, uut.resumeToken.Token)
-}
-
-func TestTailnetAPIConnector_ResumeTokenFailure(t *testing.T) {
-	t.Parallel()
-	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, &slogtest.Options{
-		IgnoreErrors: true,
-	}).Leveled(slog.LevelDebug)
-	agentID := uuid.UUID{0x55}
-	fCoord := tailnettest.NewFakeCoordinator()
-	var coord tailnet.Coordinator = fCoord
-	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
-	coordPtr.Store(&coord)
-	derpMapCh := make(chan *tailcfg.DERPMap)
-	defer close(derpMapCh)
-
-	clock := quartz.NewMock(t)
-	resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
-	require.NoError(t, err)
-	mgr := jwtutils.StaticKey{
-		ID:  uuid.New().String(),
-		Key: resumeTokenSigningKey[:],
-	}
-	resumeTokenProvider := tailnet.NewResumeTokenKeyProvider(mgr, clock, time.Hour)
-	svc, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  logger,
-		CoordPtr:                &coordPtr,
-		DERPMapUpdateFrequency:  time.Millisecond,
-		DERPMapFn:               func() *tailcfg.DERPMap { return <-derpMapCh },
-		NetworkTelemetryHandler: func(_ []*proto.TelemetryEvent) {},
-		ResumeTokenProvider:     resumeTokenProvider,
-	})
-	require.NoError(t, err)
-
-	var (
-		websocketConnCh = make(chan *websocket.Conn, 64)
-		didFail         int64
-	)
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.URL.Query().Get("resume_token") != "" {
-			atomic.AddInt64(&didFail, 1)
-			httpapi.Write(ctx, w, http.StatusUnauthorized, codersdk.Response{
-				Message: CoordinateAPIInvalidResumeToken,
-				Validations: []codersdk.ValidationError{
-					{Field: "resume_token", Detail: CoordinateAPIInvalidResumeToken},
-				},
-			})
-			return
-		}
-
-		sws, err := websocket.Accept(w, r, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		testutil.RequireSendCtx(ctx, t, websocketConnCh, sws)
-		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
-		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
-			Name: "client",
-			ID:   uuid.New(),
-			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
-		})
-		assert.NoError(t, err)
-	}))
-
-	fConn := newFakeTailnetConn()
-
-	newTickerTrap := clock.Trap().NewTicker("tailnetAPIConnector", "refreshToken")
-	tickerResetTrap := clock.Trap().TickerReset("tailnetAPIConnector", "refreshToken", "reset")
-	defer newTickerTrap.Close()
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, clock, &websocket.DialOptions{})
-	uut.runConnector(fConn)
-
-	// Wait for the resume token to be fetched for the first time.
-	newTickerTrap.MustWait(ctx).Release()
-	trappedReset := tickerResetTrap.MustWait(ctx)
-	trappedReset.Release()
-	originalResumeToken := uut.resumeToken.Token
-
-	// Sever the connection and expect it to reconnect with the resume token,
-	// which should fail and cause the client to be disconnected. The client
-	// should then reconnect with no resume token.
-	wsConn := testutil.RequireRecvCtx(ctx, t, websocketConnCh)
-	_ = wsConn.Close(websocket.StatusGoingAway, "test")
-
-	// Wait for the resume token to be refreshed, which indicates a successful
-	// reconnect.
-	trappedTicker := newTickerTrap.MustWait(ctx)
-	// Since we failed the initial reconnect and we're definitely reconnected
-	// now, the stored resume token should now be nil.
-	require.Nil(t, uut.resumeToken)
-	trappedTicker.Release()
-	trappedReset = tickerResetTrap.MustWait(ctx)
-	trappedReset.Release()
-	require.NotNil(t, uut.resumeToken)
-	require.NotEqual(t, originalResumeToken, uut.resumeToken.Token)
-
-	// The resume token should have been rejected by the server.
-	require.EqualValues(t, 1, atomic.LoadInt64(&didFail))
 }
 
 func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
@@ -392,23 +127,21 @@ func TestTailnetAPIConnector_TelemetrySuccess(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		sws, err := websocket.Accept(w, r, nil)
-		if !assert.NoError(t, err) {
-			return
-		}
-		ctx, nc := codersdk.WebsocketNetConn(r.Context(), sws, websocket.MessageBinary)
-		err = svc.ServeConnV2(ctx, nc, tailnet.StreamID{
+	dialer := &pipeDialer{
+		ctx:    ctx,
+		logger: logger,
+		t:      t,
+		svc:    svc,
+		streamID: tailnet.StreamID{
 			Name: "client",
 			ID:   clientID,
 			Auth: tailnet.ClientCoordinateeAuth{AgentID: agentID},
-		})
-		assert.NoError(t, err)
-	}))
+		},
+	}
 
 	fConn := newFakeTailnetConn()
 
-	uut := newTailnetAPIConnector(ctx, logger, agentID, svr.URL, quartz.NewReal(), &websocket.DialOptions{})
+	uut := newTailnetAPIConnector(ctx, logger, agentID, dialer, quartz.NewReal())
 	uut.runConnector(fConn)
 	// Coordinate calls happen _after_ telemetry is connected up, so we use this
 	// to ensure telemetry is connected before sending our event
@@ -444,82 +177,42 @@ func newFakeTailnetConn() *fakeTailnetConn {
 	return &fakeTailnetConn{}
 }
 
-type fakeDRPCConn struct{}
-
-var _ drpc.Conn = &fakeDRPCConn{}
-
-// Close implements drpc.Conn.
-func (*fakeDRPCConn) Close() error {
-	return nil
+type pipeDialer struct {
+	ctx      context.Context
+	logger   slog.Logger
+	t        testing.TB
+	svc      *tailnet.ClientService
+	streamID tailnet.StreamID
 }
 
-// Closed implements drpc.Conn.
-func (*fakeDRPCConn) Closed() <-chan struct{} {
-	return nil
-}
+func (p *pipeDialer) Dial(_ context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
+	s, c := net.Pipe()
+	go func() {
+		err := p.svc.ServeConnV2(p.ctx, s, p.streamID)
+		p.logger.Debug(p.ctx, "piped tailnet service complete", slog.Error(err))
+	}()
+	client, err := tailnet.NewDRPCClient(c, p.logger)
+	if !assert.NoError(p.t, err) {
+		_ = c.Close()
+		return tailnet.ControlProtocolClients{}, err
+	}
+	coord, err := client.Coordinate(context.Background())
+	if !assert.NoError(p.t, err) {
+		_ = c.Close()
+		return tailnet.ControlProtocolClients{}, err
+	}
 
-// Invoke implements drpc.Conn.
-func (*fakeDRPCConn) Invoke(_ context.Context, _ string, _ drpc.Encoding, _ drpc.Message, _ drpc.Message) error {
-	return nil
-}
-
-// NewStream implements drpc.Conn.
-func (*fakeDRPCConn) NewStream(_ context.Context, _ string, _ drpc.Encoding) (drpc.Stream, error) {
-	return nil, nil
-}
-
-type fakeDRPCStream struct {
-	ch chan struct{}
-}
-
-var _ proto.DRPCTailnet_CoordinateClient = &fakeDRPCStream{}
-
-// Close implements proto.DRPCTailnet_CoordinateClient.
-func (f *fakeDRPCStream) Close() error {
-	close(f.ch)
-	return nil
-}
-
-// CloseSend implements proto.DRPCTailnet_CoordinateClient.
-func (*fakeDRPCStream) CloseSend() error {
-	return nil
-}
-
-// Context implements proto.DRPCTailnet_CoordinateClient.
-func (*fakeDRPCStream) Context() context.Context {
-	return nil
-}
-
-// MsgRecv implements proto.DRPCTailnet_CoordinateClient.
-func (*fakeDRPCStream) MsgRecv(_ drpc.Message, _ drpc.Encoding) error {
-	return nil
-}
-
-// MsgSend implements proto.DRPCTailnet_CoordinateClient.
-func (*fakeDRPCStream) MsgSend(_ drpc.Message, _ drpc.Encoding) error {
-	return nil
-}
-
-// Recv implements proto.DRPCTailnet_CoordinateClient.
-func (f *fakeDRPCStream) Recv() (*proto.CoordinateResponse, error) {
-	<-f.ch
-	return &proto.CoordinateResponse{}, nil
-}
-
-// Send implements proto.DRPCTailnet_CoordinateClient.
-func (f *fakeDRPCStream) Send(*proto.CoordinateRequest) error {
-	<-f.ch
-	return nil
-}
-
-type fakeDRPPCMapStream struct {
-	fakeDRPCStream
-}
-
-var _ proto.DRPCTailnet_StreamDERPMapsClient = &fakeDRPPCMapStream{}
-
-// Recv implements proto.DRPCTailnet_StreamDERPMapsClient.
-func (f *fakeDRPPCMapStream) Recv() (*proto.DERPMap, error) {
-	<-f.fakeDRPCStream.ch
-	return &proto.DERPMap{}, nil
+	derps := &tailnet.DERPFromDRPCWrapper{}
+	derps.Client, err = client.StreamDERPMaps(context.Background(), &proto.StreamDERPMapsRequest{})
+	if !assert.NoError(p.t, err) {
+		_ = c.Close()
+		return tailnet.ControlProtocolClients{}, err
+	}
+	return tailnet.ControlProtocolClients{
+		Closer:      client.DRPCConn(),
+		Coordinator: coord,
+		DERP:        derps,
+		ResumeToken: client,
+		Telemetry:   client,
+	}, nil
 }

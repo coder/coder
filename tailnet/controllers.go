@@ -615,7 +615,7 @@ func newBasicResumeTokenRefresher(
 		errCh:  make(chan error, 1),
 	}
 	r.ctx, r.cancel = context.WithCancel(context.Background())
-	r.timer = clock.AfterFunc(never, r.refresh)
+	r.timer = clock.AfterFunc(never, r.refresh, "basicResumeTokenRefresher")
 	go r.refresh()
 	return r
 }
