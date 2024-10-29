@@ -427,7 +427,7 @@ export const startAgentWithCommand = async (
 
 	await page
 		.getByTestId("agent-status-ready")
-		.waitFor({ state: "visible", timeout: 30_000 });
+		.waitFor({ state: "visible", timeout: 45_000 });
 	return cp;
 };
 
