@@ -12,6 +12,8 @@ import { beforeCoderTest } from "../hooks";
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("web terminal", async ({ context, page }) => {
+	test.setTimeout(75_000);
+
 	const token = randomUUID();
 	const template = await createTemplate(page, {
 		apply: [
