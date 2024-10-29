@@ -57,12 +57,17 @@ func WithSerialRetryCount(count int) func(*sqlQuerier) {
 // New creates a new database store using a SQL database connection.
 func New(sdb *sql.DB, opts ...func(*sqlQuerier)) Store {
 	dbx := sqlx.NewDb(sdb, "postgres")
-	return &sqlQuerier{
+	q := &sqlQuerier{
 		db:  dbx,
 		sdb: dbx,
 		// This is an arbitrary number.
 		serialRetryCount: 3,
 	}
+
+	for _, opt := range opts {
+		opt(q)
+	}
+	return q
 }
 
 // TxOptions is used to pass some execution metadata to the callers.
