@@ -109,7 +109,7 @@ jobs:
           chmod +x $protoc_path
           protoc --version
           # Copy the generated files to the include directory.
-          docker run --rm -v /usr/local/include:/target protoc cp -r "/tmp/include/*" /target/
+          docker run --rm -v /usr/local/include:/target protoc cp -r /tmp/include/google /target/
           chown -R $(id -u):$(id -g) /usr/local/include
           ls -la /usr/local/include/google/protobuf/
           stat /usr/local/include/google/protobuf/timestamp.proto
