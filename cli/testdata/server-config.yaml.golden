@@ -577,13 +577,13 @@ notifications:
     # (default: <unset>, type: string)
     from: ""
     # The intermediary SMTP host through which emails are sent.
-    # (default: localhost:587, type: host:port)
+    # (default: <unset>, type: host:port)
     smarthost: localhost:587
     # The hostname identifying the SMTP server.
-    # (default: localhost, type: string)
+    # (default: <unset>, type: string)
     hello: localhost
     # Force a TLS connection to the configured SMTP smarthost.
-    # (default: false, type: bool)
+    # (default: <unset>, type: bool)
     forceTLS: false
     # Configure SMTP authentication options.
     emailAuth:

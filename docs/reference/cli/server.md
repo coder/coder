@@ -1430,7 +1430,6 @@ The sender's address to use.
 | Type        | <code>host:port</code>                            |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
 | YAML        | <code>notifications.email.smarthost</code>        |
-| Default     | <code>localhost:587</code>                        |
 
 The intermediary SMTP host through which emails are sent.
 
@@ -1441,7 +1440,6 @@ The intermediary SMTP host through which emails are sent.
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_HELLO</code> |
 | YAML        | <code>notifications.email.hello</code>        |
-| Default     | <code>localhost</code>                        |
 
 The hostname identifying the SMTP server.
 
@@ -1452,7 +1450,6 @@ The hostname identifying the SMTP server.
 | Type        | <code>bool</code>                                 |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FORCE_TLS</code> |
 | YAML        | <code>notifications.email.forceTLS</code>         |
-| Default     | <code>false</code>                                |
 
 Force a TLS connection to the configured SMTP smarthost.
 
