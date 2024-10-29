@@ -160,7 +160,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						templateIconUrl={workspace.template_icon}
 						rootTemplateUrl={templateLink}
 						templateVersionName={workspace.latest_build.template_version_name}
-						templateVersionDisplayName={workspace.template_display_name}
+						templateDisplayName={
+							workspace.template_display_name || workspace.template_name
+						}
 						latestBuildVersionName={
 							workspace.latest_build.template_version_name
 						}
@@ -366,7 +368,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	rootTemplateUrl: string;
 	templateVersionName: string;
 	latestBuildVersionName: string;
-	templateVersionDisplayName?: string;
+	templateDisplayName: string;
 }>;
 
 const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
@@ -375,7 +377,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	rootTemplateUrl,
 	templateVersionName,
 	latestBuildVersionName,
-	templateVersionDisplayName = templateVersionName,
+	templateDisplayName,
 }) => {
 	return (
 		<Popover mode="hover">
@@ -399,7 +401,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							to={rootTemplateUrl}
 							css={{ color: "inherit" }}
 						>
-							{templateVersionDisplayName}
+							{templateDisplayName}
 						</Link>
 					}
 					subtitle={
@@ -419,7 +421,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							fitImage
 						/>
 					}
-					imgFallbackText={templateVersionDisplayName}
+					imgFallbackText={templateDisplayName}
 				/>
 			</HelpTooltipContent>
 		</Popover>
