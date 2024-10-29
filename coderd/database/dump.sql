@@ -668,7 +668,6 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
-    must_reset_password boolean DEFAULT false NOT NULL,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -683,8 +682,6 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
-
-COMMENT ON COLUMN users.must_reset_password IS 'Determines if the user should be forced to change their password.';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
