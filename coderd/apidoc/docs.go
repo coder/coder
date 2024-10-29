@@ -9008,6 +9008,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "stage": {
+                    "type": "string"
+                },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"

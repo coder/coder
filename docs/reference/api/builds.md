@@ -1019,6 +1019,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
 	"agent_connection_timings": [
 		{
 			"ended_at": "2019-08-24T14:15:22Z",
+			"stage": "string",
 			"started_at": "2019-08-24T14:15:22Z",
 			"workspace_agent_id": "string",
 			"workspace_agent_name": "string"

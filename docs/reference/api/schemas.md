@@ -354,6 +354,7 @@
 ```json
 {
 	"ended_at": "2019-08-24T14:15:22Z",
+	"stage": "string",
 	"started_at": "2019-08-24T14:15:22Z",
 	"workspace_agent_id": "string",
 	"workspace_agent_name": "string"
@@ -365,6 +366,7 @@
 | Name                   | Type   | Required | Restrictions | Description |
 | ---------------------- | ------ | -------- | ------------ | ----------- |
 | `ended_at`             | string | false    |              |             |
+| `stage`                | string | false    |              |             |
 | `started_at`           | string | false    |              |             |
 | `workspace_agent_id`   | string | false    |              |             |
 | `workspace_agent_name` | string | false    |              |             |
@@ -7405,6 +7407,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"agent_connection_timings": [
 		{
 			"ended_at": "2019-08-24T14:15:22Z",
+			"stage": "string",
 			"started_at": "2019-08-24T14:15:22Z",
 			"workspace_agent_id": "string",
 			"workspace_agent_name": "string"

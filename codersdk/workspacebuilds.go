@@ -199,6 +199,7 @@ type AgentScriptTiming struct {
 type AgentConnectionTiming struct {
 	StartedAt          time.Time `json:"started_at" format:"date-time"`
 	EndedAt            time.Time `json:"ended_at" format:"date-time"`
+	Stage              string    `json:"stage"`
 	WorkspaceAgentID   string    `json:"workspace_agent_id"`
 	WorkspaceAgentName string    `json:"workspace_agent_name"`
 }

@@ -1031,6 +1031,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			WorkspaceAgentID:   agent.ID.String(),
 			WorkspaceAgentName: agent.Name,
 			StartedAt:          agent.CreatedAt,
+			Stage:              "connect",
 			EndedAt:            agent.FirstConnectedAt.Time,
 		})
 	}
