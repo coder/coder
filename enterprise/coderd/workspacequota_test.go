@@ -314,8 +314,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		t.Skip("Serialization errors only occur in postgres")
 	}
 
-	db, ps := dbtestutil.NewDB(t)
-	var _ = ps
+	db, _ := dbtestutil.NewDB(t)
 
 	user := dbgen.User(t, db, database.User{})
 	otherUser := dbgen.User(t, db, database.User{})
@@ -655,7 +654,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
 		two := newCommitter(t, db, myOtherWorkspace.Workspace, myOtherWorkspace.Build)
 
-		var _, _ = one, two
 		// Run order
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
@@ -714,7 +712,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
 		two := newCommitter(t, db, myOtherWorkspace.Workspace, myOtherWorkspace.Build)
 
-		var _, _ = one, two
 		// Run order
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
@@ -776,7 +773,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 		one := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
 		two := newCommitter(t, db, myOtherWorkspace.Workspace, myOtherWorkspace.Build)
 
-		var _, _ = one, two
 		// Run order
 		one.GetQuota(ctx, t)
 		one.GetAllowance(ctx, t)
