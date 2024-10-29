@@ -91,7 +91,7 @@ const styles = {
 			left: -8,
 		},
 	}),
-	clickable: {
+	clickable: (theme) => ({
 		cursor: "pointer",
 		// We need to make the bar width at least 34px to allow the "..." icons to be displayed.
 		// The calculation is border * 1 + side paddings * 2 + icon width (which is 18px)
@@ -99,7 +99,7 @@ const styles = {
 
 		"&:focus, &:hover, &:active": {
 			outline: "none",
-			borderColor: "#38BDF8",
+			borderColor: theme.roles.active.outline,
 		},
-	},
+	}),
 } satisfies Record<string, Interpolation<Theme>>;

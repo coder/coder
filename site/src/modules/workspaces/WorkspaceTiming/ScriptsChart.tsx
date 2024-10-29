@@ -27,30 +27,7 @@ import {
 	mergeTimeRanges,
 } from "./Chart/utils";
 import type { StageCategory } from "./StagesChart";
-
-const legendsByStatus: Record<string, ChartLegend> = {
-	ok: {
-		label: "success",
-		colors: {
-			fill: "#022C22",
-			stroke: "#BBF7D0",
-		},
-	},
-	exit_failure: {
-		label: "failure",
-		colors: {
-			fill: "#450A0A",
-			stroke: "#F87171",
-		},
-	},
-	timeout: {
-		label: "timed out",
-		colors: {
-			fill: "#422006",
-			stroke: "#FDBA74",
-		},
-	},
-};
+import { type Theme, useTheme } from "@emotion/react";
 
 type ScriptTiming = {
 	name: string;
@@ -77,6 +54,8 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 	const [ticks, scale] = makeTicks(totalTime);
 	const [filter, setFilter] = useState("");
 	const visibleTimings = timings.filter((t) => t.name.includes(filter));
+	const theme = useTheme()
+	const legendsByStatus = getLegendsByStatus(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.status))].map(
 		(s) => legendsByStatus[s],
 	);
@@ -150,4 +129,30 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 			</ChartContent>
 		</Chart>
 	);
+};
+
+function getLegendsByStatus(theme: Theme): Record<string, ChartLegend> {
+	return {
+		ok: {
+			label: "success",
+			colors: {
+				fill: theme.roles.success.background,
+				stroke: theme.roles.success.outline,
+			},
+		},
+		exit_failure: {
+			label: "failure",
+			colors: {
+				fill: theme.roles.error.background,
+				stroke: theme.roles.error.outline,
+			},
+		},
+		timeout: {
+			label: "timed out",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
+	}
 };
