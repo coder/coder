@@ -1546,7 +1546,11 @@ func TestServer(t *testing.T) {
 			// fails.
 			pty := ptytest.New(t).Attach(inv)
 
-			clitest.Start(t, inv)
+			// I found that running clitest.Start(t, inv) without context
+			// would make the server unable to execute SQL queries with a db
+			// created with a call to database.New(sqlDB) in cli/server.go.
+			// They would just hang indefinitely. I do not understand why.
+			clitest.Start(t, inv.WithContext(ctx))
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.

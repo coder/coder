@@ -1,12 +1,13 @@
 package dbtestutil
 
 import (
+	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"os"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
@@ -63,8 +64,6 @@ func Open() (string, func(), error) {
 	return dsn, cleanup, nil
 }
 
-var templateInitLock = sync.Mutex{}
-
 type CreateDatabaseArgs struct {
 	Username string
 	Password string
@@ -76,7 +75,7 @@ type CreateDatabaseArgs struct {
 // createDatabaseFromTemplate creates a new database from a template database.
 // The template database is created if it doesn't exist.
 func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
-	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s?sslmode=disable", args.Username, args.Password, args.Host, args.Port)
+	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/postgres?sslmode=disable", args.Username, args.Password, args.Host, args.Port)
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		return xerrors.Errorf("connect to postgres: %w", err)
@@ -94,11 +93,24 @@ func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
 	}
 
 	// We need to create the template database.
-	templateInitLock.Lock()
-	defer templateInitLock.Unlock()
+	tx, err := db.BeginTx(context.Background(), nil)
+	if err != nil {
+		return xerrors.Errorf("begin tx: %w", err)
+	}
+	defer func() {
+		err := tx.Rollback()
+		if err != nil && !errors.Is(err, sql.ErrTxDone) {
+			panic(err)
+		}
+	}()
+
+	_, err = tx.Exec("SELECT pg_advisory_xact_lock(2137)")
+	if err != nil {
+		return xerrors.Errorf("acquire lock: %w", err)
+	}
 
 	// Someone else might have created the template db while we were waiting.
-	tplDbExistsRes, err := db.Query("SELECT 1 FROM pg_database WHERE datname = $1", templateDBName)
+	tplDbExistsRes, err := tx.Query("SELECT 1 FROM pg_database WHERE datname = $1", templateDBName)
 	if err != nil {
 		return xerrors.Errorf("check if db exists: %w", err)
 	}
@@ -140,6 +152,11 @@ func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
 	_, err = db.Exec("CREATE DATABASE " + args.DBName + " WITH TEMPLATE " + templateDBName)
 	if err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
+	}
+
+	err = tx.Commit()
+	if err != nil {
+		return xerrors.Errorf("commit tx: %w", err)
 	}
 
 	return nil
