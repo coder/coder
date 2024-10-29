@@ -291,6 +291,8 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
 		}
+	} else {
+		logger.Warn(ctx, "password reset requested for account that does not exist", slog.F("email", req.Email))
 	}
 }
 
@@ -381,6 +383,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
+			logger.Warn(ctx, "password reset attempted with invalid or expired one-time passcode", slog.F("email", req.Email))
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Incorrect email or one-time passcode.",
 			})
