@@ -625,6 +625,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	err := migrations.Up(sqlDB)
 	require.NoError(t, err)
 	db := database.New(sqlDB)
+	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
 
 	org := dbgen.Organization(t, db, database.Organization{})
 	owner := dbgen.User(t, db, database.User{
@@ -669,44 +670,72 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		CreateAgent:         false,
 	})
 
-	authorizer := rbac.NewStrictCachingAuthorizer(prometheus.NewRegistry())
-	userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
-	require.NoError(t, err)
-	preparedUser, err := authorizer.Prepare(ctx, userSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	require.NoError(t, err)
-	userCtx := dbauthz.As(ctx, userSubject)
-	userRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(userCtx, owner.ID, preparedUser)
-	require.NoError(t, err)
-	require.Len(t, userRows, 0)
-
-	ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
-	require.NoError(t, err)
-	preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	require.NoError(t, err)
-	ownerCtx := dbauthz.As(ctx, ownerSubject)
-	ownerRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ownerCtx, owner.ID, preparedOwner)
-	require.NoError(t, err)
-	require.Len(t, ownerRows, 4)
-	for _, row := range ownerRows {
-		switch row.ID {
-		case pendingID:
-			require.Len(t, row.Agents, 1)
-			require.Equal(t, database.ProvisionerJobStatusPending, row.JobStatus)
-		case failedID:
-			require.Len(t, row.Agents, 1)
-			require.Equal(t, database.ProvisionerJobStatusFailed, row.JobStatus)
-		case succeededID:
-			require.Len(t, row.Agents, 2)
-			require.Equal(t, database.ProvisionerJobStatusSucceeded, row.JobStatus)
-			require.Equal(t, database.WorkspaceTransitionStart, row.Transition)
-		case deletedID:
-			require.Len(t, row.Agents, 0)
-			require.Equal(t, database.ProvisionerJobStatusSucceeded, row.JobStatus)
-			require.Equal(t, database.WorkspaceTransitionDelete, row.Transition)
-		default:
-			t.Fatalf("unexpected workspace ID: %s", row.ID)
+	ownerCheckFn := func(ownerRows []database.GetWorkspacesAndAgentsByOwnerIDRow) {
+		require.Len(t, ownerRows, 4)
+		for _, row := range ownerRows {
+			switch row.ID {
+			case pendingID:
+				require.Len(t, row.Agents, 1)
+				require.Equal(t, database.ProvisionerJobStatusPending, row.JobStatus)
+			case failedID:
+				require.Len(t, row.Agents, 1)
+				require.Equal(t, database.ProvisionerJobStatusFailed, row.JobStatus)
+			case succeededID:
+				require.Len(t, row.Agents, 2)
+				require.Equal(t, database.ProvisionerJobStatusSucceeded, row.JobStatus)
+				require.Equal(t, database.WorkspaceTransitionStart, row.Transition)
+			case deletedID:
+				require.Len(t, row.Agents, 0)
+				require.Equal(t, database.ProvisionerJobStatusSucceeded, row.JobStatus)
+				require.Equal(t, database.WorkspaceTransitionDelete, row.Transition)
+			default:
+				t.Fatalf("unexpected workspace ID: %s", row.ID)
+			}
 		}
 	}
+	t.Run("sqlQuerier", func(t *testing.T) {
+		t.Parallel()
+
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedUser, err := authorizer.Prepare(ctx, userSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
+		require.NoError(t, err)
+		userCtx := dbauthz.As(ctx, userSubject)
+		userRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(userCtx, owner.ID, preparedUser)
+		require.NoError(t, err)
+		require.Len(t, userRows, 0)
+
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, db, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		preparedOwner, err := authorizer.Prepare(ctx, ownerSubject, policy.ActionRead, rbac.ResourceWorkspace.Type)
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, ownerSubject)
+		ownerRows, err := db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ownerCtx, owner.ID, preparedOwner)
+		require.NoError(t, err)
+		ownerCheckFn(ownerRows)
+	})
+
+	t.Run("dbauthz", func(t *testing.T) {
+		t.Parallel()
+
+		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
+
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		userCtx := dbauthz.As(ctx, userSubject)
+
+		ownerSubject, _, err := httpmw.UserRBACSubject(ctx, authzdb, owner.ID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		ownerCtx := dbauthz.As(ctx, ownerSubject)
+
+		userRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(userCtx, owner.ID)
+		require.NoError(t, err)
+		require.Len(t, userRows, 0)
+
+		ownerRows, err := authzdb.GetWorkspacesAndAgentsByOwnerID(ownerCtx, owner.ID)
+		require.NoError(t, err)
+		ownerCheckFn(ownerRows)
+	})
 }
 
 func TestInsertWorkspaceAgentLogs(t *testing.T) {
