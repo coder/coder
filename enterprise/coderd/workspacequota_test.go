@@ -60,10 +60,6 @@ func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, org
 func TestWorkspaceQuota(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Fatal("We should only run this test with postgres")
-	}
-
 	// This first test verifies the behavior of creating and deleting workspaces.
 	// It also tests multi-group quota stacking and the everyone group.
 	t.Run("CreateDelete", func(t *testing.T) {
@@ -306,7 +302,7 @@ func TestWorkspaceQuota(t *testing.T) {
 	})
 }
 
-// nolint:paralleltest // Tests must run serially
+// nolint:paralleltest,tparallel // Tests must run serially
 func TestWorkspaceSerialization(t *testing.T) {
 	t.Parallel()
 
@@ -391,7 +387,6 @@ func TestWorkspaceSerialization(t *testing.T) {
 				Isolation: sql.LevelSerializable,
 			})
 			assert.NoError(t, err)
-
 		}
 
 		// Start TX

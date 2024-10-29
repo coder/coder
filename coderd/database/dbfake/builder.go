@@ -39,25 +39,30 @@ type OrganizationResponse struct {
 }
 
 func (b OrganizationBuilder) EveryoneAllowance(allowance int) OrganizationBuilder {
+	//nolint: revive // returns modified struct
 	b.allUsersAllowance = int32(allowance)
 	return b
 }
 
 func (b OrganizationBuilder) Seed(seed database.Organization) OrganizationBuilder {
+	//nolint: revive // returns modified struct
 	b.seed = seed
 	return b
 }
 
 func (b OrganizationBuilder) Members(users ...database.User) OrganizationBuilder {
 	for _, u := range users {
+		//nolint: revive // returns modified struct
 		b.members = append(b.members, u.ID)
 	}
 	return b
 }
 
 func (b OrganizationBuilder) Group(seed database.Group, members ...database.User) OrganizationBuilder {
+	//nolint: revive // returns modified struct
 	b.groups[seed] = []uuid.UUID{}
 	for _, u := range members {
+		//nolint: revive // returns modified struct
 		b.groups[seed] = append(b.groups[seed], u.ID)
 	}
 	return b
