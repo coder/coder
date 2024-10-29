@@ -52,16 +52,16 @@ const styles = {
 		gap: spaceBetweenBlocks,
 		alignItems: "center",
 	},
-	block: {
+	block: (theme) => ({
 		borderRadius: 4,
 		height: 18,
-		backgroundColor: "#082F49",
-		border: "1px solid #38BDF8",
+		backgroundColor: theme.roles.active.background,
+		border: `1px solid ${theme.roles.active.outline}`,
 		flexShrink: 0,
 		flex: 1,
-	},
-	more: {
-		color: "#38BDF8",
+	}),
+	more: (theme) => ({
+		color: theme.roles.active.outline,
 		lineHeight: 0,
 		flexShrink: 0,
 		flex: 1,
@@ -69,5 +69,5 @@ const styles = {
 		"& svg": {
 			fontSize: moreIconSize,
 		},
-	},
+	}),
 } satisfies Record<string, Interpolation<Theme>>;

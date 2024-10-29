@@ -1,5 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, waitFor, within } from "@storybook/test";
+import { chromatic } from "testHelpers/chromatic";
 import { WorkspaceTimings } from "./WorkspaceTimings";
 import { WorkspaceTimingsResponse } from "./storybookData";
 
@@ -10,6 +11,9 @@ const meta: Meta<typeof WorkspaceTimings> = {
 		defaultIsOpen: true,
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
+	},
+	parameters: {
+		chromatic,
 	},
 };
 
