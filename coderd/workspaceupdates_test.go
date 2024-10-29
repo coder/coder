@@ -25,22 +25,23 @@ import (
 
 func TestWorkspaceUpdates(t *testing.T) {
 	t.Parallel()
-	ctx := context.Background()
 
-	ws1ID := uuid.New()
+	ws1ID := uuid.UUID{0x01}
 	ws1IDSlice := tailnet.UUIDToByteSlice(ws1ID)
-	agent1ID := uuid.New()
+	agent1ID := uuid.UUID{0x02}
 	agent1IDSlice := tailnet.UUIDToByteSlice(agent1ID)
-	ws2ID := uuid.New()
+	ws2ID := uuid.UUID{0x03}
 	ws2IDSlice := tailnet.UUIDToByteSlice(ws2ID)
-	ws3ID := uuid.New()
+	ws3ID := uuid.UUID{0x04}
 	ws3IDSlice := tailnet.UUIDToByteSlice(ws3ID)
-	agent2ID := uuid.New()
+	agent2ID := uuid.UUID{0x05}
 	agent2IDSlice := tailnet.UUIDToByteSlice(agent2ID)
-	ws4ID := uuid.New()
+	ws4ID := uuid.UUID{0x06}
 	ws4IDSlice := tailnet.UUIDToByteSlice(ws4ID)
+	agent3ID := uuid.UUID{0x07}
+	agent3IDSlice := tailnet.UUIDToByteSlice(agent3ID)
 
-	ownerID := uuid.New()
+	ownerID := uuid.UUID{0x08}
 	memberRole, err := rbac.RoleByName(rbac.RoleMember())
 	require.NoError(t, err)
 	ownerSubject := rbac.Subject{
@@ -53,9 +54,11 @@ func TestWorkspaceUpdates(t *testing.T) {
 	t.Run("Basic", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
+
 		db := &mockWorkspaceStore{
 			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
-				// Gains a new agent
+				// Gains agent2
 				{
 					ID:         ws1ID,
 					Name:       "ws1",
@@ -81,6 +84,12 @@ func TestWorkspaceUpdates(t *testing.T) {
 					Name:       "ws3",
 					JobStatus:  database.ProvisionerJobStatusSucceeded,
 					Transition: database.WorkspaceTransitionStop,
+					Agents: []database.AgentIDNamePair{
+						{
+							ID:   agent3ID,
+							Name: "agent3",
+						},
+					},
 				},
 			},
 		}
@@ -89,19 +98,22 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
-		require.NoError(t, err)
+		updateProvider := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
 		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
-		ch := sub.Updates()
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
 
-		update, ok := <-ch
-		require.True(t, ok)
+		update := testutil.RequireRecvCtx(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
+			return strings.Compare(a.Name, b.Name)
+		})
+		slices.SortFunc(update.UpsertedAgents, func(a, b *proto.Agent) int {
 			return strings.Compare(a.Name, b.Name)
 		})
 		require.Equal(t, &proto.WorkspaceUpdate{
@@ -127,6 +139,11 @@ func TestWorkspaceUpdates(t *testing.T) {
 					Id:          agent1IDSlice,
 					Name:        "agent1",
 					WorkspaceId: ws1IDSlice,
+				},
+				{
+					Id:          agent3IDSlice,
+					Name:        "agent3",
+					WorkspaceId: ws3IDSlice,
 				},
 			},
 			DeletedWorkspaces: []*proto.Workspace{},
@@ -169,8 +186,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			WorkspaceID: ws1ID,
 		})
 
-		update, ok = <-ch
-		require.True(t, ok)
+		update = testutil.RequireRecvCtx(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
@@ -203,12 +219,20 @@ func TestWorkspaceUpdates(t *testing.T) {
 					Status: proto.Workspace_STOPPED,
 				},
 			},
-			DeletedAgents: []*proto.Agent{},
+			DeletedAgents: []*proto.Agent{
+				{
+					Id:          agent3IDSlice,
+					Name:        "agent3",
+					WorkspaceId: ws3IDSlice,
+				},
+			},
 		}, update)
 	})
 
 	t.Run("Resubscribe", func(t *testing.T) {
 		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 
 		db := &mockWorkspaceStore{
 			orderedRows: []database.GetWorkspacesAndAgentsByOwnerIDRow{
@@ -231,15 +255,16 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider, err := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
-		require.NoError(t, err)
+		updateProvider := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
 
 		sub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
-		ch := sub.Updates()
+		t.Cleanup(func() {
+			_ = sub.Close()
+		})
 
 		expected := &proto.WorkspaceUpdate{
 			UpsertedWorkspaces: []*proto.Workspace{
@@ -260,18 +285,19 @@ func TestWorkspaceUpdates(t *testing.T) {
 			DeletedAgents:     []*proto.Agent{},
 		}
 
-		update := testutil.RequireRecvCtx(ctx, t, ch)
+		update := testutil.RequireRecvCtx(ctx, t, sub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
 		require.Equal(t, expected, update)
 
+		resub, err := updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
 		require.NoError(t, err)
-		sub, err = updateProvider.Subscribe(dbauthz.As(ctx, ownerSubject), ownerID)
-		require.NoError(t, err)
-		ch = sub.Updates()
+		t.Cleanup(func() {
+			_ = resub.Close()
+		})
 
-		update = testutil.RequireRecvCtx(ctx, t, ch)
+		update = testutil.RequireRecvCtx(ctx, t, resub.Updates())
 		slices.SortFunc(update.UpsertedWorkspaces, func(a, b *proto.Workspace) int {
 			return strings.Compare(a.Name, b.Name)
 		})
@@ -290,7 +316,7 @@ type mockWorkspaceStore struct {
 }
 
 // GetAuthorizedWorkspacesAndAgentsByOwnerID implements coderd.UpdatesQuerier.
-func (m *mockWorkspaceStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID, rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+func (m *mockWorkspaceStore) GetWorkspacesAndAgentsByOwnerID(context.Context, uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	return m.orderedRows, nil
 }
 

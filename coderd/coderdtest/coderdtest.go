@@ -163,8 +163,6 @@ type Options struct {
 	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
 	OIDCConvertKeyCache                cryptokeys.SigningKeycache
 	Clock                              quartz.Clock
-
-	WorkspaceUpdatesProvider tailnet.WorkspaceUpdatesProvider
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -254,20 +252,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 
 	if options.NotificationsEnqueuer == nil {
 		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
-	}
-
-	if options.WorkspaceUpdatesProvider == nil {
-		var err error
-		options.WorkspaceUpdatesProvider, err = coderd.NewUpdatesProvider(
-			options.Logger.Named("workspace_updates"),
-			options.Pubsub,
-			options.Database,
-			options.Authorizer,
-		)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = options.WorkspaceUpdatesProvider.Close()
-		})
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -547,7 +531,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
 			HealthcheckRefresh:                 options.HealthcheckRefresh,
 			StatsBatcher:                       options.StatsBatcher,
-			WorkspaceUpdatesProvider:           options.WorkspaceUpdatesProvider,
 			WorkspaceAppsStatsCollectorOptions: options.WorkspaceAppsStatsCollectorOptions,
 			AllowWorkspaceRenames:              options.AllowWorkspaceRenames,
 			NewTicker:                          options.NewTicker,

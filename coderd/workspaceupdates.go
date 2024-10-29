@@ -14,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
@@ -23,7 +22,8 @@ import (
 )
 
 type UpdatesQuerier interface {
-	GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prep rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
+	// GetAuthorizedWorkspacesAndAgentsByOwnerID requires a context with an actor set
+	GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error)
 	GetWorkspaceByAgentID(ctx context.Context, agentID uuid.UUID) (database.Workspace, error)
 }
 
@@ -42,14 +42,14 @@ func (w ownedWorkspace) Equal(other ownedWorkspace) bool {
 }
 
 type sub struct {
+	// ALways contains an actor
 	ctx      context.Context
 	cancelFn context.CancelFunc
 
-	mu       sync.RWMutex
-	userID   uuid.UUID
-	ch       chan *proto.WorkspaceUpdate
-	prev     workspacesByID
-	readPrep rbac.PreparedAuthorized
+	mu     sync.RWMutex
+	userID uuid.UUID
+	ch     chan *proto.WorkspaceUpdate
+	prev   workspacesByID
 
 	db     UpdatesQuerier
 	ps     pubsub.Pubsub
@@ -76,7 +76,8 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 		}
 	}
 
-	rows, err := s.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, s.userID, s.readPrep)
+	// Use context containing actor
+	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(s.ctx, s.userID)
 	if err != nil {
 		s.logger.Warn(ctx, "failed to get workspaces and agents by owner ID", slog.Error(err))
 		return
@@ -97,7 +98,7 @@ func (s *sub) handleEvent(ctx context.Context, event wspubsub.WorkspaceEvent, er
 }
 
 func (s *sub) start(ctx context.Context) (err error) {
-	rows, err := s.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, s.userID, s.readPrep)
+	rows, err := s.db.GetWorkspacesAndAgentsByOwnerID(ctx, s.userID)
 	if err != nil {
 		return xerrors.Errorf("get workspaces and agents by owner ID: %w", err)
 	}
@@ -150,7 +151,7 @@ func NewUpdatesProvider(
 	ps pubsub.Pubsub,
 	db UpdatesQuerier,
 	auth rbac.Authorizer,
-) (tailnet.WorkspaceUpdatesProvider, error) {
+) tailnet.WorkspaceUpdatesProvider {
 	ctx, cancel := context.WithCancel(context.Background())
 	out := &updatesProvider{
 		auth:     auth,
@@ -160,7 +161,7 @@ func NewUpdatesProvider(
 		ctx:      ctx,
 		cancelFn: cancel,
 	}
-	return out, nil
+	return out
 }
 
 func (u *updatesProvider) Close() error {
@@ -168,17 +169,17 @@ func (u *updatesProvider) Close() error {
 	return nil
 }
 
+// Subscribe subscribes to workspace updates for a user, for the workspaces
+// that user is authorized to `ActionRead` on. The provided context must have
+// a dbauthz actor set.
 func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tailnet.Subscription, error) {
 	actor, ok := dbauthz.ActorFromContext(ctx)
 	if !ok {
 		return nil, xerrors.Errorf("actor not found in context")
 	}
-	readPrep, err := u.auth.Prepare(ctx, actor, policy.ActionRead, rbac.ResourceWorkspace.Type)
-	if err != nil {
-		return nil, xerrors.Errorf("prepare read action: %w", err)
-	}
+	ctx, cancel := context.WithCancel(u.ctx)
+	ctx = dbauthz.As(ctx, actor)
 	ch := make(chan *proto.WorkspaceUpdate, 1)
-	ctx, cancel := context.WithCancel(ctx)
 	sub := &sub{
 		ctx:      ctx,
 		cancelFn: cancel,
@@ -188,9 +189,8 @@ func (u *updatesProvider) Subscribe(ctx context.Context, userID uuid.UUID) (tail
 		ps:       u.ps,
 		logger:   u.logger.Named(fmt.Sprintf("workspace_updates_subscriber_%s", userID)),
 		prev:     workspacesByID{},
-		readPrep: readPrep,
 	}
-	err = sub.start(ctx)
+	err := sub.start(ctx)
 	if err != nil {
 		_ = sub.Close()
 		return nil, err

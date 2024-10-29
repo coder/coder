@@ -220,28 +220,15 @@ func (s *DRPCService) WorkspaceUpdates(req *proto.WorkspaceUpdatesRequest, strea
 	defer stream.Close()
 
 	ctx := stream.Context()
-	streamID, ok := ctx.Value(streamIDContextKey{}).(StreamID)
-	if !ok {
-		return xerrors.New("no Stream ID")
-	}
 
 	ownerID, err := uuid.FromBytes(req.WorkspaceOwnerId)
 	if err != nil {
 		return xerrors.Errorf("parse workspace owner ID: %w", err)
 	}
 
-	var sub Subscription
-	switch auth := streamID.Auth.(type) {
-	case ClientUserCoordinateeAuth:
-		sub, err = s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID)
-		if err != nil {
-			err = xerrors.Errorf("subscribe to workspace updates: %w", err)
-		}
-	default:
-		err = xerrors.Errorf("workspace updates not supported by auth name %T", auth)
-	}
+	sub, err := s.WorkspaceUpdatesProvider.Subscribe(ctx, ownerID)
 	if err != nil {
-		return err
+		return xerrors.Errorf("subscribe to workspace updates: %w", err)
 	}
 	defer sub.Close()
 
