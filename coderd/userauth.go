@@ -383,7 +383,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
-			logger.Warn(ctx, "password reset attempted with invalid one-time passcode", slog.F("email", req.Email))
+			logger.Warn(ctx, "password reset attempted with invalid or expired one-time passcode", slog.F("email", req.Email))
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Incorrect email or one-time passcode.",
 			})
