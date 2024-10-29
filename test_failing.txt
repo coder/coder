@@ -1,5 +1,3 @@
-github.com/coder/coder/v2/coderd/telemetry,TestTelemetry
-github.com/coder/coder/v2/coderd/telemetry,TestTelemetry/Snapshot
 github.com/coder/coder/v2/enterprise/cli,TestServer_Single
 github.com/coder/coder/v2/enterprise/coderd/dormancy,TestCheckInactiveUsers
 github.com/coder/coder/v2/enterprise/coderd/license,TestEntitlements

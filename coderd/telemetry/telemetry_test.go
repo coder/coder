@@ -39,25 +39,59 @@ func TestTelemetry(t *testing.T) {
 		db, _ := dbtestutil.NewDB(t)
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		_, _ = dbgen.APIKey(t, db, database.APIKey{})
-		_ = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		user := dbgen.User(t, db, database.User{})
+		org, err := db.GetOrganizationByName(ctx, "coder")
+		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{
+			UserID:         user.ID,
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		_, _ = dbgen.APIKey(t, db, database.APIKey{
+			UserID: user.ID,
+		})
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Provisioner:   database.ProvisionerTypeTerraform,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 		})
-		_ = dbgen.Template(t, db, database.Template{
-			Provisioner: database.ProvisionerTypeTerraform,
+		tpl := dbgen.Template(t, db, database.Template{
+			Provisioner:    database.ProvisionerTypeTerraform,
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
 		})
-		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
-		user := dbgen.User(t, db, database.User{})
-		_ = dbgen.Workspace(t, db, database.Workspace{})
+		tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+			TemplateID:     uuid.NullUUID{UUID: tpl.ID, Valid: true},
+			CreatedBy:      user.ID,
+			JobID:          job.ID,
+		})
+		ws := dbgen.Workspace(t, db, database.Workspace{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     tpl.ID,
+		})
+		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+			Transition:        database.WorkspaceTransitionStart,
+			Reason:            database.BuildReasonAutostart,
+			WorkspaceID:       ws.ID,
+			TemplateVersionID: tv.ID,
+			JobID:             job.ID,
+		})
+		wsresource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: job.ID,
+		})
+		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: wsresource.ID,
+		})
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
+			AgentID:      wsagent.ID,
 		})
-		group := dbgen.Group(t, db, database.Group{})
+		group := dbgen.Group(t, db, database.Group{
+			OrganizationID: org.ID,
+		})
 		_ = dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
-		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
 		// Update the workspace agent to have a valid subsystem.
 		err = db.UpdateWorkspaceAgentStartupByID(ctx, database.UpdateWorkspaceAgentStartupByIDParams{
 			ID:                wsagent.ID,
@@ -70,14 +104,9 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-			Transition: database.WorkspaceTransitionStart,
-			Reason:     database.BuildReasonAutostart,
+		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{
+			ConnectionMedianLatencyMS: 1,
 		})
-		_ = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
-			Transition: database.WorkspaceTransitionStart,
-		})
-		_ = dbgen.WorkspaceAgentStat(t, db, database.WorkspaceAgentStat{})
 		_, err = db.InsertLicense(ctx, database.InsertLicenseParams{
 			UploadedAt: dbtime.Now(),
 			JWT:        "",
