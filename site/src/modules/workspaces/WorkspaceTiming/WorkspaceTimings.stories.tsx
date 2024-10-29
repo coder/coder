@@ -11,6 +11,7 @@ const meta: Meta<typeof WorkspaceTimings> = {
 		defaultIsOpen: true,
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
+		agentConnectionTimings: WorkspaceTimingsResponse.agent_connection_timings,
 	},
 	parameters: {
 		chromatic,

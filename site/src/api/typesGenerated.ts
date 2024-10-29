@@ -36,6 +36,7 @@ export interface AddLicenseRequest {
 export interface AgentConnectionTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
+	readonly stage: string;
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
 }

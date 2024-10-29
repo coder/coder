@@ -158,8 +158,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
 	// Build Timings. Fetch build timings only when the build job is completed.
+	const readyAgents = workspace.latest_build.resources
+		.flatMap((r) => r.agents)
+		.filter((a) => a && a.lifecycle_state !== "starting");
 	const timingsQuery = useQuery({
-		...workspaceBuildTimings(workspace.latest_build.id),
+		...workspaceBuildTimings(workspace.latest_build.id, readyAgents.length),
 		enabled: Boolean(workspace.latest_build.job.completed_at),
 	});
 

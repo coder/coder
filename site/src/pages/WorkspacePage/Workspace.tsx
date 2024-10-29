@@ -267,8 +267,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 
 					<WorkspaceTimings
-						agentScriptTimings={timings?.agent_script_timings}
 						provisionerTimings={timings?.provisioner_timings}
+						agentScriptTimings={timings?.agent_script_timings}
+						agentConnectionTimings={timings?.agent_connection_timings}
 					/>
 				</div>
 			</div>

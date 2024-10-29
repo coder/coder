@@ -26,7 +26,8 @@ import {
 	makeTicks,
 	mergeTimeRanges,
 } from "./Chart/utils";
-import type { StageCategory } from "./StagesChart";
+import { type Theme, useTheme } from "@emotion/react";
+import type { Stage } from "./StagesChart";
 
 type ResourceTiming = {
 	name: string;
@@ -36,14 +37,12 @@ type ResourceTiming = {
 };
 
 export type ResourcesChartProps = {
-	category: StageCategory;
-	stage: string;
+	stage: Stage;
 	timings: ResourceTiming[];
 	onBack: () => void;
 };
 
 export const ResourcesChart: FC<ResourcesChartProps> = ({
-	category,
 	stage,
 	timings,
 	onBack,
@@ -67,11 +66,11 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 				<ChartBreadcrumbs
 					breadcrumbs={[
 						{
-							label: category.name,
+							label: stage.section,
 							onClick: onBack,
 						},
 						{
-							label: stage,
+							label: stage.name,
 						},
 					]}
 				/>
@@ -85,7 +84,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					<YAxisSection>
-						<YAxisHeader>{stage} stage</YAxisHeader>
+						<YAxisHeader>{stage.name} stage</YAxisHeader>
 						<YAxisLabels>
 							{visibleTimings.map((t) => (
 								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>

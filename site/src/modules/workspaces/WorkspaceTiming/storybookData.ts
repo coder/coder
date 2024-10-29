@@ -429,5 +429,13 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			workspace_agent_name: "dev",
 		},
 	],
-	agent_connection_timings: [],
+	agent_connection_timings: [
+		{
+			started_at: "2024-10-14T11:30:55.650423Z",
+			ended_at: "2024-10-14T11:30:56.650423Z",
+			stage: "connect",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
+		},
+	],
 };
