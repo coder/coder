@@ -44,7 +44,7 @@
           name = "protoc-gen-go";
           owner = "protocolbuffers";
           repo = "protobuf-go";
-          rev = "v1.30.0"; 
+          rev = "v1.30.0";
           src = pkgs.fetchFromGitHub {
             owner = "protocolbuffers";
             repo = "protobuf-go";
@@ -54,11 +54,6 @@
           };
           subPackages = [ "cmd/protoc-gen-go" ];
           vendorHash = null;
-          proxyVendor = true;
-          preBuild = ''
-            export GOPROXY=https://proxy.golang.org,direct
-            go mod download
-          '';
         };
 
         # The minimal set of packages to build Coder.
@@ -172,7 +167,7 @@
           '';
         };
         packages = {
-          proto_gen_go = proto_gen_go_1_30;  
+          proto_gen_go = proto_gen_go_1_30;
           all = pkgs.buildEnv {
             name = "all-packages";
             paths = devShellPackages;
