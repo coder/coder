@@ -1,8 +1,4 @@
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
 import { type FC, useState } from "react";
-import { Link } from "react-router-dom";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,
