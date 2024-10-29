@@ -55,7 +55,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 				) : (
 					<KeyboardArrowDown css={{ fontSize: 16, marginRight: 16 }} />
 				)}
-				<span>Provisioning time</span>
+				<span>Build timeline</span>
 				<span
 					css={(theme) => ({
 						marginLeft: "auto",

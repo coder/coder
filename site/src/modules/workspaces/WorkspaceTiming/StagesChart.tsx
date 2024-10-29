@@ -102,7 +102,7 @@ export const stages: Stage[] = [
 				<>
 					<TooltipTitle>Terraform apply</TooltipTitle>
 					<TooltipShortDescription>
-						Execute terraform plan to create/modify/delete resources into
+						Execute Terraform plan to create/modify/delete resources into
 						desired states.
 					</TooltipShortDescription>
 				</>
