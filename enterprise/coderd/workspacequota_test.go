@@ -886,9 +886,3 @@ func (c *committer) UpdateWorkspaceBuildCostByID(ctx context.Context, t *testing
 func (c *committer) Done() error {
 	return c.DBTx.Done()
 }
-
-func noReturn[T any](f func(context.Context, *testing.T) T) func(context.Context, *testing.T) {
-	return func(ctx context.Context, t *testing.T) {
-		f(ctx, t)
-	}
-}

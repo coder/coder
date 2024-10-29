@@ -4,6 +4,9 @@ import (
 	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/database"
 )
 
@@ -44,7 +47,7 @@ func StartTx(t *testing.T, db database.Store, opts *database.TxOptions) *DBTx {
 			if count > 1 {
 				// If you recursively call InTx, then don't use this.
 				t.Logf("InTx called more than once: %d", count)
-				t.Fatal("InTx called more than once, this is not allowed with the StartTx helper")
+				assert.NoError(t, xerrors.New("InTx called more than once, this is not allowed with the StartTx helper"))
 			}
 
 			<-done
