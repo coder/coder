@@ -14,12 +14,10 @@ const OrganizationProvisionersPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { organizations } = useManagementSettings();
+	const { organization } = useManagementSettings();
 	const { entitlements } = useDashboard();
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-
-	const organization = organizations?.find((o) => o.name === organizationName);
 	const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
 
 	if (!organization) {

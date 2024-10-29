@@ -55,15 +55,7 @@ const OrganizationSettingsPage: FC = () => {
 		// .find will stop at the first match found; make sure default
 		// organizations are placed first
 		const editableOrg = [...organizations]
-			.sort((a, b) => {
-				if (a.is_default && !b.is_default) {
-					return -1;
-				}
-				if (b.is_default && !a.is_default) {
-					return 1;
-				}
-				return 0;
-			})
+			.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0))
 			.find((org) => canEditOrganization(permissions[org.id]));
 		if (editableOrg) {
 			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
