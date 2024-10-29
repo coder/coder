@@ -25,9 +25,11 @@ func TestTrialer(t *testing.T) {
 	}))
 	defer srv.Close()
 	db, _ := dbtestutil.NewDB(t)
+	err := db.InsertDeploymentID(context.Background(), "test-deployment")
+	require.NoError(t, err)
 
 	gen := trialer.New(db, srv.URL, coderdenttest.Keys)
-	err := gen(context.Background(), codersdk.LicensorTrialRequest{Email: "kyle+colin@coder.com"})
+	err = gen(context.Background(), codersdk.LicensorTrialRequest{Email: "kyle+colin@coder.com"})
 	require.NoError(t, err)
 	licenses, err := db.GetLicenses(context.Background())
 	require.NoError(t, err)

@@ -69,6 +69,10 @@ func TestInjection(t *testing.T) {
 	// This will update as part of the request!
 	got.LastSeenAt = user.LastSeenAt
 
+	// json.Unmarshal doesn't parse the timezone correctly
+	got.CreatedAt = got.CreatedAt.In(user.CreatedAt.Location())
+	got.UpdatedAt = got.UpdatedAt.In(user.CreatedAt.Location())
+
 	require.Equal(t, db2sdk.User(user, []uuid.UUID{}), got)
 }
 

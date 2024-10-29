@@ -1,7 +1,0 @@
-github.com/coder/coder/v2/enterprise/cli,TestServer_Single
-github.com/coder/coder/v2/enterprise/coderd/dormancy,TestCheckInactiveUsers
-github.com/coder/coder/v2/enterprise/coderd/license,TestEntitlements
-github.com/coder/coder/v2/enterprise/coderd/license,TestEntitlements/Expiration_warning
-github.com/coder/coder/v2/enterprise/coderd/license,TestEntitlements/TooManyUsers
-github.com/coder/coder/v2/enterprise/trialer,TestTrialer
-github.com/coder/coder/v2/site,TestInjection

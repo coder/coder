@@ -265,7 +265,9 @@ func TestEntitlements(t *testing.T) {
 		activeUser1, err := db.InsertUser(context.Background(), database.InsertUserParams{
 			ID:        uuid.New(),
 			Username:  "test1",
+			Email:     "test1@coder.com",
 			LoginType: database.LoginTypePassword,
+			RBACRoles: []string{},
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
@@ -277,7 +279,9 @@ func TestEntitlements(t *testing.T) {
 		activeUser2, err := db.InsertUser(context.Background(), database.InsertUserParams{
 			ID:        uuid.New(),
 			Username:  "test2",
+			Email:     "test2@coder.com",
 			LoginType: database.LoginTypePassword,
+			RBACRoles: []string{},
 		})
 		require.NoError(t, err)
 		_, err = db.UpdateUserStatus(context.Background(), database.UpdateUserStatusParams{
@@ -289,7 +293,9 @@ func TestEntitlements(t *testing.T) {
 		_, err = db.InsertUser(context.Background(), database.InsertUserParams{
 			ID:        uuid.New(),
 			Username:  "dormant-user",
+			Email:     "dormant-user@coder.com",
 			LoginType: database.LoginTypePassword,
+			RBACRoles: []string{},
 		})
 		require.NoError(t, err)
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
