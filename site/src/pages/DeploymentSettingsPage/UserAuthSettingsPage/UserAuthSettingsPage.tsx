@@ -1,24 +1,19 @@
 import { Loader } from "components/Loader/Loader";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { UserAuthSettingsPageView } from "./UserAuthSettingsPageView";
 
 const UserAuthSettingsPage: FC = () => {
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle("User Authentication Settings")}</title>
 			</Helmet>
-
-			{deploymentValues ? (
-				<UserAuthSettingsPageView options={deploymentValues.options} />
-			) : (
-				<Loader />
-			)}
+			<UserAuthSettingsPageView options={deploymentConfig.options} />
 		</>
 	);
 };

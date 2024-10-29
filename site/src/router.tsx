@@ -10,7 +10,6 @@ import {
 import { Loader } from "./components/Loader/Loader";
 import { RequireAuth } from "./contexts/auth/RequireAuth";
 import { DashboardLayout } from "./modules/dashboard/DashboardLayout";
-import { ManagementSettingsLayout } from "./modules/management/ManagementSettingsLayout";
 import AuditPage from "./pages/AuditPage/AuditPage";
 import { HealthLayout } from "./pages/HealthPage/HealthLayout";
 import LoginPage from "./pages/LoginPage/LoginPage";
@@ -28,6 +27,12 @@ import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
 // - Pages that are secondary, not in the main navigation or not usually accessed
 // - Pages that use heavy dependencies like charts or time libraries
 const NotFoundPage = lazy(() => import("./pages/404Page/404Page"));
+const ManagementSettingsLayout = lazy(
+	() => import("./modules/management/ManagementSettingsLayout"),
+);
+const DeploymentSettingsProvider = lazy(
+	() => import("./modules/management/DeploymentSettingsProvider"),
+);
 const CliAuthenticationPage = lazy(
 	() => import("./pages/CliAuthPage/CliAuthPage"),
 );
@@ -427,22 +432,32 @@ export const router = createBrowserRouter(
 					</Route>
 
 					<Route path="/deployment" element={<ManagementSettingsLayout />}>
-						<Route path="general" element={<GeneralSettingsPage />} />
-						<Route path="licenses" element={<LicensesSettingsPage />} />
-						<Route path="licenses/add" element={<AddNewLicensePage />} />
-						<Route path="security" element={<SecuritySettingsPage />} />
-						<Route
-							path="observability"
-							element={<ObservabilitySettingsPage />}
-						/>
-						<Route path="appearance" element={<AppearanceSettingsPage />} />
-						<Route path="network" element={<NetworkSettingsPage />} />
-						<Route path="userauth" element={<UserAuthSettingsPage />} />
-						<Route
-							path="external-auth"
-							element={<ExternalAuthSettingsPage />}
-						/>
+						<Route element={<DeploymentSettingsProvider />}>
+							<Route path="general" element={<GeneralSettingsPage />} />
+							<Route path="security" element={<SecuritySettingsPage />} />
+							<Route
+								path="observability"
+								element={<ObservabilitySettingsPage />}
+							/>
+							<Route path="network" element={<NetworkSettingsPage />} />
+							<Route path="userauth" element={<UserAuthSettingsPage />} />
+							<Route
+								path="external-auth"
+								element={<ExternalAuthSettingsPage />}
+							/>
 
+							<Route
+								path="notifications"
+								element={<DeploymentNotificationsPage />}
+							/>
+						</Route>
+
+						<Route path="licenses">
+							<Route index element={<LicensesSettingsPage />} />
+							<Route path="add" element={<AddNewLicensePage />} />
+						</Route>
+						<Route path="appearance" element={<AppearanceSettingsPage />} />
+						<Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
 						<Route path="oauth2-provider">
 							<Route index element={<NotFoundPage />} />
 							<Route path="apps">
@@ -452,14 +467,9 @@ export const router = createBrowserRouter(
 							</Route>
 						</Route>
 
-						<Route path="workspace-proxies" element={<WorkspaceProxyPage />} />
 						<Route path="users" element={<UsersPage />} />
 						<Route path="users/create" element={<CreateUserPage />} />
 						{groupsRouter()}
-						<Route
-							path="notifications"
-							element={<DeploymentNotificationsPage />}
-						/>
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
