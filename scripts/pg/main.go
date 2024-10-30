@@ -10,9 +10,23 @@ import (
 )
 
 func main() {
-	var offValue = "off"
+	startParams := map[string]string{
+		"shared_buffers":       "1GB",
+		"work_mem":             "1GB",
+		"effective_cache_size": "1GB",
+		"max_connections":      "1000",
+		"fsync":                "off",
+		"synchronous_commit":   "off",
+		"full_page_writes":     "off",
+	}
 	if strings.Contains(runtime.GOOS, "windows") {
-		offValue = "FALSE"
+		// Windows requires the parameters in a different format.
+		// I didn't have access to a Windows machine to figure it out,
+		// and CI takes too long to set up a run on Windows,
+		// so I'm just sticking to the basics here.
+		startParams = map[string]string{
+			"max_connections": "1000",
+		}
 	}
 
 	postgresPath := filepath.Join(os.TempDir(), "coder-test-postgres")
@@ -27,15 +41,7 @@ func main() {
 			Password("postgres").
 			Database("postgres").
 			Port(uint32(5432)).
-			StartParameters(map[string]string{
-				"shared_buffers":       "1GB",
-				"work_mem":             "1GB",
-				"effective_cache_size": "1GB",
-				"max_connections":      "1000",
-				"fsync":                offValue,
-				"synchronous_commit":   offValue,
-				"full_page_writes":     offValue,
-			}).
+			StartParameters(startParams).
 			Logger(os.Stdout),
 	)
 	err := ep.Start()
