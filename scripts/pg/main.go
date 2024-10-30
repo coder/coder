@@ -20,7 +20,15 @@ func main() {
 			Password("postgres").
 			Database("postgres").
 			Port(uint32(5432)).
-			StartParameters(map[string]string{"max_connections": "1000"}).
+			StartParameters(map[string]string{
+				"shared_buffers":       "1GB",
+				"work_mem":             "1GB",
+				"effective_cache_size": "1GB",
+				"max_connections":      "1000",
+				"fsync":                "off",
+				"synchronous_commit":   "off",
+				"full_page_writes":     "off",
+			}).
 			Logger(os.Stdout),
 	)
 	err := ep.Start()

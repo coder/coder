@@ -384,6 +384,7 @@ jobs:
         uses: ./.github/actions/setup-tf
 
       - name: Test with PostgreSQL Database
+        shell: bash
         run: |
           # if macOS, install google-chrome for scaletests and docker.
           # As another concern, should we really have this kind of external dependency
