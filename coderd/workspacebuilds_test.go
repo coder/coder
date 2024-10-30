@@ -1239,7 +1239,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 	//nolint:paralleltest
 	t.Run("NonExistentBuild", func(t *testing.T) {
-		// Given: an inexistent build
+		// Given: a non-existent build
 		buildID := uuid.New()
 
 		// When: fetching timings for the build

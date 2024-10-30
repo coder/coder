@@ -287,7 +287,7 @@ export const agentStages = (section: string): Stage[] => {
 					<>
 						<TooltipTitle>Run startup scripts</TooltipTitle>
 						<TooltipShortDescription>
-							Scripts executed when the agent is starting.
+							Time taken to run each agent startup script.
 						</TooltipShortDescription>
 					</>
 				),
