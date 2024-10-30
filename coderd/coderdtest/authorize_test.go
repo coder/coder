@@ -5,6 +5,7 @@ import (
 	"math/rand"
 	"testing"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -44,11 +45,13 @@ func TestAuthzRecorder(t *testing.T) {
 		require.NoError(t, rec.AllAsserted(), "all assertions should have been made")
 	})
 
-	t.Run("Authorize&Prepared", func(t *testing.T) {
+	t.Run("Authorize_Prepared", func(t *testing.T) {
 		t.Parallel()
 
 		rec := &coderdtest.RecordingAuthorizer{
-			Wrapped: &coderdtest.FakeAuthorizer{},
+			Wrapped: &coderdtest.FakeAuthorizer{
+				RegoAuthorizer: rbac.NewAuthorizer(prometheus.NewRegistry()),
+			},
 		}
 		a := coderdtest.RandomRBACSubject()
 		aPairs := fuzzAuthz(t, a, rec, 10)

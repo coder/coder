@@ -477,7 +477,6 @@ lint/helm:
 DB_GEN_FILES := \
 	coderd/database/querier.go \
 	coderd/database/unique_constraint.go \
-	coderd/database/dbmem/dbmem.go \
 	coderd/database/dbmetrics/dbmetrics.go \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
@@ -768,10 +767,9 @@ test-postgres: test-postgres-docker
 	$(GIT_FLAGS)  DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
+		--jsonfile-timing-events="result/$(shell date +%Y-%m-%d)/$(shell date +%Y-%m-%d-%H-%M-%S)-timings.json" \
 		--packages="./..." -- \
-		-timeout=20m \
-		-failfast \
-		-count=1
+		-timeout=3m
 .PHONY: test-postgres
 
 test-migrations: test-postgres-docker
@@ -799,15 +797,8 @@ test-postgres-docker:
 		--restart no \
 		--detach \
 		--memory 16GB \
-		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
-		-c shared_buffers=1GB \
-		-c work_mem=1GB \
-		-c effective_cache_size=1GB \
-		-c max_connections=1000 \
-		-c fsync=off \
-		-c synchronous_commit=off \
-		-c full_page_writes=off \
-		-c log_statement=all
+		postgres:${POSTGRES_VERSION} \
+		-c max_connections=1000
 	while ! pg_isready -h 127.0.0.1
 	do
 		echo "$(date) - waiting for database to start"

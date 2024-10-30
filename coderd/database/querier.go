@@ -105,6 +105,7 @@ type sqlcQuerier interface {
 	DeleteTailnetTunnel(ctx context.Context, arg DeleteTailnetTunnelParams) (DeleteTailnetTunnelRow, error)
 	DeleteWorkspaceAgentPortShare(ctx context.Context, arg DeleteWorkspaceAgentPortShareParams) error
 	DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, templateID uuid.UUID) error
+	DisableForeignKeys(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
 	// This is used to build up the notification_message's JSON payload.

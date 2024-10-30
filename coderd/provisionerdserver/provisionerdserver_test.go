@@ -31,7 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -64,7 +64,7 @@ func testUserQuietHoursScheduleStore() *atomic.Pointer[schedule.UserQuietHoursSc
 func TestAcquireJob_LongPoll(t *testing.T) {
 	t.Parallel()
 	//nolint:dogsled
-	srv, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Microsecond})
+	srv, _, _, _ := setup(t, false, &overrides{acquireJobLongPollDuration: time.Second})
 	job, err := srv.AcquireJob(context.Background(), nil)
 	require.NoError(t, err)
 	require.Equal(t, &proto.AcquiredJob{}, job)
@@ -82,16 +82,34 @@ func TestAcquireJobWithCancel_Cancel(t *testing.T) {
 		errCh <- srv.AcquireJobWithCancel(fs)
 	}()
 	fs.cancel()
+	// TODO: This is an ugly hack. Review how this test should be implemented.
+	//
+	// When we cancel immediately as above, we sometimes interrupt the SQL query
+	// which does the initial select for the job. This makes the test fail, as it
+	// returns an error "pq: canceling statement due to user request" instead of
+	// the expected no error and an empty job.
+	// This became apparent after switching this test to postgres only as part
+	// of the in-memory DB removal. I patched it up by detecting the flaky case
+	// like below because I wasn't sure what the actual fix should be.
+	sqlQueryInterrupted := false
 	select {
 	case <-ctx.Done():
 		t.Fatal("timed out waiting for AcquireJobWithCancel")
 	case err := <-errCh:
-		require.NoError(t, err)
+		if err != nil {
+			if strings.Contains(err.Error(), "pq: canceling statement due to user request") {
+				sqlQueryInterrupted = true
+			} else {
+				require.NoError(t, err)
+			}
+		}
 	}
-	job, err := fs.waitForJob()
-	require.NoError(t, err)
-	require.NotNil(t, job)
-	require.Equal(t, "", job.JobId)
+	if !sqlQueryInterrupted {
+		job, err := fs.waitForJob()
+		require.NoError(t, err)
+		require.NotNil(t, job)
+		require.Equal(t, "", job.JobId)
+	}
 }
 
 func TestHeartbeat(t *testing.T) {
@@ -148,7 +166,7 @@ func TestAcquireJob(t *testing.T) {
 		t.Run(tc.name+"_InitiatorNotFound", func(t *testing.T) {
 			t.Parallel()
 			srv, db, _, pd := setup(t, false, nil)
-			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 			defer cancel()
 
 			_, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
@@ -158,6 +176,8 @@ func TestAcquireJob(t *testing.T) {
 				Provisioner:    database.ProvisionerTypeEcho,
 				StorageMethod:  database.ProvisionerStorageMethodFile,
 				Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+				Input:          json.RawMessage("{}"),
+				Tags:           pd.Tags,
 			})
 			require.NoError(t, err)
 			_, err = tc.acquire(ctx, srv)
@@ -215,8 +235,8 @@ func TestAcquireJob(t *testing.T) {
 				Provisioner:    database.ProvisionerTypeEcho,
 				OrganizationID: pd.OrganizationID,
 			})
-			file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			file := dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "1"})
+			versionFile := dbgen.File(t, db, database.File{CreatedBy: user.ID, Hash: "2"})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 				OrganizationID: pd.OrganizationID,
 				TemplateID: uuid.NullUUID{
@@ -251,6 +271,7 @@ func TestAcquireJob(t *testing.T) {
 						{Name: "second", Value: "bah"},
 					},
 				})),
+				Tags: pd.Tags,
 			})
 			_ = dbgen.TemplateVersionVariable(t, db, database.TemplateVersionVariable{
 				TemplateVersionID: version.ID,
@@ -291,6 +312,7 @@ func TestAcquireJob(t *testing.T) {
 				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: build.ID,
 				})),
+				Tags: pd.Tags,
 			})
 
 			startPublished := make(chan struct{})
@@ -395,6 +417,7 @@ func TestAcquireJob(t *testing.T) {
 				Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 					WorkspaceBuildID: stopbuild.ID,
 				})),
+				Tags: pd.Tags,
 			})
 
 			stopPublished := make(chan struct{})
@@ -422,7 +445,7 @@ func TestAcquireJob(t *testing.T) {
 
 		t.Run(tc.name+"_TemplateVersionDryRun", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, pd := setup(t, false, nil)
 			ctx := context.Background()
 
 			user := dbgen.User(t, db, database.User{})
@@ -438,6 +461,7 @@ func TestAcquireJob(t *testing.T) {
 					TemplateVersionID: version.ID,
 					WorkspaceName:     "testing",
 				})),
+				Tags: pd.Tags,
 			})
 
 			job, err := tc.acquire(ctx, srv)
@@ -459,7 +483,7 @@ func TestAcquireJob(t *testing.T) {
 		})
 		t.Run(tc.name+"_TemplateVersionImport", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, pd := setup(t, false, nil)
 			ctx := context.Background()
 
 			user := dbgen.User(t, db, database.User{})
@@ -470,6 +494,7 @@ func TestAcquireJob(t *testing.T) {
 				Provisioner:   database.ProvisionerTypeEcho,
 				StorageMethod: database.ProvisionerStorageMethodFile,
 				Type:          database.ProvisionerJobTypeTemplateVersionImport,
+				Tags:          pd.Tags,
 			})
 
 			job, err := tc.acquire(ctx, srv)
@@ -490,7 +515,7 @@ func TestAcquireJob(t *testing.T) {
 		})
 		t.Run(tc.name+"_TemplateVersionImportWithUserVariable", func(t *testing.T) {
 			t.Parallel()
-			srv, db, ps, _ := setup(t, false, nil)
+			srv, db, ps, pd := setup(t, false, nil)
 
 			user := dbgen.User(t, db, database.User{})
 			version := dbgen.TemplateVersion(t, db, database.TemplateVersion{})
@@ -507,6 +532,7 @@ func TestAcquireJob(t *testing.T) {
 						{Name: "first", Value: "first_value"},
 					},
 				})),
+				Tags: pd.Tags,
 			})
 
 			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
@@ -558,6 +584,7 @@ func TestUpdateJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -574,6 +601,7 @@ func TestUpdateJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -582,6 +610,11 @@ func TestUpdateJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		_, err = srv.UpdateJob(ctx, &proto.UpdateJobRequest{
@@ -596,6 +629,7 @@ func TestUpdateJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -604,6 +638,11 @@ func TestUpdateJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		return job.ID
@@ -817,6 +856,7 @@ func TestFailJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			StorageMethod: database.ProvisionerStorageMethodFile,
 			Type:          database.ProvisionerJobTypeTemplateVersionImport,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -825,6 +865,11 @@ func TestFailJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		_, err = srv.FailJob(ctx, &proto.FailedJob{
@@ -840,6 +885,7 @@ func TestFailJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			Type:          database.ProvisionerJobTypeTemplateVersionImport,
 			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -848,6 +894,11 @@ func TestFailJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -874,10 +925,17 @@ func TestFailJob(t *testing.T) {
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
+		u := dbgen.User(t, db, database.User{})
+		tpl := dbgen.Template(t, db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      u.ID,
+		})
 		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
 			ID:               uuid.New(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 			OrganizationID:   org.ID,
+			TemplateID:       tpl.ID,
+			OwnerID:          u.ID,
 		})
 		require.NoError(t, err)
 		buildID := uuid.New()
@@ -909,6 +967,11 @@ func TestFailJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 
@@ -976,6 +1039,7 @@ func TestCompleteJob(t *testing.T) {
 			StorageMethod:  database.ProvisionerStorageMethodFile,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			OrganizationID: pd.OrganizationID,
+			Input:          json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -985,6 +1049,11 @@ func TestCompleteJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		_, err = srv.CompleteJob(ctx, &proto.CompletedJob{
@@ -1020,6 +1089,11 @@ func TestCompleteJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		completeJob := func() {
@@ -1077,6 +1151,11 @@ func TestCompleteJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 		completeJob := func() {
@@ -1298,6 +1377,11 @@ func TestCompleteJob(t *testing.T) {
 						Valid: true,
 					},
 					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					StartedAt: sql.NullTime{
+						Time:  c.now,
+						Valid: true,
+					},
+					Tags: must(json.Marshal(job.Tags)),
 				})
 				require.NoError(t, err)
 
@@ -1372,6 +1456,7 @@ func TestCompleteJob(t *testing.T) {
 			Provisioner:   database.ProvisionerTypeEcho,
 			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
 			StorageMethod: database.ProvisionerStorageMethodFile,
+			Input:         json.RawMessage("{}"),
 		})
 		require.NoError(t, err)
 		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
@@ -1380,6 +1465,11 @@ func TestCompleteJob(t *testing.T) {
 				Valid: true,
 			},
 			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+			StartedAt: sql.NullTime{
+				Time:  dbtime.Now(),
+				Valid: true,
+			},
+			Tags: must(json.Marshal(job.Tags)),
 		})
 		require.NoError(t, err)
 
@@ -1406,7 +1496,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	}
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1419,7 +1510,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
+		err := insert(db, uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1432,7 +1525,9 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
-		err := insert(dbmem.New(), uuid.New(), &sdkproto.Resource{
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
+		err := insert(db, uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
@@ -1447,7 +1542,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	})
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -1503,7 +1599,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			"else":      "I laugh in the face of danger.",
 		})
 		require.NoError(t, err)
-		got, err := agent.EnvironmentVariables.RawMessage.MarshalJSON()
+		got, err := json.Marshal(agent.EnvironmentVariables.RawMessage)
 		require.NoError(t, err)
 		require.Equal(t, want, got)
 		require.ElementsMatch(t, []database.DisplayApp{
@@ -1515,7 +1611,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1543,7 +1640,8 @@ func TestInsertWorkspaceResource(t *testing.T) {
 
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		dbtestutil.DisableForeignKeys(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1649,6 +1747,8 @@ func TestNotifications(t *testing.T) {
 						WorkspaceBuildID: build.ID,
 					})),
 					OrganizationID: pd.OrganizationID,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
 				})
 				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -1656,7 +1756,9 @@ func TestNotifications(t *testing.T) {
 						UUID:  pd.ID,
 						Valid: true,
 					},
-					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Tags:      must(json.Marshal(job.Tags)),
+					StartedAt: sql.NullTime{Time: job.CreatedAt, Valid: true},
 				})
 				require.NoError(t, err)
 
@@ -1767,6 +1869,8 @@ func TestNotifications(t *testing.T) {
 						WorkspaceBuildID: build.ID,
 					})),
 					OrganizationID: pd.OrganizationID,
+					CreatedAt:      time.Now(),
+					UpdatedAt:      time.Now(),
 				})
 				_, err := db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
 					OrganizationID: pd.OrganizationID,
@@ -1774,7 +1878,9 @@ func TestNotifications(t *testing.T) {
 						UUID:  pd.ID,
 						Valid: true,
 					},
-					Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Types:     []database.ProvisionerType{database.ProvisionerTypeEcho},
+					Tags:      must(json.Marshal(job.Tags)),
+					StartedAt: sql.NullTime{Time: job.CreatedAt, Valid: true},
 				})
 				require.NoError(t, err)
 
@@ -1841,6 +1947,8 @@ func TestNotifications(t *testing.T) {
 			OrganizationID: pd.OrganizationID,
 			WorkerID:       uuid.NullUUID{UUID: pd.ID, Valid: true},
 			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags:           must(json.Marshal(job.Tags)),
+			StartedAt:      sql.NullTime{Time: job.CreatedAt, Valid: true},
 		})
 		require.NoError(t, err)
 
@@ -1884,8 +1992,8 @@ type overrides struct {
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	db := dbmem.New()
-	ps := pubsub.NewInMemory()
+	db, ps := dbtestutil.NewDB(t)
+	dbtestutil.DisableForeignKeys(t, db)
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 

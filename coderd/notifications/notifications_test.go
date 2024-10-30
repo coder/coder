@@ -65,11 +65,6 @@ func TestMain(m *testing.M) {
 func TestBasicNotificationRoundtrip(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -132,8 +127,6 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 func TestSMTPDispatch(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -193,8 +186,6 @@ func TestSMTPDispatch(t *testing.T) {
 
 func TestWebhookDispatch(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -263,6 +254,7 @@ func TestWebhookDispatch(t *testing.T) {
 	// This is not strictly necessary for this test, but it's testing some side logic which is too small for its own test.
 	require.Equal(t, payload.Payload.UserName, name)
 	require.Equal(t, payload.Payload.UserUsername, username)
+	// TODO: now that we only use postgres, reevalute
 	// Right now we don't have a way to query notification templates by ID in dbmem, and it's not necessary to add this
 	// just to satisfy this test. We can safely assume that as long as this value is not empty that the given value was delivered.
 	require.NotEmpty(t, payload.Payload.NotificationName)
@@ -272,11 +264,6 @@ func TestWebhookDispatch(t *testing.T) {
 // As a side-effect, this also tests the graceful shutdown and flushing of the buffers.
 func TestBackpressure(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
@@ -400,11 +387,6 @@ func TestBackpressure(t *testing.T) {
 func TestRetries(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -494,11 +476,6 @@ func TestRetries(t *testing.T) {
 // they have been processed.
 func TestExpiredLeaseIsRequeued(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -623,8 +600,6 @@ func TestInvalidConfig(t *testing.T) {
 func TestNotifierPaused(t *testing.T) {
 	t.Parallel()
 
-	// Setup.
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -733,10 +708,6 @@ func enumerateAllTemplates(t *testing.T) ([]string, error) {
 
 func TestNotificationTemplates_Golden(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on the notification templates added by migrations in the database")
-	}
 
 	const (
 		username = "bob"
@@ -1371,11 +1342,6 @@ func normalizeGoldenWebhook(content []byte) []byte {
 func TestDisabledBeforeEnqueue(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -1406,11 +1372,6 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 // sent, and will instead be marked as "inhibited".
 func TestDisabledAfterEnqueue(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
@@ -1464,11 +1425,6 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 func TestCustomNotificationMethod(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
@@ -1476,7 +1432,6 @@ func TestCustomNotificationMethod(t *testing.T) {
 
 	received := make(chan uuid.UUID, 1)
 
-	// SETUP:
 	// Start mock server to simulate webhook endpoint.
 	mockWebhookSrv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		var payload dispatch.WebhookPayload
@@ -1567,12 +1522,6 @@ func TestCustomNotificationMethod(t *testing.T) {
 func TestNotificationsTemplates(t *testing.T) {
 	t.Parallel()
 
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		// Notification system templates are only served from the database and not dbmem at this time.
-		t.Skip("This test requires postgres; it relies on business-logic only implemented in the database")
-	}
-
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
@@ -1604,11 +1553,6 @@ func createOpts(t *testing.T) *coderdtest.Options {
 // TestNotificationDuplicates validates that identical notifications cannot be sent on the same day.
 func TestNotificationDuplicates(t *testing.T) {
 	t.Parallel()
-
-	// SETUP
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("This test requires postgres; it is testing the dedupe hash trigger in the database")
-	}
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))

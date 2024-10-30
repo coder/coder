@@ -13,8 +13,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 )
 
 func TestInTxMetrics(t *testing.T) {
@@ -29,7 +29,7 @@ func TestInTxMetrics(t *testing.T) {
 	t.Run("QueryMetrics", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		reg := prometheus.NewRegistry()
 		db = dbmetrics.NewQueryMetrics(db, slogtest.Make(t, nil), reg)
 
@@ -47,7 +47,7 @@ func TestInTxMetrics(t *testing.T) {
 	t.Run("DBMetrics", func(t *testing.T) {
 		t.Parallel()
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		reg := prometheus.NewRegistry()
 		db = dbmetrics.NewDBMetrics(db, slogtest.Make(t, nil), reg)
 
@@ -72,7 +72,8 @@ func TestInTxMetrics(t *testing.T) {
 		logger := slog.Make(sloghuman.Sink(&output))
 
 		reg := prometheus.NewRegistry()
-		db := dbmetrics.NewDBMetrics(dbmem.New(), logger, reg)
+		db, _ := dbtestutil.NewDB(t)
+		db = dbmetrics.NewDBMetrics(db, logger, reg)
 		const id = "foobar_factory"
 
 		txOpts := database.DefaultTXOptions().WithID(id)

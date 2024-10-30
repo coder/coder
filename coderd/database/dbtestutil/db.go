@@ -21,14 +21,8 @@ import (
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 )
-
-// WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
-func WillUsePostgres() bool {
-	return os.Getenv("DB") != ""
-}
 
 type options struct {
 	fixedTimezone string
@@ -75,10 +69,6 @@ func withReturnSQLDB(f func(*sql.DB)) Option {
 func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub, *sql.DB) {
 	t.Helper()
 
-	if !WillUsePostgres() {
-		t.Fatal("cannot use NewDBWithSQLDB without PostgreSQL, consider adding `if !dbtestutil.WillUsePostgres() { t.Skip() }` to this test")
-	}
-
 	var sqlDB *sql.DB
 	opts = append(opts, withReturnSQLDB(func(db *sql.DB) {
 		sqlDB = db
@@ -86,6 +76,8 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 	db, ps := NewDB(t, opts...)
 	return db, ps, sqlDB
 }
+
+var DefaultTimezone = "Canada/Newfoundland"
 
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
@@ -95,54 +87,50 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		opt(&o)
 	}
 
-	db := dbmem.New()
-	ps := pubsub.NewInMemory()
-	if WillUsePostgres() {
-		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
-		if connectionURL == "" && o.url != "" {
-			connectionURL = o.url
-		}
-		if connectionURL == "" {
-			var (
-				err     error
-				closePg func()
-			)
-			connectionURL, closePg, err = Open()
-			require.NoError(t, err)
-			t.Cleanup(closePg)
-		}
-
-		if o.fixedTimezone == "" {
-			// To make sure we find timezone-related issues, we set the timezone
-			// of the database to a non-UTC one.
-			// The below was picked due to the following properties:
-			// - It has a non-UTC offset
-			// - It has a fractional hour UTC offset
-			// - It includes a daylight savings time component
-			o.fixedTimezone = "Canada/Newfoundland"
-		}
-		dbName := dbNameFromConnectionURL(t, connectionURL)
-		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
-
-		sqlDB, err := sql.Open("postgres", connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = sqlDB.Close()
-		})
-		if o.returnSQLDB != nil {
-			o.returnSQLDB(sqlDB)
-		}
-		if o.dumpOnFailure {
-			t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
-		}
-		db = database.New(sqlDB)
-
-		ps, err = pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
-		require.NoError(t, err)
-		t.Cleanup(func() {
-			_ = ps.Close()
-		})
+	connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
+	if connectionURL == "" && o.url != "" {
+		connectionURL = o.url
 	}
+	if connectionURL == "" {
+		var (
+			err     error
+			closePg func()
+		)
+		connectionURL, closePg, err = Open()
+		require.NoError(t, err)
+		t.Cleanup(closePg)
+	}
+
+	if o.fixedTimezone == "" {
+		// To make sure we find timezone-related issues, we set the timezone
+		// of the database to a non-UTC one.
+		// The below was picked due to the following properties:
+		// - It has a non-UTC offset
+		// - It has a fractional hour UTC offset
+		// - It includes a daylight savings time component
+		o.fixedTimezone = DefaultTimezone
+	}
+	dbName := dbNameFromConnectionURL(t, connectionURL)
+	setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
+
+	sqlDB, err := sql.Open("postgres", connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = sqlDB.Close()
+	})
+	if o.returnSQLDB != nil {
+		o.returnSQLDB(sqlDB)
+	}
+	if o.dumpOnFailure {
+		t.Cleanup(func() { DumpOnFailure(t, connectionURL) })
+	}
+	db := database.New(sqlDB)
+
+	ps, err := pubsub.New(context.Background(), o.logger, sqlDB, connectionURL)
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = ps.Close()
+	})
 
 	return db, ps
 }
@@ -317,4 +305,14 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
 
 	return schema
+}
+
+func DisableForeignKeys(t *testing.T, db database.Store) {
+	err := db.DisableForeignKeys(context.Background())
+	if t != nil {
+		require.NoError(t, err)
+	}
+	if err != nil {
+		panic(err)
+	}
 }

@@ -10320,6 +10320,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "in_memory_database": {
+                    "description": "DEPRECATED",
                     "type": "boolean"
                 },
                 "job_hang_detector_interval": {

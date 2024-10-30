@@ -17,7 +17,6 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -216,10 +215,7 @@ func TestReplica(t *testing.T) {
 		t.Parallel()
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		// This doesn't use the database fake because creating
-		// this many PostgreSQL connections takes some
-		// configuration tweaking.
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		pubsub := pubsub.NewInMemory()
 		logger := slogtest.Make(t, nil)
 		dh := &derpyHandler{}

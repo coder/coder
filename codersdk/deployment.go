@@ -349,7 +349,6 @@ type DeploymentValues struct {
 	ProxyTrustedHeaders             serpent.StringArray                  `json:"proxy_trusted_headers,omitempty" typescript:",notnull"`
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
-	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
@@ -397,6 +396,8 @@ type DeploymentValues struct {
 
 	// DEPRECATED: Use HTTPAddress or TLS.Address instead.
 	Address serpent.HostPort `json:"address,omitempty" typescript:",notnull"`
+	// DEPRECATED
+	InMemoryDatabase serpent.Bool `json:"in_memory_database,omitempty" typescript:",notnull"`
 }
 
 // SSHConfig is configuration the cli & vscode extension use for configuring

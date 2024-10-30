@@ -12,6 +12,7 @@ import (
 
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/cli"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -27,9 +28,14 @@ func TestServer_Single(t *testing.T) {
 	var root cli.RootCmd
 	cmd, err := root.Command(root.EnterpriseSubcommands())
 	require.NoError(t, err)
+
+	connectionURL, cleanup, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+
 	inv, cfg := clitest.NewWithCommand(t, cmd,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 	)

@@ -68,11 +68,6 @@ func TestParseGroupClaims(t *testing.T) {
 func TestGroupSyncTable(t *testing.T) {
 	t.Parallel()
 
-	// Last checked, takes 30s with postgres on a fast machine.
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
-
 	userClaims := jwt.MapClaims{
 		"groups": []string{
 			"foo", "bar", "baz",
@@ -376,10 +371,6 @@ func TestGroupSyncTable(t *testing.T) {
 
 func TestSyncDisabled(t *testing.T) {
 	t.Parallel()
-
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
 
 	db, _ := dbtestutil.NewDB(t)
 	manager := runtimeconfig.NewManager()

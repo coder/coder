@@ -15,7 +15,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -28,7 +27,8 @@ func TestMain(m *testing.M) {
 
 func TestRollup_Close(t *testing.T) {
 	t.Parallel()
-	rolluper := dbrollup.New(slogtest.Make(t, nil), dbmem.New(), dbrollup.WithInterval(250*time.Millisecond))
+	db, _ := dbtestutil.NewDB(t)
+	rolluper := dbrollup.New(slogtest.Make(t, nil), db, dbrollup.WithInterval(250*time.Millisecond))
 	err := rolluper.Close()
 	require.NoError(t, err)
 }
@@ -51,10 +51,6 @@ func (w *wrapUpsertDB) UpsertTemplateUsageStats(ctx context.Context) error {
 
 func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 	t.Parallel()
-
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test; only works with PostgreSQL.")
-	}
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)

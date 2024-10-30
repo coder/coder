@@ -26,10 +26,6 @@ import (
 func TestRoleSyncTable(t *testing.T) {
 	t.Parallel()
 
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("Skipping test because it populates a lot of db entries, which is slow on postgres.")
-	}
-
 	userClaims := jwt.MapClaims{
 		"roles": []string{
 			"foo", "bar", "baz",

@@ -13,15 +13,18 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/metricscache"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
-func date(year, month, day int) time.Time {
-	return time.Date(year, time.Month(month), day, 0, 0, 0, 0, time.UTC)
+func must[T any](value T, err error) T {
+	if err != nil {
+		panic(err)
+	}
+	return value
 }
 
 func TestCache_TemplateWorkspaceOwners(t *testing.T) {
@@ -29,7 +32,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	var ()
 
 	var (
-		db    = dbmem.New()
+		db, _ = dbtestutil.NewDB(t)
 		cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 			TemplateBuildTimes: testutil.IntervalFast,
 		}, false)
@@ -39,19 +42,20 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 
 	user1 := dbgen.User(t, db, database.User{})
 	user2 := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
 	template := dbgen.Template(t, db, database.Template{
-		Provisioner: database.ProvisionerTypeEcho,
+		Provisioner:    database.ProvisionerTypeEcho,
+		OrganizationID: org.ID,
+		CreatedBy:      user1.ID,
 	})
-	require.Eventuallyf(t, func() bool {
-		count, ok := cache.TemplateWorkspaceOwners(template.ID)
-		return ok && count == 0
-	}, testutil.WaitShort, testutil.IntervalMedium,
-		"TemplateWorkspaceOwners never populated 0 owners",
-	)
+
+	// We don't check for 0 count of owners because the underlying query
+	// does not return 0 counts for templates without workspaces.
 
 	dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID: template.ID,
-		OwnerID:    user1.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user1.ID,
+		OrganizationID: org.ID,
 	})
 
 	require.Eventuallyf(t, func() bool {
@@ -62,8 +66,9 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	)
 
 	workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID: template.ID,
-		OwnerID:    user2.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user2.ID,
+		OrganizationID: org.ID,
 	})
 
 	require.Eventuallyf(t, func() bool {
@@ -75,8 +80,9 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 
 	// 3rd workspace should not be counted since we have the same owner as workspace2.
 	dbgen.Workspace(t, db, database.WorkspaceTable{
-		TemplateID: template.ID,
-		OwnerID:    user1.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user1.ID,
+		OrganizationID: org.ID,
 	})
 
 	db.UpdateWorkspaceDeletedByID(context.Background(), database.UpdateWorkspaceDeletedByIDParams{
@@ -105,7 +111,7 @@ func requireBuildTimeStatsEmpty(t *testing.T, stats codersdk.TemplateBuildTimeSt
 func TestCache_BuildTime(t *testing.T) {
 	t.Parallel()
 
-	someDay := date(2022, 10, 1)
+	someDay := time.Now().Add(24 * time.Hour)
 
 	type jobParams struct {
 		startedAt   time.Time
@@ -150,7 +156,9 @@ func TestCache_BuildTime(t *testing.T) {
 					},
 				},
 				transition: database.WorkspaceTransitionStop,
-			}, want{30 * 1000, true},
+				// The underlying query uses PERCENTILE_DISC(0.5) to calculate P50,
+				// so we get 10 seconds
+			}, want{10 * 1000, true},
 		},
 		{
 			"three/delete", args{
@@ -178,42 +186,54 @@ func TestCache_BuildTime(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := context.Background()
-
-			var (
-				db    = dbmem.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
-					TemplateBuildTimes: testutil.IntervalFast,
-				}, false)
-			)
+			db, ps := dbtestutil.NewDB(t)
+			cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+				TemplateBuildTimes: testutil.IntervalFast,
+			}, false)
 
 			defer cache.Close()
 
 			id := uuid.New()
+			org := dbgen.Organization(t, db, database.Organization{})
+			u := dbgen.User(t, db, database.User{})
 			err := db.InsertTemplate(ctx, database.InsertTemplateParams{
 				ID:                  id,
 				Provisioner:         database.ProvisionerTypeEcho,
 				MaxPortSharingLevel: database.AppSharingLevelOwner,
+				OrganizationID:      org.ID,
+				CreatedBy:           u.ID,
 			})
 			require.NoError(t, err)
 			template, err := db.GetTemplateByID(ctx, id)
 			require.NoError(t, err)
 
 			templateVersionID := uuid.New()
-			err = db.InsertTemplateVersion(ctx, database.InsertTemplateVersionParams{
-				ID:         templateVersionID,
-				TemplateID: uuid.NullUUID{UUID: template.ID, Valid: true},
+			pj := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
+				ID:             uuid.New(),
+				Provisioner:    database.ProvisionerTypeEcho,
+				OrganizationID: org.ID,
 			})
-			require.NoError(t, err)
+			_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				ID:             templateVersionID,
+				TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+				CreatedBy:      u.ID,
+				JobID:          pj.ID,
+				OrganizationID: org.ID,
+			})
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				TemplateID:     template.ID,
+				OwnerID:        u.ID,
+				OrganizationID: org.ID,
+			})
 
-			gotStats := cache.TemplateBuildTimeStats(template.ID)
-			requireBuildTimeStatsEmpty(t, gotStats)
-
-			for _, row := range tt.args.rows {
-				_, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
-					ID:            uuid.New(),
-					Provisioner:   database.ProvisionerTypeEcho,
-					StorageMethod: database.ProvisionerStorageMethodFile,
-					Type:          database.ProvisionerJobTypeWorkspaceBuild,
+			for i, row := range tt.args.rows {
+				j, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+					ID:             uuid.New(),
+					Provisioner:    database.ProvisionerTypeEcho,
+					StorageMethod:  database.ProvisionerStorageMethodFile,
+					Type:           database.ProvisionerJobTypeWorkspaceBuild,
+					Input:          json.RawMessage(`{"main": "true"}`),
+					OrganizationID: org.ID,
 				})
 				require.NoError(t, err)
 
@@ -222,14 +242,20 @@ func TestCache_BuildTime(t *testing.T) {
 					Types: []database.ProvisionerType{
 						database.ProvisionerTypeEcho,
 					},
+					Tags:           must(json.Marshal(j.Tags)),
+					OrganizationID: org.ID,
 				})
 				require.NoError(t, err)
 
 				err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
+					ID:                uuid.New(),
 					TemplateVersionID: templateVersionID,
 					JobID:             job.ID,
 					Transition:        tt.args.transition,
 					Reason:            database.BuildReasonInitiator,
+					WorkspaceID:       workspace.ID,
+					// nolint:gosec
+					BuildNumber: int32(i),
 				})
 				require.NoError(t, err)
 
@@ -248,8 +274,7 @@ func TestCache_BuildTime(t *testing.T) {
 				}, testutil.WaitLong, testutil.IntervalMedium,
 					"BuildTime never populated",
 				)
-
-				gotStats = cache.TemplateBuildTimeStats(template.ID)
+				gotStats := cache.TemplateBuildTimeStats(template.ID)
 				for transition, stats := range gotStats {
 					if transition == wantTransition {
 						require.Equal(t, tt.want.buildTimeMs, *stats.P50)
@@ -275,7 +300,7 @@ func TestCache_BuildTime(t *testing.T) {
 
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
-	db := dbmem.New()
+	db, _ := dbtestutil.NewDB(t)
 	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
 	}, false)

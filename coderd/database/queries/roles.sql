@@ -69,5 +69,8 @@ SET
 	updated_at = now()
 WHERE
 	name = lower(@name)
-	AND organization_id = @organization_id
+	AND CASE
+		WHEN sqlc.narg('organization_id') :: uuid IS NULL THEN organization_id IS NULL
+		ELSE organization_id = sqlc.narg('organization_id') :: uuid
+	END
 RETURNING *;

@@ -54,6 +54,13 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+func openTestDb(t *testing.T) string {
+	connectionURL, cleanup, err := dbtestutil.Open()
+	require.NoError(t, err)
+	t.Cleanup(cleanup)
+	return connectionURL
+}
+
 func TestReadExternalAuthProvidersFromEnv(t *testing.T) {
 	t.Parallel()
 	t.Run("Valid", func(t *testing.T) {
@@ -207,9 +214,11 @@ func TestServer(t *testing.T) {
 	// reachable.
 	t.Run("LocalAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL := openTestDb(t)
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://localhost:3000/",
 			"--cache-dir", t.TempDir(),
@@ -229,10 +238,11 @@ func TestServer(t *testing.T) {
 	// and that a warning is printed for a host that cannot be resolved.
 	t.Run("RemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL := openTestDb(t)
 
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
@@ -251,9 +261,11 @@ func TestServer(t *testing.T) {
 
 	t.Run("NoWarningWithRemoteAccessURL", func(t *testing.T) {
 		t.Parallel()
+		connectionURL := openTestDb(t)
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://google.com",
 			"--cache-dir", t.TempDir(),
@@ -273,9 +285,11 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "google.com",
 			"--cache-dir", t.TempDir(),
@@ -289,9 +303,11 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -307,9 +323,11 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		root, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "http://example.com",
 			"--tls-enable",
@@ -360,9 +378,11 @@ func TestServer(t *testing.T) {
 				ctx, cancelFunc := context.WithCancel(context.Background())
 				defer cancelFunc()
 
+				connectionURL := openTestDb(t)
+
 				args := []string{
 					"server",
-					"--in-memory",
+					"--postgres-url", connectionURL,
 					"--http-address", ":0",
 					"--access-url", "http://example.com",
 					"--cache-dir", t.TempDir(),
@@ -381,10 +401,12 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		certPath, keyPath := generateTLSCertificate(t)
 		root, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -416,11 +438,13 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		cert1Path, key1Path := generateTLSCertificate(t, "alpaca.com")
 		cert2Path, key2Path := generateTLSCertificate(t, "*.llama.com")
 		root, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -497,10 +521,12 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		certPath, keyPath := generateTLSCertificate(t)
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "https://example.com",
 			"--tls-enable",
@@ -625,10 +651,12 @@ func TestServer(t *testing.T) {
 					httpListenAddr = ":0"
 				}
 
+				connectionURL := openTestDb(t)
+
 				certPath, keyPath := generateTLSCertificate(t)
 				flags := []string{
 					"server",
-					"--in-memory",
+					"--postgres-url", connectionURL,
 					"--cache-dir", t.TempDir(),
 					"--http-address", httpListenAddr,
 				}
@@ -738,41 +766,32 @@ func TestServer(t *testing.T) {
 
 	t.Run("CanListenUnspecifiedv4", func(t *testing.T) {
 		t.Parallel()
-		ctx, cancelFunc := context.WithCancel(context.Background())
-		defer cancelFunc()
 
-		root, _ := clitest.New(t,
+		connectionURL := openTestDb(t)
+
+		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "0.0.0.0:0",
 			"--access-url", "http://example.com",
 		)
 
-		pty := ptytest.New(t)
-		root.Stdout = pty.Output()
-		root.Stderr = pty.Output()
-		serverStop := make(chan error, 1)
-		go func() {
-			err := root.WithContext(ctx).Run()
-			if err != nil {
-				t.Error(err)
-			}
-			close(serverStop)
-		}()
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
 
-		cancelFunc()
-		<-serverStop
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
 		t.Parallel()
 
+		connectionURL := openTestDb(t)
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", "[::]:0",
 			"--access-url", "http://example.com",
 		)
@@ -789,9 +808,11 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":80",
 			"--tls-enable=false",
 			"--tls-address", "",
@@ -806,9 +827,11 @@ func TestServer(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 
+		connectionURL := openTestDb(t)
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--tls-enable=true",
 			"--tls-address", "",
 		)
@@ -829,9 +852,11 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL := openTestDb(t)
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--address", ":0",
 				"--access-url", "http://example.com",
 				"--cache-dir", t.TempDir(),
@@ -855,10 +880,12 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL := openTestDb(t)
+
 			certPath, keyPath := generateTLSCertificate(t)
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--address", ":0",
 				"--access-url", "https://example.com",
 				"--tls-enable",
@@ -893,9 +920,11 @@ func TestServer(t *testing.T) {
 	t.Run("TracerNoLeak", func(t *testing.T) {
 		t.Parallel()
 
+		connectionURL := openTestDb(t)
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--trace=true",
@@ -927,9 +956,11 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
+		connectionURL := openTestDb(t)
+
 		inv, _ := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--telemetry",
@@ -951,9 +982,11 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
+			connectionURL := openTestDb(t)
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
@@ -1007,9 +1040,11 @@ func TestServer(t *testing.T) {
 			defer cancel()
 
 			randPort := testutil.RandomPort(t)
+			connectionURL := openTestDb(t)
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons", "1",
@@ -1053,9 +1088,11 @@ func TestServer(t *testing.T) {
 		t.Parallel()
 
 		fakeRedirect := "https://fake-url.com"
+		connectionURL := openTestDb(t)
+
 		inv, cfg := clitest.New(t,
 			"server",
-			"--in-memory",
+			"--postgres-url", connectionURL,
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--oauth2-github-allow-everyone",
@@ -1100,9 +1137,11 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
+			connectionURL := openTestDb(t)
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
@@ -1176,9 +1215,11 @@ func TestServer(t *testing.T) {
 			oidcServer.Config.Handler = http.HandlerFunc(fakeWellKnownHandler)
 			t.Cleanup(oidcServer.Close)
 
+			connectionURL := openTestDb(t)
+
 			inv, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--oidc-client-id", "fake",
@@ -1270,9 +1311,11 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL := openTestDb(t)
+
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 			)
@@ -1297,10 +1340,12 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL := openTestDb(t)
+
 			val := "100"
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", val,
@@ -1326,9 +1371,11 @@ func TestServer(t *testing.T) {
 			ctx, cancelFunc := context.WithCancel(context.Background())
 			defer cancelFunc()
 
+			connectionURL := openTestDb(t)
+
 			root, cfg := clitest.New(t,
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--api-rate-limit", "-1",
@@ -1377,10 +1424,12 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fiName := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL := openTestDb(t)
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1396,10 +1445,12 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL := openTestDb(t)
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1415,10 +1466,12 @@ func TestServer(t *testing.T) {
 			t.Parallel()
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL := openTestDb(t)
+
 			root, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1437,10 +1490,12 @@ func TestServer(t *testing.T) {
 
 			fi := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL := openTestDb(t)
+
 			inv, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1469,6 +1524,8 @@ func TestServer(t *testing.T) {
 			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
 			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
 
+			connectionURL := openTestDb(t)
+
 			// NOTE(mafredri): This test might end up downloading Terraform
 			// which can take a long time and end up failing the test.
 			// This is why we wait extra long below for server to listen on
@@ -1476,7 +1533,7 @@ func TestServer(t *testing.T) {
 			inv, _ := clitest.New(t,
 				"server",
 				"--log-filter=.*",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--provisioner-daemons=3",
@@ -1489,7 +1546,11 @@ func TestServer(t *testing.T) {
 			// fails.
 			pty := ptytest.New(t).Attach(inv)
 
-			clitest.Start(t, inv)
+			// I found that running clitest.Start(t, inv) without context
+			// would make the server unable to execute SQL queries with a db
+			// created with a call to database.New(sqlDB) in cli/server.go.
+			// They would just hang indefinitely. I do not understand why.
+			clitest.Start(t, inv.WithContext(ctx))
 
 			// Wait for server to listen on HTTP, this is a good
 			// starting point for expecting logs.
@@ -1510,9 +1571,11 @@ func TestServer(t *testing.T) {
 			ctx, cancel := context.WithCancel(context.Background())
 			defer cancel()
 
+			connectionURL := openTestDb(t)
+
 			args := []string{
 				"server",
-				"--in-memory",
+				"--postgres-url", connectionURL,
 				"--http-address", ":0",
 				"--access-url", "http://example.com",
 				"--log-human", filepath.Join(t.TempDir(), "coder-logging-test-human"),
@@ -1598,9 +1661,7 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	defer closeFunc()
+	connectionURL := openTestDb(t)
 
 	// Postgres + race detector + CI = slow.
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
@@ -1617,7 +1678,7 @@ func TestServer_Production(t *testing.T) {
 	accessURL := waitAccessURL(t, cfg)
 	client := codersdk.New(accessURL)
 
-	_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
+	_, err := client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
 	require.NoError(t, err)
 }
 
@@ -1632,9 +1693,11 @@ func TestServer_InterruptShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	connectionURL := openTestDb(t)
+
 	root, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
@@ -1664,9 +1727,11 @@ func TestServer_GracefulShutdown(t *testing.T) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
 
+	connectionURL := openTestDb(t)
+
 	root, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--provisioner-daemons", "1",
@@ -1795,9 +1860,6 @@ func TestServerYAMLConfig(t *testing.T) {
 func TestConnectToPostgres(t *testing.T) {
 	t.Parallel()
 
-	if !dbtestutil.WillUsePostgres() {
-		t.Skip("this test does not make sense without postgres")
-	}
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	t.Cleanup(cancel)
 
@@ -1820,9 +1882,11 @@ func TestServer_InvalidDERP(t *testing.T) {
 
 	// Try to start a server with the built-in DERP server disabled and no
 	// external DERP map.
+	connectionURL := openTestDb(t)
+
 	inv, _ := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",
@@ -1846,11 +1910,13 @@ func TestServer_DisabledDERP(t *testing.T) {
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancelFunc()
 
+	connectionURL := openTestDb(t)
+
 	// Try to start a server with the built-in DERP server disabled and an
 	// external DERP map.
 	inv, cfg := clitest.New(t,
 		"server",
-		"--in-memory",
+		"--postgres-url", connectionURL,
 		"--http-address", ":0",
 		"--access-url", "http://example.com",
 		"--derp-server-enable=false",

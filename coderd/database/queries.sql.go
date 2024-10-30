@@ -7116,7 +7116,10 @@ SET
 	updated_at = now()
 WHERE
 	name = lower($5)
-	AND organization_id = $6
+	AND CASE
+		WHEN $6 :: uuid IS NULL THEN organization_id IS NULL
+		ELSE organization_id = $6 :: uuid
+	END
 RETURNING name, display_name, site_permissions, org_permissions, user_permissions, created_at, updated_at, organization_id, id
 `
 
@@ -9681,6 +9684,30 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 	var i TemplateVersionWorkspaceTag
 	err := row.Scan(&i.TemplateVersionID, &i.Key, &i.Value)
 	return i, err
+}
+
+const disableForeignKeys = `-- name: DisableForeignKeys :exec
+DO $$
+DECLARE
+    table_record record;
+BEGIN
+    FOR table_record IN 
+        SELECT table_schema, table_name 
+        FROM information_schema.tables 
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+        AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
+                    table_record.table_schema, 
+                    table_record.table_name);
+    END LOOP;
+END;
+$$
+`
+
+func (q *sqlQuerier) DisableForeignKeys(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, disableForeignKeys)
+	return err
 }
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
