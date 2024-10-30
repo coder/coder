@@ -383,17 +383,6 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Setup Postgres
-        uses: ikalnytskyi/action-setup-postgres@v7
-        with:
-          username: postgres
-          password: postgres
-          database: postgres
-          port: 5432
-          postgres-version: "16"
-          ssl: false
-        id: postgres
-
       - name: Test with PostgreSQL Database
         run: |
           # if macOS, install google-chrome for scaletests and docker.
@@ -412,6 +401,9 @@ jobs:
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
+
+          # start embedded postgres
+          go run scripts/pg/main.go
 
           gotestsum --format standard-quiet -- -v -short -count=1 ./...
 
