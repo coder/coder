@@ -27,7 +27,7 @@ import (
 const defaultRefreshRate = time.Minute
 
 // ActiveUsers tracks the number of users that have authenticated within the past hour.
-func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		duration = defaultRefreshRate
 	}
@@ -58,6 +58,7 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, dbtime.Now().Add(-1*time.Hour))
 			if err != nil {
+				logger.Error(ctx, "get api keys", slog.Error(err))
 				continue
 			}
 			distinctUsers := map[uuid.UUID]struct{}{}
@@ -65,6 +66,55 @@ func ActiveUsers(ctx context.Context, registerer prometheus.Registerer, db datab
 				distinctUsers[apiKey.UserID] = struct{}{}
 			}
 			gauge.Set(float64(len(distinctUsers)))
+		}
+	}()
+	return func() {
+		cancelFunc()
+		<-done
+	}, nil
+}
+
+// Users tracks the total user count, broken out by status..
+func Users(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+	if duration == 0 {
+		// It's not super important this tracks real-time.
+		duration = defaultRefreshRate * 5
+	}
+
+	gauge := prometheus.NewGaugeVec(prometheus.GaugeOpts{
+		Namespace: "coderd",
+		Subsystem: "api",
+		Name:      "total_user_count",
+		Help:      "The total number of users, broken out by status.",
+	}, []string{"status"})
+	err := registerer.Register(gauge)
+	if err != nil {
+		return nil, err
+	}
+
+	ctx, cancelFunc := context.WithCancel(ctx)
+	done := make(chan struct{})
+	ticker := time.NewTicker(duration)
+	go func() {
+		defer close(done)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ctx.Done():
+				return
+			case <-ticker.C:
+			}
+
+			gauge.Reset()
+			users, err := db.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
+			if err != nil {
+				logger.Error(ctx, "get users", slog.Error(err))
+				continue
+			}
+
+			for _, user := range users {
+				gauge.WithLabelValues(string(user.Status)).Inc()
+			}
 		}
 	}()
 	return func() {

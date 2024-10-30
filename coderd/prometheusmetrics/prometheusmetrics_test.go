@@ -98,7 +98,7 @@ func TestActiveUsers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(t), time.Millisecond)
+			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), slogtest.Make(t, nil), registry, tc.Database(t), time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -108,6 +108,81 @@ func TestActiveUsers(t *testing.T) {
 				result := int(*metrics[0].Metric[0].Gauge.Value)
 				return result == tc.Count
 			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
+}
+
+func TestUsers(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name     string
+		Database func(t *testing.T) database.Store
+		Count    map[string]int
+	}{{
+		Name: "None",
+		Database: func(t *testing.T) database.Store {
+			return dbmem.New()
+		},
+		Count: map[string]int{},
+	}, {
+		Name: "One",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			return db
+		},
+		Count: map[string]int{"active": 1},
+	}, {
+		Name: "MultipleStatuses",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+
+			return db
+		},
+		Count: map[string]int{"active": 1, "dormant": 1},
+	}, {
+		Name: "MultipleActive",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			return db
+		},
+		Count: map[string]int{"active": 3},
+	}} {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			registry := prometheus.NewRegistry()
+			closeFunc, err := prometheusmetrics.Users(context.Background(), slogtest.Make(t, nil), registry, tc.Database(t), time.Millisecond)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			require.Eventually(t, func() bool {
+				metrics, err := registry.Gather()
+				if err != nil {
+					return false
+				}
+
+				// If we get no metrics and we know none should exist, bail
+				// early. If we get no metrics but we expect some, retry.
+				if len(metrics) == 0 {
+					return len(tc.Count) == 0
+				}
+
+				for _, metric := range metrics[0].Metric {
+					if tc.Count[*metric.Label[0].Value] != int(metric.Gauge.GetValue()) {
+						return false
+					}
+				}
+
+				return true
+			}, testutil.WaitShort, testutil.IntervalSlow)
 		})
 	}
 }
