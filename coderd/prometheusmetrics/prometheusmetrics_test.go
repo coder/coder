@@ -127,13 +127,14 @@ func TestUsers(t *testing.T) {
 	}{{
 		Name: "None",
 		Database: func(t *testing.T) database.Store {
-			return dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
+			return db
 		},
 		Count: map[database.UserStatus]int{},
 	}, {
 		Name: "One",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 			return db
 		},
@@ -141,7 +142,7 @@ func TestUsers(t *testing.T) {
 	}, {
 		Name: "MultipleStatuses",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 
 			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 			dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
@@ -152,7 +153,7 @@ func TestUsers(t *testing.T) {
 	}, {
 		Name: "MultipleActive",
 		Database: func(t *testing.T) database.Store {
-			db := dbmem.New()
+			db, _ := dbtestutil.NewDB(t)
 			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
 			dbgen.User(t, db, database.User{Status: database.UserStatusActive})

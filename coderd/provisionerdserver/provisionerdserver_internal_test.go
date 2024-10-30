@@ -40,7 +40,7 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 	})
 	t.Run("MissingLink", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		user := dbgen.User(t, db, database.User{
 			LoginType: database.LoginTypeOIDC,
 		})
