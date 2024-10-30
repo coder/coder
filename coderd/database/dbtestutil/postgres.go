@@ -39,7 +39,7 @@ func (p ConnectionParams) DSN() string {
 
 var connectionParamsInitOnce sync.Once
 var defaultConnectionParams ConnectionParams
-var defaultConnectionParamsInitErr error
+var errDefaultConnectionParamsInit error
 
 func initDefaultConnectionParams() error {
 	params := ConnectionParams{
@@ -111,10 +111,10 @@ func initDefaultConnectionParams() error {
 // Open creates a new PostgreSQL database instance.
 func Open() (string, func(), error) {
 	connectionParamsInitOnce.Do(func() {
-		defaultConnectionParamsInitErr = initDefaultConnectionParams()
+		errDefaultConnectionParamsInit = initDefaultConnectionParams()
 	})
-	if defaultConnectionParamsInitErr != nil {
-		return "", func() {}, xerrors.Errorf("init default connection params: %w", defaultConnectionParamsInitErr)
+	if errDefaultConnectionParamsInit != nil {
+		return "", func() {}, xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
 	}
 
 	var (
