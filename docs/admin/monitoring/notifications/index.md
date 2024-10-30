@@ -89,34 +89,34 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                               | Env                                   | Type        | Description                               | Default       |
-| :------: | --------------------------------- | ------------------------------------- | ----------- | ----------------------------------------- | ------------- |
-|    ✔️    | `--notifications-email-from`      | `CODER_NOTIFICATIONS_EMAIL_FROM`      | `string`    | The sender's address to use.              |               |
-|    ✔️    | `--notifications-email-smarthost` | `CODER_NOTIFICATIONS_EMAIL_SMARTHOST` | `host:port` | The SMTP relay to send messages through.  | localhost:587 |
-|    ✔️    | `--notifications-email-hello`     | `CODER_NOTIFICATIONS_EMAIL_HELLO`     | `string`    | The hostname identifying the SMTP server. | localhost     |
+| Required | CLI                 | Env                     | Type        | Description                               | Default       |
+| :------: | ------------------- | ----------------------- | ----------- | ----------------------------------------- | ------------- |
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string`    | The sender's address to use.              |               |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `host:port` | The SMTP relay to send messages through.  | localhost:587 |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string`    | The hostname identifying the SMTP server. | localhost     |
 
 **Authentication Settings:**
 
-| Required | CLI                                        | Env                                            | Type     | Description                                                               |
-| :------: | ------------------------------------------ | ---------------------------------------------- | -------- | ------------------------------------------------------------------------- |
-|    -     | `--notifications-email-auth-username`      | `CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME`      | `string` | Username to use with PLAIN/LOGIN authentication.                          |
-|    -     | `--notifications-email-auth-password`      | `CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD`      | `string` | Password to use with PLAIN/LOGIN authentication.                          |
-|    -     | `--notifications-email-auth-password-file` | `CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE` | `string` | File from which to load password for use with PLAIN/LOGIN authentication. |
-|    -     | `--notifications-email-auth-identity`      | `CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY`      | `string` | Identity to use with PLAIN authentication.                                |
+| Required | CLI                          | Env                              | Type     | Description                                                               |
+| :------: | ---------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------- |
+|    -     | `--email-auth-username`      | `CODER_EMAIL_AUTH_USERNAME`      | `string` | Username to use with PLAIN/LOGIN authentication.                          |
+|    -     | `--email-auth-password`      | `CODER_EMAIL_AUTH_PASSWORD`      | `string` | Password to use with PLAIN/LOGIN authentication.                          |
+|    -     | `--email-auth-password-file` | `CODER_EMAIL_AUTH_PASSWORD_FILE` | `string` | File from which to load password for use with PLAIN/LOGIN authentication. |
+|    -     | `--email-auth-identity`      | `CODER_EMAIL_AUTH_IDENTITY`      | `string` | Identity to use with PLAIN authentication.                                |
 
 **TLS Settings:**
 
-| Required | CLI                                       | Env                                         | Type     | Description                                                                                                                                                      | Default |
-| :------: | ----------------------------------------- | ------------------------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-|    -     | `--notifications-email-force-tls`         | `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See https://datatracker.ietf.org/doc/html/rfc8314#section-3.3. | false   |
-|    -     | `--notifications-email-tls-starttls`      | `CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                         | false   |
-|    -     | `--notifications-email-tls-skip-verify`   | `CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                             | false   |
-|    -     | `--notifications-email-tls-server-name`   | `CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                            |         |
-|    -     | `--notifications-email-tls-cert-file`     | `CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
-|    -     | `--notifications-email-tls-cert-key-file` | `CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
+| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                      | Default |
+| :------: | --------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
+|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See https://datatracker.ietf.org/doc/html/rfc8314#section-3.3. | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                         | false   |
+|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                             | false   |
+|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                            |         |
+|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
+|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
 
-**NOTE:** you _MUST_ use `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` if your smarthost
-supports TLS on a port other than `465`.
+**NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
+on a port other than `465`.
 
 ### Send emails using G-Suite
 
@@ -126,9 +126,9 @@ After setting the required fields above:
    account you wish to send from
 2. Set the following configuration options:
    ```
-   CODER_NOTIFICATIONS_EMAIL_SMARTHOST=smtp.gmail.com:465
-   CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME=<user>@<domain>
-   CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD="<app password created above>"
+   CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
+   CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
+   CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
    ```
 
 See
@@ -142,10 +142,10 @@ After setting the required fields above:
 1. Setup an account on Microsoft 365 or outlook.com
 2. Set the following configuration options:
    ```
-   CODER_NOTIFICATIONS_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
-   CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS=true
-   CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME=<user>@<domain>
-   CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD="<account password>"
+   CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
+   CODER_EMAIL_TLS_STARTTLS=true
+   CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
+   CODER_EMAIL_AUTH_PASSWORD="<account password>"
    ```
 
 See
