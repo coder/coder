@@ -39,6 +39,7 @@ func (p ConnectionParams) DSN() string {
 
 var connectionParamsInitOnce sync.Once
 var defaultConnectionParams ConnectionParams
+var defaultConnectionParamsInitErr error
 
 func initDefaultConnectionParams() error {
 	params := ConnectionParams{
@@ -56,7 +57,21 @@ func initDefaultConnectionParams() error {
 			return xerrors.Errorf("close db: %w", closeErr)
 		}
 	}
-	if err != nil && strings.Contains(err.Error(), "connection refused") {
+	shouldOpenContainer := false
+	if err != nil {
+		errSubstrings := []string{
+			"connection refused",          // this happens on Linux when there's nothing listening on the port
+			"No connection could be made", // like above but Windows
+		}
+		errString := err.Error()
+		for _, errSubstring := range errSubstrings {
+			if strings.Contains(errString, errSubstring) {
+				shouldOpenContainer = true
+				break
+			}
+		}
+	}
+	if err != nil && shouldOpenContainer {
 		// If there's no database running on the default port, we'll start a
 		// postgres container. We won't be cleaning it up so it can be reused
 		// by subsequent tests. It'll keep on running until the user terminates
@@ -95,12 +110,11 @@ func initDefaultConnectionParams() error {
 
 // Open creates a new PostgreSQL database instance.
 func Open() (string, func(), error) {
-	var err error
 	connectionParamsInitOnce.Do(func() {
-		err = initDefaultConnectionParams()
+		defaultConnectionParamsInitErr = initDefaultConnectionParams()
 	})
-	if err != nil {
-		return "", func() {}, xerrors.Errorf("init default connection params: %w", err)
+	if defaultConnectionParamsInitErr != nil {
+		return "", func() {}, xerrors.Errorf("init default connection params: %w", defaultConnectionParamsInitErr)
 	}
 
 	var (
