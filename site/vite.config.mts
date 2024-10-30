@@ -92,6 +92,7 @@ export default defineConfig({
 			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
 			theme: path.resolve(__dirname, "./src/theme"),
 			utils: path.resolve(__dirname, "./src/utils"),
+			"@": path.resolve(__dirname, "./src"),
 		},
 	},
 });

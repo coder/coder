@@ -150,6 +150,7 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							</Stack>
 						</SidebarNavSubItem>
 					)}
+					<SidebarNavSubItem href="premium">Premium</SidebarNavSubItem>
 				</Stack>
 			)}
 		</div>
