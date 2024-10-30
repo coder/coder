@@ -1183,8 +1183,9 @@ func TestPostWorkspaceBuild(t *testing.T) {
 	})
 }
 
-//nolint:paralleltest
 func TestWorkspaceBuildTimings(t *testing.T) {
+	t.Parallel()
+
 	// Setup the test environment with a template and version
 	db, pubsub := dbtestutil.NewDB(t)
 	client := coderdtest.New(t, &coderdtest.Options{
@@ -1237,8 +1238,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		})
 	}
 
-	//nolint:paralleltest
 	t.Run("NonExistentBuild", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a non-existent build
 		buildID := uuid.New()
 
@@ -1252,8 +1254,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		require.Contains(t, err.Error(), "not found")
 	})
 
-	//nolint:paralleltest
 	t.Run("EmptyTimings", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with no timings
 		build := makeBuild()
 
@@ -1268,8 +1271,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		require.Empty(t, res.AgentScriptTimings)
 	})
 
-	//nolint:paralleltest
 	t.Run("ProvisionerTimings", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with provisioner timings
 		build := makeBuild()
 		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
@@ -1295,8 +1299,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
-	//nolint:paralleltest
 	t.Run("AgentScriptTimings", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with agent script timings
 		build := makeBuild()
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -1331,8 +1336,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
-	//nolint:paralleltest
 	t.Run("NoAgentScripts", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with no agent scripts
 		build := makeBuild()
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -1353,8 +1359,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 	})
 
 	// Some workspaces might not have agents. It is improbable, but possible.
-	//nolint:paralleltest
 	t.Run("NoAgents", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with no agents
 		build := makeBuild()
 		dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -1369,10 +1376,12 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// Then: return a response with empty agent script timings
 		require.Empty(t, res.AgentScriptTimings)
+		require.Empty(t, res.AgentConnectionTimings)
 	})
 
-	//nolint:paralleltest
 	t.Run("AgentConnectionTimings", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with multiple agents
 		build := makeBuild()
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
