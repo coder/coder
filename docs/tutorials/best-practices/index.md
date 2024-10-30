@@ -1,0 +1,3 @@
+# Best practices
+
+<children></children>

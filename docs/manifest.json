@@ -727,6 +727,7 @@
 				{
 					"title": "Best practices",
 					"description": "Guides to help you make the most of your Coder experience",
+					"path": "./tutorials/best-practices/index.md",
 					"children": [
 						{
 							"title": "Speed up your Coder templates and workspaces",
