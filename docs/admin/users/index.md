@@ -143,7 +143,12 @@ Confirm the user activation by typing **yes** and pressing **enter**.
 
 ## Reset a password
 
-To reset a user's via the web UI:
+As of 2.17.0, users can reset their password independently on the login screen
+by clicking "Forgot Password." This feature requires
+[email notifications](../monitoring/notifications/index.md#smtp-email) to be
+configured on the deployment.
+
+To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
 2. Find the user whose password you want to reset, click the vertical ellipsis
