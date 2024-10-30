@@ -8,12 +8,12 @@ on:
         description: "PR number"
         required: true
 
-permissions:
-  packages: write
-
 jobs:
   cleanup:
     runs-on: "ubuntu-latest"
+    permissions:
+      # Necessary to delete docker images from ghcr.io.
+      packages: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1

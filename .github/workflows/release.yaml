@@ -18,12 +18,7 @@ on:
         default: false
 
 permissions:
-  # Required to publish a release
-  contents: write
-  # Necessary to push docker images to ghcr.io.
-  packages: write
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+  contents: read
 
 concurrency: ${{ github.workflow }}-${{ github.ref }}
 
@@ -40,6 +35,13 @@ jobs:
   release:
     name: Build and publish
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      # Required to publish a release
+      contents: write
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+      # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
+      id-token: write
     env:
       # Necessary for Docker manifest
       DOCKER_CLI_EXPERIMENTAL: "enabled"
