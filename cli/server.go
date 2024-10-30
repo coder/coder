@@ -212,9 +212,15 @@ func enablePrometheus(
 	options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
 	options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+	closeActiveUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.Logger.Named("active_user_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register active users prometheus metric: %w", err)
+	}
+	afterCtx(ctx, closeActiveUsersFunc)
+
+	closeUsersFunc, err := prometheusmetrics.Users(ctx, options.Logger.Named("user_metrics"), quartz.NewReal(), options.PrometheusRegistry, options.Database, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("register users prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeUsersFunc)
 
