@@ -730,7 +730,8 @@
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
 						{
-							"title": "Speed up your Coder templates and workspaces",
+							"title": "Speed up your workspaces",
+							"description": "Speed up your Coder templates and workspaces",
 							"path": "./tutorials/best-practices/speed-up-templates.md"
 						}
 					]
