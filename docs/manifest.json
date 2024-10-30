@@ -723,6 +723,16 @@
 					"title": "FAQs",
 					"description": "Miscellaneous FAQs from our community",
 					"path": "./tutorials/faqs.md"
+				},
+				{
+					"title": "Best practices",
+					"description": "Guides to help you make the most of your Coder experience",
+					"children": [
+						{
+							"title": "Speed up your Coder templates and workspaces",
+							"path": "./tutorials/best-practices/speed-up-templates.md"
+						}
+					]
 				}
 			]
 		},
