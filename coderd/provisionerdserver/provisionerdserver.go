@@ -2026,7 +2026,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 		LoginType: database.LoginTypeOIDC,
 	})
 	if errors.Is(err, sql.ErrNoRows) {
-		err = nil
+		return "", nil
 	}
 	if err != nil {
 		return "", xerrors.Errorf("get owner oidc link: %w", err)
