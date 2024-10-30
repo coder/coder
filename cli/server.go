@@ -218,7 +218,7 @@ func enablePrometheus(
 	}
 	afterCtx(ctx, closeActiveUsersFunc)
 
-	closeUsersFunc, err := prometheusmetrics.Users(ctx, options.Logger.Named("user_metrics"), options.Clock, options.PrometheusRegistry, options.Database, 0)
+	closeUsersFunc, err := prometheusmetrics.Users(ctx, options.Logger.Named("user_metrics"), quartz.NewReal(), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register users prometheus metric: %w", err)
 	}
