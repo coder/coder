@@ -10349,7 +10349,11 @@ INSERT INTO
 		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF($10::text, '')::user_status) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
 `
 
 type InsertUserParams struct {

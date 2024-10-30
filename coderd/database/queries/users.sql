@@ -71,7 +71,11 @@ INSERT INTO
 		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF(@status::text, '')::user_status) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+	) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
