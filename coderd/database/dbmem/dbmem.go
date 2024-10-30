@@ -7711,7 +7711,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 
 	status := database.UserStatusDormant
 	if arg.Status != "" {
-		status = arg.Status
+		status = database.UserStatus(arg.Status)
 	}
 
 	user := database.User{

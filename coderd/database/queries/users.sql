@@ -71,7 +71,7 @@ INSERT INTO
 		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF(@status::user_status, '')) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF(@status::text, '')::user_status) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE

@@ -195,6 +195,7 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
 		LoginType:          database.LoginTypePassword,
+		Status:             database.UserStatusActive,
 		accountCreatorName: "coder",
 	})
 	if err != nil {
@@ -1355,7 +1356,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
-			Status:    req.Status,
+			Status:    string(req.Status),
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
