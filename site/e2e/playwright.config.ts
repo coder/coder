@@ -70,11 +70,7 @@ export default defineConfig({
 	],
 	reporter: [["./reporter.ts"]],
 	use: {
-		// It'd be very nice to add this, but there are some tests that need
-		// tweaking to make it work consistently (notably, ones that wait for agent
-		// stats on the workspace page. The default is like 50 seconds, which is
-		// way too long and makes it painful to wait for test runs in CI.
-		// actionTimeout: 5000, // 5 seconds
+		actionTimeout: 5000,
 		baseURL: `http://localhost:${coderPort}`,
 		video: "retain-on-failure",
 		...(wsEndpoint
@@ -88,7 +84,6 @@ export default defineConfig({
 						args: ["--disable-webgl"],
 					},
 				}),
-		actionTimeout: 5000,
 	},
 	webServer: {
 		url: `http://localhost:${coderPort}/api/v2/deployment/config`,
