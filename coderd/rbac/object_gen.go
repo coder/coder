@@ -129,6 +129,15 @@ var (
 		Type: "license",
 	}
 
+	// ResourceNotificationMessage
+	// Valid Actions
+	//  - "ActionCreate" :: create notification messages
+	//  - "ActionRead" :: read notification messages
+	//  - "ActionUpdate" :: update notification messages
+	ResourceNotificationMessage = Object{
+		Type: "notification_message",
+	}
+
 	// ResourceNotificationPreference
 	// Valid Actions
 	//  - "ActionRead" :: read notification preferences
@@ -318,6 +327,7 @@ func AllResources() []Objecter {
 		ResourceGroupMember,
 		ResourceIdpsyncSettings,
 		ResourceLicense,
+		ResourceNotificationMessage,
 		ResourceNotificationPreference,
 		ResourceNotificationTemplate,
 		ResourceOauth2App,

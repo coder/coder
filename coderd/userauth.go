@@ -298,8 +298,8 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
-		//nolint:gocritic // We need the system auth context to be able to send the user their one-time passcode.
-		dbauthz.AsSystemRestricted(ctx),
+		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
+		dbauthz.AsNotifier(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
 		map[string]string{"one_time_passcode": passcode},

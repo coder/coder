@@ -264,6 +264,23 @@ var (
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
 
+	subjectNotifier = rbac.Subject{
+		FriendlyName: "Notifier",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "notifier"},
+				DisplayName: "Notifier",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
 	subjectSystemRestricted = rbac.Subject{
 		FriendlyName: "System",
 		ID:           uuid.Nil.String(),
@@ -325,6 +342,11 @@ func AsKeyRotator(ctx context.Context) context.Context {
 // AsKeyReader returns a context with an actor that has permissions required for reading crypto keys.
 func AsKeyReader(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyReader)
+}
+
+// AsNotifier returns a context with an actor that has permissions required for creating notifications.
+func AsNotifier(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectNotifier)
 }
 
 // AsSystemRestricted returns a context with an actor that has permissions
@@ -950,7 +972,7 @@ func (q *querier) AcquireLock(ctx context.Context, id int64) error {
 }
 
 func (q *querier) AcquireNotificationMessages(ctx context.Context, arg database.AcquireNotificationMessagesParams) ([]database.AcquireNotificationMessagesRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceNotificationMessage); err != nil {
 		return nil, err
 	}
 	return q.db.AcquireNotificationMessages(ctx, arg)
@@ -1307,7 +1329,7 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 }
 
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceNotificationMessage); err != nil {
 		return err
 	}
 	return q.db.EnqueueNotificationMessage(ctx, arg)
@@ -1321,7 +1343,7 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
