@@ -351,6 +351,25 @@ jobs:
           POSTGRES_VERSION: "13"
           TS_DEBUG_DISCO: "true"
         run: |
+          # if macOS, install google-chrome for scaletests and orbstack for docker.
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            brew install google-chrome
+            brew install orbstack
+            orb
+          fi
+
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
+
           make test-postgres
 
       - name: Upload test stats to Datadog
