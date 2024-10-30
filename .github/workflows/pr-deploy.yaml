@@ -30,8 +30,6 @@ env:
 
 permissions:
   contents: read
-  packages: write
-  pull-requests: write # needed for commenting on PRs
 
 jobs:
   check_pr:
@@ -171,6 +169,8 @@ jobs:
     needs: get_info
     if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true'
     runs-on: "ubuntu-latest"
+    permissions:
+      pull-requests: write # needed for commenting on PRs
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -205,6 +205,9 @@ jobs:
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      # Necessary to push docker images to ghcr.io.
+      packages: write
     # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
     concurrency:
       group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
