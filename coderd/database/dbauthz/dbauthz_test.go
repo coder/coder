@@ -3026,11 +3026,9 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 func (s *MethodTestSuite) TestProvisionerKeys() {
 	s.Run("InsertProvisionerKey", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
-		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
-		s.Require().NoError(err)
 		pk := database.ProvisionerKey{
 			ID:             uuid.New(),
-			CreatedAt:      time.Now().In(loc).Round(time.Millisecond),
+			CreatedAt:      dbtestutil.NowInDefaultTimezone(),
 			OrganizationID: org.ID,
 			Name:           strings.ToLower(coderdtest.RandomName(s.T())),
 			HashedSecret:   []byte(coderdtest.RandomName(s.T())),
@@ -4124,9 +4122,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			UserID: user.ID,
 		})
-		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
-		require.NoError(s.T(), err)
-		createdAt := time.Now().In(loc).Round(time.Microsecond)
+		createdAt := dbtestutil.NowInDefaultTimezone()
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
 			CreatedAt: createdAt,
 			UpdatedAt: createdAt,
@@ -4166,9 +4162,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		dbtestutil.DisableForeignKeys(s.T(), db)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		app.Name = "my-new-name"
-		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
-		require.NoError(s.T(), err)
-		app.UpdatedAt = time.Now().In(loc).Round(time.Microsecond)
+		app.UpdatedAt = dbtestutil.NowInDefaultTimezone()
 		check.Args(database.UpdateOAuth2ProviderAppByIDParams{
 			ID:          app.ID,
 			Name:        app.Name,
@@ -4230,9 +4224,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
 		})
-		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
-		require.NoError(s.T(), err)
-		secret.LastUsedAt = sql.NullTime{Time: time.Now().In(loc).Round(time.Microsecond), Valid: true}
+		secret.LastUsedAt = sql.NullTime{Time: dbtestutil.NowInDefaultTimezone(), Valid: true}
 		check.Args(database.UpdateOAuth2ProviderAppSecretByIDParams{
 			ID:         secret.ID,
 			LastUsedAt: secret.LastUsedAt,

@@ -260,3 +260,13 @@ func OpenContainerized(port int) (string, func(), error) {
 		_ = os.RemoveAll(tempDir)
 	}, nil
 }
+
+// NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
+// used by postgres in tests. Useful for object equality checks.
+func NowInDefaultTimezone() time.Time {
+	loc, err := time.LoadLocation(DefaultTimezone)
+	if err != nil {
+		panic(err)
+	}
+	return time.Now().In(loc).Round(time.Microsecond)
+}

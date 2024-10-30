@@ -529,13 +529,10 @@ func TestAPIKey(t *testing.T) {
 			rw = httptest.NewRecorder()
 		)
 		r.Header.Set(codersdk.SessionTokenHeader, token)
-
-		loc, err := time.LoadLocation(dbtestutil.DefaultTimezone)
-		require.NoError(t, err)
 		oauthToken := &oauth2.Token{
 			AccessToken:  "wow",
 			RefreshToken: "moo",
-			Expiry:       dbtime.Now().AddDate(0, 0, 1).In(loc),
+			Expiry:       dbtestutil.NowInDefaultTimezone().AddDate(0, 0, 1),
 		}
 		httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 			DB: db,
