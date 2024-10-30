@@ -1,3 +1,4 @@
+import { type Theme, useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
 import { Bar } from "./Chart/Bar";
 import {
@@ -26,7 +27,6 @@ import {
 	makeTicks,
 	mergeTimeRanges,
 } from "./Chart/utils";
-import { type Theme, useTheme } from "@emotion/react";
 import type { Stage } from "./StagesChart";
 
 type ResourceTiming = {

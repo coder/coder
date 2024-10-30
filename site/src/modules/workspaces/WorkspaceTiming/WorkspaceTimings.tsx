@@ -14,10 +14,10 @@ import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
 import { ResourcesChart, isCoderResource } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
 import {
-	agentStages,
-	provisioningStages,
 	type Stage,
 	StagesChart,
+	agentStages,
+	provisioningStages,
 } from "./StagesChart";
 
 type TimingView =
