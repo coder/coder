@@ -2,15 +2,21 @@ package dbtestutil
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
+	"encoding/hex"
 	"errors"
 	"fmt"
+	"net"
 	"os"
+	"path/filepath"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 
 	"github.com/cenkalti/backoff/v4"
+	"github.com/gofrs/flock"
 	"github.com/ory/dockertest/v3"
 	"github.com/ory/dockertest/v3/docker"
 	"golang.org/x/xerrors"
@@ -19,13 +25,89 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 )
 
+type ConnectionParams struct {
+	Username string
+	Password string
+	Host     string
+	Port     string
+	DBName   string
+}
+
+func (p ConnectionParams) DSN() string {
+	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
+}
+
+var connectionParamsInitOnce sync.Once
+var defaultConnectionParams ConnectionParams
+
+func initDefaultConnectionParams() error {
+	params := ConnectionParams{
+		Username: "postgres",
+		Password: "postgres",
+		Host:     "127.0.0.1",
+		Port:     "5432",
+		DBName:   "postgres",
+	}
+	dsn := params.DSN()
+	db, err := sql.Open("postgres", dsn)
+	if err == nil {
+		err = db.Ping()
+		if closeErr := db.Close(); closeErr != nil {
+			return xerrors.Errorf("close db: %w", closeErr)
+		}
+	}
+	if err != nil && strings.Contains(err.Error(), "connection refused") {
+		// If there's no database running on the default port, we'll start a
+		// postgres container. We won't be cleaning it up so it can be reused
+		// by subsequent tests. It'll keep on running until the user terminates
+		// it themselves.
+		container, _, err := openContainer(DBContainerOptions{
+			Name: "coder-test-postgres",
+			Port: 5432,
+		})
+		if err != nil {
+			return xerrors.Errorf("open container: %w", err)
+		}
+		params.Host = container.Host
+		params.Port = container.Port
+		dsn = params.DSN()
+
+		// wait for a cumulative 5 seconds for a connection to be established
+		for i := 0; i < 20; i++ {
+			db, err = sql.Open("postgres", dsn)
+			if err == nil {
+				err = db.Ping()
+				if closeErr := db.Close(); closeErr != nil {
+					return xerrors.Errorf("close db, container: %w", closeErr)
+				}
+			}
+			if err == nil {
+				break
+			}
+			time.Sleep(250 * time.Millisecond)
+		}
+	} else if err != nil {
+		return xerrors.Errorf("open postgres connection: %w", err)
+	}
+	defaultConnectionParams = params
+	return nil
+}
+
 // Open creates a new PostgreSQL database instance.
 func Open() (string, func(), error) {
+	var err error
+	connectionParamsInitOnce.Do(func() {
+		err = initDefaultConnectionParams()
+	})
+	if err != nil {
+		return "", func() {}, xerrors.Errorf("init default connection params: %w", err)
+	}
+
 	var (
-		username = "postgres"
-		password = "postgres"
-		host     = "127.0.0.1"
-		port     = "5432"
+		username = defaultConnectionParams.Username
+		password = defaultConnectionParams.Password
+		host     = defaultConnectionParams.Host
+		port     = defaultConnectionParams.Port
 	)
 
 	// use a time-based prefix to make it easier to find the database
@@ -33,22 +115,22 @@ func Open() (string, func(), error) {
 	now := time.Now().Format("test_2006_01_02_15_04_05")
 	dbSuffix, err := cryptorand.StringCharset(cryptorand.Lower, 10)
 	if err != nil {
-		return "", nil, xerrors.Errorf("generate db suffix: %w", err)
+		return "", func() {}, xerrors.Errorf("generate db suffix: %w", err)
 	}
 	dbName := now + "_" + dbSuffix
 
-	if err := createDatabaseFromTemplate(CreateDatabaseArgs{
+	if err = createDatabaseFromTemplate(ConnectionParams{
 		Username: username,
 		Password: password,
 		Host:     host,
 		Port:     port,
 		DBName:   dbName,
 	}); err != nil {
-		return "", nil, xerrors.Errorf("create database: %w", err)
+		return "", func() {}, xerrors.Errorf("create database: %w", err)
 	}
 
 	cleanup := func() {
-		cleanupDbURL := fmt.Sprintf("postgres://%s:%s@%s:%s?sslmode=disable", username, password, host, port)
+		cleanupDbURL := defaultConnectionParams.DSN()
 		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
@@ -60,22 +142,26 @@ func Open() (string, func(), error) {
 		}
 	}
 
-	dsn := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", username, password, host, port, dbName)
+	dsn := ConnectionParams{
+		Username: username,
+		Password: password,
+		Host:     host,
+		Port:     port,
+		DBName:   dbName,
+	}.DSN()
 	return dsn, cleanup, nil
-}
-
-type CreateDatabaseArgs struct {
-	Username string
-	Password string
-	Host     string
-	Port     string
-	DBName   string
 }
 
 // createDatabaseFromTemplate creates a new database from a template database.
 // The template database is created if it doesn't exist.
-func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
-	dbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/postgres?sslmode=disable", args.Username, args.Password, args.Host, args.Port)
+func createDatabaseFromTemplate(args ConnectionParams) error {
+	dbURL := ConnectionParams{
+		Username: args.Username,
+		Password: args.Password,
+		Host:     args.Host,
+		Port:     args.Port,
+		DBName:   "postgres",
+	}.DSN()
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
 		return xerrors.Errorf("connect to postgres: %w", err)
@@ -131,7 +217,13 @@ func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
 		if err != nil {
 			return xerrors.Errorf("create tmp template db: %w", err)
 		}
-		tplDbURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", args.Username, args.Password, args.Host, args.Port, tmpTemplateDBName)
+		tplDbURL := ConnectionParams{
+			Username: args.Username,
+			Password: args.Password,
+			Host:     args.Host,
+			Port:     args.Port,
+			DBName:   tmpTemplateDBName,
+		}.DSN()
 		tplDb, err := sql.Open("postgres", tplDbURL)
 		if err != nil {
 			return xerrors.Errorf("connect to template db: %w", err)
@@ -162,73 +254,167 @@ func createDatabaseFromTemplate(args CreateDatabaseArgs) error {
 	return nil
 }
 
-// OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic
-// to that port to the database.  If port is zero, allocate a free port from the OS.
-func OpenContainerized(port int) (string, func(), error) {
+type DBContainerOptions struct {
+	Port int
+	Name string
+}
+
+type container struct {
+	Resource *dockertest.Resource
+	Pool     *dockertest.Pool
+	Host     string
+	Port     string
+}
+
+// OpenContainer creates a new PostgreSQL server using a Docker container. If port is nonzero, forward host traffic
+// to that port to the database. If port is zero, allocate a free port from the OS.
+// If name is set, we'll ensure that only one container is started with that name. If it's already running, we'll use it.
+// Otherwise, we'll start a new container.
+func openContainer(opts DBContainerOptions) (container, func(), error) {
+	if opts.Name != "" {
+		// We only want to start the container once per unique name.
+		// If no name is provided, we'll start a new container.
+		nameHash := sha256.Sum256([]byte(opts.Name))
+		nameHashStr := hex.EncodeToString(nameHash[:])
+		lock := flock.New(filepath.Join(os.TempDir(), "coder-postgres-container-"+nameHashStr[:8]))
+		defer func() {
+			err := lock.Unlock()
+			if err != nil {
+				panic(err)
+			}
+		}()
+	}
+
 	pool, err := dockertest.NewPool("")
 	if err != nil {
-		return "", nil, xerrors.Errorf("create pool: %w", err)
+		return container{}, nil, xerrors.Errorf("create pool: %w", err)
 	}
 
 	tempDir, err := os.MkdirTemp(os.TempDir(), "postgres")
 	if err != nil {
-		return "", nil, xerrors.Errorf("create tempdir: %w", err)
+		return container{}, nil, xerrors.Errorf("create tempdir: %w", err)
 	}
 
-	resource, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "postgres",
-		Tag:        "13",
-		Env: []string{
-			"POSTGRES_PASSWORD=postgres",
-			"POSTGRES_USER=postgres",
-			"POSTGRES_DB=postgres",
-			// The location for temporary database files!
-			"PGDATA=/tmp",
-			"listen_addresses = '*'",
-		},
-		PortBindings: map[docker.Port][]docker.PortBinding{
-			"5432/tcp": {{
-				// Manually specifying a host IP tells Docker just to use an IPV4 address.
-				// If we don't do this, we hit a fun bug:
-				// https://github.com/moby/moby/issues/42442
-				// where the ipv4 and ipv6 ports might be _different_ and collide with other running docker containers.
-				HostIP:   "0.0.0.0",
-				HostPort: strconv.FormatInt(int64(port), 10),
-			}},
-		},
-		Mounts: []string{
-			// The postgres image has a VOLUME parameter in it's image.
-			// If we don't mount at this point, Docker will allocate a
-			// volume for this directory.
-			//
-			// This isn't used anyways, since we override PGDATA.
-			fmt.Sprintf("%s:/var/lib/postgresql/data", tempDir),
-		},
-	}, func(config *docker.HostConfig) {
-		// set AutoRemove to true so that stopped container goes away by itself
-		config.AutoRemove = true
-		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
-	})
-	if err != nil {
-		return "", nil, xerrors.Errorf("could not start resource: %w", err)
+	var resource *dockertest.Resource
+	if opts.Name != "" {
+		// If the container already exists, we'll use it.
+		resource, _ = pool.ContainerByName(opts.Name)
+	}
+	if resource == nil {
+		runOptions := dockertest.RunOptions{
+			Repository: "postgres",
+			Tag:        "13",
+			Env: []string{
+				"POSTGRES_PASSWORD=postgres",
+				"POSTGRES_USER=postgres",
+				"POSTGRES_DB=postgres",
+				// The location for temporary database files!
+				"PGDATA=/tmp",
+				"listen_addresses = '*'",
+			},
+			PortBindings: map[docker.Port][]docker.PortBinding{
+				"5432/tcp": {{
+					// Manually specifying a host IP tells Docker just to use an IPV4 address.
+					// If we don't do this, we hit a fun bug:
+					// https://github.com/moby/moby/issues/42442
+					// where the ipv4 and ipv6 ports might be _different_ and collide with other running docker containers.
+					HostIP:   "0.0.0.0",
+					HostPort: strconv.FormatInt(int64(opts.Port), 10),
+				}},
+			},
+			Mounts: []string{
+				// The postgres image has a VOLUME parameter in it's image.
+				// If we don't mount at this point, Docker will allocate a
+				// volume for this directory.
+				//
+				// This isn't used anyways, since we override PGDATA.
+				fmt.Sprintf("%s:/var/lib/postgresql/data", tempDir),
+			},
+			Cmd: []string{"-c", "max_connections=1000"},
+		}
+		if opts.Name != "" {
+			runOptions.Name = opts.Name
+		}
+		resource, err = pool.RunWithOptions(&runOptions, func(config *docker.HostConfig) {
+			// set AutoRemove to true so that stopped container goes away by itself
+			config.AutoRemove = true
+			config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+			config.Tmpfs = map[string]string{
+				"/tmp": "rw",
+			}
+		})
+		if err != nil {
+			return container{}, nil, xerrors.Errorf("could not start resource: %w", err)
+		}
 	}
 
 	hostAndPort := resource.GetHostPort("5432/tcp")
-	dbURL := fmt.Sprintf("postgres://postgres:postgres@%s/postgres?sslmode=disable", hostAndPort)
+	host, port, err := net.SplitHostPort(hostAndPort)
+	if err != nil {
+		return container{}, nil, xerrors.Errorf("split host and port: %w", err)
+	}
+
+	// wait for a cumulative 60 * 250ms = 15 seconds for the database to start
+	for i := 0; i < 60; i++ {
+		stdout := &strings.Builder{}
+		stderr := &strings.Builder{}
+		_, err = resource.Exec([]string{"pg_isready", "-h", "127.0.0.1"}, dockertest.ExecOptions{
+			StdOut: stdout,
+			StdErr: stderr,
+		})
+		if err == nil {
+			break
+		}
+		time.Sleep(250 * time.Millisecond)
+	}
+	if err != nil {
+		return container{}, nil, xerrors.Errorf("pg_isready: %w", err)
+	}
+
+	return container{
+			Host:     host,
+			Port:     port,
+			Resource: resource,
+			Pool:     pool,
+		}, func() {
+			_ = pool.Purge(resource)
+			_ = os.RemoveAll(tempDir)
+		}, nil
+}
+
+// OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic
+// to that port to the database.  If port is zero, allocate a free port from the OS.
+func OpenContainerized(opts DBContainerOptions) (string, func(), error) {
+	container, containerCleanup, err := openContainer(opts)
+	defer func() {
+		if err != nil {
+			containerCleanup()
+		}
+	}()
+	if err != nil {
+		return "", nil, xerrors.Errorf("open container: %w", err)
+	}
+	dbURL := ConnectionParams{
+		Username: "postgres",
+		Password: "postgres",
+		Host:     container.Host,
+		Port:     container.Port,
+		DBName:   "postgres",
+	}.DSN()
 
 	// Docker should hard-kill the container after 120 seconds.
-	err = resource.Expire(120)
+	err = container.Resource.Expire(120)
 	if err != nil {
 		return "", nil, xerrors.Errorf("expire resource: %w", err)
 	}
 
-	pool.MaxWait = 120 * time.Second
+	container.Pool.MaxWait = 120 * time.Second
 
 	// Record the error that occurs during the retry.
 	// The 'pool' pkg hardcodes a deadline error devoid
 	// of any useful context.
 	var retryErr error
-	err = pool.Retry(func() error {
+	err = container.Pool.Retry(func() error {
 		db, err := sql.Open("postgres", dbURL)
 		if err != nil {
 			retryErr = xerrors.Errorf("open postgres: %w", err)
@@ -255,10 +441,7 @@ func OpenContainerized(port int) (string, func(), error) {
 		return "", nil, retryErr
 	}
 
-	return dbURL, func() {
-		_ = pool.Purge(resource)
-		_ = os.RemoveAll(tempDir)
-	}, nil
+	return dbURL, containerCleanup, nil
 }
 
 // NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
