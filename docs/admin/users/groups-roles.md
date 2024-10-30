@@ -42,6 +42,25 @@ in the dashboard under **Organizations** -> **My Organization** -> **Roles**.
 
 ![Custom roles](../../images/admin/users/roles/custom-roles.PNG)
 
+### Example roles
+
+- The `Banking Compliance Auditor` custom role cannot create workspaces, but can
+  read template source code and view audit logs
+- The `Organization Lead` role can access user workspaces for troubleshooting
+  purposes, but cannot edit templates
+- The `Platform Member` role cannot edit or create workspaces as they are
+  created via a third-party system
+
+Custom roles can also be applied to
+[headless user accounts](./headless-auth.md):
+
+- A `Health Check` role can view deployment status but cannot create workspaces,
+  manage templates, or view users
+- A `CI` role can update manage templates but cannot create workspaces or view
+  users
+
+### Creating custom roles
+
 Clicking "Create custom role" opens a UI to select the desired permissions for a
 given persona.
 
