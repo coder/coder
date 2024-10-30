@@ -106,9 +106,11 @@ func Users(ctx context.Context, logger slog.Logger, registerer prometheus.Regist
 			}
 
 			gauge.Reset()
+			//nolint:gocritic // This is a system service that needs full access
+			//to the users table.
 			users, err := db.GetUsers(dbauthz.AsSystemRestricted(ctx), database.GetUsersParams{})
 			if err != nil {
-				logger.Error(ctx, "get users", slog.Error(err))
+				logger.Error(ctx, "get all users for prometheus metrics", slog.Error(err))
 				continue
 			}
 
