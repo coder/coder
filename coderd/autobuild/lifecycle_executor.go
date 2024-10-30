@@ -10,6 +10,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -39,6 +41,13 @@ type Executor struct {
 	statsCh               chan<- Stats
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	notificationsEnqueuer notifications.Enqueuer
+	reg                   prometheus.Registerer
+
+	metrics executorMetrics
+}
+
+type executorMetrics struct {
+	autobuildExecutionDuration prometheus.Histogram
 }
 
 // Stats contains information about one run of Executor.
@@ -49,7 +58,8 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -61,6 +71,16 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		auditor:               auditor,
 		accessControlStore:    acs,
 		notificationsEnqueuer: enqueuer,
+		reg:                   reg,
+		metrics: executorMetrics{
+			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "lifecycle",
+				Name:      "autobuild_execution_duration_seconds",
+				Help:      "Duration of each autobuild execution.",
+				Buckets:   prometheus.DefBuckets,
+			}),
+		},
 	}
 	return le
 }
@@ -86,6 +106,7 @@ func (e *Executor) Run() {
 					return
 				}
 				stats := e.runOnce(t)
+				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
 					case <-e.ctx.Done():
