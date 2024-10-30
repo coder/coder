@@ -362,7 +362,7 @@ jobs:
       fail-fast: false
       matrix:
         os:
-          - macos-latest
+          - macos-latest-xlarge
           - windows-2022
     timeout-minutes: 25
     
