@@ -12,6 +12,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -22,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 )
 
 const defaultRefreshRate = time.Minute
@@ -58,7 +60,7 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 
 			apiKeys, err := db.GetAPIKeysLastUsedAfter(ctx, dbtime.Now().Add(-1*time.Hour))
 			if err != nil {
-				logger.Error(ctx, "get api keys", slog.Error(err))
+				logger.Error(ctx, "get api keys for active users prometheus metric", slog.Error(err))
 				continue
 			}
 			distinctUsers := map[uuid.UUID]struct{}{}
@@ -74,8 +76,8 @@ func ActiveUsers(ctx context.Context, logger slog.Logger, registerer prometheus.
 	}, nil
 }
 
-// Users tracks the total user count, broken out by status..
-func Users(ctx context.Context, logger slog.Logger, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
+// Users tracks the total number of registered users, partitioned by status.
+func Users(ctx context.Context, logger slog.Logger, clk quartz.Clock, registerer prometheus.Registerer, db database.Store, duration time.Duration) (func(), error) {
 	if duration == 0 {
 		// It's not super important this tracks real-time.
 		duration = defaultRefreshRate * 5
@@ -85,16 +87,16 @@ func Users(ctx context.Context, logger slog.Logger, registerer prometheus.Regist
 		Namespace: "coderd",
 		Subsystem: "api",
 		Name:      "total_user_count",
-		Help:      "The total number of users, broken out by status.",
+		Help:      "The total number of registered users, partitioned by status.",
 	}, []string{"status"})
 	err := registerer.Register(gauge)
 	if err != nil {
-		return nil, err
+		return nil, xerrors.Errorf("register total_user_count gauge: %w", err)
 	}
 
 	ctx, cancelFunc := context.WithCancel(ctx)
 	done := make(chan struct{})
-	ticker := time.NewTicker(duration)
+	ticker := clk.NewTicker(duration)
 	go func() {
 		defer close(done)
 		defer ticker.Stop()
