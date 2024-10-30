@@ -22,8 +22,10 @@ import (
 //go:embed *.sql
 var migrations embed.FS
 
-var migrationsHash string
-var migrationsHashOnce sync.Once
+var (
+	migrationsHash     string
+	migrationsHashOnce sync.Once
+)
 
 func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 	files, err := migrationsFs.ReadDir(".")

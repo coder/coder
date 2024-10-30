@@ -37,9 +37,11 @@ func (p ConnectionParams) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
-var connectionParamsInitOnce sync.Once
-var defaultConnectionParams ConnectionParams
-var errDefaultConnectionParamsInit error
+var (
+	connectionParamsInitOnce       sync.Once
+	defaultConnectionParams        ConnectionParams
+	errDefaultConnectionParamsInit error
+)
 
 func initDefaultConnectionParams() error {
 	params := ConnectionParams{

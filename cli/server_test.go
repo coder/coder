@@ -781,7 +781,6 @@ func TestServer(t *testing.T) {
 
 		pty.ExpectMatch("Started HTTP listener")
 		pty.ExpectMatch("http://0.0.0.0:")
-
 	})
 
 	t.Run("CanListenUnspecifiedv6", func(t *testing.T) {
