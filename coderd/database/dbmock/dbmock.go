@@ -714,18 +714,18 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortSharesByTemplate(arg0, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortSharesByTemplate", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortSharesByTemplate), arg0, arg1)
 }
 
-// DisableForeignKeys mocks base method.
-func (m *MockStore) DisableForeignKeys(arg0 context.Context) error {
+// DisableForeignKeysAndTriggers mocks base method.
+func (m *MockStore) DisableForeignKeysAndTriggers(arg0 context.Context) error {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "DisableForeignKeys", arg0)
+	ret := m.ctrl.Call(m, "DisableForeignKeysAndTriggers", arg0)
 	ret0, _ := ret[0].(error)
 	return ret0
 }
 
-// DisableForeignKeys indicates an expected call of DisableForeignKeys.
-func (mr *MockStoreMockRecorder) DisableForeignKeys(arg0 any) *gomock.Call {
+// DisableForeignKeysAndTriggers indicates an expected call of DisableForeignKeysAndTriggers.
+func (mr *MockStoreMockRecorder) DisableForeignKeysAndTriggers(arg0 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableForeignKeys", reflect.TypeOf((*MockStore)(nil).DisableForeignKeys), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableForeignKeysAndTriggers", reflect.TypeOf((*MockStore)(nil).DisableForeignKeysAndTriggers), arg0)
 }
 
 // EnqueueNotificationMessage mocks base method.

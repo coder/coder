@@ -469,7 +469,6 @@ export interface DeploymentValues {
 	readonly proxy_trusted_headers?: string[];
 	readonly proxy_trusted_origins?: string[];
 	readonly cache_directory?: string;
-	readonly in_memory_database?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
 	readonly oauth2?: OAuth2Config;
@@ -514,6 +513,7 @@ export interface DeploymentValues {
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
+	readonly in_memory_database?: boolean;
 }
 
 // From codersdk/deployment.go

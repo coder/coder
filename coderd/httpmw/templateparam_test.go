@@ -93,7 +93,7 @@ func TestTemplateParam(t *testing.T) {
 	t.Run("Template", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		rtr := chi.NewRouter()
 		rtr.Use(
 			httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{

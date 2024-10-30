@@ -307,8 +307,10 @@ func normalizeDump(schema []byte) []byte {
 	return schema
 }
 
-func DisableForeignKeys(t *testing.T, db database.Store) {
-	err := db.DisableForeignKeys(context.Background())
+// Deprecated: disable foreign keys was created to aid in migrating off
+// of the test-only in-memory database. Do not use this in new code.
+func DisableForeignKeysAndTriggers(t *testing.T, db database.Store) {
+	err := db.DisableForeignKeysAndTriggers(context.Background())
 	if t != nil {
 		require.NoError(t, err)
 	}

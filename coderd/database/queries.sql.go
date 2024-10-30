@@ -9686,7 +9686,7 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 	return i, err
 }
 
-const disableForeignKeys = `-- name: DisableForeignKeys :exec
+const disableForeignKeysAndTriggers = `-- name: DisableForeignKeysAndTriggers :exec
 DO $$
 DECLARE
     table_record record;
@@ -9705,8 +9705,11 @@ END;
 $$
 `
 
-func (q *sqlQuerier) DisableForeignKeys(ctx context.Context) error {
-	_, err := q.db.ExecContext(ctx, disableForeignKeys)
+// Disable foreign keys and triggers for all tables.
+// Deprecated: disable foreign keys was created to aid in migrating off
+// of the test-only in-memory database. Do not use this in new code.
+func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, disableForeignKeysAndTriggers)
 	return err
 }
 

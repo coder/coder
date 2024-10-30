@@ -399,11 +399,11 @@ func (m queryMetricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.
 	return r0
 }
 
-func (m queryMetricsStore) DisableForeignKeys(ctx context.Context) error {
+func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
 	start := time.Now()
-	err := m.s.DisableForeignKeys(ctx)
-	m.queryLatencies.WithLabelValues("DisableForeignKeys").Observe(time.Since(start).Seconds())
-	return err
+	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
+	m.queryLatencies.WithLabelValues("DisableForeignKeysAndTriggers").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {

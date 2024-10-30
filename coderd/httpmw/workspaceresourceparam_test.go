@@ -21,7 +21,7 @@ func TestWorkspaceResourceParam(t *testing.T) {
 
 	setup := func(t *testing.T, db database.Store, jobType database.ProvisionerJobType) (*http.Request, database.WorkspaceResource) {
 		r := httptest.NewRequest("GET", "/", nil)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 			Type:          jobType,
 			Provisioner:   database.ProvisionerTypeEcho,

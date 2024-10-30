@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"strings"
 	"sync/atomic"
+	"testing"
 	"time"
 
 	"github.com/google/uuid"
@@ -1306,8 +1307,11 @@ func (q *querier) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.Context, 
 	return q.db.DeleteWorkspaceAgentPortSharesByTemplate(ctx, templateID)
 }
 
-func (q *querier) DisableForeignKeys(ctx context.Context) error {
-	return q.db.DisableForeignKeys(ctx)
+func (q *querier) DisableForeignKeysAndTriggers(ctx context.Context) error {
+	if !testing.Testing() {
+		return xerrors.Errorf("disable foreign keys is only allowed in tests")
+	}
+	return q.db.DisableForeignKeysAndTriggers(ctx)
 }
 
 func (q *querier) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {

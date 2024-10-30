@@ -1497,7 +1497,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("NoAgents", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1511,7 +1511,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("InvalidAgentToken", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		err := insert(db, uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
@@ -1526,7 +1526,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("DuplicateApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		err := insert(db, uuid.New(), &sdkproto.Resource{
 			Name: "something",
 			Type: "aws_instance",
@@ -1543,7 +1543,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name:      "something",
@@ -1612,7 +1612,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("AllDisplayApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1641,7 +1641,7 @@ func TestInsertWorkspaceResource(t *testing.T) {
 	t.Run("DisableDefaultApps", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		job := uuid.New()
 		err := insert(db, job, &sdkproto.Resource{
 			Name: "something",
@@ -1993,7 +1993,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	t.Helper()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	db, ps := dbtestutil.NewDB(t)
-	dbtestutil.DisableForeignKeys(t, db)
+	dbtestutil.DisableForeignKeysAndTriggers(t, db)
 	defOrg, err := db.GetDefaultOrganization(context.Background())
 	require.NoError(t, err, "default org not found")
 

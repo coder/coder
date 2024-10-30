@@ -27,7 +27,7 @@ func TestGroupParam(t *testing.T) {
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()
@@ -57,7 +57,7 @@ func TestGroupParam(t *testing.T) {
 			r     = httptest.NewRequest("GET", "/", nil)
 			w     = httptest.NewRecorder()
 		)
-		dbtestutil.DisableForeignKeys(t, db)
+		dbtestutil.DisableForeignKeysAndTriggers(t, db)
 		group := dbgen.Group(t, db, database.Group{})
 
 		router := chi.NewRouter()

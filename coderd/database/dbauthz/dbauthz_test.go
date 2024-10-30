@@ -208,17 +208,17 @@ func defaultIPAddress() pqtype.Inet {
 
 func (s *MethodTestSuite) TestAPIKey() {
 	s.Run("DeleteAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, policy.ActionDelete).Returns()
 	}))
 	s.Run("GetAPIKeyByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{})
 		check.Args(key.ID).Asserts(key, policy.ActionRead).Returns(key)
 	}))
 	s.Run("GetAPIKeyByName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			TokenName: "marge-cat",
 			LoginType: database.LoginTypeToken,
@@ -229,7 +229,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 		}).Asserts(key, policy.ActionRead).Returns(key)
 	}))
 	s.Run("GetAPIKeysByLoginType", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypePassword})
 		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LoginType: database.LoginTypeGithub})
@@ -250,7 +250,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 			Returns(slice.New(keyA, keyB))
 	}))
 	s.Run("GetAPIKeysLastUsedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		b, _ := dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(time.Hour)})
 		_, _ = dbgen.APIKey(s.T(), db, database.APIKey{LastUsed: time.Now().Add(-time.Hour)})
@@ -279,7 +279,7 @@ func (s *MethodTestSuite) TestAPIKey() {
 		}).Asserts(a, policy.ActionUpdate).Returns()
 	}))
 	s.Run("DeleteApplicationConnectAPIKeysByUserID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		a, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			Scope: database.APIKeyScopeApplicationConnect,
 		})
@@ -320,7 +320,7 @@ func (s *MethodTestSuite) TestAuditLogs() {
 		}).Asserts(rbac.ResourceAuditLog, policy.ActionRead).WithNotAuthorized("nil")
 	}))
 	s.Run("GetAuthorizedAuditLogsOffset", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		_ = dbgen.AuditLog(s.T(), db, database.AuditLog{})
 		check.Args(database.GetAuditLogsOffsetParams{
@@ -351,12 +351,12 @@ func (s *MethodTestSuite) TestFile() {
 
 func (s *MethodTestSuite) TestGroup() {
 	s.Run("DeleteGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionDelete).Returns()
 	}))
 	s.Run("DeleteGroupMemberFromGroup", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		m := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{
@@ -369,12 +369,12 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(g, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead).Returns(g)
 	}))
 	s.Run("GetGroupByOrgAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(database.GetGroupByOrgAndNameParams{
 			OrganizationID: g.OrganizationID,
@@ -382,26 +382,26 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(g, policy.ActionRead).Returns(g)
 	}))
 	s.Run("GetGroupMembersByGroupID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		gm := dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Args(g.ID).Asserts(gm, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembersCountByGroupID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(g.ID).Asserts(g, policy.ActionRead)
 	}))
 	s.Run("GetGroupMembers", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		u := dbgen.User(s.T(), db, database.User{})
 		dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g.ID, UserID: u.ID})
 		check.Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("System/GetGroups", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.Group(s.T(), db, database.Group{})
 		check.Args(database.GetGroupsParams{}).
 			Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -430,7 +430,7 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(rbac.ResourceGroup.InOrg(o.ID), policy.ActionCreate)
 	}))
 	s.Run("InsertGroupMember", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(database.InsertGroupMemberParams{
 			UserID:  uuid.New(),
@@ -482,7 +482,7 @@ func (s *MethodTestSuite) TestGroup() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g1.ID, g2.ID))
 	}))
 	s.Run("UpdateGroupByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		g := dbgen.Group(s.T(), db, database.Group{})
 		check.Args(database.UpdateGroupByIDParams{
 			ID: g.ID,
@@ -492,7 +492,7 @@ func (s *MethodTestSuite) TestGroup() {
 
 func (s *MethodTestSuite) TestProvisionerJob() {
 	s.Run("ArchiveUnusedTemplateVersions", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 			Error: sql.NullString{
@@ -513,7 +513,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		}).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
 	}))
 	s.Run("UnarchiveTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -557,7 +557,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(j)
 	}))
 	s.Run("TemplateVersion/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -569,7 +569,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(j.ID).Asserts(v.RBACObject(tpl), policy.ActionRead).Returns(j)
 	}))
 	s.Run("TemplateVersionDryRun/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -635,7 +635,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).Asserts(w, policy.ActionUpdate).Returns()
 	}))
 	s.Run("TemplateVersion/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -648,7 +648,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("TemplateVersionNoTemplate/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeTemplateVersionImport,
 		})
@@ -660,7 +660,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 			Asserts(v.RBACObjectNoTemplate(), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
 	s.Run("TemplateVersionDryRun/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -981,12 +981,12 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionRead).Returns(b)
 	}))
 	s.Run("GetTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, policy.ActionRead).Returns(t1)
 	}))
 	s.Run("GetTemplateByOrganizationAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		o1 := dbgen.Organization(s.T(), db, database.Organization{})
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			OrganizationID: o1.ID,
@@ -997,7 +997,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionRead).Returns(t1)
 	}))
 	s.Run("GetTemplateVersionByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1005,7 +1005,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.JobID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
 	s.Run("GetTemplateVersionByTemplateIDAndName", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1016,7 +1016,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
 	s.Run("GetTemplateVersionParameters", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1024,7 +1024,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionParameter{})
 	}))
 	s.Run("GetTemplateVersionVariables", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1035,7 +1035,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionVariable{tvv1})
 	}))
 	s.Run("GetTemplateVersionWorkspaceTags", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1046,17 +1046,17 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns([]database.TemplateVersionWorkspaceTag{wt1})
 	}))
 	s.Run("GetTemplateGroupRoles", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("GetTemplateUserRoles", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("GetTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1064,7 +1064,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		check.Args(tv.ID).Asserts(t1, policy.ActionRead).Returns(tv)
 	}))
 	s.Run("GetTemplateVersionsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		a := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1078,7 +1078,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Returns(slice.New(a, b))
 	}))
 	s.Run("GetTemplateVersionsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		now := time.Now()
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
@@ -1103,7 +1103,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Asserts().Returns(slice.New(a))
 	}))
 	s.Run("GetAuthorizedTemplates", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		a := dbgen.Template(s.T(), db, database.Template{})
 		// No asserts because SQLFilter.
 		check.Args(database.GetTemplatesWithFilterParams{}, emptyPreparedAuthorized{}).
@@ -1111,7 +1111,7 @@ func (s *MethodTestSuite) TestTemplate() {
 			Returns(slice.New(a))
 	}))
 	s.Run("InsertTemplate", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		orgID := uuid.New()
 		check.Args(database.InsertTemplateParams{
 			Provisioner:         "echo",
@@ -1120,7 +1120,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(rbac.ResourceTemplate.InOrg(orgID), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersion", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.InsertTemplateVersionParams{
 			TemplateID:     uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1128,47 +1128,47 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionRead, t1, policy.ActionCreate)
 	}))
 	s.Run("SoftDeleteTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(t1.ID).Asserts(t1, policy.ActionDelete)
 	}))
 	s.Run("UpdateTemplateACLByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateACLByIDParams{
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionCreate)
 	}))
 	s.Run("UpdateTemplateAccessControlByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateAccessControlByIDParams{
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateScheduleByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateScheduleByIDParams{
 			ID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateWorkspacesLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateWorkspacesLastUsedAtParams{
 			TemplateID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspacesDormantDeletingAtByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams{
 			TemplateID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			ActiveVersionID: uuid.New(),
 		})
@@ -1182,7 +1182,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateTemplateDeletedByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateDeletedByIDParams{
 			ID:      t1.ID,
@@ -1190,7 +1190,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionDelete).Returns()
 	}))
 	s.Run("UpdateTemplateMetaByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		check.Args(database.UpdateTemplateMetaByIDParams{
 			ID:                  t1.ID,
@@ -1198,7 +1198,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t1.ID, Valid: true},
@@ -1211,7 +1211,7 @@ func (s *MethodTestSuite) TestTemplate() {
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
 	s.Run("UpdateTemplateVersionDescriptionByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		jobID := uuid.New()
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		_ = dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
@@ -1282,7 +1282,7 @@ func (s *MethodTestSuite) TestTemplate() {
 
 func (s *MethodTestSuite) TestUser() {
 	s.Run("GetAuthorizedUsers", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		dbgen.User(s.T(), db, database.User{})
 		// No asserts because SQLFilter.
 		check.Args(database.GetUsersParams{}, emptyPreparedAuthorized{}).
@@ -1325,7 +1325,7 @@ func (s *MethodTestSuite) TestUser() {
 			Returns(slice.New(a, b))
 	}))
 	s.Run("GetUsers", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		dbgen.User(s.T(), db, database.User{Username: "GetUsers-a-user"})
 		dbgen.User(s.T(), db, database.User{Username: "GetUsers-b-user"})
 		check.Args(database.GetUsersParams{}).
@@ -1423,12 +1423,12 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(u, policy.ActionUpdate).Returns(u)
 	}))
 	s.Run("DeleteGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
 		check.Args(key.UserID).Asserts(rbac.ResourceUserObject(key.UserID), policy.ActionUpdatePersonal).Returns()
 	}))
 	s.Run("GetGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
 		check.Args(key.UserID).Asserts(rbac.ResourceUserObject(key.UserID), policy.ActionReadPersonal).Returns(key)
 	}))
@@ -1439,7 +1439,7 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateGitSSHKey", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		key := dbgen.GitSSHKey(s.T(), db, database.GitSSHKey{})
 		check.Args(database.UpdateGitSSHKeyParams{
 			UserID:    key.UserID,
@@ -1472,7 +1472,7 @@ func (s *MethodTestSuite) TestUser() {
 		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserLink", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		link := dbgen.UserLink(s.T(), db, database.UserLink{})
 		check.Args(database.UpdateUserLinkParams{
 			OAuthAccessToken:  link.OAuthAccessToken,
@@ -1530,7 +1530,7 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceAssignRole, policy.ActionDelete)
 	}))
 	s.Run("Blank/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{})
 		// Blank is no perms in the role
 		check.Args(database.UpdateCustomRoleParams{
@@ -3097,7 +3097,7 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 
 func (s *MethodTestSuite) TestExtraMethods() {
 	s.Run("GetProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
@@ -3108,7 +3108,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args().Asserts(d, policy.ActionRead)
 	}))
 	s.Run("GetProvisionerDaemonsByOrganization", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
@@ -3123,7 +3123,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args(org.ID).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
 	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
@@ -3134,7 +3134,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("UpdateProvisionerDaemonLastSeenAt", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			Provisioners: []database.ProvisionerType{},
 			Tags: database.StringMap(map[string]string{
@@ -3233,17 +3233,17 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
 	}))
 	s.Run("UpsertTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetAgentParams{Node: json.RawMessage("{}")}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetClient", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetClientParams{Node: json.RawMessage("{}")}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetClientSubscriptionParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
@@ -3252,19 +3252,19 @@ func (s *MethodTestSuite) TestTailnetFunctions() {
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
 	s.Run("UpsertTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetPeerParams{
 			Status: database.TailnetStatusOk,
 		}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate)
 	}))
 	s.Run("UpsertTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetTunnelParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate)
 	}))
 	s.Run("UpdateTailnetPeerStatusByCoordinator", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{Status: database.TailnetStatusOk}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
 	}))
@@ -3358,7 +3358,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args([]uuid.UUID{ws.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(b))
@@ -3372,7 +3372,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(l.LinkedID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(l)
 	}))
 	s.Run("GetUserLinkByUserIDLoginType", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		l := dbgen.UserLink(s.T(), db, database.UserLink{})
 		check.Args(database.GetUserLinkByUserIDLoginTypeParams{
 			UserID:    l.UserID,
@@ -3380,7 +3380,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(l)
 	}))
 	s.Run("GetLatestWorkspaceBuilds", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
@@ -3432,12 +3432,12 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
 	}))
 	s.Run("GetTemplates", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.Template(s.T(), db, database.Template{})
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("UpdateWorkspaceBuildCostByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{})
 		o := b
 		o.DailyCost = 10
@@ -3447,7 +3447,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspaceBuildProvisionerStateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildProvisionerStateByIDParams{
@@ -3464,27 +3464,27 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceBuildsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{CreatedAt: time.Now().Add(-time.Hour)})
 		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{CreatedAt: time.Now().Add(-time.Hour)})
 		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAppsCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{CreatedAt: time.Now().Add(-time.Hour)})
 		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourcesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{CreatedAt: time.Now().Add(-time.Hour)})
 		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourceMetadataCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		_ = dbgen.WorkspaceResourceMetadatums(s.T(), db, database.WorkspaceResourceMetadatum{})
 		check.Args(time.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
@@ -3497,7 +3497,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(time.Now()).Asserts( /*rbac.ResourceSystem, policy.ActionRead*/ )
 	}))
 	s.Run("GetTemplateVersionsByIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		t1 := dbgen.Template(s.T(), db, database.Template{})
 		t2 := dbgen.Template(s.T(), db, database.Template{})
 		tv1 := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
@@ -3514,7 +3514,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns(slice.New(tv1, tv2, tv3))
 	}))
 	s.Run("GetParameterSchemasByJobID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
@@ -3524,7 +3524,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(tpl, policy.ActionRead).Returns([]database.ParameterSchema{})
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		aWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
 		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
@@ -3542,7 +3542,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns([]database.WorkspaceApp{a, b})
 	}))
 	s.Run("GetWorkspaceResourcesByJobIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		tpl := dbgen.Template(s.T(), db, database.Template{})
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
 		tJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
@@ -3555,7 +3555,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns([]database.WorkspaceResource{})
 	}))
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
@@ -3565,7 +3565,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
@@ -3583,13 +3583,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns(slice.New(a, b))
 	}))
 	s.Run("InsertWorkspaceAgent", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAgentParams{
 			ID: uuid.New(),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceApp", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAppParams{
 			ID:           uuid.New(),
 			Health:       database.WorkspaceAppHealthDisabled,
@@ -3602,7 +3602,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
@@ -3640,7 +3640,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionUpdate*/ )
 	}))
 	s.Run("InsertProvisionerJob", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		// TODO: we need to create a ProvisionerJob resource
 		check.Args(database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
@@ -3665,7 +3665,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts( /*rbac.ResourceSystem, policy.ActionCreate*/ )
 	}))
 	s.Run("UpsertProvisionerDaemon", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		pd := rbac.ResourceProvisionerDaemon.InOrg(org.ID)
 		check.Args(database.UpsertProvisionerDaemonParams{
@@ -3685,7 +3685,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(pd.WithOwner("11111111-1111-1111-1111-111111111111"), policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersionParameter", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{})
 		check.Args(database.InsertTemplateVersionParameterParams{
 			TemplateVersionID: v.ID,
@@ -3693,7 +3693,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResource", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceResourceParams{
 			ID:         uuid.New(),
 			Transition: database.WorkspaceTransitionStart,
@@ -3709,7 +3709,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceAppStatsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentScriptTimings", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAgentScriptTimingsParams{
 			ScriptID: uuid.New(),
 			Stage:    database.WorkspaceAgentScriptTimingStageStart,
@@ -3720,7 +3720,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.InsertWorkspaceAgentScriptsParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentMetadata", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertWorkspaceAgentMetadataParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceAgentLogs", s.Subtest(func(db database.Store, check *expects) {
@@ -3830,11 +3830,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(time.Time{}).Asserts()
 	}))
 	s.Run("InsertTemplateVersionVariable", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertTemplateVersionVariableParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertTemplateVersionWorkspaceTag", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.InsertTemplateVersionWorkspaceTagParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateInactiveUsersToDormant", s.Subtest(func(db database.Store, check *expects) {
@@ -3993,7 +3993,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
 	}))
 	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
@@ -4024,7 +4024,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
 	}))
-	s.Run("DisableForeignKeys", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DisableForeignKeysAndTriggers", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts()
 	}))
 }
@@ -4048,7 +4048,7 @@ func (s *MethodTestSuite) TestNotifications() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
 	}))
 	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		// TODO: update this test once we have a specific role for notifications
 		check.Args(database.EnqueueNotificationMessageParams{
 			Method:  database.NotificationMethodWebhook,
@@ -4071,7 +4071,7 @@ func (s *MethodTestSuite) TestNotifications() {
 
 	// Notification templates
 	s.Run("GetNotificationTemplateByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
 			Errors(sql.ErrNoRows)
@@ -4117,7 +4117,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args(app.ID).Asserts(rbac.ResourceOauth2App, policy.ActionRead).Returns(app)
 	}))
 	s.Run("GetOAuth2ProviderAppsByUserID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			UserID: user.ID,
@@ -4159,7 +4159,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 		check.Args(database.InsertOAuth2ProviderAppParams{}).Asserts(rbac.ResourceOauth2App, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		app.Name = "my-new-name"
 		app.UpdatedAt = dbtestutil.NowInDefaultTimezone()
@@ -4178,7 +4178,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 
 func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 	s.Run("GetOAuth2ProviderAppSecretsByAppID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		app1 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		app2 := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secrets := []database.OAuth2ProviderAppSecret{
@@ -4219,7 +4219,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppSecrets() {
 		}).Asserts(rbac.ResourceOauth2AppSecret, policy.ActionCreate)
 	}))
 	s.Run("UpdateOAuth2ProviderAppSecretByID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		secret := dbgen.OAuth2ProviderAppSecret(s.T(), db, database.OAuth2ProviderAppSecret{
 			AppID: app.ID,
@@ -4276,7 +4276,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppCodes() {
 		check.Args(code.ID).Asserts(code, policy.ActionDelete)
 	}))
 	s.Run("DeleteOAuth2ProviderAppCodesByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{})
 		for i := 0; i < 5; i++ {
@@ -4324,7 +4324,7 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		check.Args(token.HashPrefix).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionRead)
 	}))
 	s.Run("DeleteOAuth2ProviderAppTokensByAppAndUserID", s.Subtest(func(db database.Store, check *expects) {
-		dbtestutil.DisableForeignKeys(s.T(), db)
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		key, _ := dbgen.APIKey(s.T(), db, database.APIKey{
 			UserID: user.ID,

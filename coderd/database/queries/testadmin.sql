@@ -1,4 +1,7 @@
--- name: DisableForeignKeys :exec
+-- name: DisableForeignKeysAndTriggers :exec
+-- Disable foreign keys and triggers for all tables.
+-- Deprecated: disable foreign keys was created to aid in migrating off
+-- of the test-only in-memory database. Do not use this in new code.
 DO $$
 DECLARE
     table_record record;

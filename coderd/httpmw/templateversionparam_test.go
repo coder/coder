@@ -21,7 +21,7 @@ func TestTemplateVersionParam(t *testing.T) {
 	t.Parallel()
 
 	setupAuthentication := func(db database.Store) (*http.Request, database.Template) {
-		dbtestutil.DisableForeignKeys(nil, db)
+		dbtestutil.DisableForeignKeysAndTriggers(nil, db)
 		user := dbgen.User(t, db, database.User{})
 		_, token := dbgen.APIKey(t, db, database.APIKey{
 			UserID: user.ID,
