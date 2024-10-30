@@ -10,6 +10,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
@@ -42,8 +43,9 @@ func TestCheckInactiveUsers(t *testing.T) {
 	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
 	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
 
+	mAudit := audit.NewMock()
 	// Run the periodic job
-	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, db, interval, dormancyPeriod)
+	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, db, mAudit, interval, dormancyPeriod)
 	t.Cleanup(closeFunc)
 
 	var rows []database.GetUsersRow
@@ -65,6 +67,8 @@ func TestCheckInactiveUsers(t *testing.T) {
 		// 6 users in total, 3 dormant, 3 suspended
 		return len(rows) == 9 && dormant == 3 && suspended == 3
 	}, testutil.WaitShort, testutil.IntervalMedium)
+
+	require.Len(t, mAudit.AuditLogs(), 3)
 
 	allUsers := ignoreUpdatedAt(database.ConvertUserRows(rows))
 

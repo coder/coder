@@ -3,12 +3,15 @@ package dormancy
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
+	"net/http"
 	"time"
 
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
@@ -22,13 +25,13 @@ const (
 
 // CheckInactiveUsers function updates status of inactive users from active to dormant
 // using default parameters.
-func CheckInactiveUsers(ctx context.Context, logger slog.Logger, db database.Store) func() {
-	return CheckInactiveUsersWithOptions(ctx, logger, db, jobInterval, accountDormancyPeriod)
+func CheckInactiveUsers(ctx context.Context, logger slog.Logger, db database.Store, auditor audit.Auditor) func() {
+	return CheckInactiveUsersWithOptions(ctx, logger, db, auditor, jobInterval, accountDormancyPeriod)
 }
 
 // CheckInactiveUsersWithOptions function updates status of inactive users from active to dormant
 // using provided parameters.
-func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db database.Store, checkInterval, dormancyPeriod time.Duration) func() {
+func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db database.Store, auditor audit.Auditor, checkInterval, dormancyPeriod time.Duration) func() {
 	logger = logger.Named("dormancy")
 
 	ctx, cancelFunc := context.WithCancel(ctx)
@@ -57,8 +60,29 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, db d
 				continue
 			}
 
+			af := map[string]string{
+				"automatic_actor":     "coder",
+				"automatic_subsystem": "dormancy",
+			}
+
+			wriBytes, err := json.Marshal(af)
+			if err != nil {
+				logger.Error(ctx, "marshal additional fields", slog.Error(err))
+				wriBytes = []byte("{}")
+			}
+
 			for _, u := range updatedUsers {
 				logger.Info(ctx, "account has been marked as dormant", slog.F("email", u.Email), slog.F("last_seen_at", u.LastSeenAt))
+				audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
+					Audit:            auditor,
+					Log:              logger,
+					UserID:           u.ID,
+					Action:           database.AuditActionWrite,
+					Old:              database.User{ID: u.ID, Username: u.Username, Status: database.UserStatusActive},
+					New:              database.User{ID: u.ID, Username: u.Username, Status: database.UserStatusDormant},
+					Status:           http.StatusOK,
+					AdditionalFields: wriBytes,
+				})
 			}
 			logger.Debug(ctx, "checking user accounts is done", slog.F("num_dormant_accounts", len(updatedUsers)), slog.F("execution_time", time.Since(startTime)))
 		}

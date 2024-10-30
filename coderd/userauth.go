@@ -566,6 +566,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	}
 
 	if user.Status == database.UserStatusDormant {
+		oldUser := user
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 			ID:        user.ID,
@@ -579,6 +580,28 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 			})
 			return user, rbac.Subject{}, false
 		}
+
+		af := map[string]string{
+			"automatic_actor":     "coder",
+			"automatic_subsystem": "dormancy",
+		}
+
+		wriBytes, err := json.Marshal(af)
+		if err != nil {
+			api.Logger.Error(ctx, "marshal additional fields for dormancy audit", slog.Error(err))
+			wriBytes = []byte("{}")
+		}
+
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
+			Audit:            *api.Auditor.Load(),
+			Log:              api.Logger,
+			UserID:           user.ID,
+			Action:           database.AuditActionWrite,
+			Old:              oldUser,
+			New:              user,
+			Status:           http.StatusOK,
+			AdditionalFields: wriBytes,
+		})
 	}
 
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)

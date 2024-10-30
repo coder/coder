@@ -10408,7 +10408,7 @@ SET
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
-RETURNING id, email, last_seen_at
+RETURNING id, email, username, last_seen_at
 `
 
 type UpdateInactiveUsersToDormantParams struct {
@@ -10419,6 +10419,7 @@ type UpdateInactiveUsersToDormantParams struct {
 type UpdateInactiveUsersToDormantRow struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	Email      string    `db:"email" json:"email"`
+	Username   string    `db:"username" json:"username"`
 	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
 }
 
@@ -10431,7 +10432,12 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 	var items []UpdateInactiveUsersToDormantRow
 	for rows.Next() {
 		var i UpdateInactiveUsersToDormantRow
-		if err := rows.Scan(&i.ID, &i.Email, &i.LastSeenAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.LastSeenAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

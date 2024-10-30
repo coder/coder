@@ -95,7 +95,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
 
-			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, options.Database),
+			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, options.Database, options.Auditor),
 		}
 
 		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {
