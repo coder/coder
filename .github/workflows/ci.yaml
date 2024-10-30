@@ -351,13 +351,13 @@ jobs:
           POSTGRES_VERSION: "13"
           TS_DEBUG_DISCO: "true"
         run: |
-          # if macOS, install google-chrome for scaletests and orbstack for docker.
+          # if macOS, install google-chrome for scaletests and docker.
           # As another concern, should we really have this kind of external dependency
           # requirement on standard CI?
           if [ "${{ matrix.os }}" == "macos-latest" ]; then
             brew install google-chrome
-            brew install orbstack
-            orb
+            brew install docker
+            colima start
           fi
 
           # By default Go will use the number of logical CPUs, which
