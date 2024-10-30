@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -724,7 +725,7 @@ func TestPostUsers(t *testing.T) {
 			Email:           "another@user.org",
 			Username:        "someone-else",
 			Password:        "SomeSecurePassword!",
-			UserStatus:      codersdk.UserStatusActive,
+			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 		})
 		require.NoError(t, err)
 
