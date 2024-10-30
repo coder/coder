@@ -11,6 +11,7 @@ import (
 	"os"
 	"sort"
 	"strings"
+	"sync"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
@@ -22,6 +23,7 @@ import (
 var migrations embed.FS
 
 var migrationsHash string
+var migrationsHashOnce sync.Once
 
 func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 	files, err := migrationsFs.ReadDir(".")
@@ -56,15 +58,14 @@ func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
 }
 
 func GetMigrationsHash() string {
-	if migrationsHash != "" {
-		return migrationsHash
-	}
-	hash, err := calculateMigrationsHash(migrations)
-	if err != nil {
-		panic(xerrors.Errorf("calculate migrations hash: %w", err))
-	}
-	migrationsHash = hash
-	return hash
+	migrationsHashOnce.Do(func() {
+		hash, err := calculateMigrationsHash(migrations)
+		if err != nil {
+			panic(xerrors.Errorf("calculate migrations hash: %w", err))
+		}
+		migrationsHash = hash
+	})
+	return migrationsHash
 }
 
 func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
