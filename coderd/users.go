@@ -192,10 +192,12 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 			Username:        createUser.Username,
 			Name:            createUser.Name,
 			Password:        createUser.Password,
+			UserStatus:      codersdk.UserStatusActive,
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
-		LoginType:          database.LoginTypePassword,
-		Status:             database.UserStatusActive,
+		LoginType: database.LoginTypePassword,
+		// There's no reason to create the first user as dormant, since you have
+		// to login immediately anyways.
 		accountCreatorName: "coder",
 	})
 	if err != nil {
@@ -1329,7 +1331,6 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 type CreateUserRequest struct {
 	codersdk.CreateUserRequestWithOrgs
 	LoginType          database.LoginType
-	Status             database.UserStatus
 	SkipNotifications  bool
 	accountCreatorName string
 }
@@ -1356,7 +1357,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
-			Status:    string(req.Status),
+			Status:    string(req.UserStatus),
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
