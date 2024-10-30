@@ -67,10 +67,11 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-		login_type
+		login_type,
+		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, NULLIF(@status::user_status, '')) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE

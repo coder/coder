@@ -1328,6 +1328,7 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 type CreateUserRequest struct {
 	codersdk.CreateUserRequestWithOrgs
 	LoginType          database.LoginType
+	Status             database.UserStatus
 	SkipNotifications  bool
 	accountCreatorName string
 }
@@ -1354,6 +1355,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
+			Status:    req.Status,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
