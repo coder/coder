@@ -349,8 +349,9 @@ func TestWorkspaceSerialization(t *testing.T) {
 	//	- BeginTX -> Bump! -> GetQuota -> GetAllowance -> UpdateCost -> EndTx
 	//  - BeginTX -> GetQuota -> GetAllowance -> UpdateCost -> Bump! -> EndTx
 	t.Run("UpdateBuildDeadline", func(t *testing.T) {
-		t.Skip("Expected to fail. As long as quota & deadline are on the same " +
+		t.Log("Expected to fail. As long as quota & deadline are on the same " +
 			" table and affect the same row, this will likely always fail.")
+
 		//  +------------------------------+------------------+
 		//  | Begin Tx                     |                  |
 		//  +------------------------------+------------------+
@@ -393,12 +394,17 @@ func TestWorkspaceSerialization(t *testing.T) {
 		// Run order
 
 		quota := newCommitter(t, db, myWorkspace.Workspace, myWorkspace.Build)
-		quota.GetQuota(ctx, t)                         // Step 1
-		bumpDeadline()                                 // Interrupt
-		quota.GetAllowance(ctx, t)                     // Step 2
-		quota.UpdateWorkspaceBuildCostByID(ctx, t, 10) // Step 3
+		quota.GetQuota(ctx, t)     // Step 1
+		bumpDeadline()             // Interrupt
+		quota.GetAllowance(ctx, t) // Step 2
+
+		err := quota.DBTx.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+			ID:        myWorkspace.Build.ID,
+			DailyCost: 10,
+		}) // Step 3
+		require.ErrorContains(t, err, "could not serialize access due to concurrent update")
 		// End commit
-		require.NoError(t, quota.Done())
+		require.ErrorContains(t, quota.Done(), "failed transaction")
 	})
 
 	// UpdateOtherBuildDeadline bumps a user's other workspace deadline
@@ -465,7 +471,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 	})
 
 	t.Run("ActivityBump", func(t *testing.T) {
-		t.Skip("Expected to fail. As long as quota & deadline are on the same " +
+		t.Log("Expected to fail. As long as quota & deadline are on the same " +
 			" table and affect the same row, this will likely always fail.")
 		//  +---------------------+----------------------------------+
 		//  | W1 Quota Tx         |                                  |
@@ -510,10 +516,14 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 		assert.NoError(t, err)
 
-		one.UpdateWorkspaceBuildCostByID(ctx, t, 10)
+		err = one.DBTx.UpdateWorkspaceBuildCostByID(ctx, database.UpdateWorkspaceBuildCostByIDParams{
+			ID:        myWorkspace.Build.ID,
+			DailyCost: 10,
+		})
+		require.ErrorContains(t, err, "could not serialize access due to concurrent update")
 
 		// End commit
-		assert.NoError(t, one.Done())
+		assert.ErrorContains(t, one.Done(), "failed transaction")
 	})
 
 	t.Run("BumpLastUsedAt", func(t *testing.T) {
@@ -724,7 +734,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 	// QuotaCommit 2 workspaces in the same org.
 	// Workspaces do not share templates
 	t.Run("DoubleQuotaUserWorkspaces", func(t *testing.T) {
-		t.Skip("Setting a new build cost to a workspace in a org affects other " +
+		t.Log("Setting a new build cost to a workspace in a org affects other " +
 			"workspaces in the same org. This is expected to fail.")
 		//  +---------------------+---------------------+
 		//  | W1 Quota Tx         | W2 Quota Tx         |
@@ -779,7 +789,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 
 		// End commit
 		assert.NoError(t, one.Done())
-		assert.NoError(t, two.Done())
+		assert.ErrorContains(t, two.Done(), "could not serialize access due to read/write dependencies among transactions")
 	})
 }
 
