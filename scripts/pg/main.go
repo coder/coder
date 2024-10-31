@@ -1,3 +1,4 @@
+// Start an embedded postgres database on port 5432. Used in CI on macOS and Windows.
 package main
 
 import (
@@ -53,6 +54,7 @@ func main() {
 	if err := db.Close(); err != nil {
 		panic(err)
 	}
+	// We restart the database to apply all the parameters.
 	if err := ep.Stop(); err != nil {
 		panic(err)
 	}
