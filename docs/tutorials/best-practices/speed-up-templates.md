@@ -119,7 +119,7 @@ for more information.
 By default, Coder downloads each Terraform provider when a workspace starts.
 This can create unnecessary network and disk I/O.
 
-`terraform init` generates a `.teraform.lock.hcl` which instructs Coder
+`terraform init` generates a `.terraform.lock.hcl` which instructs Coder
 provisioners to cache specific versions of your providers.
 
 To use `terraform init` to cache providers:
