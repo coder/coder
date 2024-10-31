@@ -103,10 +103,10 @@ Adjust the CPU and memory values as shown in
   resources:
     limits:
       cpu: "0.25"
-      memory: "1G"
+      memory: "1Gi"
     requests:
       cpu: "0.25"
-      memory: "1G"
+      memory: "1Gi"
 …
 ```
 
