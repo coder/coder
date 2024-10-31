@@ -167,7 +167,7 @@ const disconnectTestPort = 26892
 func TestPubsub_Disconnect(t *testing.T) {
 	// we always use a Docker container for this test, even in CI, since we need to be able to kill
 	// postgres and bring it back on the same port.
-	connectionURL, closePg, err := dbtestutil.OpenContainerized(disconnectTestPort)
+	connectionURL, closePg, err := dbtestutil.OpenContainerized(dbtestutil.DBContainerOptions{Port: disconnectTestPort})
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
@@ -238,7 +238,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	// restart postgres on the same port --- since we only use LISTEN/NOTIFY it doesn't
 	// matter that the new postgres doesn't have any persisted state from before.
-	_, closeNewPg, err := dbtestutil.OpenContainerized(disconnectTestPort)
+	_, closeNewPg, err := dbtestutil.OpenContainerized(dbtestutil.DBContainerOptions{Port: disconnectTestPort})
 	require.NoError(t, err)
 	defer closeNewPg()
 
