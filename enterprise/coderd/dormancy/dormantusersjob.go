@@ -59,7 +59,7 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, clk 
 				Old:              database.User{ID: u.ID, Username: u.Username, Status: database.UserStatusActive},
 				New:              database.User{ID: u.ID, Username: u.Username, Status: database.UserStatusDormant},
 				Status:           http.StatusOK,
-				AdditionalFields: audit.BackgroundTaskFields(ctx, logger, audit.BackgroundSubsystemDormancy),
+				AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, logger, audit.BackgroundSubsystemDormancy),
 			})
 		}
 		logger.Debug(ctx, "checking user accounts is done", slog.F("num_dormant_accounts", len(updatedUsers)), slog.F("execution_time", time.Since(startTime)))

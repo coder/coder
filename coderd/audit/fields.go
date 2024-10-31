@@ -13,11 +13,15 @@ const (
 	BackgroundSubsystemDormancy BackgroundSubsystem = "dormancy"
 )
 
-func BackgroundTaskFields(ctx context.Context, logger slog.Logger, subsystem BackgroundSubsystem) []byte {
-	af := map[string]string{
+func BackgroundTaskFields(subsystem BackgroundSubsystem) map[string]string {
+	return map[string]string{
 		"automatic_actor":     "coder",
 		"automatic_subsystem": string(subsystem),
 	}
+}
+
+func BackgroundTaskFieldsBytes(ctx context.Context, logger slog.Logger, subsystem BackgroundSubsystem) []byte {
+	af := BackgroundTaskFields(subsystem)
 
 	wriBytes, err := json.Marshal(af)
 	if err != nil {

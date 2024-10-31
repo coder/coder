@@ -613,15 +613,19 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 			return user, xerrors.Errorf("update user status: %w", err)
 		}
 
+		oldAuditUser := user
+		newAuditUser := user
+		newAuditUser.Status = database.UserStatusActive
+
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
 			Audit:            *auditor.Load(),
 			Log:              logger,
 			UserID:           user.ID,
 			Action:           database.AuditActionWrite,
-			Old:              user,
-			New:              newUser,
+			Old:              oldAuditUser,
+			New:              newAuditUser,
 			Status:           http.StatusOK,
-			AdditionalFields: audit.BackgroundTaskFields(ctx, logger, audit.BackgroundSubsystemDormancy),
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, logger, audit.BackgroundSubsystemDormancy),
 		})
 
 		return newUser, nil
@@ -1420,11 +1424,12 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		dormantConvertAudit  *audit.Request[database.User]
 		initDormantAuditOnce = sync.OnceFunc(func() {
 			dormantConvertAudit = params.initAuditRequest(&audit.RequestParams{
-				Audit:          auditor,
-				Log:            api.Logger,
-				Request:        r,
-				Action:         database.AuditActionWrite,
-				OrganizationID: uuid.Nil,
+				Audit:            auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           database.AuditActionWrite,
+				OrganizationID:   uuid.Nil,
+				AdditionalFields: audit.BackgroundTaskFields(audit.BackgroundSubsystemDormancy),
 			})
 		})
 	)
@@ -1543,6 +1548,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			// This is necessary because transactions can be retried, and we
 			// only want to add the audit log a single time.
 			initDormantAuditOnce()
+			dormantConvertAudit.UserID = user.ID
 			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
