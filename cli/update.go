@@ -11,6 +11,7 @@ import (
 
 func (r *RootCmd) update() *serpent.Command {
 	var (
+		force          bool
 		parameterFlags workspaceParameterFlags
 		bflags         buildFlags
 	)
@@ -29,6 +30,19 @@ func (r *RootCmd) update() *serpent.Command {
 			if err != nil {
 				return err
 			}
+
+			// update command with --force flag is used as an alias for restart.
+			// It can be used to update the workspace parameters for an already up-to-date workspace.
+			if force {
+				_, _ = fmt.Fprintf(inv.Stdout, "Restarting %s to update the workspace parameters.\n", workspace.Name)
+				return r.restart().Handler(inv)
+			}
+
+			if !workspace.Outdated && len(parameterFlags.richParameters) != 0 {
+				_, _ = fmt.Fprintf(inv.Stdout, "Workspace is up-to-date. Please add --force to update the workspace parameters.\n")
+				return nil
+			}
+
 			if !workspace.Outdated && !parameterFlags.promptRichParameters && !parameterFlags.promptEphemeralParameters && len(parameterFlags.ephemeralParameters) == 0 {
 				_, _ = fmt.Fprintf(inv.Stdout, "Workspace is up-to-date.\n")
 				return nil
@@ -57,5 +71,11 @@ func (r *RootCmd) update() *serpent.Command {
 
 	cmd.Options = append(cmd.Options, parameterFlags.allOptions()...)
 	cmd.Options = append(cmd.Options, bflags.cliOptions()...)
+
+	cmd.Options = append(cmd.Options, serpent.Option{
+		Flag:        "force",
+		Description: "Force the update of the workspace even if it is up-to-date.",
+		Value:       serpent.BoolOf(&force),
+	})
 	return cmd
 }
