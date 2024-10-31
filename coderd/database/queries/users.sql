@@ -67,10 +67,15 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-		login_type
+		login_type,
+		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF(@status::text, '')::user_status, 'dormant'::user_status)
+	) RETURNING *;
 
 -- name: UpdateUserProfile :one
 UPDATE
@@ -286,7 +291,7 @@ SET
 WHERE
     last_seen_at < @last_seen_after :: timestamp
     AND status = 'active'::user_status
-RETURNING id, email, last_seen_at;
+RETURNING id, email, username, last_seen_at;
 
 -- AllUserIDs returns all UserIDs regardless of user status or deletion.
 -- name: AllUserIDs :many
