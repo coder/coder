@@ -123,7 +123,7 @@ We support two release channels: mainline and stable - read the
 
 - **Mainline** Coder release:
 
-      <!-- autoversion(mainline): "--version [version]" -->
+  <!-- autoversion(mainline): "--version [version]" -->
 
   ```shell
   helm install coder coder-v2/coder \
@@ -134,7 +134,7 @@ We support two release channels: mainline and stable - read the
 
 - **Stable** Coder release:
 
-      <!-- autoversion(stable): "--version [version]" -->
+  <!-- autoversion(stable): "--version [version]" -->
 
   ```shell
   helm install coder coder-v2/coder \
