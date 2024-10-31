@@ -21,22 +21,19 @@ pre-built set of monitoring integrations.
 With the Observability Helm chart, you can monitor [which specific startup
 metrics are a part of the Helm chart?]
 
-To install it with Helm:
-
-```shell
-helm repo add coder-observability https://helm.coder.com/observability
-helm upgrade --install coder-observability coder-observability/coder-observability --version 0.1.1 --namespace coder-observability --create-namespace
-```
+Visit the
+[observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation)
+to install it with Helm.
 
 ### Enable Prometheus metrics for Coder
-
-Our observability bundle gives you this for free which is nice and has
-instructions on how to do it with Coder
 
 [Prometheus.io](https://prometheus.io/docs/introduction/overview/#what-is-prometheus)
 is included as part of the [observability chart](#coder-observability-chart).It
 offers a variety of
-[available metrics](../../admin/integrations/prometheus.md#available-metrics).
+[available metrics](../../admin/integrations/prometheus.md#available-metrics),
+such as `coderd_provisionerd_job_timings_seconds` and
+`coderd_agentstats_startup_script_seconds`, which measure how long the workspace
+takes to provision and how long the startup script takes.
 
 You can
 [install it separately](https://prometheus.io/docs/prometheus/latest/getting_started/)
@@ -73,9 +70,10 @@ state until a provisioner becomes available.
 
 Provisioners are queue-based to reduce unpredictable load to the Coder server.
 However, they can be scaled up to allow more concurrent provisioners. You risk
-overloading the central Coder server if you use too many local provisioners, so
-we recommend a maximum of five provisioners. For more than five provisioners, we
-recommend that you move to [external provisioners](../../admin/provisioners.md).
+overloading the central Coder server if you use too many built-in provisioners,
+so we recommend a maximum of five provisioners. For more than five provisioners,
+we recommend that you move to
+[external provisioners](../../admin/provisioners.md).
 
 If you can’t move to external provisioners, use the `provisioner-daemons` flag
 to increase the number of provisioner daemons to five:
@@ -86,7 +84,8 @@ coder server --provisioner-daemons=5
 
 Visit the
 [CLI documentation](../../reference/cli/server.md#--provisioner-daemons) for
-more information about increasing provisioner daemons and other options.
+more information about increasing provisioner daemons, configuring external
+provisioners, and other options.
 
 ### Adjust provisioner CPU/memory
 
@@ -115,24 +114,30 @@ Visit the
 [validated architecture documentation](../../admin/infrastructure/validated-architectures/index.md#workspace-nodes)
 for more information.
 
-## Set up Terraform Provider Caching
+## Set up Terraform provider caching
 
-Use `terraform init` to cache providers:
+By default, Coder downloads each Terraform provider when a workspace starts.
+This can create unnecessary network and disk I/O.
 
-Pull the templates to your local device:
+`terraform init` generates a `.teraform.lock.hcl` which instructs Coder
+provisioners to cache specific versions of your providers.
 
-```shell
-coder templates pull
-```
+To use `terraform init` to cache providers:
 
-Run `terraform init` to initialize the directory:
+1. Pull the templates to your local device:
 
-```shell
-terraform init
-```
+   ```shell
+   coder templates pull
+   ```
 
-Push the templates back to your Coder deployment:
+1. Run `terraform init` to initialize the directory:
 
-```shell
-coder templates push
-```
+   ```shell
+   terraform init
+   ```
+
+1. Push the templates back to your Coder deployment:
+
+   ```shell
+   coder templates push
+   ```
