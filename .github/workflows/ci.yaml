@@ -363,9 +363,15 @@ jobs:
       matrix:
         os:
           - macos-latest-xlarge
-          # - windows-2022
+          - windows-2022
     timeout-minutes: 25
+
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
@@ -383,10 +389,8 @@ jobs:
           # if macOS, install google-chrome for scaletests and docker.
           # As another concern, should we really have this kind of external dependency
           # requirement on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest-xlarge" ]; then
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
             brew install google-chrome
-            brew install orbstack
-            orb
           fi
 
           # By default Go will use the number of logical CPUs, which
@@ -395,9 +399,12 @@ jobs:
 
           # macOS will output "The default interactive shell is now zsh"
           # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest-xlarge" ]; then
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
             touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
           fi
+
+          # start embedded postgres
+          go run scripts/pg/main.go
 
           gotestsum --format standard-quiet -- -v -short -count=1 ./...
 
