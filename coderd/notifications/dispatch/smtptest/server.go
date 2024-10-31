@@ -59,6 +59,9 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 func (b *Backend) LastMessage() *Message {
 	b.mu.Lock()
 	defer b.mu.Unlock()
+	if b.lastMsg == nil {
+		return nil
+	}
 	clone := *b.lastMsg
 	clone.To = slices.Clone(b.lastMsg.To)
 	return &clone
