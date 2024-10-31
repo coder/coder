@@ -1063,6 +1063,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				wriBytes, err := json.Marshal(buildResourceInfo)
 				if err != nil {
 					s.Logger.Error(ctx, "marshal workspace resource info for failed job", slog.Error(err))
+					wriBytes = []byte("{}")
 				}
 
 				bag := audit.BaggageFromContext(ctx)

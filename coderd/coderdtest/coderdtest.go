@@ -719,6 +719,9 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		Name:            RandomName(t),
 		Password:        "SomeSecurePassword!",
 		OrganizationIDs: organizationIDs,
+		// Always create users as active in tests to ignore an extra audit log
+		// when logging in.
+		UserStatus: ptr.Ref(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)

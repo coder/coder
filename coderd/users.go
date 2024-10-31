@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -188,10 +189,13 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // needed to create first user
 	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-			Email:           createUser.Email,
-			Username:        createUser.Username,
-			Name:            createUser.Name,
-			Password:        createUser.Password,
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Name:     createUser.Name,
+			Password: createUser.Password,
+			// There's no reason to create the first user as dormant, since you have
+			// to login immediately anyways.
+			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
 		LoginType:          database.LoginTypePassword,
@@ -1343,6 +1347,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 
+		status := ""
+		if req.UserStatus != nil {
+			status = string(*req.UserStatus)
+		}
 		params := database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          req.Email,
@@ -1354,6 +1362,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
+			Status:    status,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {

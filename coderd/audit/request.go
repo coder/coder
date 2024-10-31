@@ -62,12 +62,13 @@ type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	UserID           uuid.UUID
-	RequestID        uuid.UUID
-	Status           int
-	Action           database.AuditAction
-	OrganizationID   uuid.UUID
-	IP               string
+	UserID         uuid.UUID
+	RequestID      uuid.UUID
+	Status         int
+	Action         database.AuditAction
+	OrganizationID uuid.UUID
+	IP             string
+	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
 	New T
