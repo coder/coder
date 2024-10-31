@@ -115,15 +115,34 @@ func initDefaultConnectionParams() error {
 	return nil
 }
 
+type OpenOptions struct {
+	DBFrom *string
+}
+
+type OpenOption func(*OpenOptions)
+
+// WithDBFrom sets the template database to use when creating a new database.
+// Overrides the DB_FROM environment variable.
+func WithDBFrom(dbFrom string) OpenOption {
+	return func(o *OpenOptions) {
+		o.DBFrom = &dbFrom
+	}
+}
+
 // Open creates a new PostgreSQL database instance.
 // If there's a database running at localhost:5432, it will use that.
 // Otherwise, it will start a new postgres container.
-func Open() (string, func(), error) {
+func Open(opts ...OpenOption) (string, func(), error) {
 	connectionParamsInitOnce.Do(func() {
 		errDefaultConnectionParamsInit = initDefaultConnectionParams()
 	})
 	if errDefaultConnectionParamsInit != nil {
 		return "", func() {}, xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
+	}
+
+	openOptions := OpenOptions{}
+	for _, opt := range opts {
+		opt(&openOptions)
 	}
 
 	var (
@@ -144,13 +163,10 @@ func Open() (string, func(), error) {
 
 	// if empty createDatabaseFromTemplate will create a new template db
 	templateDBName := os.Getenv("DB_FROM")
-	if err = createDatabaseFromTemplate(ConnectionParams{
-		Username: username,
-		Password: password,
-		Host:     host,
-		Port:     port,
-		DBName:   dbName,
-	}, dbName, templateDBName); err != nil {
+	if openOptions.DBFrom != nil {
+		templateDBName = *openOptions.DBFrom
+	}
+	if err = createDatabaseFromTemplate(defaultConnectionParams, dbName, templateDBName); err != nil {
 		return "", func() {}, xerrors.Errorf("create database: %w", err)
 	}
 
@@ -187,9 +203,14 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 	if err != nil {
 		return xerrors.Errorf("connect to postgres: %w", err)
 	}
-	defer db.Close()
+	defer func() {
+		if err := db.Close(); err != nil {
+			panic(err)
+		}
+	}()
 
-	if templateDBName == "" {
+	emptyTemplateDBName := templateDBName == ""
+	if emptyTemplateDBName {
 		templateDBName = fmt.Sprintf("tpl_%s", migrations.GetMigrationsHash()[:32])
 	}
 	_, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
@@ -197,13 +218,13 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		// Template database already exists and we successfully created the new database.
 		return nil
 	}
-	tplDbDoesNotExist := strings.Contains(err.Error(), "template database") && strings.Contains(err.Error(), "does not exist")
-	if (tplDbDoesNotExist && templateDBName != "") || (!tplDbDoesNotExist) {
+	tplDbDoesNotExistOccurred := strings.Contains(err.Error(), "template database") && strings.Contains(err.Error(), "does not exist")
+	if (tplDbDoesNotExistOccurred && !emptyTemplateDBName) || !tplDbDoesNotExistOccurred {
 		// First and case: user passed a templateDBName that doesn't exist.
 		// Second and case: some other error.
 		return xerrors.Errorf("create db with template: %w", err)
 	}
-	if templateDBName != "" {
+	if !emptyTemplateDBName {
 		// sanity check
 		panic("templateDBName is not empty. there's a bug in the code above")
 	}
@@ -230,6 +251,9 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		return xerrors.Errorf("check if db exists: %w", err)
 	}
 	tplDbAlreadyExists := tplDbExistsRes.Next()
+	if err := tplDbExistsRes.Close(); err != nil {
+		return xerrors.Errorf("close tpl db exists res: %w", err)
+	}
 	if !tplDbAlreadyExists {
 		// We will use a temporary template database to avoid race conditions. We will
 		// rename it to the real template database name after we're sure it was fully
@@ -237,13 +261,10 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		// It's dropped here to ensure that if a previous run of this function failed
 		// midway, we don't encounter issues with the temporary database still existing.
 		tmpTemplateDBName := "tmp_" + templateDBName
-		_, err = db.Exec("DROP DATABASE IF EXISTS " + tmpTemplateDBName)
-		if err != nil {
+		if _, err := db.Exec("DROP DATABASE IF EXISTS " + tmpTemplateDBName); err != nil {
 			return xerrors.Errorf("drop tmp template db: %w", err)
 		}
-
-		_, err = db.Exec("CREATE DATABASE " + tmpTemplateDBName)
-		if err != nil {
+		if _, err := db.Exec("CREATE DATABASE " + tmpTemplateDBName); err != nil {
 			return xerrors.Errorf("create tmp template db: %w", err)
 		}
 		tplDbURL := ConnectionParams{
@@ -257,30 +278,29 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		if err != nil {
 			return xerrors.Errorf("connect to template db: %w", err)
 		}
-		defer tplDb.Close()
+		defer func() {
+			if err := tplDb.Close(); err != nil {
+				panic(err)
+			}
+		}()
 		if err := migrations.Up(tplDb); err != nil {
 			return xerrors.Errorf("migrate template db: %w", err)
 		}
 		if err := tplDb.Close(); err != nil {
 			return xerrors.Errorf("close template db: %w", err)
 		}
-		_, err = db.Exec("ALTER DATABASE " + tmpTemplateDBName + " RENAME TO " + templateDBName)
-		if err != nil {
+		if _, err := db.Exec("ALTER DATABASE " + tmpTemplateDBName + " RENAME TO " + templateDBName); err != nil {
 			return xerrors.Errorf("rename tmp template db: %w", err)
 		}
 	}
 
 	// Try to create the database again now that a template exists.
-	_, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName)
-	if err != nil {
+	if _, err = db.Exec("CREATE DATABASE " + newDBName + " WITH TEMPLATE " + templateDBName); err != nil {
 		return xerrors.Errorf("create db with template after migrations: %w", err)
 	}
-
-	err = tx.Commit()
-	if err != nil {
+	if err = tx.Commit(); err != nil {
 		return xerrors.Errorf("commit tx: %w", err)
 	}
-
 	return nil
 }
 
