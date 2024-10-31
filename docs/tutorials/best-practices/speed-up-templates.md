@@ -100,13 +100,12 @@ Adjust the CPU and memory values as shown in
 ```yaml
 …
   resources:
-    {}
-    # limits:
-    #   cpu: 2000m
-    #   memory: 4096Mi
-    # requests:
-    #   cpu: 2000m
-    #   memory: 4096Mi
+    limits:
+      cpu: "0.25"
+      memory: "1G"
+    requests:
+      cpu: "0.25"
+      memory: "1G"
 …
 ```
 
