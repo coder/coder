@@ -68,6 +68,6 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, clk 
 
 	return func() {
 		cancelFunc()
-		ticker.Wait()
+		_ = ticker.Wait()
 	}
 }
