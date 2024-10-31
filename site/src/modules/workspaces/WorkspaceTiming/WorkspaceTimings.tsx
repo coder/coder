@@ -57,12 +57,14 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	};
 
 	const stages = () => {
-		const agentNames = Array.from(
-			new Set(agentConnectionTimings.map((t) => t.workspace_agent_name)),
+		const agentStageLabels = Array.from(
+			new Set(
+				agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
+			),
 		);
 		return [
 			...provisioningStages,
-			...agentNames.flatMap((a) => agentStages(a)),
+			...agentStageLabels.flatMap((a) => agentStages(a)),
 		];
 	};
 
