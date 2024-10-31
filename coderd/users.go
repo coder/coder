@@ -189,16 +189,16 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // needed to create first user
 	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-			Email:           createUser.Email,
-			Username:        createUser.Username,
-			Name:            createUser.Name,
-			Password:        createUser.Password,
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Name:     createUser.Name,
+			Password: createUser.Password,
+			// There's no reason to create the first user as dormant, since you have
+			// to login immediately anyways.
 			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
-		LoginType: database.LoginTypePassword,
-		// There's no reason to create the first user as dormant, since you have
-		// to login immediately anyways.
+		LoginType:          database.LoginTypePassword,
 		accountCreatorName: "coder",
 	})
 	if err != nil {

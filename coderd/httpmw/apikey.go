@@ -82,6 +82,7 @@ const (
 
 type ExtractAPIKeyConfig struct {
 	DB                          database.Store
+	HandleDormancy              func(ctx context.Context, u database.User) database.User
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
@@ -414,21 +415,13 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
-	if userStatus == database.UserStatusDormant {
-		// If coder confirms that the dormant user is valid, it can switch their account to active.
-		// nolint:gocritic
-		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        key.UserID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+	if userStatus == database.UserStatusDormant && cfg.HandleDormancy != nil {
+		id, _ := uuid.Parse(actor.ID)
+		cfg.HandleDormancy(ctx, database.User{
+			ID:       id,
+			Username: actor.FriendlyName,
+			Status:   userStatus,
 		})
-		if err != nil {
-			return write(http.StatusInternalServerError, codersdk.Response{
-				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("can't activate a dormant user: %s", err.Error()),
-			})
-		}
-		userStatus = u.Status
 	}
 
 	if userStatus != database.UserStatusActive {
