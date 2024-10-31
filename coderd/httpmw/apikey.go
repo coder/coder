@@ -82,7 +82,7 @@ const (
 
 type ExtractAPIKeyConfig struct {
 	DB                          database.Store
-	HandleDormancy              func(ctx context.Context, u database.User) database.User
+	ActivateDormantUser         func(ctx context.Context, u database.User) database.User
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
@@ -415,9 +415,9 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
-	if userStatus == database.UserStatusDormant && cfg.HandleDormancy != nil {
+	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {
 		id, _ := uuid.Parse(actor.ID)
-		cfg.HandleDormancy(ctx, database.User{
+		cfg.ActivateDormantUser(ctx, database.User{
 			ID:       id,
 			Username: actor.FriendlyName,
 			Status:   userStatus,

@@ -35,7 +35,7 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, clk 
 	logger = logger.Named("dormancy")
 
 	ctx, cancelFunc := context.WithCancel(ctx)
-	ticker := clk.TickerFunc(ctx, checkInterval, func() error {
+	tf := clk.TickerFunc(ctx, checkInterval, func() error {
 		startTime := time.Now()
 		lastSeenAfter := dbtime.Now().Add(-dormancyPeriod)
 		logger.Debug(ctx, "check inactive user accounts", slog.F("dormancy_period", dormancyPeriod), slog.F("last_seen_after", lastSeenAfter))
@@ -68,6 +68,6 @@ func CheckInactiveUsersWithOptions(ctx context.Context, logger slog.Logger, clk 
 
 	return func() {
 		cancelFunc()
-		_ = ticker.Wait()
+		_ = tf.Wait()
 	}
 }
