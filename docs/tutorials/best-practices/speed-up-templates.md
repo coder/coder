@@ -13,6 +13,26 @@ You can monitor [Coder logs](../../admin/monitoring/logs.md) through the
 system-native tools on your deployment platform, or stream logs to tools like
 Splunk, Datadog, Grafana Loki, and others.
 
+### Workspace build timeline
+
+Use the **Build timeline** to monitor the time it takes to start specific
+workspaces. Identify long scripts, resources, and other things you can
+potentially optimize within the template.
+
+![Screenshot of a workspace and its build timeline](../../images/best-practice/build-timeline.png)
+
+Adjust this request to match your Coder access URL and workspace:
+
+```shell
+curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+Visit the
+[API documentation](../../reference/api/builds.md#get-workspace-build-timings-by-id)
+for more information.
+
 ### Coder Observability Chart
 
 Use the [Observability Helm chart](https://github.com/coder/observability) for a
@@ -38,26 +58,6 @@ takes to provision and how long the startup script takes.
 You can
 [install it separately](https://prometheus.io/docs/prometheus/latest/getting_started/)
 if you prefer.
-
-### Workspace build timeline
-
-Use the **Build timeline** to monitor the time it takes to start specific
-workspaces. Identify long scripts, resources, and other things you can
-potentially optimize within the template.
-
-![Screenshot of a workspace and its build timeline](../../images/best-practice/build-timeline.png)
-
-Adjust this request to match your Coder access URL and workspace:
-
-```shell
-curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-Visit the
-[API documentation](../../reference/api/builds.md#get-workspace-build-timings-by-id)
-for more information.
 
 ## Provisioners
 
