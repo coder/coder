@@ -72,6 +72,7 @@ export const RBACResourceActions: Partial<
   },
   notification_message: {
     create: "create notification messages",
+    delete: "delete notification messages",
     read: "read notification messages",
     update: "update notification messages",
   },

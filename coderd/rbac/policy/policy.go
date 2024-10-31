@@ -267,6 +267,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionCreate: actDef("create notification messages"),
 			ActionRead:   actDef("read notification messages"),
 			ActionUpdate: actDef("update notification messages"),
+			ActionDelete: actDef("delete notification messages"),
 		},
 	},
 	"notification_template": {

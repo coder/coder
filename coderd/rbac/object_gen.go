@@ -132,6 +132,7 @@ var (
 	// ResourceNotificationMessage
 	// Valid Actions
 	//  - "ActionCreate" :: create notification messages
+	//  - "ActionDelete" :: delete notification messages
 	//  - "ActionRead" :: read notification messages
 	//  - "ActionUpdate" :: update notification messages
 	ResourceNotificationMessage = Object{
