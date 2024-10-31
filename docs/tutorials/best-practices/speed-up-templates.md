@@ -36,9 +36,15 @@ for more information.
 ### Coder Observability Chart
 
 Use the [Observability Helm chart](https://github.com/coder/observability) for a
-pre-built set of pre-built dashboards to monitor your control plane over time. It includes Grafana, Prometheus, Loki, and Alert Manager out-of-the-box, and can be deployed on your existing Grafana instance.
+pre-built set of pre-built dashboards to monitor your control plane over time.
+It includes Grafana, Prometheus, Loki, and Alert Manager out-of-the-box, and can
+be deployed on your existing Grafana instance.
 
-We recommend that all administrators deploying on Kubernetes set the observability bundle up with the control plane from the start. For installation instructions, visit the [observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation), or our [Kubernetes installation guide](../../install/kubernetes.md).
+We recommend that all administrators deploying on Kubernetes set the
+observability bundle up with the control plane from the start. For installation
+instructions, visit the
+[observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation),
+or our [Kubernetes installation guide](../../install/kubernetes.md).
 
 ### Enable Prometheus metrics for Coder
 
