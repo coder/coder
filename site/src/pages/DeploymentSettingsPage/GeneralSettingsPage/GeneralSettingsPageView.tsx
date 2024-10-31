@@ -49,16 +49,8 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 				)}
 				{deploymentDAUs && (
 					<div css={{ marginBottom: 24, height: 200 }}>
-						<ChartSection title={<ActiveUsersTitle />}>
-							<ActiveUserChart
-								data={deploymentDAUs.entries}
-								interval="day"
-								userLimit={
-									entitlements?.features.user_limit.enabled
-										? entitlements?.features.user_limit.limit
-										: undefined
-								}
-							/>
+						<ChartSection title={<ActiveUsersTitle interval="day" />}>
+							<ActiveUserChart data={deploymentDAUs.entries} interval="day" />
 						</ChartSection>
 					</div>
 				)}
