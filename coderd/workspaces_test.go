@@ -1329,7 +1329,6 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			coderdtest.CreateWorkspace(t, client, template.ID),
 			coderdtest.CreateWorkspace(t, client, template.ID),
 		}
-		var _ = workspaces
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
