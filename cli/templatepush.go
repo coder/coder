@@ -282,7 +282,7 @@ func (pf *templateUploadFlags) stdin(inv *serpent.Invocation) (out bool) {
 		}
 	}()
 	// We let the directory override our isTTY check
-	return pf.directory == "-" || (!isTTYIn(inv) && pf.directory == "")
+	return pf.directory == "-" || (!isTTYIn(inv) && pf.directory == ".")
 }
 
 func (pf *templateUploadFlags) upload(inv *serpent.Invocation, client *codersdk.Client) (*codersdk.UploadResponse, error) {

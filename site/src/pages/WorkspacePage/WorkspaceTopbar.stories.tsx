@@ -320,3 +320,39 @@ export const TemplateDoesNotAllowAutostop: Story = {
 		},
 	},
 };
+
+export const TemplateInfoPopover: Story = {
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("activate hover trigger", async () => {
+			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await waitFor(() =>
+				expect(
+					canvas.getByRole("presentation", { hidden: true }),
+				).toHaveTextContent(MockTemplate.display_name),
+			);
+		});
+	},
+};
+
+export const TemplateInfoPopoverWithoutDisplayName: Story = {
+	args: {
+		workspace: {
+			...baseWorkspace,
+			template_display_name: "",
+		},
+	},
+	play: async ({ canvasElement, step }) => {
+		const canvas = within(canvasElement);
+
+		await step("activate hover trigger", async () => {
+			await userEvent.hover(canvas.getByText(baseWorkspace.name));
+			await waitFor(() =>
+				expect(
+					canvas.getByRole("presentation", { hidden: true }),
+				).toHaveTextContent(MockTemplate.name),
+			);
+		});
+	},
+};

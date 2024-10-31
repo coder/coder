@@ -117,6 +117,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 	return nil
 }
 
+// nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
 	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
@@ -136,8 +137,13 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}, stats.Metrics)
 	}
 
-	// if no active connections we do not bump activity
-	if stats.ConnectionCount == 0 {
+	// workspace activity: if no sessions we do not bump activity
+	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
+		return nil
+	}
+
+	// legacy stats: if no active connections we do not bump activity
+	if !usage && stats.ConnectionCount == 0 {
 		return nil
 	}
 
