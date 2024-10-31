@@ -68,6 +68,8 @@ func (b *Backend) LastMessage() *Message {
 }
 
 func (b *Backend) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.lastMsg = nil
 }
 
