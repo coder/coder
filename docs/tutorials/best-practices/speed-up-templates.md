@@ -53,7 +53,7 @@ potentially optimize within the template.
 Adjust this request to match your Coder access URL and workspace:
 
 ```shell
-curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/timings \
+curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
