@@ -71,7 +71,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	method := database.NotificationMethodSmtp
@@ -135,7 +135,7 @@ func TestSMTPDispatch(t *testing.T) {
 	// SETUP
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -197,7 +197,7 @@ func TestWebhookDispatch(t *testing.T) {
 	// SETUP
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -281,7 +281,7 @@ func TestBackpressure(t *testing.T) {
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitShort))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
 
 	const method = database.NotificationMethodWebhook
 	cfg := defaultNotificationsConfig(method)
@@ -407,7 +407,7 @@ func TestRetries(t *testing.T) {
 
 	const maxAttempts = 3
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -501,7 +501,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -521,7 +521,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	noopInterceptor := newNoopStoreSyncer(store)
 
 	// nolint:gocritic // Unit test.
-	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsSystemRestricted(context.Background()))
+	mgrCtx, cancelManagerCtx := context.WithCancel(dbauthz.AsNotifier(context.Background()))
 	t.Cleanup(cancelManagerCtx)
 
 	mgr, err := notifications.NewManager(cfg, noopInterceptor, defaultHelpers(), createMetrics(), logger.Named("manager"))
@@ -626,7 +626,7 @@ func TestNotifierPaused(t *testing.T) {
 	// Setup.
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -1081,7 +1081,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}()
 
 				// nolint:gocritic // Unit test.
-				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
 				// smtp config shared between client and server
 				smtpConfig := codersdk.NotificationsEmailConfig{
@@ -1160,12 +1160,14 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// as appearance changes are enterprise features and we do not want to mix those
 				// can't use the api
 				if tc.appName != "" {
-					err = (*db).UpsertApplicationName(ctx, "Custom Application")
+					// nolint:gocritic // Unit test.
+					err = (*db).UpsertApplicationName(dbauthz.AsSystemRestricted(ctx), "Custom Application")
 					require.NoError(t, err)
 				}
 
 				if tc.logoURL != "" {
-					err = (*db).UpsertLogoURL(ctx, "https://custom.application/logo.png")
+					// nolint:gocritic // Unit test.
+					err = (*db).UpsertLogoURL(dbauthz.AsSystemRestricted(ctx), "https://custom.application/logo.png")
 					require.NoError(t, err)
 				}
 
@@ -1248,7 +1250,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				}()
 
 				// nolint:gocritic // Unit test.
-				ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+				ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 
 				// Spin up the mock webhook server
 				var body []byte
@@ -1376,7 +1378,7 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -1412,7 +1414,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -1469,7 +1471,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
@@ -1573,7 +1575,7 @@ func TestNotificationsTemplates(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	api := coderdtest.New(t, createOpts(t))
 
 	// GIVEN: the first user (owner) and a regular member
@@ -1610,7 +1612,7 @@ func TestNotificationDuplicates(t *testing.T) {
 	}
 
 	// nolint:gocritic // Unit test.
-	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 

@@ -2888,40 +2888,33 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
 	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.EnqueueNotificationMessageParams{
 			Method:  database.NotificationMethodWebhook,
 			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
 	// Notification templates

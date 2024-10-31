@@ -4491,6 +4491,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `group_member`            |
 | `idpsync_settings`        |
 | `license`                 |
+| `notification_message`    |
 | `notification_preference` |
 | `notification_template`   |
 | `oauth2_app`              |
