@@ -589,7 +589,7 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 }
 
 func (api *API) ActivateDormantUser(ctx context.Context, user database.User) database.User {
-	if user.Status != database.UserStatusDormant {
+	if user.ID == uuid.Nil || user.Status != database.UserStatusDormant {
 		return user
 	}
 
