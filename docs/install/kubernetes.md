@@ -1,6 +1,6 @@
 # Install Coder on Kubernetes
 
-You can install Coder on Kubernetes using Helm. We run on most Kubernetes
+You can install Coder on Kubernetes (K8s) using Helm. We run on most Kubernetes
 distributions, including [OpenShift](./openshift.md).
 
 ## Requirements
@@ -121,27 +121,27 @@ coder:
 We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
-For the **mainline** Coder release:
+- **Mainline** Coder release:
 
-   <!-- autoversion(mainline): "--version [version]" -->
+      <!-- autoversion(mainline): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.15.0
-```
+   ```shell
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.15.0
+   ```
 
-    	For the **stable** Coder release:
+- **Stable** Coder release:
 
-    		<!-- autoversion(stable): "--version [version]" -->
+      <!-- autoversion(stable): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.15.1
-```
+   ```shell
+   helm install coder coder-v2/coder \
+       --namespace coder \
+       --values values.yaml \
+       --version 2.15.1
+   ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
 has started, the `coder-*` pods should enter the `Running` state.
