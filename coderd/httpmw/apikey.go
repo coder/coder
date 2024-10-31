@@ -82,7 +82,7 @@ const (
 
 type ExtractAPIKeyConfig struct {
 	DB                          database.Store
-	ActivateDormantUser         func(ctx context.Context, u database.User) database.User
+	ActivateDormantUser         func(ctx context.Context, u database.User) (database.User, error)
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
@@ -417,11 +417,18 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 
 	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {
 		id, _ := uuid.Parse(actor.ID)
-		cfg.ActivateDormantUser(ctx, database.User{
+		user, err := cfg.ActivateDormantUser(ctx, database.User{
 			ID:       id,
 			Username: actor.FriendlyName,
 			Status:   userStatus,
 		})
+		if err != nil {
+			return write(http.StatusInternalServerError, codersdk.Response{
+				Message: internalErrorMessage,
+				Detail:  fmt.Sprintf("update user status: %s", err.Error()),
+			})
+		}
+		userStatus = user.Status
 	}
 
 	if userStatus != database.UserStatusActive {

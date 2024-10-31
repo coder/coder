@@ -567,7 +567,14 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	user = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
+	user, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+			Detail:  err.Error(),
+		})
+		return user, rbac.Subject{}, false
+	}
 
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
 	if err != nil {
@@ -589,10 +596,10 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	return user, subject, true
 }
 
-func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Auditor], db database.Store) func(ctx context.Context, user database.User) database.User {
-	return func(ctx context.Context, user database.User) database.User {
+func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Auditor], db database.Store) func(ctx context.Context, user database.User) (database.User, error) {
+	return func(ctx context.Context, user database.User) (database.User, error) {
 		if user.ID == uuid.Nil || user.Status != database.UserStatusDormant {
-			return user
+			return user, nil
 		}
 
 		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
@@ -603,7 +610,7 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 		})
 		if err != nil {
 			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
-			return user
+			return user, xerrors.Errorf("update user status: %w", err)
 		}
 
 		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
@@ -617,7 +624,7 @@ func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Audit
 			AdditionalFields: audit.BackgroundTaskFields(ctx, logger, audit.BackgroundSubsystemDormancy),
 		})
 
-		return newUser
+		return newUser, nil
 	}
 }
 
@@ -1413,15 +1420,14 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		dormantConvertAudit  *audit.Request[database.User]
 		initDormantAuditOnce = sync.OnceFunc(func() {
 			dormantConvertAudit = params.initAuditRequest(&audit.RequestParams{
-				Audit:   auditor,
-				Log:     api.Logger,
-				Request: r,
-				Action:  database.AuditActionWrite,
+				Audit:          auditor,
+				Log:            api.Logger,
+				Request:        r,
+				Action:         database.AuditActionWrite,
+				OrganizationID: uuid.Nil,
 			})
 		})
 	)
-
-	params.User = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, params.User)
 
 	var isConvertLoginType bool
 	err := api.Database.InTx(func(tx database.Store) error {
