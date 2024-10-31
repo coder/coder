@@ -166,5 +166,6 @@ build timings UI.
 Additionally, you can programmatically pull startup time measurements using our
 [build timings API endpoint](../../reference/api/builds.md#get-workspace-build-timings-by-id).
 
-See our guide on optimizing templates to reduce startup times to take action on
-this data.
+See our
+[guide on optimizing workspace build times](../../tutorials/best-practices/speed-up-templates.md)
+to optimize your templates based on this data.
