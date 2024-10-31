@@ -1,34 +1,14 @@
 package main
 
 import (
+	"database/sql"
 	"os"
 	"path/filepath"
-	"runtime"
-	"strings"
 
 	embeddedpostgres "github.com/fergusstrange/embedded-postgres"
 )
 
 func main() {
-	startParams := map[string]string{
-		"shared_buffers":       "1GB",
-		"work_mem":             "1GB",
-		"effective_cache_size": "1GB",
-		"max_connections":      "1000",
-		"fsync":                "off",
-		"synchronous_commit":   "off",
-		"full_page_writes":     "off",
-	}
-	if strings.Contains(runtime.GOOS, "windows") {
-		// Windows requires the parameters in a different format.
-		// I didn't have access to a Windows machine to figure it out,
-		// and CI takes too long to set up a run on Windows,
-		// so I'm just sticking to the basics here.
-		startParams = map[string]string{
-			"max_connections": "1000",
-		}
-	}
-
 	postgresPath := filepath.Join(os.TempDir(), "coder-test-postgres")
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
@@ -41,11 +21,42 @@ func main() {
 			Password("postgres").
 			Database("postgres").
 			Port(uint32(5432)).
-			StartParameters(startParams).
 			Logger(os.Stdout),
 	)
 	err := ep.Start()
 	if err != nil {
+		panic(err)
+	}
+	// We execute these queries instead of using the embeddedpostgres
+	// StartParams because it doesn't work on Windows. The library
+	// seems to have a bug where it sends malformed parameters to
+	// pg_ctl. It encloses each parameter in single quotes, which
+	// Windows can't handle.
+	paramQueries := []string{
+		`ALTER SYSTEM SET effective_cache_size = '1GB';`,
+		`ALTER SYSTEM SET fsync = 'off';`,
+		`ALTER SYSTEM SET full_page_writes = 'off';`,
+		`ALTER SYSTEM SET max_connections = '1000';`,
+		`ALTER SYSTEM SET shared_buffers = '1GB';`,
+		`ALTER SYSTEM SET synchronous_commit = 'off';`,
+		`ALTER SYSTEM SET work_mem = '1GB';`,
+	}
+	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
+	if err != nil {
+		panic(err)
+	}
+	for _, query := range paramQueries {
+		if _, err := db.Exec(query); err != nil {
+			panic(err)
+		}
+	}
+	if err := db.Close(); err != nil {
+		panic(err)
+	}
+	if err := ep.Stop(); err != nil {
+		panic(err)
+	}
+	if err := ep.Start(); err != nil {
 		panic(err)
 	}
 }
