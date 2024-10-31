@@ -109,6 +109,18 @@ your template's Terraform file and the target resources on your infrastructure.
 Unhealthy workspaces are usually caused by a misconfiguration in the agent or
 workspace startup scripts.
 
+## Workspace build times
+
+In the workspace page, after a successful build, you can see a timing breakdown
+of the workspace startup process. We capture and display both time taken to
+provision the workspace's compute and all agent startup steps. These include any
+[`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)s
+such as [dotfiles](./workspace-dotfiles.md) or
+[`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
+startup.
+
+![Workspace build timings UI](../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
+
 ### Next steps
 
 - [Connecting to your workspace](./index.md)
