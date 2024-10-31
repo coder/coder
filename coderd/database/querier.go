@@ -207,9 +207,6 @@ type sqlcQuerier interface {
 	GetProvisionerKeyByName(ctx context.Context, arg GetProvisionerKeyByNameParams) (ProvisionerKey, error)
 	GetProvisionerLogsAfterID(ctx context.Context, arg GetProvisionerLogsAfterIDParams) ([]ProvisionerJobLog, error)
 	GetQuotaAllowanceForUser(ctx context.Context, arg GetQuotaAllowanceForUserParams) (int64, error)
-	// This INNER JOIN prevents a seq scan of the workspace_builds table.
-	// Limit the rows to the absolute minimum required, which is all workspaces
-	// in a given organization for a given user.
 	GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error)
 	GetReplicaByID(ctx context.Context, id uuid.UUID) (Replica, error)
 	GetReplicasUpdatedAfter(ctx context.Context, updatedAt time.Time) ([]Replica, error)

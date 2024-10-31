@@ -6736,11 +6736,13 @@ const getQuotaConsumedForUser = `-- name: GetQuotaConsumedForUser :one
 WITH latest_builds AS (
 SELECT
 	DISTINCT ON
-	(wb.workspace_id) wb.id,
-	wb.workspace_id,
+	(wb.workspace_id) wb.workspace_id,
 	wb.daily_cost
 FROM
 	workspace_builds wb
+ -- This INNER JOIN prevents a seq scan of the workspace_builds table.
+ -- Limit the rows to the absolute minimum required, which is all workspaces
+ -- in a given organization for a given user.
 INNER JOIN
 	workspaces on wb.workspace_id = workspaces.id
 WHERE
@@ -6754,7 +6756,7 @@ SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
 	workspaces
-JOIN latest_builds ON
+INNER JOIN latest_builds ON
 	latest_builds.workspace_id = workspaces.id
 WHERE
 	NOT deleted AND
@@ -6770,9 +6772,6 @@ type GetQuotaConsumedForUserParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
 }
 
-// This INNER JOIN prevents a seq scan of the workspace_builds table.
-// Limit the rows to the absolute minimum required, which is all workspaces
-// in a given organization for a given user.
 func (q *sqlQuerier) GetQuotaConsumedForUser(ctx context.Context, arg GetQuotaConsumedForUserParams) (int64, error) {
 	row := q.db.QueryRowContext(ctx, getQuotaConsumedForUser, arg.OwnerID, arg.OrganizationID)
 	var column_1 int64

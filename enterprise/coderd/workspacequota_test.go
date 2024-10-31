@@ -476,7 +476,7 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		//  | GetAllowance(w1)    |                                  |
 		//  +---------------------+----------------------------------+
-		//  |                     | ActivityBump(w1                  |
+		//  |                     | ActivityBump(w1)                 |
 		//  +---------------------+----------------------------------+
 		//  | UpdateBuildCost(w1) |                                  |
 		//  +---------------------+----------------------------------+
@@ -526,13 +526,12 @@ func TestWorkspaceSerialization(t *testing.T) {
 		//  +---------------------+----------------------------------+
 		//  | GetAllowance(w1)    |                                  |
 		//  +---------------------+----------------------------------+
-		//  |                     | UpdateWorkspaceLastUsedAt(w1) |
+		//  |                     | UpdateWorkspaceLastUsedAt(w1)    |
 		//  +---------------------+----------------------------------+
 		//  | UpdateBuildCost(w1) |                                  |
 		//  +---------------------+----------------------------------+
 		//  | CommitTx()          |                                  |
 		//  +---------------------+----------------------------------+
-		// pq: could not serialize access due to concurrent update
 		ctx := testutil.Context(t, testutil.WaitShort)
 		//nolint:gocritic // testing
 		ctx = dbauthz.AsSystemRestricted(ctx)

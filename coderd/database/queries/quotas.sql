@@ -18,14 +18,13 @@ INNER JOIN groups ON
 WITH latest_builds AS (
 SELECT
 	DISTINCT ON
-	(wb.workspace_id) wb.id,
-	wb.workspace_id,
+	(wb.workspace_id) wb.workspace_id,
 	wb.daily_cost
 FROM
 	workspace_builds wb
--- This INNER JOIN prevents a seq scan of the workspace_builds table.
--- Limit the rows to the absolute minimum required, which is all workspaces
--- in a given organization for a given user.
+ -- This INNER JOIN prevents a seq scan of the workspace_builds table.
+ -- Limit the rows to the absolute minimum required, which is all workspaces
+ -- in a given organization for a given user.
 INNER JOIN
 	workspaces on wb.workspace_id = workspaces.id
 WHERE
@@ -39,7 +38,7 @@ SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
 	workspaces
-JOIN latest_builds ON
+INNER JOIN latest_builds ON
 	latest_builds.workspace_id = workspaces.id
 WHERE
 	NOT deleted AND
