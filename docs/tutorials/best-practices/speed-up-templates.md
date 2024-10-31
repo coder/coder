@@ -48,7 +48,7 @@ to install it with Helm.
 ### Enable Prometheus metrics for Coder
 
 [Prometheus.io](https://prometheus.io/docs/introduction/overview/#what-is-prometheus)
-is included as part of the [observability chart](#coder-observability-chart).It
+is included as part of the [observability chart](#coder-observability-chart). It
 offers a variety of
 [available metrics](../../admin/integrations/prometheus.md#available-metrics),
 such as `coderd_provisionerd_job_timings_seconds` and
