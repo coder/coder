@@ -339,7 +339,7 @@ func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
-func (*FakeQuerier) PGLocks(ctx context.Context) (database.PGLocks, error) {
+func (*FakeQuerier) PGLocks(_ context.Context) (database.PGLocks, error) {
 	return []database.PGLock{}, nil
 }
 

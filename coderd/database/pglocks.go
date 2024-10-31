@@ -103,9 +103,9 @@ func (l PGLocks) String() string {
 	var out strings.Builder
 	for i, lock := range l {
 		if i != 0 {
-			out.WriteString("\n")
+			_, _ = out.WriteString("\n")
 		}
-		out.WriteString(lock.String())
+		_, _ = out.WriteString(lock.String())
 	}
 	return out.String()
 }
