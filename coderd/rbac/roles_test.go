@@ -649,7 +649,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "NotificationMessages",
-			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead},
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceNotificationMessage,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
