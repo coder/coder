@@ -1253,12 +1253,12 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				// Spin up the mock webhook server
 				var body []byte
 				var readErr error
-				var webhookReceived bool
+				webhookReceived := make(chan struct{})
 				server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 					w.WriteHeader(http.StatusOK)
 
 					body, readErr = io.ReadAll(r.Body)
-					webhookReceived = true
+					close(webhookReceived)
 				}))
 				t.Cleanup(server.Close)
 
@@ -1302,12 +1302,11 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				)
 				require.NoError(t, err)
 
-				require.Eventually(t, func() bool {
-					return webhookReceived
-				}, testutil.WaitShort, testutil.IntervalFast)
-
-				require.NoError(t, err)
-
+				select {
+				case <-time.After(testutil.WaitShort):
+					require.Fail(t, "timed out waiting for webhook to be received")
+				case <-webhookReceived:
+				}
 				// Handle the body that was read in the http server here.
 				// We need to do it here because we can't call require.* in a separate goroutine, such as the http server handler
 				require.NoError(t, readErr)
