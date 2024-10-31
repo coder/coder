@@ -46,7 +46,7 @@ export const ClickToOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(canvas.getByRole("button"));
+		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await canvas.findByText("provisioning");
 	},
 };
@@ -59,7 +59,7 @@ export const ClickToClose: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await canvas.findByText("provisioning");
-		await user.click(canvas.getByText("Provisioning time", { exact: false }));
+		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await waitFor(() =>
 			expect(canvas.getByText("workspace boot")).not.toBeVisible(),
 		);
