@@ -293,6 +293,9 @@ func openContainer(opts DBContainerOptions) (container, func(), error) {
 		nameHash := sha256.Sum256([]byte(opts.Name))
 		nameHashStr := hex.EncodeToString(nameHash[:])
 		lock := flock.New(filepath.Join(os.TempDir(), "coder-postgres-container-"+nameHashStr[:8]))
+		if err := lock.Lock(); err != nil {
+			return container{}, nil, xerrors.Errorf("lock: %w", err)
+		}
 		defer func() {
 			err := lock.Unlock()
 			if err != nil {
