@@ -345,7 +345,8 @@ func AsKeyReader(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectCryptoKeyReader)
 }
 
-// AsNotifier returns a context with an actor that has permissions required for creating notifications.
+// AsNotifier returns a context with an actor that has permissions required for
+// creating/reading/updating/deleting notifications.
 func AsNotifier(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectNotifier)
 }
