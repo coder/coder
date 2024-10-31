@@ -1317,21 +1317,35 @@ func TestWorkspaceFilterManual(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 		user := coderdtest.CreateFirstUser(t, client)
+		otherUser, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleOwner())
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		// Add a non-matching workspace
+		coderdtest.CreateWorkspace(t, otherUser, template.ID)
+
+		workspaces := []codersdk.Workspace{
+			coderdtest.CreateWorkspace(t, client, template.ID),
+			coderdtest.CreateWorkspace(t, client, template.ID),
+		}
+		var _ = workspaces
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		sdkUser, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
 		// match owner name
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
-			Owner: workspace.OwnerName,
+			FilterQuery: fmt.Sprintf("owner:%s", sdkUser.Username),
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Workspaces, 1)
-		require.Equal(t, workspace.ID, res.Workspaces[0].ID)
+		require.Len(t, res.Workspaces, 2)
+		for _, found := range res.Workspaces {
+			require.Equal(t, found.OwnerName, sdkUser.Username)
+		}
 	})
 	t.Run("IDs", func(t *testing.T) {
 		t.Parallel()
