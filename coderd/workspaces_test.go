@@ -1341,7 +1341,7 @@ func TestWorkspaceFilterManual(t *testing.T) {
 			FilterQuery: fmt.Sprintf("owner:%s", sdkUser.Username),
 		})
 		require.NoError(t, err)
-		require.Len(t, res.Workspaces, 2)
+		require.Len(t, res.Workspaces, len(workspaces))
 		for _, found := range res.Workspaces {
 			require.Equal(t, found.OwnerName, sdkUser.Username)
 		}
