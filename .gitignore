@@ -71,3 +71,6 @@ result
 
 # pnpm
 .pnpm-store/
+
+# Zed
+.zed_server
