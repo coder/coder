@@ -6748,6 +6748,7 @@ INNER JOIN
 WHERE
 	-- Only return workspaces that match the user + organization.
 	-- Quotas are calculated per user per organization.
+	NOT workspaces.deleted AND
 	workspaces.owner_id = $1 AND
 	workspaces.organization_id = $2
 ORDER BY
