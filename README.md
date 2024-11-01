@@ -29,6 +29,7 @@
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
 [![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://api.securityscorecards.dev/projects/github.com/coder/coder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
+[![Gurubase](https://img.shields.io/badge/Gurubase-Ask%20Coder%20Guru-006BFF)](https://gurubase.io/g/coder)
 
 </div>
 
