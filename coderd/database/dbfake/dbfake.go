@@ -224,6 +224,14 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 	}
 	_ = dbgen.WorkspaceBuildParameters(b.t, b.db, b.params)
 
+	if b.ws.Deleted {
+		err = b.db.UpdateWorkspaceDeletedByID(ownerCtx, database.UpdateWorkspaceDeletedByIDParams{
+			ID:      b.ws.ID,
+			Deleted: true,
+		})
+		require.NoError(b.t, err)
+	}
+
 	if b.ps != nil {
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,

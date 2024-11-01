@@ -913,6 +913,42 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
 }
 
+// TestPGCoordinatorPropogatedPeerContext tests that the context for a specific peer
+// is propogated through to the `Authorize` method of the coordinatee auth
+func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	store, ps := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	peerCtx := context.WithValue(ctx, agpltest.FakeSubjectKey{}, struct{}{})
+	peerID := uuid.UUID{0x01}
+	agentID := uuid.UUID{0x02}
+
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer func() {
+		err := c1.Close()
+		require.NoError(t, err)
+	}()
+
+	ch := make(chan struct{})
+	auth := agpltest.FakeCoordinateeAuth{
+		Chan: ch,
+	}
+
+	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
+
+	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
+
+	_ = testutil.RequireRecvCtx(ctx, t, ch)
+}
+
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {
 	t.Helper()
 	assert.Eventually(t, func() bool {
