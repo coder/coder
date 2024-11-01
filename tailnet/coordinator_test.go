@@ -328,7 +328,13 @@ func TestRemoteCoordination(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
+		})
 		serveErr <- err
 	}()
 
@@ -377,7 +383,13 @@ func TestRemoteCoordination_SendsReadyForHandshake(t *testing.T) {
 
 	serveErr := make(chan error, 1)
 	go func() {
-		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, clientID, agentID)
+		err := svc.ServeClient(ctx, proto.CurrentVersion.String(), sC, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
+		})
 		serveErr <- err
 	}()
 
@@ -516,4 +528,37 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 	f.Lock()
 	defer f.Unlock()
 	f.callback = callback
+}
+
+// TestCoordinatorPropogatedPeerContext tests that the context for a specific peer
+// is propogated through to the `Authorize“ method of the coordinatee auth
+func TestCoordinatorPropogatedPeerContext(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	peerCtx := context.WithValue(ctx, test.FakeSubjectKey{}, struct{}{})
+	peerCtx, peerCtxCancel := context.WithCancel(peerCtx)
+	peerID := uuid.UUID{0x01}
+	agentID := uuid.UUID{0x02}
+
+	c1 := tailnet.NewCoordinator(logger)
+	t.Cleanup(func() {
+		err := c1.Close()
+		require.NoError(t, err)
+	})
+
+	ch := make(chan struct{})
+	auth := test.FakeCoordinateeAuth{
+		Chan: ch,
+	}
+
+	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
+
+	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)}})
+	_ = testutil.RequireRecvCtx(ctx, t, ch)
+	// If we don't cancel the context, the coordinator close will wait until the
+	// peer request loop finishes, which will be after the timeout
+	peerCtxCancel()
 }

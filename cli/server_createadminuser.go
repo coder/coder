@@ -197,6 +197,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 					UpdatedAt:      dbtime.Now(),
 					RBACRoles:      []string{rbac.RoleOwner().String()},
 					LoginType:      database.LoginTypePassword,
+					Status:         "",
 				})
 				if err != nil {
 					return xerrors.Errorf("insert user: %w", err)

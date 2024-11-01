@@ -4,19 +4,27 @@ import KeyboardArrowUp from "@mui/icons-material/KeyboardArrowUp";
 import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
 import Skeleton from "@mui/material/Skeleton";
-import type { AgentScriptTiming, ProvisionerTiming } from "api/typesGenerated";
+import type {
+	AgentConnectionTiming,
+	AgentScriptTiming,
+	ProvisionerTiming,
+} from "api/typesGenerated";
 import { type FC, useState } from "react";
 import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
 import { ResourcesChart, isCoderResource } from "./ResourcesChart";
 import { ScriptsChart } from "./ScriptsChart";
-import { type StageCategory, StagesChart, stages } from "./StagesChart";
+import {
+	type Stage,
+	StagesChart,
+	agentStages,
+	provisioningStages,
+} from "./StagesChart";
 
 type TimingView =
 	| { name: "default" }
 	| {
 			name: "detailed";
-			stage: string;
-			category: StageCategory;
+			stage: Stage;
 			filter: string;
 	  };
 
@@ -24,20 +32,37 @@ type WorkspaceTimingsProps = {
 	defaultIsOpen?: boolean;
 	provisionerTimings: readonly ProvisionerTiming[] | undefined;
 	agentScriptTimings: readonly AgentScriptTiming[] | undefined;
+	agentConnectionTimings: readonly AgentConnectionTiming[] | undefined;
 };
 
 export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	provisionerTimings = [],
 	agentScriptTimings = [],
+	agentConnectionTimings = [],
 	defaultIsOpen = false,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "default" });
-	const timings = [...provisionerTimings, ...agentScriptTimings];
+	const timings = [
+		...provisionerTimings,
+		...agentScriptTimings,
+		...agentConnectionTimings,
+	];
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const isLoading = timings.length === 0;
 
+	// All stages
+	const agentStageLabels = Array.from(
+		new Set(
+			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
+		),
+	);
+	const stages = [
+		...provisioningStages,
+		...agentStageLabels.flatMap((a) => agentStages(a)),
+	];
+
 	const displayProvisioningTime = () => {
-		const totalRange = mergeTimeRanges(timings.map(extractRange));
+		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
 		return humanizeDuration(totalDuration);
 	};
@@ -81,7 +106,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									const stageRange =
 										stageTimings.length === 0
 											? undefined
-											: mergeTimeRanges(stageTimings.map(extractRange));
+											: mergeTimeRanges(stageTimings.map(toTimeRange));
 
 									// Prevent users from inspecting internal coder resources in
 									// provisioner timings.
@@ -93,67 +118,63 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									});
 
 									return {
+										stage: s,
 										range: stageRange,
-										name: s.name,
-										categoryID: s.categoryID,
 										visibleResources: visibleResources.length,
 										error: stageTimings.some(
 											(t) => "status" in t && t.status === "exit_failure",
 										),
 									};
 								})}
-								onSelectStage={(t, category) => {
+								onSelectStage={(stage) => {
 									setView({
+										stage,
 										name: "detailed",
-										stage: t.name,
-										category,
 										filter: "",
 									});
 								}}
 							/>
 						)}
 
-						{view.name === "detailed" &&
-							view.category.id === "provisioning" && (
-								<ResourcesChart
-									timings={provisionerTimings
-										.filter((t) => t.stage === view.stage)
-										.map((t) => {
-											return {
-												range: extractRange(t),
+						{view.name === "detailed" && (
+							<>
+								{view.stage.section === "provisioning" && (
+									<ResourcesChart
+										timings={provisionerTimings
+											.filter((t) => t.stage === view.stage.name)
+											.map((t) => ({
+												range: toTimeRange(t),
 												name: t.resource,
 												source: t.source,
 												action: t.action,
-											};
-										})}
-									category={view.category}
-									stage={view.stage}
-									onBack={() => {
-										setView({ name: "default" });
-									}}
-								/>
-							)}
+											}))}
+										stage={view.stage}
+										onBack={() => {
+											setView({ name: "default" });
+										}}
+									/>
+								)}
 
-						{view.name === "detailed" &&
-							view.category.id === "workspaceBoot" && (
-								<ScriptsChart
-									timings={agentScriptTimings
-										.filter((t) => t.stage === view.stage)
-										.map((t) => {
-											return {
-												range: extractRange(t),
-												name: t.display_name,
-												status: t.status,
-												exitCode: t.exit_code,
-											};
-										})}
-									category={view.category}
-									stage={view.stage}
-									onBack={() => {
-										setView({ name: "default" });
-									}}
-								/>
-							)}
+								{view.stage.name === "start" && (
+									<ScriptsChart
+										timings={agentScriptTimings
+											.filter((t) => t.stage === view.stage.name)
+											.map((t) => {
+												return {
+													range: toTimeRange(t),
+													name: t.display_name,
+													status: t.status,
+													exitCode: t.exit_code,
+												};
+											})}
+										stage={view.stage}
+										onBack={() => {
+											setView({ name: "default" });
+										}}
+									/>
+								)}
+							</>
+						)}
 					</div>
 				</Collapse>
 			)}
@@ -161,9 +182,10 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	);
 };
 
-const extractRange = (
-	timing: ProvisionerTiming | AgentScriptTiming,
-): TimeRange => {
+const toTimeRange = (timing: {
+	started_at: string;
+	ended_at: string;
+}): TimeRange => {
 	return {
 		startedAt: new Date(timing.started_at),
 		endedAt: new Date(timing.ended_at),

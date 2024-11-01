@@ -34,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 )
@@ -806,7 +807,11 @@ func (api *API) patchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindMetadataUpdate,
+		WorkspaceID: workspace.ID,
+	})
+
 	aReq.New = newWorkspace
 
 	rw.WriteHeader(http.StatusNoContent)
@@ -1216,7 +1221,11 @@ func (api *API) putExtendWorkspace(rw http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		api.Logger.Info(ctx, "extending workspace", slog.Error(err))
 	}
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindMetadataUpdate,
+		WorkspaceID: workspace.ID,
+	})
 	httpapi.Write(ctx, rw, code, resp)
 }
 
@@ -1667,7 +1676,17 @@ func (api *API) watchWorkspace(rw http.ResponseWriter, r *http.Request) {
 		})
 	}
 
-	cancelWorkspaceSubscribe, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), sendUpdate)
+	cancelWorkspaceSubscribe, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		wspubsub.HandleWorkspaceEvent(
+			func(ctx context.Context, payload wspubsub.WorkspaceEvent, err error) {
+				if err != nil {
+					return
+				}
+				if payload.WorkspaceID != workspace.ID {
+					return
+				}
+				sendUpdate(ctx, nil)
+			}))
 	if err != nil {
 		_ = sendEvent(ctx, codersdk.ServerSentEvent{
 			Type: codersdk.ServerSentEventTypeError,
@@ -2006,11 +2025,24 @@ func validWorkspaceSchedule(s *string) (sql.NullString, error) {
 	}, nil
 }
 
-func (api *API) publishWorkspaceUpdate(ctx context.Context, workspaceID uuid.UUID) {
-	err := api.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspaceID), []byte{})
+func (api *API) publishWorkspaceUpdate(ctx context.Context, ownerID uuid.UUID, event wspubsub.WorkspaceEvent) {
+	err := event.Validate()
+	if err != nil {
+		api.Logger.Warn(ctx, "invalid workspace update event",
+			slog.F("workspace_id", event.WorkspaceID),
+			slog.F("event_kind", event.Kind), slog.Error(err))
+		return
+	}
+	msg, err := json.Marshal(event)
+	if err != nil {
+		api.Logger.Warn(ctx, "failed to marshal workspace update",
+			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
+		return
+	}
+	err = api.Pubsub.Publish(wspubsub.WorkspaceEventChannel(ownerID), msg)
 	if err != nil {
 		api.Logger.Warn(ctx, "failed to publish workspace update",
-			slog.F("workspace_id", workspaceID), slog.Error(err))
+			slog.F("workspace_id", event.WorkspaceID), slog.Error(err))
 	}
 }
 

@@ -878,8 +878,8 @@ func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template d
 
 	for userID := range users {
 		_, err = api.NotificationsEnqueuer.Enqueue(
-			//nolint:gocritic // We need the system auth context to be able to send the deprecation notification.
-			dbauthz.AsSystemRestricted(ctx),
+			//nolint:gocritic // We need the notifier auth context to be able to send the deprecation notification.
+			dbauthz.AsNotifier(ctx),
 			userID,
 			notifications.TemplateTemplateDeprecated,
 			map[string]string{

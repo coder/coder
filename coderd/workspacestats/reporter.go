@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type ReporterOptions struct {
@@ -174,7 +175,14 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	r.opts.UsageTracker.Add(workspace.ID)
 
 	// notify workspace update
-	err := r.opts.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
+	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
+		WorkspaceID: workspace.ID,
+	})
+	if err != nil {
+		return xerrors.Errorf("marshal workspace agent stats event: %w", err)
+	}
+	err = r.opts.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		r.opts.Logger.Warn(ctx, "failed to publish workspace agent stats",
 			slog.F("workspace_id", workspace.ID), slog.Error(err))

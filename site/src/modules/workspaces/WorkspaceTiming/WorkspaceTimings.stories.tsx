@@ -11,6 +11,7 @@ const meta: Meta<typeof WorkspaceTimings> = {
 		defaultIsOpen: true,
 		provisionerTimings: WorkspaceTimingsResponse.provisioner_timings,
 		agentScriptTimings: WorkspaceTimingsResponse.agent_script_timings,
+		agentConnectionTimings: WorkspaceTimingsResponse.agent_connection_timings,
 	},
 	parameters: {
 		chromatic,
@@ -32,6 +33,7 @@ export const Loading: Story = {
 	args: {
 		provisionerTimings: undefined,
 		agentScriptTimings: undefined,
+		agentConnectionTimings: undefined,
 	},
 };
 
@@ -45,7 +47,7 @@ export const ClickToOpen: Story = {
 	play: async ({ canvasElement }) => {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
-		await user.click(canvas.getByRole("button"));
+		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await canvas.findByText("provisioning");
 	},
 };
@@ -58,9 +60,9 @@ export const ClickToClose: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		await canvas.findByText("provisioning");
-		await user.click(canvas.getByText("Provisioning time", { exact: false }));
+		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await waitFor(() =>
-			expect(canvas.getByText("workspace boot")).not.toBeVisible(),
+			expect(canvas.queryByText("workspace boot")).not.toBeInTheDocument(),
 		);
 	},
 };
@@ -96,7 +98,7 @@ export const NavigateToStartStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View start details",
+			name: "View run startup scripts details",
 		});
 		await user.click(detailsButton);
 		await canvas.findByText("Startup Script");

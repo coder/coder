@@ -29,11 +29,11 @@ type ManifestAPI struct {
 	ExternalAuthConfigs      []*externalauth.Config
 	DisableDirectConnections bool
 	DerpForceWebSockets      bool
+	WorkspaceID              uuid.UUID
 
-	AgentFn       func(context.Context) (database.WorkspaceAgent, error)
-	WorkspaceIDFn func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
-	Database      database.Store
-	DerpMapFn     func() *tailcfg.DERPMap
+	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
+	Database  database.Store
+	DerpMapFn func() *tailcfg.DERPMap
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
@@ -41,11 +41,6 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 	if err != nil {
 		return nil, err
 	}
-	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, err
-	}
-
 	var (
 		dbApps    []database.WorkspaceApp
 		scripts   []database.WorkspaceAgentScript
@@ -75,7 +70,7 @@ func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifest
 		return err
 	})
 	eg.Go(func() (err error) {
-		workspace, err = a.Database.GetWorkspaceByID(ctx, workspaceID)
+		workspace, err = a.Database.GetWorkspaceByID(ctx, a.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("getting workspace by id: %w", err)
 		}

@@ -139,6 +139,8 @@ type CreateUserRequestWithOrgs struct {
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
+	// UserStatus defaults to UserStatusDormant.
+	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 }

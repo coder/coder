@@ -249,7 +249,7 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle>
-					<ActiveUsersTitle />
+					<ActiveUsersTitle interval={interval} />
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
@@ -258,7 +258,6 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 				{data && data.length > 0 && (
 					<ActiveUserChart
 						interval={interval}
-						userLimit={userLimit}
 						data={data.map((d) => ({
 							amount: d.active_users,
 							date: d.start_time,

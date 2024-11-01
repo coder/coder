@@ -370,3 +370,20 @@ func (p *Peer) UngracefulDisconnect(ctx context.Context) {
 	close(p.reqs)
 	p.Close(ctx)
 }
+
+type FakeSubjectKey struct{}
+
+type FakeCoordinateeAuth struct {
+	Chan chan struct{}
+}
+
+func (f FakeCoordinateeAuth) Authorize(ctx context.Context, _ *proto.CoordinateRequest) error {
+	_, ok := ctx.Value(FakeSubjectKey{}).(struct{})
+	if !ok {
+		return xerrors.New("unauthorized")
+	}
+	f.Chan <- struct{}{}
+	return nil
+}
+
+var _ tailnet.CoordinateeAuth = (*FakeCoordinateeAuth)(nil)

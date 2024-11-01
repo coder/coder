@@ -15,6 +15,7 @@ import (
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type contextKeyAPIVersion struct{}
@@ -25,10 +26,10 @@ func WithAPIVersion(ctx context.Context, version string) context.Context {
 
 type LifecycleAPI struct {
 	AgentFn                  func(context.Context) (database.WorkspaceAgent, error)
-	WorkspaceIDFn            func(context.Context, *database.WorkspaceAgent) (uuid.UUID, error)
+	WorkspaceID              uuid.UUID
 	Database                 database.Store
 	Log                      slog.Logger
-	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent) error
+	PublishWorkspaceUpdateFn func(context.Context, *database.WorkspaceAgent, wspubsub.WorkspaceEventKind) error
 
 	TimeNowFn func() time.Time // defaults to dbtime.Now()
 }
@@ -45,13 +46,9 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	if err != nil {
 		return nil, err
 	}
-	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, err
-	}
 
 	logger := a.Log.With(
-		slog.F("workspace_id", workspaceID),
+		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("payload", req),
 	)
 	logger.Debug(ctx, "workspace agent state report")
@@ -122,7 +119,7 @@ func (a *LifecycleAPI) UpdateLifecycle(ctx context.Context, req *agentproto.Upda
 	}
 
 	if a.PublishWorkspaceUpdateFn != nil {
-		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent)
+		err = a.PublishWorkspaceUpdateFn(ctx, &workspaceAgent, wspubsub.WorkspaceEventKindAgentLifecycleUpdate)
 		if err != nil {
 			return nil, xerrors.Errorf("publish workspace update: %w", err)
 		}
@@ -140,15 +137,11 @@ func (a *LifecycleAPI) UpdateStartup(ctx context.Context, req *agentproto.Update
 	if err != nil {
 		return nil, err
 	}
-	workspaceID, err := a.WorkspaceIDFn(ctx, &workspaceAgent)
-	if err != nil {
-		return nil, err
-	}
 
 	a.Log.Debug(
 		ctx,
 		"post workspace agent version",
-		slog.F("workspace_id", workspaceID),
+		slog.F("workspace_id", a.WorkspaceID),
 		slog.F("agent_version", req.Startup.Version),
 	)
 

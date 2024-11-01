@@ -70,6 +70,12 @@ export const RBACResourceActions: Partial<
     delete: "delete license",
     read: "read licenses",
   },
+  notification_message: {
+    create: "create notification messages",
+    delete: "delete notification messages",
+    read: "read notification messages",
+    update: "update notification messages",
+  },
   notification_preference: {
     read: "read notification preferences",
     update: "update notification preferences",

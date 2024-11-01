@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -412,7 +413,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID: workspace.ID,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
@@ -491,7 +495,10 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID: workspace.ID,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
@@ -909,7 +916,7 @@ func (api *API) convertWorkspaceBuild(
 		MaxDeadline:             codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:                  codersdk.BuildReason(build.Reason),
 		Resources:               apiResources,
-		Status:                  convertWorkspaceStatus(apiJob.Status, transition),
+		Status:                  codersdk.ConvertWorkspaceStatus(apiJob.Status, transition),
 		DailyCost:               build.DailyCost,
 	}, nil
 }
@@ -939,40 +946,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 	}
 }
 
-func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition codersdk.WorkspaceTransition) codersdk.WorkspaceStatus {
-	switch jobStatus {
-	case codersdk.ProvisionerJobPending:
-		return codersdk.WorkspaceStatusPending
-	case codersdk.ProvisionerJobRunning:
-		switch transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusStarting
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopping
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleting
-		}
-	case codersdk.ProvisionerJobSucceeded:
-		switch transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusRunning
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopped
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleted
-		}
-	case codersdk.ProvisionerJobCanceling:
-		return codersdk.WorkspaceStatusCanceling
-	case codersdk.ProvisionerJobCanceled:
-		return codersdk.WorkspaceStatusCanceled
-	case codersdk.ProvisionerJobFailed:
-		return codersdk.WorkspaceStatusFailed
-	}
-
-	// return error status since we should never get here
-	return codersdk.WorkspaceStatusFailed
-}
-
 func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild) (codersdk.WorkspaceBuildTimings, error) {
 	provisionerTimings, err := api.Database.GetProvisionerJobTimingsByJobID(ctx, build.JobID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
@@ -984,15 +957,29 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
 	}
 
+	resources, err := api.Database.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace resources: %w", err)
+	}
+	resourceIDs := make([]uuid.UUID, 0, len(resources))
+	for _, resource := range resources {
+		resourceIDs = append(resourceIDs, resource.ID)
+	}
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agents: %w", err)
+	}
+
 	res := codersdk.WorkspaceBuildTimings{
-		ProvisionerTimings: make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
-		AgentScriptTimings: make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+		ProvisionerTimings:     make([]codersdk.ProvisionerTiming, 0, len(provisionerTimings)),
+		AgentScriptTimings:     make([]codersdk.AgentScriptTiming, 0, len(agentScriptTimings)),
+		AgentConnectionTimings: make([]codersdk.AgentConnectionTiming, 0, len(agents)),
 	}
 
 	for _, t := range provisionerTimings {
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
-			Stage:     string(t.Stage),
+			Stage:     codersdk.TimingStage(t.Stage),
 			Source:    t.Source,
 			Action:    t.Action,
 			Resource:  t.Resource,
@@ -1002,12 +989,23 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	}
 	for _, t := range agentScriptTimings {
 		res.AgentScriptTimings = append(res.AgentScriptTimings, codersdk.AgentScriptTiming{
-			StartedAt:   t.StartedAt,
-			EndedAt:     t.EndedAt,
-			ExitCode:    t.ExitCode,
-			Stage:       string(t.Stage),
-			Status:      string(t.Status),
-			DisplayName: t.DisplayName,
+			StartedAt:          t.StartedAt,
+			EndedAt:            t.EndedAt,
+			ExitCode:           t.ExitCode,
+			Stage:              codersdk.TimingStage(t.Stage),
+			Status:             string(t.Status),
+			DisplayName:        t.DisplayName,
+			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
+			WorkspaceAgentName: t.WorkspaceAgentName,
+		})
+	}
+	for _, agent := range agents {
+		res.AgentConnectionTimings = append(res.AgentConnectionTimings, codersdk.AgentConnectionTiming{
+			WorkspaceAgentID:   agent.ID.String(),
+			WorkspaceAgentName: agent.Name,
+			StartedAt:          agent.CreatedAt,
+			Stage:              codersdk.TimingStageConnect,
+			EndedAt:            agent.FirstConnectedAt.Time,
 		})
 	}
 
