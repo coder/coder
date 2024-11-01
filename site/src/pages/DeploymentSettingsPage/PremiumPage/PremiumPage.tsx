@@ -1,20 +1,18 @@
-import { Loader } from "components/Loader/Loader";
-import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { PremiumPageView } from "./PremiumPageView";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 const PremiumPage: FC = () => {
-	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
+	const { entitlements } = useDashboard();
 
 	return (
 		<>
 			<Helmet>
 				<title>{pageTitle("Premium Features")}</title>
 			</Helmet>
-			<PremiumPageView isPremium={hasPremiumLicense} />
+			<PremiumPageView isEnterprise={entitlements.has_license} />
 		</>
 	);
 };

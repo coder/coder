@@ -55,6 +55,17 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	// The janky casting here is find because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
+
+	useEffect(() => {
+		const root = window.document.documentElement;
+		root.classList.remove("light", "dark");
+		if (themePreference === "auto") {
+			root.classList.add(preferredColorScheme);
+		} else {
+			root.classList.add(themePreference);
+		}
+	}, [themePreference, preferredColorScheme]);
+
 	const theme =
 		themes[themePreference as keyof typeof themes] ??
 		themes[preferredColorScheme];
