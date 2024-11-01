@@ -23,6 +23,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/cryptorand"
+	"github.com/coder/retry"
 )
 
 type ConnectionParams struct {
@@ -37,16 +38,17 @@ func (p ConnectionParams) DSN() string {
 	return fmt.Sprintf("postgres://%s:%s@%s:%s/%s?sslmode=disable", p.Username, p.Password, p.Host, p.Port, p.DBName)
 }
 
+// These variables are global because all tests share them.
 var (
 	connectionParamsInitOnce       sync.Once
 	defaultConnectionParams        ConnectionParams
 	errDefaultConnectionParamsInit error
 )
 
-// initDefaultConnectionParams initializes the default postgres connection parameters.
+// initDefaultConnection initializes the default postgres connection parameters.
 // It first checks if the database is running at localhost:5432. If it is, it will
 // use that database. If it's not, it will start a new container and use that.
-func initDefaultConnectionParams() error {
+func initDefaultConnection() error {
 	params := ConnectionParams{
 		Username: "postgres",
 		Password: "postgres",
@@ -55,20 +57,20 @@ func initDefaultConnectionParams() error {
 		DBName:   "postgres",
 	}
 	dsn := params.DSN()
-	db, err := sql.Open("postgres", dsn)
-	if err == nil {
-		err = db.Ping()
+	db, dbErr := sql.Open("postgres", dsn)
+	if dbErr == nil {
+		dbErr = db.Ping()
 		if closeErr := db.Close(); closeErr != nil {
 			return xerrors.Errorf("close db: %w", closeErr)
 		}
 	}
 	shouldOpenContainer := false
-	if err != nil {
+	if dbErr != nil {
 		errSubstrings := []string{
 			"connection refused",          // this happens on Linux when there's nothing listening on the port
 			"No connection could be made", // like above but Windows
 		}
-		errString := err.Error()
+		errString := dbErr.Error()
 		for _, errSubstring := range errSubstrings {
 			if strings.Contains(errString, errSubstring) {
 				shouldOpenContainer = true
@@ -76,7 +78,7 @@ func initDefaultConnectionParams() error {
 			}
 		}
 	}
-	if err != nil && shouldOpenContainer {
+	if dbErr != nil && shouldOpenContainer {
 		// If there's no database running on the default port, we'll start a
 		// postgres container. We won't be cleaning it up so it can be reused
 		// by subsequent tests. It'll keep on running until the user terminates
@@ -92,24 +94,23 @@ func initDefaultConnectionParams() error {
 		params.Port = container.Port
 		dsn = params.DSN()
 
-		// Retry connecting for a cumulative 5 seconds.
+		// Retry connecting for at most 10 seconds.
 		// The fact that openContainer succeeded does not
 		// mean that port forwarding is ready.
-		for i := 0; i < 20; i++ {
-			db, err = sql.Open("postgres", dsn)
-			if err == nil {
-				err = db.Ping()
+		for r := retry.New(100*time.Millisecond, 10*time.Second); r.Wait(context.Background()); {
+			db, connErr := sql.Open("postgres", dsn)
+			if connErr == nil {
+				connErr = db.Ping()
 				if closeErr := db.Close(); closeErr != nil {
 					return xerrors.Errorf("close db, container: %w", closeErr)
 				}
 			}
-			if err == nil {
+			if connErr == nil {
 				break
 			}
-			time.Sleep(250 * time.Millisecond)
 		}
-	} else if err != nil {
-		return xerrors.Errorf("open postgres connection: %w", err)
+	} else if dbErr != nil {
+		return xerrors.Errorf("open postgres connection: %w", dbErr)
 	}
 	defaultConnectionParams = params
 	return nil
@@ -134,7 +135,7 @@ func WithDBFrom(dbFrom string) OpenOption {
 // Otherwise, it will start a new postgres container.
 func Open(opts ...OpenOption) (string, func(), error) {
 	connectionParamsInitOnce.Do(func() {
-		errDefaultConnectionParamsInit = initDefaultConnectionParams()
+		errDefaultConnectionParamsInit = initDefaultConnection()
 	})
 	if errDefaultConnectionParamsInit != nil {
 		return "", func() {}, xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
@@ -175,11 +176,13 @@ func Open(opts ...OpenOption) (string, func(), error) {
 		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
+			return
 		}
 		defer cleanupConn.Close()
 		_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
 		if err != nil {
 			_, _ = fmt.Fprintf(os.Stderr, "failed to clean up database %q: %s\n", dbName, err.Error())
+			return
 		}
 	}
 
@@ -240,6 +243,8 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 			panic(err)
 		}
 	}()
+	// 2137 is an arbitrary number. We just need a lock that is unique to creating
+	// the template database.
 	_, err = tx.Exec("SELECT pg_advisory_xact_lock(2137)")
 	if err != nil {
 		return xerrors.Errorf("acquire lock: %w", err)
@@ -346,17 +351,17 @@ func openContainer(opts DBContainerOptions) (container, func(), error) {
 		return container{}, nil, xerrors.Errorf("create pool: %w", err)
 	}
 
-	tempDir, err := os.MkdirTemp(os.TempDir(), "postgres")
-	if err != nil {
-		return container{}, nil, xerrors.Errorf("create tempdir: %w", err)
-	}
-
 	var resource *dockertest.Resource
+	var tempDir string
 	if opts.Name != "" {
 		// If the container already exists, we'll use it.
 		resource, _ = pool.ContainerByName(opts.Name)
 	}
 	if resource == nil {
+		tempDir, err = os.MkdirTemp(os.TempDir(), "postgres")
+		if err != nil {
+			return container{}, nil, xerrors.Errorf("create tempdir: %w", err)
+		}
 		runOptions := dockertest.RunOptions{
 			Repository: "gcr.io/coder-dev-1/postgres",
 			Tag:        "13",
@@ -434,7 +439,9 @@ func openContainer(opts DBContainerOptions) (container, func(), error) {
 			Pool:     pool,
 		}, func() {
 			_ = pool.Purge(resource)
-			_ = os.RemoveAll(tempDir)
+			if tempDir != "" {
+				_ = os.RemoveAll(tempDir)
+			}
 		}, nil
 }
 
