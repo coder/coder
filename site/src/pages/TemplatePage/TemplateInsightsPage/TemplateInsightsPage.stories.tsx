@@ -868,11 +868,3 @@ export const Loaded: Story = {
 		},
 	},
 };
-
-export const LoadedWithUserLimit: Story = {
-	...Loaded,
-	args: {
-		...Loaded.args,
-		entitlements: MockEntitlementsWithUserLimit,
-	},
-};

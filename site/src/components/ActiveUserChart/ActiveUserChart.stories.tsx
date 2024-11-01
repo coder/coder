@@ -22,9 +22,3 @@ export default meta;
 type Story = StoryObj<typeof ActiveUserChart>;
 
 export const Example: Story = {};
-
-export const UserLimit: Story = {
-	args: {
-		userLimit: 10,
-	},
-};

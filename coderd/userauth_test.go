@@ -1285,7 +1285,7 @@ func TestUserOIDC(t *testing.T) {
 				tc.AssertResponse(t, resp)
 			}
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
@@ -1299,6 +1299,49 @@ func TestUserOIDC(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("OIDCDormancy", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			Auditor:    auditor,
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+			Status:    database.UserStatusDormant,
+		})
+		auditor.ResetLogs()
+
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		auditor.Contains(t, database.AuditLog{
+			ResourceType:     database.ResourceTypeUser,
+			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
+		})
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+
+		require.Equal(t, codersdk.UserStatusActive, me.Status)
+	})
 
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()

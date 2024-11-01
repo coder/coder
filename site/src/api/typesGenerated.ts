@@ -328,6 +328,7 @@ export interface CreateUserRequestWithOrgs {
 	readonly name: string;
 	readonly password: string;
 	readonly login_type: LoginType;
+	readonly user_status?: UserStatus;
 	readonly organization_ids: Readonly<Array<string>>;
 }
 

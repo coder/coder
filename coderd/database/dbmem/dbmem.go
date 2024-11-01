@@ -339,6 +339,10 @@ func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
+func (*FakeQuerier) PGLocks(_ context.Context) (database.PGLocks, error) {
+	return []database.PGLock{}, nil
+}
+
 func (tx *fakeTx) AcquireLock(_ context.Context, id int64) error {
 	if _, ok := tx.FakeQuerier.locks[id]; ok {
 		return xerrors.Errorf("cannot acquire lock %d: already held", id)
@@ -7709,6 +7713,11 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		}
 	}
 
+	status := database.UserStatusDormant
+	if arg.Status != "" {
+		status = database.UserStatus(arg.Status)
+	}
+
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
@@ -7717,7 +7726,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
 		Name:           arg.Name,
-		Status:         database.UserStatusDormant,
+		Status:         status,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
 	}
@@ -8640,6 +8649,7 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
 				ID:         user.ID,
 				Email:      user.Email,
+				Username:   user.Username,
 				LastSeenAt: user.LastSeenAt,
 			})
 		}

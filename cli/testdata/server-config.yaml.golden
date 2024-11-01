@@ -518,6 +518,51 @@ userQuietHoursSchedule:
 # compatibility reasons, this will be removed in a future release.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
+# Configure how emails are sent.
+email:
+  # The sender's address to use.
+  # (default: <unset>, type: string)
+  from: ""
+  # The intermediary SMTP host through which emails are sent.
+  # (default: localhost:587, type: host:port)
+  smarthost: localhost:587
+  # The hostname identifying the SMTP server.
+  # (default: localhost, type: string)
+  hello: localhost
+  # Force a TLS connection to the configured SMTP smarthost.
+  # (default: false, type: bool)
+  forceTLS: false
+  # Configure SMTP authentication options.
+  emailAuth:
+    # Identity to use with PLAIN authentication.
+    # (default: <unset>, type: string)
+    identity: ""
+    # Username to use with PLAIN/LOGIN authentication.
+    # (default: <unset>, type: string)
+    username: ""
+    # File from which to load password for use with PLAIN/LOGIN authentication.
+    # (default: <unset>, type: string)
+    passwordFile: ""
+  # Configure TLS for your SMTP server target.
+  emailTLS:
+    # Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+    # (default: <unset>, type: bool)
+    startTLS: false
+    # Server name to verify against the target certificate.
+    # (default: <unset>, type: string)
+    serverName: ""
+    # Skip verification of the target server's certificate (insecure).
+    # (default: <unset>, type: bool)
+    insecureSkipVerify: false
+    # CA certificate file to use.
+    # (default: <unset>, type: string)
+    caCertFile: ""
+    # Certificate file to use.
+    # (default: <unset>, type: string)
+    certFile: ""
+    # Certificate key file to use.
+    # (default: <unset>, type: string)
+    certKeyFile: ""
 # Configure how notifications are processed and delivered.
 notifications:
   # Which delivery method to use (available options: 'smtp', 'webhook').
@@ -532,13 +577,13 @@ notifications:
     # (default: <unset>, type: string)
     from: ""
     # The intermediary SMTP host through which emails are sent.
-    # (default: localhost:587, type: host:port)
+    # (default: <unset>, type: host:port)
     smarthost: localhost:587
     # The hostname identifying the SMTP server.
-    # (default: localhost, type: string)
+    # (default: <unset>, type: string)
     hello: localhost
     # Force a TLS connection to the configured SMTP smarthost.
-    # (default: false, type: bool)
+    # (default: <unset>, type: bool)
     forceTLS: false
     # Configure SMTP authentication options.
     emailAuth:

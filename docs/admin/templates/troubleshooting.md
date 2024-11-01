@@ -154,3 +154,17 @@ the top of the script to exit on error.
 
 > **Note:** If you aren't seeing any logs, check that the `dir` directive points
 > to a valid directory in the file system.
+
+## Slow workspace startup times
+
+If your workspaces are taking longer to start than expected, or longer than
+desired, you can diagnose which steps have the highest impact in the workspace
+build timings UI (available in v2.17 and beyond). Admins can can
+programmatically pull startup times for individual workspace builds using our
+[build timings API endpoint](../../reference/api/builds.md#get-workspace-build-timings-by-id).
+
+See our
+[guide on optimizing workspace build times](../../tutorials/best-practices/speed-up-templates.md)
+to optimize your templates based on this data.
+
+![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
