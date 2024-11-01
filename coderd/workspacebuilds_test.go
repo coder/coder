@@ -1382,6 +1382,35 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 	t.Run("AgentConnectionTimings", func(t *testing.T) {
 		t.Parallel()
 
+		// Given: a build with an agent
+		build := makeBuild()
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the expected timings
+		require.Len(t, res.AgentConnectionTimings, 1)
+		for i := range res.ProvisionerTimings {
+			timingRes := res.AgentConnectionTimings[i]
+			require.Equal(t, agent.ID.String(), timingRes.WorkspaceAgentID)
+			require.Equal(t, agent.Name, timingRes.WorkspaceAgentName)
+			require.NotEmpty(t, timingRes.StartedAt)
+			require.NotEmpty(t, timingRes.EndedAt)
+		}
+	})
+
+	t.Run("MultipleAgents", func(t *testing.T) {
+		t.Parallel()
+
 		// Given: a build with multiple agents
 		build := makeBuild()
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
@@ -1402,12 +1431,5 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// Then: return a response with the expected timings
 		require.Len(t, res.AgentConnectionTimings, 5)
-		for i := range res.ProvisionerTimings {
-			timingRes := res.AgentConnectionTimings[i]
-			require.Equal(t, agents[i].ID.String(), timingRes.WorkspaceAgentID)
-			require.Equal(t, agents[i].Name, timingRes.WorkspaceAgentName)
-			require.NotEmpty(t, timingRes.StartedAt)
-			require.NotEmpty(t, timingRes.EndedAt)
-		}
 	})
 }

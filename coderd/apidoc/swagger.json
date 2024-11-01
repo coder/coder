@@ -8000,7 +8000,7 @@
 					"format": "date-time"
 				},
 				"stage": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.TimingStage"
 				},
 				"started_at": {
 					"type": "string",
@@ -8028,7 +8028,7 @@
 					"type": "integer"
 				},
 				"stage": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.TimingStage"
 				},
 				"started_at": {
 					"type": "string",
@@ -11014,7 +11014,7 @@
 					"type": "string"
 				},
 				"stage": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.TimingStage"
 				},
 				"started_at": {
 					"type": "string",
@@ -12255,6 +12255,29 @@
 			"type": "string",
 			"enum": ["UNSUPPORTED_WORKSPACES"],
 			"x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
+		},
+		"codersdk.TimingStage": {
+			"type": "string",
+			"enum": [
+				"init",
+				"plan",
+				"graph",
+				"apply",
+				"start",
+				"stop",
+				"cron",
+				"connect"
+			],
+			"x-enum-varnames": [
+				"TimingStageInit",
+				"TimingStagePlan",
+				"TimingStageGraph",
+				"TimingStageApply",
+				"TimingStageStart",
+				"TimingStageStop",
+				"TimingStageCron",
+				"TimingStageConnect"
+			]
 		},
 		"codersdk.TokenConfig": {
 			"type": "object",
@@ -13510,6 +13533,7 @@
 					}
 				},
 				"agent_script_timings": {
+					"description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.AgentScriptTiming"

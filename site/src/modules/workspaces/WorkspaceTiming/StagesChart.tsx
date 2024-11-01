@@ -1,6 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import ErrorSharp from "@mui/icons-material/ErrorSharp";
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
+import type { TimingStage } from "api/typesGenerated";
 import type { FC } from "react";
 import { Bar, ClickableBar } from "./Chart/Bar";
 import { Blocks } from "./Chart/Blocks";
@@ -32,7 +33,7 @@ export type Stage = {
 	/**
 	 * The name is used to identify the stage.
 	 */
-	name: string;
+	name: TimingStage;
 	/**
 	 * The value to display in the stage label. This can differ from the stage
 	 * name to provide more context or clarity.
@@ -275,7 +276,7 @@ export const agentStages = (section: string): Stage[] => {
 					<>
 						<TooltipTitle>Connect</TooltipTitle>
 						<TooltipShortDescription>
-							Time taken to establish an RPC connection with the control plane.
+							Establish an RPC connection with the control plane.
 						</TooltipShortDescription>
 					</>
 				),
@@ -290,7 +291,7 @@ export const agentStages = (section: string): Stage[] => {
 					<>
 						<TooltipTitle>Run startup scripts</TooltipTitle>
 						<TooltipShortDescription>
-							Time taken to run each agent startup script.
+							Execute each agent startup script.
 						</TooltipShortDescription>
 					</>
 				),

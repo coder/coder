@@ -979,7 +979,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	for _, t := range provisionerTimings {
 		res.ProvisionerTimings = append(res.ProvisionerTimings, codersdk.ProvisionerTiming{
 			JobID:     t.JobID,
-			Stage:     string(t.Stage),
+			Stage:     codersdk.TimingStage(t.Stage),
 			Source:    t.Source,
 			Action:    t.Action,
 			Resource:  t.Resource,
@@ -992,7 +992,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			StartedAt:          t.StartedAt,
 			EndedAt:            t.EndedAt,
 			ExitCode:           t.ExitCode,
-			Stage:              string(t.Stage),
+			Stage:              codersdk.TimingStage(t.Stage),
 			Status:             string(t.Status),
 			DisplayName:        t.DisplayName,
 			WorkspaceAgentID:   t.WorkspaceAgentID.String(),
@@ -1004,7 +1004,7 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 			WorkspaceAgentID:   agent.ID.String(),
 			WorkspaceAgentName: agent.Name,
 			StartedAt:          agent.CreatedAt,
-			Stage:              "connect",
+			Stage:              codersdk.TimingStageConnect,
 			EndedAt:            agent.FirstConnectedAt.Time,
 		})
 	}

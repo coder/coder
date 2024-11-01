@@ -36,7 +36,7 @@ export interface AddLicenseRequest {
 export interface AgentConnectionTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
-	readonly stage: string;
+	readonly stage: TimingStage;
 	readonly workspace_agent_id: string;
 	readonly workspace_agent_name: string;
 }
@@ -46,7 +46,7 @@ export interface AgentScriptTiming {
 	readonly started_at: string;
 	readonly ended_at: string;
 	readonly exit_code: number;
-	readonly stage: string;
+	readonly stage: TimingStage;
 	readonly status: string;
 	readonly display_name: string;
 	readonly workspace_agent_id: string;
@@ -1115,7 +1115,7 @@ export interface ProvisionerTiming {
 	readonly job_id: string;
 	readonly started_at: string;
 	readonly ended_at: string;
-	readonly stage: string;
+	readonly stage: TimingStage;
 	readonly source: string;
 	readonly action: string;
 	readonly resource: string;
@@ -2237,6 +2237,10 @@ export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 // From codersdk/templateversions.go
 export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 export const TemplateVersionWarnings: TemplateVersionWarning[] = ["UNSUPPORTED_WORKSPACES"]
+
+// From codersdk/workspacebuilds.go
+export type TimingStage = "apply" | "connect" | "cron" | "graph" | "init" | "plan" | "start" | "stop"
+export const TimingStages: TimingStage[] = ["apply", "connect", "cron", "graph", "init", "plan", "start", "stop"]
 
 // From codersdk/workspaces.go
 export type UsageAppName = "jetbrains" | "reconnecting-pty" | "ssh" | "vscode"
