@@ -74,6 +74,9 @@ result
 
 # pnpm
 .pnpm-store/
+
+# Zed
+.zed_server
 # .prettierignore.include:
 # Helm templates contain variables that are invalid YAML and can't be formatted
 # by Prettier.
