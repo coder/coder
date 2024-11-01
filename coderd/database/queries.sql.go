@@ -10345,10 +10345,15 @@ INSERT INTO
 		created_at,
 		updated_at,
 		rbac_roles,
-		login_type
+		login_type,
+		status
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
+	($1, $2, $3, $4, $5, $6, $7, $8, $9,
+		-- if the status passed in is empty, fallback to dormant, which is what
+		-- we were doing before.
+		COALESCE(NULLIF($10::text, '')::user_status, 'dormant'::user_status)
+	) RETURNING id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at
 `
 
 type InsertUserParams struct {
@@ -10361,6 +10366,7 @@ type InsertUserParams struct {
 	UpdatedAt      time.Time      `db:"updated_at" json:"updated_at"`
 	RBACRoles      pq.StringArray `db:"rbac_roles" json:"rbac_roles"`
 	LoginType      LoginType      `db:"login_type" json:"login_type"`
+	Status         string         `db:"status" json:"status"`
 }
 
 func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User, error) {
@@ -10374,6 +10380,7 @@ func (q *sqlQuerier) InsertUser(ctx context.Context, arg InsertUserParams) (User
 		arg.UpdatedAt,
 		arg.RBACRoles,
 		arg.LoginType,
+		arg.Status,
 	)
 	var i User
 	err := row.Scan(
@@ -10408,7 +10415,7 @@ SET
 WHERE
     last_seen_at < $2 :: timestamp
     AND status = 'active'::user_status
-RETURNING id, email, last_seen_at
+RETURNING id, email, username, last_seen_at
 `
 
 type UpdateInactiveUsersToDormantParams struct {
@@ -10419,6 +10426,7 @@ type UpdateInactiveUsersToDormantParams struct {
 type UpdateInactiveUsersToDormantRow struct {
 	ID         uuid.UUID `db:"id" json:"id"`
 	Email      string    `db:"email" json:"email"`
+	Username   string    `db:"username" json:"username"`
 	LastSeenAt time.Time `db:"last_seen_at" json:"last_seen_at"`
 }
 
@@ -10431,7 +10439,12 @@ func (q *sqlQuerier) UpdateInactiveUsersToDormant(ctx context.Context, arg Updat
 	var items []UpdateInactiveUsersToDormantRow
 	for rows.Next() {
 		var i UpdateInactiveUsersToDormantRow
-		if err := rows.Scan(&i.ID, &i.Email, &i.LastSeenAt); err != nil {
+		if err := rows.Scan(
+			&i.ID,
+			&i.Email,
+			&i.Username,
+			&i.LastSeenAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -14955,7 +14968,7 @@ WHERE
 	-- Filter by owner_name
 	AND CASE
 		WHEN $8 :: text != '' THEN
-			workspaces.owner_id = (SELECT id FROM users WHERE lower(owner_username) = lower($8) AND deleted = false)
+			workspaces.owner_id = (SELECT id FROM users WHERE lower(users.username) = lower($8) AND deleted = false)
 		ELSE true
 	END
 	-- Filter by template_name
@@ -15255,6 +15268,81 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 			&i.LatestBuildTransition,
 			&i.LatestBuildStatus,
 			&i.Count,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesAndAgentsByOwnerID = `-- name: GetWorkspacesAndAgentsByOwnerID :many
+SELECT
+	workspaces.id as id,
+	workspaces.name as name,
+	job_status,
+	transition,
+	(array_agg(ROW(agent_id, agent_name)::agent_id_name_pair) FILTER (WHERE agent_id IS NOT NULL))::agent_id_name_pair[] as agents
+FROM workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_id,
+		job_id,
+		transition,
+		job_status
+	FROM workspace_builds
+	JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+	WHERE workspace_builds.workspace_id = workspaces.id
+	ORDER BY build_number DESC
+	LIMIT 1
+) latest_build ON true
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_agents.id as agent_id,
+		workspace_agents.name as agent_name,
+		job_id
+	FROM workspace_resources
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE job_id = latest_build.job_id
+) resources ON true
+WHERE
+	-- Filter by owner_id
+	workspaces.owner_id = $1 :: uuid
+	AND workspaces.deleted = false
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
+	-- @authorize_filter
+GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition
+`
+
+type GetWorkspacesAndAgentsByOwnerIDRow struct {
+	ID         uuid.UUID            `db:"id" json:"id"`
+	Name       string               `db:"name" json:"name"`
+	JobStatus  ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	Transition WorkspaceTransition  `db:"transition" json:"transition"`
+	Agents     []AgentIDNamePair    `db:"agents" json:"agents"`
+}
+
+func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesAndAgentsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesAndAgentsByOwnerIDRow
+	for rows.Next() {
+		var i GetWorkspacesAndAgentsByOwnerIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.JobStatus,
+			&i.Transition,
+			pq.Array(&i.Agents),
 		); err != nil {
 			return nil, err
 		}

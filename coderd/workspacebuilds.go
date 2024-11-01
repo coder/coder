@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -412,7 +413,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID: workspace.ID,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
@@ -491,7 +495,10 @@ func (api *API) patchCancelWorkspaceBuild(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	api.publishWorkspaceUpdate(ctx, workspace.ID)
+	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStateChange,
+		WorkspaceID: workspace.ID,
+	})
 
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.Response{
 		Message: "Job has been marked as canceled...",
@@ -909,7 +916,7 @@ func (api *API) convertWorkspaceBuild(
 		MaxDeadline:             codersdk.NewNullTime(build.MaxDeadline, !build.MaxDeadline.IsZero()),
 		Reason:                  codersdk.BuildReason(build.Reason),
 		Resources:               apiResources,
-		Status:                  convertWorkspaceStatus(apiJob.Status, transition),
+		Status:                  codersdk.ConvertWorkspaceStatus(apiJob.Status, transition),
 		DailyCost:               build.DailyCost,
 	}, nil
 }
@@ -937,40 +944,6 @@ func convertWorkspaceResource(resource database.WorkspaceResource, agents []code
 		Metadata:   convertedMetadata,
 		DailyCost:  resource.DailyCost,
 	}
-}
-
-func convertWorkspaceStatus(jobStatus codersdk.ProvisionerJobStatus, transition codersdk.WorkspaceTransition) codersdk.WorkspaceStatus {
-	switch jobStatus {
-	case codersdk.ProvisionerJobPending:
-		return codersdk.WorkspaceStatusPending
-	case codersdk.ProvisionerJobRunning:
-		switch transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusStarting
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopping
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleting
-		}
-	case codersdk.ProvisionerJobSucceeded:
-		switch transition {
-		case codersdk.WorkspaceTransitionStart:
-			return codersdk.WorkspaceStatusRunning
-		case codersdk.WorkspaceTransitionStop:
-			return codersdk.WorkspaceStatusStopped
-		case codersdk.WorkspaceTransitionDelete:
-			return codersdk.WorkspaceStatusDeleted
-		}
-	case codersdk.ProvisionerJobCanceling:
-		return codersdk.WorkspaceStatusCanceling
-	case codersdk.ProvisionerJobCanceled:
-		return codersdk.WorkspaceStatusCanceled
-	case codersdk.ProvisionerJobFailed:
-		return codersdk.WorkspaceStatusFailed
-	}
-
-	// return error status since we should never get here
-	return codersdk.WorkspaceStatusFailed
 }
 
 func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild) (codersdk.WorkspaceBuildTimings, error) {

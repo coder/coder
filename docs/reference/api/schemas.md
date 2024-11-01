@@ -1368,20 +1368,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"name": "string",
 	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
+	"user_status": "active",
 	"username": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                     | Required | Restrictions | Description                                                                         |
-| ------------------ | ---------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
-| `email`            | string                                   | true     |              |                                                                                     |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                           |
-| `name`             | string                                   | false    |              |                                                                                     |
-| `organization_ids` | array of string                          | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
-| `password`         | string                                   | false    |              |                                                                                     |
-| `username`         | string                                   | true     |              |                                                                                     |
+| Name               | Type                                       | Required | Restrictions | Description                                                                         |
+| ------------------ | ------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `email`            | string                                     | true     |              |                                                                                     |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
+| `name`             | string                                     | false    |              |                                                                                     |
+| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
+| `password`         | string                                     | false    |              |                                                                                     |
+| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
+| `username`         | string                                     | true     |              |                                                                                     |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -4517,6 +4519,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `group_member`            |
 | `idpsync_settings`        |
 | `license`                 |
+| `notification_message`    |
 | `notification_preference` |
 | `notification_template`   |
 | `oauth2_app`              |

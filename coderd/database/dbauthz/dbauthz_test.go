@@ -1470,6 +1470,24 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID).Asserts()
+	}))
+	s.Run("GetAuthorizedWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
+	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
@@ -2890,40 +2908,33 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
 	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.EnqueueNotificationMessageParams{
 			Method:  database.NotificationMethodWebhook,
 			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
 	// Notification templates
