@@ -1,4 +1,4 @@
-import { Button } from "@/components/ui/button";
+import { Button } from "components/ui/button";
 import { ExternalLinkIcon } from "@radix-ui/react-icons";
 import type { FC } from "react";
 import { docs } from "utils/docs";
