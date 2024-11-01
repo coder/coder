@@ -46,7 +46,6 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	t.Parallel()
 
 	// first check if we can create a new template db
-	// and a db from that template db
 	dsn, cleanup, err := dbtestutil.Open(dbtestutil.WithDBFrom(""))
 	require.NoError(t, err)
 	t.Cleanup(cleanup)
@@ -69,7 +68,7 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	require.NoError(t, tplDbExistsRes.Close())
 
 	// now populate the db with some data and use it as a new template db
-	// to verify that we can create a new db from it
+	// to verify that dbtestutil.Open respects WithDBFrom
 	_, err = db.Exec("CREATE TABLE my_wonderful_table (id serial PRIMARY KEY, name text)")
 	require.NoError(t, err)
 	_, err = db.Exec("INSERT INTO my_wonderful_table (name) VALUES ('test')")
@@ -102,4 +101,5 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	rows, err = newDb.Query("SELECT 1 FROM my_wonderful_table WHERE name = 'test'")
 	require.NoError(t, err)
 	require.True(t, rows.Next())
+	require.NoError(t, rows.Close())
 }
