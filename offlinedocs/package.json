@@ -36,7 +36,7 @@
 		"eslint": "8.57.1",
 		"eslint-config-next": "14.2.16",
 		"prettier": "3.3.3",
-		"typescript": "5.6.2"
+		"typescript": "5.6.3"
 	},
 	"engines": {
 		"npm": ">=9.0.0 <10.0.0",
