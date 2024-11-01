@@ -95,8 +95,8 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		opt(&o)
 	}
 
-	db := dbmem.New()
-	ps := pubsub.NewInMemory()
+	var db database.Store
+	var ps pubsub.Pubsub
 	if WillUsePostgres() {
 		connectionURL := os.Getenv("CODER_PG_CONNECTION_URL")
 		if connectionURL == "" && o.url != "" {
@@ -142,6 +142,9 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		t.Cleanup(func() {
 			_ = ps.Close()
 		})
+	} else {
+		db = dbmem.New()
+		ps = pubsub.NewInMemory()
 	}
 
 	return db, ps
