@@ -61,7 +61,7 @@ type AutoCreateWorkspaceOptions = {
 	 * If provided, the auto-create workspace feature will attempt to find a
 	 * matching workspace. If found, it will return the existing workspace instead
 	 * of creating a new one. Its value supports [advanced filtering queries for
-	 * workspaces](https://coder.com/docs/workspaces#workspace-filtering). If
+	 * workspaces](https://coder.com/docs/user-guides/workspace-management#workspace-filtering). If
 	 * multiple values are returned, the first one will be returned.
 	 */
 	match: string | null;
