@@ -104,12 +104,10 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 		}
 		if connectionURL == "" {
 			var (
-				err     error
-				closePg func()
+				err error
 			)
-			connectionURL, closePg, err = Open()
+			connectionURL, err = Open(t)
 			require.NoError(t, err)
-			t.Cleanup(closePg)
 		}
 
 		if o.fixedTimezone == "" {

@@ -21,9 +21,8 @@ func TestMain(m *testing.M) {
 func TestOpen(t *testing.T) {
 	t.Parallel()
 
-	connect, closePg, err := dbtestutil.Open()
+	connect, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 
 	db, err := sql.Open("postgres", connect)
 	require.NoError(t, err)
@@ -36,7 +35,7 @@ func TestOpen(t *testing.T) {
 func TestOpen_InvalidDBFrom(t *testing.T) {
 	t.Parallel()
 
-	_, _, err := dbtestutil.Open(dbtestutil.WithDBFrom("__invalid__"))
+	_, err := dbtestutil.Open(t, dbtestutil.WithDBFrom("__invalid__"))
 	require.Error(t, err)
 	require.ErrorContains(t, err, "template database")
 	require.ErrorContains(t, err, "does not exist")
@@ -46,9 +45,8 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	t.Parallel()
 
 	// first check if we can create a new template db
-	dsn, cleanup, err := dbtestutil.Open(dbtestutil.WithDBFrom(""))
+	dsn, err := dbtestutil.Open(t, dbtestutil.WithDBFrom(""))
 	require.NoError(t, err)
-	t.Cleanup(cleanup)
 
 	db, err := sql.Open("postgres", dsn)
 	require.NoError(t, err)
@@ -90,13 +88,14 @@ func TestOpen_ValidDBFrom(t *testing.T) {
 	}
 
 	// now create a new db from the template db
-	newDsn, newCleanup, err := dbtestutil.Open(dbtestutil.WithDBFrom(freshTemplateDBName))
+	newDsn, err := dbtestutil.Open(t, dbtestutil.WithDBFrom(freshTemplateDBName))
 	require.NoError(t, err)
-	defer newCleanup()
 
 	newDb, err := sql.Open("postgres", newDsn)
 	require.NoError(t, err)
-	defer newDb.Close()
+	t.Cleanup(func() {
+		require.NoError(t, newDb.Close())
+	})
 
 	rows, err = newDb.Query("SELECT 1 FROM my_wonderful_table WHERE name = 'test'")
 	require.NoError(t, err)

@@ -48,7 +48,7 @@ var (
 // initDefaultConnection initializes the default postgres connection parameters.
 // It first checks if the database is running at localhost:5432. If it is, it will
 // use that database. If it's not, it will start a new container and use that.
-func initDefaultConnection() error {
+func initDefaultConnection(t TBSubset) error {
 	params := ConnectionParams{
 		Username: "postgres",
 		Password: "postgres",
@@ -83,7 +83,7 @@ func initDefaultConnection() error {
 		// postgres container. We won't be cleaning it up so it can be reused
 		// by subsequent tests. It'll keep on running until the user terminates
 		// it manually.
-		container, _, err := openContainer(DBContainerOptions{
+		container, _, err := openContainer(t, DBContainerOptions{
 			Name: "coder-test-postgres",
 			Port: 5432,
 		})
@@ -130,15 +130,25 @@ func WithDBFrom(dbFrom string) OpenOption {
 	}
 }
 
+// TBSubset is a subset of the testing.TB interface.
+// It allows to use dbtestutil.Open outside of tests.
+type TBSubset interface {
+	Cleanup(func())
+	Helper()
+	Logf(format string, args ...any)
+}
+
 // Open creates a new PostgreSQL database instance.
 // If there's a database running at localhost:5432, it will use that.
 // Otherwise, it will start a new postgres container.
-func Open(opts ...OpenOption) (string, func(), error) {
+func Open(t TBSubset, opts ...OpenOption) (string, error) {
+	t.Helper()
+
 	connectionParamsInitOnce.Do(func() {
-		errDefaultConnectionParamsInit = initDefaultConnection()
+		errDefaultConnectionParamsInit = initDefaultConnection(t)
 	})
 	if errDefaultConnectionParamsInit != nil {
-		return "", func() {}, xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
+		return "", xerrors.Errorf("init default connection params: %w", errDefaultConnectionParamsInit)
 	}
 
 	openOptions := OpenOptions{}
@@ -158,7 +168,7 @@ func Open(opts ...OpenOption) (string, func(), error) {
 	now := time.Now().Format("test_2006_01_02_15_04_05")
 	dbSuffix, err := cryptorand.StringCharset(cryptorand.Lower, 10)
 	if err != nil {
-		return "", func() {}, xerrors.Errorf("generate db suffix: %w", err)
+		return "", xerrors.Errorf("generate db suffix: %w", err)
 	}
 	dbName := now + "_" + dbSuffix
 
@@ -167,24 +177,28 @@ func Open(opts ...OpenOption) (string, func(), error) {
 	if openOptions.DBFrom != nil {
 		templateDBName = *openOptions.DBFrom
 	}
-	if err = createDatabaseFromTemplate(defaultConnectionParams, dbName, templateDBName); err != nil {
-		return "", func() {}, xerrors.Errorf("create database: %w", err)
+	if err = createDatabaseFromTemplate(t, defaultConnectionParams, dbName, templateDBName); err != nil {
+		return "", xerrors.Errorf("create database: %w", err)
 	}
 
-	cleanup := func() {
+	t.Cleanup(func() {
 		cleanupDbURL := defaultConnectionParams.DSN()
 		cleanupConn, err := sql.Open("postgres", cleanupDbURL)
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
+			t.Logf("cleanup database %q: failed to connect to postgres: %s\n", dbName, err.Error())
 			return
 		}
-		defer cleanupConn.Close()
+		defer func() {
+			if err := cleanupConn.Close(); err != nil {
+				t.Logf("cleanup database %q: failed to close connection: %s\n", dbName, err.Error())
+			}
+		}()
 		_, err = cleanupConn.Exec("DROP DATABASE " + dbName + ";")
 		if err != nil {
-			_, _ = fmt.Fprintf(os.Stderr, "failed to clean up database %q: %s\n", dbName, err.Error())
+			t.Logf("failed to clean up database %q: %s\n", dbName, err.Error())
 			return
 		}
-	}
+	})
 
 	dsn := ConnectionParams{
 		Username: username,
@@ -193,14 +207,16 @@ func Open(opts ...OpenOption) (string, func(), error) {
 		Port:     port,
 		DBName:   dbName,
 	}.DSN()
-	return dsn, cleanup, nil
+	return dsn, nil
 }
 
 // createDatabaseFromTemplate creates a new database from a template database.
 // If templateDBName is empty, it will create a new template database based on
 // the current migrations, and name it "tpl_<migrations_hash>". Or if it's
 // already been created, it will use that.
-func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, templateDBName string) error {
+func createDatabaseFromTemplate(t TBSubset, connParams ConnectionParams, newDBName string, templateDBName string) error {
+	t.Helper()
+
 	dbURL := connParams.DSN()
 	db, err := sql.Open("postgres", dbURL)
 	if err != nil {
@@ -208,7 +224,7 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 	}
 	defer func() {
 		if err := db.Close(); err != nil {
-			panic(err)
+			t.Logf("create database from template: failed to close connection: %s\n", err.Error())
 		}
 	}()
 
@@ -240,7 +256,7 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 	defer func() {
 		err := tx.Rollback()
 		if err != nil && !errors.Is(err, sql.ErrTxDone) {
-			panic(err)
+			t.Logf("create database from template: failed to rollback tx: %s\n", err.Error())
 		}
 	}()
 	// 2137 is an arbitrary number. We just need a lock that is unique to creating
@@ -287,7 +303,7 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		}
 		defer func() {
 			if err := tplDb.Close(); err != nil {
-				panic(err)
+				t.Logf("create database from template: failed to close template db: %s\n", err.Error())
 			}
 		}()
 		if err := migrations.Up(tplDb); err != nil {
@@ -327,7 +343,7 @@ type container struct {
 // to that port to the database. If port is zero, allocate a free port from the OS.
 // If name is set, we'll ensure that only one container is started with that name. If it's already running, we'll use that.
 // Otherwise, we'll start a new container.
-func openContainer(opts DBContainerOptions) (container, func(), error) {
+func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), error) {
 	if opts.Name != "" {
 		// We only want to start the container once per unique name,
 		// so we take an inter-process lock to avoid concurrent test runs
@@ -341,7 +357,7 @@ func openContainer(opts DBContainerOptions) (container, func(), error) {
 		defer func() {
 			err := lock.Unlock()
 			if err != nil {
-				panic(err)
+				t.Logf("create database from template: failed to unlock: %s\n", err.Error())
 			}
 		}()
 	}
@@ -447,8 +463,9 @@ func openContainer(opts DBContainerOptions) (container, func(), error) {
 
 // OpenContainerized creates a new PostgreSQL server using a Docker container.  If port is nonzero, forward host traffic
 // to that port to the database.  If port is zero, allocate a free port from the OS.
-func OpenContainerized(opts DBContainerOptions) (string, func(), error) {
-	container, containerCleanup, err := openContainer(opts)
+// The user is responsible for calling the returned cleanup function.
+func OpenContainerized(t TBSubset, opts DBContainerOptions) (string, func(), error) {
+	container, containerCleanup, err := openContainer(t, opts)
 	defer func() {
 		if err != nil {
 			containerCleanup()
