@@ -141,7 +141,7 @@
 		"@types/ua-parser-js": "0.7.36",
 		"@types/uuid": "9.0.2",
 		"@vitejs/plugin-react": "4.3.2",
-		"chromatic": "11.3.0",
+		"chromatic": "11.16.3",
 		"eventsourcemock": "2.0.0",
 		"express": "4.21.0",
 		"jest": "29.7.0",
