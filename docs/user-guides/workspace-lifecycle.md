@@ -111,13 +111,13 @@ workspace startup scripts.
 
 ## Workspace build times
 
-In the workspace page, after a successful build, you can see a timing breakdown
-of the workspace startup process. We capture and display both time taken to
-provision the workspace's compute and all agent startup steps. These include any
+After a successful build, you can see a timing breakdown
+of the workspace startup process from the dashboard. We capture and display both time taken to
+provision the workspace's compute and agent startup steps. These include any
 [`coder_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/script)s
 such as [dotfiles](./workspace-dotfiles.md) or
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
-startup.
+startups.
 
 ![Workspace build timings UI](../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)
 
