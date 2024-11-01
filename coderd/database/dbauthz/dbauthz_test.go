@@ -152,7 +152,10 @@ func TestDBAuthzRecursive(t *testing.T) {
 		for i := 2; i < method.Type.NumIn(); i++ {
 			ins = append(ins, reflect.New(method.Type.In(i)).Elem())
 		}
-		if method.Name == "InTx" || method.Name == "Ping" || method.Name == "Wrappers" {
+		if method.Name == "InTx" ||
+			method.Name == "Ping" ||
+			method.Name == "Wrappers" ||
+			method.Name == "PGLocks" {
 			continue
 		}
 		// Log the name of the last method, so if there is a panic, it is

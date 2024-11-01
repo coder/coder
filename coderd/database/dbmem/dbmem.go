@@ -339,6 +339,10 @@ func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
+func (*FakeQuerier) PGLocks(_ context.Context) (database.PGLocks, error) {
+	return []database.PGLock{}, nil
+}
+
 func (tx *fakeTx) AcquireLock(_ context.Context, id int64) error {
 	if _, ok := tx.FakeQuerier.locks[id]; ok {
 		return xerrors.Errorf("cannot acquire lock %d: already held", id)

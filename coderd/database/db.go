@@ -28,6 +28,7 @@ type Store interface {
 	wrapper
 
 	Ping(ctx context.Context) (time.Duration, error)
+	PGLocks(ctx context.Context) (PGLocks, error)
 	InTx(func(Store) error, *TxOptions) error
 }
 
@@ -217,4 +218,11 @@ func (q *sqlQuerier) runTx(function func(Store) error, txOpts *sql.TxOptions) er
 		return xerrors.Errorf("commit transaction: %w", err)
 	}
 	return nil
+}
+
+func safeString(s *string) string {
+	if s == nil {
+		return "<nil>"
+	}
+	return *s
 }
