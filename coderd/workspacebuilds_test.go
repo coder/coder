@@ -1291,7 +1291,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			genTiming := provisionerTimings[i]
 			require.Equal(t, genTiming.Resource, timingRes.Resource)
 			require.Equal(t, genTiming.Action, timingRes.Action)
-			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
 			require.Equal(t, genTiming.Source, timingRes.Source)
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
@@ -1328,7 +1328,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			genTiming := agentScriptTimings[i]
 			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
 			require.Equal(t, string(genTiming.Status), timingRes.Status)
-			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
 			require.Equal(t, agent.ID.String(), timingRes.WorkspaceAgentID)
