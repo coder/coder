@@ -35,7 +35,7 @@ WHERE
 	workspaces.organization_id = @organization_id
 ORDER BY
 	wb.workspace_id,
-	wb.created_at DESC
+	wb.build_number DESC
 )
 SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
