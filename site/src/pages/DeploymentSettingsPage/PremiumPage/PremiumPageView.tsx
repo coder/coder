@@ -223,7 +223,7 @@ const OSSVersion: FC = () => {
 							Template Permissions
 						</span>
 						<br />
-						<span className=" font-medium">
+						<span className="font-medium">
 							Control who can create, modify, and access workspace templates
 							across teams.
 						</span>

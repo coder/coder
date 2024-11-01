@@ -1,4 +1,6 @@
+import createCache from "@emotion/cache";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
+import { CacheProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
@@ -57,7 +59,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	// value could be anything, like an empty string.
 
 	useEffect(() => {
-		const root = window.document.documentElement;
+		const root = document.documentElement;
 		root.classList.remove("light", "dark");
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
@@ -77,6 +79,11 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
+const cache = createCache({
+	key: "css",
+	prepend: true,
+});
+
 interface ThemeOverrideProps {
 	theme: Theme;
 	children?: ReactNode;
@@ -84,11 +91,13 @@ interface ThemeOverrideProps {
 
 export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
 	return (
-		<MuiThemeProvider theme={theme}>
-			<EmotionThemeProvider theme={theme}>
-				<CssBaseline enableColorScheme />
-				{children}
-			</EmotionThemeProvider>
-		</MuiThemeProvider>
+		<CacheProvider value={cache}>
+			<MuiThemeProvider theme={theme}>
+				<EmotionThemeProvider theme={theme}>
+					<CssBaseline enableColorScheme />
+					{children}
+				</EmotionThemeProvider>
+			</MuiThemeProvider>
+		</CacheProvider>
 	);
 };
