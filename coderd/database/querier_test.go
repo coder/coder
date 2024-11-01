@@ -620,7 +620,6 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 		t.SkipNow()
 	}
 
-	ctx := testutil.Context(t, testutil.WaitLong)
 	sqlDB := testSQLDB(t)
 	err := migrations.Up(sqlDB)
 	require.NoError(t, err)
@@ -695,6 +694,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 	}
 	t.Run("sqlQuerier", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, user.ID, rbac.ExpandableScope(rbac.ScopeAll))
 		require.NoError(t, err)
@@ -717,6 +717,7 @@ func TestGetAuthorizedWorkspacesAndAgentsByOwnerID(t *testing.T) {
 
 	t.Run("dbauthz", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		authzdb := dbauthz.New(db, authorizer, slogtest.Make(t, &slogtest.Options{}), coderdtest.AccessControlStorePointer())
 
