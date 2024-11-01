@@ -33,6 +33,7 @@ export const Loading: Story = {
 	args: {
 		provisionerTimings: undefined,
 		agentScriptTimings: undefined,
+		agentConnectionTimings: undefined,
 	},
 };
 
@@ -61,7 +62,7 @@ export const ClickToClose: Story = {
 		await canvas.findByText("provisioning");
 		await user.click(canvas.getByText("Build timeline", { exact: false }));
 		await waitFor(() =>
-			expect(canvas.getByText("workspace boot")).not.toBeVisible(),
+			expect(canvas.queryByText("workspace boot")).not.toBeInTheDocument(),
 		);
 	},
 };

@@ -155,7 +155,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 									/>
 								)}
 
-								{view.stage.section !== "run startup scripts" && (
+								{view.stage.name === "start" && (
 									<ScriptsChart
 										timings={agentScriptTimings
 											.filter((t) => t.stage === view.stage.name)
