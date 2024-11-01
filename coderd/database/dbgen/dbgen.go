@@ -288,6 +288,15 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 		if err != nil {
 			return err
 		}
+
+		if orig.DailyCost > 0 {
+			err = db.UpdateWorkspaceBuildCostByID(genCtx, database.UpdateWorkspaceBuildCostByIDParams{
+				ID:        buildID,
+				DailyCost: orig.DailyCost,
+			})
+			require.NoError(t, err)
+		}
+
 		build, err = db.GetWorkspaceBuildByID(genCtx, buildID)
 		if err != nil {
 			return err
