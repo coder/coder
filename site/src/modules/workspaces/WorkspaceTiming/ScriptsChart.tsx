@@ -27,7 +27,7 @@ import {
 	makeTicks,
 	mergeTimeRanges,
 } from "./Chart/utils";
-import type { StageCategory } from "./StagesChart";
+import type { Stage } from "./StagesChart";
 
 type ScriptTiming = {
 	name: string;
@@ -37,14 +37,12 @@ type ScriptTiming = {
 };
 
 export type ScriptsChartProps = {
-	category: StageCategory;
-	stage: string;
+	stage: Stage;
 	timings: ScriptTiming[];
 	onBack: () => void;
 };
 
 export const ScriptsChart: FC<ScriptsChartProps> = ({
-	category,
 	stage,
 	timings,
 	onBack,
@@ -66,11 +64,11 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 				<ChartBreadcrumbs
 					breadcrumbs={[
 						{
-							label: category.name,
+							label: stage.section,
 							onClick: onBack,
 						},
 						{
-							label: stage,
+							label: stage.name,
 						},
 					]}
 				/>
@@ -84,7 +82,7 @@ export const ScriptsChart: FC<ScriptsChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					<YAxisSection>
-						<YAxisHeader>{stage} stage</YAxisHeader>
+						<YAxisHeader>{stage.name} stage</YAxisHeader>
 						<YAxisLabels>
 							{visibleTimings.map((t) => (
 								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>

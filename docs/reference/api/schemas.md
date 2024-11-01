@@ -349,6 +349,28 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentConnectionTiming
+
+```json
+{
+	"ended_at": "2019-08-24T14:15:22Z",
+	"stage": "init",
+	"started_at": "2019-08-24T14:15:22Z",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                         | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `ended_at`             | string                                       | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at`           | string                                       | false    |              |             |
+| `workspace_agent_id`   | string                                       | false    |              |             |
+| `workspace_agent_name` | string                                       | false    |              |             |
+
 ## codersdk.AgentScriptTiming
 
 ```json
@@ -356,22 +378,26 @@
 	"display_name": "string",
 	"ended_at": "2019-08-24T14:15:22Z",
 	"exit_code": 0,
-	"stage": "string",
+	"stage": "init",
 	"started_at": "2019-08-24T14:15:22Z",
-	"status": "string"
+	"status": "string",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `display_name` | string  | false    |              |             |
-| `ended_at`     | string  | false    |              |             |
-| `exit_code`    | integer | false    |              |             |
-| `stage`        | string  | false    |              |             |
-| `started_at`   | string  | false    |              |             |
-| `status`       | string  | false    |              |             |
+| Name                   | Type                                         | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `display_name`         | string                                       | false    |              |             |
+| `ended_at`             | string                                       | false    |              |             |
+| `exit_code`            | integer                                      | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at`           | string                                       | false    |              |             |
+| `status`               | string                                       | false    |              |             |
+| `workspace_agent_id`   | string                                       | false    |              |             |
+| `workspace_agent_name` | string                                       | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -4359,22 +4385,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 	"resource": "string",
 	"source": "string",
-	"stage": "string",
+	"stage": "init",
 	"started_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `action`     | string | false    |              |             |
-| `ended_at`   | string | false    |              |             |
-| `job_id`     | string | false    |              |             |
-| `resource`   | string | false    |              |             |
-| `source`     | string | false    |              |             |
-| `stage`      | string | false    |              |             |
-| `started_at` | string | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description |
+| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `action`     | string                                       | false    |              |             |
+| `ended_at`   | string                                       | false    |              |             |
+| `job_id`     | string                                       | false    |              |             |
+| `resource`   | string                                       | false    |              |             |
+| `source`     | string                                       | false    |              |             |
+| `stage`      | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at` | string                                       | false    |              |             |
 
 ## codersdk.ProxyHealthReport
 
@@ -5716,6 +5742,27 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value                    |
 | ------------------------ |
 | `UNSUPPORTED_WORKSPACES` |
+
+## codersdk.TimingStage
+
+```json
+"init"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `init`    |
+| `plan`    |
+| `graph`   |
+| `apply`   |
+| `start`   |
+| `stop`    |
+| `cron`    |
+| `connect` |
 
 ## codersdk.TokenConfig
 
@@ -7381,14 +7428,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+	"agent_connection_timings": [
+		{
+			"ended_at": "2019-08-24T14:15:22Z",
+			"stage": "init",
+			"started_at": "2019-08-24T14:15:22Z",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
+		}
+	],
 	"agent_script_timings": [
 		{
 			"display_name": "string",
 			"ended_at": "2019-08-24T14:15:22Z",
 			"exit_code": 0,
-			"stage": "string",
+			"stage": "init",
 			"started_at": "2019-08-24T14:15:22Z",
-			"status": "string"
+			"status": "string",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
 		}
 	],
 	"provisioner_timings": [
@@ -7398,7 +7456,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 			"resource": "string",
 			"source": "string",
-			"stage": "string",
+			"stage": "init",
 			"started_at": "2019-08-24T14:15:22Z"
 		}
 	]
@@ -7407,10 +7465,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                              | Required | Restrictions | Description |
-| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
-| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+| Name                       | Type                                                                      | Required | Restrictions | Description                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `agent_connection_timings` | array of [codersdk.AgentConnectionTiming](#codersdkagentconnectiontiming) | false    |              |                                                                                                                  |
+| `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              | Agent script timings Consolidate agent-related timing metrics into a single struct when updating the API version |
+| `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |                                                                                                                  |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 

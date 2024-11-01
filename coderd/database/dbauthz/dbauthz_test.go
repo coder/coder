@@ -2894,13 +2894,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
 			{
-				StartedAt:   timing.StartedAt,
-				EndedAt:     timing.EndedAt,
-				Stage:       timing.Stage,
-				ScriptID:    timing.ScriptID,
-				ExitCode:    timing.ExitCode,
-				Status:      timing.Status,
-				DisplayName: script.DisplayName,
+				StartedAt:          timing.StartedAt,
+				EndedAt:            timing.EndedAt,
+				Stage:              timing.Stage,
+				ScriptID:           timing.ScriptID,
+				ExitCode:           timing.ExitCode,
+				Status:             timing.Status,
+				DisplayName:        script.DisplayName,
+				WorkspaceAgentID:   agent.ID,
+				WorkspaceAgentName: agent.Name,
 			},
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)

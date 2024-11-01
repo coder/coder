@@ -5899,15 +5899,31 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 				break
 			}
 		}
+		if script.ID == uuid.Nil {
+			return nil, xerrors.Errorf("script with ID %s not found", t.ScriptID)
+		}
+
+		var agent database.WorkspaceAgent
+		for _, a := range agents {
+			if a.ID == script.WorkspaceAgentID {
+				agent = a
+				break
+			}
+		}
+		if agent.ID == uuid.Nil {
+			return nil, xerrors.Errorf("agent with ID %s not found", t.ScriptID)
+		}
 
 		rows = append(rows, database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
-			ScriptID:    t.ScriptID,
-			StartedAt:   t.StartedAt,
-			EndedAt:     t.EndedAt,
-			ExitCode:    t.ExitCode,
-			Stage:       t.Stage,
-			Status:      t.Status,
-			DisplayName: script.DisplayName,
+			ScriptID:           t.ScriptID,
+			StartedAt:          t.StartedAt,
+			EndedAt:            t.EndedAt,
+			ExitCode:           t.ExitCode,
+			Stage:              t.Stage,
+			Status:             t.Status,
+			DisplayName:        script.DisplayName,
+			WorkspaceAgentID:   agent.ID,
+			WorkspaceAgentName: agent.Name,
 		})
 	}
 	return rows, nil

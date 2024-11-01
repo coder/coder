@@ -9020,6 +9020,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentConnectionTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "stage": {
+                    "$ref": "#/definitions/codersdk.TimingStage"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -9034,13 +9056,19 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "status": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
                     "type": "string"
                 }
             }
@@ -12170,7 +12198,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
@@ -13471,6 +13499,29 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TemplateVersionWarningUnsupportedWorkspaces"
+            ]
+        },
+        "codersdk.TimingStage": {
+            "type": "string",
+            "enum": [
+                "init",
+                "plan",
+                "graph",
+                "apply",
+                "start",
+                "stop",
+                "cron",
+                "connect"
+            ],
+            "x-enum-varnames": [
+                "TimingStageInit",
+                "TimingStagePlan",
+                "TimingStageGraph",
+                "TimingStageApply",
+                "TimingStageStart",
+                "TimingStageStop",
+                "TimingStageCron",
+                "TimingStageConnect"
             ]
         },
         "codersdk.TokenConfig": {
@@ -14806,7 +14857,14 @@ const docTemplate = `{
         "codersdk.WorkspaceBuildTimings": {
             "type": "object",
             "properties": {
+                "agent_connection_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentConnectionTiming"
+                    }
+                },
                 "agent_script_timings": {
+                    "description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AgentScriptTiming"

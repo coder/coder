@@ -11454,7 +11454,11 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 }
 
 const getWorkspaceAgentScriptTimingsByBuildID = `-- name: GetWorkspaceAgentScriptTimingsByBuildID :many
-SELECT workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status, workspace_agent_scripts.display_name
+SELECT
+	workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status,
+	workspace_agent_scripts.display_name,
+	workspace_agents.id as workspace_agent_id,
+	workspace_agents.name as workspace_agent_name
 FROM workspace_agent_script_timings
 INNER JOIN workspace_agent_scripts ON workspace_agent_scripts.id = workspace_agent_script_timings.script_id
 INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.workspace_agent_id
@@ -11464,13 +11468,15 @@ WHERE workspace_builds.id = $1
 `
 
 type GetWorkspaceAgentScriptTimingsByBuildIDRow struct {
-	ScriptID    uuid.UUID                        `db:"script_id" json:"script_id"`
-	StartedAt   time.Time                        `db:"started_at" json:"started_at"`
-	EndedAt     time.Time                        `db:"ended_at" json:"ended_at"`
-	ExitCode    int32                            `db:"exit_code" json:"exit_code"`
-	Stage       WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
-	Status      WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
-	DisplayName string                           `db:"display_name" json:"display_name"`
+	ScriptID           uuid.UUID                        `db:"script_id" json:"script_id"`
+	StartedAt          time.Time                        `db:"started_at" json:"started_at"`
+	EndedAt            time.Time                        `db:"ended_at" json:"ended_at"`
+	ExitCode           int32                            `db:"exit_code" json:"exit_code"`
+	Stage              WorkspaceAgentScriptTimingStage  `db:"stage" json:"stage"`
+	Status             WorkspaceAgentScriptTimingStatus `db:"status" json:"status"`
+	DisplayName        string                           `db:"display_name" json:"display_name"`
+	WorkspaceAgentID   uuid.UUID                        `db:"workspace_agent_id" json:"workspace_agent_id"`
+	WorkspaceAgentName string                           `db:"workspace_agent_name" json:"workspace_agent_name"`
 }
 
 func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context, id uuid.UUID) ([]GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
@@ -11490,6 +11496,8 @@ func (q *sqlQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Context
 			&i.Stage,
 			&i.Status,
 			&i.DisplayName,
+			&i.WorkspaceAgentID,
+			&i.WorkspaceAgentName,
 		); err != nil {
 			return nil, err
 		}
