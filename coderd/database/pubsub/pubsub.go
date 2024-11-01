@@ -278,10 +278,11 @@ func (p *PGPubsub) subscribeQueue(event string, newQ *msgQueue) (cancel func(), 
 		if len(listeners) == 0 {
 			delete(p.queues, event)
 		}
+		listenerCount := len(listeners)
 		p.qMu.Unlock()
 		// as above, we must not hold the lock while calling into pgListener
 
-		if len(listeners) == 0 {
+		if listenerCount == 0 {
 			uErr := p.pgListener.Unlisten(event)
 			p.closeMu.Lock()
 			defer p.closeMu.Unlock()
