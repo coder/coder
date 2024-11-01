@@ -43,9 +43,9 @@ var (
 	errDefaultConnectionParamsInit error
 )
 
-// initDefaultConnectionParams initializes the default connection parameters
-// by checking if the database is running locally. If it is, it will use the
-// local database. If it's not, it will start a new container and use that.
+// initDefaultConnectionParams initializes the default postgres connection parameters.
+// It first checks if the database is running at localhost:5432. If it is, it will
+// use that database. If it's not, it will start a new container and use that.
 func initDefaultConnectionParams() error {
 	params := ConnectionParams{
 		Username: "postgres",
@@ -80,7 +80,7 @@ func initDefaultConnectionParams() error {
 		// If there's no database running on the default port, we'll start a
 		// postgres container. We won't be cleaning it up so it can be reused
 		// by subsequent tests. It'll keep on running until the user terminates
-		// it themselves.
+		// it manually.
 		container, _, err := openContainer(DBContainerOptions{
 			Name: "coder-test-postgres",
 			Port: 5432,
@@ -261,6 +261,8 @@ func createDatabaseFromTemplate(connParams ConnectionParams, newDBName string, t
 		// It's dropped here to ensure that if a previous run of this function failed
 		// midway, we don't encounter issues with the temporary database still existing.
 		tmpTemplateDBName := "tmp_" + templateDBName
+		// We're using db instead of tx here because you can't run `DROP DATABASE` inside
+		// a transaction.
 		if _, err := db.Exec("DROP DATABASE IF EXISTS " + tmpTemplateDBName); err != nil {
 			return xerrors.Errorf("drop tmp template db: %w", err)
 		}
