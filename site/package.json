@@ -106,7 +106,7 @@
 		"@chromatic-com/storybook": "1.9.0",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.47.2",
-		"@storybook/addon-actions": "8.1.11",
+		"@storybook/addon-actions": "8.3.5",
 		"@storybook/addon-essentials": "8.1.11",
 		"@storybook/addon-interactions": "8.1.11",
 		"@storybook/addon-links": "8.1.11",
