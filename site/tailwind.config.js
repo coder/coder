@@ -23,16 +23,16 @@ module.exports = {
 				content: {
 					primary: "var(--content-primary)",
 					secondary: "var(--content-secondary)",
-					disabled: colors.zinc[600],
+					disabled: "var(--content-disabled)",
 					invert: "var(--content-invert)",
-					success: colors.green[600],
-					danger: colors.red[500],
-					link: colors.blue[500],
+					success: "var(--content-success)",
+					danger: "var(--content-danger)",
+					link: "var(--content-link)",
 				},
 				surface: {
-					primary: colors.zinc[950],
-					secondary: colors.zinc[900],
-					tertiary: colors.zinc[800],
+					primary: "var(--surface-primary)",
+					secondary: "var(--surface-secondary)",
+					tertiary: "var(--surface-tertiary)",
 					invert: {
 						primary: "var(--surface-invert-primary)",
 						secondary: "var(--surface-invert-secondary)",
