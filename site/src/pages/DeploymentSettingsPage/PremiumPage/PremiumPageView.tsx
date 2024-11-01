@@ -21,7 +21,7 @@ const EnterpriseVersion: FC = () => {
 						Premium for enhanced multi-tenant control and flexibility.
 					</p>
 				</div>
-				<Button asChild>
+				<Button asChild variant="warning">
 					<a href="https://coder.com/contact/sales" className="no-underline">
 						<SquareArrowOutUpRight size={14} />
 						Contact sales
