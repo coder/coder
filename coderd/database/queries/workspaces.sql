@@ -690,3 +690,42 @@ UPDATE workspaces SET favorite = true WHERE id = @id;
 
 -- name: UnfavoriteWorkspace :exec
 UPDATE workspaces SET favorite = false WHERE id = @id;
+
+-- name: GetWorkspacesAndAgentsByOwnerID :many
+SELECT
+	workspaces.id as id,
+	workspaces.name as name,
+	job_status,
+	transition,
+	(array_agg(ROW(agent_id, agent_name)::agent_id_name_pair) FILTER (WHERE agent_id IS NOT NULL))::agent_id_name_pair[] as agents
+FROM workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_id,
+		job_id,
+		transition,
+		job_status
+	FROM workspace_builds
+	JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+	WHERE workspace_builds.workspace_id = workspaces.id
+	ORDER BY build_number DESC
+	LIMIT 1
+) latest_build ON true
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_agents.id as agent_id,
+		workspace_agents.name as agent_name,
+		job_id
+	FROM workspace_resources
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE job_id = latest_build.job_id
+) resources ON true
+WHERE
+	-- Filter by owner_id
+	workspaces.owner_id = @owner_id :: uuid
+	AND workspaces.deleted = false
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
+	-- @authorize_filter
+GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;
+
+

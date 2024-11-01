@@ -15274,6 +15274,81 @@ func (q *sqlQuerier) GetWorkspaces(ctx context.Context, arg GetWorkspacesParams)
 	return items, nil
 }
 
+const getWorkspacesAndAgentsByOwnerID = `-- name: GetWorkspacesAndAgentsByOwnerID :many
+SELECT
+	workspaces.id as id,
+	workspaces.name as name,
+	job_status,
+	transition,
+	(array_agg(ROW(agent_id, agent_name)::agent_id_name_pair) FILTER (WHERE agent_id IS NOT NULL))::agent_id_name_pair[] as agents
+FROM workspaces
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_id,
+		job_id,
+		transition,
+		job_status
+	FROM workspace_builds
+	JOIN provisioner_jobs ON provisioner_jobs.id = workspace_builds.job_id
+	WHERE workspace_builds.workspace_id = workspaces.id
+	ORDER BY build_number DESC
+	LIMIT 1
+) latest_build ON true
+LEFT JOIN LATERAL (
+	SELECT
+		workspace_agents.id as agent_id,
+		workspace_agents.name as agent_name,
+		job_id
+	FROM workspace_resources
+	JOIN workspace_agents ON workspace_agents.resource_id = workspace_resources.id
+	WHERE job_id = latest_build.job_id
+) resources ON true
+WHERE
+	-- Filter by owner_id
+	workspaces.owner_id = $1 :: uuid
+	AND workspaces.deleted = false
+	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
+	-- @authorize_filter
+GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition
+`
+
+type GetWorkspacesAndAgentsByOwnerIDRow struct {
+	ID         uuid.UUID            `db:"id" json:"id"`
+	Name       string               `db:"name" json:"name"`
+	JobStatus  ProvisionerJobStatus `db:"job_status" json:"job_status"`
+	Transition WorkspaceTransition  `db:"transition" json:"transition"`
+	Agents     []AgentIDNamePair    `db:"agents" json:"agents"`
+}
+
+func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesAndAgentsByOwnerID, ownerID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetWorkspacesAndAgentsByOwnerIDRow
+	for rows.Next() {
+		var i GetWorkspacesAndAgentsByOwnerIDRow
+		if err := rows.Scan(
+			&i.ID,
+			&i.Name,
+			&i.JobStatus,
+			&i.Transition,
+			pq.Array(&i.Agents),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
 	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite
