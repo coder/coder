@@ -323,7 +323,6 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Prepopulate database. Use dbfake as it is quicker and
 		// easier than the api.
 		ctx := testutil.Context(t, testutil.WaitLong)
-		ctx = dbauthz.AsSystemRestricted(ctx)
 
 		user := dbgen.User(t, db, database.User{})
 		noise := dbgen.User(t, db, database.User{})
