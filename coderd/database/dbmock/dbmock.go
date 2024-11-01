@@ -4329,6 +4329,21 @@ func (mr *MockStoreMockRecorder) OrganizationMembers(arg0, arg1 any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrganizationMembers", reflect.TypeOf((*MockStore)(nil).OrganizationMembers), arg0, arg1)
 }
 
+// PGLocks mocks base method.
+func (m *MockStore) PGLocks(arg0 context.Context) (database.PGLocks, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PGLocks", arg0)
+	ret0, _ := ret[0].(database.PGLocks)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PGLocks indicates an expected call of PGLocks.
+func (mr *MockStoreMockRecorder) PGLocks(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PGLocks", reflect.TypeOf((*MockStore)(nil).PGLocks), arg0)
+}
+
 // Ping mocks base method.
 func (m *MockStore) Ping(arg0 context.Context) (time.Duration, error) {
 	m.ctrl.T.Helper()

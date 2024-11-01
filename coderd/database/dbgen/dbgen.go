@@ -408,6 +408,8 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
+	t.Helper()
+
 	name := takeFirst(orig.Name, testutil.GetRandomName(t))
 	group, err := db.InsertGroup(genCtx, database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),

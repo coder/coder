@@ -66,6 +66,13 @@ func (m queryMetricsStore) Ping(ctx context.Context) (time.Duration, error) {
 	return duration, err
 }
 
+func (m queryMetricsStore) PGLocks(ctx context.Context) (database.PGLocks, error) {
+	start := time.Now()
+	locks, err := m.s.PGLocks(ctx)
+	m.queryLatencies.WithLabelValues("PGLocks").Observe(time.Since(start).Seconds())
+	return locks, err
+}
+
 func (m queryMetricsStore) InTx(f func(database.Store) error, options *database.TxOptions) error {
 	return m.dbMetrics.InTx(f, options)
 }

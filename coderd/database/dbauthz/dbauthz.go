@@ -627,6 +627,10 @@ func (q *querier) Ping(ctx context.Context) (time.Duration, error) {
 	return q.db.Ping(ctx)
 }
 
+func (q *querier) PGLocks(ctx context.Context) (database.PGLocks, error) {
+	return q.db.PGLocks(ctx)
+}
+
 // InTx runs the given function in a transaction.
 func (q *querier) InTx(function func(querier database.Store) error, txOpts *database.TxOptions) error {
 	return q.db.InTx(func(tx database.Store) error {
