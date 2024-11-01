@@ -97,7 +97,7 @@ export const NavigateToStartStage: Story = {
 		const user = userEvent.setup();
 		const canvas = within(canvasElement);
 		const detailsButton = canvas.getByRole("button", {
-			name: "View start details",
+			name: "View run startup scripts details",
 		});
 		await user.click(detailsButton);
 		await canvas.findByText("Startup Script");

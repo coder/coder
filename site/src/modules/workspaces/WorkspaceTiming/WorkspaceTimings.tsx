@@ -50,22 +50,21 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const isLoading = timings.length === 0;
 
+	// All stages
+	const agentStageLabels = Array.from(
+		new Set(
+			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
+		),
+	);
+	const stages = [
+		...provisioningStages,
+		...agentStageLabels.flatMap((a) => agentStages(a)),
+	];
+
 	const displayProvisioningTime = () => {
 		const totalRange = mergeTimeRanges(timings.map(toTimeRange));
 		const totalDuration = calcDuration(totalRange);
 		return humanizeDuration(totalDuration);
-	};
-
-	const stages = () => {
-		const agentStageLabels = Array.from(
-			new Set(
-				agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
-			),
-		);
-		return [
-			...provisioningStages,
-			...agentStageLabels.flatMap((a) => agentStages(a)),
-		];
 	};
 
 	return (
@@ -100,7 +99,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 					<div css={styles.collapseBody}>
 						{view.name === "default" && (
 							<StagesChart
-								timings={stages().map((s) => {
+								timings={stages.map((s) => {
 									const stageTimings = timings.filter(
 										(t) => t.stage === s.name,
 									);
@@ -137,45 +136,45 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 							/>
 						)}
 
-						{view.name === "detailed" &&
-							view.stage.section === "provisioning" && (
-								<ResourcesChart
-									timings={provisionerTimings
-										.filter((t) => t.stage === view.stage.name)
-										.map((t) => {
-											return {
+						{view.name === "detailed" && (
+							<>
+								{view.stage.section === "provisioning" && (
+									<ResourcesChart
+										timings={provisionerTimings
+											.filter((t) => t.stage === view.stage.name)
+											.map((t) => ({
 												range: toTimeRange(t),
 												name: t.resource,
 												source: t.source,
 												action: t.action,
-											};
-										})}
-									stage={view.stage}
-									onBack={() => {
-										setView({ name: "default" });
-									}}
-								/>
-							)}
+											}))}
+										stage={view.stage}
+										onBack={() => {
+											setView({ name: "default" });
+										}}
+									/>
+								)}
 
-						{view.name === "detailed" &&
-							view.stage.section !== "provisioning" && (
-								<ScriptsChart
-									timings={agentScriptTimings
-										.filter((t) => t.stage === view.stage.name)
-										.map((t) => {
-											return {
-												range: toTimeRange(t),
-												name: t.display_name,
-												status: t.status,
-												exitCode: t.exit_code,
-											};
-										})}
-									stage={view.stage}
-									onBack={() => {
-										setView({ name: "default" });
-									}}
-								/>
-							)}
+								{view.stage.section !== "run startup scripts" && (
+									<ScriptsChart
+										timings={agentScriptTimings
+											.filter((t) => t.stage === view.stage.name)
+											.map((t) => {
+												return {
+													range: toTimeRange(t),
+													name: t.display_name,
+													status: t.status,
+													exitCode: t.exit_code,
+												};
+											})}
+										stage={view.stage}
+										onBack={() => {
+											setView({ name: "default" });
+										}}
+									/>
+								)}
+							</>
+						)}
 					</div>
 				</Collapse>
 			)}
