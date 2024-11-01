@@ -103,9 +103,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 			connectionURL = o.url
 		}
 		if connectionURL == "" {
-			var (
-				err error
-			)
+			var err error
 			connectionURL, err = Open(t)
 			require.NoError(t, err)
 		}
