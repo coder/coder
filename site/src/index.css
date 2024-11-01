@@ -13,6 +13,9 @@
 		--surface-tertiary: #e4e4e7;
 		--surface-invert-primary: #27272a;
 		--surface-invert-secondary: #3f3f46;
+		--surface-error: #450A0A;
+		--border-default :#E4E4E7;
+		--border-error: #F87171;
 		--radius: 0.5rem;
 	}
 	.dark {
@@ -25,5 +28,8 @@
 		--surface-tertiary: #27272a;
 		--surface-invert-primary: #e4e4e7;
 		--surface-invert-secondary: #a1a1aa;
+		--surface-error: #450A0A;
+		--border-default: #27272A;
+		--border-error: #F87171;
 	}
 }

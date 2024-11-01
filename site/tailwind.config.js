@@ -37,6 +37,11 @@ module.exports = {
 						primary: "var(--surface-invert-primary)",
 						secondary: "var(--surface-invert-secondary)",
 					},
+					error: "var(--surface-error)",
+				},
+				border: {
+					default: "var(--border-default)",
+					error: "var(--border-error)",
 				},
 			},
 		},
