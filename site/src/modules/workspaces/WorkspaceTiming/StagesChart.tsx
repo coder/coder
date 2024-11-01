@@ -99,7 +99,10 @@ export const StagesChart: FC<StagesChartProps> = ({
 								<YAxisHeader>{section}</YAxisHeader>
 								<YAxisLabels>
 									{stages.map((stage) => (
-										<YAxisLabel key={stage.name} id={encodeURIComponent(stage.name)}>
+										<YAxisLabel
+											key={stage.name}
+											id={encodeURIComponent(stage.name)}
+										>
 											<span css={styles.stageLabel}>
 												{stage.label}
 												<Tooltip {...stage.tooltip}>
