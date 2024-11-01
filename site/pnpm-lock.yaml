@@ -7749,7 +7749,7 @@ snapshots:
       '@storybook/global': 5.0.0
       '@types/uuid': 9.0.2
       dequal: 2.0.3
-      polished: 4.2.2
+      polished: 4.3.1
       storybook: 8.3.5
       uuid: 9.0.1
 
@@ -8856,9 +8856,9 @@ snapshots:
     dependencies:
       acorn: 7.4.1
 
-  acorn-jsx@5.3.2(acorn@8.14.0):
+  acorn-jsx@5.3.2(acorn@8.12.1):
     dependencies:
-      acorn: 8.14.0
+      acorn: 8.12.1
     optional: true
 
   acorn-walk@7.2.0: {}
@@ -9752,8 +9752,8 @@ snapshots:
 
   espree@9.6.1:
     dependencies:
-      acorn: 8.14.0
-      acorn-jsx: 5.3.2(acorn@8.14.0)
+      acorn: 8.12.1
+      acorn-jsx: 5.3.2(acorn@8.12.1)
       eslint-visitor-keys: 3.4.3
     optional: true
 
