@@ -431,8 +431,7 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 		return container{}, nil, xerrors.Errorf("split host and port: %w", err)
 	}
 
-	// wait for a cumulative 60 * 250ms = 15 seconds for the database to start
-	for i := 0; i < 60; i++ {
+	for r := retry.New(50*time.Millisecond, 15*time.Second); r.Wait(context.Background()); {
 		stdout := &strings.Builder{}
 		stderr := &strings.Builder{}
 		_, err = resource.Exec([]string{"pg_isready", "-h", "127.0.0.1"}, dockertest.ExecOptions{
@@ -442,7 +441,6 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 		if err == nil {
 			break
 		}
-		time.Sleep(250 * time.Millisecond)
 	}
 	if err != nil {
 		return container{}, nil, xerrors.Errorf("pg_isready: %w", err)
