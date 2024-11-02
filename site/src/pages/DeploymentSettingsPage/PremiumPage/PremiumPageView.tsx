@@ -1,4 +1,4 @@
-import { ExternalLinkIcon } from "@radix-ui/react-icons";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "components/ui/button";
 import type { FC } from "react";
 import { docs } from "utils/docs";
@@ -37,7 +37,7 @@ const EnterpriseVersion: FC = () => {
 						<h2 className="text-sm font-semibold m-0">
 							Multi-Organization Access Controls&nbsp;
 						</h2>
-						<ExternalLinkIcon />
+						<SquareArrowOutUpRight size={14} />
 					</span>
 				</a>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
@@ -53,7 +53,7 @@ const EnterpriseVersion: FC = () => {
 				>
 					<span className="flex items-center">
 						<h2 className="text-sm font-semibold m-0">Custom Role&nbsp;</h2>
-						<ExternalLinkIcon />
+						<SquareArrowOutUpRight size={14} />
 					</span>
 				</a>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
@@ -67,11 +67,11 @@ const EnterpriseVersion: FC = () => {
 					className="no-underline text-sm text-content-link"
 					href={docs("/admin/users/quotas")}
 				>
-					<span className="flex items-center">
+					<span className="flex items-center text-sm">
 						<h2 className="text-sm font-semibold m-0">
 							Org-Level Quotas for Chargeback&nbsp;
 						</h2>
-						<ExternalLinkIcon />
+						<SquareArrowOutUpRight size={14} />
 					</span>
 				</a>
 				<p className="text-sm max-w-xl text-content-secondary mt-0 font-medium">
