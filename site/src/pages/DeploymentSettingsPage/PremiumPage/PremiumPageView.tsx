@@ -1,5 +1,5 @@
-import { SquareArrowOutUpRight } from "lucide-react";
 import { Button } from "components/ui/button";
+import { SquareArrowOutUpRight } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
