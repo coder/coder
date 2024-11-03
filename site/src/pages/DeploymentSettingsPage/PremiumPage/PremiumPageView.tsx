@@ -18,7 +18,7 @@ const EnterpriseVersion: FC = () => {
 					<p className="text-sm max-w-xl mt-2 text-content-secondary font-medium">
 						As an Enterprise license holder, you already benefit from Coder’s
 						features for secure, large-scale deployments. Upgrade to Coder
-						Premium for enhanced multi-tenant control and flexibility:
+						Premium for enhanced multi-tenant control and flexibility.
 					</p>
 				</div>
 				<Button asChild>

@@ -60,12 +60,16 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 
 	useEffect(() => {
 		const root = document.documentElement;
-		root.classList.remove("light", "dark");
+
 		if (themePreference === "auto") {
 			root.classList.add(preferredColorScheme);
 		} else {
 			root.classList.add(themePreference);
 		}
+
+		return () => {
+			root.classList.remove("light", "dark");
+		};
 	}, [themePreference, preferredColorScheme]);
 
 	const theme =
@@ -79,6 +83,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
+// This is being added to allow Tailwind and MUI to work together.
 const cache = createCache({
 	key: "css",
 	prepend: true,
