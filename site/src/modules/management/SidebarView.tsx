@@ -13,6 +13,7 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 
 export interface OrganizationWithPermissions extends Organization {
 	permissions: AuthorizationResponse;
@@ -39,6 +40,7 @@ export const SidebarView: FC<SidebarProps> = ({
 	permissions,
 }) => {
 	const { showOrganizations } = useDashboard();
+	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 
 	// TODO: Do something nice to scroll to the active org.
 	return (
@@ -52,6 +54,7 @@ export const SidebarView: FC<SidebarProps> = ({
 			<DeploymentSettingsNavigation
 				active={!activeOrganizationName && activeSettings}
 				permissions={permissions}
+				isPremium={hasPremiumLicense}
 			/>
 			{showOrganizations && (
 				<OrganizationsSettingsNavigation
@@ -69,6 +72,7 @@ interface DeploymentSettingsNavigationProps {
 	active: boolean;
 	/** Site-wide permissions. */
 	permissions: Permissions;
+	isPremium: boolean;
 }
 
 /**
@@ -81,6 +85,7 @@ interface DeploymentSettingsNavigationProps {
 const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 	active,
 	permissions,
+	isPremium,
 }) => {
 	return (
 		<div css={{ paddingBottom: 12 }}>
@@ -150,7 +155,9 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 							</Stack>
 						</SidebarNavSubItem>
 					)}
-					<SidebarNavSubItem href="premium">Premium</SidebarNavSubItem>
+					{!isPremium && (
+						<SidebarNavSubItem href="premium">Premium</SidebarNavSubItem>
+					)}
 				</Stack>
 			)}
 		</div>
