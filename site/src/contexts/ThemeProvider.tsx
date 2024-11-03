@@ -83,7 +83,7 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
-// This is being added to allow Tailwind and MUI to work together.
+// This is being added to allow Tailwind classes to be used with MUI components. https://mui.com/material-ui/integrations/interoperability/#tailwind-css
 const cache = createCache({
 	key: "css",
 	prepend: true,
