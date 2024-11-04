@@ -52,8 +52,8 @@ importers:
         version: 4.0.0
     devDependencies:
       '@types/lodash':
-        specifier: 4.14.196
-        version: 4.14.196
+        specifier: 4.17.13
+        version: 4.17.13
       '@types/node':
         specifier: 20.16.10
         version: 20.16.10
@@ -385,8 +385,8 @@ packages:
   '@types/lodash.mergewith@4.6.9':
     resolution: {integrity: sha512-fgkoCAOF47K7sxrQ7Mlud2TH023itugZs2bUg8h/KzT+BnZNrR2jAOmaokbLunHNnobXVWOezAeNn/lZqwxkcw==}
 
-  '@types/lodash@4.14.196':
-    resolution: {integrity: sha512-22y3o88f4a94mKljsZcanlNWPzO0uBsBdzLAngf2tp533LzZcQzb6+eZPJ+vCTt+bqF2XnvT9gejTLsAcJAJyQ==}
+  '@types/lodash@4.17.13':
+    resolution: {integrity: sha512-lfx+dftrEZcdBPczf9d0Qv0x+j/rfNCMuC6OcfXmO8gkfeNAY88PgKUbvG56whcN23gc27yenwF6oJZXGFpYxg==}
 
   '@types/mdast@4.0.3':
     resolution: {integrity: sha512-LsjtqsyF+d2/yFOYaN22dHZI1Cpwkrj+g06G8+qtUKlhovPW89YhqSnfKtMbkgmEtYpH2gydRNULd6y8mciAFg==}
@@ -2718,9 +2718,9 @@ snapshots:
 
   '@types/lodash.mergewith@4.6.9':
     dependencies:
-      '@types/lodash': 4.14.196
+      '@types/lodash': 4.17.13
 
-  '@types/lodash@4.14.196': {}
+  '@types/lodash@4.17.13': {}
 
   '@types/mdast@4.0.3':
     dependencies:
