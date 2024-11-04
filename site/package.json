@@ -140,7 +140,7 @@
 		"@types/ssh2": "1.15.1",
 		"@types/ua-parser-js": "0.7.36",
 		"@types/uuid": "9.0.2",
-		"@vitejs/plugin-react": "4.3.2",
+		"@vitejs/plugin-react": "4.3.3",
 		"chromatic": "11.16.3",
 		"eventsourcemock": "2.0.0",
 		"express": "4.21.0",
@@ -162,7 +162,7 @@
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
-		"vite": "5.4.8",
+		"vite": "5.4.10",
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
