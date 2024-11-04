@@ -234,7 +234,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		// Need to disable compression to avoid a data-race.
 		CompressionMode: websocket.CompressionDisabled,
 	})
-	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, dialer, quartz.NewReal())
+	clk := quartz.NewReal()
+	controller := tailnet.NewController(options.Logger, dialer)
+	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	var header http.Header
@@ -243,7 +245,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	var telemetrySink tailnet.TelemetrySink
 	if options.EnableTelemetry {
-		telemetrySink = connector
+		basicTel := tailnet.NewBasicTelemetryController(options.Logger)
+		telemetrySink = basicTel
+		controller.TelemetryCtrl = basicTel
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
@@ -264,7 +268,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			_ = conn.Close()
 		}
 	}()
-	connector.runConnector(conn)
+	controller.CoordCtrl = tailnet.NewSingleDestController(options.Logger, conn, agentID)
+	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
+	controller.Run(ctx)
 
 	options.Logger.Debug(ctx, "running tailnet API v2+ connector")
 
@@ -283,7 +289,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		AgentID: agentID,
 		CloseFunc: func() error {
 			cancel()
-			<-connector.closed
+			<-controller.Closed()
 			return conn.Close()
 		},
 	})
