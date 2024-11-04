@@ -115,8 +115,8 @@ importers:
         specifier: 2.30.0
         version: 2.30.0
       dayjs:
-        specifier: 1.11.4
-        version: 1.11.4
+        specifier: 1.11.13
+        version: 1.11.13
       emoji-mart:
         specifier: 5.6.0
         version: 5.6.0
@@ -3203,8 +3203,8 @@ packages:
     resolution: {integrity: sha512-fnULvOpxnC5/Vg3NCiWelDsLiUc9bRwAPs/+LfTLNvetFCtCTN+yQz15C/fs4AwX1R9K5GLtLfn8QW+dWisaAw==}
     engines: {node: '>=0.11'}
 
-  dayjs@1.11.4:
-    resolution: {integrity: sha512-Zj/lPM5hOvQ1Bf7uAvewDaUcsJoI6JmNqmHhHl3nyumwe0XHwt8sWdOVAPACJzCebL8gQCi+K49w7iKWnGwX9g==}
+  dayjs@1.11.13:
+    resolution: {integrity: sha512-oaMBel6gjolK862uaPQOVTA7q3TZhuSvuMQAAglQDOWYO9A91IrAOUJEyKVlqJlHE0vq5p5UXxzdPfMH/x6xNg==}
 
   debug@2.6.9:
     resolution: {integrity: sha512-bC7ElrdJaJnPbAP+1EotYvqZsb3ecl5wi6Bfi6BJTUcNowp6cvspg0jXznRTKDjm/E7AdgFBVeAPVMNcKGsHMA==}
@@ -9204,7 +9204,7 @@ snapshots:
     dependencies:
       '@babel/runtime': 7.22.6
 
-  dayjs@1.11.4: {}
+  dayjs@1.11.13: {}
 
   debug@2.6.9:
     dependencies:
