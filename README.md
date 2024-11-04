@@ -93,7 +93,7 @@ Browse our docs [here](https://coder.com/docs) or visit a specific section below
 - [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
-- [**Enterprise**](https://coder.com/docs/enterprise): Learn about our paid features built for large teams
+- [**Premium**](https://coder.com/pricing#compare-plans): Learn about our paid features built for large teams
 
 ## Support
 
