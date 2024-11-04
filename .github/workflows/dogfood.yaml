@@ -18,13 +18,15 @@ on:
   workflow_dispatch:
 
 permissions:
-  # Necessary for GCP authentication (https://github.com/google-github-actions/setup-gcloud#usage)
-  id-token: write
+  contents: read
 
 jobs:
   build_image:
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
     runs-on: ubuntu-latest
+    permissions:
+      # Necessary for depot.dev authentication
+      id-token: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -98,12 +100,6 @@ jobs:
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
-
-      - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@8254fb75a33b976a221574d287e93919e6a36f70 # v2.1.6
-        with:
-          workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
-          service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Terraform init and validate
         run: |
