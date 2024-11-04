@@ -121,7 +121,7 @@ export const useResourceTypeFilterMenu = ({
 	onChange,
 }: Pick<UseFilterMenuOptions, "value" | "onChange">) => {
 	const actionOptions: SelectFilterOption[] = ResourceTypes.map((type) => {
-		let label = capitalize(type);
+		let label: string = capitalize(type);
 
 		if (type === "api_key") {
 			label = "API Key";
