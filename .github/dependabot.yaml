@@ -51,7 +51,13 @@ updates:
 
   # Update our Dockerfile.
   - package-ecosystem: "docker"
-    directory: "/scripts/"
+    directories:
+      - "/dogfood/contents"
+      - "/scripts"
+      - "/examples/templates/docker/build"
+      - "/examples/parameters/build"
+      - "/scaletest/templates/scaletest-runner"
+      - "/scripts/ironbank"
     schedule:
       interval: "weekly"
       time: "06:00"
@@ -68,6 +74,9 @@ updates:
     directories:
       - "/site"
       - "/offlinedocs"
+      - "/scripts"
+      - "/scripts/apidocgen"
+
     schedule:
       interval: "monthly"
       time: "06:00"

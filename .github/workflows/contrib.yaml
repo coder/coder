@@ -16,6 +16,9 @@ on:
       # For jobs that don't run on draft PRs.
       - ready_for_review
 
+permissions:
+  contents: read
+
 # Only run one instance per PR to ensure in-order execution.
 concurrency: pr-${{ github.ref }}
 

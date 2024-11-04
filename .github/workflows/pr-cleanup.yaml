@@ -8,6 +8,9 @@ on:
         description: "PR number"
         required: true
 
+permissions:
+  contents: read
+
 jobs:
   cleanup:
     runs-on: "ubuntu-latest"
