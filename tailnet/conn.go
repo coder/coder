@@ -22,6 +22,7 @@ import (
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
+	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
@@ -106,6 +107,9 @@ type Options struct {
 	ClientType proto.TelemetryEvent_ClientType
 	// TelemetrySink is optional.
 	TelemetrySink TelemetrySink
+	// DNSConfigurator is optional, and is passed to the underlying wireguard
+	// engine.
+	DNSConfigurator dns.OSConfigurator
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -178,6 +182,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		Dialer:       dialer,
 		ListenPort:   options.ListenPort,
 		SetSubsystem: sys.Set,
+		DNS:          options.DNSConfigurator,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
