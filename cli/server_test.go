@@ -1598,9 +1598,8 @@ func TestServer_Production(t *testing.T) {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closeFunc()
 
 	// Postgres + race detector + CI = slow.
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
@@ -1803,9 +1802,8 @@ func TestConnectToPostgres(t *testing.T) {
 
 	log := slogtest.Make(t, nil)
 
-	dbURL, closeFunc, err := dbtestutil.Open()
+	dbURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closeFunc)
 
 	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
 	require.NoError(t, err)
