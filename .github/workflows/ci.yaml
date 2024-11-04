@@ -9,16 +9,7 @@ on:
   workflow_dispatch:
 
 permissions:
-  actions: none
-  checks: none
   contents: read
-  deployments: none
-  issues: none
-  packages: write
-  pull-requests: none
-  repository-projects: none
-  security-events: none
-  statuses: none
 
 # Cancel in-progress runs for pull requests when developers push
 # additional changes
@@ -821,6 +812,8 @@ jobs:
     needs: changes
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    permissions:
+      packages: write # Needed to push images to ghcr.io
     env:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
     outputs:
