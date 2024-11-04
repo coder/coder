@@ -1,16 +1,21 @@
-name: Stale Issue, Banch and Old Workflows Cleanup
+name: Stale Issue, Branch and Old Workflows Cleanup
 on:
   schedule:
     # Every day at midnight
     - cron: "0 0 * * *"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
 jobs:
   issues:
     runs-on: ubuntu-latest
     permissions:
+      # Needed to close issues.
       issues: write
+      # Needed to close PRs.
       pull-requests: write
-      actions: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -86,6 +91,9 @@ jobs:
 
   branches:
     runs-on: ubuntu-latest
+    permissions:
+      # Needed to delete branches.
+      contents: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -105,6 +113,9 @@ jobs:
           exclude_open_pr_branches: true
   del_runs:
     runs-on: ubuntu-latest
+    permissions:
+      # Needed to delete workflow runs.
+      actions: write
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1

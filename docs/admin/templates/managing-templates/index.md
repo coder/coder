@@ -60,7 +60,7 @@ infrastructure, software, or security patches. Learn more about
 
 ### Template update policies (enterprise) (premium)
 
-Enterprise template admins may want workspaces to always remain on the latest
+Licensed template admins may want workspaces to always remain on the latest
 version of their parent template. To do so, enable **Template Update Policies**
 in the template's general settings. All non-admin users of the template will be
 forced to update their workspaces before starting them once the setting is

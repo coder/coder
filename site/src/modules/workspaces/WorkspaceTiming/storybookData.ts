@@ -355,6 +355,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "Startup Script",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650915Z",
@@ -363,6 +365,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "Dotfiles",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650715Z",
@@ -371,6 +375,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "Personalize",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650512Z",
@@ -379,6 +385,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "install_slackme",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650659Z",
@@ -387,6 +395,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "Coder Login",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650666Z",
@@ -395,6 +405,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "File Browser",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.652425Z",
@@ -403,6 +415,8 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "code-server",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 		{
 			started_at: "2024-10-14T11:30:56.650423Z",
@@ -411,6 +425,17 @@ export const WorkspaceTimingsResponse: WorkspaceBuildTimings = {
 			stage: "start",
 			status: "ok",
 			display_name: "Git Clone",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
+		},
+	],
+	agent_connection_timings: [
+		{
+			started_at: "2024-10-14T11:30:55.650423Z",
+			ended_at: "2024-10-14T11:30:56.650423Z",
+			stage: "connect",
+			workspace_agent_id: "86fd4143-d95f-4602-b464-1149ede62269",
+			workspace_agent_name: "dev",
 		},
 	],
 };

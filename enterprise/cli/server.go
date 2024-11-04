@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/enterprise/trialer"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
 	agplcoderd "github.com/coder/coder/v2/coderd"
@@ -95,7 +96,7 @@ func (r *RootCmd) Server(_ func()) *serpent.Command {
 			DefaultQuietHoursSchedule: options.DeploymentValues.UserQuietHoursSchedule.DefaultSchedule.Value(),
 			ProvisionerDaemonPSK:      options.DeploymentValues.Provisioner.DaemonPSK.Value(),
 
-			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, options.Database),
+			CheckInactiveUsersCancelFunc: dormancy.CheckInactiveUsers(ctx, options.Logger, quartz.NewReal(), options.Database, options.Auditor),
 		}
 
 		if encKeys := options.DeploymentValues.ExternalTokenEncryptionKeys.Value(); len(encKeys) != 0 {

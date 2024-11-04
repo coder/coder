@@ -58,7 +58,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer unsub0()
 	go func() {
-		err = uut.Publish(event, []byte(data))
+		err := uut.Publish(event, []byte(data))
 		assert.NoError(t, err)
 	}()
 	_ = testutil.RequireRecvCtx(ctx, t, messageChannel)
@@ -93,7 +93,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer unsub1()
 	go func() {
-		err = uut.Publish(event, colossalData)
+		err := uut.Publish(event, colossalData)
 		assert.NoError(t, err)
 	}()
 	// should get 2 messages because we have 2 subs

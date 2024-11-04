@@ -163,7 +163,7 @@ func (c *cache) DecryptingKey(ctx context.Context, id string) (interface{}, erro
 		return nil, ErrInvalidFeature
 	}
 
-	seq, err := strconv.ParseInt(id, 10, 64)
+	seq, err := strconv.ParseInt(id, 10, 32)
 	if err != nil {
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}
@@ -192,7 +192,7 @@ func (c *cache) VerifyingKey(ctx context.Context, id string) (interface{}, error
 		return nil, ErrInvalidFeature
 	}
 
-	seq, err := strconv.ParseInt(id, 10, 64)
+	seq, err := strconv.ParseInt(id, 10, 32)
 	if err != nil {
 		return nil, xerrors.Errorf("parse id: %w", err)
 	}

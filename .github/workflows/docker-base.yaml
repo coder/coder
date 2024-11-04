@@ -22,10 +22,6 @@ on:
 
 permissions:
   contents: read
-  # Necessary to push docker images to ghcr.io.
-  packages: write
-  # Necessary for depot.dev authentication.
-  id-token: write
 
 # Avoid running multiple jobs for the same commit.
 concurrency:
@@ -33,6 +29,11 @@ concurrency:
 
 jobs:
   build:
+    permissions:
+      # Necessary for depot.dev authentication.
+      id-token: write
+      # Necessary to push docker images to ghcr.io.
+      packages: write
     runs-on: ubuntu-latest
     if: github.repository_owner == 'coder'
     steps:

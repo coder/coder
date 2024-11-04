@@ -342,6 +342,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
 		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
 		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
+		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
 	})
 	require.NoError(t, err, "insert user")
 
@@ -407,6 +408,8 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
+	t.Helper()
+
 	name := takeFirst(orig.Name, testutil.GetRandomName(t))
 	group, err := db.InsertGroup(genCtx, database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),

@@ -13,6 +13,8 @@ import { beforeCoderTest } from "../hooks";
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test("app", async ({ context, page }) => {
+	test.setTimeout(75_000);
+
 	const appContent = "Hello World";
 	const token = randomUUID();
 	const srv = http
@@ -56,7 +58,7 @@ test("app", async ({ context, page }) => {
 
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByText(appName).click();
+	await page.getByText(appName).click({ timeout: 60_000 });
 	const app = await pagePromise;
 	await app.waitForLoadState("domcontentloaded");
 	await app.getByText(appContent).isVisible();

@@ -10,11 +10,11 @@ page describes possible deployments, challenges, and risks associated with them.
 
 ![Architecture Diagram](../../images/architecture-diagram.png)
 
-## Enterprise
+## Premium
 
 ![Single Region Architecture Diagram](../../images/architecture-single-region.png)
 
-## Multi-Region Enterprise
+## Multi-Region Premium
 
 ![Multi Region Architecture Diagram](../../images/architecture-multi-region.png)
 

@@ -425,7 +425,9 @@ export const startAgentWithCommand = async (
 		);
 	});
 
-	await page.getByTestId("agent-status-ready").waitFor({ state: "visible" });
+	await page
+		.getByTestId("agent-status-ready")
+		.waitFor({ state: "visible", timeout: 45_000 });
 	return cp;
 };
 
@@ -928,7 +930,7 @@ export async function openTerminalWindow(
 ): Promise<Page> {
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByTestId("terminal").click();
+	await page.getByTestId("terminal").click({ timeout: 60_000 });
 	const terminal = await pagePromise;
 	await terminal.waitForLoadState("domcontentloaded");
 

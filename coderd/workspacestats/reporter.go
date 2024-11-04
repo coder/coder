@@ -2,6 +2,7 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type ReporterOptions struct {
@@ -117,6 +118,7 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 	return nil
 }
 
+// nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
 	// update agent stats
 	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
@@ -136,8 +138,13 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 		}, stats.Metrics)
 	}
 
-	// if no active connections we do not bump activity
-	if stats.ConnectionCount == 0 {
+	// workspace activity: if no sessions we do not bump activity
+	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
+		return nil
+	}
+
+	// legacy stats: if no active connections we do not bump activity
+	if !usage && stats.ConnectionCount == 0 {
 		return nil
 	}
 
@@ -168,7 +175,14 @@ func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspac
 	r.opts.UsageTracker.Add(workspace.ID)
 
 	// notify workspace update
-	err := r.opts.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
+	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
+		WorkspaceID: workspace.ID,
+	})
+	if err != nil {
+		return xerrors.Errorf("marshal workspace agent stats event: %w", err)
+	}
+	err = r.opts.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		r.opts.Logger.Warn(ctx, "failed to publish workspace agent stats",
 			slog.F("workspace_id", workspace.ID), slog.Error(err))

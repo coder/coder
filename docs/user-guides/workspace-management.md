@@ -90,7 +90,7 @@ manually updated the workspace.
 
 ## Bulk operations (enterprise) (premium)
 
-Enterprise admins may apply bulk operations (update, delete, start, stop) in the
+Licensed admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.

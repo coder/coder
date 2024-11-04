@@ -133,7 +133,7 @@ var errDisconnect = xerrors.New("graceful disconnect")
 
 func (c *connIO) handleRequest(req *proto.CoordinateRequest) error {
 	c.logger.Debug(c.peerCtx, "got request")
-	err := c.auth.Authorize(req)
+	err := c.auth.Authorize(c.peerCtx, req)
 	if err != nil {
 		c.logger.Warn(c.peerCtx, "unauthorized request", slog.Error(err))
 		return xerrors.Errorf("authorize request: %w", err)
