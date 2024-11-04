@@ -10,6 +10,7 @@ import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
@@ -34,7 +35,6 @@ export const Language = {
 	passwordRequired: "Please enter a password.",
 	create: "Create account",
 	welcomeMessage: <>Welcome to Coder</>,
-
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
 	companyLabel: "Company",
@@ -83,16 +83,12 @@ const numberOfDevelopersOptions = [
 
 export interface SetupPageViewProps {
 	onSubmit: (firstUser: TypesGen.CreateFirstUserRequest) => void;
-	onPasswordChange?: (password: string) => void;
-	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	error?: unknown;
 	isLoading?: boolean;
 }
 
 export const SetupPageView: FC<SetupPageViewProps> = ({
 	onSubmit,
-	onPasswordChange,
-	passwordValidator,
 	error,
 	isLoading,
 }) => {
@@ -121,10 +117,6 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 		form,
 		error,
 	);
-
-	useEffect(() => {
-		onPasswordChange?.(form.values.password);
-	}, [form.values.password, onPasswordChange]); // Run effect when password changes
 
 	return (
 		<SignInLayout>
@@ -176,17 +168,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						fullWidth
 						label={Language.emailLabel}
 					/>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="current-password"
 						fullWidth
-						id="password"
 						label={Language.passwordLabel}
-						type="password"
-						error={!!(form.values.password !== "" && !passwordValidator.valid)}
-						helperText={
-							!passwordValidator.valid ? passwordValidator.details : ""
-						}
 					/>
 					<label
 						htmlFor="trial"

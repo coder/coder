@@ -6,6 +6,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import { type FC, useEffect } from "react";
@@ -63,8 +64,6 @@ export const authMethodLanguage = {
 export interface CreateUserFormProps {
 	onSubmit: (user: TypesGen.CreateUserRequestWithOrgs) => void;
 	onCancel: () => void;
-	onPasswordChange: (password: string) => void;
-	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	error?: unknown;
 	isLoading: boolean;
 	authMethods?: TypesGen.AuthMethods;
@@ -87,15 +86,7 @@ const validationSchema = Yup.object({
 
 export const CreateUserForm: FC<
 	React.PropsWithChildren<CreateUserFormProps>
-> = ({
-	onSubmit,
-	onCancel,
-	onPasswordChange,
-	passwordValidator,
-	error,
-	isLoading,
-	authMethods,
-}) => {
+> = ({ onSubmit, onCancel, error, isLoading, authMethods }) => {
 	const form: FormikContextType<TypesGen.CreateUserRequestWithOrgs> =
 		useFormik<TypesGen.CreateUserRequestWithOrgs>({
 			initialValues: {
@@ -113,10 +104,6 @@ export const CreateUserForm: FC<
 		form,
 		error,
 	);
-
-	useEffect(() => {
-		onPasswordChange?.(form.values.password);
-	}, [form.values.password, onPasswordChange]); // Run effect when password changes
 
 	const methods = [
 		authMethods?.password.enabled && "password",
@@ -200,23 +187,18 @@ export const CreateUserForm: FC<
 							);
 						})}
 					</TextField>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password", {
 							helperText:
-								(form.values.login_type !== "password" &&
-									"No password required for this login type") ||
-								(form.values.password !== "" &&
-									!passwordValidator.valid &&
-									passwordValidator.details),
+								form.values.login_type !== "password" &&
+								"No password required for this login type",
 						})}
 						autoComplete="current-password"
 						fullWidth
 						id="password"
 						data-testid="password-input"
 						disabled={form.values.login_type !== "password"}
-						error={!!(form.values.password !== "" && !passwordValidator.valid)}
 						label={Language.passwordLabel}
-						type="password"
 					/>
 				</Stack>
 				<FormFooter

@@ -65,12 +65,6 @@ export const updatePassword = () => {
 	};
 };
 
-export const validatePassword = () => {
-	return {
-		mutationFn: API.validateUserPassword,
-	};
-};
-
 export const createUser = (queryClient: QueryClient) => {
 	return {
 		mutationFn: API.createUser,

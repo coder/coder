@@ -1,9 +1,7 @@
 import { buildInfo } from "api/queries/buildInfo";
-import { validatePassword } from "api/queries/users";
 import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
-import { useDebouncedFunction } from "hooks/debounce";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -22,17 +20,10 @@ export const SetupPage: FC = () => {
 		isSigningIn,
 	} = useAuthContext();
 	const createFirstUserMutation = useMutation(createFirstUser());
-	const validatePasswordMutation = useMutation(validatePassword());
-
 	const setupIsComplete = !isConfiguringTheFirstUser;
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const navigate = useNavigate();
-
-	const [passwordValidator, setPasswordValidator] = useState({
-		valid: false,
-		details: "",
-	});
 
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
@@ -42,19 +33,6 @@ export const SetupPage: FC = () => {
 			type: "deployment_setup",
 		});
 	}, [buildInfoQuery.data]);
-
-	const validateUserPassword = async (password: string) => {
-		validatePasswordMutation.mutate(password, {
-			onSuccess: (data) => {
-				setPasswordValidator({ valid: data.valid, details: data.details });
-			},
-		});
-	};
-
-	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(
-		validateUserPassword,
-		500,
-	);
 
 	if (isLoading) {
 		return <Loader fullscreen />;
@@ -76,8 +54,6 @@ export const SetupPage: FC = () => {
 				<title>{pageTitle("Set up your account")}</title>
 			</Helmet>
 			<SetupPageView
-				onPasswordChange={debouncedValidateUserPassword}
-				passwordValidator={passwordValidator}
 				isLoading={isSigningIn || createFirstUserMutation.isLoading}
 				error={createFirstUserMutation.error}
 				onSubmit={async (firstUser) => {

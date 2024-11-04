@@ -1,15 +1,10 @@
 import { API } from "api/api";
-import {
-	authMethods,
-	updatePassword,
-	validatePassword,
-} from "api/queries/users";
+import { authMethods, updatePassword } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDebouncedFunction } from "hooks/debounce";
-import { type ComponentProps, type FC, useState } from "react";
+import type { ComponentProps, FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { Section } from "../Section";
 import { SecurityForm } from "./SecurityForm";
@@ -21,31 +16,12 @@ import {
 export const SecurityPage: FC = () => {
 	const { user: me } = useAuthenticated();
 	const updatePasswordMutation = useMutation(updatePassword());
-	const validatePasswordMutation = useMutation(validatePassword());
 	const authMethodsQuery = useQuery(authMethods());
 	const { data: userLoginType } = useQuery({
 		queryKey: ["loginType"],
 		queryFn: API.getUserLoginType,
 	});
 	const singleSignOnSection = useSingleSignOnSection();
-
-	const [passwordValidator, setPasswordValidator] = useState({
-		valid: false,
-		details: "",
-	});
-
-	const validateUserPassword = async (password: string) => {
-		validatePasswordMutation.mutate(password, {
-			onSuccess: (data) => {
-				setPasswordValidator({ valid: data.valid, details: data.details });
-			},
-		});
-	};
-
-	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(
-		validateUserPassword,
-		500,
-	);
 
 	if (!authMethodsQuery.data || !userLoginType) {
 		return <Loader />;
@@ -58,8 +34,6 @@ export const SecurityPage: FC = () => {
 					disabled: userLoginType.login_type !== "password",
 					error: updatePasswordMutation.error,
 					isLoading: updatePasswordMutation.isLoading,
-					onPasswordChange: debouncedValidateUserPassword,
-					passwordValidator: passwordValidator,
 					onSubmit: async (data) => {
 						await updatePasswordMutation.mutateAsync({
 							userId: me.id,

@@ -16,14 +16,12 @@ type Story = StoryObj<typeof SecurityForm>;
 export const Example: Story = {
 	args: {
 		isLoading: false,
-		onPasswordChange: (password: string) => {},
 	},
 };
 
 export const Loading: Story = {
 	args: {
 		isLoading: true,
-		onPasswordChange: (password: string) => {},
 	},
 };
 
@@ -38,6 +36,5 @@ export const WithError: Story = {
 				},
 			],
 		}),
-		onPasswordChange: (password: string) => {},
 	},
 };

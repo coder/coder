@@ -1,4 +1,4 @@
-import { authMethods, createUser, validatePassword } from "api/queries/users";
+import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
 import { useDebouncedFunction } from "hooks/debounce";
@@ -18,25 +18,6 @@ export const CreateUserPage: FC = () => {
 	const queryClient = useQueryClient();
 	const createUserMutation = useMutation(createUser(queryClient));
 	const authMethodsQuery = useQuery(authMethods());
-	const validatePasswordMutation = useMutation(validatePassword());
-
-	const [passwordValidator, setPasswordValidator] = useState({
-		valid: false,
-		details: "",
-	});
-
-	const validateUserPassword = async (password: string) => {
-		validatePasswordMutation.mutate(password, {
-			onSuccess: (data) => {
-				setPasswordValidator({ valid: data.valid, details: data.details });
-			},
-		});
-	};
-
-	const { debounced: debouncedValidateUserPassword } = useDebouncedFunction(
-		validateUserPassword,
-		500,
-	);
 
 	return (
 		<Margins>
@@ -55,8 +36,6 @@ export const CreateUserPage: FC = () => {
 				onCancel={() => {
 					navigate("..", { relative: "path" });
 				}}
-				onPasswordChange={debouncedValidateUserPassword}
-				passwordValidator={passwordValidator}
 				isLoading={createUserMutation.isLoading}
 			/>
 		</Margins>

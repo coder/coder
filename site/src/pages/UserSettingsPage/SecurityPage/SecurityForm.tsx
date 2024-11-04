@@ -4,6 +4,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
 import { useEffect } from "react";
@@ -42,8 +43,6 @@ const validationSchema = Yup.object({
 export interface SecurityFormProps {
 	disabled: boolean;
 	isLoading: boolean;
-	onPasswordChange: (password: string) => void;
-	passwordValidator: TypesGen.ValidateUserPasswordResponse;
 	onSubmit: (values: SecurityFormValues) => void;
 	error?: unknown;
 }
@@ -51,8 +50,6 @@ export interface SecurityFormProps {
 export const SecurityForm: FC<SecurityFormProps> = ({
 	disabled,
 	isLoading,
-	onPasswordChange,
-	passwordValidator,
 	onSubmit,
 	error,
 }) => {
@@ -76,10 +73,6 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 		);
 	}
 
-	useEffect(() => {
-		onPasswordChange(form.values.password);
-	}, [form.values.password, onPasswordChange]);
-
 	return (
 		<>
 			<Form onSubmit={form.handleSubmit}>
@@ -92,18 +85,11 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 						label={Language.oldPasswordLabel}
 						type="password"
 					/>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="password"
 						fullWidth
 						label={Language.newPasswordLabel}
-						error={!!(form.values.password !== "" && !passwordValidator.valid)}
-						helperText={
-							form.values.password !== "" && !passwordValidator.valid
-								? passwordValidator.details
-								: ""
-						}
-						type="password"
 					/>
 					<TextField
 						{...getFieldHelpers("confirm_password")}

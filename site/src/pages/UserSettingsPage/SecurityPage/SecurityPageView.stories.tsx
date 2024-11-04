@@ -15,8 +15,6 @@ const defaultArgs: ComponentProps<typeof SecurityPageView> = {
 			error: undefined,
 			isLoading: false,
 			onSubmit: action("onSubmit"),
-			onPasswordChange: (password: string) => {},
-			passwordValidator: { valid: false, details: "" },
 		},
 	},
 	oidc: {
