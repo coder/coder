@@ -73,6 +73,10 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
+	if used1 < 0 {
+		// We must not be in a container.
+		return nil, nil
+	}
 
 	// The measurements in /sys/fs/cgroup are counters.
 	// We need to wait for a bit to get a difference.
@@ -128,6 +132,9 @@ func (s *Statter) isCGroupV2() bool {
 func (s *Statter) cGroupV2CPUUsed() (used float64, err error) {
 	usageUs, err := readInt64Prefix(s.fs, cgroupV2CPUStat, "usage_usec")
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return -1, nil
+		}
 		return 0, xerrors.Errorf("get cgroupv2 cpu used: %w", err)
 	}
 	periodUs, err := readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 1)
@@ -142,6 +149,9 @@ func (s *Statter) cGroupV2CPUTotal() (total float64, err error) {
 	var quotaUs, periodUs int64
 	periodUs, err = readInt64SepIdx(s.fs, cgroupV2CPUMax, " ", 1)
 	if err != nil {
+		if errors.Is(err, fs.ErrNotExist) {
+			return -1, nil
+		}
 		return 0, xerrors.Errorf("get cpu period: %w", err)
 	}
 
