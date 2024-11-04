@@ -74,8 +74,8 @@ func (s *Statter) ContainerCPU() (*Result, error) {
 		return nil, xerrors.Errorf("get cgroup CPU usage: %w", err)
 	}
 	if used1 < 0 {
-		// We must not be in a container.
-		return nil, nil
+		// We may not have any CPU limit set.
+		return nil, nil //nolint: nilnil
 	}
 
 	// The measurements in /sys/fs/cgroup are counters.
