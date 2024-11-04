@@ -1,5 +1,5 @@
 # Build stage
-FROM nixos/nix:2.19.2 as nix
+FROM nixos/nix:2.24.10 as nix
 
 # enable --experimental-features 'nix-command flakes' globally
 # nix does not enable these features by default these are required to run commands like
