@@ -22,6 +22,9 @@
 			"pattern": "support.google.com"
 		},
 		{
+			"pattern": "mailto:"
+		},
+		{
 			"pattern": "tailscale.com"
 		},
 		{
