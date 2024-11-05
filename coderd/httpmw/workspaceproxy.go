@@ -148,7 +148,7 @@ func ExtractWorkspaceProxy(opts ExtractWorkspaceProxyConfig) func(http.Handler) 
 
 type workspaceProxyParamContextKey struct{}
 
-// WorkspaceProxyParam returns the worksace proxy from the ExtractWorkspaceProxyParam handler.
+// WorkspaceProxyParam returns the workspace proxy from the ExtractWorkspaceProxyParam handler.
 func WorkspaceProxyParam(r *http.Request) database.WorkspaceProxy {
 	user, ok := r.Context().Value(workspaceProxyParamContextKey{}).(database.WorkspaceProxy)
 	if !ok {

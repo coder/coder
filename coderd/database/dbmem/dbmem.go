@@ -941,7 +941,7 @@ func minTime(t, u time.Time) time.Time {
 	return u
 }
 
-func provisonerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatus {
+func provisionerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatus {
 	if isNotNull(j.CompletedAt) {
 		if j.Error.String != "" {
 			return database.ProvisionerJobStatusFailed
@@ -1202,7 +1202,7 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		provisionerJob.StartedAt = arg.StartedAt
 		provisionerJob.UpdatedAt = arg.StartedAt.Time
 		provisionerJob.WorkerID = arg.WorkerID
-		provisionerJob.JobStatus = provisonerJobStatus(provisionerJob)
+		provisionerJob.JobStatus = provisionerJobStatus(provisionerJob)
 		q.provisionerJobs[index] = provisionerJob
 		// clone the Tags before returning, since maps are reference types and
 		// we don't want the caller to be able to mutate the map we have inside
@@ -7456,7 +7456,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		Tags:           maps.Clone(arg.Tags),
 		TraceMetadata:  arg.TraceMetadata,
 	}
-	job.JobStatus = provisonerJobStatus(job)
+	job.JobStatus = provisionerJobStatus(job)
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil
 }
@@ -8842,7 +8842,7 @@ func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 			continue
 		}
 		job.UpdatedAt = arg.UpdatedAt
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -8863,7 +8863,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 		}
 		job.CanceledAt = arg.CanceledAt
 		job.CompletedAt = arg.CompletedAt
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -8886,7 +8886,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
