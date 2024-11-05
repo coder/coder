@@ -157,29 +157,29 @@ var (
 
 	// ResourceOauth2App
 	// Valid Actions
-	//  - "ActionCreate" :: make an OAuth2 app.
+	//  - "ActionCreate" :: make an OAuth2 app
 	//  - "ActionDelete" :: delete an OAuth2 app
 	//  - "ActionRead" :: read OAuth2 apps
-	//  - "ActionUpdate" :: update the properties of the OAuth2 app.
+	//  - "ActionUpdate" :: update the properties of the OAuth2 app
 	ResourceOauth2App = Object{
 		Type: "oauth2_app",
 	}
 
 	// ResourceOauth2AppCodeToken
 	// Valid Actions
-	//  - "ActionCreate" ::
-	//  - "ActionDelete" ::
-	//  - "ActionRead" ::
+	//  - "ActionCreate" :: create an OAuth2 app code token
+	//  - "ActionDelete" :: delete an OAuth2 app code token
+	//  - "ActionRead" :: read an OAuth2 app code token
 	ResourceOauth2AppCodeToken = Object{
 		Type: "oauth2_app_code_token",
 	}
 
 	// ResourceOauth2AppSecret
 	// Valid Actions
-	//  - "ActionCreate" ::
-	//  - "ActionDelete" ::
-	//  - "ActionRead" ::
-	//  - "ActionUpdate" ::
+	//  - "ActionCreate" :: create an OAuth2 app secret
+	//  - "ActionDelete" :: delete an OAuth2 app secret
+	//  - "ActionRead" :: read an OAuth2 app secret
+	//  - "ActionUpdate" :: update an OAuth2 app secret
 	ResourceOauth2AppSecret = Object{
 		Type: "oauth2_app_secret",
 	}
@@ -242,10 +242,10 @@ var (
 
 	// ResourceTailnetCoordinator
 	// Valid Actions
-	//  - "ActionCreate" ::
-	//  - "ActionDelete" ::
-	//  - "ActionRead" ::
-	//  - "ActionUpdate" ::
+	//  - "ActionCreate" :: create a Tailnet coordinator
+	//  - "ActionDelete" :: delete a Tailnet coordinator
+	//  - "ActionRead" :: view info about a Tailnet coordinator
+	//  - "ActionUpdate" :: update a Tailnet coordinator
 	ResourceTailnetCoordinator = Object{
 		Type: "tailnet_coordinator",
 	}

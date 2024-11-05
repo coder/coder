@@ -215,10 +215,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"tailnet_coordinator": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionUpdate: actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create a Tailnet coordinator"),
+			ActionRead:   actDef("view info about a Tailnet coordinator"),
+			ActionUpdate: actDef("update a Tailnet coordinator"),
+			ActionDelete: actDef("delete a Tailnet coordinator"),
 		},
 	},
 	"assign_role": {
@@ -241,25 +241,25 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"oauth2_app": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("make an OAuth2 app."),
+			ActionCreate: actDef("make an OAuth2 app"),
 			ActionRead:   actDef("read OAuth2 apps"),
-			ActionUpdate: actDef("update the properties of the OAuth2 app."),
+			ActionUpdate: actDef("update the properties of the OAuth2 app"),
 			ActionDelete: actDef("delete an OAuth2 app"),
 		},
 	},
 	"oauth2_app_secret": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionUpdate: actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create an OAuth2 app secret"),
+			ActionRead:   actDef("read an OAuth2 app secret"),
+			ActionUpdate: actDef("update an OAuth2 app secret"),
+			ActionDelete: actDef("delete an OAuth2 app secret"),
 		},
 	},
 	"oauth2_app_code_token": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create an OAuth2 app code token"),
+			ActionRead:   actDef("read an OAuth2 app code token"),
+			ActionDelete: actDef("delete an OAuth2 app code token"),
 		},
 	},
 	"notification_message": {
