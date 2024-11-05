@@ -42,11 +42,12 @@ func TestInMemoryCoordination(t *testing.T) {
 
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
-	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+	auth := tailnet.ClientCoordinateeAuth{AgentID: agentID}
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), auth).
 		Times(1).Return(reqs, resps)
 
 	ctrl := tailnet.NewSingleDestController(logger, fConn, agentID)
-	uut := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, agentID, mCoord))
+	uut := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, auth, mCoord))
 	defer uut.Close(ctx)
 
 	coordinationTest(ctx, t, uut, fConn, reqs, resps, agentID)

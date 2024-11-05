@@ -1919,7 +1919,8 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		t.Cleanup(testCtxCancel)
 		clientID := uuid.New()
 		ctrl := tailnet.NewSingleDestController(logger, conn, agentID)
-		coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, agentID, coordinator))
+		auth := tailnet.ClientCoordinateeAuth{AgentID: agentID}
+		coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, auth, coordinator))
 		t.Cleanup(func() {
 			t.Logf("closing coordination %s", name)
 			cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
@@ -2408,8 +2409,9 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	t.Cleanup(testCtxCancel)
 	clientID := uuid.New()
 	ctrl := tailnet.NewSingleDestController(logger, conn, metadata.AgentID)
+	auth := tailnet.ClientCoordinateeAuth{AgentID: metadata.AgentID}
 	coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(
-		logger, clientID, metadata.AgentID, coordinator))
+		logger, clientID, auth, coordinator))
 	t.Cleanup(func() {
 		cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
 		defer ccancel()
