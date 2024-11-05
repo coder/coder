@@ -6,15 +6,14 @@ import {
 	MockPermissions,
 } from "testHelpers/entities";
 import { withDashboardProvider } from "testHelpers/storybook";
-import { SidebarView } from "./SidebarView";
+import { OrganizationSidebarView } from "./OrganizationSidebarView";
 
-const meta: Meta<typeof SidebarView> = {
-	title: "modules/management/SidebarView",
-	component: SidebarView,
+const meta: Meta<typeof OrganizationSidebarView> = {
+	title: "modules/management/OrganizationSidebarView",
+	component: OrganizationSidebarView,
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },
 	args: {
-		activeSettings: true,
 		activeOrganizationName: undefined,
 		organizations: [
 			{
@@ -41,7 +40,7 @@ const meta: Meta<typeof SidebarView> = {
 };
 
 export default meta;
-type Story = StoryObj<typeof SidebarView>;
+type Story = StoryObj<typeof OrganizationSidebarView>;
 
 export const LoadingOrganizations: Story = {
 	args: {
@@ -98,12 +97,6 @@ export const NoDeploymentValues: Story = {
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,
-	},
-};
-
-export const NoSelected: Story = {
-	args: {
-		activeSettings: false,
 	},
 };
 
