@@ -3,9 +3,11 @@ package codersdk_test
 import (
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/exp/rand"
 
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -253,4 +255,41 @@ func TestUserRealNameValid(t *testing.T) {
 			assert.Equal(t, testCase.Valid, norm == testCase.Name, "invalid name should be different after normalization")
 		})
 	}
+}
+
+func TestGroupNameValid(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"", false},
+		{"my-group", true},
+		{"create", false},
+		{"new", false},
+		{"Lord Voldemort Team", false},
+		{randomString(255), true},
+		{randomString(256), false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.GroupNameValid(testCase.Name)
+			assert.Equal(t, testCase.Valid, err == nil)
+		})
+	}
+}
+
+const charset = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+
+// RandomString generates a random string of a given length.
+func randomString(length int) string {
+	seededRand := rand.New(rand.NewSource(uint64(time.Now().UnixNano())))
+	result := make([]byte, length)
+	for i := range result {
+		result[i] = charset[seededRand.Intn(len(charset))]
+	}
+	return string(result)
 }
