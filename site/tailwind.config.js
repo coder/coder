@@ -10,8 +10,8 @@ module.exports = {
 	important: "#root",
 	theme: {
 		fontSize: {
-			sm: ["14px", "24px"],
-			"3xl": ["32px", "40px"],
+			sm: ["0.875rem", "1.5rem"],
+			"3xl": ["2rem", "2.5rem"],
 		},
 		extend: {
 			borderRadius: {
