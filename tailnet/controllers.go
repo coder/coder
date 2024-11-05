@@ -112,33 +112,41 @@ type ControlProtocolDialer interface {
 	Dial(ctx context.Context, r ResumeTokenController) (ControlProtocolClients, error)
 }
 
-// basicCoordinationController handles the basic coordination operations common to all types of
+// BasicCoordinationController handles the basic coordination operations common to all types of
 // tailnet consumers:
 //
 //  1. sending local node updates to the Coordinator
 //  2. receiving peer node updates and programming them into the Coordinatee (e.g. tailnet.Conn)
 //  3. (optionally) sending ReadyToHandshake acknowledgements for peer updates.
-type basicCoordinationController struct {
-	logger      slog.Logger
-	coordinatee Coordinatee
-	sendAcks    bool
+//
+// It is designed to be used on its own, or composed into more advanced CoordinationControllers.
+type BasicCoordinationController struct {
+	Logger      slog.Logger
+	Coordinatee Coordinatee
+	SendAcks    bool
 }
 
-func (c *basicCoordinationController) New(client CoordinatorClient) CloserWaiter {
-	b := &basicCoordination{
-		logger:       c.logger,
+// New satisfies the method on the CoordinationController interface
+func (c *BasicCoordinationController) New(client CoordinatorClient) CloserWaiter {
+	return c.NewCoordination(client)
+}
+
+// NewCoordination creates a BasicCoordination
+func (c *BasicCoordinationController) NewCoordination(client CoordinatorClient) *BasicCoordination {
+	b := &BasicCoordination{
+		logger:       c.Logger,
 		errChan:      make(chan error, 1),
-		coordinatee:  c.coordinatee,
-		client:       client,
+		coordinatee:  c.Coordinatee,
+		Client:       client,
 		respLoopDone: make(chan struct{}),
-		sendAcks:     c.sendAcks,
+		sendAcks:     c.SendAcks,
 	}
 
-	c.coordinatee.SetNodeCallback(func(node *Node) {
+	c.Coordinatee.SetNodeCallback(func(node *Node) {
 		pn, err := NodeToProto(node)
 		if err != nil {
 			b.logger.Critical(context.Background(), "failed to convert node", slog.Error(err))
-			b.sendErr(err)
+			b.SendErr(err)
 			return
 		}
 		b.Lock()
@@ -147,9 +155,9 @@ func (c *basicCoordinationController) New(client CoordinatorClient) CloserWaiter
 			b.logger.Debug(context.Background(), "ignored node update because coordination is closed")
 			return
 		}
-		err = b.client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
+		err = b.Client.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: pn}})
 		if err != nil {
-			b.sendErr(xerrors.Errorf("write: %w", err))
+			b.SendErr(xerrors.Errorf("write: %w", err))
 		}
 	})
 	go b.respLoop()
@@ -157,18 +165,27 @@ func (c *basicCoordinationController) New(client CoordinatorClient) CloserWaiter
 	return b
 }
 
-type basicCoordination struct {
+// BasicCoordination handles:
+//
+// 1. Sending local node updates to the control plane
+// 2. Reading remote updates from the control plane and programming them into the Coordinatee.
+//
+// It does *not* handle adding any Tunnels, but these can be handled by composing
+// BasicCoordinationController with a more advanced controller.
+type BasicCoordination struct {
 	sync.Mutex
 	closed       bool
 	errChan      chan error
 	coordinatee  Coordinatee
 	logger       slog.Logger
-	client       CoordinatorClient
+	Client       CoordinatorClient
 	respLoopDone chan struct{}
 	sendAcks     bool
 }
 
-func (c *basicCoordination) Close(ctx context.Context) (retErr error) {
+// Close the coordination gracefully. If the context expires before the remote API server has hung
+// up on us, we forcibly close the Client connection.
+func (c *BasicCoordination) Close(ctx context.Context) (retErr error) {
 	c.Lock()
 	defer c.Unlock()
 	if c.closed {
@@ -188,13 +205,13 @@ func (c *basicCoordination) Close(ctx context.Context) (retErr error) {
 			c.logger.Warn(ctx, "context expired while waiting for coordinate responses to close")
 		}
 		// forcefully close the stream
-		protoErr := c.client.Close()
+		protoErr := c.Client.Close()
 		<-c.respLoopDone
 		if retErr == nil {
 			retErr = protoErr
 		}
 	}()
-	err := c.client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
+	err := c.Client.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
 	if err != nil && !xerrors.Is(err, io.EOF) {
 		// Coordinator RPC hangs up when it gets disconnect, so EOF is expected.
 		return xerrors.Errorf("send disconnect: %w", err)
@@ -203,20 +220,24 @@ func (c *basicCoordination) Close(ctx context.Context) (retErr error) {
 	return nil
 }
 
-func (c *basicCoordination) Wait() <-chan error {
+// Wait for the Coordination to complete
+func (c *BasicCoordination) Wait() <-chan error {
 	return c.errChan
 }
 
-func (c *basicCoordination) sendErr(err error) {
+// SendErr is not part of the CloserWaiter interface, and is intended to be called internally, or
+// by Controllers that use BasicCoordinationController in composition.  It triggers Wait() to
+// report the error if an error has not already been reported.
+func (c *BasicCoordination) SendErr(err error) {
 	select {
 	case c.errChan <- err:
 	default:
 	}
 }
 
-func (c *basicCoordination) respLoop() {
+func (c *BasicCoordination) respLoop() {
 	defer func() {
-		cErr := c.client.Close()
+		cErr := c.Client.Close()
 		if cErr != nil {
 			c.logger.Debug(context.Background(), "failed to close coordinate client after respLoop exit", slog.Error(cErr))
 		}
@@ -224,17 +245,17 @@ func (c *basicCoordination) respLoop() {
 		close(c.respLoopDone)
 	}()
 	for {
-		resp, err := c.client.Recv()
+		resp, err := c.Client.Recv()
 		if err != nil {
 			c.logger.Debug(context.Background(), "failed to read from protocol", slog.Error(err))
-			c.sendErr(xerrors.Errorf("read: %w", err))
+			c.SendErr(xerrors.Errorf("read: %w", err))
 			return
 		}
 
 		err = c.coordinatee.UpdatePeers(resp.GetPeerUpdates())
 		if err != nil {
 			c.logger.Debug(context.Background(), "failed to update peers", slog.Error(err))
-			c.sendErr(xerrors.Errorf("update peers: %w", err))
+			c.SendErr(xerrors.Errorf("update peers: %w", err))
 			return
 		}
 
@@ -253,12 +274,12 @@ func (c *basicCoordination) respLoop() {
 				rfh = append(rfh, &proto.CoordinateRequest_ReadyForHandshake{Id: peer.Id})
 			}
 			if len(rfh) > 0 {
-				err := c.client.Send(&proto.CoordinateRequest{
+				err := c.Client.Send(&proto.CoordinateRequest{
 					ReadyForHandshake: rfh,
 				})
 				if err != nil {
 					c.logger.Debug(context.Background(), "failed to send ready for handshake", slog.Error(err))
-					c.sendErr(xerrors.Errorf("send: %w", err))
+					c.SendErr(xerrors.Errorf("send: %w", err))
 					return
 				}
 			}
@@ -267,7 +288,7 @@ func (c *basicCoordination) respLoop() {
 }
 
 type singleDestController struct {
-	*basicCoordinationController
+	*BasicCoordinationController
 	dest uuid.UUID
 }
 
@@ -276,21 +297,20 @@ type singleDestController struct {
 func NewSingleDestController(logger slog.Logger, coordinatee Coordinatee, dest uuid.UUID) CoordinationController {
 	coordinatee.SetTunnelDestination(dest)
 	return &singleDestController{
-		basicCoordinationController: &basicCoordinationController{
-			logger:      logger,
-			coordinatee: coordinatee,
-			sendAcks:    false,
+		BasicCoordinationController: &BasicCoordinationController{
+			Logger:      logger,
+			Coordinatee: coordinatee,
+			SendAcks:    false,
 		},
 		dest: dest,
 	}
 }
 
 func (c *singleDestController) New(client CoordinatorClient) CloserWaiter {
-	// nolint: forcetypeassert
-	b := c.basicCoordinationController.New(client).(*basicCoordination)
+	b := c.BasicCoordinationController.NewCoordination(client)
 	err := client.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: c.dest[:]}})
 	if err != nil {
-		b.sendErr(err)
+		b.SendErr(err)
 	}
 	return b
 }
@@ -298,10 +318,10 @@ func (c *singleDestController) New(client CoordinatorClient) CloserWaiter {
 // NewAgentCoordinationController creates a CoordinationController for Coder Agents, which never
 // create tunnels and always send ReadyToHandshake acknowledgements.
 func NewAgentCoordinationController(logger slog.Logger, coordinatee Coordinatee) CoordinationController {
-	return &basicCoordinationController{
-		logger:      logger,
-		coordinatee: coordinatee,
-		sendAcks:    true,
+	return &BasicCoordinationController{
+		Logger:      logger,
+		Coordinatee: coordinatee,
+		SendAcks:    true,
 	}
 }
 
@@ -360,11 +380,11 @@ func (c *inMemoryCoordClient) Recv() (*proto.CoordinateResponse, error) {
 // local Coordinator. (The typical alternative is a DRPC-based client.)
 func NewInMemoryCoordinatorClient(
 	logger slog.Logger,
-	clientID, agentID uuid.UUID,
+	clientID uuid.UUID,
+	auth CoordinateeAuth,
 	coordinator Coordinator,
 ) CoordinatorClient {
-	logger = logger.With(slog.F("agent_id", agentID), slog.F("client_id", clientID))
-	auth := ClientCoordinateeAuth{AgentID: agentID}
+	logger = logger.With(slog.F("client_id", clientID))
 	c := &inMemoryCoordClient{logger: logger}
 	c.ctx, c.cancel = context.WithCancel(context.Background())
 
@@ -742,9 +762,9 @@ func (c *Controller) Run(ctx context.Context) {
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
 				continue
 			}
-			c.logger.Debug(c.ctx, "obtained tailnet API v2+ client")
+			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
 			c.runControllersOnce(tailnetClients)
-			c.logger.Debug(c.ctx, "tailnet API v2+ connection lost")
+			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
 }
@@ -754,15 +774,20 @@ func (c *Controller) Run(ctx context.Context) {
 // appropriate). We typically multiplex all RPCs over the same websocket, so we want them to share
 // the same fate.
 func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
-	defer func() {
-		closeErr := clients.Closer.Close()
-		if closeErr != nil &&
-			!xerrors.Is(closeErr, io.EOF) &&
-			!xerrors.Is(closeErr, context.Canceled) &&
-			!xerrors.Is(closeErr, context.DeadlineExceeded) {
-			c.logger.Error(c.ctx, "error closing DRPC connection", slog.Error(closeErr))
-		}
-	}()
+	// clients.Closer.Close should nominally be idempotent, but let's not press our luck
+	closeOnce := sync.Once{}
+	closeClients := func() {
+		closeOnce.Do(func() {
+			closeErr := clients.Closer.Close()
+			if closeErr != nil &&
+				!xerrors.Is(closeErr, io.EOF) &&
+				!xerrors.Is(closeErr, context.Canceled) &&
+				!xerrors.Is(closeErr, context.DeadlineExceeded) {
+				c.logger.Error(c.ctx, "error closing tailnet clients", slog.Error(closeErr))
+			}
+		})
+	}
+	defer closeClients()
 
 	if c.TelemetryCtrl != nil {
 		c.TelemetryCtrl.New(clients.Telemetry) // synchronous, doesn't need a goroutine
@@ -775,6 +800,11 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 		go func() {
 			defer wg.Done()
 			c.coordinate(clients.Coordinator)
+			if c.ctx.Err() == nil {
+				// Main context is still active, but our coordination exited, due to some error.
+				// Close down all the rest of the clients so we'll exit and retry.
+				closeClients()
+			}
 		}()
 	}
 	if c.DERPCtrl != nil {
@@ -788,8 +818,7 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 				// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 				// close the underlying connection. This will trigger a retry of the control plane in
 				// run().
-				_ = clients.Closer.Close()
-				// Note that derpMap() logs it own errors, we don't bother here.
+				closeClients()
 			}
 		}()
 	}

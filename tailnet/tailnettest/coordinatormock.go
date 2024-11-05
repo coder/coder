@@ -97,17 +97,3 @@ func (mr *MockCoordinatorMockRecorder) ServeHTTPDebug(arg0, arg1 any) *gomock.Ca
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeHTTPDebug", reflect.TypeOf((*MockCoordinator)(nil).ServeHTTPDebug), arg0, arg1)
 }
-
-// ServeMultiAgent mocks base method.
-func (m *MockCoordinator) ServeMultiAgent(arg0 uuid.UUID) tailnet.MultiAgentConn {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "ServeMultiAgent", arg0)
-	ret0, _ := ret[0].(tailnet.MultiAgentConn)
-	return ret0
-}
-
-// ServeMultiAgent indicates an expected call of ServeMultiAgent.
-func (mr *MockCoordinatorMockRecorder) ServeMultiAgent(arg0 any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ServeMultiAgent", reflect.TypeOf((*MockCoordinator)(nil).ServeMultiAgent), arg0)
-}

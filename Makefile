@@ -507,7 +507,6 @@ gen: \
 	examples/examples.gen.json \
 	tailnet/tailnettest/coordinatormock.go \
 	tailnet/tailnettest/coordinateemock.go \
-	tailnet/tailnettest/multiagentmock.go \
 	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
@@ -537,7 +536,6 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
-		tailnet/tailnettest/multiagentmock.go \
 		coderd/database/pubsub/psmock/psmock.go \
 		"
 
@@ -570,7 +568,7 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
 
-tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
+tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go
 	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto

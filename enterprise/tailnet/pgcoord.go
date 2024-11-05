@@ -165,10 +165,6 @@ func newPGCoordInternal(
 	return c, nil
 }
 
-func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
-	return agpl.ServeMultiAgent(c, c.logger, id)
-}
-
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	// We're going to directly query the database, since we would only have the mapping stored locally if we had
 	// a tunnel peer connected, which is not always the case.
