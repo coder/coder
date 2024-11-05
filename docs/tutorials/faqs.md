@@ -12,11 +12,7 @@ For other community resources, see our
 
 Visit https://coder.com/trial or contact
 
-<!-- markdown-link-check-disable -->
-
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
-
-<!-- markdown-link-check-enable -->
 
 You can add a license through the UI or CLI.
 
