@@ -154,6 +154,31 @@ func TestReadGitAuthProvidersFromEnv(t *testing.T) {
 func TestServer(t *testing.T) {
 	t.Parallel()
 
+	t.Run("PostgresURLFromFlags", func(t *testing.T) {
+		t.Parallel()
+
+		inv, cfg := clitest.New(t,
+			"server",
+			"--http-address", ":0",
+			"--access-url", "https://foobarbaz.mydomain",
+			"--cache-dir", t.TempDir(),
+			"--postgres-host", "localhost",
+			"--postgres-port", "5432",
+			"--postgres-username", "coder",
+			"--postgres-password", "password",
+			"--postgres-database", "coder",
+			"--postgres-options", "sslmode=disable",
+		)
+
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
+
+		// Just wait for startup
+		_ = waitAccessURL(t, cfg)
+
+		pty.ExpectMatch("Created PostgreSQL URL from provided flags")
+	})
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {

@@ -970,7 +970,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+URL of a PostgreSQL database. If empty and credentials are not provided via other flags, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
 
 ### --postgres-auth
 
@@ -982,6 +982,61 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 | Default     | <code>password</code>            |
 
 Type of auth to use when connecting to postgres.
+
+### --postgres-host
+
+|             |                             |
+| ----------- | --------------------------- |
+| Type        | <code>string</code>         |
+| Environment | <code>$CODER_PG_HOST</code> |
+
+PostgreSQL server hostname.
+
+### --postgres-port
+
+|             |                             |
+| ----------- | --------------------------- |
+| Type        | <code>string</code>         |
+| Environment | <code>$CODER_PG_PORT</code> |
+| Default     | <code>5432</code>           |
+
+PostgreSQL server port.
+
+### --postgres-username
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_PG_USERNAME</code> |
+
+PostgreSQL username.
+
+### --postgres-password
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_PG_PASSWORD</code> |
+
+PostgreSQL password.
+
+### --postgres-database
+
+|             |                                 |
+| ----------- | ------------------------------- |
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_PG_DATABASE</code> |
+
+PostgreSQL database name.
+
+### --postgres-options
+
+|             |                                |
+| ----------- | ------------------------------ |
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_PG_OPTIONS</code> |
+
+PostgreSQL connection options (e.g. 'sslmode=require').
 
 ### --secure-auth-cookie
 

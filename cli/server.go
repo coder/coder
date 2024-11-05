@@ -395,6 +395,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			config := r.createConfig()
 
+			if vals.PostgresURL == "" && vals.PostgresHost != "" && vals.PostgresUsername != "" && vals.PostgresPassword != "" && vals.PostgresDatabase != "" {
+				pgURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
+					vals.PostgresUsername.String(),
+					vals.PostgresPassword.String(),
+					vals.PostgresHost.String(),
+					vals.PostgresPort.String(),
+					vals.PostgresDatabase.String(),
+					vals.PostgresOptions.String(),
+				)
+				err = vals.PostgresURL.Set(pgURL)
+				if err != nil {
+					return err
+				}
+				cliui.Infof(inv.Stdout, "Created PostgreSQL URL from provided flags")
+			}
+
 			builtinPostgres := false
 			// Only use built-in if PostgreSQL URL isn't specified!
 			if !vals.InMemoryDatabase && vals.PostgresURL == "" {

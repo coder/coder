@@ -352,6 +352,12 @@ type DeploymentValues struct {
 	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
+	PostgresHost                    serpent.String                       `json:"pg_host,omitempty" typescript:",notnull"`
+	PostgresPort                    serpent.String                       `json:"pg_port,omitempty" typescript:",notnull"`
+	PostgresUsername                serpent.String                       `json:"pg_username,omitempty" typescript:",notnull"`
+	PostgresPassword                serpent.String                       `json:"pg_password,omitempty" typescript:",notnull"`
+	PostgresDatabase                serpent.String                       `json:"pg_database,omitempty" typescript:",notnull"`
+	PostgresOptions                 serpent.String                       `json:"pg_options,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2251,7 +2257,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Connection URL",
-			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Description: "URL of a PostgreSQL database. If empty and credentials are not provided via other flags, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -2265,6 +2271,55 @@ when required by your organization's security policy.`,
 			Default:     "password",
 			Value:       serpent.EnumOf(&c.PostgresAuth, PostgresAuthDrivers...),
 			YAML:        "pgAuth",
+		},
+		{
+			Name:        "Postgres Host",
+			Description: "PostgreSQL server hostname.",
+			Flag:        "postgres-host",
+			Env:         "CODER_PG_HOST",
+			Value:       &c.PostgresHost,
+			YAML:        "pgHost",
+		},
+		{
+			Name:        "Postgres Port",
+			Description: "PostgreSQL server port.",
+			Flag:        "postgres-port",
+			Env:         "CODER_PG_PORT",
+			Default:     "5432",
+			Value:       &c.PostgresPort,
+			YAML:        "pgPort",
+		},
+		{
+			Name:        "Postgres Username",
+			Description: "PostgreSQL username.",
+			Flag:        "postgres-username",
+			Env:         "CODER_PG_USERNAME",
+			Value:       &c.PostgresUsername,
+			YAML:        "pgUsername",
+		},
+		{
+			Name:        "Postgres Password",
+			Description: "PostgreSQL password.",
+			Flag:        "postgres-password",
+			Env:         "CODER_PG_PASSWORD",
+			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+			Value:       &c.PostgresPassword,
+		},
+		{
+			Name:        "Postgres Database",
+			Description: "PostgreSQL database name.",
+			Flag:        "postgres-database",
+			Env:         "CODER_PG_DATABASE",
+			Value:       &c.PostgresDatabase,
+			YAML:        "pgDatabase",
+		},
+		{
+			Name:        "Postgres Options",
+			Description: "PostgreSQL connection options (e.g. 'sslmode=require').",
+			Flag:        "postgres-options",
+			Env:         "CODER_PG_OPTIONS",
+			Value:       &c.PostgresOptions,
+			YAML:        "pgOptions",
 		},
 		{
 			Name:        "Secure Auth Cookie",

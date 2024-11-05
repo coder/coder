@@ -484,6 +484,12 @@ export interface DeploymentValues {
 	readonly in_memory_database?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
+	readonly pg_host?: string;
+	readonly pg_port?: string;
+	readonly pg_username?: string;
+	readonly pg_password?: string;
+	readonly pg_database?: string;
+	readonly pg_options?: string;
 	readonly oauth2?: OAuth2Config;
 	readonly oidc?: OIDCConfig;
 	readonly telemetry?: TelemetryConfig;
