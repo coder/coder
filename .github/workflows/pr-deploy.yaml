@@ -162,7 +162,7 @@ jobs:
           set -euo pipefail
           # build if the workflow is manually triggered and the deployment doesn't exist (first build or force rebuild)
           echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
-          # build if the deployment alreday exist and there are changes in the files that we care about (automatic updates)
+          # build if the deployment already exist and there are changes in the files that we care about (automatic updates)
           echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
 
   comment-pr:
@@ -208,7 +208,7 @@ jobs:
     permissions:
       # Necessary to push docker images to ghcr.io.
       packages: write
-    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
+    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs changes.
     concurrency:
       group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
       cancel-in-progress: true
@@ -265,6 +265,8 @@ jobs:
       always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true')
     runs-on: "ubuntu-latest"
+    permissions:
+      pull-requests: write # needed for commenting on PRs
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
       PR_NUMBER: ${{ needs.get_info.outputs.PR_NUMBER }}
