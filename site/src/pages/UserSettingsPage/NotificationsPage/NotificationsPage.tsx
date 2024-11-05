@@ -97,7 +97,7 @@ export const NotificationsPage: FC = () => {
 			</Helmet>
 			<Section
 				title="Notifications"
-				description="Configure your notification preferences. Icons on the right of each notification indicate delivery method, either SMTP or Webhook."
+				description="Control which notifications you receive."
 				layout="fluid"
 				featureStage="beta"
 			>
@@ -183,7 +183,7 @@ export const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<Tooltip title={label}>
+															<Tooltip title={`Delivery via ${label}`}>
 																<Icon aria-label={label} />
 															</Tooltip>
 														</ListItemIcon>
