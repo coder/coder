@@ -443,6 +443,21 @@ inMemoryDatabase: false
 # Type of auth to use when connecting to postgres.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
+# PostgreSQL server hostname.
+# (default: <unset>, type: string)
+pgHost: ""
+# PostgreSQL server port.
+# (default: 5432, type: string)
+pgPort: "5432"
+# PostgreSQL username.
+# (default: <unset>, type: string)
+pgUsername: ""
+# PostgreSQL database name.
+# (default: <unset>, type: string)
+pgDatabase: ""
+# PostgreSQL connection options (e.g. 'sslmode=require').
+# (default: <unset>, type: string)
+pgOptions: ""
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)
