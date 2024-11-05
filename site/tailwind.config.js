@@ -1,5 +1,3 @@
-const colors = require("tailwindcss/colors");
-
 /** @type {import('tailwindcss').Config} */
 module.exports = {
 	corePlugins: {
@@ -10,7 +8,6 @@ module.exports = {
 	important: "#root",
 	theme: {
 		fontSize: {
-			sm: ["0.875rem", "1.5rem"],
 			"3xl": ["2rem", "2.5rem"],
 		},
 		extend: {
