@@ -952,7 +952,8 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching provisioner job timings: %w", err)
 	}
 
-	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(ctx, build.ID)
+	//nolint:gocritic // Already checked if the build can be fetched.
+	agentScriptTimings, err := api.Database.GetWorkspaceAgentScriptTimingsByBuildID(dbauthz.AsSystemRestricted(ctx), build.ID)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agent script timings: %w", err)
 	}
@@ -965,7 +966,8 @@ func (api *API) buildTimings(ctx context.Context, build database.WorkspaceBuild)
 	for _, resource := range resources {
 		resourceIDs = append(resourceIDs, resource.ID)
 	}
-	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	//nolint:gocritic // Already checked if the build can be fetched.
+	agents, err := api.Database.GetWorkspaceAgentsByResourceIDs(dbauthz.AsSystemRestricted(ctx), resourceIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return codersdk.WorkspaceBuildTimings{}, xerrors.Errorf("fetching workspace agents: %w", err)
 	}
