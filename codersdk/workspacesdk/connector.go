@@ -66,6 +66,7 @@ type tailnetAPIConnector struct {
 	clock         quartz.Clock
 	dialOptions   *websocket.DialOptions
 	conn          tailnetConn
+	coordCtrl     tailnet.CoordinationController
 	customDialFn  func() (proto.DRPCTailnetClient, error)
 
 	clientMu sync.RWMutex
@@ -112,6 +113,7 @@ func (tac *tailnetAPIConnector) manageGracefulTimeout() {
 // Runs a tailnetAPIConnector using the provided connection
 func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
 	tac.conn = conn
+	tac.coordCtrl = tailnet.NewSingleDestController(tac.logger, conn, tac.agentID)
 	tac.gracefulCtx, tac.cancelGracefulCtx = context.WithCancel(context.Background())
 	go tac.manageGracefulTimeout()
 	go func() {
@@ -272,7 +274,7 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 			tac.logger.Debug(tac.ctx, "error closing Coordinate RPC", slog.Error(cErr))
 		}
 	}()
-	coordination := tailnet.NewRemoteCoordination(tac.logger, coord, tac.conn, tac.agentID)
+	coordination := tac.coordCtrl.New(coord)
 	tac.logger.Debug(tac.ctx, "serving coordinator")
 	select {
 	case <-tac.ctx.Done():
@@ -281,7 +283,7 @@ func (tac *tailnetAPIConnector) coordinate(client proto.DRPCTailnetClient) {
 		if crdErr != nil {
 			tac.logger.Warn(tac.ctx, "failed to close remote coordination", slog.Error(err))
 		}
-	case err = <-coordination.Error():
+	case err = <-coordination.Wait():
 		if err != nil &&
 			!xerrors.Is(err, io.EOF) &&
 			!xerrors.Is(err, context.Canceled) &&
