@@ -1,10 +1,13 @@
 import LoadingButton from "@mui/lab/LoadingButton";
 import TextField from "@mui/material/TextField";
+import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Form, FormFields } from "components/Form/Form";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import * as Yup from "yup";
 
@@ -29,11 +32,7 @@ export const Language = {
 
 const validationSchema = Yup.object({
 	old_password: Yup.string().trim().required(Language.oldPasswordRequired),
-	password: Yup.string()
-		.trim()
-		.min(8, Language.passwordMinLength)
-		.max(64, Language.passwordMaxLength)
-		.required(Language.newPasswordRequired),
+	password: Yup.string().trim().required(Language.newPasswordRequired),
 	confirm_password: Yup.string()
 		.trim()
 		.test("passwords-match", Language.confirmPasswordMatch, function (value) {
@@ -86,12 +85,11 @@ export const SecurityForm: FC<SecurityFormProps> = ({
 						label={Language.oldPasswordLabel}
 						type="password"
 					/>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="password"
 						fullWidth
 						label={Language.newPasswordLabel}
-						type="password"
 					/>
 					<TextField
 						{...getFieldHelpers("confirm_password")}

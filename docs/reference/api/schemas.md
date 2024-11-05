@@ -6446,6 +6446,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `dormant`   |
 | `suspended` |
 
+## codersdk.ValidateUserPasswordRequest
+
+```json
+{
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | true     |              |             |
+
+## codersdk.ValidateUserPasswordResponse
+
+```json
+{
+	"details": "string",
+	"valid": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `details` | string  | false    |              |             |
+| `valid`   | boolean | false    |              |             |
+
 ## codersdk.ValidationError
 
 ```json

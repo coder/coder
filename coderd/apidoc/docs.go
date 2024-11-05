@@ -5373,6 +5373,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/users/validate-password": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Validate user password",
+                "operationId": "validate-user-password",
+                "parameters": [
+                    {
+                        "description": "Validate user password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/users/{user}": {
             "get": {
                 "security": [
@@ -14095,6 +14134,28 @@ const docTemplate = `{
                 "UserStatusDormant",
                 "UserStatusSuspended"
             ]
+        },
+        "codersdk.ValidateUserPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ValidateUserPasswordResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.ValidationError": {
             "type": "object",
