@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -31,9 +32,13 @@ import (
 )
 
 func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, organizationID string, consumed, total int) {
+	verifyQuotaUser(ctx, t, client, organizationID, codersdk.Me, consumed, total)
+}
+
+func verifyQuotaUser(ctx context.Context, t *testing.T, client *codersdk.Client, organizationID string, user string, consumed, total int) {
 	t.Helper()
 
-	got, err := client.WorkspaceQuota(ctx, organizationID, codersdk.Me)
+	got, err := client.WorkspaceQuota(ctx, organizationID, user)
 	require.NoError(t, err)
 	require.EqualValues(t, codersdk.WorkspaceQuota{
 		Budget:          total,
@@ -43,7 +48,7 @@ func verifyQuota(ctx context.Context, t *testing.T, client *codersdk.Client, org
 	// Remove this check when the deprecated endpoint is removed.
 	// This just makes sure the deprecated endpoint is still working
 	// as intended. It will only work for the default organization.
-	deprecatedGot, err := deprecatedQuotaEndpoint(ctx, client, codersdk.Me)
+	deprecatedGot, err := deprecatedQuotaEndpoint(ctx, client, user)
 	require.NoError(t, err, "deprecated endpoint")
 	// Only continue to check if the values differ
 	if deprecatedGot.Budget != got.Budget || deprecatedGot.CreditsConsumed != got.CreditsConsumed {
@@ -299,6 +304,95 @@ func TestWorkspaceQuota(t *testing.T) {
 		// Verify org scoped quota limits
 		verifyQuota(ctx, t, owner, first.OrganizationID.String(), 0, 30)
 		verifyQuota(ctx, t, owner, second.ID.String(), 0, 15)
+	})
+
+	// ManyWorkspaces uses dbfake and dbgen to insert a scenario into the db.
+	t.Run("ManyWorkspaces", func(t *testing.T) {
+		t.Parallel()
+
+		owner, db, first := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+		client, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleOwner())
+
+		// Prepopulate database. Use dbfake as it is quicker and
+		// easier than the api.
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		user := dbgen.User(t, db, database.User{})
+		noise := dbgen.User(t, db, database.User{})
+
+		second := dbfake.Organization(t, db).
+			Members(user, noise).
+			EveryoneAllowance(10).
+			Group(database.Group{
+				QuotaAllowance: 25,
+			}, user, noise).
+			Group(database.Group{
+				QuotaAllowance: 30,
+			}, noise).
+			Do()
+
+		third := dbfake.Organization(t, db).
+			Members(noise).
+			EveryoneAllowance(7).
+			Do()
+
+		verifyQuotaUser(ctx, t, client, second.Org.ID.String(), user.ID.String(), 0, 35)
+		verifyQuotaUser(ctx, t, client, second.Org.ID.String(), noise.ID.String(), 0, 65)
+
+		// Workspaces owned by the user
+		consumed := 0
+		for i := 0; i < 2; i++ {
+			const cost = 5
+			dbfake.WorkspaceBuild(t, db,
+				database.WorkspaceTable{
+					OwnerID:        user.ID,
+					OrganizationID: second.Org.ID,
+				}).
+				Seed(database.WorkspaceBuild{
+					DailyCost: cost,
+				}).Do()
+			consumed += cost
+		}
+
+		// Add some noise
+		// Workspace by the user in the third org
+		dbfake.WorkspaceBuild(t, db,
+			database.WorkspaceTable{
+				OwnerID:        user.ID,
+				OrganizationID: third.Org.ID,
+			}).
+			Seed(database.WorkspaceBuild{
+				DailyCost: 10,
+			}).Do()
+
+		// Workspace by another user in third org
+		dbfake.WorkspaceBuild(t, db,
+			database.WorkspaceTable{
+				OwnerID:        noise.ID,
+				OrganizationID: third.Org.ID,
+			}).
+			Seed(database.WorkspaceBuild{
+				DailyCost: 10,
+			}).Do()
+
+		// Workspace by another user in second org
+		dbfake.WorkspaceBuild(t, db,
+			database.WorkspaceTable{
+				OwnerID:        noise.ID,
+				OrganizationID: second.Org.ID,
+			}).
+			Seed(database.WorkspaceBuild{
+				DailyCost: 10,
+			}).Do()
+
+		verifyQuotaUser(ctx, t, client, second.Org.ID.String(), user.ID.String(), consumed, 35)
 	})
 }
 
