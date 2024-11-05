@@ -798,9 +798,8 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	dburl, closeFn, err := dbtestutil.Open()
+	dburl, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closeFn)
 
 	store1, ps1, sdb1 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
 	defer sdb1.Close()
@@ -911,6 +910,42 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	p1.AssertEventuallyHasDERP(p2.ID, 4)
 	// Make sure peer2 never got an update about peer1 disconnecting.
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
+}
+
+// TestPGCoordinatorPropogatedPeerContext tests that the context for a specific peer
+// is propogated through to the `Authorize` method of the coordinatee auth
+func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	store, ps := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	peerCtx := context.WithValue(ctx, agpltest.FakeSubjectKey{}, struct{}{})
+	peerID := uuid.UUID{0x01}
+	agentID := uuid.UUID{0x02}
+
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer func() {
+		err := c1.Close()
+		require.NoError(t, err)
+	}()
+
+	ch := make(chan struct{})
+	auth := agpltest.FakeCoordinateeAuth{
+		Chan: ch,
+	}
+
+	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
+
+	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
+
+	_ = testutil.RequireRecvCtx(ctx, t, ch)
 }
 
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {

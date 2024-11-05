@@ -6,21 +6,20 @@ import {
 } from "api/queries/notifications";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
-import { useSearchParams } from "react-router-dom";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
 
 export const NotificationsPage: FC = () => {
-	const [searchParams] = useSearchParams();
-	const { deploymentValues } = useManagementSettings();
+	const { deploymentConfig } = useDeploymentSettings();
 	const [templatesByGroup, dispatchMethods] = useQueries({
 		queries: [
 			{
@@ -30,10 +29,12 @@ export const NotificationsPage: FC = () => {
 			notificationDispatchMethods(),
 		],
 	});
-	const ready =
-		templatesByGroup.data && dispatchMethods.data && deploymentValues;
-	const tab = searchParams.get("tab") || "events";
+	const tabState = useSearchParamsKey({
+		key: "tab",
+		defaultValue: "events",
+	});
 
+	const ready = !!(templatesByGroup.data && dispatchMethods.data);
 	return (
 		<>
 			<Helmet>
@@ -45,7 +46,7 @@ export const NotificationsPage: FC = () => {
 				layout="fluid"
 				featureStage={"beta"}
 			>
-				<Tabs active={tab}>
+				<Tabs active={tabState.value}>
 					<TabsList>
 						<TabLink to="?tab=events" value="events">
 							Events
@@ -58,10 +59,10 @@ export const NotificationsPage: FC = () => {
 
 				<div css={styles.content}>
 					{ready ? (
-						tab === "events" ? (
+						tabState.value === "events" ? (
 							<NotificationEvents
 								templatesByGroup={templatesByGroup.data}
-								deploymentValues={deploymentValues.config}
+								deploymentConfig={deploymentConfig.config}
 								defaultMethod={castNotificationMethod(
 									dispatchMethods.data.default,
 								)}
@@ -71,7 +72,7 @@ export const NotificationsPage: FC = () => {
 							/>
 						) : (
 							<OptionsTable
-								options={deploymentValues?.options.filter((o) =>
+								options={deploymentConfig.options.filter((o) =>
 									deploymentGroupHasParent(o.group, "Notifications"),
 								)}
 							/>

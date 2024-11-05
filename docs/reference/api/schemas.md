@@ -349,6 +349,28 @@
 | --------- | ------ | -------- | ------------ | ----------- |
 | `license` | string | true     |              |             |
 
+## codersdk.AgentConnectionTiming
+
+```json
+{
+	"ended_at": "2019-08-24T14:15:22Z",
+	"stage": "init",
+	"started_at": "2019-08-24T14:15:22Z",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
+}
+```
+
+### Properties
+
+| Name                   | Type                                         | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `ended_at`             | string                                       | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at`           | string                                       | false    |              |             |
+| `workspace_agent_id`   | string                                       | false    |              |             |
+| `workspace_agent_name` | string                                       | false    |              |             |
+
 ## codersdk.AgentScriptTiming
 
 ```json
@@ -356,22 +378,26 @@
 	"display_name": "string",
 	"ended_at": "2019-08-24T14:15:22Z",
 	"exit_code": 0,
-	"stage": "string",
+	"stage": "init",
 	"started_at": "2019-08-24T14:15:22Z",
-	"status": "string"
+	"status": "string",
+	"workspace_agent_id": "string",
+	"workspace_agent_name": "string"
 }
 ```
 
 ### Properties
 
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `display_name` | string  | false    |              |             |
-| `ended_at`     | string  | false    |              |             |
-| `exit_code`    | integer | false    |              |             |
-| `stage`        | string  | false    |              |             |
-| `started_at`   | string  | false    |              |             |
-| `status`       | string  | false    |              |             |
+| Name                   | Type                                         | Required | Restrictions | Description |
+| ---------------------- | -------------------------------------------- | -------- | ------------ | ----------- |
+| `display_name`         | string                                       | false    |              |             |
+| `ended_at`             | string                                       | false    |              |             |
+| `exit_code`            | integer                                      | false    |              |             |
+| `stage`                | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at`           | string                                       | false    |              |             |
+| `status`               | string                                       | false    |              |             |
+| `workspace_agent_id`   | string                                       | false    |              |             |
+| `workspace_agent_name` | string                                       | false    |              |             |
 
 ## codersdk.AgentSubsystem
 
@@ -1342,20 +1368,22 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	"name": "string",
 	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"password": "string",
+	"user_status": "active",
 	"username": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                     | Required | Restrictions | Description                                                                         |
-| ------------------ | ---------------------------------------- | -------- | ------------ | ----------------------------------------------------------------------------------- |
-| `email`            | string                                   | true     |              |                                                                                     |
-| `login_type`       | [codersdk.LoginType](#codersdklogintype) | false    |              | Login type defaults to LoginTypePassword.                                           |
-| `name`             | string                                   | false    |              |                                                                                     |
-| `organization_ids` | array of string                          | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
-| `password`         | string                                   | false    |              |                                                                                     |
-| `username`         | string                                   | true     |              |                                                                                     |
+| Name               | Type                                       | Required | Restrictions | Description                                                                         |
+| ------------------ | ------------------------------------------ | -------- | ------------ | ----------------------------------------------------------------------------------- |
+| `email`            | string                                     | true     |              |                                                                                     |
+| `login_type`       | [codersdk.LoginType](#codersdklogintype)   | false    |              | Login type defaults to LoginTypePassword.                                           |
+| `name`             | string                                     | false    |              |                                                                                     |
+| `organization_ids` | array of string                            | false    |              | Organization ids is a list of organization IDs that the user should be a member of. |
+| `password`         | string                                     | false    |              |                                                                                     |
+| `user_status`      | [codersdk.UserStatus](#codersdkuserstatus) | false    |              | User status defaults to UserStatusDormant.                                          |
+| `username`         | string                                     | true     |              |                                                                                     |
 
 ## codersdk.CreateWorkspaceBuildRequest
 
@@ -1454,7 +1482,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ```json
 {
 	"deletes_at": "2019-08-24T14:15:22Z",
-	"feature": "workspace_apps",
+	"feature": "workspace_apps_api_key",
 	"secret": "string",
 	"sequence": 0,
 	"starts_at": "2019-08-24T14:15:22Z"
@@ -1474,18 +1502,19 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 ## codersdk.CryptoKeyFeature
 
 ```json
-"workspace_apps"
+"workspace_apps_api_key"
 ```
 
 ### Properties
 
 #### Enumerated Values
 
-| Value            |
-| ---------------- |
-| `workspace_apps` |
-| `oidc_convert`   |
-| `tailnet_resume` |
+| Value                    |
+| ------------------------ |
+| `workspace_apps_api_key` |
+| `workspace_apps_token`   |
+| `oidc_convert`           |
+| `tailnet_resume`         |
 
 ## codersdk.CustomRoleRequest
 
@@ -4356,22 +4385,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 	"resource": "string",
 	"source": "string",
-	"stage": "string",
+	"stage": "init",
 	"started_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Properties
 
-| Name         | Type   | Required | Restrictions | Description |
-| ------------ | ------ | -------- | ------------ | ----------- |
-| `action`     | string | false    |              |             |
-| `ended_at`   | string | false    |              |             |
-| `job_id`     | string | false    |              |             |
-| `resource`   | string | false    |              |             |
-| `source`     | string | false    |              |             |
-| `stage`      | string | false    |              |             |
-| `started_at` | string | false    |              |             |
+| Name         | Type                                         | Required | Restrictions | Description |
+| ------------ | -------------------------------------------- | -------- | ------------ | ----------- |
+| `action`     | string                                       | false    |              |             |
+| `ended_at`   | string                                       | false    |              |             |
+| `job_id`     | string                                       | false    |              |             |
+| `resource`   | string                                       | false    |              |             |
+| `source`     | string                                       | false    |              |             |
+| `stage`      | [codersdk.TimingStage](#codersdktimingstage) | false    |              |             |
+| `started_at` | string                                       | false    |              |             |
 
 ## codersdk.ProxyHealthReport
 
@@ -4490,6 +4519,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `group_member`            |
 | `idpsync_settings`        |
 | `license`                 |
+| `notification_message`    |
 | `notification_preference` |
 | `notification_template`   |
 | `oauth2_app`              |
@@ -5712,6 +5742,27 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Value                    |
 | ------------------------ |
 | `UNSUPPORTED_WORKSPACES` |
+
+## codersdk.TimingStage
+
+```json
+"init"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `init`    |
+| `plan`    |
+| `graph`   |
+| `apply`   |
+| `start`   |
+| `stop`    |
+| `cron`    |
+| `connect` |
 
 ## codersdk.TokenConfig
 
@@ -7407,14 +7458,25 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ```json
 {
+	"agent_connection_timings": [
+		{
+			"ended_at": "2019-08-24T14:15:22Z",
+			"stage": "init",
+			"started_at": "2019-08-24T14:15:22Z",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
+		}
+	],
 	"agent_script_timings": [
 		{
 			"display_name": "string",
 			"ended_at": "2019-08-24T14:15:22Z",
 			"exit_code": 0,
-			"stage": "string",
+			"stage": "init",
 			"started_at": "2019-08-24T14:15:22Z",
-			"status": "string"
+			"status": "string",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
 		}
 	],
 	"provisioner_timings": [
@@ -7424,7 +7486,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 			"resource": "string",
 			"source": "string",
-			"stage": "string",
+			"stage": "init",
 			"started_at": "2019-08-24T14:15:22Z"
 		}
 	]
@@ -7433,10 +7495,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                   | Type                                                              | Required | Restrictions | Description |
-| ---------------------- | ----------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `agent_script_timings` | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming) | false    |              |             |
-| `provisioner_timings`  | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming) | false    |              |             |
+| Name                       | Type                                                                      | Required | Restrictions | Description                                                                                                      |
+| -------------------------- | ------------------------------------------------------------------------- | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------- |
+| `agent_connection_timings` | array of [codersdk.AgentConnectionTiming](#codersdkagentconnectiontiming) | false    |              |                                                                                                                  |
+| `agent_script_timings`     | array of [codersdk.AgentScriptTiming](#codersdkagentscripttiming)         | false    |              | Agent script timings Consolidate agent-related timing metrics into a single struct when updating the API version |
+| `provisioner_timings`      | array of [codersdk.ProvisionerTiming](#codersdkprovisionertiming)         | false    |              |                                                                                                                  |
 
 ## codersdk.WorkspaceConnectionLatencyMS
 
@@ -9923,7 +9986,7 @@ _None_
 	"crypto_keys": [
 		{
 			"deletes_at": "2019-08-24T14:15:22Z",
-			"feature": "workspace_apps",
+			"feature": "workspace_apps_api_key",
 			"secret": "string",
 			"sequence": 0,
 			"starts_at": "2019-08-24T14:15:22Z"
@@ -10001,7 +10064,6 @@ _None_
 
 ```json
 {
-	"app_security_key": "string",
 	"derp_force_websockets": true,
 	"derp_map": {
 		"homeParams": {
@@ -10082,7 +10144,6 @@ _None_
 
 | Name                    | Type                                          | Required | Restrictions | Description                                                                            |
 | ----------------------- | --------------------------------------------- | -------- | ------------ | -------------------------------------------------------------------------------------- |
-| `app_security_key`      | string                                        | false    |              |                                                                                        |
 | `derp_force_websockets` | boolean                                       | false    |              |                                                                                        |
 | `derp_map`              | [tailcfg.DERPMap](#tailcfgderpmap)            | false    |              |                                                                                        |
 | `derp_mesh_key`         | string                                        | false    |              |                                                                                        |

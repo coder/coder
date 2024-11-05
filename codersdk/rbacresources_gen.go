@@ -18,6 +18,7 @@ const (
 	ResourceGroupMember            RBACResource = "group_member"
 	ResourceIdpsyncSettings        RBACResource = "idpsync_settings"
 	ResourceLicense                RBACResource = "license"
+	ResourceNotificationMessage    RBACResource = "notification_message"
 	ResourceNotificationPreference RBACResource = "notification_preference"
 	ResourceNotificationTemplate   RBACResource = "notification_template"
 	ResourceOauth2App              RBACResource = "oauth2_app"
@@ -72,6 +73,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceGroupMember:            {ActionRead},
 	ResourceIdpsyncSettings:        {ActionRead, ActionUpdate},
 	ResourceLicense:                {ActionCreate, ActionDelete, ActionRead},
+	ResourceNotificationMessage:    {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceNotificationPreference: {ActionRead, ActionUpdate},
 	ResourceNotificationTemplate:   {ActionRead, ActionUpdate},
 	ResourceOauth2App:              {ActionCreate, ActionDelete, ActionRead, ActionUpdate},

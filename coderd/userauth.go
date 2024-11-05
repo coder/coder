@@ -12,10 +12,12 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
-	"github.com/golang-jwt/jwt/v4"
+	"github.com/go-jose/go-jose/v4"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -23,6 +25,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -32,7 +38,6 @@ import (
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
-	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -49,12 +54,16 @@ const (
 )
 
 type OAuthConvertStateClaims struct {
-	jwt.RegisteredClaims
+	jwtutils.RegisteredClaims
 
 	UserID        uuid.UUID          `json:"user_id"`
 	State         string             `json:"state"`
 	FromLoginType codersdk.LoginType `json:"from_login_type"`
 	ToLoginType   codersdk.LoginType `json:"to_login_type"`
+}
+
+func (o *OAuthConvertStateClaims) Validate(e jwt.Expected) error {
+	return o.RegisteredClaims.Validate(e)
 }
 
 // postConvertLoginType replies with an oauth state token capable of converting
@@ -149,11 +158,11 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	// Eg: Developers with more than 1 deployment.
 	now := time.Now()
 	claims := &OAuthConvertStateClaims{
-		RegisteredClaims: jwt.RegisteredClaims{
+		RegisteredClaims: jwtutils.RegisteredClaims{
 			Issuer:    api.DeploymentID,
 			Subject:   stateString,
 			Audience:  []string{user.ID.String()},
-			ExpiresAt: jwt.NewNumericDate(now.Add(time.Minute * 5)),
+			Expiry:    jwt.NewNumericDate(now.Add(time.Minute * 5)),
 			NotBefore: jwt.NewNumericDate(now.Add(time.Second * -1)),
 			IssuedAt:  jwt.NewNumericDate(now),
 			ID:        uuid.NewString(),
@@ -164,9 +173,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 		ToLoginType:   req.ToType,
 	}
 
-	token := jwt.NewWithClaims(jwt.SigningMethodHS512, claims)
-	// Key must be a byte slice, not an array. So make sure to include the [:]
-	tokenString, err := token.SignedString(api.OAuthSigningKey[:])
+	token, err := jwtutils.Sign(ctx, api.OIDCConvertKeyCache, claims)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error signing state jwt.",
@@ -176,8 +183,8 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	aReq.New = database.AuditOAuthConvertState{
-		CreatedAt:     claims.IssuedAt.Time,
-		ExpiresAt:     claims.ExpiresAt.Time,
+		CreatedAt:     claims.IssuedAt.Time(),
+		ExpiresAt:     claims.Expiry.Time(),
 		FromLoginType: database.LoginType(claims.FromLoginType),
 		ToLoginType:   database.LoginType(claims.ToLoginType),
 		UserID:        claims.UserID,
@@ -186,8 +193,8 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	http.SetCookie(rw, &http.Cookie{
 		Name:     OAuthConvertCookieValue,
 		Path:     "/",
-		Value:    tokenString,
-		Expires:  claims.ExpiresAt.Time,
+		Value:    token,
+		Expires:  claims.Expiry.Time(),
 		Secure:   api.SecureAuthCookie,
 		HttpOnly: true,
 		// Must be SameSite to work on the redirected auth flow from the
@@ -196,7 +203,7 @@ func (api *API) postConvertLoginType(rw http.ResponseWriter, r *http.Request) {
 	})
 	httpapi.Write(ctx, rw, http.StatusCreated, codersdk.OAuthConversionResponse{
 		StateString: stateString,
-		ExpiresAt:   claims.ExpiresAt.Time,
+		ExpiresAt:   claims.Expiry.Time(),
 		ToType:      claims.ToLoginType,
 		UserID:      claims.UserID,
 	})
@@ -286,13 +293,15 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
 		}
+	} else {
+		logger.Warn(ctx, "password reset requested for account that does not exist", slog.F("email", req.Email))
 	}
 }
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
-		//nolint:gocritic // We need the system auth context to be able to send the user their one-time passcode.
-		dbauthz.AsSystemRestricted(ctx),
+		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
+		dbauthz.AsNotifier(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
 		map[string]string{"one_time_passcode": passcode},
@@ -376,6 +385,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
+			logger.Warn(ctx, "password reset attempted with invalid or expired one-time passcode", slog.F("email", req.Email))
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Incorrect email or one-time passcode.",
 			})
@@ -592,20 +602,13 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	if user.Status == database.UserStatusDormant {
-		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
-		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+	user, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+			Detail:  err.Error(),
 		})
-		if err != nil {
-			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error occurred. Try again later, or contact an admin for assistance.",
-			})
-			return user, rbac.Subject{}, false
-		}
+		return user, rbac.Subject{}, false
 	}
 
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
@@ -626,6 +629,42 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	}
 
 	return user, subject, true
+}
+
+func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Auditor], db database.Store) func(ctx context.Context, user database.User) (database.User, error) {
+	return func(ctx context.Context, user database.User) (database.User, error) {
+		if user.ID == uuid.Nil || user.Status != database.UserStatusDormant {
+			return user, nil
+		}
+
+		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+			return user, xerrors.Errorf("update user status: %w", err)
+		}
+
+		oldAuditUser := user
+		newAuditUser := user
+		newAuditUser.Status = database.UserStatusActive
+
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
+			Audit:            *auditor.Load(),
+			Log:              logger,
+			UserID:           user.ID,
+			Action:           database.AuditActionWrite,
+			Old:              oldAuditUser,
+			New:              newAuditUser,
+			Status:           http.StatusOK,
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, logger, audit.BackgroundSubsystemDormancy),
+		})
+
+		return newUser, nil
+	}
 }
 
 // Clear the user's session cookie.
@@ -1412,10 +1451,22 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 
 func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
-		ctx     = r.Context()
-		user    database.User
-		cookies []*http.Cookie
-		logger  = api.Logger.Named(userAuthLoggerName)
+		ctx                  = r.Context()
+		user                 database.User
+		cookies              []*http.Cookie
+		logger               = api.Logger.Named(userAuthLoggerName)
+		auditor              = *api.Auditor.Load()
+		dormantConvertAudit  *audit.Request[database.User]
+		initDormantAuditOnce = sync.OnceFunc(func() {
+			dormantConvertAudit = params.initAuditRequest(&audit.RequestParams{
+				Audit:            auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           database.AuditActionWrite,
+				OrganizationID:   uuid.Nil,
+				AdditionalFields: audit.BackgroundTaskFields(audit.BackgroundSubsystemDormancy),
+			})
+		})
 	)
 
 	var isConvertLoginType bool
@@ -1517,6 +1568,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 					Email:           params.Email,
 					Username:        params.Username,
 					OrganizationIDs: orgIDs,
+					UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",
@@ -1528,6 +1580,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
+			// This is necessary because transactions can be retried, and we
+			// only want to add the audit log a single time.
+			initDormantAuditOnce()
+			dormantConvertAudit.UserID = user.ID
+			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 				ID:        user.ID,
@@ -1538,6 +1595,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
 				return xerrors.Errorf("update user status: %w", err)
 			}
+			dormantConvertAudit.New = user
 		}
 
 		debugContext, err := json.Marshal(params.DebugContext)
@@ -1712,10 +1770,9 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 		}
 	}
 	var claims OAuthConvertStateClaims
-	token, err := jwt.ParseWithClaims(jwtCookie.Value, &claims, func(_ *jwt.Token) (interface{}, error) {
-		return api.OAuthSigningKey[:], nil
-	})
-	if xerrors.Is(err, jwt.ErrSignatureInvalid) || !token.Valid {
+
+	err = jwtutils.Verify(ctx, api.OIDCConvertKeyCache, jwtCookie.Value, &claims)
+	if xerrors.Is(err, cryptokeys.ErrKeyNotFound) || xerrors.Is(err, cryptokeys.ErrKeyInvalid) || xerrors.Is(err, jose.ErrCryptoFailure) || xerrors.Is(err, jwtutils.ErrMissingKeyID) {
 		// These errors are probably because the user is mixing 2 coder deployments.
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusBadRequest,
@@ -1744,7 +1801,7 @@ func (api *API) convertUserToOauth(ctx context.Context, r *http.Request, db data
 	oauthConvertAudit.UserID = claims.UserID
 	oauthConvertAudit.Old = user
 
-	if claims.RegisteredClaims.Issuer != api.DeploymentID {
+	if claims.Issuer != api.DeploymentID {
 		return database.User{}, idpsync.HTTPError{
 			Code: http.StatusForbidden,
 			Msg:  "Request to convert login type failed. Issuer mismatch. Found a cookie from another coder deployment, please try again.",

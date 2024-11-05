@@ -172,6 +172,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           coderd.ActivateDormantUser(options.Logger, &api.AGPL.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -455,14 +456,22 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
 			r.Use(
-				api.scimEnabledMW,
+				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
+			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
 				r.Post("/", api.scimPostUser)
 				r.Get("/{id}", api.scimGetUser)
 				r.Patch("/{id}", api.scimPatchUser)
+			})
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				u := r.URL.String()
+				httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("SCIM endpoint %s not found", u),
+					Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
+				})
 			})
 		})
 	} else {

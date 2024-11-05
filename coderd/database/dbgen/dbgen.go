@@ -342,6 +342,7 @@ func User(t testing.TB, db database.Store, orig database.User) database.User {
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
 		RBACRoles:      takeFirstSlice(orig.RBACRoles, []string{}),
 		LoginType:      takeFirst(orig.LoginType, database.LoginTypePassword),
+		Status:         string(takeFirst(orig.Status, database.UserStatusDormant)),
 	})
 	require.NoError(t, err, "insert user")
 
@@ -407,6 +408,8 @@ func OrganizationMember(t testing.TB, db database.Store, orig database.Organizat
 }
 
 func Group(t testing.TB, db database.Store, orig database.Group) database.Group {
+	t.Helper()
+
 	name := takeFirst(orig.Name, testutil.GetRandomName(t))
 	group, err := db.InsertGroup(genCtx, database.InsertGroupParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
@@ -943,7 +946,7 @@ func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) datab
 func CryptoKey(t testing.TB, db database.Store, seed database.CryptoKey) database.CryptoKey {
 	t.Helper()
 
-	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceApps)
+	seed.Feature = takeFirst(seed.Feature, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 
 	// An empty string for the secret is interpreted as
 	// a caller wanting a new secret to be generated.
@@ -1048,9 +1051,11 @@ func takeFirst[Value comparable](values ...Value) Value {
 
 func newCryptoKeySecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateCryptoKey(32)
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
+		return generateCryptoKey(64)
+	case database.CryptoKeyFeatureOIDCConvert:
 		return generateCryptoKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateCryptoKey(64)

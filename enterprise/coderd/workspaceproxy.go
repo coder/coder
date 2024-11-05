@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"slices"
 	"strings"
 	"time"
 
@@ -32,6 +33,13 @@ import (
 	"github.com/coder/coder/v2/enterprise/replicasync"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
+
+// whitelistedCryptoKeyFeatures is a list of crypto key features that are
+// allowed to be queried with workspace proxies.
+var whitelistedCryptoKeyFeatures = []database.CryptoKeyFeature{
+	database.CryptoKeyFeatureWorkspaceAppsToken,
+	database.CryptoKeyFeatureWorkspaceAppsAPIKey,
+}
 
 // forceWorkspaceProxyHealthUpdate forces an update of the proxy health.
 // This is useful when a proxy is created or deleted. Errors will be logged.
@@ -700,7 +708,6 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 	}
 
 	httpapi.Write(ctx, rw, http.StatusCreated, wsproxysdk.RegisterWorkspaceProxyResponse{
-		AppSecurityKey:      api.AppSecurityKey.String(),
 		DERPMeshKey:         api.DERPServer.MeshKey(),
 		DERPRegionID:        regionID,
 		DERPMap:             api.AGPL.DERPMap(),
@@ -721,13 +728,29 @@ func (api *API) workspaceProxyRegister(rw http.ResponseWriter, r *http.Request) 
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
+// @Param feature query string true "Feature key"
 // @Success 200 {object} wsproxysdk.CryptoKeysResponse
 // @Router /workspaceproxies/me/crypto-keys [get]
 // @x-apidocgen {"skip": true}
 func (api *API) workspaceProxyCryptoKeys(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	keys, err := api.Database.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+	feature := database.CryptoKeyFeature(r.URL.Query().Get("feature"))
+	if feature == "" {
+		httpapi.Write(r.Context(), rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Missing feature query parameter.",
+		})
+		return
+	}
+
+	if !slices.Contains(whitelistedCryptoKeyFeatures, feature) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: fmt.Sprintf("Invalid feature: %q", feature),
+		})
+		return
+	}
+
+	keys, err := api.Database.GetCryptoKeysByFeature(ctx, feature)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

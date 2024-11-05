@@ -31,20 +31,20 @@ type NotificationEventsProps = {
 	defaultMethod: NotificationMethod;
 	availableMethods: NotificationMethod[];
 	templatesByGroup: ReturnType<typeof selectTemplatesByGroup>;
-	deploymentValues: DeploymentValues;
+	deploymentConfig: DeploymentValues;
 };
 
 export const NotificationEvents: FC<NotificationEventsProps> = ({
 	defaultMethod,
 	availableMethods,
 	templatesByGroup,
-	deploymentValues,
+	deploymentConfig,
 }) => {
 	// Webhook
 	const hasWebhookNotifications = Object.values(templatesByGroup)
 		.flat()
 		.some((t) => t.method === "webhook");
-	const webhookValues = deploymentValues.notifications?.webhook ?? {};
+	const webhookValues = deploymentConfig.notifications?.webhook ?? {};
 	const isWebhookConfigured = requiredFieldsArePresent(webhookValues, [
 		"endpoint",
 	]);
@@ -53,7 +53,7 @@ export const NotificationEvents: FC<NotificationEventsProps> = ({
 	const hasSMTPNotifications = Object.values(templatesByGroup)
 		.flat()
 		.some((t) => t.method === "smtp");
-	const smtpValues = deploymentValues.notifications?.email ?? {};
+	const smtpValues = deploymentConfig.notifications?.email ?? {};
 	const isSMTPConfigured = requiredFieldsArePresent(smtpValues, [
 		"smarthost",
 		"from",

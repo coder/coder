@@ -152,7 +152,10 @@ func TestDBAuthzRecursive(t *testing.T) {
 		for i := 2; i < method.Type.NumIn(); i++ {
 			ins = append(ins, reflect.New(method.Type.In(i)).Elem())
 		}
-		if method.Name == "InTx" || method.Name == "Ping" || method.Name == "Wrappers" {
+		if method.Name == "InTx" ||
+			method.Name == "Ping" ||
+			method.Name == "Wrappers" ||
+			method.Name == "PGLocks" {
 			continue
 		}
 		// Log the name of the last method, so if there is a panic, it is
@@ -1470,6 +1473,24 @@ func (s *MethodTestSuite) TestWorkspace() {
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID).Asserts()
+	}))
+	s.Run("GetAuthorizedWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
+	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
@@ -2243,13 +2264,13 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertCryptoKeyParams{
-			Feature: database.CryptoKeyFeatureWorkspaceApps,
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		}).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
 	}))
 	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.DeleteCryptoKeyParams{
@@ -2259,7 +2280,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
@@ -2269,14 +2290,14 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
 		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.UpdateCryptoKeyDeletesAtParams{
@@ -2286,7 +2307,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
 	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 }
@@ -2873,13 +2894,15 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
 			{
-				StartedAt:   timing.StartedAt,
-				EndedAt:     timing.EndedAt,
-				Stage:       timing.Stage,
-				ScriptID:    timing.ScriptID,
-				ExitCode:    timing.ExitCode,
-				Status:      timing.Status,
-				DisplayName: script.DisplayName,
+				StartedAt:          timing.StartedAt,
+				EndedAt:            timing.EndedAt,
+				Stage:              timing.Stage,
+				ScriptID:           timing.ScriptID,
+				ExitCode:           timing.ExitCode,
+				Status:             timing.Status,
+				DisplayName:        script.DisplayName,
+				WorkspaceAgentID:   agent.ID,
+				WorkspaceAgentName: agent.Name,
 			},
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
@@ -2888,40 +2911,33 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
 	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.EnqueueNotificationMessageParams{
 			Method:  database.NotificationMethodWebhook,
 			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
 	// Notification templates

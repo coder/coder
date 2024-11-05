@@ -275,6 +275,12 @@ resource "coder_agent" "dev" {
   EOT
 }
 
+# Add a cost so we get some quota usage in dev.coder.com
+resource "coder_metadata" "home_volume" {
+  resource_id = docker_volume.home_volume.id
+  daily_cost  = 1
+}
+
 resource "docker_volume" "home_volume" {
   name = "coder-${data.coder_workspace.me.id}-home"
   # Protect the volume from being deleted due to changes in attributes.

@@ -24,9 +24,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	}
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
@@ -58,7 +57,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer unsub0()
 	go func() {
-		err = uut.Publish(event, []byte(data))
+		err := uut.Publish(event, []byte(data))
 		assert.NoError(t, err)
 	}()
 	_ = testutil.RequireRecvCtx(ctx, t, messageChannel)
@@ -93,7 +92,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	require.NoError(t, err)
 	defer unsub1()
 	go func() {
-		err = uut.Publish(event, colossalData)
+		err := uut.Publish(event, colossalData)
 		assert.NoError(t, err)
 	}()
 	// should get 2 messages because we have 2 subs
@@ -132,9 +131,8 @@ func TestPGPubsubDriver(t *testing.T) {
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
 
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 
 	// use a separate subber and pubber so we can keep track of listener connections
 	db, err := sql.Open("postgres", connectionURL)

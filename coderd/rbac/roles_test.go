@@ -648,6 +648,21 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "NotificationMessages",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceNotificationMessage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			// Notification preferences are currently not organization-scoped
 			// Any owner/admin may access any users' preferences
 			// Members may not access other members' preferences

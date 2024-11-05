@@ -164,7 +164,7 @@ fatal() {
 
 	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
 		# Try to create the initial admin user.
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=true; then
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
 			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"

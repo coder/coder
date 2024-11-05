@@ -140,8 +140,7 @@ provider "aws" {
   region = data.coder_parameter.region.value
 }
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 data "aws_ami" "ubuntu" {
@@ -214,36 +213,36 @@ resource "coder_app" "code-server" {
 }
 
 locals {
+  hostname   = lower(data.coder_workspace.me.name)
   linux_user = "coder"
-  user_data  = <<-EOT
-  Content-Type: multipart/mixed; boundary="//"
-  MIME-Version: 1.0
+}
 
-  --//
-  Content-Type: text/cloud-config; charset="us-ascii"
-  MIME-Version: 1.0
-  Content-Transfer-Encoding: 7bit
-  Content-Disposition: attachment; filename="cloud-config.txt"
+data "cloudinit_config" "user_data" {
+  gzip          = false
+  base64_encode = false
 
-  #cloud-config
-  cloud_final_modules:
-  - [scripts-user, always]
-  hostname: ${lower(data.coder_workspace.me.name)}
-  users:
-  - name: ${local.linux_user}
-    sudo: ALL=(ALL) NOPASSWD:ALL
-    shell: /bin/bash
+  boundary = "//"
 
-  --//
-  Content-Type: text/x-shellscript; charset="us-ascii"
-  MIME-Version: 1.0
-  Content-Transfer-Encoding: 7bit
-  Content-Disposition: attachment; filename="userdata.txt"
+  part {
+    filename     = "cloud-config.yaml"
+    content_type = "text/cloud-config"
 
-  #!/bin/bash
-  sudo -u ${local.linux_user} sh -c '${try(coder_agent.dev[0].init_script, "")}'
-  --//--
-  EOT
+    content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
+      hostname   = local.hostname
+      linux_user = local.linux_user
+    })
+  }
+
+  part {
+    filename     = "userdata.sh"
+    content_type = "text/x-shellscript"
+
+    content = templatefile("${path.module}/cloud-init/userdata.sh.tftpl", {
+      linux_user = local.linux_user
+
+      init_script = try(coder_agent.dev[0].init_script, "")
+    })
+  }
 }
 
 resource "aws_instance" "dev" {
@@ -251,7 +250,7 @@ resource "aws_instance" "dev" {
   availability_zone = "${data.coder_parameter.region.value}a"
   instance_type     = data.coder_parameter.instance_type.value
 
-  user_data = local.user_data
+  user_data = data.cloudinit_config.user_data.rendered
   tags = {
     Name = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
     # Required if you are using our example policy, see template README

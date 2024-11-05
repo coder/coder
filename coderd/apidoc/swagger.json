@@ -3189,11 +3189,24 @@
 				}
 			}
 		},
+		"/scim/v2/ServiceProviderConfig": {
+			"get": {
+				"produces": ["application/scim+json"],
+				"tags": ["Enterprise"],
+				"summary": "SCIM 2.0: Service Provider Config",
+				"operationId": "scim-get-service-provider-config",
+				"responses": {
+					"200": {
+						"description": "OK"
+					}
+				}
+			}
+		},
 		"/scim/v2/Users": {
 			"get": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -3209,7 +3222,7 @@
 			"post": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/json"],
@@ -3241,7 +3254,7 @@
 			"get": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -3267,7 +3280,7 @@
 			"patch": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"Authorization": []
 					}
 				],
 				"produces": ["application/scim+json"],
@@ -3299,6 +3312,23 @@
 						"schema": {
 							"$ref": "#/definitions/codersdk.User"
 						}
+					}
+				}
+			}
+		},
+		"/tailnet": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"tags": ["Agents"],
+				"summary": "User-scoped tailnet RPC connection",
+				"operationId": "user-scoped-tailnet-rpc-connection",
+				"responses": {
+					"101": {
+						"description": "Switching Protocols"
 					}
 				}
 			}
@@ -6791,6 +6821,15 @@
 				"tags": ["Enterprise"],
 				"summary": "Get workspace proxy crypto keys",
 				"operationId": "get-workspace-proxy-crypto-keys",
+				"parameters": [
+					{
+						"type": "string",
+						"description": "Feature key",
+						"name": "feature",
+						"in": "query",
+						"required": true
+					}
+				],
 				"responses": {
 					"200": {
 						"description": "OK",
@@ -7986,6 +8025,28 @@
 				}
 			}
 		},
+		"codersdk.AgentConnectionTiming": {
+			"type": "object",
+			"properties": {
+				"ended_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"stage": {
+					"$ref": "#/definitions/codersdk.TimingStage"
+				},
+				"started_at": {
+					"type": "string",
+					"format": "date-time"
+				},
+				"workspace_agent_id": {
+					"type": "string"
+				},
+				"workspace_agent_name": {
+					"type": "string"
+				}
+			}
+		},
 		"codersdk.AgentScriptTiming": {
 			"type": "object",
 			"properties": {
@@ -8000,13 +8061,19 @@
 					"type": "integer"
 				},
 				"stage": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.TimingStage"
 				},
 				"started_at": {
 					"type": "string",
 					"format": "date-time"
 				},
 				"status": {
+					"type": "string"
+				},
+				"workspace_agent_id": {
+					"type": "string"
+				},
+				"workspace_agent_name": {
 					"type": "string"
 				}
 			}
@@ -8820,6 +8887,14 @@
 				"password": {
 					"type": "string"
 				},
+				"user_status": {
+					"description": "UserStatus defaults to UserStatusDormant.",
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.UserStatus"
+						}
+					]
+				},
 				"username": {
 					"type": "string"
 				}
@@ -8947,9 +9022,15 @@
 		},
 		"codersdk.CryptoKeyFeature": {
 			"type": "string",
-			"enum": ["workspace_apps", "oidc_convert", "tailnet_resume"],
+			"enum": [
+				"workspace_apps_api_key",
+				"workspace_apps_token",
+				"oidc_convert",
+				"tailnet_resume"
+			],
 			"x-enum-varnames": [
-				"CryptoKeyFeatureWorkspaceApp",
+				"CryptoKeyFeatureWorkspaceAppsAPIKey",
+				"CryptoKeyFeatureWorkspaceAppsToken",
 				"CryptoKeyFeatureOIDCConvert",
 				"CryptoKeyFeatureTailnetResume"
 			]
@@ -10966,7 +11047,7 @@
 					"type": "string"
 				},
 				"stage": {
-					"type": "string"
+					"$ref": "#/definitions/codersdk.TimingStage"
 				},
 				"started_at": {
 					"type": "string",
@@ -11078,6 +11159,7 @@
 				"group_member",
 				"idpsync_settings",
 				"license",
+				"notification_message",
 				"notification_preference",
 				"notification_template",
 				"oauth2_app",
@@ -11111,6 +11193,7 @@
 				"ResourceGroupMember",
 				"ResourceIdpsyncSettings",
 				"ResourceLicense",
+				"ResourceNotificationMessage",
 				"ResourceNotificationPreference",
 				"ResourceNotificationTemplate",
 				"ResourceOauth2App",
@@ -12205,6 +12288,29 @@
 			"type": "string",
 			"enum": ["UNSUPPORTED_WORKSPACES"],
 			"x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
+		},
+		"codersdk.TimingStage": {
+			"type": "string",
+			"enum": [
+				"init",
+				"plan",
+				"graph",
+				"apply",
+				"start",
+				"stop",
+				"cron",
+				"connect"
+			],
+			"x-enum-varnames": [
+				"TimingStageInit",
+				"TimingStagePlan",
+				"TimingStageGraph",
+				"TimingStageApply",
+				"TimingStageStart",
+				"TimingStageStop",
+				"TimingStageCron",
+				"TimingStageConnect"
+			]
 		},
 		"codersdk.TokenConfig": {
 			"type": "object",
@@ -13473,7 +13579,14 @@
 		"codersdk.WorkspaceBuildTimings": {
 			"type": "object",
 			"properties": {
+				"agent_connection_timings": {
+					"type": "array",
+					"items": {
+						"$ref": "#/definitions/codersdk.AgentConnectionTiming"
+					}
+				},
 				"agent_script_timings": {
+					"description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
 					"type": "array",
 					"items": {
 						"$ref": "#/definitions/codersdk.AgentScriptTiming"
@@ -14906,9 +15019,6 @@
 		"wsproxysdk.RegisterWorkspaceProxyResponse": {
 			"type": "object",
 			"properties": {
-				"app_security_key": {
-					"type": "string"
-				},
 				"derp_force_websockets": {
 					"type": "boolean"
 				},
@@ -14943,6 +15053,11 @@
 		}
 	},
 	"securityDefinitions": {
+		"Authorization": {
+			"type": "apiKey",
+			"name": "Authorizaiton",
+			"in": "header"
+		},
 		"CoderSessionToken": {
 			"type": "apiKey",
 			"name": "Coder-Session-Token",

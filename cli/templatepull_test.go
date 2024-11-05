@@ -13,6 +13,7 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
+	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -95,7 +96,7 @@ func TestTemplatePull_Stdout(t *testing.T) {
 
 	// Verify .zip format
 	tarReader := tar.NewReader(bytes.NewReader(expected))
-	expectedZip, err := coderd.CreateZipFromTar(tarReader)
+	expectedZip, err := archive.CreateZipFromTar(tarReader, coderd.HTTPFileMaxBytes)
 	require.NoError(t, err)
 
 	inv, root = clitest.New(t, "templates", "pull", "--zip", template.Name)

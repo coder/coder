@@ -926,6 +926,23 @@ when required by your organization's security policy.`,
 			Name:        "Config",
 			Description: `Use a YAML configuration file when your server launch become unwieldy.`,
 		}
+		deploymentGroupEmail = serpent.Group{
+			Name:        "Email",
+			Description: "Configure how emails are sent.",
+			YAML:        "email",
+		}
+		deploymentGroupEmailAuth = serpent.Group{
+			Name:        "Email Authentication",
+			Parent:      &deploymentGroupEmail,
+			Description: "Configure SMTP authentication options.",
+			YAML:        "emailAuth",
+		}
+		deploymentGroupEmailTLS = serpent.Group{
+			Name:        "Email TLS",
+			Parent:      &deploymentGroupEmail,
+			Description: "Configure TLS for your SMTP server target.",
+			YAML:        "emailTLS",
+		}
 		deploymentGroupNotifications = serpent.Group{
 			Name:        "Notifications",
 			YAML:        "notifications",
@@ -996,6 +1013,135 @@ when required by your organization's security policy.`,
 		Value:         &c.Logging.Filter,
 		Group:         &deploymentGroupIntrospectionLogging,
 		YAML:          "filter",
+	}
+	emailFrom := serpent.Option{
+		Name:        "Email: From Address",
+		Description: "The sender's address to use.",
+		Flag:        "email-from",
+		Env:         "CODER_EMAIL_FROM",
+		Value:       &c.Notifications.SMTP.From,
+		Group:       &deploymentGroupEmail,
+		YAML:        "from",
+	}
+	emailSmarthost := serpent.Option{
+		Name:        "Email: Smarthost",
+		Description: "The intermediary SMTP host through which emails are sent.",
+		Flag:        "email-smarthost",
+		Env:         "CODER_EMAIL_SMARTHOST",
+		Default:     "localhost:587", // To pass validation.
+		Value:       &c.Notifications.SMTP.Smarthost,
+		Group:       &deploymentGroupEmail,
+		YAML:        "smarthost",
+	}
+	emailHello := serpent.Option{
+		Name:        "Email: Hello",
+		Description: "The hostname identifying the SMTP server.",
+		Flag:        "email-hello",
+		Env:         "CODER_EMAIL_HELLO",
+		Default:     "localhost",
+		Value:       &c.Notifications.SMTP.Hello,
+		Group:       &deploymentGroupEmail,
+		YAML:        "hello",
+	}
+	emailForceTLS := serpent.Option{
+		Name:        "Email: Force TLS",
+		Description: "Force a TLS connection to the configured SMTP smarthost.",
+		Flag:        "email-force-tls",
+		Env:         "CODER_EMAIL_FORCE_TLS",
+		Default:     "false",
+		Value:       &c.Notifications.SMTP.ForceTLS,
+		Group:       &deploymentGroupEmail,
+		YAML:        "forceTLS",
+	}
+	emailAuthIdentity := serpent.Option{
+		Name:        "Email Auth: Identity",
+		Description: "Identity to use with PLAIN authentication.",
+		Flag:        "email-auth-identity",
+		Env:         "CODER_EMAIL_AUTH_IDENTITY",
+		Value:       &c.Notifications.SMTP.Auth.Identity,
+		Group:       &deploymentGroupEmailAuth,
+		YAML:        "identity",
+	}
+	emailAuthUsername := serpent.Option{
+		Name:        "Email Auth: Username",
+		Description: "Username to use with PLAIN/LOGIN authentication.",
+		Flag:        "email-auth-username",
+		Env:         "CODER_EMAIL_AUTH_USERNAME",
+		Value:       &c.Notifications.SMTP.Auth.Username,
+		Group:       &deploymentGroupEmailAuth,
+		YAML:        "username",
+	}
+	emailAuthPassword := serpent.Option{
+		Name:        "Email Auth: Password",
+		Description: "Password to use with PLAIN/LOGIN authentication.",
+		Flag:        "email-auth-password",
+		Env:         "CODER_EMAIL_AUTH_PASSWORD",
+		Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
+		Value:       &c.Notifications.SMTP.Auth.Password,
+		Group:       &deploymentGroupEmailAuth,
+	}
+	emailAuthPasswordFile := serpent.Option{
+		Name:        "Email Auth: Password File",
+		Description: "File from which to load password for use with PLAIN/LOGIN authentication.",
+		Flag:        "email-auth-password-file",
+		Env:         "CODER_EMAIL_AUTH_PASSWORD_FILE",
+		Value:       &c.Notifications.SMTP.Auth.PasswordFile,
+		Group:       &deploymentGroupEmailAuth,
+		YAML:        "passwordFile",
+	}
+	emailTLSStartTLS := serpent.Option{
+		Name:        "Email TLS: StartTLS",
+		Description: "Enable STARTTLS to upgrade insecure SMTP connections using TLS.",
+		Flag:        "email-tls-starttls",
+		Env:         "CODER_EMAIL_TLS_STARTTLS",
+		Value:       &c.Notifications.SMTP.TLS.StartTLS,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "startTLS",
+	}
+	emailTLSServerName := serpent.Option{
+		Name:        "Email TLS: Server Name",
+		Description: "Server name to verify against the target certificate.",
+		Flag:        "email-tls-server-name",
+		Env:         "CODER_EMAIL_TLS_SERVERNAME",
+		Value:       &c.Notifications.SMTP.TLS.ServerName,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "serverName",
+	}
+	emailTLSSkipCertVerify := serpent.Option{
+		Name:        "Email TLS: Skip Certificate Verification (Insecure)",
+		Description: "Skip verification of the target server's certificate (insecure).",
+		Flag:        "email-tls-skip-verify",
+		Env:         "CODER_EMAIL_TLS_SKIPVERIFY",
+		Value:       &c.Notifications.SMTP.TLS.InsecureSkipVerify,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "insecureSkipVerify",
+	}
+	emailTLSCertAuthorityFile := serpent.Option{
+		Name:        "Email TLS: Certificate Authority File",
+		Description: "CA certificate file to use.",
+		Flag:        "email-tls-ca-cert-file",
+		Env:         "CODER_EMAIL_TLS_CACERTFILE",
+		Value:       &c.Notifications.SMTP.TLS.CAFile,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "caCertFile",
+	}
+	emailTLSCertFile := serpent.Option{
+		Name:        "Email TLS: Certificate File",
+		Description: "Certificate file to use.",
+		Flag:        "email-tls-cert-file",
+		Env:         "CODER_EMAIL_TLS_CERTFILE",
+		Value:       &c.Notifications.SMTP.TLS.CertFile,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "certFile",
+	}
+	emailTLSCertKeyFile := serpent.Option{
+		Name:        "Email TLS: Certificate Key File",
+		Description: "Certificate key file to use.",
+		Flag:        "email-tls-cert-key-file",
+		Env:         "CODER_EMAIL_TLS_CERTKEYFILE",
+		Value:       &c.Notifications.SMTP.TLS.KeyFile,
+		Group:       &deploymentGroupEmailTLS,
+		YAML:        "certKeyFile",
 	}
 	opts := serpent.OptionSet{
 		{
@@ -1357,14 +1503,18 @@ when required by your organization's security policy.`,
 			Default: strings.Join(agentmetrics.LabelAll, ","),
 		},
 		{
-			Name:        "Prometheus Collect Database Metrics",
-			Description: "Collect database metrics (may increase charges for metrics storage).",
-			Flag:        "prometheus-collect-db-metrics",
-			Env:         "CODER_PROMETHEUS_COLLECT_DB_METRICS",
-			Value:       &c.Prometheus.CollectDBMetrics,
-			Group:       &deploymentGroupIntrospectionPrometheus,
-			YAML:        "collect_db_metrics",
-			Default:     "false",
+			Name: "Prometheus Collect Database Metrics",
+			// Some db metrics like transaction information will still be collected.
+			// Query metrics blow up the number of unique time series with labels
+			// and can be very expensive. So default to not capturing query metrics.
+			Description: "Collect database query metrics (may increase charges for metrics storage). " +
+				"If set to false, a reduced set of database metrics are still collected.",
+			Flag:    "prometheus-collect-db-metrics",
+			Env:     "CODER_PROMETHEUS_COLLECT_DB_METRICS",
+			Value:   &c.Prometheus.CollectDBMetrics,
+			Group:   &deploymentGroupIntrospectionPrometheus,
+			YAML:    "collect_db_metrics",
+			Default: "false",
 		},
 		// Pprof settings
 		{
@@ -2428,6 +2578,21 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "thresholdDatabase",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
+		// Email options
+		emailFrom,
+		emailSmarthost,
+		emailHello,
+		emailForceTLS,
+		emailAuthIdentity,
+		emailAuthUsername,
+		emailAuthPassword,
+		emailAuthPasswordFile,
+		emailTLSStartTLS,
+		emailTLSServerName,
+		emailTLSSkipCertVerify,
+		emailTLSCertAuthorityFile,
+		emailTLSCertFile,
+		emailTLSCertKeyFile,
 		// Notifications Options
 		{
 			Name:        "Notifications: Method",
@@ -2458,36 +2623,37 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.From,
 			Group:       &deploymentGroupNotificationsEmail,
 			YAML:        "from",
+			UseInstead:  serpent.OptionSet{emailFrom},
 		},
 		{
 			Name:        "Notifications: Email: Smarthost",
 			Description: "The intermediary SMTP host through which emails are sent.",
 			Flag:        "notifications-email-smarthost",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
-			Default:     "localhost:587", // To pass validation.
 			Value:       &c.Notifications.SMTP.Smarthost,
 			Group:       &deploymentGroupNotificationsEmail,
 			YAML:        "smarthost",
+			UseInstead:  serpent.OptionSet{emailSmarthost},
 		},
 		{
 			Name:        "Notifications: Email: Hello",
 			Description: "The hostname identifying the SMTP server.",
 			Flag:        "notifications-email-hello",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_HELLO",
-			Default:     "localhost",
 			Value:       &c.Notifications.SMTP.Hello,
 			Group:       &deploymentGroupNotificationsEmail,
 			YAML:        "hello",
+			UseInstead:  serpent.OptionSet{emailHello},
 		},
 		{
 			Name:        "Notifications: Email: Force TLS",
 			Description: "Force a TLS connection to the configured SMTP smarthost.",
 			Flag:        "notifications-email-force-tls",
 			Env:         "CODER_NOTIFICATIONS_EMAIL_FORCE_TLS",
-			Default:     "false",
 			Value:       &c.Notifications.SMTP.ForceTLS,
 			Group:       &deploymentGroupNotificationsEmail,
 			YAML:        "forceTLS",
+			UseInstead:  serpent.OptionSet{emailForceTLS},
 		},
 		{
 			Name:        "Notifications: Email Auth: Identity",
@@ -2497,6 +2663,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.Auth.Identity,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "identity",
+			UseInstead:  serpent.OptionSet{emailAuthIdentity},
 		},
 		{
 			Name:        "Notifications: Email Auth: Username",
@@ -2506,6 +2673,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.Auth.Username,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "username",
+			UseInstead:  serpent.OptionSet{emailAuthUsername},
 		},
 		{
 			Name:        "Notifications: Email Auth: Password",
@@ -2515,6 +2683,7 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
 			Value:       &c.Notifications.SMTP.Auth.Password,
 			Group:       &deploymentGroupNotificationsEmailAuth,
+			UseInstead:  serpent.OptionSet{emailAuthPassword},
 		},
 		{
 			Name:        "Notifications: Email Auth: Password File",
@@ -2524,6 +2693,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.Auth.PasswordFile,
 			Group:       &deploymentGroupNotificationsEmailAuth,
 			YAML:        "passwordFile",
+			UseInstead:  serpent.OptionSet{emailAuthPasswordFile},
 		},
 		{
 			Name:        "Notifications: Email TLS: StartTLS",
@@ -2533,6 +2703,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.StartTLS,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "startTLS",
+			UseInstead:  serpent.OptionSet{emailTLSStartTLS},
 		},
 		{
 			Name:        "Notifications: Email TLS: Server Name",
@@ -2542,6 +2713,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.ServerName,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "serverName",
+			UseInstead:  serpent.OptionSet{emailTLSServerName},
 		},
 		{
 			Name:        "Notifications: Email TLS: Skip Certificate Verification (Insecure)",
@@ -2551,6 +2723,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.InsecureSkipVerify,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "insecureSkipVerify",
+			UseInstead:  serpent.OptionSet{emailTLSSkipCertVerify},
 		},
 		{
 			Name:        "Notifications: Email TLS: Certificate Authority File",
@@ -2560,6 +2733,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.CAFile,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "caCertFile",
+			UseInstead:  serpent.OptionSet{emailTLSCertAuthorityFile},
 		},
 		{
 			Name:        "Notifications: Email TLS: Certificate File",
@@ -2569,6 +2743,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.CertFile,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "certFile",
+			UseInstead:  serpent.OptionSet{emailTLSCertFile},
 		},
 		{
 			Name:        "Notifications: Email TLS: Certificate Key File",
@@ -2578,6 +2753,7 @@ Write out the current server config as YAML to stdout.`,
 			Value:       &c.Notifications.SMTP.TLS.KeyFile,
 			Group:       &deploymentGroupNotificationsEmailTLS,
 			YAML:        "certKeyFile",
+			UseInstead:  serpent.OptionSet{emailTLSCertKeyFile},
 		},
 		{
 			Name:        "Notifications: Webhook: Endpoint",
@@ -3109,9 +3285,11 @@ func (c *Client) SSHConfiguration(ctx context.Context) (SSHConfigResponse, error
 type CryptoKeyFeature string
 
 const (
-	CryptoKeyFeatureWorkspaceApp  CryptoKeyFeature = "workspace_apps"
-	CryptoKeyFeatureOIDCConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	//nolint:gosec // This denotes a type of key, not a literal.
+	CryptoKeyFeatureWorkspaceAppsToken CryptoKeyFeature = "workspace_apps_token"
+	CryptoKeyFeatureOIDCConvert        CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume      CryptoKeyFeature = "tailnet_resume"
 )
 
 type CryptoKey struct {

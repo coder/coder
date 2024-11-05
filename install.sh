@@ -216,7 +216,7 @@ To run a Coder server:
   # Or just run the server directly
   $ coder server
 
-  Configuring Coder: https://coder.com/docs/admin/configure
+  Configuring Coder: https://coder.com/docs/admin/setup
 
 To connect to a Coder deployment:
 
@@ -250,7 +250,7 @@ EOF
 main() {
 	MAINLINE=1
 	STABLE=0
-	TERRAFORM_VERSION="1.9.2"
+	TERRAFORM_VERSION="1.9.8"
 
 	if [ "${TRACE-}" ]; then
 		set -x
@@ -363,7 +363,7 @@ main() {
 	if [ "${RSH_ARGS-}" ]; then
 		RSH="${RSH-ssh}"
 		echoh "Installing remotely with $RSH $RSH_ARGS"
-		curl -fsSL https://coder.dev/install.sh | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
+		curl -fsSL https://coder.com/install.sh | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
 		return
 	fi
 

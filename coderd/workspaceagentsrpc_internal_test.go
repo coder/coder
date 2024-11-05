@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
@@ -356,10 +357,10 @@ type fakeUpdater struct {
 	updates []uuid.UUID
 }
 
-func (f *fakeUpdater) publishWorkspaceUpdate(_ context.Context, workspaceID uuid.UUID) {
+func (f *fakeUpdater) publishWorkspaceUpdate(_ context.Context, _ uuid.UUID, event wspubsub.WorkspaceEvent) {
 	f.Lock()
 	defer f.Unlock()
-	f.updates = append(f.updates, workspaceID)
+	f.updates = append(f.updates, event.WorkspaceID)
 }
 
 func (f *fakeUpdater) requireEventuallySomeUpdates(t *testing.T, workspaceID uuid.UUID) {

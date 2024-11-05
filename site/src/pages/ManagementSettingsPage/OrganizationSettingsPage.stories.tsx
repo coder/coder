@@ -1,6 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { reactRouterParameters } from "storybook-addon-remix-react-router";
-import { MockDefaultOrganization, MockUser } from "testHelpers/entities";
+import {
+	MockDefaultOrganization,
+	MockOrganization,
+	MockOrganization2,
+	MockUser,
+} from "testHelpers/entities";
 import {
 	withAuthProvider,
 	withDashboardProvider,

@@ -3623,11 +3623,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/scim/v2/ServiceProviderConfig": {
+            "get": {
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Service Provider Config",
+                "operationId": "scim-get-service-provider-config",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/scim/v2/Users": {
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3647,7 +3664,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3683,7 +3700,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3713,7 +3730,7 @@ const docTemplate = `{
             "patch": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3749,6 +3766,25 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
+                    }
+                }
+            }
+        },
+        "/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "User-scoped tailnet RPC connection",
+                "operationId": "user-scoped-tailnet-rpc-connection",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -7685,6 +7721,15 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace proxy crypto keys",
                 "operationId": "get-workspace-proxy-crypto-keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feature key",
+                        "name": "feature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -9014,6 +9059,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentConnectionTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "stage": {
+                    "$ref": "#/definitions/codersdk.TimingStage"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -9028,13 +9095,19 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "status": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
                     "type": "string"
                 }
             }
@@ -9909,6 +9982,14 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "user_status": {
+                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "username": {
                     "type": "string"
                 }
@@ -10050,12 +10131,14 @@ const docTemplate = `{
         "codersdk.CryptoKeyFeature": {
             "type": "string",
             "enum": [
-                "workspace_apps",
+                "workspace_apps_api_key",
+                "workspace_apps_token",
                 "oidc_convert",
                 "tailnet_resume"
             ],
             "x-enum-varnames": [
-                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureWorkspaceAppsAPIKey",
+                "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
                 "CryptoKeyFeatureTailnetResume"
             ]
@@ -12154,7 +12237,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
@@ -12276,6 +12359,7 @@ const docTemplate = `{
                 "group_member",
                 "idpsync_settings",
                 "license",
+                "notification_message",
                 "notification_preference",
                 "notification_template",
                 "oauth2_app",
@@ -12309,6 +12393,7 @@ const docTemplate = `{
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
                 "ResourceLicense",
+                "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
@@ -13453,6 +13538,29 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TemplateVersionWarningUnsupportedWorkspaces"
+            ]
+        },
+        "codersdk.TimingStage": {
+            "type": "string",
+            "enum": [
+                "init",
+                "plan",
+                "graph",
+                "apply",
+                "start",
+                "stop",
+                "cron",
+                "connect"
+            ],
+            "x-enum-varnames": [
+                "TimingStageInit",
+                "TimingStagePlan",
+                "TimingStageGraph",
+                "TimingStageApply",
+                "TimingStageStart",
+                "TimingStageStop",
+                "TimingStageCron",
+                "TimingStageConnect"
             ]
         },
         "codersdk.TokenConfig": {
@@ -14810,7 +14918,14 @@ const docTemplate = `{
         "codersdk.WorkspaceBuildTimings": {
             "type": "object",
             "properties": {
+                "agent_connection_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentConnectionTiming"
+                    }
+                },
                 "agent_script_timings": {
+                    "description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AgentScriptTiming"
@@ -16305,9 +16420,6 @@ const docTemplate = `{
         "wsproxysdk.RegisterWorkspaceProxyResponse": {
             "type": "object",
             "properties": {
-                "app_security_key": {
-                    "type": "string"
-                },
                 "derp_force_websockets": {
                     "type": "boolean"
                 },
@@ -16342,6 +16454,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "Authorization": {
+            "type": "apiKey",
+            "name": "Authorizaiton",
+            "in": "header"
+        },
         "CoderSessionToken": {
             "type": "apiKey",
             "name": "Coder-Session-Token",

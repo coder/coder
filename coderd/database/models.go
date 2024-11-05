@@ -345,9 +345,10 @@ func AllBuildReasonValues() []BuildReason {
 type CryptoKeyFeature string
 
 const (
-	CryptoKeyFeatureWorkspaceApps CryptoKeyFeature = "workspace_apps"
-	CryptoKeyFeatureOidcConvert   CryptoKeyFeature = "oidc_convert"
-	CryptoKeyFeatureTailnetResume CryptoKeyFeature = "tailnet_resume"
+	CryptoKeyFeatureWorkspaceAppsToken  CryptoKeyFeature = "workspace_apps_token"
+	CryptoKeyFeatureWorkspaceAppsAPIKey CryptoKeyFeature = "workspace_apps_api_key"
+	CryptoKeyFeatureOIDCConvert         CryptoKeyFeature = "oidc_convert"
+	CryptoKeyFeatureTailnetResume       CryptoKeyFeature = "tailnet_resume"
 )
 
 func (e *CryptoKeyFeature) Scan(src interface{}) error {
@@ -387,8 +388,9 @@ func (ns NullCryptoKeyFeature) Value() (driver.Value, error) {
 
 func (e CryptoKeyFeature) Valid() bool {
 	switch e {
-	case CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+	case CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume:
 		return true
 	}
@@ -397,8 +399,9 @@ func (e CryptoKeyFeature) Valid() bool {
 
 func AllCryptoKeyFeatureValues() []CryptoKeyFeature {
 	return []CryptoKeyFeature{
-		CryptoKeyFeatureWorkspaceApps,
-		CryptoKeyFeatureOidcConvert,
+		CryptoKeyFeatureWorkspaceAppsToken,
+		CryptoKeyFeatureWorkspaceAppsAPIKey,
+		CryptoKeyFeatureOIDCConvert,
 		CryptoKeyFeatureTailnetResume,
 	}
 }
@@ -2876,8 +2879,6 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
-	// Determines if the user should be forced to change their password.
-	MustResetPassword bool `db:"must_reset_password" json:"must_reset_password"`
 }
 
 type UserLink struct {
