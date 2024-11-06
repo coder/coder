@@ -20,12 +20,12 @@ import (
 )
 
 type GroupParams struct {
-	// SyncEnabled if false will skip syncing the user's groups
-	SyncEnabled  bool
+	// SyncEntitled if false will skip syncing the user's groups
+	SyncEntitled bool
 	MergedClaims jwt.MapClaims
 }
 
-func (AGPLIDPSync) GroupSyncEnabled() bool {
+func (AGPLIDPSync) GroupSyncEntitled() bool {
 	// AGPL does not support syncing groups.
 	return false
 }
@@ -73,13 +73,13 @@ func (s AGPLIDPSync) GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db 
 
 func (s AGPLIDPSync) ParseGroupClaims(_ context.Context, _ jwt.MapClaims) (GroupParams, *HTTPError) {
 	return GroupParams{
-		SyncEnabled: s.GroupSyncEnabled(),
+		SyncEntitled: s.GroupSyncEntitled(),
 	}, nil
 }
 
 func (s AGPLIDPSync) SyncGroups(ctx context.Context, db database.Store, user database.User, params GroupParams) error {
 	// Nothing happens if sync is not enabled
-	if !params.SyncEnabled {
+	if !params.SyncEntitled {
 		return nil
 	}
 

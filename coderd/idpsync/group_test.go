@@ -41,7 +41,7 @@ func TestParseGroupClaims(t *testing.T) {
 		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
 
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 
 	// AllowList has no effect in AGPL
@@ -61,7 +61,7 @@ func TestParseGroupClaims(t *testing.T) {
 
 		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 }
 
@@ -276,7 +276,7 @@ func TestGroupSyncTable(t *testing.T) {
 
 			// Do the group sync!
 			err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
-				SyncEnabled:  true,
+				SyncEntitled: true,
 				MergedClaims: userClaims,
 			})
 			require.NoError(t, err)
@@ -363,7 +363,7 @@ func TestGroupSyncTable(t *testing.T) {
 
 		// Do the group sync!
 		err = s.SyncGroups(ctx, db, user, idpsync.GroupParams{
-			SyncEnabled:  true,
+			SyncEntitled: true,
 			MergedClaims: userClaims,
 		})
 		require.NoError(t, err)
@@ -420,7 +420,7 @@ func TestSyncDisabled(t *testing.T) {
 
 	// Do the group sync!
 	err := s.SyncGroups(ctx, db, user, idpsync.GroupParams{
-		SyncEnabled: false,
+		SyncEntitled: false,
 		MergedClaims: jwt.MapClaims{
 			"groups": []string{"baz", "bop"},
 		},

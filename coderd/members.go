@@ -45,11 +45,7 @@ func (api *API) postOrganizationMember(rw http.ResponseWriter, r *http.Request) 
 	aReq.Old = database.AuditableOrganizationMember{}
 	defer commitAudit()
 
-	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled() {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user.",
-			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve this in your external IDP.", user.ID),
-		})
+	if !api.manualOrganizationMembership(ctx, rw, user) {
 		return
 	}
 
@@ -104,6 +100,7 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		apiKey            = httpmw.APIKey(r)
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
+		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			OrganizationID: organization.ID,
@@ -115,6 +112,10 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	)
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
+
+	if !api.manualOrganizationMembership(ctx, rw, user) {
+		return
+	}
 
 	if member.UserID == apiKey.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
@@ -371,4 +372,19 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 	}
 
 	return converted, nil
+}
+
+// manualOrganizationMembership checks if the user is an OIDC user and if organization sync is enabled.
+// If organization sync is enabled, manual organization assignment is not allowed,
+// since all organization membership is controlled by the external IDP.
+// TODO: Might be helpful to have an ignore list of organizations that can be manually assigned.
+func (api *API) manualOrganizationMembership(ctx context.Context, rw http.ResponseWriter, user database.User) bool {
+	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user.",
+			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", user.Username),
+		})
+		return false
+	}
+	return true
 }

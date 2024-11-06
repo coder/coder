@@ -100,7 +100,7 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "NoOrganizations",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    false,
+								SyncEntitled:   false,
 								IncludeDefault: true,
 								Organizations:  []uuid.UUID{},
 							},
@@ -112,7 +112,7 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "AlreadyInOrgs",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    false,
+								SyncEntitled:   false,
 								IncludeDefault: true,
 								Organizations:  []uuid.UUID{},
 							},
@@ -157,7 +157,7 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "NoOrganizations",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
+								SyncEntitled:   true,
 								IncludeDefault: true,
 								Organizations:  []uuid.UUID{},
 							},
@@ -171,7 +171,7 @@ func TestOrganizationSync(t *testing.T) {
 								"organizations": []string{"second", "extra"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
+								SyncEntitled:   true,
 								IncludeDefault: true,
 								Organizations:  []uuid.UUID{two.ID},
 							},
@@ -196,7 +196,7 @@ func TestOrganizationSync(t *testing.T) {
 								"organizations": []string{"second", "extra", "first", "third", "second", "second"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
+								SyncEntitled:   true,
 								IncludeDefault: true,
 								Organizations: []uuid.UUID{
 									two.ID, one.ID, three.ID,
@@ -247,7 +247,7 @@ func TestOrganizationSync(t *testing.T) {
 					}
 					require.Nil(t, httpErr, "no parse error")
 
-					require.Equal(t, exp.ExpectedParams.SyncEnabled, params.SyncEnabled, "match enabled")
+					require.Equal(t, exp.ExpectedParams.SyncEntitled, params.SyncEntitled, "match enabled")
 					require.Equal(t, exp.ExpectedParams.IncludeDefault, params.IncludeDefault, "match include default")
 					if exp.ExpectedParams.Organizations == nil {
 						exp.ExpectedParams.Organizations = []uuid.UUID{}

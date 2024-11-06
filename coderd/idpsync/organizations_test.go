@@ -34,7 +34,7 @@ func TestParseOrganizationClaims(t *testing.T) {
 
 		require.Empty(t, params.Organizations)
 		require.True(t, params.IncludeDefault)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 
 	t.Run("AGPL", func(t *testing.T) {
@@ -58,6 +58,6 @@ func TestParseOrganizationClaims(t *testing.T) {
 
 		require.Empty(t, params.Organizations)
 		require.False(t, params.IncludeDefault)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 }
