@@ -14117,7 +14117,7 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module
 FROM
 	workspace_resources
 WHERE
@@ -14138,6 +14138,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.Module,
 	)
 	return i, err
 }
@@ -14217,7 +14218,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module
 FROM
 	workspace_resources
 WHERE
@@ -14244,6 +14245,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.Module,
 		); err != nil {
 			return nil, err
 		}
@@ -14260,7 +14262,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module
 FROM
 	workspace_resources
 WHERE
@@ -14287,6 +14289,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.Module,
 		); err != nil {
 			return nil, err
 		}
@@ -14302,7 +14305,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -14325,6 +14328,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.Module,
 		); err != nil {
 			return nil, err
 		}
@@ -14343,7 +14347,7 @@ const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
 	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -14384,6 +14388,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.Module,
 	)
 	return i, err
 }

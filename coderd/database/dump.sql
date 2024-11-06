@@ -1634,6 +1634,16 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspace_modules (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    source text NOT NULL,
+    version text NOT NULL,
+    key text NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -1700,7 +1710,8 @@ CREATE TABLE workspace_resources (
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module text
 );
 
 CREATE TABLE workspaces (
