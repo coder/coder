@@ -268,7 +268,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			_ = conn.Close()
 		}
 	}()
-	controller.CoordCtrl = tailnet.NewSingleDestController(options.Logger, conn, agentID)
+	coordCtrl := tailnet.NewTunnelSrcCoordController(options.Logger, conn)
+	coordCtrl.AddDestination(agentID)
+	controller.CoordCtrl = coordCtrl
 	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
 	controller.Run(ctx)
 

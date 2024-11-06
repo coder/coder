@@ -1918,7 +1918,8 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		testCtx, testCtxCancel := context.WithCancel(context.Background())
 		t.Cleanup(testCtxCancel)
 		clientID := uuid.New()
-		ctrl := tailnet.NewSingleDestController(logger, conn, agentID)
+		ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+		ctrl.AddDestination(agentID)
 		auth := tailnet.ClientCoordinateeAuth{AgentID: agentID}
 		coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, auth, coordinator))
 		t.Cleanup(func() {
@@ -2408,7 +2409,8 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	t.Cleanup(testCtxCancel)
 	clientID := uuid.New()
-	ctrl := tailnet.NewSingleDestController(logger, conn, metadata.AgentID)
+	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+	ctrl.AddDestination(metadata.AgentID)
 	auth := tailnet.ClientCoordinateeAuth{AgentID: metadata.AgentID}
 	coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(
 		logger, clientID, auth, coordinator))
