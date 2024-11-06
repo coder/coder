@@ -23,7 +23,8 @@ const EnterpriseVersion: FC = () => {
 				</div>
 				<Button asChild>
 					<a href="https://coder.com/contact/sales" className="no-underline">
-						Upgrade
+						<SquareArrowOutUpRight size={14} />
+						Contact sales
 					</a>
 				</Button>
 			</header>
@@ -35,7 +36,7 @@ const EnterpriseVersion: FC = () => {
 				>
 					<span className="flex items-center">
 						<h2 className="text-sm font-semibold m-0">
-							Multi-Organization Access Controls&nbsp;
+							Multi-Organization access controls&nbsp;
 						</h2>
 						<SquareArrowOutUpRight size={14} />
 					</span>
@@ -52,7 +53,7 @@ const EnterpriseVersion: FC = () => {
 					href={docs("/admin/users/groups-roles")}
 				>
 					<span className="flex items-center">
-						<h2 className="text-sm font-semibold m-0">Custom Role&nbsp;</h2>
+						<h2 className="text-sm font-semibold m-0">Custom role&nbsp;</h2>
 						<SquareArrowOutUpRight size={14} />
 					</span>
 				</a>
@@ -69,7 +70,7 @@ const EnterpriseVersion: FC = () => {
 				>
 					<span className="flex items-center text-sm">
 						<h2 className="text-sm font-semibold m-0">
-							Org-Level Quotas for Chargeback&nbsp;
+							Org-Level quotas for chargeback&nbsp;
 						</h2>
 						<SquareArrowOutUpRight size={14} />
 					</span>
@@ -106,11 +107,9 @@ const OSSVersion: FC = () => {
 					</p>
 				</div>
 				<Button asChild>
-					<a
-						href="https://coder.com/pricing#compare-plans"
-						className="no-underline"
-					>
-						Compare Plans
+					<a href="https://coder.com/contact/sales" className="no-underline">
+						<SquareArrowOutUpRight size={14} />
+						Contact sales
 					</a>
 				</Button>
 			</div>
@@ -119,7 +118,7 @@ const OSSVersion: FC = () => {
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
 						<Expand size={18} className="text-content-secondary" />
-						&nbsp; Deploy Coder at Scale
+						&nbsp; Deploy coder at scale
 					</span>
 				</h2>
 				<p>
@@ -129,7 +128,7 @@ const OSSVersion: FC = () => {
 				<ul className="pl-5">
 					<li>
 						<span className="text-content-primary font-semibold">
-							High Availability
+							High availability
 						</span>
 						<br />
 						<span className="font-medium">
@@ -139,7 +138,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Multi-Organization Access Control
+							Multi-Organization access control
 						</span>
 						<br />
 						<span className="font-medium">
@@ -149,7 +148,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Unlimited External Authentication Integrations
+							Unlimited external authentication integrations
 						</span>
 						<br />
 						<span className="font-medium">
@@ -164,7 +163,7 @@ const OSSVersion: FC = () => {
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
 						<Coins size={18} className="text-content-secondary" />
-						&nbsp; Control Infrastructure Costs
+						&nbsp; Control infrastructure costs
 					</span>
 				</h2>
 				<p>
@@ -174,7 +173,7 @@ const OSSVersion: FC = () => {
 				<ul className="pl-5">
 					<li>
 						<span className="text-content-primary font-semibold">
-							Auto-Stop Idle Workspaces
+							Auto-Stop idle workspaces
 						</span>
 						<br />
 						<span className="font-medium">
@@ -184,7 +183,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Resource Quotas
+							Resource quotas
 						</span>
 						<br />
 						<span className="font-medium">
@@ -194,7 +193,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Usage Insights
+							Usage insights
 						</span>
 						<br />
 						<span className="font-medium">
@@ -209,7 +208,7 @@ const OSSVersion: FC = () => {
 				<h2 className="text-xl text-content-primary m-0">
 					<span className="flex flex-row items-center">
 						<Activity size={18} className="text-content-secondary" />
-						&nbsp; Govern Workspace Activity
+						&nbsp; Govern workspace activity
 					</span>
 				</h2>
 				<p>
@@ -219,7 +218,7 @@ const OSSVersion: FC = () => {
 				<ul className="pl-5">
 					<li>
 						<span className="text-content-primary font-semibold">
-							Audit Logging
+							Audit logging
 						</span>
 						<br />
 						<span className="font-medium">
@@ -229,7 +228,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Template Permissions
+							Template permissions
 						</span>
 						<br />
 						<span className="font-medium">
@@ -239,7 +238,7 @@ const OSSVersion: FC = () => {
 					</li>
 					<li>
 						<span className="text-content-primary font-semibold">
-							Workspace Command Logging
+							Workspace command logging
 						</span>
 						<br />
 						<span className="font-medium">
