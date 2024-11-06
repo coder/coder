@@ -12,6 +12,9 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
+	"golang.org/x/xerrors"
+	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
@@ -280,4 +283,227 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 	f.Lock()
 	defer f.Unlock()
 	f.callback = callback
+}
+
+func TestNewBasicDERPController_Mainline(t *testing.T) {
+	t.Parallel()
+	fs := make(chan *tailcfg.DERPMap)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	fc := fakeDERPClient{
+		ch: make(chan *tailcfg.DERPMap),
+	}
+	c := uut.New(fc)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	expectDM := &tailcfg.DERPMap{}
+	testutil.RequireSendCtx(ctx, t, fc.ch, expectDM)
+	gotDM := testutil.RequireRecvCtx(ctx, t, fs)
+	require.Equal(t, expectDM, gotDM)
+	err := c.Close(ctx)
+	require.NoError(t, err)
+	err = testutil.RequireRecvCtx(ctx, t, c.Wait())
+	require.ErrorIs(t, err, io.EOF)
+	// ensure Close is idempotent
+	err = c.Close(ctx)
+	require.NoError(t, err)
+}
+
+func TestNewBasicDERPController_RecvErr(t *testing.T) {
+	t.Parallel()
+	fs := make(chan *tailcfg.DERPMap)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
+	expectedErr := xerrors.New("a bad thing happened")
+	fc := fakeDERPClient{
+		ch:  make(chan *tailcfg.DERPMap),
+		err: expectedErr,
+	}
+	c := uut.New(fc)
+	ctx := testutil.Context(t, testutil.WaitShort)
+	err := testutil.RequireRecvCtx(ctx, t, c.Wait())
+	require.ErrorIs(t, err, expectedErr)
+	// ensure Close is idempotent
+	err = c.Close(ctx)
+	require.NoError(t, err)
+}
+
+type fakeSetter chan *tailcfg.DERPMap
+
+func (s fakeSetter) SetDERPMap(derpMap *tailcfg.DERPMap) {
+	s <- derpMap
+}
+
+type fakeDERPClient struct {
+	ch  chan *tailcfg.DERPMap
+	err error
+}
+
+func (f fakeDERPClient) Close() error {
+	close(f.ch)
+	return nil
+}
+
+func (f fakeDERPClient) Recv() (*tailcfg.DERPMap, error) {
+	if f.err != nil {
+		return nil, f.err
+	}
+	dm, ok := <-f.ch
+	if ok {
+		return dm, nil
+	}
+	return nil, io.EOF
+}
+
+func TestBasicTelemetryController_Success(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	uut := tailnet.NewBasicTelemetryController(logger)
+	ft := newFakeTelemetryClient()
+	uut.New(ft)
+
+	sendDone := make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{
+			Id: []byte("test event"),
+		})
+	}()
+
+	call := testutil.RequireRecvCtx(ctx, t, ft.calls)
+	require.Len(t, call.req.GetEvents(), 1)
+	require.Equal(t, call.req.GetEvents()[0].GetId(), []byte("test event"))
+
+	testutil.RequireSendCtx(ctx, t, call.errCh, nil)
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+}
+
+func TestBasicTelemetryController_Unimplemented(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	ft := newFakeTelemetryClient()
+
+	uut := tailnet.NewBasicTelemetryController(logger)
+	uut.New(ft)
+
+	// bad code, doesn't count
+	telemetryError := drpcerr.WithCode(xerrors.New("Unimplemented"), 0)
+
+	sendDone := make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+
+	call := testutil.RequireRecvCtx(ctx, t, ft.calls)
+	testutil.RequireSendCtx(ctx, t, call.errCh, telemetryError)
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+
+	sendDone = make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+
+	// we get another call since it wasn't really the Unimplemented error
+	call = testutil.RequireRecvCtx(ctx, t, ft.calls)
+
+	// for real this time
+	telemetryError = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+	testutil.RequireSendCtx(ctx, t, call.errCh, telemetryError)
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+
+	// now this returns immediately without a call, because unimplemented error disables calling
+	sendDone = make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+
+	// getting a "new" client resets
+	uut.New(ft)
+	sendDone = make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+	call = testutil.RequireRecvCtx(ctx, t, ft.calls)
+	testutil.RequireSendCtx(ctx, t, call.errCh, nil)
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+}
+
+func TestBasicTelemetryController_NotRecognised(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	ft := newFakeTelemetryClient()
+	uut := tailnet.NewBasicTelemetryController(logger)
+	uut.New(ft)
+
+	sendDone := make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+	// returning generic protocol error doesn't trigger unknown rpc logic
+	call := testutil.RequireRecvCtx(ctx, t, ft.calls)
+	testutil.RequireSendCtx(ctx, t, call.errCh, drpc.ProtocolError.New("Protocol Error"))
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+
+	sendDone = make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+	call = testutil.RequireRecvCtx(ctx, t, ft.calls)
+	// return the expected protocol error this time
+	testutil.RequireSendCtx(ctx, t, call.errCh,
+		drpc.ProtocolError.New("unknown rpc: /coder.tailnet.v2.Tailnet/PostTelemetry"))
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+
+	// now this returns immediately without a call, because unimplemented error disables calling
+	sendDone = make(chan struct{})
+	go func() {
+		defer close(sendDone)
+		uut.SendTelemetryEvent(&proto.TelemetryEvent{})
+	}()
+	testutil.RequireRecvCtx(ctx, t, sendDone)
+}
+
+type fakeTelemetryClient struct {
+	calls chan *fakeTelemetryCall
+}
+
+var _ tailnet.TelemetryClient = &fakeTelemetryClient{}
+
+func newFakeTelemetryClient() *fakeTelemetryClient {
+	return &fakeTelemetryClient{
+		calls: make(chan *fakeTelemetryCall),
+	}
+}
+
+// PostTelemetry implements tailnet.TelemetryClient
+func (f *fakeTelemetryClient) PostTelemetry(ctx context.Context, req *proto.TelemetryRequest) (*proto.TelemetryResponse, error) {
+	fr := &fakeTelemetryCall{req: req, errCh: make(chan error)}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case f.calls <- fr:
+		// OK
+	}
+	select {
+	case <-ctx.Done():
+		return nil, ctx.Err()
+	case err := <-fr.errCh:
+		return &proto.TelemetryResponse{}, err
+	}
+}
+
+type fakeTelemetryCall struct {
+	req   *proto.TelemetryRequest
+	errCh chan error
 }

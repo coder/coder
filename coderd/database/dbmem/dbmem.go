@@ -1104,6 +1104,19 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for _, script := range q.workspaceAgentScripts {
+		for _, id := range ids {
+			if script.WorkspaceAgentID == id {
+				scripts = append(scripts, script)
+				break
+			}
+		}
+	}
+	return scripts, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -5854,12 +5867,12 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	build, err := q.GetWorkspaceBuildByID(ctx, id)
+	build, err := q.getWorkspaceBuildByIDNoLock(ctx, id)
 	if err != nil {
 		return nil, xerrors.Errorf("get build: %w", err)
 	}
 
-	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get resources: %w", err)
 	}
@@ -5868,7 +5881,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		resourceIDs = append(resourceIDs, res.ID)
 	}
 
-	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	agents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get agents: %w", err)
 	}
@@ -5877,7 +5890,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
+	scripts, err := q.getWorkspaceAgentScriptsByAgentIDsNoLock(agentIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get scripts: %w", err)
 	}
@@ -5933,16 +5946,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	scripts := make([]database.WorkspaceAgentScript, 0)
-	for _, script := range q.workspaceAgentScripts {
-		for _, id := range ids {
-			if script.WorkspaceAgentID == id {
-				scripts = append(scripts, script)
-				break
-			}
-		}
-	}
-	return scripts, nil
+	return q.getWorkspaceAgentScriptsByAgentIDsNoLock(ids)
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {

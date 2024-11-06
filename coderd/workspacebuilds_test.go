@@ -1219,7 +1219,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 	// Tests will run in parallel. To avoid conflicts and race conditions on the
 	// build number, each test will have its own workspace and build.
-	makeBuild := func() database.WorkspaceBuild {
+	makeBuild := func(t *testing.T) database.WorkspaceBuild {
 		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			OrganizationID: owner.OrganizationID,
@@ -1260,7 +1260,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with no timings
-		build := makeBuild()
+		build := makeBuild(t)
 
 		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1277,7 +1277,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with provisioner timings
-		build := makeBuild()
+		build := makeBuild(t)
 		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
 
 		// When: fetching timings for the build
@@ -1305,7 +1305,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with agent script timings
-		build := makeBuild()
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1342,7 +1342,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with no agent scripts
-		build := makeBuild()
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1365,7 +1365,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with no agents
-		build := makeBuild()
+		build := makeBuild(t)
 		dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1385,7 +1385,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with an agent
-		build := makeBuild()
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1414,7 +1414,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		t.Parallel()
 
 		// Given: a build with multiple agents
-		build := makeBuild()
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})

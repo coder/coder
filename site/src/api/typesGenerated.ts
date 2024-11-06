@@ -1779,6 +1779,17 @@ export interface UsersRequest extends Pagination {
 	readonly q?: string;
 }
 
+// From codersdk/users.go
+export interface ValidateUserPasswordRequest {
+	readonly password: string;
+}
+
+// From codersdk/users.go
+export interface ValidateUserPasswordResponse {
+	readonly valid: boolean;
+	readonly details: string;
+}
+
 // From codersdk/client.go
 export interface ValidationError {
 	readonly field: string;

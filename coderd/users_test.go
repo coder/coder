@@ -1219,6 +1219,24 @@ func TestUpdateUserPassword(t *testing.T) {
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
 	})
 
+	t.Run("ValidateUserPassword", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.ValidateUserPassword(ctx, codersdk.ValidateUserPasswordRequest{
+			Password: "MySecurePassword!",
+		})
+
+		require.NoError(t, err, "users shoud be able to validate complexity of a potential new password")
+		require.True(t, resp.Valid)
+	})
+
 	t.Run("ChangingPasswordDeletesKeys", func(t *testing.T) {
 		t.Parallel()
 

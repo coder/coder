@@ -4,7 +4,11 @@ import { API, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
 import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { http, HttpResponse } from "msw";
-import { MockEntitlements, MockTemplate } from "testHelpers/entities";
+import {
+	MockEntitlements,
+	MockTemplate,
+	mockApiError,
+} from "testHelpers/entities";
 import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
@@ -110,6 +114,28 @@ describe("TemplateSettingsPage", () => {
 		});
 		await fillAndSubmitForm(validFormValues);
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+	});
+
+	it("displays an error if the name is taken", async () => {
+		await renderTemplateSettingsPage();
+		jest.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
+			mockApiError({
+				message: `Template with name "test-template" already exists`,
+				validations: [
+					{
+						field: "name",
+						detail: "This value is already in use and should be unique.",
+					},
+				],
+			}),
+		);
+		await fillAndSubmitForm(validFormValues);
+		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+		expect(
+			await screen.findByText(
+				"This value is already in use and should be unique.",
+			),
+		).toBeInTheDocument();
 	});
 
 	it("allows a description of 128 chars", () => {

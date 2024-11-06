@@ -1047,6 +1047,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
 				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {

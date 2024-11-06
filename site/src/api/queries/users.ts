@@ -9,6 +9,7 @@ import type {
 	UpdateUserProfileRequest,
 	User,
 	UsersRequest,
+	ValidateUserPasswordRequest,
 } from "api/typesGenerated";
 import {
 	type MetadataState,

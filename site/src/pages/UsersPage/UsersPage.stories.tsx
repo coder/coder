@@ -72,6 +72,9 @@ const meta: Meta<typeof UsersPage> = {
 	component: UsersPage,
 	parameters,
 	decorators: [withGlobalSnackbar, withAuthProvider, withDashboardProvider],
+	args: {
+		defaultNewPassword: "edWbqYiaVpEiEWwI",
+	},
 };
 
 export default meta;

@@ -298,3 +298,21 @@ func WorkspaceStatusToProto(status codersdk.WorkspaceStatus) proto.Workspace_Sta
 		return proto.Workspace_UNKNOWN
 	}
 }
+
+type DERPFromDRPCWrapper struct {
+	Client proto.DRPCTailnet_StreamDERPMapsClient
+}
+
+func (w *DERPFromDRPCWrapper) Close() error {
+	return w.Client.Close()
+}
+
+func (w *DERPFromDRPCWrapper) Recv() (*tailcfg.DERPMap, error) {
+	p, err := w.Client.Recv()
+	if err != nil {
+		return nil, err
+	}
+	return DERPMapFromProto(p), nil
+}
+
+var _ DERPClient = &DERPFromDRPCWrapper{}
