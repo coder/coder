@@ -67,8 +67,9 @@ OPTIONS:
       --postgres-host string, $CODER_PG_HOST
           PostgreSQL server hostname.
 
-      --postgres-options string, $CODER_PG_OPTIONS
-          PostgreSQL connection options (e.g. 'sslmode=require').
+      --postgres-options string-array, $CODER_PG_OPTIONS
+          PostgreSQL connection options (e.g. 'sslmode=require',
+          'connect_timeout=30').
 
       --postgres-password string, $CODER_PG_PASSWORD
           PostgreSQL password.

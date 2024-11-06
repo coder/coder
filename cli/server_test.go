@@ -182,7 +182,7 @@ func TestServer(t *testing.T) {
 			"--postgres-username", pgURL.User.Username(),
 			"--postgres-password", password,
 			"--postgres-database", database,
-			"--postgres-options", pgURL.Query().Encode(),
+			"--postgres-options", pgURL.Query().Encode()+",connect_timeout=30",
 		)
 
 		clitest.Start(t, inv.WithContext(ctx))
@@ -205,18 +205,39 @@ func TestServer(t *testing.T) {
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
 			"--postgres-host", "localhost",
-			"--postgres-host", "localhost",
 			"--postgres-port", "5432",
 			"--postgres-username", "coder",
 			"--postgres-password", "password",
 			"--postgres-database", "coder",
-			"--postgres-options", "sslmode=disable",
+			"--postgres-options", "sslmode=disable, connect_timeout=30",
 			"--postgres-url", "postgres://coder:password@localhost:5432/coder?sslmode=disable",
 		)
 
 		err := inv.WithContext(ctx).Run()
 		require.Error(t, err)
-		require.ErrorContains(t, err, "cannot specify both --postgres-url and individual postgres connection flags (--postgres-host, --postgres-username, etc). Please use only one connection method")
+		require.ErrorContains(t, err, "cannot specify both --postgres-url and individual postgres connection flags (--postgres-host, --postgres-username, etc), please specify only one connection method")
+	})
+
+	t.Run("IncompletePostgresConnectionFlags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
+		defer cancelFunc()
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--http-address", ":0",
+			"--access-url", "https://foobarbaz.mydomain",
+			"--cache-dir", t.TempDir(),
+			"--postgres-host", "localhost",
+			"--postgres-port", "5432",
+			"--postgres-database", "coder",
+			"--postgres-options", "sslmode=disable",
+		)
+
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "incomplete postgres connection details - when using individual flags, all of the following are required: --postgres-host, --postgres-username, --postgres-password, --postgres-database\n    Missing flags: --postgres-username, --postgres-password\n    Alternatively, use --postgres-url to specify the full connection URL")
 	})
 
 	t.Run("BuiltinPostgres", func(t *testing.T) {

@@ -395,22 +395,18 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			config := r.createConfig()
 
-			if vals.PostgresURL != "" && (vals.PostgresHost != "" || vals.PostgresUsername != "" ||
-				vals.PostgresPassword != "" || vals.PostgresDatabase != "") {
-				return xerrors.New("cannot specify both --postgres-url and individual postgres connection flags " +
-					"(--postgres-host, --postgres-username, etc). Please use only one connection method")
+			if err := validatePostgresFlags(vals); err != nil {
+				return xerrors.Errorf("validate postgres configuration: %w", err)
 			}
 
 			if vals.PostgresURL == "" && vals.PostgresHost != "" && vals.PostgresUsername != "" && vals.PostgresPassword != "" && vals.PostgresDatabase != "" {
-				pgURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
-					vals.PostgresUsername.String(),
-					vals.PostgresPassword.String(),
-					vals.PostgresHost.String(),
-					vals.PostgresPort.String(),
-					vals.PostgresDatabase.String(),
-					vals.PostgresOptions.String(),
-				)
-				err = vals.PostgresURL.Set(pgURL)
+				err = vals.PostgresURL.Set((&url.URL{
+					Scheme:   "postgres",
+					User:     url.UserPassword(vals.PostgresUsername.String(), vals.PostgresPassword.String()),
+					Host:     net.JoinHostPort(vals.PostgresHost.String(), vals.PostgresPort.String()),
+					Path:     "/" + vals.PostgresDatabase.String(),
+					RawQuery: strings.Join(vals.PostgresOptions.GetSlice(), "&"),
+				}).String())
 				if err != nil {
 					return err
 				}
@@ -1269,6 +1265,46 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 	)
 
 	return serverCmd
+}
+
+// validatePostgresFlags checks if the provided PostgreSQL connection flags are valid.
+// It returns an error if:
+// - Both postgres-url and individual flags are specified
+// - Individual flags are used but some required flags are missing
+func validatePostgresFlags(vals *codersdk.DeploymentValues) error {
+	// Check for conflicting connection methods
+	if vals.PostgresURL != "" && (vals.PostgresHost != "" || vals.PostgresUsername != "" ||
+		vals.PostgresPassword != "" || vals.PostgresDatabase != "") {
+		return xerrors.New("cannot specify both --postgres-url and individual postgres connection flags " +
+			"(--postgres-host, --postgres-username, etc), please specify only one connection method")
+	}
+
+	// Check for incomplete individual flag configuration
+	if vals.PostgresHost != "" || vals.PostgresUsername != "" || vals.PostgresPassword != "" || vals.PostgresDatabase != "" {
+		missingFlags := []string{}
+		if vals.PostgresHost == "" {
+			missingFlags = append(missingFlags, "--postgres-host")
+		}
+		if vals.PostgresUsername == "" {
+			missingFlags = append(missingFlags, "--postgres-username")
+		}
+		if vals.PostgresPassword == "" {
+			missingFlags = append(missingFlags, "--postgres-password")
+		}
+		if vals.PostgresDatabase == "" {
+			missingFlags = append(missingFlags, "--postgres-database")
+		}
+
+		if len(missingFlags) > 0 {
+			return xerrors.Errorf("incomplete postgres connection details - when using individual flags, all of the following are required: "+
+				"--postgres-host, --postgres-username, --postgres-password, --postgres-database\n"+
+				"Missing flags: %s\n"+
+				"Alternatively, use --postgres-url to specify the full connection URL",
+				strings.Join(missingFlags, ", "))
+		}
+	}
+
+	return nil
 }
 
 // templateHelpers builds a set of functions which can be called in templates.

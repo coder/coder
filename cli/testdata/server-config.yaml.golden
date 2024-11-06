@@ -455,9 +455,9 @@ pgUsername: ""
 # PostgreSQL database name.
 # (default: <unset>, type: string)
 pgDatabase: ""
-# PostgreSQL connection options (e.g. 'sslmode=require').
-# (default: <unset>, type: string)
-pgOptions: ""
+# PostgreSQL connection options (e.g. 'sslmode=require', 'connect_timeout=30').
+# (default: <unset>, type: string-array)
+pgOptions: []
 # A URL to an external Terms of Service that must be accepted by users when
 # logging in.
 # (default: <unset>, type: string)

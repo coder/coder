@@ -357,7 +357,7 @@ type DeploymentValues struct {
 	PostgresUsername                serpent.String                       `json:"pg_username,omitempty" typescript:",notnull"`
 	PostgresPassword                serpent.String                       `json:"pg_password,omitempty" typescript:",notnull"`
 	PostgresDatabase                serpent.String                       `json:"pg_database,omitempty" typescript:",notnull"`
-	PostgresOptions                 serpent.String                       `json:"pg_options,omitempty" typescript:",notnull"`
+	PostgresOptions                 serpent.StringArray                  `json:"pg_options,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
 	OIDC                            OIDCConfig                           `json:"oidc,omitempty" typescript:",notnull"`
 	Telemetry                       TelemetryConfig                      `json:"telemetry,omitempty" typescript:",notnull"`
@@ -2315,7 +2315,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Options",
-			Description: "PostgreSQL connection options (e.g. 'sslmode=require').",
+			Description: "PostgreSQL connection options (e.g. 'sslmode=require', 'connect_timeout=30').",
 			Flag:        "postgres-options",
 			Env:         "CODER_PG_OPTIONS",
 			Value:       &c.PostgresOptions,

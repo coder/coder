@@ -1037,11 +1037,11 @@ PostgreSQL database name.
 
 |             |                                |
 | ----------- | ------------------------------ |
-| Type        | <code>string</code>            |
+| Type        | <code>string-array</code>      |
 | Environment | <code>$CODER_PG_OPTIONS</code> |
 | YAML        | <code>pgOptions</code>         |
 
-PostgreSQL connection options (e.g. 'sslmode=require').
+PostgreSQL connection options (e.g. 'sslmode=require', 'connect_timeout=30').
 
 ### --secure-auth-cookie
 
