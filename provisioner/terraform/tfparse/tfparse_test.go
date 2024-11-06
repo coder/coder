@@ -3,8 +3,13 @@ package tfparse_test
 import (
 	"archive/tar"
 	"bytes"
+	"context"
+	"io"
+	"log"
 	"testing"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -326,7 +331,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 	}
 }
 
-func createTar(t *testing.T, files map[string]string) []byte {
+func createTar(t testing.TB, files map[string]string) []byte {
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
 	for path, content := range files {
@@ -348,10 +353,72 @@ func createTar(t *testing.T, files map[string]string) []byte {
 	return buffer.Bytes()
 }
 
-func createZip(t *testing.T, files map[string]string) []byte {
+func createZip(t testing.TB, files map[string]string) []byte {
 	ta := createTar(t, files)
 	tr := tar.NewReader(bytes.NewReader(ta))
 	za, err := archive.CreateZipFromTar(tr, int64(len(ta)))
 	require.NoError(t, err)
 	return za
+}
+
+// Current benchmark results before any changes / caching.
+// goos: linux
+// goarch: amd64
+// pkg: github.com/coder/coder/v2/provisioner/terraform/tfparse
+// cpu: AMD EPYC 7502P 32-Core Processor
+// BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	     766	   1493850 ns/op	  339935 B/op	    2238 allocs/op
+// BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	     706	   1633258 ns/op	  389421 B/op	    2296 allocs/op
+// PASS
+func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
+	files := map[string]string{
+		"main.tf": `
+		provider "foo" {}
+		resource "foo_bar" "baz" {}
+		variable "region" {
+			type    = string
+			default = "us"
+		}
+		data "coder_parameter" "az" {
+		  name = "az"
+			type = "string"
+			default = "a"
+		}
+		data "coder_workspace_tags" "tags" {
+			tags = {
+				"platform" = "kubernetes",
+				"cluster"  = "${"devel"}${"opers"}"
+				"region"   = var.region
+				"az"       = data.coder_parameter.az.value
+			}
+		}`,
+	}
+	tarFile := createTar(b, files)
+	zipFile := createZip(b, files)
+	logger := discardLogger(b)
+	b.ResetTimer()
+	b.Run("Tar", func(b *testing.B) {
+		ctx := context.Background()
+		for i := 0; i < b.N; i++ {
+			_, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, tarFile, "application/x-tar")
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+
+	b.Run("Zip", func(b *testing.B) {
+		ctx := context.Background()
+		for i := 0; i < b.N; i++ {
+			_, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, zipFile, "application/zip")
+			if err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func discardLogger(t testing.TB) slog.Logger {
+	l := slog.Make(sloghuman.Sink(io.Discard))
+	log.SetOutput(slog.Stdlib(context.Background(), l, slog.LevelInfo).Writer())
+	return l
 }
