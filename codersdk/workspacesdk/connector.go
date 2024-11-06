@@ -8,16 +8,12 @@ import (
 	"net/http"
 	"net/url"
 	"slices"
-	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"nhooyr.io/websocket"
-	"storj.io/drpc"
-	"storj.io/drpc/drpcerr"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
@@ -66,19 +62,12 @@ type tailnetAPIConnector struct {
 	dialOptions   *websocket.DialOptions
 	derpCtrl      tailnet.DERPController
 	coordCtrl     tailnet.CoordinationController
-	customDialFn  func() (proto.DRPCTailnetClient, error)
-
-	clientMu sync.RWMutex
-	client   proto.DRPCTailnetClient
+	telCtrl       *tailnet.BasicTelemetryController
 
 	connected   chan error
 	resumeToken *proto.RefreshResumeTokenResponse
 	isFirst     bool
 	closed      chan struct{}
-
-	// Only set to true if we get a response from the server that it doesn't support
-	// network telemetry.
-	telemetryUnavailable atomic.Bool
 }
 
 // Create a new tailnetAPIConnector without running it
@@ -92,6 +81,7 @@ func newTailnetAPIConnector(ctx context.Context, logger slog.Logger, agentID uui
 		dialOptions:   dialOptions,
 		connected:     make(chan error, 1),
 		closed:        make(chan struct{}),
+		telCtrl:       tailnet.NewBasicTelemetryController(logger),
 	}
 }
 
@@ -124,9 +114,6 @@ func (tac *tailnetAPIConnector) runConnector(conn tailnetConn) {
 			if err != nil {
 				continue
 			}
-			tac.clientMu.Lock()
-			tac.client = tailnetClient
-			tac.clientMu.Unlock()
 			tac.logger.Debug(tac.ctx, "obtained tailnet API v2+ client")
 			tac.runConnectorOnce(tailnetClient)
 			tac.logger.Debug(tac.ctx, "tailnet API v2+ connection lost")
@@ -141,9 +128,6 @@ var permanentErrorStatuses = []int{
 }
 
 func (tac *tailnetAPIConnector) dial() (proto.DRPCTailnetClient, error) {
-	if tac.customDialFn != nil {
-		return tac.customDialFn()
-	}
 	tac.logger.Debug(tac.ctx, "dialing Coder tailnet v2+ API")
 
 	u, err := url.Parse(tac.coordinateURL)
@@ -228,6 +212,8 @@ func (tac *tailnetAPIConnector) runConnectorOnce(client proto.DRPCTailnetClient)
 		}
 	}()
 
+	tac.telCtrl.New(client) // synchronous, doesn't need a goroutine
+
 	refreshTokenCtx, refreshTokenCancel := context.WithCancel(tac.ctx)
 	wg := sync.WaitGroup{}
 	wg.Add(3)
@@ -245,10 +231,7 @@ func (tac *tailnetAPIConnector) runConnectorOnce(client proto.DRPCTailnetClient)
 			// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 			// close the underlying connection. This will trigger a retry of the control plane in
 			// run().
-			tac.clientMu.Lock()
 			client.DRPCConn().Close()
-			tac.client = nil
-			tac.clientMu.Unlock()
 			// Note that derpMap() logs it own errors, we don't bother here.
 		}
 	}()
@@ -351,20 +334,5 @@ func (tac *tailnetAPIConnector) refreshToken(ctx context.Context, client proto.D
 }
 
 func (tac *tailnetAPIConnector) SendTelemetryEvent(event *proto.TelemetryEvent) {
-	tac.clientMu.RLock()
-	// We hold the lock for the entire telemetry request, but this would only block
-	// a coordinate retry, and closing the connection.
-	defer tac.clientMu.RUnlock()
-	if tac.client == nil || tac.telemetryUnavailable.Load() {
-		return
-	}
-	ctx, cancel := context.WithTimeout(tac.ctx, 5*time.Second)
-	defer cancel()
-	_, err := tac.client.PostTelemetry(ctx, &proto.TelemetryRequest{
-		Events: []*proto.TelemetryEvent{event},
-	})
-	if drpcerr.Code(err) == drpcerr.Unimplemented || drpc.ProtocolError.Has(err) && strings.Contains(err.Error(), "unknown rpc: ") {
-		tac.logger.Debug(tac.ctx, "attempted to send telemetry to a server that doesn't support it", slog.Error(err))
-		tac.telemetryUnavailable.Store(true)
-	}
+	tac.telCtrl.SendTelemetryEvent(event)
 }

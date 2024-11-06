@@ -4,11 +4,14 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"strings"
 	"sync"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 	"storj.io/drpc"
+	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -439,4 +442,84 @@ func (l *derpSetLoop) recvLoop() {
 		l.logger.Debug(context.Background(), "got new DERP Map", slog.F("derp_map", dm))
 		l.setter.SetDERPMap(dm)
 	}
+}
+
+type BasicTelemetryController struct {
+	logger slog.Logger
+
+	sync.Mutex
+	client      TelemetryClient
+	unavailable bool
+}
+
+func (b *BasicTelemetryController) New(client TelemetryClient) {
+	b.Lock()
+	defer b.Unlock()
+	b.client = client
+	b.unavailable = false
+	b.logger.Debug(context.Background(), "new telemetry client connected to controller")
+}
+
+func (b *BasicTelemetryController) SendTelemetryEvent(event *proto.TelemetryEvent) {
+	b.Lock()
+	if b.client == nil {
+		b.Unlock()
+		b.logger.Debug(context.Background(),
+			"telemetry event dropped; no client", slog.F("event", event))
+		return
+	}
+	if b.unavailable {
+		b.Unlock()
+		b.logger.Debug(context.Background(),
+			"telemetry event dropped; unavailable", slog.F("event", event))
+		return
+	}
+	client := b.client
+	b.Unlock()
+	unavailable := sendTelemetry(b.logger, client, event)
+	if unavailable {
+		b.Lock()
+		defer b.Unlock()
+		if b.client == client {
+			b.unavailable = true
+		}
+	}
+}
+
+func NewBasicTelemetryController(logger slog.Logger) *BasicTelemetryController {
+	return &BasicTelemetryController{logger: logger}
+}
+
+var (
+	_ TelemetrySink       = &BasicTelemetryController{}
+	_ TelemetryController = &BasicTelemetryController{}
+)
+
+func sendTelemetry(
+	logger slog.Logger, client TelemetryClient, event *proto.TelemetryEvent,
+) (
+	unavailable bool,
+) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	_, err := client.PostTelemetry(ctx, &proto.TelemetryRequest{
+		Events: []*proto.TelemetryEvent{event},
+	})
+	if drpcerr.Code(err) == drpcerr.Unimplemented ||
+		drpc.ProtocolError.Has(err) &&
+			strings.Contains(err.Error(), "unknown rpc: ") {
+		logger.Debug(
+			context.Background(),
+			"attempted to send telemetry to a server that doesn't support it",
+			slog.Error(err),
+		)
+		return true
+	} else if err != nil {
+		logger.Warn(
+			context.Background(),
+			"failed to post telemetry event",
+			slog.F("event", event), slog.Error(err),
+		)
+	}
+	return false
 }
