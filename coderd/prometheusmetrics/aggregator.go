@@ -335,10 +335,6 @@ func (ma *MetricsAggregator) Run(ctx context.Context) func() {
 				var input []annotatedMetric
 				output := make([]prometheus.Metric, 0, len(ma.store))
 
-				if len(ma.aggregateByLabels) == 0 {
-					ma.aggregateByLabels = agentmetrics.LabelAll
-				}
-
 				// If custom aggregation labels have not been chosen, generate Prometheus metrics without any pre-aggregation.
 				// This results in higher cardinality, but may be desirable in larger deployments.
 				//
