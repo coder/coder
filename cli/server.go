@@ -395,6 +395,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			config := r.createConfig()
 
+			if vals.PostgresURL != "" && (vals.PostgresHost != "" || vals.PostgresUsername != "" ||
+				vals.PostgresPassword != "" || vals.PostgresDatabase != "") {
+				return xerrors.New("cannot specify both --postgres-url and individual postgres connection flags " +
+					"(--postgres-host, --postgres-username, etc). Please use only one connection method")
+			}
+
 			if vals.PostgresURL == "" && vals.PostgresHost != "" && vals.PostgresUsername != "" && vals.PostgresPassword != "" && vals.PostgresDatabase != "" {
 				pgURL := fmt.Sprintf("postgres://%s:%s@%s:%s/%s?%s",
 					vals.PostgresUsername.String(),
@@ -408,7 +414,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err != nil {
 					return err
 				}
-				cliui.Infof(inv.Stdout, "Created PostgreSQL URL from provided flags")
 			}
 
 			builtinPostgres := false

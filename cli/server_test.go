@@ -157,28 +157,68 @@ func TestServer(t *testing.T) {
 	t.Run("PostgresURLFromFlags", func(t *testing.T) {
 		t.Parallel()
 
+		if runtime.GOOS != "linux" || testing.Short() {
+			// Skip on non-Linux because it spawns a PostgreSQL instance.
+			t.SkipNow()
+		}
+		connectionURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		pgURL, err := url.Parse(connectionURL)
+		require.NoError(t, err)
+		password, _ := pgURL.User.Password()
+		database := strings.TrimPrefix(pgURL.Path, "/")
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
+		defer cancelFunc()
+
 		inv, cfg := clitest.New(t,
 			"server",
 			"--http-address", ":0",
 			"--access-url", "https://foobarbaz.mydomain",
 			"--cache-dir", t.TempDir(),
+			"--postgres-host", pgURL.Hostname(),
+			"--postgres-port", pgURL.Port(),
+			"--postgres-username", pgURL.User.Username(),
+			"--postgres-password", password,
+			"--postgres-database", database,
+			"--postgres-options", pgURL.Query().Encode(),
+		)
+
+		clitest.Start(t, inv.WithContext(ctx))
+		accessURL := waitAccessURL(t, cfg)
+		client := codersdk.New(accessURL)
+
+		_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
+		require.NoError(t, err)
+	})
+
+	t.Run("InvalidPostgresConnectionFlags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
+		defer cancelFunc()
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--http-address", ":0",
+			"--access-url", "https://foobarbaz.mydomain",
+			"--cache-dir", t.TempDir(),
+			"--postgres-host", "localhost",
 			"--postgres-host", "localhost",
 			"--postgres-port", "5432",
 			"--postgres-username", "coder",
 			"--postgres-password", "password",
 			"--postgres-database", "coder",
 			"--postgres-options", "sslmode=disable",
+			"--postgres-url", "postgres://coder:password@localhost:5432/coder?sslmode=disable",
 		)
 
-		pty := ptytest.New(t).Attach(inv)
-
-		clitest.Start(t, inv)
-
-		// Just wait for startup
-		_ = waitAccessURL(t, cfg)
-
-		pty.ExpectMatch("Created PostgreSQL URL from provided flags")
+		err := inv.WithContext(ctx).Run()
+		require.Error(t, err)
+		require.ErrorContains(t, err, "cannot specify both --postgres-url and individual postgres connection flags (--postgres-host, --postgres-username, etc). Please use only one connection method")
 	})
+
 	t.Run("BuiltinPostgres", func(t *testing.T) {
 		t.Parallel()
 		if testing.Short() {
