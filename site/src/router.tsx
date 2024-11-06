@@ -270,6 +270,9 @@ const TemplateInsightsPage = lazy(
 	() =>
 		import("./pages/TemplatePage/TemplateInsightsPage/TemplateInsightsPage"),
 );
+const PremiumPage = lazy(
+	() => import("./pages/DeploymentSettingsPage/PremiumPage/PremiumPage"),
+);
 const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
@@ -450,6 +453,7 @@ export const router = createBrowserRouter(
 								path="notifications"
 								element={<DeploymentNotificationsPage />}
 							/>
+							<Route path="premium" element={<PremiumPage />} />
 						</Route>
 
 						<Route path="licenses">
