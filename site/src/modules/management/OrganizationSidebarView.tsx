@@ -2,6 +2,10 @@ import { cx } from "@emotion/css";
 import AddIcon from "@mui/icons-material/Add";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import {
+	Sidebar as BaseSidebar,
+	SettingsSidebarNavItem as SidebarNavSubItem,
+} from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { Permissions } from "contexts/auth/permissions";
@@ -9,10 +13,6 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem as SidebarNavSubItem,
-} from "components/Sidebar/Sidebar";
 
 export interface OrganizationWithPermissions extends Organization {
 	permissions: AuthorizationResponse;
