@@ -361,7 +361,8 @@ use the Coder CLI.
 
 ### Add the template files to Coder
 
-Add your template files to your Coder deployment. You can upload the template through the CLI, or through the Coder dashboard:
+Add your template files to your Coder deployment. You can upload the template
+through the CLI, or through the Coder dashboard:
 
 #### Upload template from the Coder CLI
 
@@ -378,15 +379,16 @@ Add your template files to your Coder deployment. You can upload the template th
 
    ```console
    > Confirm create? (yes/no) yes
-     
+
    The template-tour template has been created! Developers can provision a workspace with this template using:
-     
+
    coder create --template="template-tour" [workspace name]
    ```
 
 1. In your web browser, log in to your Coder dashboard, select **Templates**.
 
-1. Once the upload completes, select **Templates** from the top to deploy it to a new workspace.
+1. Once the upload completes, select **Templates** from the top to deploy it to
+   a new workspace.
 
    ![Your new template, ready to use](../images/templates/template-tour.png)
 
@@ -394,25 +396,28 @@ Add your template files to your Coder deployment. You can upload the template th
 
 1. Create a `.zip` of the template files.
 
-   On Mac or Windows, highlight the files and then right click. A "compress" option is available through the right-click context menu.
+   On Mac or Windows, highlight the files and then right click. A "compress"
+   option is available through the right-click context menu.
 
    Through the Linux command line, use `zip`:
 
    ```shell
    zip templates.zip Dockerfile main.tf
    ```
-     
-1. Select **Templates** from the top of the Coder dashboard, then **Create Template**.
-     
+
+1. Select **Templates** from the top of the Coder dashboard, then **Create
+   Template**.
 1. Select **Upload template**:
 
    ![Upload your first template](../images/templates/upload-create-your-first-template.png)
 
-1. Drag the `.zip` file into the **Upload template** section and fill out the details, then select **Create template**.
+1. Drag the `.zip` file into the **Upload template** section and fill out the
+   details, then select **Create template**.
 
    ![Upload the template files](../images/templates/upload-create-template-form.png)
 
-1. Once the upload completes, select **Templates** from the top to deploy it to a new workspace.
+1. Once the upload completes, select **Templates** from the top to deploy it to
+   a new workspace.
 
    ![Your new template, ready to use](../images/templates/template-tour.png)
 
