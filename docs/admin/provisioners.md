@@ -358,11 +358,11 @@ coder provisioner start
 
 ```sh
 docker run --rm -it \
--e CODER_URL=https://coder.example.com/ \
--e CODER_SESSION_TOKEN=your_token \
---entrypoint /opt/coder \
-ghcr.io/coder/coder:latest \
-provisioner start
+  -e CODER_URL=https://coder.example.com/ \
+  -e CODER_SESSION_TOKEN=your_token \
+  --entrypoint /opt/coder \
+  ghcr.io/coder/coder:latest \
+  provisioner start
 ```
 
 ## Disable built-in provisioners
