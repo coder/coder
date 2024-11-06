@@ -437,10 +437,9 @@ jobs:
           echo "password=$password" >> $GITHUB_OUTPUT
 
           coder login \
-            --first-user-username coder \
+            --first-user-username pr${{ env.PR_NUMBER }}-admin \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
-            --first-user-trial=false \
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}
 
@@ -452,6 +451,15 @@ jobs:
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
           coder stop kube -y
 
+          # Create a user for the github.actor
+          coder users create \
+            --user ${{ github.actor }}
+            --password $password
+            --email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+            --login-type github
+
+          # TODO promote the user to admin role
+
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
@@ -462,7 +470,7 @@ jobs:
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
               "pr_access_url": "'"https://${{ env.PR_HOSTNAME }}"'",
-              "pr_username": "'"test"'",
+              "pr_username": "'"pr${{ env.PR_NUMBER }}-admin"'",
               "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
               "pr_actor": "'"${{ github.actor }}"'"
