@@ -1,5 +1,5 @@
 import { Button } from "components/ui/button";
-import { SquareArrowOutUpRight } from "lucide-react";
+import { Activity, Coins, Expand, SquareArrowOutUpRight } from "lucide-react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -117,7 +117,10 @@ const OSSVersion: FC = () => {
 
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
-					Deploy Coder at Scale
+					<span className="flex flex-row items-center">
+						<Expand size={18} className="text-content-secondary" />
+						&nbsp; Deploy Coder at Scale
+					</span>
 				</h2>
 				<p>
 					Equip your enterprise to deploy and manage thousands of workspaces
@@ -159,7 +162,10 @@ const OSSVersion: FC = () => {
 
 			<section className="pb-10 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
-					Control Infrastructure Costs
+					<span className="flex flex-row items-center">
+						<Coins size={18} className="text-content-secondary" />
+						&nbsp; Control Infrastructure Costs
+					</span>
 				</h2>
 				<p>
 					Optimize cloud usage and maintain cost-effective resource management
@@ -201,7 +207,10 @@ const OSSVersion: FC = () => {
 
 			<section className="pb-5 max-w-xl text-sm text-content-secondary">
 				<h2 className="text-xl text-content-primary m-0">
-					Govern Workspace Activity
+					<span className="flex flex-row items-center">
+						<Activity size={18} className="text-content-secondary" />
+						&nbsp; Govern Workspace Activity
+					</span>
 				</h2>
 				<p>
 					Maintain security and compliance across your organization with robust
