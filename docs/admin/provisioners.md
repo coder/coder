@@ -273,12 +273,12 @@ template with the `scope=user` provisioner tag.
 
 ```sh
 coder provisioner start \
---tag scope=user
+  --tag scope=user
 
 # In another terminal, create/push
 # a template that requires user provisioners
 coder templates push on-prem \
---provisioner-tag scope=user
+  --provisioner-tag scope=user
 ```
 
 ## Example: Running an external provisioner with Helm
