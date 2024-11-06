@@ -55,7 +55,7 @@ such as `coderd_provisionerd_job_timings_seconds` and
 workspaces take to provision and how long the startup scripts take.
 
 To make use of these metrics, you will need to
-[enable Prometheus metrics](../../admin/integrations/prometheus#enable-prometheus-metrics)
+[enable Prometheus metrics](../../admin/integrations/prometheus.md#enable-prometheus-metrics)
 exposition.
 
 If you are not using the [Observability Chart](#coder-observability-chart), you
@@ -66,7 +66,7 @@ Coder installation.
 
 `coder server` by default provides three built-in provisioner daemons
 (controlled by the
-[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server#--provisioner-daemons)
+[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)
 config option). Each provisioner daemon can handle one single job (such as
 start, stop, or delete) at a time and can be resource intensive. When all
 provisioners are busy, workspaces enter a "pending" state until a provisioner
@@ -77,14 +77,14 @@ becomes available.
 Provisioners are queue-based to reduce unpredictable load to the Coder server.
 If you require a higher bandwidth of provisioner jobs, you can do so by
 increasing the
-[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server#--provisioner-daemons)
+[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)
 config option.
 
 You risk overloading Coder if you use too many built-in provisioners, so we
 recommend a maximum of five built-in provisioners per `coderd` replica. For more
 than five provisioners, we recommend that you move to
 [External Provisioners](../../admin/provisioners.md) and also consider
-[High Availability](../../admin/networking/high-availability) to run multiple
+[High Availability](../../admin/networking/high-availability.md) to run multiple
 `coderd` replicas.
 
 Visit the
@@ -160,7 +160,7 @@ provider versions.
 ### Cache directory
 
 Coder will instruct Terraform to cache its downloaded providers in the
-configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server#--cache-dir)
+configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server.md#--cache-dir)
 directory.
 
 Ensure that this directory is set to a location on disk which will persist
