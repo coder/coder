@@ -28,23 +28,17 @@ FROM
 INNER JOIN
 	workspaces on wb.workspace_id = workspaces.id
 WHERE
+	-- Only return workspaces that match the user + organization.
+	-- Quotas are calculated per user per organization.
+	NOT workspaces.deleted AND
 	workspaces.owner_id = @owner_id AND
 	workspaces.organization_id = @organization_id
 ORDER BY
 	wb.workspace_id,
-	wb.created_at DESC
+	wb.build_number DESC
 )
 SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
-	workspaces
-INNER JOIN latest_builds ON
-	latest_builds.workspace_id = workspaces.id
-WHERE
-	NOT deleted AND
-	-- We can likely remove these conditions since we check above.
-	-- But it does not hurt to be defensive and make sure future query changes
-	-- do not break anything.
-	workspaces.owner_id = @owner_id AND
-	workspaces.organization_id = @organization_id
+	latest_builds
 ;

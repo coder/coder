@@ -841,7 +841,17 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Template with name %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
 		return
 	}
 

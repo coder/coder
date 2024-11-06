@@ -2,11 +2,16 @@ package migrations
 
 import (
 	"context"
+	"crypto/sha256"
 	"database/sql"
 	"embed"
 	"errors"
+	"fmt"
 	"io/fs"
 	"os"
+	"sort"
+	"strings"
+	"sync"
 
 	"github.com/golang-migrate/migrate/v4"
 	"github.com/golang-migrate/migrate/v4/source"
@@ -16,6 +21,56 @@ import (
 
 //go:embed *.sql
 var migrations embed.FS
+
+var (
+	migrationsHash     string
+	migrationsHashOnce sync.Once
+)
+
+// A migrations hash is a sha256 hash of the contents and names
+// of the migrations sorted by filename.
+func calculateMigrationsHash(migrationsFs embed.FS) (string, error) {
+	files, err := migrationsFs.ReadDir(".")
+	if err != nil {
+		return "", xerrors.Errorf("read migrations directory: %w", err)
+	}
+	sortedFiles := make([]fs.DirEntry, len(files))
+	copy(sortedFiles, files)
+	sort.Slice(sortedFiles, func(i, j int) bool {
+		return sortedFiles[i].Name() < sortedFiles[j].Name()
+	})
+
+	var builder strings.Builder
+	for _, file := range sortedFiles {
+		if _, err := builder.WriteString(file.Name()); err != nil {
+			return "", xerrors.Errorf("write migration file name %q: %w", file.Name(), err)
+		}
+		content, err := migrationsFs.ReadFile(file.Name())
+		if err != nil {
+			return "", xerrors.Errorf("read migration file %q: %w", file.Name(), err)
+		}
+		if _, err := builder.Write(content); err != nil {
+			return "", xerrors.Errorf("write migration file content %q: %w", file.Name(), err)
+		}
+	}
+
+	hash := sha256.New()
+	if _, err := hash.Write([]byte(builder.String())); err != nil {
+		return "", xerrors.Errorf("write to hash: %w", err)
+	}
+	return fmt.Sprintf("%x", hash.Sum(nil)), nil
+}
+
+func GetMigrationsHash() string {
+	migrationsHashOnce.Do(func() {
+		hash, err := calculateMigrationsHash(migrations)
+		if err != nil {
+			panic(err)
+		}
+		migrationsHash = hash
+	})
+	return migrationsHash
+}
 
 func setup(db *sql.DB, migs fs.FS) (source.Driver, *migrate.Migrate, error) {
 	if migs == nil {

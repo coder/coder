@@ -324,14 +324,13 @@ test("display pending badge and update it to running when status changes", async
 		},
 	};
 
-	let calls = 0;
+	let running = false;
 	server.use(
 		http.get(
 			"/api/v2/organizations/:org/templates/:template/versions/:version",
 			() => {
-				calls += 1;
 				return HttpResponse.json(
-					calls > 1 ? MockRunningTemplateVersion : MockPendingTemplateVersion,
+					running ? MockRunningTemplateVersion : MockPendingTemplateVersion,
 				);
 			},
 		),
@@ -347,6 +346,10 @@ test("display pending badge and update it to running when status changes", async
 
 	const status = await screen.findByRole("status");
 	expect(status).toHaveTextContent("Pending");
+
+	// Manually update the endpoint, as to not rely on the editor page
+	// making a specific number of requests.
+	running = true;
 
 	await waitFor(
 		() => {

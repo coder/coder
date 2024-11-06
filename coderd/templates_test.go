@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -610,6 +611,32 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), 5)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+	})
+
+	t.Run("AlreadyExists", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires Postgres constraints")
+		}
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name: template2.Name,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
 	t.Run("AGPL_Deprecated", func(t *testing.T) {

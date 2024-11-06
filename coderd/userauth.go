@@ -447,6 +447,41 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 	}
 }
 
+// ValidateUserPassword validates the complexity of a user password and that it is secured enough.
+//
+// @Summary Validate user password
+// @ID validate-user-password
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Authorization
+// @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
+// @Success 200 {object} codersdk.ValidateUserPasswordResponse
+// @Router /users/validate-password [post]
+func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx     = r.Context()
+		valid   = true
+		details = ""
+	)
+
+	var req codersdk.ValidateUserPasswordRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := userpassword.Validate(req.Password)
+	if err != nil {
+		valid = false
+		details = err.Error()
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ValidateUserPasswordResponse{
+		Valid:   valid,
+		Details: details,
+	})
+}
+
 // Authenticates the user with an email and password.
 //
 // @Summary Log in user

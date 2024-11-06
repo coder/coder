@@ -6,9 +6,10 @@ import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FormFooter } from "components/FormFooter/FormFooter";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -186,7 +187,7 @@ export const CreateUserForm: FC<
 							);
 						})}
 					</TextField>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password", {
 							helperText:
 								form.values.login_type !== "password" &&
@@ -198,7 +199,6 @@ export const CreateUserForm: FC<
 						data-testid="password-input"
 						disabled={form.values.login_type !== "password"}
 						label={Language.passwordLabel}
-						type="password"
 					/>
 				</Stack>
 				<FormFooter

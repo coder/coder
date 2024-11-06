@@ -765,7 +765,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	$(GIT_FLAGS)  DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
+	$(GIT_FLAGS)  DB=ci gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \

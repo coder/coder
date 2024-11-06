@@ -32,9 +32,8 @@ func TestServerDBCrypt(t *testing.T) {
 	t.Cleanup(cancel)
 
 	// Setup a postgres database.
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closePg)
 	t.Cleanup(func() { dbtestutil.DumpOnFailure(t, connectionURL) })
 
 	sqlDB, err := sql.Open("postgres", connectionURL)

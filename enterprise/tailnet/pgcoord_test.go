@@ -798,9 +798,8 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	dburl, closeFn, err := dbtestutil.Open()
+	dburl, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closeFn)
 
 	store1, ps1, sdb1 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
 	defer sdb1.Close()

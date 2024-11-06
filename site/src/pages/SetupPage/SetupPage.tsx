@@ -3,7 +3,7 @@ import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { Navigate, useNavigate } from "react-router-dom";
@@ -24,6 +24,7 @@ export const SetupPage: FC = () => {
 	const { metadata } = useEmbeddedMetadata();
 	const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
 	const navigate = useNavigate();
+
 	useEffect(() => {
 		if (!buildInfoQuery.data) {
 			return;

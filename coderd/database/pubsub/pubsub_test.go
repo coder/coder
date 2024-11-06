@@ -24,9 +24,8 @@ func TestPGPubsub_Metrics(t *testing.T) {
 	}
 
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
@@ -132,9 +131,8 @@ func TestPGPubsubDriver(t *testing.T) {
 		IgnoreErrors: true,
 	}).Leveled(slog.LevelDebug)
 
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 
 	// use a separate subber and pubber so we can keep track of listener connections
 	db, err := sql.Open("postgres", connectionURL)
