@@ -14115,6 +14115,46 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
+const insertWorkspaceModule = `-- name: InsertWorkspaceModule :one
+INSERT INTO
+	workspace_modules (id, job_id, transition, source, version, key, created_at)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, job_id, transition, source, version, key, created_at
+`
+
+type InsertWorkspaceModuleParams struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Source     string              `db:"source" json:"source"`
+	Version    string              `db:"version" json:"version"`
+	Key        string              `db:"key" json:"key"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceModule,
+		arg.ID,
+		arg.JobID,
+		arg.Transition,
+		arg.Source,
+		arg.Version,
+		arg.Key,
+		arg.CreatedAt,
+	)
+	var i WorkspaceModule
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Transition,
+		&i.Source,
+		&i.Version,
+		&i.Key,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module

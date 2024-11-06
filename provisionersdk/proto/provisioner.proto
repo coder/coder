@@ -206,6 +206,12 @@ message Resource {
     int32 daily_cost = 8;
 }
 
+message Module {
+    string source = 1;
+    string version = 2;
+    string key = 3;
+}
+
 // WorkspaceTransition is the desired outcome of a build
 enum WorkspaceTransition {
     START = 0;
@@ -271,6 +277,7 @@ message PlanComplete {
     repeated RichParameter parameters = 3;
     repeated ExternalAuthProviderResource external_auth_providers = 4;
     repeated Timing timings = 6;
+    repeated Module modules = 7;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

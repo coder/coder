@@ -1267,6 +1267,24 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				}
 			}
 		}
+		for transition, modules := range map[database.WorkspaceTransition][]*sdkproto.Module{
+			database.WorkspaceTransitionStart: jobType.TemplateImport.StartModules,
+			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopModules,
+		} {
+			for _, module := range modules {
+				s.Logger.Info(ctx, "inserting template import job module",
+					slog.F("job_id", job.ID.String()),
+					slog.F("module_source", module.Source),
+					slog.F("module_version", module.Version),
+					slog.F("module_key", module.Key),
+					slog.F("transition", transition))
+
+				err = InsertWorkspaceModule(ctx, s.Database, jobID, transition, module)
+				if err != nil {
+					return nil, xerrors.Errorf("insert module: %w", err)
+				}
+			}
+		}
 
 		for _, richParameter := range jobType.TemplateImport.RichParameters {
 			s.Logger.Info(ctx, "inserting template import job parameter",
@@ -1472,6 +1490,12 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
+			for _, module := range jobType.WorkspaceBuild.Modules {
+				err = InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module)
+				if err != nil {
+					return xerrors.Errorf("insert provisioner job module: %w", err)
+				}
+			}
 
 			// On start, we want to ensure that workspace agents timeout statuses
 			// are propagated. This method is simple and does not protect against
@@ -1653,6 +1677,17 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return nil, xerrors.Errorf("insert resource: %w", err)
 			}
 		}
+		for _, module := range jobType.TemplateDryRun.Modules {
+			s.Logger.Info(ctx, "inserting template dry-run job module",
+				slog.F("job_id", job.ID.String()),
+				slog.F("module_source", module.Source),
+			)
+
+			err = InsertWorkspaceModule(ctx, s.Database, jobID, database.WorkspaceTransitionStart, module)
+			if err != nil {
+				return nil, xerrors.Errorf("insert module: %w", err)
+			}
+		}
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
@@ -1732,6 +1767,22 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	return s.Tracer.Start(ctx, name, append(opts, trace.WithAttributes(
 		semconv.ServiceNameKey.String("coderd.provisionerd"),
 	))...)
+}
+
+func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoModule *sdkproto.Module) error {
+	_, err := db.InsertWorkspaceModule(ctx, database.InsertWorkspaceModuleParams{
+		ID:         uuid.New(),
+		CreatedAt:  dbtime.Now(),
+		JobID:      jobID,
+		Transition: transition,
+		Source:     protoModule.Source,
+		Version:    protoModule.Version,
+		Key:        protoModule.Key,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job module %q: %w", protoModule.Source, err)
+	}
+	return nil
 }
 
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {

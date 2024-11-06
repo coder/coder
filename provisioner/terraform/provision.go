@@ -142,6 +142,11 @@ func (s *server) Plan(
 		return provisionersdk.PlanErrorf("initialize terraform: %s", err)
 	}
 
+	modules, err := getModules(sess.WorkDirectory)
+	if err != nil {
+		return provisionersdk.PlanErrorf("get modules: %s", err)
+	}
+
 	initTimings.ingest(createInitTimingsEvent(timingInitComplete))
 
 	s.logger.Debug(ctx, "ran initialization")
@@ -167,6 +172,7 @@ func (s *server) Plan(
 	// Prepend init timings since they occur prior to plan timings.
 	// Order is irrelevant; this is merely indicative.
 	resp.Timings = append(initTimings.aggregate(), resp.Timings...)
+	resp.Modules = modules
 	return resp
 }
 
