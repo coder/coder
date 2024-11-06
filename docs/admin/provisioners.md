@@ -324,8 +324,8 @@ will use in concert with the Helm chart for deploying the Coder server.
    This example creates a deployment of 10 provisioner daemons (for 10
    concurrent builds) authenticating using the above key. The daemons will
    authenticate using the provisioner key created in the previous step and
-   acquire jobs matching the tags specified when the provisioner key was created.
-   The set of tags is inferred automatically from the provisioner key.
+   acquire jobs matching the tags specified when the provisioner key was
+   created. The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml)
