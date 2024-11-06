@@ -58,7 +58,8 @@ OPTIONS:
           provided via other flags, PostgreSQL binaries will be downloaded from
           Maven (https://repo1.maven.org/maven2) and store all data in the
           config root. Access the built-in database with "coder server
-          postgres-builtin-url".
+          postgres-builtin-url". This can't be used together with individual
+          postgres connection flags.
 
       --postgres-database string, $CODER_PG_DATABASE
           PostgreSQL database name.

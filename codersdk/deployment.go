@@ -2257,7 +2257,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Connection URL",
-			Description: "URL of a PostgreSQL database. If empty and credentials are not provided via other flags, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Description: "URL of a PostgreSQL database. If empty and credentials are not provided via other flags, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\". This can't be used together with individual postgres connection flags.",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
