@@ -1877,7 +1877,7 @@ class ApiMethods {
 
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
-			headers: { "Content-Type": "application/x-tar" },
+			headers: { "Content-Type": file.type },
 		});
 
 		return response.data;
