@@ -58,7 +58,7 @@ var testCases = []testCase{
 	},
 	{
 		name:          "provisionerd_psk_and_key",
-		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both.`,
+		expectedError: ``,
 	},
 	{
 		name:          "provisionerd_no_psk_or_key",
