@@ -34,10 +34,6 @@ func (AGPLIDPSync) OrganizationSyncEnabled(_ context.Context, _ database.Store) 
 	return false
 }
 
-func (s AGPLIDPSync) AssignDefaultOrganization() bool {
-	return s.OrganizationAssignDefault
-}
-
 func (s AGPLIDPSync) UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
 	rlv := s.Manager.Resolver(db)
 	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
@@ -62,9 +58,9 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 		if s.DeploymentSyncSettings.OrganizationField != "" {
 			// Use static settings if set
 			orgSettings = &OrganizationSyncSettings{
-				OrganizationField:         s.DeploymentSyncSettings.OrganizationField,
-				OrganizationMapping:       s.DeploymentSyncSettings.OrganizationMapping,
-				OrganizationAssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
+				Field:         s.DeploymentSyncSettings.OrganizationField,
+				Mapping:       s.DeploymentSyncSettings.OrganizationMapping,
+				AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
 			}
 		}
 	}
@@ -92,7 +88,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return xerrors.Errorf("failed to get org sync settings: %w", err)
 	}
 
-	if orgSettings.OrganizationField == "" {
+	if orgSettings.Field == "" {
 		return nil // No sync configured, nothing to do
 	}
 
@@ -156,16 +152,16 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 }
 
 type OrganizationSyncSettings struct {
-	// OrganizationField selects the claim field to be used as the created user's
+	// Field selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
-	OrganizationField string
-	// OrganizationMapping controls how organizations returned by the OIDC provider get mapped
-	OrganizationMapping map[string][]uuid.UUID
-	// OrganizationAssignDefault will ensure all users that authenticate will be
+	Field string
+	// Mapping controls how organizations returned by the OIDC provider get mapped
+	Mapping map[string][]uuid.UUID
+	// AssignDefault will ensure all users that authenticate will be
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
-	OrganizationAssignDefault bool
+	AssignDefault bool
 }
 
 func (s *OrganizationSyncSettings) Set(v string) error {
@@ -181,7 +177,7 @@ func (s *OrganizationSyncSettings) String() string {
 func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.Store, mergedClaims jwt.MapClaims) ([]uuid.UUID, error) {
 	userOrganizations := make([]uuid.UUID, 0)
 
-	if s.OrganizationAssignDefault {
+	if s.AssignDefault {
 		// This is a bit hacky, but if AssignDefault is included, then always
 		// make sure to include the default org in the list of expected.
 		defaultOrg, err := db.GetDefaultOrganization(ctx)
@@ -193,7 +189,7 @@ func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.
 		userOrganizations = append(userOrganizations, defaultOrg.ID)
 	}
 
-	organizationRaw, ok := mergedClaims[s.OrganizationField]
+	organizationRaw, ok := mergedClaims[s.Field]
 	if !ok {
 		return userOrganizations, nil
 	}
@@ -205,7 +201,7 @@ func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.
 
 	// add any mapped organizations
 	for _, parsedOrg := range parsedOrganizations {
-		if mappedOrganization, ok := s.OrganizationMapping[parsedOrg]; ok {
+		if mappedOrganization, ok := s.Mapping[parsedOrg]; ok {
 			// parsedOrg is in the mapping, so add the mapped organizations to the
 			// user's organizations.
 			userOrganizations = append(userOrganizations, mappedOrganization...)

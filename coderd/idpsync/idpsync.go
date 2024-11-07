@@ -24,8 +24,9 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
-	AssignDefaultOrganization() bool
 	OrganizationSyncEntitled() bool
+	OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error)
+	UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error
 	// OrganizationSyncEnabled returns true if all OIDC users are assigned
 	// to organizations via org sync settings.
 	// This is used to know when to disable manual org membership assignment.

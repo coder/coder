@@ -235,11 +235,11 @@ func TestOrganizationSync(t *testing.T) {
 					},
 					// Override
 					RuntimeSettings: &idpsync.OrganizationSyncSettings{
-						OrganizationField: "dynamic",
-						OrganizationMapping: map[string][]uuid.UUID{
+						Field: "dynamic",
+						Mapping: map[string][]uuid.UUID{
 							"third": {three.ID},
 						},
-						OrganizationAssignDefault: false,
+						AssignDefault: false,
 					},
 					Exps: []Expectations{
 						{

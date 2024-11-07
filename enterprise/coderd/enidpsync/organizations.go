@@ -20,7 +20,7 @@ func (e EnterpriseIDPSync) OrganizationSyncEnabled(ctx context.Context, db datab
 	}
 
 	settings, err := e.OrganizationSyncSettings(ctx, db)
-	if err == nil && settings.OrganizationField != "" {
+	if err == nil && settings.Field != "" {
 		return true
 	}
 	return false
