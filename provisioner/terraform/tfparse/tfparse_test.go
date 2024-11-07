@@ -417,7 +417,7 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 	})
 }
 
-func discardLogger(t testing.TB) slog.Logger {
+func discardLogger(_ testing.TB) slog.Logger {
 	l := slog.Make(sloghuman.Sink(io.Discard))
 	log.SetOutput(slog.Stdlib(context.Background(), l, slog.LevelInfo).Writer())
 	return l
