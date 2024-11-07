@@ -557,7 +557,8 @@ FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspa
 
 -- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.*
+	workspaces.id,
+	workspaces.name
 FROM
 	workspaces
 LEFT JOIN
@@ -579,52 +580,65 @@ WHERE
 	) AND
 
 	(
-		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
+		-- isEligibleForAutostop
 		(
-			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < @now :: timestamptz
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
+			workspaces.dormant_at IS NULL AND
+			workspace_builds.transition = 'start'::workspace_transition AND (
+				users.status = 'suspended'::user_status OR (
+					workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamp AND
+					workspace_builds.deadline < @now :: timestamptz
+				)
+			)
 		) OR
 
-		-- If the workspace build was a stop transition, the workspace is
-		-- potentially eligible for autostart if it has a schedule set. The
-		-- caller must check if the template allows autostart in a license-aware
-		-- fashion as we cannot check it here.
+		-- isEligibleForAutostart
 		(
+			users.status = 'active'::user_status AND
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
 		) OR
 
-		-- If the workspace's most recent job resulted in an error
-		-- it may be eligible for failed stop.
+		-- isEligibleForDormantStop
 		(
-			provisioner_jobs.error IS NOT NULL AND
-			provisioner_jobs.error != '' AND
-			workspace_builds.transition = 'start'::workspace_transition
-		) OR
-
-		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for dormancy.
-		(
+			workspaces.dormant_at IS NULL AND
 			templates.time_til_dormant > 0 AND
-			workspaces.dormant_at IS NULL
+			(@now :: timestamptz) - workspaces.last_used_at > (INTERVAL '1 millisecond' * (templates.time_til_dormant / 1000000))
 		) OR
 
-		-- If the workspace's template has a time_til_dormant_autodelete set
-		-- and the workspace is already dormant.
+		-- isEligibleForDelete
 		(
+			workspaces.dormant_at IS NOT NULL AND
+			workspaces.deleting_at IS NOT NULL AND
+			workspaces.deleting_at < @now :: timestamptz AND
 			templates.time_til_dormant_autodelete > 0 AND
-			workspaces.dormant_at IS NOT NULL
+			CASE
+				WHEN (
+					workspace_builds.transition = 'delete'::workspace_transition AND
+					provisioner_jobs.job_status = 'failed'::provisioner_job_status
+				) THEN (
+					(
+						provisioner_jobs.canceled_at IS NOT NULL OR
+						provisioner_jobs.completed_at IS NOT NULL
+					) AND (
+						(@now :: timestamptz) - (CASE
+							WHEN provisioner_jobs.canceled_at IS NOT NULL THEN provisioner_jobs.canceled_at
+							ELSE provisioner_jobs.completed_at
+						END) > INTERVAL '24 hours'
+					)
+				)
+				ELSE true
+			END
 		) OR
 
-		-- If the user account is suspended, and the workspace is running.
+		-- isEligibleForFailedStop
 		(
-			users.status = 'suspended'::user_status AND
-			workspace_builds.transition = 'start'::workspace_transition
+			templates.failure_ttl > 0 AND
+			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
+			workspace_builds.transition = 'start'::workspace_transition AND
+			provisioner_jobs.completed_at IS NOT NULL AND
+			(@now :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
 	) AND workspaces.deleted = 'false';
 
@@ -727,5 +741,3 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;
-
-

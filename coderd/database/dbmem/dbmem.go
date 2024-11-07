@@ -6868,11 +6868,11 @@ func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, owner
 	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
 }
 
-func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
+func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	workspaces := []database.WorkspaceTable{}
+	workspaces := []database.GetWorkspacesEligibleForTransitionRow{}
 	for _, workspace := range q.workspaces {
 		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 		if err != nil {
@@ -6883,14 +6883,20 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			!build.Deadline.IsZero() &&
 			build.Deadline.Before(now) &&
 			!workspace.DormantAt.Valid {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 
 		if build.Transition == database.WorkspaceTransitionStop &&
 			workspace.AutostartSchedule.Valid &&
 			!workspace.DormantAt.Valid {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 
@@ -6899,7 +6905,10 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
 		}
 		if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 
@@ -6908,11 +6917,17 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, xerrors.Errorf("get template by ID: %w", err)
 		}
 		if !workspace.DormantAt.Valid && template.TimeTilDormant > 0 {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 
@@ -6921,7 +6936,10 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			return nil, xerrors.Errorf("get user by ID: %w", err)
 		}
 		if user.Status == database.UserStatusSuspended && build.Transition == database.WorkspaceTransitionStart {
-			workspaces = append(workspaces, workspace)
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 	}
