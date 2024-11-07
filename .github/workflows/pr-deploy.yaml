@@ -421,7 +421,7 @@ jobs:
           "${DEST}" version
           mv "${DEST}" /usr/local/bin/coder
 
-      - name: Create first user, template and workspace
+      - name: Create first user
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         id: setup_deployment
         run: |
@@ -452,14 +452,6 @@ jobs:
 
           # promote the user to admin role
           coder org members edit-role ${{ github.actor }} owner
-
-          # Create template
-          cd ./.github/pr-deployments/template
-          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
-
-          # Create workspace
-          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
-          coder stop kube -y
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -504,3 +496,14 @@ jobs:
             cc: @${{ github.actor }}
           reactions: rocket
           reactions-edit-mode: replace
+
+      - name: Create template and workspace
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          cd .github/pr-deployments/template
+          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+
+          # Create workspace
+          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
+          coder stop kube -y
