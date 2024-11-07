@@ -139,7 +139,7 @@ function withTheme(Story, context) {
 	// theme to the HTML class list. This approach is necessary because Tailwind
 	// CSS relies on class names to apply styles, and dynamically changing themes
 	// requires updating the class list accordingly.
-	document.querySelector("html")?.classList.add(selected);
+	document.querySelector("html")?.setAttribute("class", selected);
 
 	return (
 		<StrictMode>
