@@ -154,6 +154,16 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// Limit the concurrency to avoid overloading the database.
 	eg.SetLimit(10)
 
+	// We cache these values to help reduce load on the database.
+	// These could be outdated during our execution, but this is
+	// unlikely to be noticed or cause any unwanted behaviour.
+	var (
+		userCache             = newCacheOf[uuid.UUID, database.User]()
+		templateCache         = newCacheOf[uuid.UUID, database.Template]()
+		templateVersionCache  = newCacheOf[uuid.UUID, database.TemplateVersion]()
+		templateScheduleCache = newCacheOf[uuid.UUID, schedule.TemplateScheduleOptions]()
+	)
+
 	for _, ws := range workspaces {
 		wsID := ws.ID
 		wsName := ws.Name
@@ -184,7 +194,9 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get workspace by id: %w", err)
 					}
 
-					user, err := tx.GetUserByID(e.ctx, ws.OwnerID)
+					user, err := userCache.LoadOrStore(ws.OwnerID, func() (database.User, error) {
+						return tx.GetUserByID(e.ctx, ws.OwnerID)
+					})
 					if err != nil {
 						return xerrors.Errorf("get user by id: %w", err)
 					}
@@ -200,17 +212,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get latest provisioner job: %w", err)
 					}
 
-					templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
+					templateSchedule, err := templateScheduleCache.LoadOrStore(ws.TemplateID, func() (schedule.TemplateScheduleOptions, error) {
+						return (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
+					})
 					if err != nil {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
-					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					tmpl, err := templateCache.LoadOrStore(ws.TemplateID, func() (database.Template, error) {
+						return tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					})
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
 					}
 
-					activeTemplateVersion, err = tx.GetTemplateVersionByID(e.ctx, tmpl.ActiveVersionID)
+					activeTemplateVersion, err = templateVersionCache.LoadOrStore(tmpl.ActiveVersionID, func() (database.TemplateVersion, error) {
+						return tx.GetTemplateVersionByID(e.ctx, tmpl.ActiveVersionID)
+					})
 					if err != nil {
 						return xerrors.Errorf("get active template version by ID: %w", err)
 					}
