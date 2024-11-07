@@ -110,6 +110,8 @@ type Options struct {
 	// DNSConfigurator is optional, and is passed to the underlying wireguard
 	// engine.
 	DNSConfigurator dns.OSConfigurator
+	// Router is optional, and is passed to the underlying wireguard engine.
+	Router router.Router
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -183,6 +185,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		ListenPort:   options.ListenPort,
 		SetSubsystem: sys.Set,
 		DNS:          options.DNSConfigurator,
+		Router:       options.Router,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
