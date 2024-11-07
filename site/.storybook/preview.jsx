@@ -135,6 +135,12 @@ function withTheme(Story, context) {
 	const { themeOverride } = DecoratorHelpers.useThemeParameters();
 	const selected = themeOverride || selectedTheme || "dark";
 
+	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
+	// theme to the HTML class list. This approach is necessary because Tailwind
+	// CSS relies on class names to apply styles, and dynamically changing themes
+	// requires updating the class list accordingly.
+	document.querySelector("html")?.classList.add(selected);
+
 	return (
 		<StrictMode>
 			<StyledEngineProvider injectFirst>
