@@ -315,7 +315,7 @@ will use in concert with the Helm chart for deploying the Coder server.
          value: "https://coder.example.com"
      replicaCount: 10
    provisionerDaemon:
-     # NOTE: in older versions of the Helm chart, it is required to set this to an empty string.
+     # NOTE: in older versions of the Helm chart (2.17.0 and below), it is required to set this to an empty string.
      pskSecretName: ""
      keySecretName: "coder-provisioner-keys"
      keySecretKey: "my-cool-key"
