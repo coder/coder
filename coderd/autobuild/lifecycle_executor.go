@@ -205,7 +205,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
-					tmpl, err := tx.GetTemplateByID(e.ctx, ws.TemplateID)
+					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
 					}
