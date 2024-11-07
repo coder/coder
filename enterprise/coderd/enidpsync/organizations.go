@@ -35,5 +35,6 @@ func (e EnterpriseIDPSync) ParseOrganizationClaims(ctx context.Context, mergedCl
 	return idpsync.OrganizationParams{
 		// Return true if entitled
 		SyncEntitled: true,
+		MergedClaims: mergedClaims,
 	}, nil
 }

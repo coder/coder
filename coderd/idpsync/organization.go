@@ -39,6 +39,16 @@ func (s AGPLIDPSync) AssignDefaultOrganization() bool {
 	return s.OrganizationAssignDefault
 }
 
+func (s AGPLIDPSync) UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
+	rlv := s.Manager.Resolver(db)
+	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
+	if err != nil {
+		return xerrors.Errorf("update organization sync settings: %w", err)
+	}
+
+	return nil
+}
+
 func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error) {
 	rlv := s.Manager.Resolver(db)
 	orgSettings, err := s.SyncSettings.Organization.Resolve(ctx, rlv)
