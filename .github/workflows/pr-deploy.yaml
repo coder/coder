@@ -440,18 +440,18 @@ jobs:
             --first-user-username pr${{ env.PR_NUMBER }}-admin \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
+            --first-user-trial=false \
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}
 
           # Create a user for the github.actor
           coder users create \
-            --user ${{ github.actor }} \
-            --password $password \
-            --email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com" \ # this will be overwritten by the user's email when they login via github
+            --username ${{ github.actor }} \
+            --email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com" \
             --login-type github
 
           # promote the user to admin role
-          coder org members edit-role ${{ github.actor }} owner
+          coder org members edit-role ${{ github.actor }} organization-admin
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
