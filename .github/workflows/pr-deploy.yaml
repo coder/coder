@@ -110,7 +110,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
-          chmod 644 ~/.kube/config
+          chmod 600 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if the helm deployment already exists
@@ -284,7 +284,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
-          chmod 644 ~/.kube/config
+          chmod 600 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists
@@ -443,14 +443,6 @@ jobs:
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}
 
-          # Create template
-          cd ./.github/pr-deployments/template
-          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
-
-          # Create workspace
-          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
-          coder stop kube -y
-
           # Create a user for the github.actor
           coder users create \
             --user ${{ github.actor }} \
@@ -459,7 +451,15 @@ jobs:
             --login-type github
 
           # promote the user to admin role
-          # coder org members edit-role ${{ github.actor }} owner
+          coder org members edit-role ${{ github.actor }} owner
+
+          # Create template
+          cd ./.github/pr-deployments/template
+          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+
+          # Create workspace
+          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
+          coder stop kube -y
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
