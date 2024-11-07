@@ -44,6 +44,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @ID update-group-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
+// @Accept json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.GroupSyncSettings true "New settings"
@@ -138,6 +139,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @ID update-role-idp-sync-settings-by-organization
 // @Security CoderSessionToken
 // @Produce json
+// @Accept json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param request body codersdk.RoleSyncSettings true "New settings"
@@ -210,6 +212,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @ID update-organization-idp-sync-settings
 // @Security CoderSessionToken
 // @Produce json
+// @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
 // @Param request body codersdk.OrganizationSyncSettings true "New settings"

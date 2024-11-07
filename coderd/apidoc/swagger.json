@@ -2784,6 +2784,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update group IdP Sync settings by organization",
@@ -2853,6 +2854,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update role IdP Sync settings by organization",
@@ -3360,6 +3362,7 @@
 						"CoderSessionToken": []
 					}
 				],
+				"consumes": ["application/json"],
 				"produces": ["application/json"],
 				"tags": ["Enterprise"],
 				"summary": "Update organization IdP Sync settings",
