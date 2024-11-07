@@ -16,6 +16,7 @@
  * Storybook decorator function used to inject baseline data dependencies into
  * our React components during testing.
  */
+import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
