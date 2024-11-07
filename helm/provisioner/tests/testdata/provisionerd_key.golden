@@ -112,8 +112,6 @@ spec:
             secretKeyRef:
               key: provisionerd-key
               name: coder-provisionerd-key
-        - name: CODER_PROVISIONERD_TAGS
-          value: clusterType=k8s,location=auh
         - name: CODER_URL
           value: http://coder.default.svc.cluster.local
         image: ghcr.io/coder/coder:latest

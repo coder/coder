@@ -58,11 +58,15 @@ var testCases = []testCase{
 	},
 	{
 		name:          "provisionerd_psk_and_key",
-		expectedError: ``,
+		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both.`,
 	},
 	{
 		name:          "provisionerd_no_psk_or_key",
 		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified.`,
+	},
+	{
+		name:          "provisionerd_key_tags",
+		expectedError: `provisionerDaemon.tags may not be specified with provisionerDaemon.keySecretName.`,
 	},
 	{
 		name:          "extra_templates",
