@@ -100,7 +100,6 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 		apiKey            = httpmw.APIKey(r)
 		organization      = httpmw.OrganizationParam(r)
 		member            = httpmw.OrganizationMemberParam(r)
-		user              = httpmw.UserParam(r)
 		auditor           = api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.AuditableOrganizationMember](rw, &audit.RequestParams{
 			OrganizationID: organization.ID,
@@ -113,9 +112,13 @@ func (api *API) deleteOrganizationMember(rw http.ResponseWriter, r *http.Request
 	aReq.Old = member.OrganizationMember.Auditable(member.Username)
 	defer commitAudit()
 
-	if !api.manualOrganizationMembership(ctx, rw, user) {
-		return
-	}
+	// Note: we disallow adding OIDC users if organization sync is enabled.
+	// For removing members, do not have this same enforcement. As long as a user
+	// does not re-login, they will not be immediately removed from the organization.
+	// There might be an urgent need to revoke access.
+	// A user can re-login if they are removed in error.
+	// If we add a feature to force logout a user, then we can prevent manual
+	// member removal when organization sync is enabled, and use force logout instead.
 
 	if member.UserID == apiKey.UserID {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{Message: "cannot remove self from an organization"})
@@ -273,7 +276,7 @@ func (api *API) allowChangingMemberRoles(ctx context.Context, rw http.ResponseWr
 		}
 		if orgSync {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider.",
+				Message: "Cannot modify roles for OIDC users when role sync is enabled. This organization member's roles are managed by the identity provider. Have the user re-login to refresh their roles.",
 				Detail:  "'User Role Field' is set in the organization settings. Ask an administrator to adjust or disable these settings.",
 			})
 			return false
@@ -377,11 +380,10 @@ func convertOrganizationMembersWithUserData(ctx context.Context, db database.Sto
 // manualOrganizationMembership checks if the user is an OIDC user and if organization sync is enabled.
 // If organization sync is enabled, manual organization assignment is not allowed,
 // since all organization membership is controlled by the external IDP.
-// TODO: Might be helpful to have an ignore list of organizations that can be manually assigned.
 func (api *API) manualOrganizationMembership(ctx context.Context, rw http.ResponseWriter, user database.User) bool {
 	if user.LoginType == database.LoginTypeOIDC && api.IDPSync.OrganizationSyncEnabled(ctx, api.Database) {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user.",
+			Message: "Organization sync is enabled for OIDC users, meaning manual organization assignment is not allowed for this user. Have the user re-login to refresh their organizations.",
 			Detail:  fmt.Sprintf("User %s is an OIDC user and organization sync is enabled. Ask an administrator to resolve the membership in your external IDP.", user.Username),
 		})
 		return false
