@@ -1,0 +1,9 @@
+dirs:
+  - docs
+ignorePatterns:
+  - pattern: "://localhost"
+  - pattern: '://.*.?example\\.com'
+  - pattern: "github.com/<your_github_handle>"
+  - pattern: "mailto:"
+aliveStatusCodes:
+  - 200
