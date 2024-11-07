@@ -13,6 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"storj.io/drpc"
 	"storj.io/drpc/drpcerr"
 	"tailscale.com/tailcfg"
@@ -24,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestInMemoryCoordination(t *testing.T) {
@@ -505,5 +508,173 @@ func (f *fakeTelemetryClient) PostTelemetry(ctx context.Context, req *proto.Tele
 
 type fakeTelemetryCall struct {
 	req   *proto.TelemetryRequest
+	errCh chan error
+}
+
+func TestBasicResumeTokenController_Mainline(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fr := newFakeResumeTokenClient(ctx)
+	mClock := quartz.NewMock(t)
+	trp := mClock.Trap().TimerReset("basicResumeTokenRefresher", "refresh")
+	defer trp.Close()
+
+	uut := tailnet.NewBasicResumeTokenController(logger, mClock)
+	_, ok := uut.Token()
+	require.False(t, ok)
+
+	cwCh := make(chan tailnet.CloserWaiter, 1)
+	go func() {
+		cwCh <- uut.New(fr)
+	}()
+	call := testutil.RequireRecvCtx(ctx, t, fr.calls)
+	testutil.RequireSendCtx(ctx, t, call.resp, &proto.RefreshResumeTokenResponse{
+		Token:     "test token 1",
+		RefreshIn: durationpb.New(100 * time.Second),
+		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
+	})
+	trp.MustWait(ctx).Release() // initial refresh done
+	token, ok := uut.Token()
+	require.True(t, ok)
+	require.Equal(t, "test token 1", token)
+	cw := testutil.RequireRecvCtx(ctx, t, cwCh)
+
+	w := mClock.Advance(100 * time.Second)
+	call = testutil.RequireRecvCtx(ctx, t, fr.calls)
+	testutil.RequireSendCtx(ctx, t, call.resp, &proto.RefreshResumeTokenResponse{
+		Token:     "test token 2",
+		RefreshIn: durationpb.New(50 * time.Second),
+		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
+	})
+	resetCall := trp.MustWait(ctx)
+	require.Equal(t, resetCall.Duration, 50*time.Second)
+	resetCall.Release()
+	w.MustWait(ctx)
+	token, ok = uut.Token()
+	require.True(t, ok)
+	require.Equal(t, "test token 2", token)
+
+	err := cw.Close(ctx)
+	require.NoError(t, err)
+	err = testutil.RequireRecvCtx(ctx, t, cw.Wait())
+	require.NoError(t, err)
+
+	token, ok = uut.Token()
+	require.True(t, ok)
+	require.Equal(t, "test token 2", token)
+
+	mClock.Advance(201 * time.Second).MustWait(ctx)
+	_, ok = uut.Token()
+	require.False(t, ok)
+}
+
+func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	mClock := quartz.NewMock(t)
+	trp := mClock.Trap().TimerReset("basicResumeTokenRefresher", "refresh")
+	defer trp.Close()
+
+	uut := tailnet.NewBasicResumeTokenController(logger, mClock)
+	_, ok := uut.Token()
+	require.False(t, ok)
+
+	fr1 := newFakeResumeTokenClient(ctx)
+	cwCh1 := make(chan tailnet.CloserWaiter, 1)
+	go func() {
+		cwCh1 <- uut.New(fr1)
+	}()
+	call1 := testutil.RequireRecvCtx(ctx, t, fr1.calls)
+
+	fr2 := newFakeResumeTokenClient(ctx)
+	cwCh2 := make(chan tailnet.CloserWaiter, 1)
+	go func() {
+		cwCh2 <- uut.New(fr2)
+	}()
+	call2 := testutil.RequireRecvCtx(ctx, t, fr2.calls)
+
+	testutil.RequireSendCtx(ctx, t, call2.resp, &proto.RefreshResumeTokenResponse{
+		Token:     "test token 2.0",
+		RefreshIn: durationpb.New(102 * time.Second),
+		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
+	})
+
+	cw2 := testutil.RequireRecvCtx(ctx, t, cwCh2) // this ensures Close was called on 1
+
+	testutil.RequireSendCtx(ctx, t, call1.resp, &proto.RefreshResumeTokenResponse{
+		Token:     "test token 1",
+		RefreshIn: durationpb.New(101 * time.Second),
+		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
+	})
+
+	trp.MustWait(ctx).Release()
+
+	token, ok := uut.Token()
+	require.True(t, ok)
+	require.Equal(t, "test token 2.0", token)
+
+	// refresher 1 should already be closed.
+	cw1 := testutil.RequireRecvCtx(ctx, t, cwCh1)
+	err := testutil.RequireRecvCtx(ctx, t, cw1.Wait())
+	require.NoError(t, err)
+
+	w := mClock.Advance(102 * time.Second)
+	call := testutil.RequireRecvCtx(ctx, t, fr2.calls)
+	testutil.RequireSendCtx(ctx, t, call.resp, &proto.RefreshResumeTokenResponse{
+		Token:     "test token 2.1",
+		RefreshIn: durationpb.New(50 * time.Second),
+		ExpiresAt: timestamppb.New(mClock.Now().Add(200 * time.Second)),
+	})
+	resetCall := trp.MustWait(ctx)
+	require.Equal(t, resetCall.Duration, 50*time.Second)
+	resetCall.Release()
+	w.MustWait(ctx)
+	token, ok = uut.Token()
+	require.True(t, ok)
+	require.Equal(t, "test token 2.1", token)
+
+	err = cw2.Close(ctx)
+	require.NoError(t, err)
+	err = testutil.RequireRecvCtx(ctx, t, cw2.Wait())
+	require.NoError(t, err)
+}
+
+func newFakeResumeTokenClient(ctx context.Context) *fakeResumeTokenClient {
+	return &fakeResumeTokenClient{
+		ctx:   ctx,
+		calls: make(chan *fakeResumeTokenCall),
+	}
+}
+
+type fakeResumeTokenClient struct {
+	ctx   context.Context
+	calls chan *fakeResumeTokenCall
+}
+
+func (f *fakeResumeTokenClient) RefreshResumeToken(_ context.Context, _ *proto.RefreshResumeTokenRequest) (*proto.RefreshResumeTokenResponse, error) {
+	call := &fakeResumeTokenCall{
+		resp:  make(chan *proto.RefreshResumeTokenResponse),
+		errCh: make(chan error),
+	}
+	select {
+	case <-f.ctx.Done():
+		return nil, f.ctx.Err()
+	case f.calls <- call:
+		// OK
+	}
+	select {
+	case <-f.ctx.Done():
+		return nil, f.ctx.Err()
+	case err := <-call.errCh:
+		return nil, err
+	case resp := <-call.resp:
+		return resp, nil
+	}
+}
+
+type fakeResumeTokenCall struct {
+	resp  chan *proto.RefreshResumeTokenResponse
 	errCh chan error
 }
