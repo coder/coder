@@ -228,13 +228,13 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	q.Add("version", "2.0")
 	coordinateURL.RawQuery = q.Encode()
 
-	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, coordinateURL.String(), quartz.NewReal(),
-		&websocket.DialOptions{
-			HTTPClient: c.client.HTTPClient,
-			HTTPHeader: headers,
-			// Need to disable compression to avoid a data-race.
-			CompressionMode: websocket.CompressionDisabled,
-		})
+	dialer := NewWebsocketDialer(options.Logger, coordinateURL, &websocket.DialOptions{
+		HTTPClient: c.client.HTTPClient,
+		HTTPHeader: headers,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, dialer, quartz.NewReal())
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	var header http.Header
@@ -271,7 +271,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	select {
 	case <-dialCtx.Done():
 		return nil, xerrors.Errorf("timed out waiting for coordinator and derp map: %w", dialCtx.Err())
-	case err = <-connector.connected:
+	case err = <-dialer.Connected():
 		if err != nil {
 			options.Logger.Error(ctx, "failed to connect to tailnet v2+ API", slog.Error(err))
 			return nil, xerrors.Errorf("start connector: %w", err)
