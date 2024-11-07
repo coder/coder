@@ -52,16 +52,11 @@ func (s AGPLIDPSync) OrganizationSyncSettings(ctx context.Context, db database.S
 			return nil, xerrors.Errorf("resolve org sync settings: %w", err)
 		}
 
-		// Default to an empty config
-		orgSettings = &OrganizationSyncSettings{}
-
-		if s.DeploymentSyncSettings.OrganizationField != "" {
-			// Use static settings if set
-			orgSettings = &OrganizationSyncSettings{
-				Field:         s.DeploymentSyncSettings.OrganizationField,
-				Mapping:       s.DeploymentSyncSettings.OrganizationMapping,
-				AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
-			}
+		// Default to the statically assigned settings if they exist.
+		orgSettings = &OrganizationSyncSettings{
+			Field:         s.DeploymentSyncSettings.OrganizationField,
+			Mapping:       s.DeploymentSyncSettings.OrganizationMapping,
+			AssignDefault: s.DeploymentSyncSettings.OrganizationAssignDefault,
 		}
 	}
 	return orgSettings, nil
