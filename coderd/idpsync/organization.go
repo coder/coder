@@ -83,6 +83,9 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return nil
 	}
 
+	// nolint:gocritic // all syncing is done as a system user
+	ctx = dbauthz.AsSystemRestricted(ctx)
+
 	orgSettings, err := s.OrganizationSyncSettings(ctx, tx)
 	if err != nil {
 		return xerrors.Errorf("failed to get org sync settings: %w", err)
@@ -92,8 +95,6 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 		return nil // No sync configured, nothing to do
 	}
 
-	// nolint:gocritic // all syncing is done as a system user
-	ctx = dbauthz.AsSystemRestricted(ctx)
 	expectedOrgs, err := orgSettings.ParseClaims(ctx, tx, params.MergedClaims)
 	if err != nil {
 		return xerrors.Errorf("organization claims: %w", err)
@@ -113,8 +114,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	add, remove := slice.SymmetricDifference(existingOrgIDs, expectedOrgs)
 	notExists := make([]uuid.UUID, 0)
 	for _, orgID := range add {
-		//nolint:gocritic // System actor being used to assign orgs
-		_, err := tx.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
+		_, err := tx.InsertOrganizationMember(ctx, database.InsertOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user.ID,
 			CreatedAt:      dbtime.Now(),
@@ -131,8 +131,7 @@ func (s AGPLIDPSync) SyncOrganizations(ctx context.Context, tx database.Store, u
 	}
 
 	for _, orgID := range remove {
-		//nolint:gocritic // System actor being used to assign orgs
-		err := tx.DeleteOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.DeleteOrganizationMemberParams{
+		err := tx.DeleteOrganizationMember(ctx, database.DeleteOrganizationMemberParams{
 			OrganizationID: orgID,
 			UserID:         user.ID,
 		})

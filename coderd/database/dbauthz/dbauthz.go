@@ -33,9 +33,8 @@ var _ database.Store = (*querier)(nil)
 
 const wrapname = "dbauthz.querier"
 
-// NoActorError wraps ErrNoRows for the api to return a 404. This is the correct
-// response when the user is not authorized.
-var NoActorError = xerrors.Errorf("no authorization actor in context: %w", sql.ErrNoRows)
+// NoActorError is returned if no actor is present in the context.
+var NoActorError = xerrors.Errorf("no authorization actor in context")
 
 // NotAuthorizedError is a sentinel error that unwraps to sql.ErrNoRows.
 // This allows the internal error to be read by the caller if needed. Otherwise

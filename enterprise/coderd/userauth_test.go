@@ -182,9 +182,9 @@ func TestUserOIDC(t *testing.T) {
 			// claims.
 			runner.Login(t, jwt.MapClaims{
 				"email":        "alice@coder.com",
-				"organization": []string{"third"},
+				"organization": []string{"second"},
 			})
-			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgThree.ID})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgTwo.ID})
 		})
 
 		t.Run("MultiOrgWithoutDefault", func(t *testing.T) {
