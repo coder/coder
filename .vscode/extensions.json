@@ -10,6 +10,7 @@
 		"redhat.vscode-yaml",
 		"tekumara.typos-vscode",
 		"EditorConfig.EditorConfig",
-		"biomejs.biome"
+		"biomejs.biome",
+		"bradlc.vscode-tailwindcss"
 	]
 }
