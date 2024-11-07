@@ -35,7 +35,7 @@ env:
 {{- if and (empty .Values.provisionerDaemon.pskSecretName) (empty .Values.provisionerDaemon.keySecretName) }}
 {{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified." }}
 {{- else if and .Values.provisionerDaemon.keySecretName .Values.provisionerDaemon.keySecretKey }}
-	{{- if ne .Values.provisionerDaemon.pskSecretName "coder-provisioner-psk" }}
+	{{- if and (not (empty .Values.provisionerDaemon.pskSecretName)) (ne .Values.provisionerDaemon.pskSecretName "coder-provisioner-psk") }}
 	{{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both." }}
 	{{- else if .Values.provisionerDaemon.tags }}
 	{{ fail "provisionerDaemon.tags may not be specified with provisionerDaemon.keySecretName." }}
