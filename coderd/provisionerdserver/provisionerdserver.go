@@ -1800,6 +1800,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			String: protoResource.InstanceType,
 			Valid:  protoResource.InstanceType != "",
 		},
+		ModulePath: sql.NullString{
+			String: protoResource.ModulePath,
+			// empty string is root module
+			Valid: true,
+		},
 	})
 	if err != nil {
 		return xerrors.Errorf("insert provisioner job resource %q: %w", protoResource.Name, err)

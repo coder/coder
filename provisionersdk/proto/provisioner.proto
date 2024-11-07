@@ -204,6 +204,7 @@ message Resource {
     string icon = 6;
     string instance_type = 7;
     int32 daily_cost = 8;
+    string module_path = 9;
 }
 
 message Module {

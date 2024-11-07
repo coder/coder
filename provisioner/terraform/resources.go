@@ -11,6 +11,8 @@ import (
 
 	"github.com/coder/terraform-provider-coder/provider"
 
+	tfaddr "github.com/hashicorp/go-terraform-address"
+
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
 	"github.com/coder/coder/v2/codersdk"
@@ -593,6 +595,13 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				continue
 			}
 			label := convertAddressToLabel(resource.Address)
+			modulePath, err := convertAddressToModulePath(resource.Address)
+			if err != nil {
+				// Module path recording was added primarily to keep track of
+				// modules in telemetry. We're adding this fallback so we can
+				// detect if there are any issues with the address parsing.
+				modulePath = fmt.Sprintf("error parsing address: %s", resource.Address)
+			}
 
 			agents, exists := resourceAgents[label]
 			if exists {
@@ -608,6 +617,7 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 				Icon:         resourceIcon[label],
 				DailyCost:    resourceCost[label],
 				InstanceType: applyInstanceType(resource),
+				ModulePath:   modulePath,
 			})
 		}
 	}
@@ -750,6 +760,20 @@ func PtrInt32(number int) *int32 {
 func convertAddressToLabel(address string) string {
 	cut, _, _ := strings.Cut(address, "[")
 	return cut
+}
+
+// convertAddressToModulePath returns the module path from a Terraform address.
+// eg. "module.ec2_dev.ec2_instance.dev[0]" becomes "module.ec2_dev".
+// Empty string is returned for the root module.
+//
+// Module paths are defined in the Terraform spec:
+// https://github.com/hashicorp/terraform/blob/ef071f3d0e49ba421ae931c65b263827a8af1adb/website/docs/internals/resource-addressing.html.markdown#module-path
+func convertAddressToModulePath(address string) (string, error) {
+	addr, err := tfaddr.NewAddress(address)
+	if err != nil {
+		return "", xerrors.Errorf("parse address: %w", err)
+	}
+	return addr.ModulePath.String(), nil
 }
 
 func dependsOnAgent(graph *gographviz.Graph, agent *proto.Agent, resourceAgentID string, resource *tfjson.StateResource) bool {

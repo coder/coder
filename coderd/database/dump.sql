@@ -1711,7 +1711,7 @@ CREATE TABLE workspace_resources (
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     instance_type character varying(256),
     daily_cost integer DEFAULT 0 NOT NULL,
-    module text
+    module_path text
 );
 
 CREATE TABLE workspaces (

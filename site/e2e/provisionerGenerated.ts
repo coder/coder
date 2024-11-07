@@ -215,6 +215,7 @@ export interface Resource {
 	icon: string;
 	instanceType: string;
 	dailyCost: number;
+	modulePath: string;
 }
 
 export interface Resource_Metadata {
@@ -804,6 +805,9 @@ export const Resource = {
 		}
 		if (message.dailyCost !== 0) {
 			writer.uint32(64).int32(message.dailyCost);
+		}
+		if (message.modulePath !== "") {
+			writer.uint32(74).string(message.modulePath);
 		}
 		return writer;
 	},

@@ -1676,69 +1676,6 @@ func (x *Resource) GetDailyCost() int32 {
 	return 0
 }
 
-type Module struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Source  string `protobuf:"bytes,1,opt,name=source,proto3" json:"source,omitempty"`
-	Version string `protobuf:"bytes,2,opt,name=version,proto3" json:"version,omitempty"`
-	Key     string `protobuf:"bytes,3,opt,name=key,proto3" json:"key,omitempty"`
-}
-
-func (x *Module) Reset() {
-	*x = Module{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[17]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Module) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Module) ProtoMessage() {}
-
-func (x *Module) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[17]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Module.ProtoReflect.Descriptor instead.
-func (*Module) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *Module) GetSource() string {
-	if x != nil {
-		return x.Source
-	}
-	return ""
-}
-
-func (x *Module) GetVersion() string {
-	if x != nil {
-		return x.Version
-	}
-	return ""
-}
-
-func (x *Module) GetKey() string {
-	if x != nil {
-		return x.Key
-	}
-	return ""
-}
-
 // Metadata is information about a workspace used in the execution of a build
 type Metadata struct {
 	state         protoimpl.MessageState
@@ -1768,7 +1705,7 @@ type Metadata struct {
 func (x *Metadata) Reset() {
 	*x = Metadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[18]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1781,7 +1718,7 @@ func (x *Metadata) String() string {
 func (*Metadata) ProtoMessage() {}
 
 func (x *Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[18]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1794,7 +1731,7 @@ func (x *Metadata) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Metadata.ProtoReflect.Descriptor instead.
 func (*Metadata) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{18}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *Metadata) GetCoderUrl() string {
@@ -1939,7 +1876,7 @@ type Config struct {
 func (x *Config) Reset() {
 	*x = Config{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[19]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[18]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1952,7 +1889,7 @@ func (x *Config) String() string {
 func (*Config) ProtoMessage() {}
 
 func (x *Config) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[19]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[18]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1965,7 +1902,7 @@ func (x *Config) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Config.ProtoReflect.Descriptor instead.
 func (*Config) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{19}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{18}
 }
 
 func (x *Config) GetTemplateSourceArchive() []byte {
@@ -1999,7 +1936,7 @@ type ParseRequest struct {
 func (x *ParseRequest) Reset() {
 	*x = ParseRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[20]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[19]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2012,7 +1949,7 @@ func (x *ParseRequest) String() string {
 func (*ParseRequest) ProtoMessage() {}
 
 func (x *ParseRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[20]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[19]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2025,7 +1962,7 @@ func (x *ParseRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseRequest.ProtoReflect.Descriptor instead.
 func (*ParseRequest) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{20}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{19}
 }
 
 // ParseComplete indicates a request to parse completed.
@@ -2043,7 +1980,7 @@ type ParseComplete struct {
 func (x *ParseComplete) Reset() {
 	*x = ParseComplete{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[21]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[20]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2056,7 +1993,7 @@ func (x *ParseComplete) String() string {
 func (*ParseComplete) ProtoMessage() {}
 
 func (x *ParseComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[21]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[20]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2069,7 +2006,7 @@ func (x *ParseComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ParseComplete.ProtoReflect.Descriptor instead.
 func (*ParseComplete) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{21}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{20}
 }
 
 func (x *ParseComplete) GetError() string {
@@ -2115,7 +2052,7 @@ type PlanRequest struct {
 func (x *PlanRequest) Reset() {
 	*x = PlanRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[22]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[21]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2128,7 +2065,7 @@ func (x *PlanRequest) String() string {
 func (*PlanRequest) ProtoMessage() {}
 
 func (x *PlanRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[22]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[21]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2141,7 +2078,7 @@ func (x *PlanRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanRequest.ProtoReflect.Descriptor instead.
 func (*PlanRequest) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{22}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{21}
 }
 
 func (x *PlanRequest) GetMetadata() *Metadata {
@@ -2183,13 +2120,12 @@ type PlanComplete struct {
 	Parameters            []*RichParameter                `protobuf:"bytes,3,rep,name=parameters,proto3" json:"parameters,omitempty"`
 	ExternalAuthProviders []*ExternalAuthProviderResource `protobuf:"bytes,4,rep,name=external_auth_providers,json=externalAuthProviders,proto3" json:"external_auth_providers,omitempty"`
 	Timings               []*Timing                       `protobuf:"bytes,6,rep,name=timings,proto3" json:"timings,omitempty"`
-	Modules               []*Module                       `protobuf:"bytes,7,rep,name=modules,proto3" json:"modules,omitempty"`
 }
 
 func (x *PlanComplete) Reset() {
 	*x = PlanComplete{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[23]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[22]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2202,7 +2138,7 @@ func (x *PlanComplete) String() string {
 func (*PlanComplete) ProtoMessage() {}
 
 func (x *PlanComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[23]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[22]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2215,7 +2151,7 @@ func (x *PlanComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PlanComplete.ProtoReflect.Descriptor instead.
 func (*PlanComplete) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{23}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{22}
 }
 
 func (x *PlanComplete) GetError() string {
@@ -2253,13 +2189,6 @@ func (x *PlanComplete) GetTimings() []*Timing {
 	return nil
 }
 
-func (x *PlanComplete) GetModules() []*Module {
-	if x != nil {
-		return x.Modules
-	}
-	return nil
-}
-
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response
 // in the same Session.  The plan data is not transmitted over the wire and is cached by the provisioner in the Session.
 type ApplyRequest struct {
@@ -2273,7 +2202,7 @@ type ApplyRequest struct {
 func (x *ApplyRequest) Reset() {
 	*x = ApplyRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[24]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[23]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2286,7 +2215,7 @@ func (x *ApplyRequest) String() string {
 func (*ApplyRequest) ProtoMessage() {}
 
 func (x *ApplyRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[24]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[23]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2299,7 +2228,7 @@ func (x *ApplyRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyRequest.ProtoReflect.Descriptor instead.
 func (*ApplyRequest) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{24}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{23}
 }
 
 func (x *ApplyRequest) GetMetadata() *Metadata {
@@ -2326,7 +2255,7 @@ type ApplyComplete struct {
 func (x *ApplyComplete) Reset() {
 	*x = ApplyComplete{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[25]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[24]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2339,7 +2268,7 @@ func (x *ApplyComplete) String() string {
 func (*ApplyComplete) ProtoMessage() {}
 
 func (x *ApplyComplete) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[25]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[24]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2352,7 +2281,7 @@ func (x *ApplyComplete) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use ApplyComplete.ProtoReflect.Descriptor instead.
 func (*ApplyComplete) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{25}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{24}
 }
 
 func (x *ApplyComplete) GetState() []byte {
@@ -2414,7 +2343,7 @@ type Timing struct {
 func (x *Timing) Reset() {
 	*x = Timing{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[26]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[25]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2427,7 +2356,7 @@ func (x *Timing) String() string {
 func (*Timing) ProtoMessage() {}
 
 func (x *Timing) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[26]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[25]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2440,7 +2369,7 @@ func (x *Timing) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Timing.ProtoReflect.Descriptor instead.
 func (*Timing) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{26}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{25}
 }
 
 func (x *Timing) GetStart() *timestamppb.Timestamp {
@@ -2502,7 +2431,7 @@ type CancelRequest struct {
 func (x *CancelRequest) Reset() {
 	*x = CancelRequest{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[27]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[26]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2515,7 +2444,7 @@ func (x *CancelRequest) String() string {
 func (*CancelRequest) ProtoMessage() {}
 
 func (x *CancelRequest) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[27]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[26]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2528,7 +2457,7 @@ func (x *CancelRequest) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CancelRequest.ProtoReflect.Descriptor instead.
 func (*CancelRequest) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{27}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{26}
 }
 
 type Request struct {
@@ -2549,7 +2478,7 @@ type Request struct {
 func (x *Request) Reset() {
 	*x = Request{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[28]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[27]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2562,7 +2491,7 @@ func (x *Request) String() string {
 func (*Request) ProtoMessage() {}
 
 func (x *Request) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[28]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[27]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2575,7 +2504,7 @@ func (x *Request) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Request.ProtoReflect.Descriptor instead.
 func (*Request) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{28}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{27}
 }
 
 func (m *Request) GetType() isRequest_Type {
@@ -2671,7 +2600,7 @@ type Response struct {
 func (x *Response) Reset() {
 	*x = Response{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[29]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[28]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2684,7 +2613,7 @@ func (x *Response) String() string {
 func (*Response) ProtoMessage() {}
 
 func (x *Response) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[29]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[28]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2697,7 +2626,7 @@ func (x *Response) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Response.ProtoReflect.Descriptor instead.
 func (*Response) Descriptor() ([]byte, []int) {
-	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{29}
+	return file_provisionersdk_proto_provisioner_proto_rawDescGZIP(), []int{28}
 }
 
 func (m *Response) GetType() isResponse_Type {
@@ -2779,7 +2708,7 @@ type Agent_Metadata struct {
 func (x *Agent_Metadata) Reset() {
 	*x = Agent_Metadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[30]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[29]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2792,7 +2721,7 @@ func (x *Agent_Metadata) String() string {
 func (*Agent_Metadata) ProtoMessage() {}
 
 func (x *Agent_Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[30]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[29]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -2864,7 +2793,7 @@ type Resource_Metadata struct {
 func (x *Resource_Metadata) Reset() {
 	*x = Resource_Metadata{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[32]
+		mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[31]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -2877,7 +2806,7 @@ func (x *Resource_Metadata) String() string {
 func (*Resource_Metadata) ProtoMessage() {}
 
 func (x *Resource_Metadata) ProtoReflect() protoreflect.Message {
-	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[32]
+	mi := &file_provisionersdk_proto_provisioner_proto_msgTypes[31]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -3395,7 +3324,7 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 }
 
 var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
+var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 33)
 var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
 	(LogLevel)(0),                        // 0: provisioner.LogLevel
 	(AppSharingLevel)(0),                 // 1: provisioner.AppSharingLevel
@@ -3418,74 +3347,72 @@ var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
 	(*App)(nil),                          // 18: provisioner.App
 	(*Healthcheck)(nil),                  // 19: provisioner.Healthcheck
 	(*Resource)(nil),                     // 20: provisioner.Resource
-	(*Module)(nil),                       // 21: provisioner.Module
-	(*Metadata)(nil),                     // 22: provisioner.Metadata
-	(*Config)(nil),                       // 23: provisioner.Config
-	(*ParseRequest)(nil),                 // 24: provisioner.ParseRequest
-	(*ParseComplete)(nil),                // 25: provisioner.ParseComplete
-	(*PlanRequest)(nil),                  // 26: provisioner.PlanRequest
-	(*PlanComplete)(nil),                 // 27: provisioner.PlanComplete
-	(*ApplyRequest)(nil),                 // 28: provisioner.ApplyRequest
-	(*ApplyComplete)(nil),                // 29: provisioner.ApplyComplete
-	(*Timing)(nil),                       // 30: provisioner.Timing
-	(*CancelRequest)(nil),                // 31: provisioner.CancelRequest
-	(*Request)(nil),                      // 32: provisioner.Request
-	(*Response)(nil),                     // 33: provisioner.Response
-	(*Agent_Metadata)(nil),               // 34: provisioner.Agent.Metadata
-	nil,                                  // 35: provisioner.Agent.EnvEntry
-	(*Resource_Metadata)(nil),            // 36: provisioner.Resource.Metadata
-	nil,                                  // 37: provisioner.ParseComplete.WorkspaceTagsEntry
-	(*timestamppb.Timestamp)(nil),        // 38: google.protobuf.Timestamp
+	(*Metadata)(nil),                     // 21: provisioner.Metadata
+	(*Config)(nil),                       // 22: provisioner.Config
+	(*ParseRequest)(nil),                 // 23: provisioner.ParseRequest
+	(*ParseComplete)(nil),                // 24: provisioner.ParseComplete
+	(*PlanRequest)(nil),                  // 25: provisioner.PlanRequest
+	(*PlanComplete)(nil),                 // 26: provisioner.PlanComplete
+	(*ApplyRequest)(nil),                 // 27: provisioner.ApplyRequest
+	(*ApplyComplete)(nil),                // 28: provisioner.ApplyComplete
+	(*Timing)(nil),                       // 29: provisioner.Timing
+	(*CancelRequest)(nil),                // 30: provisioner.CancelRequest
+	(*Request)(nil),                      // 31: provisioner.Request
+	(*Response)(nil),                     // 32: provisioner.Response
+	(*Agent_Metadata)(nil),               // 33: provisioner.Agent.Metadata
+	nil,                                  // 34: provisioner.Agent.EnvEntry
+	(*Resource_Metadata)(nil),            // 35: provisioner.Resource.Metadata
+	nil,                                  // 36: provisioner.ParseComplete.WorkspaceTagsEntry
+	(*timestamppb.Timestamp)(nil),        // 37: google.protobuf.Timestamp
 }
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	6,  // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
 	0,  // 1: provisioner.Log.level:type_name -> provisioner.LogLevel
-	35, // 2: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
+	34, // 2: provisioner.Agent.env:type_name -> provisioner.Agent.EnvEntry
 	18, // 3: provisioner.Agent.apps:type_name -> provisioner.App
-	34, // 4: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
+	33, // 4: provisioner.Agent.metadata:type_name -> provisioner.Agent.Metadata
 	15, // 5: provisioner.Agent.display_apps:type_name -> provisioner.DisplayApps
 	17, // 6: provisioner.Agent.scripts:type_name -> provisioner.Script
 	16, // 7: provisioner.Agent.extra_envs:type_name -> provisioner.Env
 	19, // 8: provisioner.App.healthcheck:type_name -> provisioner.Healthcheck
 	1,  // 9: provisioner.App.sharing_level:type_name -> provisioner.AppSharingLevel
 	14, // 10: provisioner.Resource.agents:type_name -> provisioner.Agent
-	36, // 11: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
+	35, // 11: provisioner.Resource.metadata:type_name -> provisioner.Resource.Metadata
 	2,  // 12: provisioner.Metadata.workspace_transition:type_name -> provisioner.WorkspaceTransition
 	5,  // 13: provisioner.ParseComplete.template_variables:type_name -> provisioner.TemplateVariable
-	37, // 14: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
-	22, // 15: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
+	36, // 14: provisioner.ParseComplete.workspace_tags:type_name -> provisioner.ParseComplete.WorkspaceTagsEntry
+	21, // 15: provisioner.PlanRequest.metadata:type_name -> provisioner.Metadata
 	8,  // 16: provisioner.PlanRequest.rich_parameter_values:type_name -> provisioner.RichParameterValue
 	9,  // 17: provisioner.PlanRequest.variable_values:type_name -> provisioner.VariableValue
 	13, // 18: provisioner.PlanRequest.external_auth_providers:type_name -> provisioner.ExternalAuthProvider
 	20, // 19: provisioner.PlanComplete.resources:type_name -> provisioner.Resource
 	7,  // 20: provisioner.PlanComplete.parameters:type_name -> provisioner.RichParameter
 	12, // 21: provisioner.PlanComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	30, // 22: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
-	21, // 23: provisioner.PlanComplete.modules:type_name -> provisioner.Module
-	22, // 24: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
-	20, // 25: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
-	7,  // 26: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
-	12, // 27: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
-	30, // 28: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
-	38, // 29: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
-	38, // 30: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
-	3,  // 31: provisioner.Timing.state:type_name -> provisioner.TimingState
-	23, // 32: provisioner.Request.config:type_name -> provisioner.Config
-	24, // 33: provisioner.Request.parse:type_name -> provisioner.ParseRequest
-	26, // 34: provisioner.Request.plan:type_name -> provisioner.PlanRequest
-	28, // 35: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
-	31, // 36: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
-	10, // 37: provisioner.Response.log:type_name -> provisioner.Log
-	25, // 38: provisioner.Response.parse:type_name -> provisioner.ParseComplete
-	27, // 39: provisioner.Response.plan:type_name -> provisioner.PlanComplete
-	29, // 40: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
-	32, // 41: provisioner.Provisioner.Session:input_type -> provisioner.Request
-	33, // 42: provisioner.Provisioner.Session:output_type -> provisioner.Response
-	42, // [42:43] is the sub-list for method output_type
-	41, // [41:42] is the sub-list for method input_type
-	41, // [41:41] is the sub-list for extension type_name
-	41, // [41:41] is the sub-list for extension extendee
-	0,  // [0:41] is the sub-list for field type_name
+	29, // 22: provisioner.PlanComplete.timings:type_name -> provisioner.Timing
+	21, // 23: provisioner.ApplyRequest.metadata:type_name -> provisioner.Metadata
+	20, // 24: provisioner.ApplyComplete.resources:type_name -> provisioner.Resource
+	7,  // 25: provisioner.ApplyComplete.parameters:type_name -> provisioner.RichParameter
+	12, // 26: provisioner.ApplyComplete.external_auth_providers:type_name -> provisioner.ExternalAuthProviderResource
+	29, // 27: provisioner.ApplyComplete.timings:type_name -> provisioner.Timing
+	37, // 28: provisioner.Timing.start:type_name -> google.protobuf.Timestamp
+	37, // 29: provisioner.Timing.end:type_name -> google.protobuf.Timestamp
+	3,  // 30: provisioner.Timing.state:type_name -> provisioner.TimingState
+	22, // 31: provisioner.Request.config:type_name -> provisioner.Config
+	23, // 32: provisioner.Request.parse:type_name -> provisioner.ParseRequest
+	25, // 33: provisioner.Request.plan:type_name -> provisioner.PlanRequest
+	27, // 34: provisioner.Request.apply:type_name -> provisioner.ApplyRequest
+	30, // 35: provisioner.Request.cancel:type_name -> provisioner.CancelRequest
+	10, // 36: provisioner.Response.log:type_name -> provisioner.Log
+	24, // 37: provisioner.Response.parse:type_name -> provisioner.ParseComplete
+	26, // 38: provisioner.Response.plan:type_name -> provisioner.PlanComplete
+	28, // 39: provisioner.Response.apply:type_name -> provisioner.ApplyComplete
+	31, // 40: provisioner.Provisioner.Session:input_type -> provisioner.Request
+	32, // 41: provisioner.Provisioner.Session:output_type -> provisioner.Response
+	41, // [41:42] is the sub-list for method output_type
+	40, // [40:41] is the sub-list for method input_type
+	40, // [40:40] is the sub-list for extension type_name
+	40, // [40:40] is the sub-list for extension extendee
+	0,  // [0:40] is the sub-list for field type_name
 }
 
 func init() { file_provisionersdk_proto_provisioner_proto_init() }
@@ -3699,18 +3626,6 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			}
 		}
 		file_provisionersdk_proto_provisioner_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Module); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Metadata); i {
 			case 0:
 				return &v.state
@@ -3722,7 +3637,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Config); i {
 			case 0:
 				return &v.state
@@ -3734,7 +3649,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[19].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ParseRequest); i {
 			case 0:
 				return &v.state
@@ -3746,7 +3661,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[20].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ParseComplete); i {
 			case 0:
 				return &v.state
@@ -3758,7 +3673,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[21].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PlanRequest); i {
 			case 0:
 				return &v.state
@@ -3770,7 +3685,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[22].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*PlanComplete); i {
 			case 0:
 				return &v.state
@@ -3782,7 +3697,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[23].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ApplyRequest); i {
 			case 0:
 				return &v.state
@@ -3794,7 +3709,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[24].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*ApplyComplete); i {
 			case 0:
 				return &v.state
@@ -3806,7 +3721,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[25].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Timing); i {
 			case 0:
 				return &v.state
@@ -3818,7 +3733,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[26].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*CancelRequest); i {
 			case 0:
 				return &v.state
@@ -3830,7 +3745,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[27].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Request); i {
 			case 0:
 				return &v.state
@@ -3842,7 +3757,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[28].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Response); i {
 			case 0:
 				return &v.state
@@ -3854,7 +3769,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[30].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[29].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Agent_Metadata); i {
 			case 0:
 				return &v.state
@@ -3866,7 +3781,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 				return nil
 			}
 		}
-		file_provisionersdk_proto_provisioner_proto_msgTypes[32].Exporter = func(v interface{}, i int) interface{} {
+		file_provisionersdk_proto_provisioner_proto_msgTypes[31].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*Resource_Metadata); i {
 			case 0:
 				return &v.state
@@ -3884,14 +3799,14 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 		(*Agent_Token)(nil),
 		(*Agent_InstanceId)(nil),
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[28].OneofWrappers = []interface{}{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[27].OneofWrappers = []interface{}{
 		(*Request_Config)(nil),
 		(*Request_Parse)(nil),
 		(*Request_Plan)(nil),
 		(*Request_Apply)(nil),
 		(*Request_Cancel)(nil),
 	}
-	file_provisionersdk_proto_provisioner_proto_msgTypes[29].OneofWrappers = []interface{}{
+	file_provisionersdk_proto_provisioner_proto_msgTypes[28].OneofWrappers = []interface{}{
 		(*Response_Log)(nil),
 		(*Response_Parse)(nil),
 		(*Response_Plan)(nil),
@@ -3903,7 +3818,7 @@ func file_provisionersdk_proto_provisioner_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_provisionersdk_proto_provisioner_proto_rawDesc,
 			NumEnums:      4,
-			NumMessages:   34,
+			NumMessages:   33,
 			NumExtensions: 0,
 			NumServices:   1,
 		},

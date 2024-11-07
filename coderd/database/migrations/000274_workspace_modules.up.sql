@@ -1,7 +1,7 @@
 ALTER TABLE
     workspace_resources
 ADD
-    COLUMN module TEXT;
+    COLUMN module_path TEXT;
 
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,

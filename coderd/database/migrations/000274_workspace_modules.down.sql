@@ -2,4 +2,4 @@ DROP TABLE workspace_modules;
 
 ALTER TABLE
     workspace_resources
-DROP COLUMN module;
+DROP COLUMN module_path;
