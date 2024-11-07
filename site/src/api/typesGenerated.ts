@@ -978,6 +978,7 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 export interface OrganizationSyncSettings {
 	readonly field: string;
 	readonly mapping: Record<string, Readonly<Array<string>>>;
+	readonly organization_assign_default: boolean;
 }
 
 // From codersdk/pagination.go

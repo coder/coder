@@ -46,7 +46,7 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.GroupSyncSettings true
+// @Param request body codersdk.GroupSyncSettings true "New settings"
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Router /organizations/{organization}/settings/idpsync/groups [patch]
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -140,7 +140,7 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param request body codersdk.RoleSyncSettings true
+// @Param request body codersdk.RoleSyncSettings true "New settings"
 // @Success 200 {object} codersdk.RoleSyncSettings
 // @Router /organizations/{organization}/settings/idpsync/roles [patch]
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
@@ -212,7 +212,7 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @Produce json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
-// @Param request body codersdk.OrganizationSyncSettings true
+// @Param request body codersdk.OrganizationSyncSettings true "New settings"
 // @Router /settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
