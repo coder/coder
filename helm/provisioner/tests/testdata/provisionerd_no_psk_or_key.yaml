@@ -4,6 +4,3 @@ coder:
 provisionerDaemon:
   pskSecretName: ""
   keySecretName: ""
-  tags:
-    location: auh
-    clusterType: k8s
