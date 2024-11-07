@@ -523,8 +523,8 @@ func TestAcquirer_MatchTags(t *testing.T) {
 		// Generate a table that can be copy-pasted into docs/admin/provisioners.md
 		lines := []string{
 			"\n",
-			"| Provisioner Tags | Job Tags | Can Run Job? |",
-			"|------------------|----------|--------------|",
+			"| Provisioner Tags | Job Tags | Same Org | Can Run Job? |",
+			"|------------------|----------|----------|--------------|",
 		}
 		// turn the JSON map into k=v for readability
 		kvs := func(m map[string]string) string {
@@ -539,10 +539,14 @@ func TestAcquirer_MatchTags(t *testing.T) {
 		}
 		for _, tt := range testCases {
 			acquire := "✅"
+			sameOrg := "✅"
 			if !tt.expectAcquire {
 				acquire = "❌"
 			}
-			s := fmt.Sprintf("| %s | %s | %s |", kvs(tt.acquireJobTags), kvs(tt.provisionerJobTags), acquire)
+			if tt.unmatchedOrg {
+				sameOrg = "❌"
+			}
+			s := fmt.Sprintf("| %s | %s | %s | %s |", kvs(tt.acquireJobTags), kvs(tt.provisionerJobTags), sameOrg, acquire)
 			lines = append(lines, s)
 		}
 		t.Logf("You can paste this into docs/admin/provisioners.md")
