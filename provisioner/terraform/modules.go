@@ -48,5 +48,17 @@ func getModules(workdir string) ([]*proto.Module, error) {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		return nil, nil
 	}
-	return parseModulesFile(filePath)
+	modules, err := parseModulesFile(filePath)
+	if err != nil {
+		return nil, xerrors.Errorf("parse modules file: %w", err)
+	}
+	filteredModules := []*proto.Module{}
+	for _, m := range modules {
+		// Empty string means root module. It's always present, so we skip it.
+		if m.Source == "" {
+			continue
+		}
+		filteredModules = append(filteredModules, m)
+	}
+	return filteredModules, nil
 }
