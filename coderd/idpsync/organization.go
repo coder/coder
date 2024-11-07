@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"encoding/json"
-	"fmt"
 
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
@@ -201,7 +200,7 @@ func (s *OrganizationSyncSettings) ParseClaims(ctx context.Context, db database.
 
 	parsedOrganizations, err := ParseStringSliceClaim(organizationRaw)
 	if err != nil {
-		return userOrganizations, fmt.Errorf("failed to parese organizations OIDC claims: %w", err)
+		return userOrganizations, xerrors.Errorf("failed to parese organizations OIDC claims: %w", err)
 	}
 
 	// add any mapped organizations
