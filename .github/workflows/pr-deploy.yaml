@@ -459,6 +459,7 @@ jobs:
             --login-type github
 
           # promote the user to admin role
+          # coder org members edit-role ${{ github.actor }} owner
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
