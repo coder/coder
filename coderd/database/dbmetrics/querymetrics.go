@@ -1568,6 +1568,13 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return workspace, err
 }
 
+func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesByJobID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)

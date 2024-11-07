@@ -1430,6 +1430,124 @@ func TestCompleteJob(t *testing.T) {
 		})
 		require.NoError(t, err)
 	})
+
+	t.Run("Modules", func(t *testing.T) {
+		t.Parallel()
+		srv, db, _, pd := setup(t, false, &overrides{})
+		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
+			ID:            uuid.New(),
+			Provisioner:   database.ProvisionerTypeEcho,
+			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			StorageMethod: database.ProvisionerStorageMethodFile,
+		})
+		require.NoError(t, err)
+		_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+			WorkerID: uuid.NullUUID{
+				UUID:  pd.ID,
+				Valid: true,
+			},
+			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		require.NoError(t, err)
+
+		cases := []struct {
+			name              string
+			job               *proto.CompletedJob
+			expectedResources []database.WorkspaceResource
+			expectedModules   []database.WorkspaceModule
+		}{
+			{
+				name: "TemplateDryRun",
+				job: &proto.CompletedJob{
+					Type: &proto.CompletedJob_TemplateDryRun_{
+						TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+							Resources: []*sdkproto.Resource{{
+								Name:       "something",
+								Type:       "aws_instance",
+								ModulePath: "module.test1",
+							}, {
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "",
+							}},
+							Modules: []*sdkproto.Module{
+								{
+									Key:     "test1",
+									Version: "1.0.0",
+									Source:  "github.com/example/example",
+								},
+							},
+						},
+					},
+				},
+				expectedResources: []database.WorkspaceResource{{
+					Name: "something",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test1",
+						Valid:  true,
+					},
+				}, {
+					Name: "something2",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "",
+						Valid:  true,
+					},
+				}},
+				expectedModules: []database.WorkspaceModule{{
+					Key:     "test1",
+					Version: "1.0.0",
+					Source:  "github.com/example/example",
+				}},
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				completedJob := c.job
+				completedJob.JobId = job.ID.String()
+
+				_, err = srv.CompleteJob(ctx, completedJob)
+				require.NoError(t, err)
+
+				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, resources, len(c.expectedResources))
+
+				for _, expectedResource := range c.expectedResources {
+					for i, resource := range resources {
+						if resource.Name == expectedResource.Name && resource.Type == expectedResource.Type && resource.ModulePath == expectedResource.ModulePath {
+							resources[i] = database.WorkspaceResource{Name: "matched"}
+						}
+					}
+				}
+				// all resources should be matched
+				for _, resource := range resources {
+					require.Equal(t, "matched", resource.Name)
+				}
+
+				modules, err := db.GetWorkspaceModulesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, modules, len(c.expectedModules))
+
+				for _, expectedModule := range c.expectedModules {
+					for i, module := range modules {
+						if module.Key == expectedModule.Key && module.Version == expectedModule.Version && module.Source == expectedModule.Source {
+							modules[i] = database.WorkspaceModule{Key: "matched"}
+						}
+					}
+				}
+				for _, module := range modules {
+					require.Equal(t, "matched", module.Key)
+				}
+			})
+		}
+	})
 }
 
 func TestInsertWorkspaceResource(t *testing.T) {
