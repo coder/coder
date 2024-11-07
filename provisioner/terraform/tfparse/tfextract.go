@@ -33,12 +33,11 @@ const maxFileSizeBytes = 10 * (10 << 20) // 10 MB
 // WorkspaceTags extracts tags from coder_workspace_tags data sources defined in module.
 // Note that this only returns the lexical values of the data source, and does not
 // evaluate variables and such. To do this, see evalProvisionerTags below.
-func WorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (map[string]string, error) {
+func WorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]string, error) {
 	workspaceTags := map[string]string{}
 
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
-			logger.Debug(ctx, "skip resource as it is not a coder_workspace_tags", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
 			continue
 		}
 
@@ -47,7 +46,6 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Mod
 		parser := hclparse.NewParser()
 
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
-			logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
 			continue
 		}
 		// We know in which HCL file is the data resource defined.
@@ -101,8 +99,6 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, module *tfconfig.Mod
 					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
 
-				logger.Info(ctx, "workspace tag found", "key", key, "value", value)
-
 				if _, ok := workspaceTags[key]; ok {
 					return nil, xerrors.Errorf(`workspace tag %q is defined multiple times`, key)
 				}
@@ -135,14 +131,14 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = WorkspaceTags(ctx, logger, module)
+	tags, err = WorkspaceTags(ctx, module)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
-	// To evalute the expressions, we need to load the default values for
+	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
-	varsDefaults, paramsDefaults, err := loadDefaults(ctx, logger, module)
+	varsDefaults, paramsDefaults, err := loadDefaults(module)
 	if err != nil {
 		return nil, xerrors.Errorf("load defaults: %w", err)
 	}
@@ -162,6 +158,8 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 		}
 		return nil, xerrors.Errorf("provisioner tag %q evaluated to an empty value, please set a default value", k)
 	}
+	logger.Info(ctx, "found workspace tags", slog.F("tags", evalTags))
+
 	return evalTags, nil
 }
 
@@ -209,7 +207,7 @@ func loadModuleFromFile(file []byte, mimetype string) (module *tfconfig.Module, 
 
 // loadDefaults inspects the given module and returns the default values for
 // all variables and coder_parameter data sources referenced there.
-func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Module) (varsDefaults map[string]string, paramsDefaults map[string]string, err error) {
+func loadDefaults(module *tfconfig.Module) (varsDefaults map[string]string, paramsDefaults map[string]string, err error) {
 	// iterate through module.Variables to get the default values for all
 	// variables.
 	varsDefaults = make(map[string]string)
@@ -226,7 +224,7 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 	paramsDefaults = make(map[string]string)
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_parameter" {
-			logger.Debug(ctx, "skip resource as it is not a coder_parameter", "resource_name", dataResource.Name, "resource_type", dataResource.Type)
+			continue
 		}
 
 		var file *hcl.File
@@ -234,7 +232,6 @@ func loadDefaults(ctx context.Context, logger slog.Logger, module *tfconfig.Modu
 		parser := hclparse.NewParser()
 
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
-			logger.Debug(ctx, "only .tf files can be parsed", "filename", dataResource.Pos.Filename)
 			continue
 		}
 
