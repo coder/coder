@@ -453,12 +453,12 @@ jobs:
 
           # Create a user for the github.actor
           coder users create \
-            --user ${{ github.actor }}
-            --password $password
-            --email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com"
+            --user ${{ github.actor }} \
+            --password $password \
+            --email "${{ github.actor_id }}+${{ github.actor }}@users.noreply.github.com" \ # this will be overwritten by the user's email when they login via github
             --login-type github
 
-          # TODO promote the user to admin role
+          # promote the user to admin role
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
