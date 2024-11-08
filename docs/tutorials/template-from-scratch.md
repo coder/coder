@@ -364,7 +364,9 @@ use the Coder CLI.
 Add your template files to your Coder deployment. You can upload the template
 through the CLI, or through the Coder dashboard:
 
-#### Upload template from the Coder CLI
+<div class="tabs">
+
+#### CLI
 
 1. Run `coder templates create` from the directory with your template files:
 
@@ -392,7 +394,7 @@ through the CLI, or through the Coder dashboard:
 
    ![Your new template, ready to use](../images/templates/template-tour.png)
 
-#### Upload template from the Coder dashboard
+#### Dashboard
 
 1. Create a `.zip` of the template files.
 
@@ -420,6 +422,8 @@ through the CLI, or through the Coder dashboard:
    a new workspace.
 
    ![Your new template, ready to use](../images/templates/template-tour.png)
+
+</div>
 
 ### Next steps
 
