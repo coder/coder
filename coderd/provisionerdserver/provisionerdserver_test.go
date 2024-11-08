@@ -1434,6 +1434,9 @@ func TestCompleteJob(t *testing.T) {
 	t.Run("Modules", func(t *testing.T) {
 		t.Parallel()
 
+		templateVersionID := uuid.New()
+		workspaceBuildID := uuid.New()
+
 		cases := []struct {
 			name                 string
 			job                  *proto.CompletedJob
@@ -1527,7 +1530,7 @@ func TestCompleteJob(t *testing.T) {
 				provisionerJobParams: database.InsertProvisionerJobParams{
 					Type: database.ProvisionerJobTypeTemplateVersionImport,
 					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
-						TemplateVersionID: uuid.New(),
+						TemplateVersionID: templateVersionID,
 					})),
 				},
 				expectedResources: []database.WorkspaceResource{{
@@ -1559,6 +1562,60 @@ func TestCompleteJob(t *testing.T) {
 					Transition: database.WorkspaceTransitionStop,
 				}},
 			},
+			{
+				name: "WorkspaceBuild",
+				job: &proto.CompletedJob{
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							Resources: []*sdkproto.Resource{{
+								Name:       "something",
+								Type:       "aws_instance",
+								ModulePath: "module.test1",
+							}, {
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "",
+							}},
+							Modules: []*sdkproto.Module{
+								{
+									Key:     "test1",
+									Version: "1.0.0",
+									Source:  "github.com/example/example",
+								},
+							},
+						},
+					},
+				},
+				expectedResources: []database.WorkspaceResource{{
+					Name: "something",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test1",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}, {
+					Name: "something2",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				expectedModules: []database.WorkspaceModule{{
+					Key:        "test1",
+					Version:    "1.0.0",
+					Source:     "github.com/example/example",
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				provisionerJobParams: database.InsertProvisionerJobParams{
+					Type: database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: workspaceBuildID,
+					})),
+				},
+			},
 		}
 
 		for _, c := range cases {
@@ -1579,12 +1636,22 @@ func TestCompleteJob(t *testing.T) {
 					jobParams.StorageMethod = database.ProvisionerStorageMethodFile
 				}
 				job, err := db.InsertProvisionerJob(ctx, jobParams)
+
 				tpl := dbgen.Template(t, db, database.Template{
 					OrganizationID: pd.OrganizationID,
 				})
-				_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
 					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
 					JobID:      job.ID,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID: tpl.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                workspaceBuildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: tv.ID,
 				})
 
 				require.NoError(t, err)
