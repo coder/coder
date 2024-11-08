@@ -43,6 +43,18 @@ func TestPostFiles(t *testing.T) {
 		require.NoError(t, err)
 	})
 
+	t.Run("InsertWindowsZip", func(t *testing.T) {
+		t.Parallel()
+		client := coderdtest.New(t, nil)
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		_, err := client.Upload(ctx, "application/x-zip-compressed", bytes.NewReader(archivetest.TestZipFileBytes()))
+		require.NoError(t, err)
+	})
+
 	t.Run("InsertAlreadyExists", func(t *testing.T) {
 		t.Parallel()
 		client := coderdtest.New(t, nil)
