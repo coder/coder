@@ -325,8 +325,8 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
-			expectError: ``,
+			expectTags:  nil,
+			expectError: `Function calls not allowed; Functions may not be called here.`,
 		},
 	} {
 		tc := tc
