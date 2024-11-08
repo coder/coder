@@ -7,13 +7,12 @@ module.exports = {
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
 	important: ["#root", "#storybook-root"],
 	theme: {
-		fontSize: {
-			"2xs": ["0.626rem", "0.875rem"],
-			xs: ["0.75rem", "1rem"],
-			sm: ["0.875rem", "1.5rem"],
-			"3xl": ["2rem", "2.5rem"],
-		},
 		extend: {
+			fontSize: {
+				"2xs": ["0.626rem", "0.875rem"],
+				sm: ["0.875rem", "1.5rem"],
+				"3xl": ["2rem", "2.5rem"],
+			},
 			borderRadius: {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
