@@ -321,7 +321,7 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Devcontainers",
+									"title": "Development containers on Coder",
 									"description": "Learn about using devcontainers in templates",
 									"path": "./admin/templates/managing-templates/devcontainers.md"
 								},

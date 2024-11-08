@@ -13,7 +13,7 @@ practices around managing workspaces images for Coder.
 
 > Note: An image is just one of the many properties defined within the template.
 > Templates can pull images from a public image registry (e.g. Docker Hub) or an
-> internal one., thanks to Terraform.
+> internal one, thanks to Terraform.
 
 ## Create a minimal base image
 
