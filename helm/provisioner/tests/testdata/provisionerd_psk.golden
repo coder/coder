@@ -111,7 +111,7 @@ spec:
           valueFrom:
             secretKeyRef:
               key: psk
-              name: coder-provisionerd-psk
+              name: not-the-default-coder-provisioner-psk
         - name: CODER_PROVISIONERD_TAGS
           value: clusterType=k8s,location=auh
         - name: CODER_URL

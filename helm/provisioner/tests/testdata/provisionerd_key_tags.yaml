@@ -4,3 +4,6 @@ coder:
 provisionerDaemon:
   keySecretName: "coder-provisionerd-key"
   keySecretKey: "provisionerd-key"
+  tags:
+    location: auh
+    clusterType: k8s
