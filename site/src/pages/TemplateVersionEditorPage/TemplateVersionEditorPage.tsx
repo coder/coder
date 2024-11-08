@@ -329,7 +329,7 @@ const generateVersionFiles = async (
 		tar.addFolder(fullPath, baseFileInfo);
 	});
 	const blob = (await tar.write()) as Blob;
-	return new File([blob], "template.tar");
+	return new File([blob], "template.tar", { type: "application/x-tar" });
 };
 
 const publishVersion = async (options: {
