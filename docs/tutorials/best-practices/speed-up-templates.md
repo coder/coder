@@ -21,7 +21,7 @@ potentially optimize within the template.
 
 ![Screenshot of a workspace and its build timeline](../../images/best-practice/build-timeline.png)
 
-You can retrieve this detail programmatically from the API, as well:
+You can also retrieve this detail programmatically from the API:
 
 ```shell
 curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
@@ -37,8 +37,8 @@ for more information.
 
 Use the [Observability Helm chart](https://github.com/coder/observability) for a
 pre-built set of dashboards to monitor your Coder deployments over time. It
-includes pre-configured Grafana, Prometheus, Loki, and Alertmanager instances to
-ingest and display key observability data.
+includes pre-configured instances of Grafana, Prometheus, Loki, and Alertmanager
+to ingest and display key observability data.
 
 We recommend that all administrators deploying on Kubernetes or on an existing
 Prometheus or Grafana stack set the observability bundle up with the control
@@ -123,12 +123,12 @@ for more information.
 ### Template lock file
 
 On each workspace build, Terraform will examine the providers used by the
-template and attempt to download the latest version of each provider (unless
-constrained to a specific version). Terraform exposes a mechanism to build a
+template and attempt to download the latest version of each provider unless it
+is constrained to a specific version. Terraform exposes a mechanism to build a
 static list of provider versions, which improves cacheability.
 
-Without caching, Terraform will need to download each provider on each build,
-and this can create unnecessary network and disk I/O.
+Without caching, Terraform will download each provider on each build, and this
+can create unnecessary network and disk I/O.
 
 `terraform init` generates a `.terraform.lock.hcl` which instructs Coder
 provisioners to cache specific versions of your providers.
@@ -153,7 +153,7 @@ To use `terraform init` to build the static provider version list:
    coder templates push <template>
    ```
 
-This will bundle up your template and the lock file and upload it to Coder. The
+This bundles up your template and the lock file and uploads it to Coder. The
 next time the template is used, Terraform will attempt to cache the specific
 provider versions.
 
@@ -164,5 +164,5 @@ configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server.md#--cache-dir)
 directory.
 
 Ensure that this directory is set to a location on disk which will persist
-across restarts of Coder (or
-[External Provisioners](../../admin/provisioners.md), if you're using them).
+across restarts of Coder or
+[external provisioners](../../admin/provisioners.md), if you're using them.
