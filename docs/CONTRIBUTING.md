@@ -103,7 +103,7 @@ this:
   [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
   GitHub Action workflow:
 
-  <Image src="./images/deploy-pr-manually.png" alt="Deploy PR manually" sizes="(max-width: 350px) 100vw, 33vw" align="center" />
+  <Image src="./images/deploy-pr-manually.png" alt="Deploy PR manually" width="350px" align="center" />
 
 #### Available options
 
