@@ -5,7 +5,7 @@ module.exports = {
 	},
 	darkMode: ["selector"],
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
-	important: "#root",
+	important: ["#root", "#storybook-root"],
 	theme: {
 		fontSize: {
 			"2xs": ["0.626rem","0.875rem"],
