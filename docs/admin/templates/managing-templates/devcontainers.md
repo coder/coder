@@ -82,7 +82,8 @@ Admin:
 1. Choose a **Repository** URL
    - The repo must have a `.devcontainer` directory with `devcontainer.json`
 
-When using the [Envbuilder Terraform provider](#envbuilder-terraform-provider),
+When using the
+[Envbuilder Terraform provider](https://github.com/coder/terraform-provider-envbuilder),
 a previously built and cached image can be reused directly, allowing dev
 containers to start instantaneously.
 

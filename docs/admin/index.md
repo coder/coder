@@ -17,18 +17,18 @@ For any information not strictly contained in these sections, check out our
 
 ## What is an image, template, devcontainer, or workspace
 
-<dl>
-  <dt>Template</dt>
-  <dd>[Templates](./templates/index.md) are </dd>
-
-  <dt>Workspace</dt>
-  <dd>A [workspace](../user-guides/workspace-management.md) is the environment that a developer works in. Developers on a team each work from their own workspace and can use [multiple IDEs](./workspace-access/index.md).</dd>
-
-  <dt>Image</dt>
-  <dd>An [image](./templates/managing-templates/image-management.md) contains the utilities that the Coder workspace is built on. It can be an [example image](https://github.com/coder/images), custom image, or one from [Docker Hub](https://hub.docker.com/search). It is defined in each template.</dd>
-
-  <dt>Development containers</dt>
-  <dd>more about devcontainers</dd>
-</dl>
+- **Template**
+  - [Templates](./templates/index.md) are...
+- **Workspace**
+  - A [workspace](../user-guides/workspace-management.md) is the environment
+    that a developer works in. Developers on a team each work from their own
+    workspace and can use [multiple IDEs](./workspace-access/index.md).
+- **Image**
+  - An [image](./templates/managing-templates/image-management.md) contains the
+    utilities that the Coder workspace is built on. It can be an
+    [example image](https://github.com/coder/images), custom image, or one from
+    [Docker Hub](https://hub.docker.com/search). It is defined in each template.
+- **Development containers**
+  - more about devcontainers...
 
 <children></children>
