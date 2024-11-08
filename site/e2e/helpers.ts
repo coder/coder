@@ -608,6 +608,7 @@ const createTemplateVersionTar = async (
 			metadata: [],
 			name: "dev",
 			type: "echo",
+			modulePath: "",
 			...resource,
 		} as Resource;
 	};
