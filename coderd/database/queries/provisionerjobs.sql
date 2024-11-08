@@ -22,13 +22,7 @@ WHERE
 			AND nested.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = @tags :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ @tags :: jsonb
-			END
+			AND tags_compatible(nested.tags, @tags)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
