@@ -87,6 +87,8 @@ func TestTelemetry(t *testing.T) {
 		assert.NoError(t, err)
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
+
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -103,6 +105,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
+		require.Len(t, snapshot.WorkspaceModules, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)

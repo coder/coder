@@ -6686,6 +6686,19 @@ func (q *FakeQuerier) GetWorkspaceModulesByJobID(_ context.Context, jobID uuid.U
 	return modules, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	modules := make([]database.WorkspaceModule, 0)
+	for _, module := range q.workspaceModules {
+		if module.CreatedAt.After(createdAt) {
+			modules = append(modules, module)
+		}
+	}
+	return modules, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

@@ -1575,6 +1575,13 @@ func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesCreatedAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)

@@ -14155,6 +14155,41 @@ func (q *sqlQuerier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const getWorkspaceModulesCreatedAfter = `-- name: GetWorkspaceModulesCreatedAfter :many
+SELECT id, job_id, transition, source, version, key, created_at FROM workspace_modules WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceModulesCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceModule
+	for rows.Next() {
+		var i WorkspaceModule
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Transition,
+			&i.Source,
+			&i.Version,
+			&i.Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertWorkspaceModule = `-- name: InsertWorkspaceModule :one
 INSERT INTO
 	workspace_modules (id, job_id, transition, source, version, key, created_at)

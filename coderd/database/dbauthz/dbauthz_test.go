@@ -2919,6 +2919,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceModulesByJobID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetWorkspaceModulesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {

@@ -2673,6 +2673,13 @@ func (q *querier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetWorkspaceModulesByJobID(ctx, jobID)
 }
 
+func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
+}
+
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)

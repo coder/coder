@@ -11,3 +11,6 @@ FROM
 	workspace_modules
 WHERE
 	job_id = $1;
+
+-- name: GetWorkspaceModulesCreatedAfter :many
+SELECT * FROM workspace_modules WHERE created_at > $1;

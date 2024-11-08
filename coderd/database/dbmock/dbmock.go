@@ -3322,6 +3322,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceModulesByJobID(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceModulesByJobID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceModulesByJobID), arg0, arg1)
 }
 
+// GetWorkspaceModulesCreatedAfter mocks base method.
+func (m *MockStore) GetWorkspaceModulesCreatedAfter(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceModule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceModulesCreatedAfter", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceModule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceModulesCreatedAfter indicates an expected call of GetWorkspaceModulesCreatedAfter.
+func (mr *MockStoreMockRecorder) GetWorkspaceModulesCreatedAfter(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceModulesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceModulesCreatedAfter), arg0, arg1)
+}
+
 // GetWorkspaceProxies mocks base method.
 func (m *MockStore) GetWorkspaceProxies(arg0 context.Context) ([]database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
