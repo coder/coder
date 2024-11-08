@@ -15,4 +15,20 @@ and [API](../reference/api/index.md) docs.
 For any information not strictly contained in these sections, check out our
 [Tutorials](../tutorials/index.md) and [FAQs](../tutorials/faqs.md).
 
+## What is an image, template, devcontainer, or workspace
+
+<dl>
+  <dt>Image</dt>
+  <dd>this is an image</dd>
+
+  <dt>Template</dt>
+  <dd>about templates</dd>
+
+  <dt>Development containers</dt>
+  <dd>more about devcontainers</dd>
+
+  <dt>Workspace</dt>
+  <dd>iykyk</dd>
+</dl>
+
 <children></children>
