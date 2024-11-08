@@ -280,7 +280,7 @@ func (s *ServerTailnet) AgentConn(ctx context.Context, agentID uuid.UUID) (*work
 		ret  func()
 	)
 
-	s.logger.Debug(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
+	s.logger.Info(s.ctx, "acquiring agent", slog.F("agent_id", agentID))
 	err := s.coordCtrl.ensureAgent(agentID)
 	if err != nil {
 		return nil, nil, xerrors.Errorf("ensure agent: %w", err)

@@ -762,9 +762,9 @@ func (c *Controller) Run(ctx context.Context) {
 				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
 				continue
 			}
-			c.logger.Debug(c.ctx, "obtained tailnet API v2+ client")
+			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
 			c.runControllersOnce(tailnetClients)
-			c.logger.Debug(c.ctx, "tailnet API v2+ connection lost")
+			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
 }

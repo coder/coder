@@ -684,20 +684,20 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {
-		log.Debug(ctx, "dial workspace agent", slog.Error(err))
+		log.Error(ctx, "dial workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial workspace agent: %s", err))
 		return
 	}
 	defer release()
-	log.Debug(ctx, "dialed workspace agent")
+	log.Info(ctx, "dialed workspace agent")
 	ptNetConn, err := agentConn.ReconnectingPTY(ctx, reconnect, uint16(height), uint16(width), r.URL.Query().Get("command"))
 	if err != nil {
-		log.Debug(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
+		log.Error(ctx, "dial reconnecting pty server in workspace agent", slog.Error(err))
 		_ = conn.Close(websocket.StatusInternalError, httpapi.WebsocketCloseSprintf("dial: %s", err))
 		return
 	}
 	defer ptNetConn.Close()
-	log.Debug(ctx, "obtained PTY")
+	log.Info(ctx, "obtained PTY")
 
 	report := newStatsReportFromSignedToken(*appToken)
 	s.collectStats(report)
