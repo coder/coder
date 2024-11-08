@@ -399,14 +399,14 @@ through the CLI, or through the Coder dashboard:
 
 1. Create a `.zip` of the template files.
 
-   On Mac or Windows, highlight the files and then right click. A "compress"
-   option is available through the right-click context menu.
+   - On Mac or Windows, highlight the files and then right click. A "compress"
+     option is available through the right-click context menu.
 
-   Through the Linux command line, use `zip`:
+   - To zip hrough the command line:
 
-   ```shell
-   zip templates.zip Dockerfile main.tf
-   ```
+     ```shell
+     zip templates.zip Dockerfile main.tf
+     ```
 
 1. Select **Templates** from the top of the Coder dashboard, then **Create
    Template**.
