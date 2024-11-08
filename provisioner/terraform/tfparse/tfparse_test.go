@@ -299,6 +299,35 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			// TODO: this error isn't great, but it has the desired effect.
 			expectError: `There is no variable named "foo_bar"`,
 		},
+		{
+			name: "main.tf with functions in workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					variable "region" {
+						type    = string
+						default = "region.us"
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "az.a"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = try(split(".", var.region)[1], "placeholder")
+							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
+						}
+					}`,
+			},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
+			expectError: ``,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name+"/tar", func(t *testing.T) {
