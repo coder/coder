@@ -100,9 +100,9 @@ this:
 
 - Run `./scripts/deploy-pr.sh`
 - Manually trigger the
-   [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
-   GitHub Action workflow:
-  
+  [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
+  GitHub Action workflow:
+
   <Image width="350px" src="./images/deploy-pr-manually.png" alt="Deploy PR manually" align="center" />
 
 #### Available options
