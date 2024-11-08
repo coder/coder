@@ -25,8 +25,9 @@ import (
 )
 
 const (
-	tarMimeType = "application/x-tar"
-	zipMimeType = "application/zip"
+	tarMimeType        = "application/x-tar"
+	zipMimeType        = "application/zip"
+	windowsZipMimeType = "application/x-zip-compressed"
 
 	HTTPFileMaxBytes = 10 * (10 << 20)
 )
@@ -48,7 +49,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 
 	contentType := r.Header.Get("Content-Type")
 	switch contentType {
-	case tarMimeType, zipMimeType:
+	case tarMimeType, zipMimeType, windowsZipMimeType:
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
@@ -66,7 +67,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if contentType == zipMimeType {
+	if contentType == zipMimeType || contentType == windowsZipMimeType {
 		zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
