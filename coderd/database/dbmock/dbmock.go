@@ -1973,7 +1973,7 @@ func (mr *MockStoreMockRecorder) GetProvisionerDaemons(arg0 any) *gomock.Call {
 }
 
 // GetProvisionerDaemonsByOrganization mocks base method.
-func (m *MockStore) GetProvisionerDaemonsByOrganization(arg0 context.Context, arg1 uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (m *MockStore) GetProvisionerDaemonsByOrganization(arg0 context.Context, arg1 database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetProvisionerDaemonsByOrganization", arg0, arg1)
 	ret0, _ := ret[0].([]database.ProvisionerDaemon)

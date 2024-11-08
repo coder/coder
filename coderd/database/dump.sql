@@ -396,6 +396,18 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION tags_compatible(provisioner_tags jsonb, required_tags jsonb) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	RETURN CASE
+		WHEN provisioner_tags = '{"scope": "organization", "owner": ""}' :: jsonb
+		THEN provisioner_tags = required_tags
+		ELSE required_tags <@ provisioner_tags
+	END;
+END;
+$$;
+
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$

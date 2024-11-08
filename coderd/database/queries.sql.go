@@ -5269,11 +5269,20 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = $1
+	-- If organization_id is provided, filter by it; otherwise, allow all.
+	($1 IS NULL OR organization_id = $1)
+	AND
+	-- If tags are provided, check compatibility; otherwise, skip tags check.
+	($2 IS NULL OR tags_compatible($2 :: jsonb, provisioner_daemons.tags :: jsonb))
 `
 
-func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
+type GetProvisionerDaemonsByOrganizationParams struct {
+	OrganizationID interface{} `db:"organization_id" json:"organization_id"`
+	Tags           interface{} `db:"tags" json:"tags"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.Tags)
 	if err != nil {
 		return nil, err
 	}
@@ -5529,13 +5538,7 @@ WHERE
 			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = $5 :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ $5 :: jsonb
-			END
+			AND tags_compatible(nested.tags, $5)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE

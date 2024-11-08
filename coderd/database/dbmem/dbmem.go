@@ -3625,13 +3625,14 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	daemons := make([]database.ProvisionerDaemon, 0)
 	for _, daemon := range q.provisionerDaemons {
-		if daemon.OrganizationID == organizationID {
+		// TODO (sas): filter by tags here
+		if daemon.OrganizationID == arg.OrganizationID {
 			daemon.Tags = maps.Clone(daemon.Tags)
 			daemons = append(daemons, daemon)
 		}
