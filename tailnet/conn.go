@@ -33,6 +33,7 @@ import (
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/magicsock"
@@ -290,6 +291,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
+		dnsConfigurator: options.DNSConfigurator,
 		telemetryStore:  telemetryStore,
 		createdAt:       time.Now(),
 		watchCtx:        ctx,
@@ -379,6 +381,12 @@ func (p ServicePrefix) RandomPrefix() netip.Prefix {
 	return netip.PrefixFrom(p.RandomAddr(), 128)
 }
 
+func (p ServicePrefix) AsNetip() netip.Prefix {
+	out := [16]byte{}
+	copy(out[:], p[:])
+	return netip.PrefixFrom(netip.AddrFrom16(out), 48)
+}
+
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
 	// Unique ID used for telemetry.
@@ -396,6 +404,7 @@ type Conn struct {
 	wireguardMonitor *netmon.Monitor
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
+	dnsConfigurator  dns.OSConfigurator
 	listeners        map[listenKey]*listener
 	clientType       proto.TelemetryEvent_ClientType
 	createdAt        time.Time
@@ -439,6 +448,31 @@ func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
 func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	c.configMaps.setAddresses(ips)
 	c.nodeUpdater.setAddresses(ips)
+	return nil
+}
+
+func (c *Conn) AddDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
+	if c.dnsConfigurator == nil {
+		return xerrors.New("no DNSConfigurator set")
+	}
+	c.configMaps.addHosts(hosts)
+	return nil
+}
+
+func (c *Conn) RemoveDNSHosts(names []dnsname.FQDN) error {
+	if c.dnsConfigurator == nil {
+		return xerrors.New("no DNSConfigurator set")
+	}
+	c.configMaps.removeHosts(names)
+	return nil
+}
+
+// SetDNSHosts replaces the map of DNS hosts for the connection.
+func (c *Conn) SetDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
+	if c.dnsConfigurator == nil {
+		return xerrors.New("no DNSConfigurator set")
+	}
+	c.configMaps.setHosts(hosts)
 	return nil
 }
 
