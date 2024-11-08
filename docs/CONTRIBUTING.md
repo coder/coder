@@ -98,10 +98,12 @@ Use the following `make` commands and scripts in development:
 You can test your changes by creating a PR deployment. There are two ways to do
 this:
 
-1. By running `./scripts/deploy-pr.sh`
-2. By manually triggering the
+- Run `./scripts/deploy-pr.sh`
+- Manually trigger the
    [`pr-deploy.yaml`](https://github.com/coder/coder/actions/workflows/pr-deploy.yaml)
-   GitHub Action workflow ![Deploy PR manually](./images/deploy-pr-manually.png)
+   GitHub Action workflow:
+  
+  <Image width="350px" src="./images/deploy-pr-manually.png" alt="Deploy PR manually" align="center" />
 
 #### Available options
 
