@@ -347,11 +347,11 @@ use the Coder CLI.
 
 1. In your web browser, enter your credentials:
 
-   ![Logging in to your Coder deployment](../images/templates/coder-login-web.png)
+   <img src="../images/templates/coder-login-web.png" alt="Logging in to your Coder deployment" width="397" />
 
 1. Copy the session token to the clipboard:
 
-   ![Logging in to your Coder deployment](../images/templates/coder-session-token.png)
+   <img src="../images/templates/coder-session-token.png" alt="Logging in to your Coder deployment" width="454" />
 
 1. Paste it into the CLI:
 
@@ -402,7 +402,7 @@ through the CLI, or through the Coder dashboard:
    - On Mac or Windows, highlight the files and then right click. A "compress"
      option is available through the right-click context menu.
 
-   - To zip hrough the command line:
+   - To zip the files through the command line:
 
      ```shell
      zip templates.zip Dockerfile main.tf
