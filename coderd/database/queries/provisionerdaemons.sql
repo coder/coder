@@ -10,11 +10,15 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	-- If organization_id is provided, filter by it; otherwise, allow all.
+	-- This is the original search criteria:
 	(@organization_id IS NULL OR organization_id = @organization_id)
 	AND
-	-- If tags are provided, check compatibility; otherwise, skip tags check.
-	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
+	-- adding support for searching by tags:
+	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb))
+	AND
+	-- Because we're adding @tags as a second search parameter, we need to do this check to
+	-- ensure that the first parameter's behavior remains unchanged when no second parameter is provided:
+	(@organization_id IS NOT NULL OR @tags IS NOT NULL);
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
