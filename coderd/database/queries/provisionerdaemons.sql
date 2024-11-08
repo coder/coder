@@ -14,7 +14,7 @@ WHERE
 	(@organization_id IS NULL OR organization_id = @organization_id)
 	AND
 	-- If tags are provided, check compatibility; otherwise, skip tags check.
-	(@tags IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
+	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
