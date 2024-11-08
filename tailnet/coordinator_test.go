@@ -12,7 +12,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -243,24 +242,6 @@ func TestCoordinator_Lost(t *testing.T) {
 	coordinator := tailnet.NewCoordinator(logger)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	test.LostTest(ctx, t, coordinator)
-}
-
-func TestCoordinator_MultiAgent_CoordClose(t *testing.T) {
-	t.Parallel()
-
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	defer cancel()
-	coord1 := tailnet.NewCoordinator(logger.Named("coord1"))
-	defer coord1.Close()
-
-	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
-	defer ma1.Close()
-
-	err := coord1.Close()
-	require.NoError(t, err)
-
-	ma1.RequireEventuallyClosed(ctx)
 }
 
 // TestCoordinatorPropogatedPeerContext tests that the context for a specific peer

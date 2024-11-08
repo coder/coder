@@ -45,7 +45,6 @@ type CoordinatorV2 interface {
 	Node(id uuid.UUID) *Node
 	Close() error
 	Coordinate(ctx context.Context, id uuid.UUID, name string, a CoordinateeAuth) (chan<- *proto.CoordinateRequest, <-chan *proto.CoordinateResponse)
-	ServeMultiAgent(id uuid.UUID) MultiAgentConn
 }
 
 // Node represents a node in the network.
@@ -174,39 +173,6 @@ func (c *coordinator) Coordinate(
 	return reqs, resps
 }
 
-func (c *coordinator) ServeMultiAgent(id uuid.UUID) MultiAgentConn {
-	return ServeMultiAgent(c, c.core.logger, id)
-}
-
-func ServeMultiAgent(c CoordinatorV2, logger slog.Logger, id uuid.UUID) MultiAgentConn {
-	logger = logger.With(slog.F("client_id", id)).Named("multiagent")
-	ctx, cancel := context.WithCancel(context.Background())
-	reqs, resps := c.Coordinate(ctx, id, id.String(), SingleTailnetCoordinateeAuth{})
-	m := (&MultiAgent{
-		ID: id,
-		OnSubscribe: func(enq Queue, agent uuid.UUID) error {
-			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
-			return err
-		},
-		OnUnsubscribe: func(enq Queue, agent uuid.UUID) error {
-			err := SendCtx(ctx, reqs, &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(agent)}})
-			return err
-		},
-		OnNodeUpdate: func(id uuid.UUID, node *proto.Node) error {
-			return SendCtx(ctx, reqs, &proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{
-				Node: node,
-			}})
-		},
-		OnRemove: func(_ Queue) {
-			_ = SendCtx(ctx, reqs, &proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-			cancel()
-		},
-	}).Init()
-
-	go qRespLoop(ctx, cancel, logger, m, resps)
-	return m
-}
-
 // core is an in-memory structure of peer mappings.  Its methods may be called from multiple goroutines;
 // it is protected by a mutex to ensure data stay consistent.
 type core struct {
@@ -216,27 +182,6 @@ type core struct {
 
 	peers   map[uuid.UUID]*peer
 	tunnels *tunnelStore
-}
-
-type QueueKind int
-
-const (
-	QueueKindClient QueueKind = 1 + iota
-	QueueKindAgent
-)
-
-type Queue interface {
-	UniqueID() uuid.UUID
-	Kind() QueueKind
-	Enqueue(resp *proto.CoordinateResponse) error
-	Name() string
-	Stats() (start, lastWrite int64)
-	Overwrites() int64
-	// CoordinatorClose is used by the coordinator when closing a Queue. It
-	// should skip removing itself from the coordinator.
-	CoordinatorClose() error
-	Done() <-chan struct{}
-	Close() error
 }
 
 func newCore(logger slog.Logger) *core {
@@ -669,27 +614,5 @@ func RecvCtx[A any](ctx context.Context, c <-chan A) (a A, err error) {
 			return a, nil
 		}
 		return a, io.EOF
-	}
-}
-
-func qRespLoop(ctx context.Context, cancel context.CancelFunc, logger slog.Logger, q Queue, resps <-chan *proto.CoordinateResponse) {
-	defer func() {
-		cErr := q.Close()
-		if cErr != nil {
-			logger.Info(ctx, "error closing response Queue", slog.Error(cErr))
-		}
-		cancel()
-	}()
-	for {
-		resp, err := RecvCtx(ctx, resps)
-		if err != nil {
-			logger.Debug(ctx, "qRespLoop done reading responses", slog.Error(err))
-			return
-		}
-		logger.Debug(ctx, "qRespLoop got response", slog.F("resp", resp))
-		err = q.Enqueue(resp)
-		if err != nil && !xerrors.Is(err, context.Canceled) {
-			logger.Error(ctx, "qRespLoop failed to enqueue v1 update", slog.Error(err))
-		}
 	}
 }

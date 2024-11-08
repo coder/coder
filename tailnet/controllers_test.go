@@ -42,11 +42,12 @@ func TestInMemoryCoordination(t *testing.T) {
 
 	reqs := make(chan *proto.CoordinateRequest, 100)
 	resps := make(chan *proto.CoordinateResponse, 100)
-	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), tailnet.ClientCoordinateeAuth{agentID}).
+	auth := tailnet.ClientCoordinateeAuth{AgentID: agentID}
+	mCoord.EXPECT().Coordinate(gomock.Any(), clientID, gomock.Any(), auth).
 		Times(1).Return(reqs, resps)
 
 	ctrl := tailnet.NewSingleDestController(logger, fConn, agentID)
-	uut := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, agentID, mCoord))
+	uut := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, auth, mCoord))
 	defer uut.Close(ctx)
 
 	coordinationTest(ctx, t, uut, fConn, reqs, resps, agentID)
@@ -724,7 +725,7 @@ func TestController_Disconnects(t *testing.T) {
 	peersLost := make(chan struct{})
 	fConn := &fakeTailnetConn{peersLostCh: peersLost}
 
-	uut := tailnet.NewController(logger.Named("tac"), dialer,
+	uut := tailnet.NewController(logger.Named("ctrl"), dialer,
 		// darwin can be slow sometimes.
 		tailnet.WithGracefulTimeout(5*time.Second))
 	uut.CoordCtrl = tailnet.NewAgentCoordinationController(logger.Named("coord_ctrl"), fConn)
@@ -744,6 +745,11 @@ func TestController_Disconnects(t *testing.T) {
 	_ = testutil.RequireRecvCtx(testCtx, t, peersLost)
 
 	// ...and then reconnect
+	call = testutil.RequireRecvCtx(testCtx, t, fCoord.CoordinateCalls)
+
+	// close the coordination call, which should cause a 2nd reconnection
+	close(call.Resps)
+	_ = testutil.RequireRecvCtx(testCtx, t, peersLost)
 	call = testutil.RequireRecvCtx(testCtx, t, fCoord.CoordinateCalls)
 
 	// canceling the context should trigger the disconnect message
