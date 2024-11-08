@@ -16,8 +16,10 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
+	"github.com/coder/retry"
 )
 
 // A Controller connects to the tailnet control plane, and then uses the control protocols to
@@ -30,6 +32,16 @@ type Controller struct {
 	DERPCtrl        DERPController
 	ResumeTokenCtrl ResumeTokenController
 	TelemetryCtrl   TelemetryController
+
+	ctx               context.Context
+	gracefulCtx       context.Context
+	cancelGracefulCtx context.CancelFunc
+	logger            slog.Logger
+	closedCh          chan struct{}
+
+	// Testing only
+	clock           quartz.Clock
+	gracefulTimeout time.Duration
 }
 
 type CloserWaiter interface {
@@ -663,4 +675,212 @@ func (r *basicResumeTokenRefresher) refresh() {
 		return
 	}
 	r.timer.Reset(dur, "basicResumeTokenRefresher", "refresh")
+}
+
+// NewController creates a new Controller without running it
+func NewController(logger slog.Logger, dialer ControlProtocolDialer, opts ...ControllerOpt) *Controller {
+	c := &Controller{
+		logger:          logger,
+		clock:           quartz.NewReal(),
+		gracefulTimeout: time.Second,
+		Dialer:          dialer,
+		closedCh:        make(chan struct{}),
+	}
+	for _, opt := range opts {
+		opt(c)
+	}
+	return c
+}
+
+type ControllerOpt func(*Controller)
+
+func WithTestClock(clock quartz.Clock) ControllerOpt {
+	return func(c *Controller) {
+		c.clock = clock
+	}
+}
+
+func WithGracefulTimeout(timeout time.Duration) ControllerOpt {
+	return func(c *Controller) {
+		c.gracefulTimeout = timeout
+	}
+}
+
+// manageGracefulTimeout allows the gracefulContext to last longer than the main context
+// to allow a graceful disconnect.
+func (c *Controller) manageGracefulTimeout() {
+	defer c.cancelGracefulCtx()
+	<-c.ctx.Done()
+	timer := c.clock.NewTimer(c.gracefulTimeout, "tailnetAPIClient", "gracefulTimeout")
+	defer timer.Stop()
+	select {
+	case <-c.closedCh:
+	case <-timer.C:
+	}
+}
+
+// Run dials the API and uses it with the provided controllers.
+func (c *Controller) Run(ctx context.Context) {
+	c.ctx = ctx
+	c.gracefulCtx, c.cancelGracefulCtx = context.WithCancel(context.Background())
+	go c.manageGracefulTimeout()
+	go func() {
+		defer close(c.closedCh)
+		// Sadly retry doesn't support quartz.Clock yet so this is not
+		// influenced by the configured clock.
+		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(c.ctx); {
+			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
+			if err != nil {
+				if xerrors.Is(err, context.Canceled) {
+					continue
+				}
+				errF := slog.Error(err)
+				var sdkErr *codersdk.Error
+				if xerrors.As(err, &sdkErr) {
+					errF = slog.Error(sdkErr)
+				}
+				c.logger.Error(c.ctx, "failed to dial tailnet v2+ API", errF)
+				continue
+			}
+			c.logger.Debug(c.ctx, "obtained tailnet API v2+ client")
+			c.runControllersOnce(tailnetClients)
+			c.logger.Debug(c.ctx, "tailnet API v2+ connection lost")
+		}
+	}()
+}
+
+// runControllersOnce uses the provided clients to call into the controllers once. It is combined
+// into one function so that a problem with one tears down the other and triggers a retry (if
+// appropriate). We typically multiplex all RPCs over the same websocket, so we want them to share
+// the same fate.
+func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
+	defer func() {
+		closeErr := clients.Closer.Close()
+		if closeErr != nil &&
+			!xerrors.Is(closeErr, io.EOF) &&
+			!xerrors.Is(closeErr, context.Canceled) &&
+			!xerrors.Is(closeErr, context.DeadlineExceeded) {
+			c.logger.Error(c.ctx, "error closing DRPC connection", slog.Error(closeErr))
+		}
+	}()
+
+	if c.TelemetryCtrl != nil {
+		c.TelemetryCtrl.New(clients.Telemetry) // synchronous, doesn't need a goroutine
+	}
+
+	wg := sync.WaitGroup{}
+
+	if c.CoordCtrl != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.coordinate(clients.Coordinator)
+		}()
+	}
+	if c.DERPCtrl != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			dErr := c.derpMap(clients.DERP)
+			if dErr != nil && c.ctx.Err() == nil {
+				// The main context is still active, meaning that we want the tailnet data plane to stay
+				// up, even though we hit some error getting DERP maps on the control plane.  That means
+				// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
+				// close the underlying connection. This will trigger a retry of the control plane in
+				// run().
+				_ = clients.Closer.Close()
+				// Note that derpMap() logs it own errors, we don't bother here.
+			}
+		}()
+	}
+
+	// Refresh token is a little different, in that we don't want its controller to hold open the
+	// connection on its own.  So we keep it separate from the other wait group, and cancel its
+	// context as soon as the other routines exit.
+	refreshTokenCtx, refreshTokenCancel := context.WithCancel(c.ctx)
+	refreshTokenDone := make(chan struct{})
+	defer func() {
+		<-refreshTokenDone
+	}()
+	defer refreshTokenCancel()
+	go func() {
+		defer close(refreshTokenDone)
+		if c.ResumeTokenCtrl != nil {
+			c.refreshToken(refreshTokenCtx, clients.ResumeToken)
+		}
+	}()
+
+	wg.Wait()
+}
+
+func (c *Controller) coordinate(client CoordinatorClient) {
+	defer func() {
+		cErr := client.Close()
+		if cErr != nil {
+			c.logger.Debug(c.ctx, "error closing Coordinate RPC", slog.Error(cErr))
+		}
+	}()
+	coordination := c.CoordCtrl.New(client)
+	c.logger.Debug(c.ctx, "serving coordinator")
+	select {
+	case <-c.ctx.Done():
+		c.logger.Debug(c.ctx, "main context canceled; do graceful disconnect")
+		crdErr := coordination.Close(c.gracefulCtx)
+		if crdErr != nil {
+			c.logger.Warn(c.ctx, "failed to close remote coordination", slog.Error(crdErr))
+		}
+	case err := <-coordination.Wait():
+		if err != nil &&
+			!xerrors.Is(err, io.EOF) &&
+			!xerrors.Is(err, context.Canceled) &&
+			!xerrors.Is(err, context.DeadlineExceeded) {
+			c.logger.Error(c.ctx, "remote coordination error", slog.Error(err))
+		}
+	}
+}
+
+func (c *Controller) derpMap(client DERPClient) error {
+	defer func() {
+		cErr := client.Close()
+		if cErr != nil {
+			c.logger.Debug(c.ctx, "error closing StreamDERPMaps RPC", slog.Error(cErr))
+		}
+	}()
+	cw := c.DERPCtrl.New(client)
+	select {
+	case <-c.ctx.Done():
+		cErr := client.Close()
+		if cErr != nil {
+			c.logger.Warn(c.ctx, "failed to close StreamDERPMaps RPC", slog.Error(cErr))
+		}
+		return nil
+	case err := <-cw.Wait():
+		if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+			return nil
+		}
+		if err != nil && !xerrors.Is(err, io.EOF) {
+			c.logger.Error(c.ctx, "error receiving DERP Map", slog.Error(err))
+		}
+		return err
+	}
+}
+
+func (c *Controller) refreshToken(ctx context.Context, client ResumeTokenClient) {
+	cw := c.ResumeTokenCtrl.New(client)
+	go func() {
+		<-ctx.Done()
+		cErr := cw.Close(c.ctx)
+		if cErr != nil {
+			c.logger.Error(c.ctx, "error closing token refresher", slog.Error(cErr))
+		}
+	}()
+
+	err := <-cw.Wait()
+	if err != nil && !xerrors.Is(err, context.Canceled) && !xerrors.Is(err, context.DeadlineExceeded) {
+		c.logger.Error(c.ctx, "error receiving refresh token", slog.Error(err))
+	}
+}
+
+func (c *Controller) Closed() <-chan struct{} {
+	return c.closedCh
 }
