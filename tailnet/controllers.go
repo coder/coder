@@ -774,15 +774,20 @@ func (c *Controller) Run(ctx context.Context) {
 // appropriate). We typically multiplex all RPCs over the same websocket, so we want them to share
 // the same fate.
 func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
-	defer func() {
-		closeErr := clients.Closer.Close()
-		if closeErr != nil &&
-			!xerrors.Is(closeErr, io.EOF) &&
-			!xerrors.Is(closeErr, context.Canceled) &&
-			!xerrors.Is(closeErr, context.DeadlineExceeded) {
-			c.logger.Error(c.ctx, "error closing DRPC connection", slog.Error(closeErr))
-		}
-	}()
+	// clients.Closer.Close should nominally be idempotent, but let's not press our luck
+	closeOnce := sync.Once{}
+	closeClients := func() {
+		closeOnce.Do(func() {
+			closeErr := clients.Closer.Close()
+			if closeErr != nil &&
+				!xerrors.Is(closeErr, io.EOF) &&
+				!xerrors.Is(closeErr, context.Canceled) &&
+				!xerrors.Is(closeErr, context.DeadlineExceeded) {
+				c.logger.Error(c.ctx, "error closing tailnet clients", slog.Error(closeErr))
+			}
+		})
+	}
+	defer closeClients()
 
 	if c.TelemetryCtrl != nil {
 		c.TelemetryCtrl.New(clients.Telemetry) // synchronous, doesn't need a goroutine
@@ -795,6 +800,11 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 		go func() {
 			defer wg.Done()
 			c.coordinate(clients.Coordinator)
+			if c.ctx.Err() == nil {
+				// Main context is still active, but our coordination exited, due to some error.  Close down all the
+				// rest of the clients so we'll exit and retry.
+				closeClients()
+			}
 		}()
 	}
 	if c.DERPCtrl != nil {
@@ -808,8 +818,7 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 				// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 				// close the underlying connection. This will trigger a retry of the control plane in
 				// run().
-				_ = clients.Closer.Close()
-				// Note that derpMap() logs it own errors, we don't bother here.
+				closeClients()
 			}
 		}()
 	}

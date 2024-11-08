@@ -725,7 +725,7 @@ func TestController_Disconnects(t *testing.T) {
 	peersLost := make(chan struct{})
 	fConn := &fakeTailnetConn{peersLostCh: peersLost}
 
-	uut := tailnet.NewController(logger.Named("tac"), dialer,
+	uut := tailnet.NewController(logger.Named("ctrl"), dialer,
 		// darwin can be slow sometimes.
 		tailnet.WithGracefulTimeout(5*time.Second))
 	uut.CoordCtrl = tailnet.NewAgentCoordinationController(logger.Named("coord_ctrl"), fConn)
@@ -745,6 +745,11 @@ func TestController_Disconnects(t *testing.T) {
 	_ = testutil.RequireRecvCtx(testCtx, t, peersLost)
 
 	// ...and then reconnect
+	call = testutil.RequireRecvCtx(testCtx, t, fCoord.CoordinateCalls)
+
+	// close the coordination call, which should cause a 2nd reconnection
+	close(call.Resps)
+	_ = testutil.RequireRecvCtx(testCtx, t, peersLost)
 	call = testutil.RequireRecvCtx(testCtx, t, fCoord.CoordinateCalls)
 
 	// canceling the context should trigger the disconnect message
