@@ -337,9 +337,10 @@ use the Coder CLI.
 
    ```console
    $ coder login https://coder.example.com
-   Your browser has been opened to visit:
+   Attempting to authenticate with config URL: 'https://coder.example.com'
+   Open the following in your browser:
 
-           https://coder.example.com/cli-auth
+   	https://coder.example.com/cli-auth
 
    > Paste your token here:
    ```
