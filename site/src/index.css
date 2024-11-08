@@ -4,38 +4,50 @@
 
 @layer base {
 	:root {
-		--content-primary: #27272a;
-		--content-secondary: #52525b;
-		--content-link: #2563eb;
-		--content-invert: #fafafa;
-		--content-disabled: #a1a1aa;
-		--content-success: #15803d;
-		--content-danger: #ef4444;
-		--surface-primary: #fafafa;
-		--surface-secondary: #f4f4f5;
-		--surface-tertiary: #e4e4e7;
-		--surface-invert-primary: #27272a;
-		--surface-invert-secondary: #3f3f46;
-		--surface-error: #450a0a;
-		--border-default: #e4e4e7;
-		--border-error: #ef4444;
+		--content-primary: 240, 3%, 15%;
+		--content-secondary: 240, 4%, 32%;
+		--content-link: 217, 84%, 54%;
+		--content-invert: 0, 0%, 98%;
+		--content-disabled: 240, 4%, 66%;
+		--content-success: 144, 83%, 32%;
+		--content-danger: 0, 82%, 63%;
+		--surface-primary: 0, 0%, 98%;
+		--surface-secondary: 240, 4%, 96%;
+		--surface-tertiary: 240, 4%, 89%;
+		--surface-invert-primary: 240, 3%, 15%;
+		--surface-invert-secondary: 240, 4%, 25%;
+		--surface-error: 0, 100%, 14%;
+		--border-default: 240, 4%, 89%;
+		--border-error: 0, 82%, 63%;
 		--radius: 0.5rem;
+		--chart-1: 12 76% 61%;
+		--chart-2: 173 58% 39%;
+		--chart-3: 197 37% 24%;
+		--chart-4: 43 74% 66%;
+		--chart-5: 27 87% 67%;
+		--background: 0, 0%, 98%;
 	}
 	.dark {
-		--content-primary: #fafafa;
-		--content-secondary: #a1a1aa;
-		--content-link: #60a5fa;
-		--content-invert: #09090b;
-		--content-disabled: #3f3f46;
-		--content-success: #16a34a;
-		--content-danger: #f87171;
-		--surface-primary: #09090b;
-		--surface-secondary: #18181b;
-		--surface-tertiary: #27272a;
-		--surface-invert-primary: #e4e4e7;
-		--surface-invert-secondary: #a1a1aa;
-		--surface-error: #450a0a;
-		--border-default: #27272a;
-		--border-error: #f87171;
+		--content-primary: 0, 0%, 98%;
+		--content-secondary: 240, 4%, 66%;
+		--content-link: 217, 92%, 67%;
+		--content-invert: 240, 5%, 4%;
+		--content-disabled: 240, 4%, 25%;
+		--content-success: 144, 83%, 35%;
+		--content-danger: 0, 82%, 71%;
+		--surface-primary: 240, 5%, 4%;
+		--surface-secondary: 240, 5%, 9%;
+		--surface-tertiary: 240, 3%, 15%;
+		--surface-invert-primary: 240, 4%, 89%;
+		--surface-invert-secondary: 240, 4%, 66%;
+		--surface-error: 0, 100%, 14%;
+		--border-default: 240, 3%, 15%;
+		--border-error: 0, 82%, 71%;
+		--chart-1: 220 70% 50%;
+		--chart-2: 160 60% 45%;
+		--chart-3: 30 80% 55%;
+		--chart-4: 280 65% 60%;
+		--chart-5: 340 75% 55%;
+		--background: 240, 5%, 4%;
 	}
 }
