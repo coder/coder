@@ -109,6 +109,7 @@ func TestConvertResources(t *testing.T) {
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 				}},
+				ModulePath: "module.module",
 			}},
 		},
 		// Ensures the attachment of multiple agents to a single
