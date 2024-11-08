@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"maps"
 	"math"
 	"strings"
 	"sync"
@@ -239,7 +240,8 @@ func (c *BasicCoordination) respLoop() {
 	defer func() {
 		cErr := c.Client.Close()
 		if cErr != nil {
-			c.logger.Debug(context.Background(), "failed to close coordinate client after respLoop exit", slog.Error(cErr))
+			c.logger.Debug(context.Background(),
+				"failed to close coordinate client after respLoop exit", slog.Error(cErr))
 		}
 		c.coordinatee.SetAllPeersLost()
 		close(c.respLoopDone)
@@ -247,7 +249,8 @@ func (c *BasicCoordination) respLoop() {
 	for {
 		resp, err := c.Client.Recv()
 		if err != nil {
-			c.logger.Debug(context.Background(), "failed to read from protocol", slog.Error(err))
+			c.logger.Debug(context.Background(),
+				"failed to read from protocol", slog.Error(err))
 			c.SendErr(xerrors.Errorf("read: %w", err))
 			return
 		}
@@ -278,7 +281,8 @@ func (c *BasicCoordination) respLoop() {
 					ReadyForHandshake: rfh,
 				})
 				if err != nil {
-					c.logger.Debug(context.Background(), "failed to send ready for handshake", slog.Error(err))
+					c.logger.Debug(context.Background(),
+						"failed to send ready for handshake", slog.Error(err))
 					c.SendErr(xerrors.Errorf("send: %w", err))
 					return
 				}
@@ -287,37 +291,158 @@ func (c *BasicCoordination) respLoop() {
 	}
 }
 
-type singleDestController struct {
+type TunnelSrcCoordController struct {
 	*BasicCoordinationController
-	dest uuid.UUID
+
+	mu           sync.Mutex
+	dests        map[uuid.UUID]struct{}
+	coordination *BasicCoordination
 }
 
-// NewSingleDestController creates a CoordinationController for Coder clients that connect to a
-// single tunnel destination, e.g. `coder ssh`, which connects to a single workspace Agent.
-func NewSingleDestController(logger slog.Logger, coordinatee Coordinatee, dest uuid.UUID) CoordinationController {
-	coordinatee.SetTunnelDestination(dest)
-	return &singleDestController{
+// NewTunnelSrcCoordController creates a CoordinationController for peers that are exclusively
+// tunnel sources (that is, they create tunnel --- Coder clients not workspaces).
+func NewTunnelSrcCoordController(
+	logger slog.Logger, coordinatee Coordinatee,
+) *TunnelSrcCoordController {
+	return &TunnelSrcCoordController{
 		BasicCoordinationController: &BasicCoordinationController{
 			Logger:      logger,
 			Coordinatee: coordinatee,
 			SendAcks:    false,
 		},
-		dest: dest,
+		dests: make(map[uuid.UUID]struct{}),
 	}
 }
 
-func (c *singleDestController) New(client CoordinatorClient) CloserWaiter {
+func (c *TunnelSrcCoordController) New(client CoordinatorClient) CloserWaiter {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	b := c.BasicCoordinationController.NewCoordination(client)
-	err := client.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: c.dest[:]}})
-	if err != nil {
-		b.SendErr(err)
+	c.coordination = b
+	// resync destinations on reconnect
+	for dest := range c.dests {
+		err := client.Send(&proto.CoordinateRequest{
+			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
+		})
+		if err != nil {
+			b.SendErr(err)
+			c.coordination = nil
+			cErr := client.Close()
+			if cErr != nil {
+				c.Logger.Debug(
+					context.Background(),
+					"failed to close coordinator client after add tunnel failure",
+					slog.Error(cErr),
+				)
+			}
+			break
+		}
 	}
 	return b
 }
 
+func (c *TunnelSrcCoordController) AddDestination(dest uuid.UUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.Coordinatee.SetTunnelDestination(dest) // this prepares us for an ack
+	c.dests[dest] = struct{}{}
+	if c.coordination == nil {
+		return
+	}
+	err := c.coordination.Client.Send(
+		&proto.CoordinateRequest{
+			AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
+		})
+	if err != nil {
+		c.coordination.SendErr(err)
+		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		if cErr != nil {
+			c.Logger.Debug(context.Background(),
+				"failed to close coordinator client after add tunnel failure",
+				slog.Error(cErr))
+		}
+		c.coordination = nil
+	}
+}
+
+func (c *TunnelSrcCoordController) RemoveDestination(dest uuid.UUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	delete(c.dests, dest)
+	if c.coordination == nil {
+		return
+	}
+	err := c.coordination.Client.Send(
+		&proto.CoordinateRequest{
+			RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
+		})
+	if err != nil {
+		c.coordination.SendErr(err)
+		cErr := c.coordination.Client.Close() // close the client so we don't gracefully disconnect
+		if cErr != nil {
+			c.Logger.Debug(context.Background(),
+				"failed to close coordinator client after remove tunnel failure",
+				slog.Error(cErr))
+		}
+		c.coordination = nil
+	}
+}
+
+func (c *TunnelSrcCoordController) SyncDestinations(destinations []uuid.UUID) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	toAdd := make(map[uuid.UUID]struct{})
+	toRemove := maps.Clone(c.dests)
+	all := make(map[uuid.UUID]struct{})
+	for _, dest := range destinations {
+		all[dest] = struct{}{}
+		delete(toRemove, dest)
+		if _, ok := c.dests[dest]; !ok {
+			toAdd[dest] = struct{}{}
+		}
+	}
+	c.dests = all
+	if c.coordination == nil {
+		return
+	}
+	var err error
+	defer func() {
+		if err != nil {
+			c.coordination.SendErr(err)
+			cErr := c.coordination.Client.Close() // don't gracefully disconnect
+			if cErr != nil {
+				c.Logger.Debug(context.Background(),
+					"failed to close coordinator client during sync destinations",
+					slog.Error(cErr))
+			}
+			c.coordination = nil
+		}
+	}()
+	for dest := range toAdd {
+		err = c.coordination.Client.Send(
+			&proto.CoordinateRequest{
+				AddTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
+			})
+		if err != nil {
+			return
+		}
+	}
+	for dest := range toRemove {
+		err = c.coordination.Client.Send(
+			&proto.CoordinateRequest{
+				RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: UUIDToByteSlice(dest)},
+			})
+		if err != nil {
+			return
+		}
+	}
+}
+
 // NewAgentCoordinationController creates a CoordinationController for Coder Agents, which never
 // create tunnels and always send ReadyToHandshake acknowledgements.
-func NewAgentCoordinationController(logger slog.Logger, coordinatee Coordinatee) CoordinationController {
+func NewAgentCoordinationController(
+	logger slog.Logger, coordinatee Coordinatee,
+) CoordinationController {
 	return &BasicCoordinationController{
 		Logger:      logger,
 		Coordinatee: coordinatee,

@@ -467,7 +467,8 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 		_ = conn.Close()
 	})
 
-	ctrl := tailnet.NewSingleDestController(logger, conn, peer.ID)
+	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+	ctrl.AddDestination(peer.ID)
 	coordination := ctrl.New(coord)
 	t.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
