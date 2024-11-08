@@ -371,7 +371,7 @@ through the CLI, or through the Coder dashboard:
    ```console
    $ pwd
    /home/docs/template-tour
-   $ coder templates create
+   $ coder templates push
    > Upload "."? (yes/no) yes
    ```
 
