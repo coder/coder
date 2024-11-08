@@ -1749,6 +1749,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationField,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationField",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name: "OIDC Assign Default Organization",
@@ -1762,6 +1763,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationAssignDefault,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationAssignDefault",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name: "OIDC Organization Sync Mapping",
@@ -1773,6 +1775,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationMapping,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationMapping",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name:        "OIDC Group Field",

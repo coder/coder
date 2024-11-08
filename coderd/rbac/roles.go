@@ -352,6 +352,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroupMember.Type:        {policy.ActionRead},
+			// Manage org membership based on OIDC claims
+			ResourceIdpsyncSettings.Type: {policy.ActionRead, policy.ActionUpdate},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},

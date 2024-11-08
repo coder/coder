@@ -1831,17 +1831,37 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /organizations/{organization}/settings/idpsync/groups`
 
+> Body parameter
+
+```json
+{
+	"auto_create_missing_groups": true,
+	"field": "string",
+	"legacy_group_name_mapping": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"regex_filter": {}
+}
+```
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type                                                               | Required | Description     |
+| -------------- | ---- | ------------------------------------------------------------------ | -------- | --------------- |
+| `organization` | path | string(uuid)                                                       | true     | Organization ID |
+| `body`         | body | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) | true     | New settings    |
 
 ### Example responses
 
@@ -1919,17 +1939,31 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 ```shell
 # Example request using curl
 curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles \
+  -H 'Content-Type: application/json' \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
 `PATCH /organizations/{organization}/settings/idpsync/roles`
 
+> Body parameter
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	}
+}
+```
+
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In   | Type                                                             | Required | Description     |
+| -------------- | ---- | ---------------------------------------------------------------- | -------- | --------------- |
+| `organization` | path | string(uuid)                                                     | true     | Organization ID |
+| `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New settings    |
 
 ### Example responses
 
@@ -2236,6 +2270,98 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 | Status | Meaning                                                 | Description | Schema                                   |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get organization IdP Sync settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/settings/idpsync/organization \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /settings/idpsync/organization`
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"organization_assign_default": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization IdP Sync settings
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /settings/idpsync/organization`
+
+> Body parameter
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"organization_assign_default": true
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                             | Required | Description  |
+| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ------------ |
+| `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New settings |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"organization_assign_default": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
