@@ -11,14 +11,10 @@ FROM
 	provisioner_daemons
 WHERE
 	-- This is the original search criteria:
-	(@organization_id :: uuid IS NULL OR organization_id = @organization_id :: uuid)
+	organization_id = @organization_id :: uuid
 	AND
 	-- adding support for searching by tags:
-	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb))
-	AND
-	-- Because we're adding @tags as a second search parameter, we need to do this check to
-	-- ensure that the first parameter's behavior remains unchanged when no second parameter is provided:
-	(@organization_id :: uuid IS NOT NULL OR @tags IS NOT NULL);
+	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago

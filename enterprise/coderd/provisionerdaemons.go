@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,13 +57,22 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
+// @Param tags query []string false "Provisioner tags to filter by"
 // @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: org.ID})
+	tags := provisionerTags(r)
+
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
+		ctx,
+		database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: org.ID,
+			Tags:           tags,
+		},
+	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner daemons.",
@@ -72,6 +82,24 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
+}
+
+func provisionerTags(r *http.Request) json.RawMessage {
+	tags := r.URL.Query()["tags"]
+	if len(tags) == 0 {
+		return json.RawMessage("{}")
+	}
+
+	var pairs []string
+	for _, tag := range tags {
+		parts := strings.SplitN(tag, "=", 2)
+		if len(parts) == 2 {
+			pairs = append(pairs, fmt.Sprintf(`%q:%q`, parts[0], parts[1]))
+		}
+	}
+
+	jsonString := fmt.Sprintf("{%s}", strings.Join(pairs, ","))
+	return json.RawMessage(jsonString)
 }
 
 type provisiionerDaemonAuthResponse struct {

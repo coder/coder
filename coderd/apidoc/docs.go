@@ -2941,6 +2941,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        },
+                        "description": "Provisioner tags to filter by",
+                        "name": "tags",
+                        "in": "query"
                     }
                 ],
                 "responses": {

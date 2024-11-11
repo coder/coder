@@ -768,7 +768,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
 
-		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID)
+		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, nil)
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
 
