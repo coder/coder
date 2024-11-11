@@ -98,10 +98,11 @@ func provisionerTags(r *http.Request) map[string]string {
 		return nil
 	}
 
-	var tagMap map[string]string
+	tagMap := map[string]string{}
 	for _, tag := range tags {
 		parts := strings.SplitN(tag, "=", 2)
 		if len(parts) == 2 {
+			// TODO(sas): seems like the kind of place where nilpointers would pop up.
 			tagMap[parts[0]] = parts[1]
 		}
 	}
