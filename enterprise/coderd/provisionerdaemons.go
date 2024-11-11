@@ -66,6 +66,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 
 	tags := provisionerTags(r)
 	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error reading tags.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
 		ctx,
 		database.GetProvisionerDaemonsByOrganizationParams{
