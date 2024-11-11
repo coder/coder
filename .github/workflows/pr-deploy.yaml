@@ -497,6 +497,10 @@ jobs:
           reactions: rocket
           reactions-edit-mode: replace
 
+      # debug with tmate session
+      - name: Debug with tmate session
+        uses: mxschmitt/action-tmate@e5c7151931ca95bad1c6f4190c730ecf8c7dde48 # v3.19
+
       - name: Create template and workspace
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         run: |
