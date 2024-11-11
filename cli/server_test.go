@@ -1645,8 +1645,6 @@ func TestServer_TelemetryDisable(t *testing.T) {
 			inv.Environ.Set(tt.key, tt.val)
 			clitest.Run(t, inv)
 
-			t.Logf("config:\n%s", b.String())
-
 			var dv codersdk.DeploymentValues
 			err := yaml.Unmarshal(b.Bytes(), &dv)
 			require.NoError(t, err)
