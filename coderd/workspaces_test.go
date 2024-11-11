@@ -31,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
@@ -3485,7 +3486,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -3509,14 +3510,15 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.Sent, 2)
+			sent := notifyEnq.Sent()
+			require.Len(t, sent, 2)
 			// notifyEnq.Sent[0] is an event for created user account
-			require.Equal(t, notifyEnq.Sent[1].TemplateID, notifications.TemplateWorkspaceDormant)
-			require.Equal(t, notifyEnq.Sent[1].UserID, workspace.OwnerID)
-			require.Contains(t, notifyEnq.Sent[1].Targets, template.ID)
-			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.ID)
-			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OrganizationID)
-			require.Contains(t, notifyEnq.Sent[1].Targets, workspace.OwnerID)
+			require.Equal(t, sent[1].TemplateID, notifications.TemplateWorkspaceDormant)
+			require.Equal(t, sent[1].UserID, workspace.OwnerID)
+			require.Contains(t, sent[1].Targets, template.ID)
+			require.Contains(t, sent[1].Targets, workspace.ID)
+			require.Contains(t, sent[1].Targets, workspace.OrganizationID)
+			require.Contains(t, sent[1].Targets, workspace.OwnerID)
 		})
 
 		t.Run("InitiatorIsOwner", func(t *testing.T) {
@@ -3524,7 +3526,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -3547,7 +3549,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Then
 			require.NoError(t, err, "mark workspace as dormant")
-			require.Len(t, notifyEnq.Sent, 0)
+			require.Len(t, notifyEnq.Sent(), 0)
 		})
 
 		t.Run("ActivateDormantWorkspace", func(t *testing.T) {
@@ -3555,7 +3557,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 
 			// Given
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -3585,7 +3587,7 @@ func TestWorkspaceNotifications(t *testing.T) {
 				Dormant: false,
 			})
 			require.NoError(t, err, "mark workspace as active")
-			require.Len(t, notifyEnq.Sent, 0)
+			require.Len(t, notifyEnq.Sent(), 0)
 		})
 	})
 }
