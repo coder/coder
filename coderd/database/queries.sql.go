@@ -15396,7 +15396,7 @@ WHERE
 			workspaces.dormant_at IS NULL AND
 			workspace_builds.transition = 'start'::workspace_transition AND (
 				users.status = 'suspended'::user_status OR (
-					workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamp AND
+					workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamptz AND
 					workspace_builds.deadline < $1 :: timestamptz
 				)
 			)
@@ -15404,7 +15404,7 @@ WHERE
 
 		-- A workspace may be eligible for autostart if the following are true:
 		--   * The workspace's owner is active.
-		--   * The provisioner job did not failed.
+		--   * The provisioner job did not fail.
 		--   * The workspace build was a stop transition.
 		--   * The workspace has an autostart schedule.
 		(
@@ -15416,8 +15416,8 @@ WHERE
 
 		-- A workspace may be eligible for dormant stop if the following are true:
 		--   * The workspace is not dormant.
-		--   * The template has set a time til dormant.
-		--   * The workspace has been unused for longer than the time til dormancy.
+		--   * The template has set a time 'til dormant.
+		--   * The workspace has been unused for longer than the time 'til dormancy.
 		(
 			workspaces.dormant_at IS NULL AND
 			templates.time_til_dormant > 0 AND
@@ -15428,7 +15428,7 @@ WHERE
 		--   * The workspace is dormant.
 		--   * The workspace is scheduled to be deleted.
 		--   * If there was a prior attempt to delete the workspace that failed:
-		--      * This attempt was at least 24 hours ago>
+		--      * This attempt was at least 24 hours ago.
 		(
 			workspaces.dormant_at IS NOT NULL AND
 			workspaces.deleting_at IS NOT NULL AND
