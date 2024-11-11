@@ -329,6 +329,11 @@
 									"title": "Template Dependencies",
 									"description": "Learn how to manage template dependencies",
 									"path": "./admin/templates/managing-templates/dependencies.md"
+								},
+								{
+									"title": "Workspace Scheduling",
+									"description": "Learn how to control how workspaces are started and stopped",
+									"path": "./admin/templates/managing-templates/schedule.md"
 								}
 							]
 						},

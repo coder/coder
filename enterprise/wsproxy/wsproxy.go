@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,7 +23,6 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
-	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
@@ -144,7 +142,6 @@ type Server struct {
 	replicaPingSingleflight singleflight.Group
 	replicaErrMut           sync.Mutex
 	replicaErr              string
-	latestDERPMap           atomic.Pointer[tailcfg.DERPMap]
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
@@ -271,14 +268,15 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("handle register: %w", err)
 	}
 
+	dialer, err := s.SDKClient.TailnetDialer()
+	if err != nil {
+		return nil, xerrors.Errorf("create tailnet dialer: %w", err)
+	}
 	agentProvider, err := coderd.NewServerTailnet(ctx,
 		s.Logger,
 		nil,
-		func() *tailcfg.DERPMap {
-			return s.latestDERPMap.Load()
-		},
+		dialer,
 		regResp.DERPForceWebSockets,
-		s.DialCoordinator,
 		opts.BlockDirect,
 		s.TracerProvider,
 	)
@@ -481,8 +479,6 @@ func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) e
 	s.Logger.Debug(s.ctx, "setting DERP mesh sibling addresses", slog.F("addresses", addresses))
 	s.derpMesh.SetAddresses(addresses, false)
 
-	s.latestDERPMap.Store(res.DERPMap)
-
 	go s.pingSiblingReplicas(res.SiblingReplicas)
 	return nil
 }
@@ -567,10 +563,6 @@ func (s *Server) handleRegisterFailure(err error) {
 		"failed to periodically re-register workspace proxy with primary Coder deployment",
 		slog.Error(err),
 	)
-}
-
-func (s *Server) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, error) {
-	return s.SDKClient.DialCoordinator(ctx)
 }
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {

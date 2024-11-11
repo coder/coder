@@ -290,6 +290,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+			)
+			r.Route("/settings/idpsync/organization", func(r chi.Router) {
+				r.Get("/", api.organizationIDPSyncSettings)
+				r.Patch("/", api.patchOrganizationIDPSyncSettings)
+			})
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {

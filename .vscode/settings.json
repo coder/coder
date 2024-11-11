@@ -47,10 +47,11 @@
 	"playwright.reuseBrowser": true,
 
 	"[javascript][javascriptreact][json][jsonc][typescript][typescriptreact]": {
-		"editor.defaultFormatter": "biomejs.biome"
-		// "editor.codeActionsOnSave": {
-		//   "source.organizeImports.biome": "explicit"
-		// }
+		"editor.defaultFormatter": "biomejs.biome",
+		"editor.codeActionsOnSave": {
+			"quickfix.biome": "explicit"
+			//   "source.organizeImports.biome": "explicit"
+		}
 	},
 
 	"[css][html][markdown][yaml]": {

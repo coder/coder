@@ -101,6 +101,18 @@ func (p *Peer) AddTunnel(other uuid.UUID) {
 	}
 }
 
+func (p *Peer) RemoveTunnel(other uuid.UUID) {
+	p.t.Helper()
+	req := &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(other)}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout removing tunnel for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
 func (p *Peer) UpdateDERP(derp int32) {
 	p.t.Helper()
 	node := &proto.Node{PreferredDerp: derp}

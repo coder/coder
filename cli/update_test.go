@@ -323,7 +323,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -333,18 +335,16 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		matches := []string{
-			stringParameterName, "$$",
-			"does not match", "",
-			"Enter a value", "abc",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
-		<-doneChan
+		pty.ExpectMatch(stringParameterName)
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("$$")
+		pty.ExpectMatch("does not match")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("")
+		pty.ExpectMatch("does not match")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("abc")
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateNumber", func(t *testing.T) {
@@ -369,7 +369,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -379,21 +381,16 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		matches := []string{
-			numberParameterName, "12",
-			"is more than the maximum", "",
-			"Enter a value", "8",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-
-			if value != "" {
-				pty.WriteLine(value)
-			}
-		}
-		<-doneChan
+		pty.ExpectMatch(numberParameterName)
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("12")
+		pty.ExpectMatch("is more than the maximum")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("")
+		pty.ExpectMatch("is not a number")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("8")
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ValidateBool", func(t *testing.T) {
@@ -418,7 +415,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		err := inv.Run()
 		require.NoError(t, err)
 
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt")
+		inv = inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -428,18 +427,16 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			assert.NoError(t, err)
 		}()
 
-		matches := []string{
-			boolParameterName, "cat",
-			"boolean value can be either", "",
-			"Enter a value", "false",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			pty.WriteLine(value)
-		}
-		<-doneChan
+		pty.ExpectMatch(boolParameterName)
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("cat")
+		pty.ExpectMatch("boolean value can be either \"true\" or \"false\"")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("")
+		pty.ExpectMatch("boolean value can be either \"true\" or \"false\"")
+		pty.ExpectMatch("> Enter a value (default: \"\"): ")
+		pty.WriteLine("false")
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("RequiredParameterAdded", func(t *testing.T) {
@@ -485,7 +482,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -508,7 +507,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 				pty.WriteLine(value)
 			}
 		}
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("OptionalParameterAdded", func(t *testing.T) {
@@ -555,7 +554,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -566,7 +567,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		}()
 
 		pty.ExpectMatch("Planning workspace...")
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionChanged", func(t *testing.T) {
@@ -612,7 +613,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -636,7 +639,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionDisappeared", func(t *testing.T) {
@@ -683,7 +686,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -707,7 +712,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ParameterOptionFailsMonotonicValidation", func(t *testing.T) {
@@ -739,7 +744,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace", "--always-prompt=true")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 
 		doneChan := make(chan struct{})
@@ -762,7 +769,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			pty.ExpectMatch(match)
 		}
 
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("ImmutableRequiredParameterExists_MutableRequiredParameterAdded", func(t *testing.T) {
@@ -804,7 +811,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -828,7 +837,7 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 
 	t.Run("MutableRequiredParameterExists_ImmutableRequiredParameterAdded", func(t *testing.T) {
@@ -874,7 +883,9 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 		require.NoError(t, err)
 
 		// Update the workspace
+		ctx := testutil.Context(t, testutil.WaitLong)
 		inv, root = clitest.New(t, "update", "my-workspace")
+		inv.WithContext(ctx)
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -898,6 +909,6 @@ func TestUpdateValidateRichParameters(t *testing.T) {
 			}
 		}
 
-		<-doneChan
+		_ = testutil.RequireRecvCtx(ctx, t, doneChan)
 	})
 }

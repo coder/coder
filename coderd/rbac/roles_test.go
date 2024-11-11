@@ -733,10 +733,25 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, orgAdmin, orgUserAdmin},
+				true: {owner, orgAdmin, orgUserAdmin, userAdmin},
 				false: {
 					orgMemberMe, otherOrgAdmin,
-					memberMe, userAdmin, templateAdmin,
+					memberMe, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "OrganizationIDPSyncSettings",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceIdpsyncSettings,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, userAdmin},
+				false: {
+					orgAdmin, orgUserAdmin,
+					orgMemberMe, otherOrgAdmin,
+					memberMe, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},

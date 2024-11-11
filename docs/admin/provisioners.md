@@ -178,7 +178,8 @@ A provisioner can run a given build job if one of the below is true:
 1. If a job has any explicit tags, it can only run on a provisioner with those
    explicit tags (the provisioner could have additional tags).
 
-The external provisioner in the above example can run build jobs with tags:
+The external provisioner in the above example can run build jobs in the same
+organization with tags:
 
 - `environment=on_prem`
 - `datacenter=chicago`
@@ -186,7 +187,8 @@ The external provisioner in the above example can run build jobs with tags:
 
 However, it will not pick up any build jobs that do not have either of the
 `environment` or `datacenter` tags set. It will also not pick up any build jobs
-from templates with the tag `scope=user` set.
+from templates with the tag `scope=user` set, or build jobs from templates in
+different organizations.
 
 > [!NOTE] If you only run tagged provisioners, you will need to specify a set of
 > tags that matches at least one provisioner for _all_ template import jobs and
@@ -198,34 +200,35 @@ from templates with the tag `scope=user` set.
 
 This is illustrated in the below table:
 
-| Provisioner Tags                                                  | Job Tags                                                         | Can Run Job? |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- | ------------ |
-| scope=organization owner=                                         | scope=organization owner=                                        | ✅           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅           |
-| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅           |
-| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
-| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
-| scope=user owner=aaa                                              | scope=organization owner=                                        | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa                                             | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ❌           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ❌           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ❌           |
+| Provisioner Tags                                                  | Job Tags                                                         | Same Org | Can Run Job? |
+| ----------------------------------------------------------------- | ---------------------------------------------------------------- | -------- | ------------ |
+| scope=organization owner=                                         | scope=organization owner=                                        | ✅       | ✅           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅       | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅       | ✅           |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ✅           |
+| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅       | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅       | ✅           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅       | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅       | ✅           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅       | ✅           |
+| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ✅       | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ✅       | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ❌           |
+| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ❌           |
+| scope=user owner=aaa                                              | scope=organization owner=                                        | ✅       | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ✅       | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa                                             | ✅       | ❌           |
+| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ✅       | ❌           |
+| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ✅       | ❌           |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅       | ❌           |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅       | ❌           |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌       | ❌           |
 
 > **Note to maintainers:** to generate this table, run the following command and
 > copy the output:
 >
 > ```
-> go test -v -count=1 ./coderd/provisionerserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
+> go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
 > ```
 
 ## Types of provisioners
@@ -288,8 +291,7 @@ will use in concert with the Helm chart for deploying the Coder server.
    ```sh
    coder provisioner keys create my-cool-key --org default
    # Optionally, you can specify tags for the provisioner key:
-   # coder provisioner keys create my-cool-key --org default --tags location=auh kind=k8s
-   ```
+   # coder provisioner keys create my-cool-key --org default --tag location=auh --tag kind=k8s
 
    Successfully created provisioner key kubernetes-key! Save this authentication
    token, it will not be shown again.
@@ -300,25 +302,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 1. Store the key in a kubernetes secret:
 
    ```sh
-   kubectl create secret generic coder-provisioner-psk --from-literal=key1=`<key omitted>`
-   ```
-
-1. Modify your Coder `values.yaml` to include
-
-   ```yaml
-   provisionerDaemon:
-     keySecretName: "coder-provisioner-keys"
-     keySecretKey: "key1"
-   ```
-
-1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit
-   `--version <your version>` to also upgrade Coder to the latest version.
-
-   ```sh
-   helm upgrade coder coder-v2/coder \
-       --namespace coder \
-       --version <your version> \
-       --values values.yaml
+   kubectl create secret generic coder-provisioner-psk --from-literal=my-cool-key=`<key omitted>`
    ```
 
 1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm
@@ -331,13 +315,17 @@ will use in concert with the Helm chart for deploying the Coder server.
          value: "https://coder.example.com"
      replicaCount: 10
    provisionerDaemon:
+     # NOTE: in older versions of the Helm chart (2.17.0 and below), it is required to set this to an empty string.
+     pskSecretName: ""
      keySecretName: "coder-provisioner-keys"
-     keySecretKey: "key1"
+     keySecretKey: "my-cool-key"
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10
-   concurrent builds) with the listed tags. For generic provisioners, remove the
-   tags.
+   concurrent builds) authenticating using the above key. The daemons will
+   authenticate using the provisioner key created in the previous step and
+   acquire jobs matching the tags specified when the provisioner key was
+   created. The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml)

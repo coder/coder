@@ -968,12 +968,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Name:         normName,
 		DebugContext: OauthDebugContext{},
 		GroupSync: idpsync.GroupParams{
-			SyncEnabled: false,
+			SyncEntitled: false,
 		},
 		OrganizationSync: idpsync.OrganizationParams{
-			SyncEnabled:    false,
-			IncludeDefault: true,
-			Organizations:  []uuid.UUID{},
+			SyncEntitled: false,
 		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -1513,14 +1511,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
-			// Until proper multi-org support, all users will be added to the default organization.
-			// The default organization should always be present.
-			//nolint:gocritic
-			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-			if err != nil {
-				return xerrors.Errorf("unable to fetch default organization: %w", err)
-			}
-
 			//nolint:gocritic
 			_, err = tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
@@ -1555,19 +1545,22 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				}
 			}
 
-			// Even if org sync is disabled, single org deployments will always
-			// have this set to true.
-			orgIDs := []uuid.UUID{}
-			if params.OrganizationSync.IncludeDefault {
-				orgIDs = append(orgIDs, defaultOrganization.ID)
+			//nolint:gocritic
+			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+			if err != nil {
+				return xerrors.Errorf("unable to fetch default organization: %w", err)
 			}
 
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-					Email:           params.Email,
-					Username:        params.Username,
-					OrganizationIDs: orgIDs,
+					Email:    params.Email,
+					Username: params.Username,
+					// This is a kludge, but all users are defaulted into the default
+					// organization. This exists as the default behavior.
+					// If org sync is enabled and configured, the user's groups
+					// will change based on the org sync settings.
+					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
 					UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 				},
 				LoginType:          params.LoginType,
