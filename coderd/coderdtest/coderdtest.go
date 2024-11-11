@@ -66,6 +66,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -251,7 +252,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -311,7 +312,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
 	}
 
 	if options.OneTimePasscodeValidityPeriod == 0 {
