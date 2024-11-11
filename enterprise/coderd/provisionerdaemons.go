@@ -65,12 +65,12 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 
 	tags := provisionerTags(r)
-
+	tagsJSON, err := json.Marshal(tags)
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
 		ctx,
 		database.GetProvisionerDaemonsByOrganizationParams{
 			OrganizationID: org.ID,
-			Tags:           tags,
+			Tags:           tagsJSON,
 		},
 	)
 	if err != nil {
@@ -84,22 +84,21 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
-func provisionerTags(r *http.Request) json.RawMessage {
+func provisionerTags(r *http.Request) map[string]string {
 	tags := r.URL.Query()["tags"]
 	if len(tags) == 0 {
-		return json.RawMessage("{}")
+		return nil
 	}
 
-	var pairs []string
+	var tagMap map[string]string
 	for _, tag := range tags {
 		parts := strings.SplitN(tag, "=", 2)
 		if len(parts) == 2 {
-			pairs = append(pairs, fmt.Sprintf(`%q:%q`, parts[0], parts[1]))
+			tagMap[parts[0]] = parts[1]
 		}
 	}
 
-	jsonString := fmt.Sprintf("{%s}", strings.Join(pairs, ","))
-	return json.RawMessage(jsonString)
+	return tagMap
 }
 
 type provisiionerDaemonAuthResponse struct {

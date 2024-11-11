@@ -396,14 +396,14 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tags_compatible(provisioner_tags jsonb, required_tags jsonb) RETURNS boolean
+CREATE FUNCTION tags_compatible(subset_tags jsonb, superset_tags jsonb) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 BEGIN
 	RETURN CASE
-		WHEN provisioner_tags = '{"scope": "organization", "owner": ""}' :: jsonb
-		THEN provisioner_tags = required_tags
-		ELSE required_tags <@ provisioner_tags
+		WHEN superset_tags = '{"scope": "organization", "owner": ""}' :: jsonb
+		THEN subset_tags = superset_tags
+		ELSE subset_tags <@ superset_tags
 	END;
 END;
 $$;

@@ -5538,7 +5538,7 @@ WHERE
 			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND tags_compatible(nested.tags, $5)
+			AND tags_compatible($5, nested.tags)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
