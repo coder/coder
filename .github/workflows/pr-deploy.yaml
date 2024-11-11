@@ -514,8 +514,3 @@ jobs:
           # Create workspace
           coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
           coder stop kube -y
-
-      # debug with tmate session
-      - name: Debug with tmate session
-        if: failure()
-        uses: mxschmitt/action-tmate@e5c7151931ca95bad1c6f4190c730ecf8c7dde48 # v3.19
