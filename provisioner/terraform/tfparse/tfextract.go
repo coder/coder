@@ -31,24 +31,22 @@ import (
 // introducing a circular dependency
 const maxFileSizeBytes = 10 * (10 << 20) // 10 MB
 
-// hclparse.Parser by default keeps track of all files it has ever parsed
-// by filename. By re-using the same parser instance we can avoid repeating
-// previous work.
-// NOTE: we can only do this if we _just_ use ParseHCLFile().
-// The ParseHCL() method allows specifying the filename directly, which allows
-// easily getting previously cached results. Whenever we parse HCL files from disk
-// we do so in a unique file path.
-// See: provisionersdk/session.go#L51
-var hclFileParser ParseHCLFiler = hclparse.NewParser()
-
-type ParseHCLFiler interface {
+// ParseHCLFile() is only method of hclparse.Parser we use in this package.
+// hclparse.Parser will by default cache all previous files it has ever
+// parsed. While leveraging this caching behavior is nice, we _never_ want
+// to end up in a situation where we end up returning stale values.
+type Parser interface {
 	ParseHCLFile(filename string) (*hcl.File, hcl.Diagnostics)
 }
 
 // WorkspaceTags extracts tags from coder_workspace_tags data sources defined in module.
 // Note that this only returns the lexical values of the data source, and does not
 // evaluate variables and such. To do this, see evalProvisionerTags below.
-func WorkspaceTags(module *tfconfig.Module) (map[string]string, error) {
+// If the provided Parser is nil, a new instance of hclparse.Parser will be used instead.
+func WorkspaceTags(parser Parser, module *tfconfig.Module) (map[string]string, error) {
+	if parser == nil {
+		parser = hclparse.NewParser()
+	}
 	tags := map[string]string{}
 
 	for _, dataResource := range module.DataResources {
@@ -63,7 +61,7 @@ func WorkspaceTags(module *tfconfig.Module) (map[string]string, error) {
 			continue
 		}
 		// We know in which HCL file is the data resource defined.
-		file, diags = hclFileParser.ParseHCLFile(dataResource.Pos.Filename)
+		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
@@ -143,9 +141,11 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 		}
 	}()
 
+	parser := hclparse.NewParser()
+
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = WorkspaceTags(module)
+	tags, err = WorkspaceTags(parser, module)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
@@ -156,7 +156,7 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := loadParamsDefaults(maps.Values(module.DataResources))
+	paramsDefaults, err := loadParamsDefaults(parser, maps.Values(module.DataResources))
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -242,7 +242,7 @@ func loadVarsDefaults(variables []*tfconfig.Variable) (map[string]string, error)
 }
 
 // loadParamsDefaults returns the default values of all coder_parameter data sources data sources provided.
-func loadParamsDefaults(dataSources []*tfconfig.Resource) (map[string]string, error) {
+func loadParamsDefaults(parser Parser, dataSources []*tfconfig.Resource) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	for _, dataResource := range dataSources {
 		if dataResource == nil {
@@ -261,7 +261,7 @@ func loadParamsDefaults(dataSources []*tfconfig.Resource) (map[string]string, er
 		}
 
 		// We know in which HCL file is the data resource defined.
-		file, diags = hclFileParser.ParseHCLFile(dataResource.Pos.Filename)
+		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
 		}
