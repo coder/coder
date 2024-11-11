@@ -14,7 +14,7 @@ WHERE
 	organization_id = @organization_id :: uuid
 	AND
 	-- adding support for searching by tags:
-	(@tags :: jsonb IS NULL OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
+	(@tags :: jsonb = '{}' :: jsonb OR tags_compatible(@tags :: jsonb, provisioner_daemons.tags :: jsonb));
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
