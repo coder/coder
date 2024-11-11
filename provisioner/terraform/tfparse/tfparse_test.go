@@ -52,6 +52,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
+					data "base" "ours" {
+						all = true
+					}
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
@@ -70,6 +73,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "region" {
 						type    = string
 						default = "us"
+					}
+					data "base" "ours" {
+						all = true
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -90,6 +96,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "region" {
 						type    = string
 						default = "us"
+					}
+					data "base" "ours" {
+						all = true
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -121,6 +130,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "region2" {
 						type    = string
 						default = "eu"
+					}
+					data "base" "ours" {
+						all = true
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -159,6 +171,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
+					data "base" "ours" {
+						all = true
+					}
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
@@ -183,6 +198,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "region" {
 						type    = string
 						default = "us"
+					}
+					data "base" "ours" {
+						all = true
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -218,6 +236,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "notregion" {
 						type = string
 					}
+					data "base" "ours" {
+						all = true
+					}
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
@@ -246,6 +267,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "region" {
 						type    = string
 						default = "us"
+					}
+					data "base" "ours" {
+						all = true
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -280,6 +304,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
+					data "base" "ours" {
+						all = true
+					}
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
@@ -311,6 +338,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "region.us"
 					}
+					data "base" "ours" {
+						all = true
+					}
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
@@ -334,7 +364,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tar := createTar(t, tc.files)
-			logger := slogtest.Make(t, nil)
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			tags, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, tar, "application/x-tar")
 			if tc.expectError != "" {
 				require.NotNil(t, err)
@@ -348,7 +378,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			zip := createZip(t, tc.files)
-			logger := slogtest.Make(t, nil)
+			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 			tags, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, zip, "application/zip")
 			if tc.expectError != "" {
 				require.Contains(t, err.Error(), tc.expectError)
@@ -395,8 +425,8 @@ func createZip(t testing.TB, files map[string]string) []byte {
 // goarch: amd64
 // pkg: github.com/coder/coder/v2/provisioner/terraform/tfparse
 // cpu: AMD EPYC 7502P 32-Core Processor
-// BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1077	   1081951 ns/op	  200754 B/op	    1312 allocs/op
-// BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	     984	   1187299 ns/op	  249574 B/op	    1369 allocs/op
+// BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1770	   1064920 ns/op	  197638 B/op	    1312 allocs/op
+// BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	     954	   1197070 ns/op	  246819 B/op	    1369 allocs/op
 // PASS
 func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 	files := map[string]string{

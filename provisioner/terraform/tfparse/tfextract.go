@@ -43,14 +43,15 @@ type Parser interface {
 // Note that this only returns the lexical values of the data source, and does not
 // evaluate variables and such. To do this, see evalProvisionerTags below.
 // If the provided Parser is nil, a new instance of hclparse.Parser will be used instead.
-func WorkspaceTags(parser Parser, module *tfconfig.Module) (map[string]string, error) {
+func WorkspaceTags(ctx context.Context, logger slog.Logger, parser Parser, module *tfconfig.Module) (map[string]string, error) {
 	if parser == nil {
 		parser = hclparse.NewParser()
 	}
 	tags := map[string]string{}
-
+	var skipped []string
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
+			skipped = append(skipped, strings.Join([]string{"data", dataResource.Type, dataResource.Name}, "."))
 			continue
 		}
 
@@ -118,6 +119,7 @@ func WorkspaceTags(parser Parser, module *tfconfig.Module) (map[string]string, e
 			}
 		}
 	}
+	logger.Debug(ctx, "found workspace tags", slog.F("tags", maps.Keys(tags)), slog.F("skipped", skipped))
 	return tags, nil
 }
 
@@ -145,18 +147,18 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = WorkspaceTags(parser, module)
+	tags, err = WorkspaceTags(ctx, logger, parser, module)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
 	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
-	varsDefaults, err := loadVarsDefaults(maps.Values(module.Variables))
+	varsDefaults, err := loadVarsDefaults(ctx, logger, maps.Values(module.Variables))
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := loadParamsDefaults(parser, maps.Values(module.DataResources))
+	paramsDefaults, err := loadParamsDefaults(ctx, logger, parser, maps.Values(module.DataResources))
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -176,8 +178,6 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 		}
 		return nil, xerrors.Errorf("provisioner tag %q evaluated to an empty value, please set a default value", k)
 	}
-	logger.Info(ctx, "found workspace tags", slog.F("tags", evalTags))
-
 	return evalTags, nil
 }
 
@@ -224,7 +224,7 @@ func loadModuleFromFile(file []byte, mimetype string) (module *tfconfig.Module, 
 }
 
 // loadVarsDefaults returns the default values for all variables passed to it.
-func loadVarsDefaults(variables []*tfconfig.Variable) (map[string]string, error) {
+func loadVarsDefaults(ctx context.Context, logger slog.Logger, variables []*tfconfig.Variable) (map[string]string, error) {
 	// iterate through vars to get the default values for all
 	// variables.
 	m := make(map[string]string)
@@ -238,18 +238,21 @@ func loadVarsDefaults(variables []*tfconfig.Variable) (map[string]string, error)
 		}
 		m[v.Name] = strings.Trim(sv, `"`)
 	}
+	logger.Debug(ctx, "found default values for variables", slog.F("defaults", m))
 	return m, nil
 }
 
 // loadParamsDefaults returns the default values of all coder_parameter data sources data sources provided.
-func loadParamsDefaults(parser Parser, dataSources []*tfconfig.Resource) (map[string]string, error) {
+func loadParamsDefaults(ctx context.Context, logger slog.Logger, parser Parser, dataSources []*tfconfig.Resource) (map[string]string, error) {
 	defaultsM := make(map[string]string)
+	var skipped []string
 	for _, dataResource := range dataSources {
 		if dataResource == nil {
 			continue
 		}
 
 		if dataResource.Type != "coder_parameter" {
+			skipped = append(skipped, strings.Join([]string{"data", dataResource.Type, dataResource.Name}, "."))
 			continue
 		}
 
@@ -296,6 +299,7 @@ func loadParamsDefaults(parser Parser, dataSources []*tfconfig.Resource) (map[st
 			}
 		}
 	}
+	logger.Debug(ctx, "found default values for parameters", slog.F("defaults", defaultsM), slog.F("skipped", skipped))
 	return defaultsM, nil
 }
 
