@@ -3631,11 +3631,23 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 
 	daemons := make([]database.ProvisionerDaemon, 0)
 	for _, daemon := range q.provisionerDaemons {
-		// TODO (sas): filter by tags here
-		if daemon.OrganizationID == arg.OrganizationID {
-			daemon.Tags = maps.Clone(daemon.Tags)
-			daemons = append(daemons, daemon)
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
 		}
+		if arg.Tags != nil {
+			var argTags map[string]string
+			err := json.Unmarshal(arg.Tags, &argTags)
+			if err != nil {
+				continue
+			}
+			for k, v := range argTags {
+				if t, found := daemon.Tags[k]; !found || t != v {
+					continue
+				}
+			}
+		}
+		daemon.Tags = maps.Clone(daemon.Tags)
+		daemons = append(daemons, daemon)
 	}
 
 	return daemons, nil
