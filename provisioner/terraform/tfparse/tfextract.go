@@ -21,6 +21,7 @@ import (
 	"github.com/hashicorp/hcl/v2/hclsyntax"
 	"github.com/hashicorp/terraform-config-inspect/tfconfig"
 	"github.com/zclconf/go-cty/cty"
+	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -30,11 +31,25 @@ import (
 // introducing a circular dependency
 const maxFileSizeBytes = 10 * (10 << 20) // 10 MB
 
+// hclparse.Parser by default keeps track of all files it has ever parsed
+// by filename. By re-using the same parser instance we can avoid repeating
+// previous work.
+// NOTE: we can only do this if we _just_ use ParseHCLFile().
+// The ParseHCL() method allows specifying the filename directly, which allows
+// easily getting previously cached results. Whenever we parse HCL files from disk
+// we do so in a unique file path.
+// See: provisionersdk/session.go#L51
+var hclFileParser ParseHCLFiler = hclparse.NewParser()
+
+type ParseHCLFiler interface {
+	ParseHCLFile(filename string) (*hcl.File, hcl.Diagnostics)
+}
+
 // WorkspaceTags extracts tags from coder_workspace_tags data sources defined in module.
 // Note that this only returns the lexical values of the data source, and does not
 // evaluate variables and such. To do this, see evalProvisionerTags below.
-func WorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]string, error) {
-	workspaceTags := map[string]string{}
+func WorkspaceTags(module *tfconfig.Module) (map[string]string, error) {
+	tags := map[string]string{}
 
 	for _, dataResource := range module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
@@ -43,13 +58,12 @@ func WorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]str
 
 		var file *hcl.File
 		var diags hcl.Diagnostics
-		parser := hclparse.NewParser()
 
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
 			continue
 		}
 		// We know in which HCL file is the data resource defined.
-		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		file, diags = hclFileParser.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
@@ -99,14 +113,14 @@ func WorkspaceTags(ctx context.Context, module *tfconfig.Module) (map[string]str
 					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
 
-				if _, ok := workspaceTags[key]; ok {
+				if _, ok := tags[key]; ok {
 					return nil, xerrors.Errorf(`workspace tag %q is defined multiple times`, key)
 				}
-				workspaceTags[key] = value
+				tags[key] = value
 			}
 		}
 	}
-	return workspaceTags, nil
+	return tags, nil
 }
 
 //	WorkspaceTagDefaultsFromFile extracts the default values for a `coder_workspace_tags` resource from the given
@@ -131,16 +145,20 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = WorkspaceTags(ctx, module)
+	tags, err = WorkspaceTags(module)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
 	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
-	varsDefaults, paramsDefaults, err := loadDefaults(module)
+	varsDefaults, err := loadVarsDefaults(maps.Values(module.Variables))
 	if err != nil {
-		return nil, xerrors.Errorf("load defaults: %w", err)
+		return nil, xerrors.Errorf("load variable defaults: %w", err)
+	}
+	paramsDefaults, err := loadParamsDefaults(maps.Values(module.DataResources))
+	if err != nil {
+		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
 
 	// Evaluate the tags expressions given the inputs.
@@ -205,46 +223,53 @@ func loadModuleFromFile(file []byte, mimetype string) (module *tfconfig.Module, 
 	return module, cleanup, nil
 }
 
-// loadDefaults inspects the given module and returns the default values for
-// all variables and coder_parameter data sources referenced there.
-func loadDefaults(module *tfconfig.Module) (varsDefaults map[string]string, paramsDefaults map[string]string, err error) {
-	// iterate through module.Variables to get the default values for all
+// loadVarsDefaults returns the default values for all variables passed to it.
+func loadVarsDefaults(variables []*tfconfig.Variable) (map[string]string, error) {
+	// iterate through vars to get the default values for all
 	// variables.
-	varsDefaults = make(map[string]string)
-	for _, v := range module.Variables {
+	m := make(map[string]string)
+	for _, v := range variables {
+		if v == nil {
+			continue
+		}
 		sv, err := interfaceToString(v.Default)
 		if err != nil {
-			return nil, nil, xerrors.Errorf("can't convert variable default value to string: %v", err)
+			return nil, xerrors.Errorf("can't convert variable default value to string: %v", err)
 		}
-		varsDefaults[v.Name] = strings.Trim(sv, `"`)
+		m[v.Name] = strings.Trim(sv, `"`)
 	}
+	return m, nil
+}
 
-	// iterate through module.DataResources to get the default values for all
-	// coder_parameter data resources.
-	paramsDefaults = make(map[string]string)
-	for _, dataResource := range module.DataResources {
+// loadParamsDefaults returns the default values of all coder_parameter data sources data sources provided.
+func loadParamsDefaults(dataSources []*tfconfig.Resource) (map[string]string, error) {
+	defaultsM := make(map[string]string)
+	for _, dataResource := range dataSources {
+		if dataResource == nil {
+			continue
+		}
+
 		if dataResource.Type != "coder_parameter" {
 			continue
 		}
 
 		var file *hcl.File
 		var diags hcl.Diagnostics
-		parser := hclparse.NewParser()
 
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
 			continue
 		}
 
 		// We know in which HCL file is the data resource defined.
-		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		file, diags = hclFileParser.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
-			return nil, nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
+			return nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
 		}
 
 		// Parse root to find "coder_parameter".
 		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
 		if diags.HasErrors() {
-			return nil, nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
 
 		// Iterate over blocks to locate the exact "coder_parameter" data resource.
@@ -256,22 +281,22 @@ func loadDefaults(module *tfconfig.Module) (varsDefaults map[string]string, para
 			// Parse "coder_parameter" to find the default value.
 			resContent, _, diags := block.Body.PartialContent(coderParameterSchema)
 			if diags.HasErrors() {
-				return nil, nil, xerrors.Errorf(`can't parse the coder_parameter: %s`, diags.Error())
+				return nil, xerrors.Errorf(`can't parse the coder_parameter: %s`, diags.Error())
 			}
 
 			if _, ok := resContent.Attributes["default"]; !ok {
-				paramsDefaults[dataResource.Name] = ""
+				defaultsM[dataResource.Name] = ""
 			} else {
 				expr := resContent.Attributes["default"].Expr
 				value, err := previewFileContent(expr.Range())
 				if err != nil {
-					return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
+					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
-				paramsDefaults[dataResource.Name] = strings.Trim(value, `"`)
+				defaultsM[dataResource.Name] = strings.Trim(value, `"`)
 			}
 		}
 	}
-	return varsDefaults, paramsDefaults, nil
+	return defaultsM, nil
 }
 
 // EvalProvisionerTags evaluates the given workspaceTags based on the given
