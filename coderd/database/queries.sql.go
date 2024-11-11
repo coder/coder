@@ -5270,18 +5270,18 @@ FROM
 	provisioner_daemons
 WHERE
 	-- This is the original search criteria:
-	($1 IS NULL OR organization_id = $1)
+	($1 :: uuid IS NULL OR organization_id = $1 :: uuid)
 	AND
 	-- adding support for searching by tags:
 	($2 :: jsonb IS NULL OR tags_compatible($2 :: jsonb, provisioner_daemons.tags :: jsonb))
 	AND
 	-- Because we're adding @tags as a second search parameter, we need to do this check to
 	-- ensure that the first parameter's behavior remains unchanged when no second parameter is provided:
-	($1 IS NOT NULL OR $2 IS NOT NULL)
+	($1 :: uuid IS NOT NULL OR $2 IS NOT NULL)
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {
-	OrganizationID interface{}     `db:"organization_id" json:"organization_id"`
+	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
 	Tags           json.RawMessage `db:"tags" json:"tags"`
 }
 
