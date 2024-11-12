@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -122,7 +123,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			notifyEnq := &notificationstest.FakeEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
@@ -172,7 +173,7 @@ func TestScim(t *testing.T) {
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
 
 			// Expect zero notifications (SkipNotifications = true)
-			require.Empty(t, notifyEnq.Sent)
+			require.Empty(t, notifyEnq.Sent())
 		})
 
 		t.Run("OK_Bearer", func(t *testing.T) {
@@ -184,7 +185,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			notifyEnq := &notificationstest.FakeEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
@@ -228,7 +229,7 @@ func TestScim(t *testing.T) {
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
 
 			// Expect zero notifications (SkipNotifications = true)
-			require.Empty(t, notifyEnq.Sent)
+			require.Empty(t, notifyEnq.Sent())
 		})
 
 		t.Run("OKNoDefault", func(t *testing.T) {
@@ -240,7 +241,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			notifyEnq := &notificationstest.FakeEnqueuer{}
 			dv := coderdtest.DeploymentValues(t)
 			dv.OIDC.OrganizationAssignDefault = false
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -287,7 +288,7 @@ func TestScim(t *testing.T) {
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 0)
 
 			// Expect zero notifications (SkipNotifications = true)
-			require.Empty(t, notifyEnq.Sent)
+			require.Empty(t, notifyEnq.Sent())
 		})
 
 		t.Run("Duplicate", func(t *testing.T) {
