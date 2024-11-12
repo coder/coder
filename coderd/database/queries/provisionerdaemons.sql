@@ -14,7 +14,7 @@ WHERE
 	organization_id = @organization_id :: uuid
 	AND
 	-- adding support for searching by tags:
-	 (@tags :: tags = '{}' :: tags OR tags_compatible(@tags::tags, provisioner_daemons.tags::tags));
+	 (@tags :: tags = 'null' :: tags OR tags_compatible(@tags::tags, provisioner_daemons.tags::tags));
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago

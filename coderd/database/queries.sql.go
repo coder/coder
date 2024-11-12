@@ -5273,7 +5273,7 @@ WHERE
 	organization_id = $1 :: uuid
 	AND
 	-- adding support for searching by tags:
-	 ($2 :: tags = '{}' :: tags OR tags_compatible($2::tags, provisioner_daemons.tags::tags))
+	 ($2 :: tags = 'null' :: tags OR tags_compatible($2::tags, provisioner_daemons.tags::tags))
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {
@@ -5538,7 +5538,7 @@ WHERE
 			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND tags_compatible($5 :: jsonb, nested.tags)
+			AND tags_compatible(nested.tags, $5 :: jsonb)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE
