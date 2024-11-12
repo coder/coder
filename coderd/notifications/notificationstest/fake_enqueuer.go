@@ -55,23 +55,17 @@ func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
 }
 
 func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	f.mu.Lock()
-	defer f.mu.Unlock()
-	f.assertRBACNoLock(ctx)
-	return f.enqueueWithDataNoLock(ctx, userID, templateID, labels, nil, createdBy, targets...)
+	return f.EnqueueWithData(ctx, userID, templateID, labels, nil, createdBy, targets...)
 }
 
 func (f *FakeEnqueuer) EnqueueWithData(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
+	return f.enqueueWithDataLock(ctx, userID, templateID, labels, data, createdBy, targets...)
+}
+
+func (f *FakeEnqueuer) enqueueWithDataLock(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.assertRBACNoLock(ctx)
-	return f.enqueueWithDataNoLock(ctx, userID, templateID, labels, data, createdBy, targets...)
-}
-
-func (f *FakeEnqueuer) enqueueWithDataNoLock(_ context.Context, userID, templateID uuid.UUID, labels map[string]string, data map[string]any, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
-	if f.mu.TryLock() {
-		panic("Developer error: do not call enqueueWithDataNoLock outside of a mutex lock!")
-	}
 
 	f.sent = append(f.sent, &FakeNotification{
 		UserID:     userID,
