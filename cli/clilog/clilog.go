@@ -119,9 +119,7 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 			}
 			closers = append(closers, logWriter.Close)
 			sinks = append(sinks, sinkFn(logWriter))
-
 		}
-
 		return nil
 	}
 
