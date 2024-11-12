@@ -17,10 +17,10 @@ In particular, look at the struct types such as `Template` or `Workspace`.
 As a rule, we **do not collect** the following types of information:
 
 - Any data that could make your installation less secure
-- Any data that could identify individual users
+- Any data that could identify individual users, except the administrator.
 
 For example, we do not collect parameters, environment variables, or user email
-addresses.
+addresses. We do collect the administrator email.
 
 ## Why we collect
 
