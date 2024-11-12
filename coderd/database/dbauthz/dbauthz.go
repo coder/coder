@@ -179,7 +179,7 @@ var (
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
 					rbac.ResourceGroup.Type:        {policy.ActionRead},
 					// Provisionerd creates notification messages
-					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate},
+					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
