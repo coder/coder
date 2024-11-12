@@ -5538,7 +5538,7 @@ WHERE
 			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
-			-- elsewhere, whe use the tagset type, but here we use jsonb for backward compatibility
+			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
 			-- they are aliases and the code that calls this query already relies on a different type
 			AND tagset_contains($5 :: jsonb, potential_job.tags)
 		ORDER BY
