@@ -5273,12 +5273,12 @@ WHERE
 	organization_id = $1 :: uuid
 	AND
 	-- adding support for searching by tags:
-	($2 :: jsonb = '' :: jsonb OR tags_compatible($2 :: jsonb, provisioner_daemons.tags :: jsonb))
+	 ($2 :: tags = '{}' :: tags OR tags_compatible($2::tags, provisioner_daemons.tags::tags))
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {
-	OrganizationID uuid.UUID       `db:"organization_id" json:"organization_id"`
-	Tags           json.RawMessage `db:"tags" json:"tags"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	Tags           StringMap `db:"tags" json:"tags"`
 }
 
 func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
@@ -5538,7 +5538,7 @@ WHERE
 			AND nested.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND tags_compatible($5, nested.tags)
+			AND tags_compatible($5 :: jsonb, nested.tags)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE

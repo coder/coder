@@ -3635,12 +3635,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 			continue
 		}
 		if arg.Tags != nil {
-			var argTags map[string]string
-			err := json.Unmarshal(arg.Tags, &argTags)
-			if err != nil {
-				continue
-			}
-			for k, v := range argTags {
+			for k, v := range arg.Tags {
 				if t, found := daemon.Tags[k]; !found || t != v {
 					continue
 				}

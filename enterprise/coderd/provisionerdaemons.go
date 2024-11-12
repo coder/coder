@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -64,15 +63,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	tags, err := provisionerTags(r)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error reading tags.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
+	tags := provisionerTags(r)
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
 		ctx,
 		database.GetProvisionerDaemonsByOrganizationParams{
@@ -91,10 +82,10 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
-func provisionerTags(r *http.Request) ([]byte, error) {
+func provisionerTags(r *http.Request) map[string]string {
 	tags := r.URL.Query()["tags"]
 	if len(tags) == 0 {
-		return []byte{}, nil
+		return nil
 	}
 
 	tagMap := map[string]string{}
@@ -106,7 +97,7 @@ func provisionerTags(r *http.Request) ([]byte, error) {
 		}
 	}
 
-	return json.Marshal(tagMap)
+	return tagMap
 }
 
 type provisiionerDaemonAuthResponse struct {

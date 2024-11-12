@@ -22,7 +22,7 @@ WHERE
 			AND nested.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
 			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			AND tags_compatible(@tags, nested.tags)
+			AND tags_compatible(@tags :: jsonb, nested.tags)
 		ORDER BY
 			nested.created_at
 		FOR UPDATE

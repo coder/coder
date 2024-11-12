@@ -198,6 +198,8 @@ CREATE TYPE startup_script_behavior AS ENUM (
     'non-blocking'
 );
 
+CREATE DOMAIN tags AS jsonb;
+
 CREATE TYPE tailnet_status AS ENUM (
     'ok',
     'lost'
@@ -396,14 +398,14 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tags_compatible(subset_tags jsonb, superset_tags jsonb) RETURNS boolean
+CREATE FUNCTION tags_compatible(subset_tags tags, superset_tags tags) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 BEGIN
 	RETURN CASE
-		WHEN superset_tags = '{"scope": "organization", "owner": ""}' :: jsonb
+		WHEN superset_tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
 		THEN subset_tags = superset_tags
-		ELSE subset_tags <@ superset_tags
+		ELSE subset_tags :: jsonb <@ superset_tags :: jsonb
 	END;
 END;
 $$;
