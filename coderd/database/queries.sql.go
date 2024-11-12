@@ -2131,6 +2131,55 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 	return i, err
 }
 
+const getAccumulatedUsersInsights = `-- name: GetAccumulatedUsersInsights :many
+SELECT
+	date_trunc('day', created_at)::date AS date,
+	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS total
+FROM
+	users
+WHERE
+	created_at >= $1::timestamptz
+	AND created_at < $2::timestamptz
+ORDER BY
+	date_trunc('day', created_at)::date
+`
+
+type GetAccumulatedUsersInsightsParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetAccumulatedUsersInsightsRow struct {
+	Date  time.Time `db:"date" json:"date"`
+	Total int64     `db:"total" json:"total"`
+}
+
+// GetAccumulatedUsersInsights returns the accumulated number of users created
+// in the given timeframe. It returns the accumulated number of users for each date
+// within the specified timeframe, providing a running total of user sign-ups.
+func (q *sqlQuerier) GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getAccumulatedUsersInsights, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetAccumulatedUsersInsightsRow
+	for rows.Next() {
+		var i GetAccumulatedUsersInsightsRow
+		if err := rows.Scan(&i.Date, &i.Total); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getTemplateAppInsights = `-- name: GetTemplateAppInsights :many
 WITH
 	-- Create a list of all unique apps by template, this is used to
@@ -2887,56 +2936,6 @@ func (q *sqlQuerier) GetTemplateUsageStats(ctx context.Context, arg GetTemplateU
 	return items, nil
 }
 
-const getTotalUsersByDateInsights = `-- name: GetAccumulatedUsersInsights :many
-SELECT
-	date_trunc('day', created_at)::date AS date,
-	COUNT(*) AS count
-FROM
-	users
-WHERE
-	created_at >= $1::timestamptz
-	AND created_at < $2::timestamptz
-GROUP BY
-	date
-ORDER BY
-	date ASC
-`
-
-type GetAccumulatedUsersInsightsParams struct {
-	StartTime time.Time `db:"start_time" json:"start_time"`
-	EndTime   time.Time `db:"end_time" json:"end_time"`
-}
-
-type GetAccumulatedUsersInsightsRow struct {
-	Date  time.Time `db:"date" json:"date"`
-	Count int64     `db:"count" json:"count"`
-}
-
-// GetTotalUsersByDate returns the number of registered users for each day
-// in the given timeframe.
-func (q *sqlQuerier) GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTotalUsersByDateInsights, arg.StartTime, arg.EndTime)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetAccumulatedUsersInsightsRow
-	for rows.Next() {
-		var i GetAccumulatedUsersInsightsRow
-		if err := rows.Scan(&i.Date, &i.Count); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
-}
-
 const getUserActivityInsights = `-- name: GetUserActivityInsights :many
 WITH
 	deployment_stats AS (
@@ -3406,7 +3405,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3415,7 +3414,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -6225,7 +6224,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND
+AND 
     lower(name) = lower($2)
 `
 
@@ -6341,10 +6340,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND
+AND 
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND
+AND 
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -8030,7 +8029,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE
+UPDATE 
 	tailnet_peers
 SET
 	status = $2
@@ -12486,7 +12485,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

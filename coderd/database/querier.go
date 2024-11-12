@@ -115,6 +115,10 @@ type sqlcQuerier interface {
 	GetAPIKeysByLoginType(ctx context.Context, loginType LoginType) ([]APIKey, error)
 	GetAPIKeysByUserID(ctx context.Context, arg GetAPIKeysByUserIDParams) ([]APIKey, error)
 	GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Time) ([]APIKey, error)
+	// GetAccumulatedUsersInsights returns the accumulated number of users created
+	// in the given timeframe. It returns the accumulated number of users for each date
+	// within the specified timeframe, providing a running total of user sign-ups.
+	GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error)
 	GetActiveUserCount(ctx context.Context) (int64, error)
 	GetActiveWorkspaceBuildsByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceBuild, error)
 	GetAllTailnetAgents(ctx context.Context) ([]TailnetAgent, error)
@@ -262,9 +266,6 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
-	// GetTotalUsersByDate returns the number of registered users for each day
-	// in the given timeframe.
-	GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// GetUserActivityInsights returns the ranking with top active users.
 	// The result can be filtered on template_ids, meaning only user data

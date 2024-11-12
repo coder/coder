@@ -2320,6 +2320,48 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
+func (q *FakeQuerier) GetAccumulatedUsersInsights(_ context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	newUsersByDate := make(map[time.Time]int64)
+	for _, user := range q.users {
+		if user.CreatedAt.Before(arg.StartTime) || user.CreatedAt.After(arg.EndTime) {
+			continue
+		}
+		date := user.CreatedAt.Truncate(24 * time.Hour)
+		newUsersByDate[date]++
+	}
+
+	accumulatedByDate := make(map[time.Time]int64)
+	var accumulatedCount int64
+	sortedDates := make([]time.Time, 0, len(newUsersByDate))
+
+	for date := range newUsersByDate {
+		sortedDates = append(sortedDates, date)
+	}
+
+	// Sort dates in ascending order
+	sort.Slice(sortedDates, func(i, j int) bool {
+		return sortedDates[i].Before(sortedDates[j])
+	})
+
+	// Calculate accumulated count
+	for _, date := range sortedDates {
+		accumulatedCount += newUsersByDate[date]
+		accumulatedByDate[date] = accumulatedCount
+	}
+
+	var rows []database.GetAccumulatedUsersInsightsRow
+	for _, date := range sortedDates {
+		rows = append(rows, database.GetAccumulatedUsersInsightsRow{
+			Date:  date,
+			Total: accumulatedByDate[date],
+		})
+	}
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -5167,48 +5209,6 @@ func (q *FakeQuerier) GetTemplatesWithFilter(ctx context.Context, arg database.G
 	}
 
 	return q.GetAuthorizedTemplates(ctx, arg, nil)
-}
-
-func (q *FakeQuerier) GetAccumulatedUsersInsights(_ context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	newUsersByDate := make(map[time.Time]int64)
-	for _, user := range q.users {
-		if user.CreatedAt.Before(arg.StartTime) || user.CreatedAt.After(arg.EndTime) {
-			continue
-		}
-		date := user.CreatedAt.Truncate(24 * time.Hour)
-		newUsersByDate[date]++
-	}
-
-	accumulatedByDate := make(map[time.Time]int64)
-	var accumulatedCount int64
-	sortedDates := make([]time.Time, 0, len(newUsersByDate))
-
-	for date := range newUsersByDate {
-		sortedDates = append(sortedDates, date)
-	}
-
-	// Sort dates in ascending order
-	sort.Slice(sortedDates, func(i, j int) bool {
-		return sortedDates[i].Before(sortedDates[j])
-	})
-
-	// Calculate accumulated count
-	for _, date := range sortedDates {
-		accumulatedCount += newUsersByDate[date]
-		accumulatedByDate[date] = accumulatedCount
-	}
-
-	var rows []database.GetAccumulatedUsersInsightsRow
-	for _, date := range sortedDates {
-		rows = append(rows, database.GetAccumulatedUsersInsightsRow{
-			Date:  date,
-			Count: accumulatedByDate[date],
-		})
-	}
-	return rows, nil
 }
 
 func (q *FakeQuerier) GetUnexpiredLicenses(_ context.Context) ([]database.License, error) {

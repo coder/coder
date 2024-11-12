@@ -1292,6 +1292,52 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/total-users": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about total users",
+                "operationId": "get-insights-about-total-users",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "Start time",
+                        "name": "start_time",
+                        "in": "query",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "date-time",
+                        "description": "End time",
+                        "name": "end_time",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.TotalUserByDate"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/insights/user-activity": {
             "get": {
                 "security": [
@@ -13676,6 +13722,17 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "max_token_lifetime": {
+                    "type": "integer"
+                }
+            }
+        },
+        "codersdk.TotalUserByDate": {
+            "type": "object",
+            "properties": {
+                "date": {
+                    "type": "string"
+                },
+                "total": {
                     "type": "integer"
                 }
             }

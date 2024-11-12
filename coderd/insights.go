@@ -470,6 +470,15 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get insights about total users
+// @ID get-insights-about-total-users
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Insights
+// @Param start_time query string true "Start time" format(date-time)
+// @Param end_time query string true "End time" format(date-time)
+// @Success 200 {object} codersdk.TotalUsersInsightResponse
+// @Router /insights/total-users [get]
 func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
@@ -514,7 +523,7 @@ func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
 	for d := startTime; d.Before(endTime) || d.Equal(endTime); d = d.AddDate(0, 0, 1) {
 		for _, row := range rows {
 			if row.Date.Equal(d) {
-				currentTotal = uint64(row.Count)
+				currentTotal = uint64(row.Total)
 			}
 		}
 		res = append(res, codersdk.TotalUserByDate{

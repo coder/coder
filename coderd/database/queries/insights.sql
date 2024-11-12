@@ -778,7 +778,7 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 -- within the specified timeframe, providing a running total of user sign-ups.
 SELECT
 	date_trunc('day', created_at)::date AS date,
-	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS accumulated_users
+	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS total
 FROM
 	users
 WHERE
