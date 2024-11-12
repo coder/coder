@@ -1194,8 +1194,8 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			continue
 		}
 		tags := map[string]string{}
-		if arg.Tags != nil {
-			err := json.Unmarshal(arg.Tags, &tags)
+		if arg.ProvisionerTags != nil {
+			err := json.Unmarshal(arg.ProvisionerTags, &tags)
 			if err != nil {
 				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
 			}
@@ -3634,11 +3634,9 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 		if daemon.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		if arg.Tags != nil {
-			for k, v := range arg.Tags {
-				if t, found := daemon.Tags[k]; !found || t != v {
-					continue
-				}
+		for k, v := range arg.WantTags {
+			if t, found := daemon.Tags[k]; !found || t != v {
+				continue
 			}
 		}
 		daemon.Tags = maps.Clone(daemon.Tags)

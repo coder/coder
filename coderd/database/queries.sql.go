@@ -5273,16 +5273,16 @@ WHERE
 	organization_id = $1 :: uuid
 	AND
 	-- adding support for searching by tags:
-	 ($2 :: tags = 'null' :: tags OR tags_compatible($2::tags, provisioner_daemons.tags::tags))
+	($2 :: tagset = 'null' :: tagset OR tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {
 	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
-	Tags           StringMap `db:"tags" json:"tags"`
+	WantTags       StringMap `db:"want_tags" json:"want_tags"`
 }
 
 func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.Tags)
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.WantTags)
 	if err != nil {
 		return nil, err
 	}
@@ -5532,15 +5532,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = $3
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND tags_compatible(nested.tags, $5 :: jsonb)
+			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
+			-- elsewhere, whe use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND tagset_contains($5 :: jsonb, potential_job.tags)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -5549,11 +5551,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt      sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID       uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Types          []ProvisionerType `db:"types" json:"types"`
-	Tags           json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt       sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID        uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	OrganizationID  uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Types           []ProvisionerType `db:"types" json:"types"`
+	ProvisionerTags json.RawMessage   `db:"provisioner_tags" json:"provisioner_tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -5568,7 +5570,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		arg.WorkerID,
 		arg.OrganizationID,
 		pq.Array(arg.Types),
-		arg.Tags,
+		arg.ProvisionerTags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(

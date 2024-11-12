@@ -1020,7 +1020,7 @@ func TestQueuePosition(t *testing.T) {
 			UUID:  uuid.New(),
 			Valid: true,
 		},
-		Tags: json.RawMessage("{}"),
+		ProvisionerTags: json.RawMessage("{}"),
 	})
 	require.NoError(t, err)
 	require.Equal(t, jobs[0].ID, job.ID)

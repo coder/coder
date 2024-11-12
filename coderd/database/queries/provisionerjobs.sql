@@ -16,15 +16,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = @organization_id
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			AND tags_compatible(nested.tags, @tags :: jsonb)
+			AND potential_job.provisioner = ANY(@types :: provisioner_type [ ])
+			-- elsewhere, whe use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND tagset_contains(@provisioner_tags :: jsonb, potential_job.tags)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT

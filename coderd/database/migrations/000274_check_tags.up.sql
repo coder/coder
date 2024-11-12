@@ -1,16 +1,16 @@
--- We need this as a type alias to ensure that we can override it in sqlc.
--- We need to override it in sqlc so that it can be recognised as a StringMap.
--- Without this zero values for other inferred types cause json syntax errors.
-CREATE DOMAIN tags AS jsonb;
+CREATE DOMAIN tagset AS jsonb;
 
-CREATE OR REPLACE FUNCTION tags_compatible(subset_tags tags, superset_tags tags)
+COMMENT ON DOMAIN tagset IS 'A set of tags that match provisioner daemons to provisioner jobs, which can originate from workspaces or templates. tagset is a narrowed type over jsonb. It is expected to be the JSON representation of map[string]string. That is, {"key1": "value1", "key2": "value2"}. We need the narrowed type instead of just using jsonb so that we can give sqlc a type hint, otherwise it defaults to json.RawMessage. json.RawMessage is a suboptimal type to use in the context that we need tagset for.';
+
+CREATE OR REPLACE FUNCTION tagset_contains(superset tagset, subset tagset)
 RETURNS boolean as $$
 BEGIN
-	RETURN CASE
-		-- Special case for untagged provisioners
-		WHEN subset_tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-		THEN subset_tags = superset_tags
-		ELSE subset_tags :: jsonb <@ superset_tags :: jsonb
-	END;
+	RETURN
+		-- Special case for untagged provisioners, where only an exact match should count
+		(subset = '{"scope": "organization", "owner": ""}' :: tagset AND subset = superset)
+		-- General case
+		OR subset <@ superset;
 END;
 $$ LANGUAGE plpgsql;
+
+COMMENT ON FUNCTION tagset_contains(tagset, tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
