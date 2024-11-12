@@ -1524,6 +1524,21 @@ export interface TokensFilter {
 	readonly include_all: boolean;
 }
 
+// From codersdk/insights.go
+export interface TotalUserByDate {
+	readonly date: string;
+	readonly total: number;
+}
+
+// From codersdk/insights.go
+export interface TotalUsersInsightRequest {
+	readonly start_time: string;
+	readonly end_time: string;
+}
+
+// From codersdk/insights.go
+export type TotalUsersInsightResponse = Readonly<Array<TotalUserByDate>>
+
 // From codersdk/deployment.go
 export interface TraceConfig {
 	readonly enable: boolean;

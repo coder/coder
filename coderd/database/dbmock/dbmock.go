@@ -832,6 +832,21 @@ func (mr *MockStoreMockRecorder) GetAPIKeysLastUsedAfter(arg0, arg1 any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAPIKeysLastUsedAfter", reflect.TypeOf((*MockStore)(nil).GetAPIKeysLastUsedAfter), arg0, arg1)
 }
 
+// GetAccumulatedUsersInsights mocks base method.
+func (m *MockStore) GetAccumulatedUsersInsights(arg0 context.Context, arg1 database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAccumulatedUsersInsights", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetAccumulatedUsersInsightsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAccumulatedUsersInsights indicates an expected call of GetAccumulatedUsersInsights.
+func (mr *MockStoreMockRecorder) GetAccumulatedUsersInsights(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAccumulatedUsersInsights", reflect.TypeOf((*MockStore)(nil).GetAccumulatedUsersInsights), arg0, arg1)
+}
+
 // GetActiveUserCount mocks base method.
 func (m *MockStore) GetActiveUserCount(arg0 context.Context) (int64, error) {
 	m.ctrl.T.Helper()

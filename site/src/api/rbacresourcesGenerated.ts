@@ -153,6 +153,7 @@ export const RBACResourceActions: Partial<
     read_personal: "read personal user data like user settings and auth links",
     update: "update an existing user",
     update_personal: "update personal data",
+    view_insights: "view insights",
   },
   workspace: {
     application_connect: "connect to workspace apps via browser",

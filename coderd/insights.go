@@ -470,6 +470,54 @@ func (api *API) insightsTemplates(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	p := httpapi.NewQueryParamParser().
+		RequiredNotEmpty("start_time").
+		RequiredNotEmpty("end_time")
+	vals := r.URL.Query()
+	var (
+		// The QueryParamParser does not preserve timezone, so we need
+		// to parse the time ourselves.
+		startTimeString = p.String(vals, "", "start_time")
+		endTimeString   = p.String(vals, "", "end_time")
+	)
+	p.ErrorExcessParams(vals)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	startTime, endTime, ok := parseInsightsStartAndEndTime(ctx, rw, time.Now(), startTimeString, endTimeString)
+	if !ok {
+		return
+	}
+
+	rows, err := api.Database.GetAccumulatedUsersInsights(ctx, database.GetAccumulatedUsersInsightsParams{
+		StartTime: startTime,
+		EndTime:   endTime,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching total users.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	var res codersdk.TotalUsersInsightResponse
+	for _, row := range rows {
+		res = append(res, codersdk.TotalUserByDate{
+			Date:  row.Date.Format(time.DateOnly),
+			Total: uint64(row.Count),
+		})
+	}
+	httpapi.Write(r.Context(), rw, http.StatusOK, res)
+}
+
 // convertTemplateInsightsApps builds the list of builtin apps and template apps
 // from the provided database rows, builtin apps are implicitly a part of all
 // templates.

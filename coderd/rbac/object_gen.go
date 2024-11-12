@@ -269,6 +269,7 @@ var (
 	//  - "ActionReadPersonal" :: read personal user data like user settings and auth links
 	//  - "ActionUpdate" :: update an existing user
 	//  - "ActionUpdatePersonal" :: update personal data
+	//  - "ActionViewInsights" :: view insights
 	ResourceUser = Object{
 		Type: "user",
 	}

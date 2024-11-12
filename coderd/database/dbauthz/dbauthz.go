@@ -2283,6 +2283,13 @@ func (q *querier) GetTemplatesWithFilter(ctx context.Context, arg database.GetTe
 	return q.db.GetAuthorizedTemplates(ctx, arg, prep)
 }
 
+func (q *querier) GetAccumulatedUsersInsights(ctx context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceUser); err != nil {
+		return nil, err
+	}
+	return q.db.GetAccumulatedUsersInsights(ctx, arg)
+}
+
 func (q *querier) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err

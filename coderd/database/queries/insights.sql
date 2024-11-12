@@ -771,3 +771,18 @@ SELECT
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
+
+-- name: GetAccumulatedUsersInsights :many
+-- GetAccumulatedUsersInsights returns the accumulated number of users created
+-- in the given timeframe. It returns the accumulated number of users for each date
+-- within the specified timeframe, providing a running total of user sign-ups.
+SELECT
+	date_trunc('day', created_at)::date AS date,
+	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS accumulated_users
+FROM
+	users
+WHERE
+	created_at >= @start_time::timestamptz
+	AND created_at < @end_time::timestamptz
+ORDER BY
+	date_trunc('day', created_at)::date;

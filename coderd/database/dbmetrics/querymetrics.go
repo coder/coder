@@ -1253,6 +1253,13 @@ func (m queryMetricsStore) GetTemplatesWithFilter(ctx context.Context, arg datab
 	return templates, err
 }
 
+func (m queryMetricsStore) GetAccumulatedUsersInsights(ctx context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetAccumulatedUsersInsights(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetAccumulatedUsersInsights").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUnexpiredLicenses(ctx context.Context) ([]database.License, error) {
 	start := time.Now()
 	licenses, err := m.s.GetUnexpiredLicenses(ctx)

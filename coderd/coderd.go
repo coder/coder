@@ -1260,6 +1260,7 @@ func New(options *Options) *API {
 			r.Get("/user-activity", api.insightsUserActivity)
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
+			r.Get("/total-users", api.insightsTotalUsers)
 		})
 		r.Route("/debug", func(r chi.Router) {
 			r.Use(

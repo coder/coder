@@ -262,6 +262,9 @@ type sqlcQuerier interface {
 	GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error)
 	GetTemplates(ctx context.Context) ([]Template, error)
 	GetTemplatesWithFilter(ctx context.Context, arg GetTemplatesWithFilterParams) ([]Template, error)
+	// GetTotalUsersByDate returns the number of registered users for each day
+	// in the given timeframe.
+	GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error)
 	GetUnexpiredLicenses(ctx context.Context) ([]License, error)
 	// GetUserActivityInsights returns the ranking with top active users.
 	// The result can be filtered on template_ids, meaning only user data
