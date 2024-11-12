@@ -292,8 +292,8 @@ func TestCalculateAutoStop(t *testing.T) {
 			name: "TimeBeforeEpoch",
 			// The epoch is 2023-01-02 in each timezone. We set the time to
 			// 1 second before 11pm the previous day, as this is the latest time
-			// we allow due to our 1h leeway logic.
-			now:                    time.Date(2023, 1, 1, 22, 59, 59, 0, sydneyLoc),
+			// we allow due to our 2h leeway logic.
+			now:                    time.Date(2023, 1, 1, 21, 59, 59, 0, sydneyLoc),
 			templateAllowAutostop:  true,
 			templateDefaultTTL:     0,
 			userQuietHoursSchedule: sydneyQuietHours,

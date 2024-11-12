@@ -7,12 +7,12 @@ module.exports = {
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
 	important: ["#root", "#storybook-root"],
 	theme: {
-		fontSize: {
-			"2xs": ["0.626rem","0.875rem"],
-			sm: ["0.875rem", "1.5rem"],
-			"3xl": ["2rem", "2.5rem"],
-		},
 		extend: {
+			fontSize: {
+				"2xs": ["0.626rem", "0.875rem"],
+				sm: ["0.875rem", "1.5rem"],
+				"3xl": ["2rem", "2.5rem"],
+			},
 			borderRadius: {
 				lg: "var(--radius)",
 				md: "calc(var(--radius) - 2px)",
@@ -20,27 +20,30 @@ module.exports = {
 			},
 			colors: {
 				content: {
-					primary: "var(--content-primary)",
-					secondary: "var(--content-secondary)",
-					disabled: "var(--content-disabled)",
-					invert: "var(--content-invert)",
-					success: "var(--content-success)",
-					danger: "var(--content-danger)",
-					link: "var(--content-link)",
+					primary: "hsl(var(--content-primary))",
+					secondary: "hsl(var(--content-secondary))",
+					disabled: "hsl(var(--content-disabled))",
+					invert: "hsl(var(--content-invert))",
+					success: "hsl(var(--content-success))",
+					danger: "hsl(var(--content-danger))",
+					link: "hsl(var(--content-link))",
 				},
 				surface: {
-					primary: "var(--surface-primary)",
-					secondary: "var(--surface-secondary)",
-					tertiary: "var(--surface-tertiary)",
+					primary: "hsl(var(--surface-primary))",
+					secondary: "hsl(var(--surface-secondary))",
+					tertiary: "hsl(var(--surface-tertiary))",
 					invert: {
-						primary: "var(--surface-invert-primary)",
-						secondary: "var(--surface-invert-secondary)",
+						primary: "hsl(var(--surface-invert-primary))",
+						secondary: "hsl(var(--surface-invert-secondary))",
 					},
-					error: "var(--surface-error)",
+					error: "hsl(var(--surface-error))",
 				},
 				border: {
-					default: "var(--border-default)",
-					error: "var(--border-error)",
+					DEFAULT: "hsl(var(--border-default))",
+					error: "hsl(var(--border-error))",
+				},
+				background: {
+					DEFAULT: "hsl(var(--background))",
 				},
 			},
 		},

@@ -102,70 +102,89 @@ func TestUserOIDC(t *testing.T) {
 		t.Run("MultiOrgWithDefault", func(t *testing.T) {
 			t.Parallel()
 
-			// Chicken and egg problem. Config is at startup, but orgs are
-			// created at runtime. We should add a runtime configuration of
-			// this.
-			second := uuid.New()
-			third := uuid.New()
-
 			// Given: 4 organizations: default, second, third, and fourth
 			runner := setupOIDCTest(t, oidcTestConfig{
 				Config: func(cfg *coderd.OIDCConfig) {
 					cfg.AllowSignups = true
 				},
 				DeploymentValues: func(dv *codersdk.DeploymentValues) {
-					dv.OIDC.OrganizationAssignDefault = true
+					// Will be overwritten by dynamic value
+					dv.OIDC.OrganizationAssignDefault = false
 					dv.OIDC.OrganizationField = "organization"
 					dv.OIDC.OrganizationMapping = serpent.Struct[map[string][]uuid.UUID]{
-						Value: map[string][]uuid.UUID{
-							"second": {second},
-							"third":  {third},
-						},
+						Value: map[string][]uuid.UUID{},
 					}
 				},
 			})
-			dbgen.Organization(t, runner.API.Database, database.Organization{
-				ID: second,
-			})
-			dbgen.Organization(t, runner.API.Database, database.Organization{
-				ID: third,
-			})
-			fourth := dbgen.Organization(t, runner.API.Database, database.Organization{})
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			orgOne, err := runner.AdminClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name:        "one",
+				DisplayName: "One",
+				Description: "",
+				Icon:        "",
+			})
+			require.NoError(t, err)
+
+			orgTwo, err := runner.AdminClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name:        "two",
+				DisplayName: "two",
+				Description: "",
+				Icon:        "",
+			})
+			require.NoError(t, err)
+
+			orgThree, err := runner.AdminClient.CreateOrganization(ctx, codersdk.CreateOrganizationRequest{
+				Name:        "three",
+				DisplayName: "three",
+			})
+			require.NoError(t, err)
+
+			expectedSettings := codersdk.OrganizationSyncSettings{
+				Field: "organization",
+				Mapping: map[string][]uuid.UUID{
+					"first":  {orgOne.ID},
+					"second": {orgTwo.ID},
+				},
+				AssignDefault: true,
+			}
+			settings, err := runner.AdminClient.PatchOrganizationIDPSyncSettings(ctx, expectedSettings)
+			require.NoError(t, err)
+			require.Equal(t, expectedSettings.Field, settings.Field)
+
 			claims := jwt.MapClaims{
 				"email":        "alice@coder.com",
-				"organization": []string{"second", "third"},
+				"organization": []string{"first", "second"},
 			}
 
 			// Then: a new user logs in with claims "second" and "third", they
 			// should belong to [default, second, third].
 			userClient, resp := runner.Login(t, claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
-			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgOne.ID, orgTwo.ID})
 			user, err := userClient.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
 			// When: they are manually added to the fourth organization, a new sync
 			// should remove them.
-			_, err = runner.AdminClient.PostOrganizationMember(ctx, fourth.ID, "alice")
+			_, err = runner.AdminClient.PostOrganizationMember(ctx, orgThree.ID, "alice")
 			require.ErrorContains(t, err, "Organization sync is enabled")
 
-			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgOne.ID, orgTwo.ID})
 			// Go around the block to add the user to see if they are removed.
 			dbgen.OrganizationMember(t, runner.API.Database, database.OrganizationMember{
 				UserID:         user.ID,
-				OrganizationID: fourth.ID,
+				OrganizationID: orgThree.ID,
 			})
-			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{second, third, fourth.ID})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgOne.ID, orgTwo.ID, orgThree.ID})
 
 			// Then: Log in again will resync the orgs to their updated
 			// claims.
 			runner.Login(t, jwt.MapClaims{
 				"email":        "alice@coder.com",
-				"organization": []string{"third"},
+				"organization": []string{"second"},
 			})
-			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{third})
+			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgTwo.ID})
 		})
 
 		t.Run("MultiOrgWithoutDefault", func(t *testing.T) {

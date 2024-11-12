@@ -208,7 +208,8 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	for _, ws := range markedForDeletion {
 		dormantTime := dbtime.Now().Add(opts.TimeTilDormantAutoDelete)
 		_, err = s.enqueuer.Enqueue(
-			ctx,
+			// nolint:gocritic // Need actor to enqueue notification
+			dbauthz.AsNotifier(ctx),
 			ws.OwnerID,
 			notifications.TemplateWorkspaceMarkedForDeletion,
 			map[string]string{

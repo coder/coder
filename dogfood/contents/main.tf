@@ -20,6 +20,7 @@ locals {
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
+    "ja-tokyo"      = "tcp://reuenthal-tokyo-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -81,6 +82,11 @@ data "coder_parameter" "region" {
     icon  = "/emojis/1f1ff-1f1e6.png"
     name  = "Johannesburg"
     value = "za-jnb"
+  }
+  option {
+    icon  = "/emojis/1f1ef-1f1f5.png"
+    name  = "Tokyo"
+    value = "ja-tokyo"
   }
 }
 

@@ -21,7 +21,7 @@ potentially optimize within the template.
 
 ![Screenshot of a workspace and its build timeline](../../images/best-practice/build-timeline.png)
 
-Adjust this request to match your Coder access URL and workspace:
+You can also retrieve this detail programmatically from the API:
 
 ```shell
 curl -X GET https://coder.example.com/api/v2/workspacebuilds/{workspacebuild}/timings \
@@ -36,9 +36,9 @@ for more information.
 ### Coder Observability Chart
 
 Use the [Observability Helm chart](https://github.com/coder/observability) for a
-pre-built set of dashboards to monitor your control plane over time. It includes
-Grafana, Prometheus, Loki, and Alert Manager out-of-the-box, and can be deployed
-on your existing Grafana instance.
+pre-built set of dashboards to monitor your Coder deployments over time. It
+includes pre-configured instances of Grafana, Prometheus, Loki, and Alertmanager
+to ingest and display key observability data.
 
 We recommend that all administrators deploying on Kubernetes or on an existing
 Prometheus or Grafana stack set the observability bundle up with the control
@@ -48,40 +48,44 @@ or our [Kubernetes installation guide](../../install/kubernetes.md).
 
 ### Enable Prometheus metrics for Coder
 
-[Prometheus.io](https://prometheus.io/docs/introduction/overview/#what-is-prometheus)
-is included as part of the [observability chart](#coder-observability-chart). It
-offers a variety of
-[available metrics](../../admin/integrations/prometheus.md#available-metrics),
+Coder exposes a variety of
+[application metrics](../../admin/integrations/prometheus.md#available-metrics),
 such as `coderd_provisionerd_job_timings_seconds` and
-`coderd_agentstats_startup_script_seconds`, which measure how long the workspace
-takes to provision and how long the startup script takes.
+`coderd_agentstats_startup_script_seconds`, which measure how long the
+workspaces take to provision and how long the startup scripts take.
 
-You can
-[install it separately](https://prometheus.io/docs/prometheus/latest/getting_started/)
-if you prefer.
+To make use of these metrics, you will need to
+[enable Prometheus metrics](../../admin/integrations/prometheus.md#enable-prometheus-metrics)
+exposition.
+
+If you are not using the [Observability Chart](#coder-observability-chart), you
+will need to install Prometheus and configure it to scrape the metrics from your
+Coder installation.
 
 ## Provisioners
 
-`coder server` defaults to three provisioner daemons. Each provisioner daemon
-can handle one single job, such as start, stop, or delete at a time and can be
-resource intensive. When all provisioners are busy, workspaces enter a "pending"
-state until a provisioner becomes available.
+`coder server` by default provides three built-in provisioner daemons
+(controlled by the
+[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)
+config option). Each provisioner daemon can handle one single job (such as
+start, stop, or delete) at a time and can be resource intensive. When all
+provisioners are busy, workspaces enter a "pending" state until a provisioner
+becomes available.
 
 ### Increase provisioner daemons
 
 Provisioners are queue-based to reduce unpredictable load to the Coder server.
-However, they can be scaled up to allow more concurrent provisioners. You risk
-overloading the central Coder server if you use too many built-in provisioners,
-so we recommend a maximum of five provisioners. For more than five provisioners,
-we recommend that you move to
-[external provisioners](../../admin/provisioners.md).
+If you require a higher bandwidth of provisioner jobs, you can do so by
+increasing the
+[`CODER_PROVISIONER_DAEMONS`](../../reference/cli/server.md#--provisioner-daemons)
+config option.
 
-If you can’t move to external provisioners, use the `provisioner-daemons` flag
-to increase the number of provisioner daemons to five:
-
-```shell
-coder server --provisioner-daemons=5
-```
+You risk overloading Coder if you use too many built-in provisioners, so we
+recommend a maximum of five built-in provisioners per `coderd` replica. For more
+than five provisioners, we recommend that you move to
+[External Provisioners](../../admin/provisioners.md) and also consider
+[High Availability](../../admin/networking/high-availability.md) to run multiple
+`coderd` replicas.
 
 Visit the
 [CLI documentation](../../reference/cli/server.md#--provisioner-daemons) for
@@ -116,21 +120,28 @@ for more information.
 
 ## Set up Terraform provider caching
 
-By default, Coder downloads each Terraform provider when a workspace starts.
-This can create unnecessary network and disk I/O.
+### Template lock file
+
+On each workspace build, Terraform will examine the providers used by the
+template and attempt to download the latest version of each provider unless it
+is constrained to a specific version. Terraform exposes a mechanism to build a
+static list of provider versions, which improves cacheability.
+
+Without caching, Terraform will download each provider on each build, and this
+can create unnecessary network and disk I/O.
 
 `terraform init` generates a `.terraform.lock.hcl` which instructs Coder
 provisioners to cache specific versions of your providers.
 
-To use `terraform init` to cache providers:
+To use `terraform init` to build the static provider version list:
 
-1. Pull the templates to your local device:
+1. Pull your template to your local device:
 
    ```shell
-   coder templates pull
+   coder templates pull <template>
    ```
 
-1. Run `terraform init` to initialize the directory:
+1. Run `terraform init` inside the template directory to build the lock file:
 
    ```shell
    terraform init
@@ -139,5 +150,19 @@ To use `terraform init` to cache providers:
 1. Push the templates back to your Coder deployment:
 
    ```shell
-   coder templates push
+   coder templates push <template>
    ```
+
+This bundles up your template and the lock file and uploads it to Coder. The
+next time the template is used, Terraform will attempt to cache the specific
+provider versions.
+
+### Cache directory
+
+Coder will instruct Terraform to cache its downloaded providers in the
+configured [`CODER_CACHE_DIRECTORY`](../../reference/cli/server.md#--cache-dir)
+directory.
+
+Ensure that this directory is set to a location on disk which will persist
+across restarts of Coder or
+[external provisioners](../../admin/provisioners.md), if you're using them.

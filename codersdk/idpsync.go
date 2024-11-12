@@ -97,3 +97,43 @@ func (c *Client) PatchRoleIDPSyncSettings(ctx context.Context, orgID string, req
 	var resp RoleSyncSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+type OrganizationSyncSettings struct {
+	// Field selects the claim field to be used as the created user's
+	// organizations. If the field is the empty string, then no organization
+	// updates will ever come from the OIDC provider.
+	Field string `json:"field"`
+	// Mapping maps from an OIDC claim --> Coder organization uuid
+	Mapping map[string][]uuid.UUID `json:"mapping"`
+	// AssignDefault will ensure the default org is always included
+	// for every user, regardless of their claims. This preserves legacy behavior.
+	AssignDefault bool `json:"organization_assign_default"`
+}
+
+func (c *Client) OrganizationIDPSyncSettings(ctx context.Context) (OrganizationSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/settings/idpsync/organization", nil)
+	if err != nil {
+		return OrganizationSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req OrganizationSyncSettings) (OrganizationSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/settings/idpsync/organization", req)
+	if err != nil {
+		return OrganizationSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
