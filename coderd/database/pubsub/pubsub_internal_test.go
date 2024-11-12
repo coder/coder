@@ -178,6 +178,60 @@ func TestPubSub_DoesntBlockNotify(t *testing.T) {
 	require.NoError(t, err)
 }
 
+// TestPubSub_DoesntRaceListenUnlisten tests for regressions of
+// https://github.com/coder/coder/issues/15312
+func TestPubSub_DoesntRaceListenUnlisten(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	uut := newWithoutListener(logger, nil)
+	fListener := newFakePqListener()
+	uut.pgListener = fListener
+	go uut.listen()
+
+	noopListener := func(_ context.Context, _ []byte) {}
+
+	const numEvents = 500
+	events := make([]string, numEvents)
+	cancels := make([]func(), numEvents)
+	for i := range events {
+		var err error
+		events[i] = fmt.Sprintf("event-%d", i)
+		cancels[i], err = uut.Subscribe(events[i], noopListener)
+		require.NoError(t, err)
+	}
+	start := make(chan struct{})
+	done := make(chan struct{})
+	finalCancels := make([]func(), numEvents)
+	for i := range events {
+		event := events[i]
+		cancel := cancels[i]
+		go func() {
+			<-start
+			var err error
+			// subscribe again
+			finalCancels[i], err = uut.Subscribe(event, noopListener)
+			assert.NoError(t, err)
+			done <- struct{}{}
+		}()
+		go func() {
+			<-start
+			cancel()
+			done <- struct{}{}
+		}()
+	}
+	close(start)
+	for range numEvents * 2 {
+		_ = testutil.RequireRecvCtx(ctx, t, done)
+	}
+	for i := range events {
+		fListener.requireIsListening(t, events[i])
+		finalCancels[i]()
+	}
+	require.Len(t, uut.queues, 0)
+}
+
 const (
 	numNotifications = 5
 	testMessage      = "birds of a feather"
@@ -254,4 +308,12 @@ func newFakePqListener() *fakePqListener {
 		channels: make(map[string]struct{}),
 		notify:   make(chan *pq.Notification),
 	}
+}
+
+func (f *fakePqListener) requireIsListening(t testing.TB, s string) {
+	t.Helper()
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	_, ok := f.channels[s]
+	require.True(t, ok, "should be listening for '%s', but isn't", s)
 }

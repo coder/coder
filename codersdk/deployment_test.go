@@ -78,6 +78,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Provisioner Daemon Pre-shared Key (PSK)": {
 			yaml: true,
 		},
+		"Email Auth: Password": {
+			yaml: true,
+		},
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},

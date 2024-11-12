@@ -18,4 +18,4 @@ user can use the template to create a workspace. To prevent this, disable the
 
 ![Create Template Permissions](../../images/templates/create-template-permissions.png)
 
-Permissions is an enterprise-only feature.
+Permissions is a premium-only feature.

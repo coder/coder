@@ -339,6 +339,10 @@ func (*FakeQuerier) Ping(_ context.Context) (time.Duration, error) {
 	return 0, nil
 }
 
+func (*FakeQuerier) PGLocks(_ context.Context) (database.PGLocks, error) {
+	return []database.PGLock{}, nil
+}
+
 func (tx *fakeTx) AcquireLock(_ context.Context, id int64) error {
 	if _, ok := tx.FakeQuerier.locks[id]; ok {
 		return xerrors.Errorf("cannot acquire lock %d: already held", id)
@@ -937,7 +941,7 @@ func minTime(t, u time.Time) time.Time {
 	return u
 }
 
-func provisonerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatus {
+func provisionerJobStatus(j database.ProvisionerJob) database.ProvisionerJobStatus {
 	if isNotNull(j.CompletedAt) {
 		if j.Error.String != "" {
 			return database.ProvisionerJobStatusFailed
@@ -1100,6 +1104,19 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for _, script := range q.workspaceAgentScripts {
+		for _, id := range ids {
+			if script.WorkspaceAgentID == id {
+				scripts = append(scripts, script)
+				break
+			}
+		}
+	}
+	return scripts, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1198,7 +1215,7 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 		provisionerJob.StartedAt = arg.StartedAt
 		provisionerJob.UpdatedAt = arg.StartedAt.Time
 		provisionerJob.WorkerID = arg.WorkerID
-		provisionerJob.JobStatus = provisonerJobStatus(provisionerJob)
+		provisionerJob.JobStatus = provisionerJobStatus(provisionerJob)
 		q.provisionerJobs[index] = provisionerJob
 		// clone the Tags before returning, since maps are reference types and
 		// we don't want the caller to be able to mutate the map we have inside
@@ -5850,12 +5867,12 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	build, err := q.GetWorkspaceBuildByID(ctx, id)
+	build, err := q.getWorkspaceBuildByIDNoLock(ctx, id)
 	if err != nil {
 		return nil, xerrors.Errorf("get build: %w", err)
 	}
 
-	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get resources: %w", err)
 	}
@@ -5864,7 +5881,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		resourceIDs = append(resourceIDs, res.ID)
 	}
 
-	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	agents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get agents: %w", err)
 	}
@@ -5873,7 +5890,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
+	scripts, err := q.getWorkspaceAgentScriptsByAgentIDsNoLock(agentIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get scripts: %w", err)
 	}
@@ -5895,15 +5912,31 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 				break
 			}
 		}
+		if script.ID == uuid.Nil {
+			return nil, xerrors.Errorf("script with ID %s not found", t.ScriptID)
+		}
+
+		var agent database.WorkspaceAgent
+		for _, a := range agents {
+			if a.ID == script.WorkspaceAgentID {
+				agent = a
+				break
+			}
+		}
+		if agent.ID == uuid.Nil {
+			return nil, xerrors.Errorf("agent with ID %s not found", t.ScriptID)
+		}
 
 		rows = append(rows, database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
-			ScriptID:    t.ScriptID,
-			StartedAt:   t.StartedAt,
-			EndedAt:     t.EndedAt,
-			ExitCode:    t.ExitCode,
-			Stage:       t.Stage,
-			Status:      t.Status,
-			DisplayName: script.DisplayName,
+			ScriptID:           t.ScriptID,
+			StartedAt:          t.StartedAt,
+			EndedAt:            t.EndedAt,
+			ExitCode:           t.ExitCode,
+			Stage:              t.Stage,
+			Status:             t.Status,
+			DisplayName:        script.DisplayName,
+			WorkspaceAgentID:   agent.ID,
+			WorkspaceAgentName: agent.Name,
 		})
 	}
 	return rows, nil
@@ -5913,16 +5946,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	scripts := make([]database.WorkspaceAgentScript, 0)
-	for _, script := range q.workspaceAgentScripts {
-		for _, id := range ids {
-			if script.WorkspaceAgentID == id {
-				scripts = append(scripts, script)
-				break
-			}
-		}
-	}
-	return scripts, nil
+	return q.getWorkspaceAgentScriptsByAgentIDsNoLock(ids)
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -6839,6 +6863,11 @@ func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
+func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	// No auth filter.
+	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
+}
+
 func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7431,7 +7460,7 @@ func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.Inser
 		Tags:           maps.Clone(arg.Tags),
 		TraceMetadata:  arg.TraceMetadata,
 	}
-	job.JobStatus = provisonerJobStatus(job)
+	job.JobStatus = provisionerJobStatus(job)
 	q.provisionerJobs = append(q.provisionerJobs, job)
 	return job, nil
 }
@@ -7709,6 +7738,11 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		}
 	}
 
+	status := database.UserStatusDormant
+	if arg.Status != "" {
+		status = database.UserStatus(arg.Status)
+	}
+
 	user := database.User{
 		ID:             arg.ID,
 		Email:          arg.Email,
@@ -7717,7 +7751,7 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		UpdatedAt:      arg.UpdatedAt,
 		Username:       arg.Username,
 		Name:           arg.Name,
-		Status:         database.UserStatusDormant,
+		Status:         status,
 		RBACRoles:      arg.RBACRoles,
 		LoginType:      arg.LoginType,
 	}
@@ -8640,6 +8674,7 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 			updated = append(updated, database.UpdateInactiveUsersToDormantRow{
 				ID:         user.ID,
 				Email:      user.Email,
+				Username:   user.Username,
 				LastSeenAt: user.LastSeenAt,
 			})
 		}
@@ -8811,7 +8846,7 @@ func (q *FakeQuerier) UpdateProvisionerJobByID(_ context.Context, arg database.U
 			continue
 		}
 		job.UpdatedAt = arg.UpdatedAt
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -8832,7 +8867,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCancelByID(_ context.Context, arg 
 		}
 		job.CanceledAt = arg.CanceledAt
 		job.CompletedAt = arg.CompletedAt
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -8855,7 +8890,7 @@ func (q *FakeQuerier) UpdateProvisionerJobWithCompleteByID(_ context.Context, ar
 		job.CompletedAt = arg.CompletedAt
 		job.Error = arg.Error
 		job.ErrorCode = arg.ErrorCode
-		job.JobStatus = provisonerJobStatus(job)
+		job.JobStatus = provisionerJobStatus(job)
 		q.provisionerJobs[index] = job
 		return nil
 	}
@@ -11216,6 +11251,67 @@ func (q *FakeQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg database.
 	}
 
 	return q.convertToWorkspaceRowsNoLock(ctx, workspaces, int64(beforePageCount), arg.WithSummary), nil
+}
+
+func (q *FakeQuerier) GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID, prepared rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	if prepared != nil {
+		// Call this to match the same function calls as the SQL implementation.
+		_, err := prepared.CompileToSQL(ctx, rbac.ConfigWithoutACL())
+		if err != nil {
+			return nil, err
+		}
+	}
+	workspaces := make([]database.WorkspaceTable, 0)
+	for _, workspace := range q.workspaces {
+		if workspace.OwnerID == ownerID && !workspace.Deleted {
+			workspaces = append(workspaces, workspace)
+		}
+	}
+
+	out := make([]database.GetWorkspacesAndAgentsByOwnerIDRow, 0, len(workspaces))
+	for _, w := range workspaces {
+		// these always exist
+		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, w.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get latest build: %w", err)
+		}
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job: %w", err)
+		}
+
+		outAgents := make([]database.AgentIDNamePair, 0)
+		resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, job.ID)
+		if err != nil {
+			return nil, xerrors.Errorf("get workspace resources: %w", err)
+		}
+		if len(resources) > 0 {
+			agents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, []uuid.UUID{resources[0].ID})
+			if err != nil {
+				return nil, xerrors.Errorf("get workspace agents: %w", err)
+			}
+			for _, a := range agents {
+				outAgents = append(outAgents, database.AgentIDNamePair{
+					ID:   a.ID,
+					Name: a.Name,
+				})
+			}
+		}
+
+		out = append(out, database.GetWorkspacesAndAgentsByOwnerIDRow{
+			ID:         w.ID,
+			Name:       w.Name,
+			JobStatus:  job.JobStatus,
+			Transition: build.Transition,
+			Agents:     outAgents,
+		})
+	}
+
+	return out, nil
 }
 
 func (q *FakeQuerier) GetAuthorizedUsers(ctx context.Context, arg database.GetUsersParams, prepared rbac.PreparedAuthorized) ([]database.GetUsersRow, error) {

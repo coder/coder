@@ -2,19 +2,16 @@ import { cx } from "@emotion/css";
 import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
-import type {
-	AuthorizationResponse,
-	Experiments,
-	Organization,
-} from "api/typesGenerated";
+import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import type { Permissions } from "contexts/auth/permissions";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { linkToUsers } from "modules/navigation";
+import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC, ReactNode } from "react";
 import { Link, NavLink } from "react-router-dom";
 
@@ -30,7 +27,7 @@ interface SidebarProps {
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
 }
 
 /**
@@ -43,6 +40,7 @@ export const SidebarView: FC<SidebarProps> = ({
 	permissions,
 }) => {
 	const { showOrganizations } = useDashboard();
+	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
 
 	// TODO: Do something nice to scroll to the active org.
 	return (
@@ -56,6 +54,7 @@ export const SidebarView: FC<SidebarProps> = ({
 			<DeploymentSettingsNavigation
 				active={!activeOrganizationName && activeSettings}
 				permissions={permissions}
+				isPremium={hasPremiumLicense}
 			/>
 			{showOrganizations && (
 				<OrganizationsSettingsNavigation
@@ -72,7 +71,8 @@ interface DeploymentSettingsNavigationProps {
 	/** Whether a deployment setting page is being viewed. */
 	active: boolean;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
+	isPremium: boolean;
 }
 
 /**
@@ -85,6 +85,7 @@ interface DeploymentSettingsNavigationProps {
 const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 	active,
 	permissions,
+	isPremium,
 }) => {
 	return (
 		<div css={{ paddingBottom: 12 }}>
@@ -130,10 +131,11 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					{permissions.viewDeploymentValues && (
 						<SidebarNavSubItem href="network">Network</SidebarNavSubItem>
 					)}
-					{/* All users can view workspace regions.  */}
-					<SidebarNavSubItem href="workspace-proxies">
-						Workspace Proxies
-					</SidebarNavSubItem>
+					{permissions.readWorkspaceProxies && (
+						<SidebarNavSubItem href="workspace-proxies">
+							Workspace Proxies
+						</SidebarNavSubItem>
+					)}
 					{permissions.viewDeploymentValues && (
 						<SidebarNavSubItem href="security">Security</SidebarNavSubItem>
 					)}
@@ -145,12 +147,17 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					{permissions.viewAllUsers && (
 						<SidebarNavSubItem href="users">Users</SidebarNavSubItem>
 					)}
-					<SidebarNavSubItem href="notifications">
-						<Stack direction="row" alignItems="center" spacing={1}>
-							<span>Notifications</span>
-							<FeatureStageBadge contentType="beta" size="sm" />
-						</Stack>
-					</SidebarNavSubItem>
+					{permissions.viewNotificationTemplate && (
+						<SidebarNavSubItem href="notifications">
+							<Stack direction="row" alignItems="center" spacing={1}>
+								<span>Notifications</span>
+								<FeatureStageBadge contentType="beta" size="sm" />
+							</Stack>
+						</SidebarNavSubItem>
+					)}
+					{!isPremium && (
+						<SidebarNavSubItem href="premium">Premium</SidebarNavSubItem>
+					)}
 				</Stack>
 			)}
 		</div>
@@ -167,7 +174,7 @@ interface OrganizationsSettingsNavigationProps {
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
-	permissions: AuthorizationResponse;
+	permissions: Permissions;
 }
 
 /**
@@ -241,8 +248,6 @@ interface OrganizationSettingsNavigationProps {
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
 > = ({ active, organization }) => {
-	const { experiments } = useDashboard();
-
 	return (
 		<>
 			<SidebarNavItem

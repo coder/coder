@@ -87,9 +87,8 @@ func TestNestedInTx(t *testing.T) {
 func testSQLDB(t testing.TB) *sql.DB {
 	t.Helper()
 
-	connection, closeFn, err := dbtestutil.Open()
+	connection, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closeFn)
 
 	db, err := sql.Open("postgres", connection)
 	require.NoError(t, err)

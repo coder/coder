@@ -1352,7 +1352,8 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 	defer close(disconnected)
 	a.closeMutex.Unlock()
 
-	coordination := tailnet.NewRemoteCoordination(a.logger, coordinate, network, uuid.Nil)
+	ctrl := tailnet.NewAgentCoordinationController(a.logger, network)
+	coordination := ctrl.New(coordinate)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -1364,7 +1365,7 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
 			}
 			return
-		case err := <-coordination.Error():
+		case err := <-coordination.Wait():
 			errCh <- err
 		}
 	}()

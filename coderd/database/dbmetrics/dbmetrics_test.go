@@ -22,7 +22,7 @@ func TestInTxMetrics(t *testing.T) {
 
 	successLabels := prometheus.Labels{
 		"success": "true",
-		"tx_id":   "",
+		"tx_id":   "unlabeled",
 	}
 	const inTxHistMetricName = "coderd_db_tx_duration_seconds"
 	const inTxCountMetricName = "coderd_db_tx_executions_count"

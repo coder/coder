@@ -33,7 +33,9 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -242,25 +244,20 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 			api.Logger.Warn(ctx, "failed to update workspace agent log overflow", slog.Error(err))
 		}
 
-		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get workspace resource.",
+				Message: "Failed to get workspace.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Internal error fetching workspace build job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentLogsOverflow,
+			WorkspaceID: workspace.ID,
+			AgentID:     &workspaceAgent.ID,
+		})
 
 		httpapi.Write(ctx, rw, http.StatusRequestEntityTooLarge, codersdk.Response{
 			Message: "Logs limit exceeded",
@@ -279,25 +276,20 @@ func (api *API) patchWorkspaceAgentLogs(rw http.ResponseWriter, r *http.Request)
 	if workspaceAgent.LogsLength == 0 {
 		// If these are the first logs being appended, we publish a UI update
 		// to notify the UI that logs are now available.
-		resource, err := api.Database.GetWorkspaceResourceByID(ctx, workspaceAgent.ResourceID)
+		workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Failed to get workspace resource.",
+				Message: "Failed to get workspace.",
 				Detail:  err.Error(),
 			})
 			return
 		}
 
-		build, err := api.Database.GetWorkspaceBuildByJobID(ctx, resource.JobID)
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Internal error fetching workspace build job.",
-				Detail:  err.Error(),
-			})
-			return
-		}
-
-		api.publishWorkspaceUpdate(ctx, build.WorkspaceID)
+		api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
+			Kind:        wspubsub.WorkspaceEventKindAgentFirstLogs,
+			WorkspaceID: workspace.ID,
+			AgentID:     &workspaceAgent.ID,
+		})
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, nil)
@@ -426,12 +418,19 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	notifyCh <- struct{}{}
 
 	// Subscribe to workspace to detect new builds.
-	closeSubscribeWorkspace, err := api.Pubsub.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-		select {
-		case workspaceNotifyCh <- struct{}{}:
-		default:
-		}
-	})
+	closeSubscribeWorkspace, err := api.Pubsub.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+		wspubsub.HandleWorkspaceEvent(
+			func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+				if err != nil {
+					return
+				}
+				if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+					select {
+					case workspaceNotifyCh <- struct{}{}:
+					default:
+					}
+				}
+			}))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Failed to subscribe to workspace for log streaming.",
@@ -846,31 +845,10 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	// Accept a resume_token query parameter to use the same peer ID.
-	var (
-		peerID      = uuid.New()
-		resumeToken = r.URL.Query().Get("resume_token")
-	)
-	if resumeToken != "" {
-		var err error
-		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
-		// If the token is missing the key ID, it's probably an old token in which
-		// case we just want to generate a new peer ID.
-		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
-			peerID = uuid.New()
-		} else if err != nil {
-			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
-				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
-				Detail:  err.Error(),
-				Validations: []codersdk.ValidationError{
-					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
-				},
-			})
-			return
-		} else {
-			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
-				slog.F("peer_id", peerID.String()))
-		}
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
 	}
 
 	api.WebsocketWaitMutex.Lock()
@@ -893,11 +871,45 @@ func (api *API) workspaceAgentClientCoordinate(rw http.ResponseWriter, r *http.R
 	go httpapi.Heartbeat(ctx, conn)
 
 	defer conn.Close(websocket.StatusNormalClosure, "")
-	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, peerID, workspaceAgent.ID)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
+		Name: "client",
+		ID:   peerID,
+		Auth: tailnet.ClientCoordinateeAuth{
+			AgentID: workspaceAgent.ID,
+		},
+	})
 	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
 		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
+}
+
+// handleResumeToken accepts a resume_token query parameter to use the same peer ID
+func (api *API) handleResumeToken(ctx context.Context, rw http.ResponseWriter, r *http.Request) (peerID uuid.UUID, err error) {
+	peerID = uuid.New()
+	resumeToken := r.URL.Query().Get("resume_token")
+	if resumeToken != "" {
+		peerID, err = api.Options.CoordinatorResumeTokenProvider.VerifyResumeToken(ctx, resumeToken)
+		// If the token is missing the key ID, it's probably an old token in which
+		// case we just want to generate a new peer ID.
+		if xerrors.Is(err, jwtutils.ErrMissingKeyID) {
+			peerID = uuid.New()
+			err = nil
+		} else if err != nil {
+			httpapi.Write(ctx, rw, http.StatusUnauthorized, codersdk.Response{
+				Message: workspacesdk.CoordinateAPIInvalidResumeToken,
+				Detail:  err.Error(),
+				Validations: []codersdk.ValidationError{
+					{Field: "resume_token", Detail: workspacesdk.CoordinateAPIInvalidResumeToken},
+				},
+			})
+			return peerID, err
+		} else {
+			api.Logger.Debug(ctx, "accepted coordinate resume token for peer",
+				slog.F("peer_id", peerID.String()))
+		}
+	}
+	return peerID, err
 }
 
 // @Summary Post workspace agent log source
@@ -1467,6 +1479,80 @@ func (api *API) workspaceAgentsExternalAuthListen(ctx context.Context, rw http.R
 			return
 		}
 		httpapi.Write(ctx, rw, http.StatusOK, resp)
+		return
+	}
+}
+
+// @Summary User-scoped tailnet RPC connection
+// @ID user-scoped-tailnet-rpc-connection
+// @Security CoderSessionToken
+// @Tags Agents
+// @Success 101
+// @Router /tailnet [get]
+func (api *API) tailnetRPCConn(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	version := "2.0"
+	qv := r.URL.Query().Get("version")
+	if qv != "" {
+		version = qv
+	}
+	if err := proto.CurrentVersion.Validate(version); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Unknown or unsupported API version",
+			Validations: []codersdk.ValidationError{
+				{Field: "version", Detail: err.Error()},
+			},
+		})
+		return
+	}
+
+	peerID, err := api.handleResumeToken(ctx, rw, r)
+	if err != nil {
+		// handleResumeToken has already written the response.
+		return
+	}
+
+	// Used to authorize tunnel request
+	sshPrep, err := api.HTTPAuth.AuthorizeSQLFilter(r, policy.ActionSSH, rbac.ResourceWorkspace.Type)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error preparing sql filter.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	api.WebsocketWaitMutex.Lock()
+	api.WebsocketWaitGroup.Add(1)
+	api.WebsocketWaitMutex.Unlock()
+	defer api.WebsocketWaitGroup.Done()
+
+	conn, err := websocket.Accept(rw, r, nil)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Failed to accept websocket.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageBinary)
+	defer wsNetConn.Close()
+	defer conn.Close(websocket.StatusNormalClosure, "")
+
+	go httpapi.Heartbeat(ctx, conn)
+	err = api.TailnetClientService.ServeClient(ctx, version, wsNetConn, tailnet.StreamID{
+		Name: "client",
+		ID:   peerID,
+		Auth: tailnet.ClientUserCoordinateeAuth{
+			Auth: &rbacAuthorizer{
+				sshPrep: sshPrep,
+				db:      api.Database,
+			},
+		},
+	})
+	if err != nil && !xerrors.Is(err, io.EOF) && !xerrors.Is(err, context.Canceled) {
+		_ = conn.Close(websocket.StatusInternalError, err.Error())
 		return
 	}
 }

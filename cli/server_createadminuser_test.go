@@ -85,9 +85,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closeFunc()
 
 		sqlDB, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
@@ -151,9 +150,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closeFunc()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -185,9 +183,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closeFunc()
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
@@ -225,9 +222,8 @@ func TestServerCreateAdminUser(t *testing.T) {
 			// Skip on non-Linux because it spawns a PostgreSQL instance.
 			t.SkipNow()
 		}
-		connectionURL, closeFunc, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closeFunc()
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 

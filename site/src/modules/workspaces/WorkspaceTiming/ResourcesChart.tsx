@@ -1,8 +1,5 @@
-import { css } from "@emotion/css";
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
-import OpenInNewOutlined from "@mui/icons-material/OpenInNewOutlined";
+import { type Theme, useTheme } from "@emotion/react";
 import { type FC, useState } from "react";
-import { Link } from "react-router-dom";
 import { Bar } from "./Chart/Bar";
 import {
 	Chart,
@@ -30,34 +27,7 @@ import {
 	makeTicks,
 	mergeTimeRanges,
 } from "./Chart/utils";
-import type { StageCategory } from "./StagesChart";
-
-const legendsByAction: Record<string, ChartLegend> = {
-	"state refresh": {
-		label: "state refresh",
-	},
-	create: {
-		label: "create",
-		colors: {
-			fill: "#022C22",
-			stroke: "#BBF7D0",
-		},
-	},
-	delete: {
-		label: "delete",
-		colors: {
-			fill: "#422006",
-			stroke: "#FDBA74",
-		},
-	},
-	read: {
-		label: "read",
-		colors: {
-			fill: "#082F49",
-			stroke: "#38BDF8",
-		},
-	},
-};
+import type { Stage } from "./StagesChart";
 
 type ResourceTiming = {
 	name: string;
@@ -67,14 +37,12 @@ type ResourceTiming = {
 };
 
 export type ResourcesChartProps = {
-	category: StageCategory;
-	stage: string;
+	stage: Stage;
 	timings: ResourceTiming[];
 	onBack: () => void;
 };
 
 export const ResourcesChart: FC<ResourcesChartProps> = ({
-	category,
 	stage,
 	timings,
 	onBack,
@@ -86,6 +54,8 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 	const visibleTimings = timings.filter(
 		(t) => !isCoderResource(t.name) && t.name.includes(filter),
 	);
+	const theme = useTheme();
+	const legendsByAction = getLegendsByAction(theme);
 	const visibleLegends = [...new Set(visibleTimings.map((t) => t.action))].map(
 		(a) => legendsByAction[a],
 	);
@@ -96,11 +66,11 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 				<ChartBreadcrumbs
 					breadcrumbs={[
 						{
-							label: category.name,
+							label: stage.section,
 							onClick: onBack,
 						},
 						{
-							label: stage,
+							label: stage.name,
 						},
 					]}
 				/>
@@ -114,7 +84,7 @@ export const ResourcesChart: FC<ResourcesChartProps> = ({
 			<ChartContent>
 				<YAxis>
 					<YAxisSection>
-						<YAxisHeader>{stage} stage</YAxisHeader>
+						<YAxisHeader>{stage.name} stage</YAxisHeader>
 						<YAxisLabels>
 							{visibleTimings.map((t) => (
 								<YAxisLabel key={t.name} id={encodeURIComponent(t.name)}>
@@ -168,3 +138,32 @@ export const isCoderResource = (resource: string) => {
 		resource.startsWith("coder_")
 	);
 };
+
+function getLegendsByAction(theme: Theme): Record<string, ChartLegend> {
+	return {
+		"state refresh": {
+			label: "state refresh",
+		},
+		create: {
+			label: "create",
+			colors: {
+				fill: theme.roles.success.background,
+				stroke: theme.roles.success.outline,
+			},
+		},
+		delete: {
+			label: "delete",
+			colors: {
+				fill: theme.roles.warning.background,
+				stroke: theme.roles.warning.outline,
+			},
+		},
+		read: {
+			label: "read",
+			colors: {
+				fill: theme.roles.active.background,
+				stroke: theme.roles.active.outline,
+			},
+		},
+	};
+}

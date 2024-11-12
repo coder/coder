@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -695,6 +696,41 @@ func TestPostUsers(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// User should default to dormant.
+		require.Equal(t, codersdk.UserStatusDormant, user.Status)
+
+		require.Len(t, auditor.AuditLogs(), numLogs)
+		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
+		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
+
+		require.Len(t, user.OrganizationIDs, 1)
+		assert.Equal(t, firstUser.OrganizationID, user.OrganizationIDs[0])
+	})
+
+	t.Run("CreateWithStatus", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+		numLogs := len(auditor.AuditLogs())
+
+		firstUser := coderdtest.CreateFirstUser(t, client)
+		numLogs++ // add an audit log for user create
+		numLogs++ // add an audit log for login
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.CreateUserWithOrgs(ctx, codersdk.CreateUserRequestWithOrgs{
+			OrganizationIDs: []uuid.UUID{firstUser.OrganizationID},
+			Email:           "another@user.org",
+			Username:        "someone-else",
+			Password:        "SomeSecurePassword!",
+			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
+		})
+		require.NoError(t, err)
+
+		require.Equal(t, codersdk.UserStatusActive, user.Status)
+
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[numLogs-1].Action)
 		require.Equal(t, database.AuditActionLogin, auditor.AuditLogs()[numLogs-2].Action)
@@ -1181,6 +1217,24 @@ func TestUpdateUserPassword(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)
+	})
+
+	t.Run("ValidateUserPassword", func(t *testing.T) {
+		t.Parallel()
+		auditor := audit.NewMock()
+		client := coderdtest.New(t, &coderdtest.Options{Auditor: auditor})
+
+		_ = coderdtest.CreateFirstUser(t, client)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		resp, err := client.ValidateUserPassword(ctx, codersdk.ValidateUserPasswordRequest{
+			Password: "MySecurePassword!",
+		})
+
+		require.NoError(t, err, "users shoud be able to validate complexity of a potential new password")
+		require.True(t, resp.Valid)
 	})
 
 	t.Run("ChangingPasswordDeletesKeys", func(t *testing.T) {

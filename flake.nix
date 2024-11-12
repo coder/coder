@@ -44,7 +44,7 @@
           name = "protoc-gen-go";
           owner = "protocolbuffers";
           repo = "protobuf-go";
-          rev = "v1.30.0"; 
+          rev = "v1.30.0";
           src = pkgs.fetchFromGitHub {
             owner = "protocolbuffers";
             repo = "protobuf-go";
@@ -54,11 +54,6 @@
           };
           subPackages = [ "cmd/protoc-gen-go" ];
           vendorHash = null;
-          proxyVendor = true;
-          preBuild = ''
-            export GOPROXY=https://proxy.golang.org,direct
-            go mod download
-          '';
         };
 
         # The minimal set of packages to build Coder.
@@ -138,7 +133,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-kPXRp7l05iJd4IdvQeOFOgg2UNzBcloy3tA9Meep9VI=";
+            vendorHash = "sha256-Tsajkkp+NMjYRCpRX5HlSy/sCSpuABIGDM1jeavVe+w=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
@@ -172,7 +167,7 @@
           '';
         };
         packages = {
-          proto_gen_go = proto_gen_go_1_30;  
+          proto_gen_go = proto_gen_go_1_30;
           all = pkgs.buildEnv {
             name = "all-packages";
             paths = devShellPackages;

@@ -453,7 +453,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 				continue
 			}
 			if password == "" {
-				errs = multierror.Append(errs, xerrors.New("cannot use PLAIN auth, password not defined (see CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD)"))
+				errs = multierror.Append(errs, xerrors.New("cannot use PLAIN auth, password not defined (see CODER_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 
@@ -475,7 +475,7 @@ func (s *SMTPHandler) auth(ctx context.Context, mechs string) (sasl.Client, erro
 				continue
 			}
 			if password == "" {
-				errs = multierror.Append(errs, xerrors.New("cannot use LOGIN auth, password not defined (see CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD)"))
+				errs = multierror.Append(errs, xerrors.New("cannot use LOGIN auth, password not defined (see CODER_EMAIL_AUTH_PASSWORD)"))
 				continue
 			}
 

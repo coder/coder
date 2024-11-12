@@ -172,6 +172,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           coderd.ActivateDormantUser(options.Logger, &api.AGPL.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -284,6 +285,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
 			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Route("/settings/idpsync/organization", func(r chi.Router) {
+				r.Get("/", api.organizationIDPSyncSettings)
+				r.Patch("/", api.patchOrganizationIDPSyncSettings)
+			})
 		})
 
 		r.Group(func(r chi.Router) {

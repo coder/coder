@@ -2879,8 +2879,6 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
-	// Determines if the user should be forced to change their password.
-	MustResetPassword bool `db:"must_reset_password" json:"must_reset_password"`
 }
 
 type UserLink struct {

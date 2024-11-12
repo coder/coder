@@ -335,6 +335,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		ctx,
 		options.Database,
 		options.Pubsub,
+		prometheus.NewRegistry(),
 		&templateScheduleStore,
 		&auditor,
 		accessControlStore,
@@ -653,6 +654,16 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Name:     "Test User",
 }
 
+var TrialUserParams = codersdk.CreateFirstUserTrialInfo{
+	FirstName:   "John",
+	LastName:    "Doe",
+	PhoneNumber: "9999999999",
+	JobTitle:    "Engineer",
+	CompanyName: "Acme Inc",
+	Country:     "United States",
+	Developers:  "10-50",
+}
+
 // CreateFirstUser creates a user with preset credentials and authenticates
 // with the passed in codersdk client.
 func CreateFirstUser(t testing.TB, client *codersdk.Client) codersdk.CreateFirstUserResponse {
@@ -708,6 +719,9 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		Name:            RandomName(t),
 		Password:        "SomeSecurePassword!",
 		OrganizationIDs: organizationIDs,
+		// Always create users as active in tests to ignore an extra audit log
+		// when logging in.
+		UserStatus: ptr.Ref(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)

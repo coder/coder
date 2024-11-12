@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/jwtutils"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -291,13 +293,15 @@ func (api *API) postRequestOneTimePasscode(rw http.ResponseWriter, r *http.Reque
 		if err != nil {
 			logger.Error(ctx, "unable to notify user about one-time passcode request", slog.Error(err))
 		}
+	} else {
+		logger.Warn(ctx, "password reset requested for account that does not exist", slog.F("email", req.Email))
 	}
 }
 
 func (api *API) notifyUserRequestedOneTimePasscode(ctx context.Context, user database.User, passcode string) error {
 	_, err := api.NotificationsEnqueuer.Enqueue(
-		//nolint:gocritic // We need the system auth context to be able to send the user their one-time passcode.
-		dbauthz.AsSystemRestricted(ctx),
+		//nolint:gocritic // We need the notifier auth context to be able to send the user their one-time passcode.
+		dbauthz.AsNotifier(ctx),
 		user.ID,
 		notifications.TemplateUserRequestedOneTimePasscode,
 		map[string]string{"one_time_passcode": passcode},
@@ -381,6 +385,7 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 
 		now := dbtime.Now()
 		if !equal || now.After(user.OneTimePasscodeExpiresAt.Time) {
+			logger.Warn(ctx, "password reset attempted with invalid or expired one-time passcode", slog.F("email", req.Email))
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 				Message: "Incorrect email or one-time passcode.",
 			})
@@ -440,6 +445,41 @@ func (api *API) postChangePasswordWithOneTimePasscode(rw http.ResponseWriter, r 
 		})
 		return
 	}
+}
+
+// ValidateUserPassword validates the complexity of a user password and that it is secured enough.
+//
+// @Summary Validate user password
+// @ID validate-user-password
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Authorization
+// @Param request body codersdk.ValidateUserPasswordRequest true "Validate user password request"
+// @Success 200 {object} codersdk.ValidateUserPasswordResponse
+// @Router /users/validate-password [post]
+func (*API) validateUserPassword(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx     = r.Context()
+		valid   = true
+		details = ""
+	)
+
+	var req codersdk.ValidateUserPasswordRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	err := userpassword.Validate(req.Password)
+	if err != nil {
+		valid = false
+		details = err.Error()
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ValidateUserPasswordResponse{
+		Valid:   valid,
+		Details: details,
+	})
 }
 
 // Authenticates the user with an email and password.
@@ -562,20 +602,13 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 		return user, rbac.Subject{}, false
 	}
 
-	if user.Status == database.UserStatusDormant {
-		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
-		user, err = api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        user.ID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+	user, err = ActivateDormantUser(api.Logger, &api.Auditor, api.Database)(ctx, user)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error.",
+			Detail:  err.Error(),
 		})
-		if err != nil {
-			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error occurred. Try again later, or contact an admin for assistance.",
-			})
-			return user, rbac.Subject{}, false
-		}
+		return user, rbac.Subject{}, false
 	}
 
 	subject, userStatus, err := httpmw.UserRBACSubject(ctx, api.Database, user.ID, rbac.ScopeAll)
@@ -596,6 +629,42 @@ func (api *API) loginRequest(ctx context.Context, rw http.ResponseWriter, req co
 	}
 
 	return user, subject, true
+}
+
+func ActivateDormantUser(logger slog.Logger, auditor *atomic.Pointer[audit.Auditor], db database.Store) func(ctx context.Context, user database.User) (database.User, error) {
+	return func(ctx context.Context, user database.User) (database.User, error) {
+		if user.ID == uuid.Nil || user.Status != database.UserStatusDormant {
+			return user, nil
+		}
+
+		//nolint:gocritic // System needs to update status of the user account (dormant -> active).
+		newUser, err := db.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
+			ID:        user.ID,
+			Status:    database.UserStatusActive,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			logger.Error(ctx, "unable to update user status to active", slog.Error(err))
+			return user, xerrors.Errorf("update user status: %w", err)
+		}
+
+		oldAuditUser := user
+		newAuditUser := user
+		newAuditUser.Status = database.UserStatusActive
+
+		audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.User]{
+			Audit:            *auditor.Load(),
+			Log:              logger,
+			UserID:           user.ID,
+			Action:           database.AuditActionWrite,
+			Old:              oldAuditUser,
+			New:              newAuditUser,
+			Status:           http.StatusOK,
+			AdditionalFields: audit.BackgroundTaskFieldsBytes(ctx, logger, audit.BackgroundSubsystemDormancy),
+		})
+
+		return newUser, nil
+	}
 }
 
 // Clear the user's session cookie.
@@ -899,12 +968,10 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Name:         normName,
 		DebugContext: OauthDebugContext{},
 		GroupSync: idpsync.GroupParams{
-			SyncEnabled: false,
+			SyncEntitled: false,
 		},
 		OrganizationSync: idpsync.OrganizationParams{
-			SyncEnabled:    false,
-			IncludeDefault: true,
-			Organizations:  []uuid.UUID{},
+			SyncEntitled: false,
 		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -1382,10 +1449,22 @@ func (p *oauthLoginParams) CommitAuditLogs() {
 
 func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.Cookie, database.User, database.APIKey, error) {
 	var (
-		ctx     = r.Context()
-		user    database.User
-		cookies []*http.Cookie
-		logger  = api.Logger.Named(userAuthLoggerName)
+		ctx                  = r.Context()
+		user                 database.User
+		cookies              []*http.Cookie
+		logger               = api.Logger.Named(userAuthLoggerName)
+		auditor              = *api.Auditor.Load()
+		dormantConvertAudit  *audit.Request[database.User]
+		initDormantAuditOnce = sync.OnceFunc(func() {
+			dormantConvertAudit = params.initAuditRequest(&audit.RequestParams{
+				Audit:            auditor,
+				Log:              api.Logger,
+				Request:          r,
+				Action:           database.AuditActionWrite,
+				OrganizationID:   uuid.Nil,
+				AdditionalFields: audit.BackgroundTaskFields(audit.BackgroundSubsystemDormancy),
+			})
+		})
 	)
 
 	var isConvertLoginType bool
@@ -1432,14 +1511,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 		// This can happen if a user is a built-in user but is signing in
 		// with OIDC for the first time.
 		if user.ID == uuid.Nil {
-			// Until proper multi-org support, all users will be added to the default organization.
-			// The default organization should always be present.
-			//nolint:gocritic
-			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
-			if err != nil {
-				return xerrors.Errorf("unable to fetch default organization: %w", err)
-			}
-
 			//nolint:gocritic
 			_, err = tx.GetUserByEmailOrUsername(dbauthz.AsSystemRestricted(ctx), database.GetUserByEmailOrUsernameParams{
 				Username: params.Username,
@@ -1474,19 +1545,23 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				}
 			}
 
-			// Even if org sync is disabled, single org deployments will always
-			// have this set to true.
-			orgIDs := []uuid.UUID{}
-			if params.OrganizationSync.IncludeDefault {
-				orgIDs = append(orgIDs, defaultOrganization.ID)
+			//nolint:gocritic
+			defaultOrganization, err := tx.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
+			if err != nil {
+				return xerrors.Errorf("unable to fetch default organization: %w", err)
 			}
 
 			//nolint:gocritic
 			user, err = api.CreateUser(dbauthz.AsSystemRestricted(ctx), tx, CreateUserRequest{
 				CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-					Email:           params.Email,
-					Username:        params.Username,
-					OrganizationIDs: orgIDs,
+					Email:    params.Email,
+					Username: params.Username,
+					// This is a kludge, but all users are defaulted into the default
+					// organization. This exists as the default behavior.
+					// If org sync is enabled and configured, the user's groups
+					// will change based on the org sync settings.
+					OrganizationIDs: []uuid.UUID{defaultOrganization.ID},
+					UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 				},
 				LoginType:          params.LoginType,
 				accountCreatorName: "oauth",
@@ -1498,6 +1573,11 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 
 		// Activate dormant user on sign-in
 		if user.Status == database.UserStatusDormant {
+			// This is necessary because transactions can be retried, and we
+			// only want to add the audit log a single time.
+			initDormantAuditOnce()
+			dormantConvertAudit.UserID = user.ID
+			dormantConvertAudit.Old = user
 			//nolint:gocritic // System needs to update status of the user account (dormant -> active).
 			user, err = tx.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
 				ID:        user.ID,
@@ -1508,6 +1588,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				logger.Error(ctx, "unable to update user status to active", slog.Error(err))
 				return xerrors.Errorf("update user status: %w", err)
 			}
+			dormantConvertAudit.New = user
 		}
 
 		debugContext, err := json.Marshal(params.DebugContext)

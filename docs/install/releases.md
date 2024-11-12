@@ -1,7 +1,7 @@
 # Releases
 
 Coder releases are cut directly from main in our
-[Github](https://github.com/coder/coder) on the first Tuesday of each month.
+[GitHub](https://github.com/coder/coder) on the first Tuesday of each month.
 
 We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
@@ -38,7 +38,7 @@ only for security issues or CVEs.
 ## Installing stable
 
 When installing Coder, we generally advise specifying the desired version from
-our Github [releases page](https://github.com/coder/coder/releases).
+our GitHub [releases page](https://github.com/coder/coder/releases).
 
 You can also use our `install.sh` script with the `stable` flag to install the
 latest stable release:
@@ -54,15 +54,14 @@ pages.
 
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
-| 2.9.x        | March 07, 2024     | Not Supported    |
-| 2.10.x       | April 03, 2024     | Not Supported    |
 | 2.11.x       | May 07, 2024       | Not Supported    |
 | 2.12.x       | June 04, 2024      | Not Supported    |
 | 2.13.x       | July 02, 2024      | Not Supported    |
 | 2.14.x       | August 06, 2024    | Security Support |
-| 2.15.x       | September 03, 2024 | Stable           |
-| 2.16.x       | October 01, 2024   | Mainline         |
-| 2.17.x       | November 05, 2024  | Not Released     |
+| 2.15.x       | September 03, 2024 | Security Support |
+| 2.16.x       | October 01, 2024   | Stable           |
+| 2.17.x       | November 05, 2024  | Mainline         |
+| 2.18.x       | November 05, 2024  | Not Released     |
 
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image

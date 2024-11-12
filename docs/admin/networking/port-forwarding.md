@@ -121,7 +121,7 @@ not it is still accessible.
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 The sharing level is limited by the maximum level enforced in the template
-settings in enterprise deployments, and not restricted in OSS deployments.
+settings in premium deployments, and not restricted in OSS deployments.
 
 This can also be used to change the sharing level of `coder_app`s by entering
 their port number in the sharable ports UI. The `share` attribute on `coder_app`
@@ -131,8 +131,8 @@ to the app.
 
 ### Configure maximum port sharing level (enterprise) (premium)
 
-Enterprise-licensed template admins can control the maximum port sharing level
-for workspaces under a given template in the template settings. By default, the
+Premium-licensed template admins can control the maximum port sharing level for
+workspaces under a given template in the template settings. By default, the
 maximum sharing level is set to `Owner`, meaning port sharing is disabled for
 end-users. OSS deployments allow all workspaces to share ports at both the
 `authenticated` and `public` levels.

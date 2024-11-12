@@ -1322,6 +1322,15 @@ class ApiMethods {
 		await this.axios.put(`/api/v2/users/${userId}/password`, updatePassword);
 	};
 
+	validateUserPassword = async (
+		password: string,
+	): Promise<TypesGen.ValidateUserPasswordResponse> => {
+		const response = await this.axios.post("/api/v2/users/validate-password", {
+			password,
+		});
+		return response.data;
+	};
+
 	getRoles = async (): Promise<Array<TypesGen.AssignableRoles>> => {
 		const response = await this.axios.get<TypesGen.AssignableRoles[]>(
 			"/api/v2/users/roles",
@@ -1868,7 +1877,7 @@ class ApiMethods {
 
 	uploadFile = async (file: File): Promise<TypesGen.UploadResponse> => {
 		const response = await this.axios.post("/api/v2/files", file, {
-			headers: { "Content-Type": "application/x-tar" },
+			headers: { "Content-Type": file.type },
 		});
 
 		return response.data;

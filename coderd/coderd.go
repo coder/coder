@@ -493,6 +493,8 @@ func New(options *Options) *API {
 		}
 	}
 
+	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
+
 	// Start a background process that rotates keys. We intentionally start this after the caches
 	// are created to force initial requests for a key to populate the caches. This helps catch
 	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
@@ -523,6 +525,7 @@ func New(options *Options) *API {
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
+		UpdatesProvider:             updatesProvider,
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
@@ -624,14 +627,17 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	dialer := &InmemTailnetDialer{
+		CoordPtr: &api.TailnetCoordinator,
+		DERPFn:   api.DERPMap,
+		Logger:   options.Logger,
+		ClientID: uuid.New(),
+	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
 		options.DERPServer,
-		api.DERPMap,
+		dialer,
 		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		func(context.Context) (tailnet.MultiAgentConn, error) {
-			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
-		},
 		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		api.TracerProvider,
 	)
@@ -652,12 +658,13 @@ func New(options *Options) *API {
 		panic("CoordinatorResumeTokenProvider is nil")
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  api.Logger.Named("tailnetclient"),
-		CoordPtr:                &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
-		DERPMapFn:               api.DERPMap,
-		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
+		Logger:                   api.Logger.Named("tailnetclient"),
+		CoordPtr:                 &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:                api.DERPMap,
+		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
 	if err != nil {
 		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
@@ -702,6 +709,7 @@ func New(options *Options) *API {
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -1042,6 +1050,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
 				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
@@ -1326,6 +1335,10 @@ func New(options *Options) *API {
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 		})
+		r.Route("/tailnet", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.tailnetRPCConn)
+		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1406,6 +1419,8 @@ type API struct {
 	// passed to dbauthz.
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
+
+	UpdatesProvider tailnet.WorkspaceUpdatesProvider
 
 	HTTPAuth *HTTPAuthorizer
 
@@ -1488,6 +1503,7 @@ func (api *API) Close() error {
 	_ = api.OIDCConvertKeyCache.Close()
 	_ = api.AppSigningKeyCache.Close()
 	_ = api.AppEncryptionKeyCache.Close()
+	_ = api.UpdatesProvider.Close()
 	return nil
 }
 
