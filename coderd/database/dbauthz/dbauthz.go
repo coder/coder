@@ -178,6 +178,8 @@ var (
 					// this can be reduced to read a specific org.
 					rbac.ResourceOrganization.Type: {policy.ActionRead},
 					rbac.ResourceGroup.Type:        {policy.ActionRead},
+					// Provisionerd creates notification messages
+					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -194,11 +196,12 @@ var (
 				Identifier:  rbac.RoleIdentifier{Name: "autostart"},
 				DisplayName: "Autostart Daemon",
 				Site: rbac.Permissions(map[string][]policy.Action{
-					rbac.ResourceSystem.Type:           {policy.WildcardSymbol},
-					rbac.ResourceTemplate.Type:         {policy.ActionRead, policy.ActionUpdate},
-					rbac.ResourceWorkspaceDormant.Type: {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
-					rbac.ResourceWorkspace.Type:        {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
-					rbac.ResourceUser.Type:             {policy.ActionRead},
+					rbac.ResourceNotificationMessage.Type: {policy.ActionCreate, policy.ActionRead},
+					rbac.ResourceSystem.Type:              {policy.WildcardSymbol},
+					rbac.ResourceTemplate.Type:            {policy.ActionRead, policy.ActionUpdate},
+					rbac.ResourceUser.Type:                {policy.ActionRead},
+					rbac.ResourceWorkspace.Type:           {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStart, policy.ActionWorkspaceStop},
+					rbac.ResourceWorkspaceDormant.Type:    {policy.ActionDelete, policy.ActionRead, policy.ActionUpdate, policy.ActionWorkspaceStop},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},

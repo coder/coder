@@ -21,8 +21,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/testutil"
 )
 
 const dayDuration = 24 * time.Hour
@@ -49,7 +49,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: no report should be generated
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 
 		// Given: one week later and no jobs were executed
 		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
@@ -60,7 +60,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: report is still empty
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 	})
 
 	t.Run("InitialState_NoBuilds_NoReport", func(t *testing.T) {
@@ -101,7 +101,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: failed builds should not be reported
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 
 		// Given: one week later, but still no jobs
 		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
@@ -112,13 +112,13 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: report is still empty
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 	})
 
 	t.Run("FailedBuilds_SecondRun_Report_ThirdRunTooEarly_NoReport_FourthRun_Report", func(t *testing.T) {
 		t.Parallel()
 
-		verifyNotification := func(t *testing.T, recipient database.User, notif *testutil.Notification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
+		verifyNotification := func(t *testing.T, recipient database.User, notif *notificationstest.FakeNotification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
 			t.Helper()
 
 			require.Equal(t, recipient.ID, notif.UserID)
@@ -175,7 +175,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent) // no notifications
+		require.Empty(t, notifEnq.Sent()) // no notifications
 
 		// One week later...
 		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
@@ -211,9 +211,10 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Then
 		require.NoError(t, err)
 
-		require.Len(t, notifEnq.Sent, 4) // 2 templates, 2 template admins
+		sent := notifEnq.Sent()
+		require.Len(t, sent, 4) // 2 templates, 2 template admins
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			verifyNotification(t, templateAdmin, notifEnq.Sent[i], t1, 3, 4, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, sent[i], t1, 3, 4, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(7), "workspace_name": w3.Name, "workspace_owner_username": user1.Username},
@@ -233,7 +234,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		}
 
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			verifyNotification(t, templateAdmin, notifEnq.Sent[i+2], t2, 3, 5, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, sent[i+2], t2, 3, 5, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(8), "workspace_name": w4.Name, "workspace_owner_username": user2.Username},
@@ -265,7 +266,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: no notifications as it is too early
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 
 		// Given: 1 day 1 hour later
 		clk.Advance(dayDuration + time.Hour).MustWait(context.Background())
@@ -276,9 +277,10 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		require.NoError(t, err)
 
 		// Then: we should see the failed job in the report
-		require.Len(t, notifEnq.Sent, 2) // a new failed job should be reported
+		sent = notifEnq.Sent()
+		require.Len(t, sent, 2) // a new failed job should be reported
 		for i, templateAdmin := range []database.User{templateAdmin1, templateAdmin2} {
-			verifyNotification(t, templateAdmin, notifEnq.Sent[i], t1, 1, 1, []map[string]interface{}{
+			verifyNotification(t, templateAdmin, sent[i], t1, 1, 1, []map[string]interface{}{
 				{
 					"failed_builds": []map[string]interface{}{
 						{"build_number": int32(77), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
@@ -293,7 +295,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 	t.Run("TooManyFailedBuilds_SecondRun_Report", func(t *testing.T) {
 		t.Parallel()
 
-		verifyNotification := func(t *testing.T, recipient database.User, notif *testutil.Notification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
+		verifyNotification := func(t *testing.T, recipient database.User, notif *notificationstest.FakeNotification, tmpl database.Template, failedBuilds, totalBuilds int64, templateVersions []map[string]interface{}) {
 			t.Helper()
 
 			require.Equal(t, recipient.ID, notif.UserID)
@@ -338,7 +340,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent) // no notifications
+		require.Empty(t, notifEnq.Sent()) // no notifications
 
 		// One week later...
 		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
@@ -365,8 +367,9 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 		// Then
 		require.NoError(t, err)
 
-		require.Len(t, notifEnq.Sent, 1) // 1 template, 1 template admin
-		verifyNotification(t, templateAdmin1, notifEnq.Sent[0], t1, 46, 47, []map[string]interface{}{
+		sent := notifEnq.Sent()
+		require.Len(t, sent, 1) // 1 template, 1 template admin
+		verifyNotification(t, templateAdmin1, sent[0], t1, 46, 47, []map[string]interface{}{
 			{
 				"failed_builds": []map[string]interface{}{
 					{"build_number": int32(23), "workspace_name": w1.Name, "workspace_owner_username": user1.Username},
@@ -435,7 +438,7 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: no notifications
 		require.NoError(t, err)
-		require.Empty(t, notifEnq.Sent)
+		require.Empty(t, notifEnq.Sent())
 
 		// Given: one week later, and a successful few jobs being executed
 		clk.Advance(failedWorkspaceBuildsReportFrequency + time.Minute)
@@ -453,18 +456,18 @@ func TestReportFailedWorkspaceBuilds(t *testing.T) {
 
 		// Then: no failures? nothing to report
 		require.NoError(t, err)
-		require.Len(t, notifEnq.Sent, 0) // all jobs succeeded so nothing to report
+		require.Len(t, notifEnq.Sent(), 0) // all jobs succeeded so nothing to report
 	})
 }
 
-func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *testutil.FakeNotificationsEnqueuer, *quartz.Mock) {
+func setup(t *testing.T) (context.Context, slog.Logger, database.Store, pubsub.Pubsub, *notificationstest.FakeEnqueuer, *quartz.Mock) {
 	t.Helper()
 
 	// nolint:gocritic // reportFailedWorkspaceBuilds is called by system.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	logger := slogtest.Make(t, &slogtest.Options{})
 	db, ps := dbtestutil.NewDB(t)
-	notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+	notifyEnq := &notificationstest.FakeEnqueuer{}
 	clk := quartz.NewMock(t)
 	return ctx, logger, db, ps, notifyEnq, clk
 }

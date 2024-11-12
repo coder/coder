@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
@@ -39,7 +40,7 @@ func TestTemplates(t *testing.T) {
 	t.Run("Deprecated", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 		owner, user := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				IncludeProvisionerDaemon: true,
@@ -81,8 +82,8 @@ func TestTemplates(t *testing.T) {
 		assert.True(t, updated.Deprecated)
 		assert.NotEmpty(t, updated.DeprecationMessage)
 
-		notifs := []*testutil.Notification{}
-		for _, notif := range notifyEnq.Sent {
+		notifs := []*notificationstest.FakeNotification{}
+		for _, notif := range notifyEnq.Sent() {
 			if notif.TemplateID == notifications.TemplateTemplateDeprecated {
 				notifs = append(notifs, notif)
 			}

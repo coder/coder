@@ -37,6 +37,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -1805,7 +1806,7 @@ func TestUserForgotPassword(t *testing.T) {
 	const oldPassword = "SomeSecurePassword!"
 	const newPassword = "SomeNewSecurePassword!"
 
-	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
+	requireOneTimePasscodeNotification := func(t *testing.T, notif *notificationstest.FakeNotification, userID uuid.UUID) {
 		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
 		require.Equal(t, 1, len(notif.Targets))
@@ -1831,17 +1832,15 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or password.")
 	}
 
-	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *testutil.FakeNotificationsEnqueuer, email string, userID uuid.UUID) string {
-		notifsSent := len(notifyEnq.Sent)
-
+	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *notificationstest.FakeEnqueuer, email string, userID uuid.UUID) string {
+		notifyEnq.Clear()
 		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
 		require.NoError(t, err)
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1)
 
-		require.Equal(t, notifsSent+1, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[notifsSent]
-		requireOneTimePasscodeNotification(t, notif, userID)
-		return notif.Labels["one_time_passcode"]
+		requireOneTimePasscodeNotification(t, sent[0], userID)
+		return sent[0].Labels["one_time_passcode"]
 	}
 
 	requireChangePasswordWithOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, passcode string, password string) {
@@ -1856,7 +1855,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CanChangePassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1897,7 +1896,7 @@ func TestUserForgotPassword(t *testing.T) {
 
 		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer:         notifyEnq,
@@ -1934,7 +1933,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1963,7 +1962,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1994,7 +1993,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -2027,7 +2026,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -2060,7 +2059,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -2095,7 +2094,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -2112,10 +2111,9 @@ func TestUserForgotPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, 1, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[0]
-		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		sent := notifyEnq.Sent()
+		require.Len(t, notifyEnq.Sent(), 1)
+		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, sent[0].TemplateID)
 	})
 }
 

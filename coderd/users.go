@@ -604,7 +604,8 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
+		// nolint: gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountDeleted,
 			map[string]string{
 				"deleted_account_name":      user.Username,
 				"deleted_account_user_name": user.Name,
@@ -946,14 +947,16 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName stri
 
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, adminTemplateID,
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
 			labels, "api-put-user-status",
 			targetUser.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, targetUser.ID, personalTemplateID,
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
 		labels, "api-put-user-status",
 		targetUser.ID,
 	); err != nil {
@@ -1420,7 +1423,8 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountCreated,
 			map[string]string{
 				"created_account_name":      user.Username,
 				"created_account_user_name": user.Name,
