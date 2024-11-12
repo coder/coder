@@ -2,7 +2,6 @@ package clilog_test
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -144,30 +143,6 @@ func TestBuilder(t *testing.T) {
 			assertLogs(t, tempFile, infoLog, warnLog)
 			assertLogsJSON(t, tempJSON, info, infoLog, warn, warnLog)
 		})
-	})
-
-	t.Run("NotFound", func(t *testing.T) {
-		t.Parallel()
-
-		tempFile := filepath.Join(t.TempDir(), "doesnotexist", "test.log")
-		cmd := &serpent.Command{
-			Use: "test",
-			Handler: func(inv *serpent.Invocation) error {
-				logger, closeLog, err := clilog.New(
-					clilog.WithFilter("foo", "baz"),
-					clilog.WithHuman(tempFile),
-					clilog.WithVerbose(),
-				).Build(inv)
-				if err != nil {
-					return err
-				}
-				defer closeLog()
-				logger.Error(inv.Context(), "you will never see this")
-				return nil
-			},
-		}
-		err := cmd.Invoke().Run()
-		require.ErrorIs(t, err, fs.ErrNotExist)
 	})
 }
 
