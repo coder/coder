@@ -7714,21 +7714,6 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		return database.User{}, err
 	}
 
-	// There is a common bug when using dbmem that 2 inserted users have the
-	// same created_at time. This causes user order to not be deterministic,
-	// which breaks some unit tests.
-	// To fix this, we make sure that the created_at time is always greater
-	// than the last user's created_at time.
-	allUsers, _ := q.GetUsers(context.Background(), database.GetUsersParams{})
-	if len(allUsers) > 0 {
-		lastUser := allUsers[len(allUsers)-1]
-		if arg.CreatedAt.Before(lastUser.CreatedAt) ||
-			arg.CreatedAt.Equal(lastUser.CreatedAt) {
-			// 1 ms is a good enough buffer.
-			arg.CreatedAt = lastUser.CreatedAt.Add(time.Millisecond)
-		}
-	}
-
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -7756,6 +7741,9 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		LoginType:      arg.LoginType,
 	}
 	q.users = append(q.users, user)
+	sort.Slice(q.users, func(i, j int) bool {
+		return q.users[i].CreatedAt.Before(q.users[j].CreatedAt)
+	})
 	return user, nil
 }
 
