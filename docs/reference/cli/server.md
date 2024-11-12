@@ -1231,10 +1231,9 @@ The sender's address to use.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
-| Type        | <code>host:port</code>              |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_EMAIL_SMARTHOST</code> |
 | YAML        | <code>email.smarthost</code>        |
-| Default     | <code>localhost:587</code>          |
 
 The intermediary SMTP host through which emails are sent.
 
@@ -1245,7 +1244,6 @@ The intermediary SMTP host through which emails are sent.
 | Type        | <code>string</code>             |
 | Environment | <code>$CODER_EMAIL_HELLO</code> |
 | YAML        | <code>email.hello</code>        |
-| Default     | <code>localhost</code>          |
 
 The hostname identifying the SMTP server.
 
@@ -1256,7 +1254,6 @@ The hostname identifying the SMTP server.
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_EMAIL_FORCE_TLS</code> |
 | YAML        | <code>email.forceTLS</code>         |
-| Default     | <code>false</code>                  |
 
 Force a TLS connection to the configured SMTP smarthost.
 
@@ -1395,7 +1392,7 @@ The sender's address to use.
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
-| Type        | <code>host:port</code>                            |
+| Type        | <code>string</code>                               |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
 | YAML        | <code>notifications.email.smarthost</code>        |
 
