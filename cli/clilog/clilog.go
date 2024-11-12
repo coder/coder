@@ -104,7 +104,6 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 		switch loc {
 		case "":
-
 		case "/dev/stdout":
 			sinks = append(sinks, sinkFn(inv.Stdout))
 
