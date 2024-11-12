@@ -568,3 +568,91 @@ func TestPremiumSuperSet(t *testing.T) {
 	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
 	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
 }
+
+func TestEmailValuesTakeCorrectPrecedent(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name          string
+		envs          []serpent.EnvVar
+		oldEnv        string
+		newEnv        string
+		expectedValue string
+	}{
+		{
+			name: "CODER_NOTIFICATIONS_EMAIL_SMARTHOST is not discarded",
+			envs: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+					Value: "localhost:999",
+				},
+			},
+			oldEnv:        "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+			newEnv:        "CODER_EMAIL_SMARTHOST",
+			expectedValue: "localhost:999",
+		},
+		{
+			name: "CODER_EMAIL_SMARTHOST is not discarded",
+			envs: []serpent.EnvVar{
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:999",
+				},
+			},
+			oldEnv:        "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+			newEnv:        "CODER_EMAIL_SMARTHOST",
+			expectedValue: "localhost:999",
+		},
+		{
+			name: "CODER_EMAIL_SMARTHOST is prioritized",
+			envs: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+					Value: "localhost:999",
+				},
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:1000",
+				},
+			},
+			oldEnv:        "CODER_NOTIFICATIONS_EMAIL_SMARTHOST",
+			newEnv:        "CODER_EMAIL_SMARTHOST",
+			expectedValue: "localhost:1000",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+
+			err := opts.ParseEnv(tt.envs)
+			require.NoError(t, err)
+
+			err = opts.SetDefaults()
+			require.NoError(t, err)
+
+			var oldEnvValue string
+			var newEnvValue string
+
+			for _, opt := range opts {
+				switch {
+				case opt.Env == tt.oldEnv:
+					oldEnvValue = opt.Value.String()
+				case opt.Env == tt.newEnv:
+					newEnvValue = opt.Value.String()
+				}
+
+				if oldEnvValue != "" && newEnvValue != "" {
+					break
+				}
+			}
+
+			require.Equal(t, tt.expectedValue, oldEnvValue)
+			require.Equal(t, tt.expectedValue, newEnvValue)
+		})
+	}
+}

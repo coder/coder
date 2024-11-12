@@ -2578,21 +2578,6 @@ Write out the current server config as YAML to stdout.`,
 			YAML:        "thresholdDatabase",
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
-		// Email options
-		emailFrom,
-		emailSmarthost,
-		emailHello,
-		emailForceTLS,
-		emailAuthIdentity,
-		emailAuthUsername,
-		emailAuthPassword,
-		emailAuthPasswordFile,
-		emailTLSStartTLS,
-		emailTLSServerName,
-		emailTLSSkipCertVerify,
-		emailTLSCertAuthorityFile,
-		emailTLSCertFile,
-		emailTLSCertKeyFile,
 		// Notifications Options
 		{
 			Name:        "Notifications: Method",
@@ -2854,6 +2839,21 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 			Hidden:      true, // Hidden because most operators should not need to modify this.
 		},
+		// Email options
+		emailFrom,
+		emailSmarthost,
+		emailHello,
+		emailForceTLS,
+		emailAuthIdentity,
+		emailAuthUsername,
+		emailAuthPassword,
+		emailAuthPasswordFile,
+		emailTLSStartTLS,
+		emailTLSServerName,
+		emailTLSSkipCertVerify,
+		emailTLSCertAuthorityFile,
+		emailTLSCertFile,
+		emailTLSCertKeyFile,
 	}
 
 	return opts

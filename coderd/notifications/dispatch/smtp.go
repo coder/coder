@@ -526,7 +526,7 @@ func (s *SMTPHandler) smarthost() (string, string, error) {
 
 	host, port, err := net.SplitHostPort(s.cfg.Smarthost.String())
 	if err != nil {
-		return "", "", fmt.Errorf("split host port: %w", err)
+		return "", "", xerrors.Errorf("split host port: %w", err)
 	}
 
 	return host, port, nil
