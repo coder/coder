@@ -2,6 +2,7 @@ package notificationstest
 
 import (
 	"context"
+	"fmt"
 	"sync"
 
 	"github.com/google/uuid"
@@ -26,6 +27,8 @@ type FakeNotification struct {
 	Targets            []uuid.UUID
 }
 
+// TODO: replace this with actual calls to dbauthz.
+// See: https://github.com/coder/coder/issues/15481
 func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
 	if f.mu.TryLock() {
 		panic("Developer error: do not call assertRBACNoLock outside of a mutex lock!")
@@ -41,17 +44,19 @@ func (f *FakeEnqueuer) assertRBACNoLock(ctx context.Context) {
 		panic("Developer error: no actor in context, you may need to use dbauthz.AsNotifier(ctx)")
 	}
 
-	err := f.authorizer.Authorize(ctx, act, policy.ActionCreate, rbac.ResourceNotificationMessage)
-	if err == nil {
-		return
-	}
+	for _, a := range []policy.Action{policy.ActionCreate, policy.ActionRead} {
+		err := f.authorizer.Authorize(ctx, act, a, rbac.ResourceNotificationMessage)
+		if err == nil {
+			return
+		}
 
-	if rbac.IsUnauthorizedError(err) {
-		panic("Developer error: not authorized to send notification msg. " +
-			"Ensure that you are using dbauthz.AsXXX with an actor that has " +
-			"policy.ActionCreate on rbac.ResourceNotificationMessage")
+		if rbac.IsUnauthorizedError(err) {
+			panic(fmt.Sprintf("Developer error: not authorized to %s %s. "+
+				"Ensure that you are using dbauthz.AsXXX with an actor that has "+
+				"policy.ActionCreate on rbac.ResourceNotificationMessage", a, rbac.ResourceNotificationMessage.Type))
+		}
+		panic("Developer error: failed to check auth:" + err.Error())
 	}
-	panic("Developer error: failed to check auth:" + err.Error())
 }
 
 func (f *FakeEnqueuer) Enqueue(ctx context.Context, userID, templateID uuid.UUID, labels map[string]string, createdBy string, targets ...uuid.UUID) (*uuid.UUID, error) {
