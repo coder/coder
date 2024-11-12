@@ -5273,7 +5273,7 @@ WHERE
 	organization_id = $1 :: uuid
 	AND
 	-- adding support for searching by tags:
-	($2 :: jsonb = '{}' :: jsonb OR tags_compatible($2 :: jsonb, provisioner_daemons.tags :: jsonb))
+	($2 :: jsonb = '' :: jsonb OR tags_compatible($2 :: jsonb, provisioner_daemons.tags :: jsonb))
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {

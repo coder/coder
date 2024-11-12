@@ -94,7 +94,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 func provisionerTags(r *http.Request) ([]byte, error) {
 	tags := r.URL.Query()["tags"]
 	if len(tags) == 0 {
-		return []byte("{}"), nil
+		return []byte{}, nil
 	}
 
 	tagMap := map[string]string{}
