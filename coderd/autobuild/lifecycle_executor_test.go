@@ -1067,7 +1067,6 @@ func TestExecutorInactiveWorkspace(t *testing.T) {
 
 func TestNotifications(t *testing.T) {
 	t.Parallel()
-	t.Skip()
 
 	t.Run("Dormancy", func(t *testing.T) {
 		t.Parallel()
@@ -1110,8 +1109,8 @@ func TestNotifications(t *testing.T) {
 		_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
 
 		// Wait for workspace to become dormant
+		notifyEnq.Clear()
 		ticker <- workspace.LastUsedAt.Add(timeTilDormant * 3)
-		require.FailNow(t, "ticker not picked up")
 		_ = testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, statCh)
 
 		// Check that the workspace is dormant
@@ -1120,14 +1119,13 @@ func TestNotifications(t *testing.T) {
 
 		// Check that a notification was enqueued
 		sent := notifyEnq.Sent()
-		// notifyEnq.Sent[0] is an event for created user account
-		require.Len(t, sent, 2)
-		require.Equal(t, sent[1].UserID, workspace.OwnerID)
-		require.Equal(t, sent[1], notifications.TemplateWorkspaceDormant)
-		require.Contains(t, sent[1], template.ID)
-		require.Contains(t, sent[1], workspace.ID)
-		require.Contains(t, sent[1], workspace.OrganizationID)
-		require.Contains(t, sent[1], workspace.OwnerID)
+		require.Len(t, sent, 1)
+		require.Equal(t, sent[0].UserID, workspace.OwnerID)
+		require.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceDormant)
+		require.Contains(t, sent[0].Targets, template.ID)
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 	})
 }
 
