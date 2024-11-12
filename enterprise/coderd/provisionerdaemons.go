@@ -68,7 +68,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		ctx,
 		database.GetProvisionerDaemonsByOrganizationParams{
 			OrganizationID: org.ID,
-			Tags:           tags,
+			WantTags:       tags,
 		},
 	)
 	if err != nil {
