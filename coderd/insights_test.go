@@ -1212,7 +1212,7 @@ func TestTemplateInsights_Golden(t *testing.T) {
 					},
 				},
 				{
-					name:        "two days ago, no data",
+					name:        "two dates ago, no data",
 					ignoreTimes: true,
 					makeRequest: func(_ []*testTemplate) codersdk.TemplateInsightsRequest {
 						twoDaysAgo := time.Now().UTC().Truncate(24*time.Hour).AddDate(0, 0, -2)
@@ -2110,7 +2110,7 @@ func TestTemplateInsights_BadRequest(t *testing.T) {
 		EndTime:   today,
 		Interval:  codersdk.InsightsReportIntervalWeek,
 	})
-	assert.Error(t, err, "last report interval must have at least 6 days")
+	assert.Error(t, err, "last report interval must have at least 6 dates")
 
 	_, err = client.TemplateInsights(ctx, codersdk.TemplateInsightsRequest{
 		StartTime: today.AddDate(0, 0, -1),
@@ -2364,50 +2364,88 @@ func TestTotalUsersInsight(t *testing.T) {
 		t.Cleanup(cancel)
 
 		// Given: a deployment with many users
+
 		dbgen.User(t, db, database.User{
 			Email:     "user1@coder.com",
 			Username:  "user1",
-			CreatedAt: time.Now().UTC().AddDate(0, 0, -2),
+			CreatedAt: daysAgo(2),
 		})
 		dbgen.User(t, db, database.User{
 			Email:     "user2@coder.com",
 			Username:  "user2",
-			CreatedAt: time.Now().UTC().AddDate(0, 0, -2),
+			CreatedAt: daysAgo(2),
 		})
 		dbgen.User(t, db, database.User{
 			Email:     "user3@coder.com",
 			Username:  "user3",
-			CreatedAt: time.Now().UTC().AddDate(0, 0, -1),
+			CreatedAt: daysAgo(1),
 		})
 
-		// When: requesting the total users by day
-		threeDaysAgo := time.Now().UTC().AddDate(0, 0, -2).Truncate(24 * time.Hour)
-		today := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
+		// When: requesting the accumulated total of users by day
 		res, err := client.TotalUsersInsight(ctx, codersdk.TotalUsersInsightRequest{
-			StartTime: threeDaysAgo,
-			EndTime:   today,
+			StartTime: daysAgo(2),
+			EndTime:   today(),
 		})
 		require.NoError(t, err)
 
-		// Then: expect to have the accumulated users count growing by day
-		require.Len(t, res, 4)
+		// Then: expect the correct number of dates and the growth of the accumulated total of users
+		require.Len(t, res, 3, "expect 3 dates of data")
+
+		// First day
+		require.Equal(t, res[0].Date, daysAgo(2).Format(time.DateOnly))
+		require.Equal(t, res[0].Total, uint64(2))
+
+		// Second day
+		require.Equal(t, res[1].Date, daysAgo(1).Format(time.DateOnly))
+		require.Equal(t, res[1].Total, uint64(3))
+
+		// Third day
+		require.Equal(t, res[2].Date, today().Format(time.DateOnly))
+		require.Equal(t, res[2].Total, uint64(4))
 	})
 
-	t.Run("EmptyTimes", func(t *testing.T) {
+	t.Run("DatesWithNoUserRegistration", func(t *testing.T) {
 		t.Parallel()
 
-		client, _ := coderdtest.NewWithDatabase(t, nil)
+		// Given: a deployment with no users getting created every day
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		coderdtest.CreateFirstUser(t, client)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
+		dbgen.User(t, db, database.User{
+			Email:     "user1@coder.com",
+			Username:  "user1",
+			CreatedAt: daysAgo(2),
+		})
 
-		// When: requesting total users without a time range
-		_, err := client.TotalUsersInsight(ctx, codersdk.TotalUsersInsightRequest{})
+		// When: requesting the accumulated total of users for dates with no users created
+		res, err := client.TotalUsersInsight(ctx, codersdk.TotalUsersInsightRequest{
+			StartTime: daysAgo(2).Truncate(24 * time.Hour),
+			EndTime:   today(),
+		})
+		require.NoError(t, err)
 
-		// Then: expect a bad request error
-		require.Error(t, err)
-		var apiErr *codersdk.Error
-		require.ErrorAs(t, err, &apiErr)
-		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
+		// Then: expect the correct number of dates. If there are no users created, the total should be 0.
+		require.Len(t, res, 3, "expect 3 dates of data")
+
+		// First day
+		require.Equal(t, res[0].Date, daysAgo(2).Format(time.DateOnly))
+		require.Equal(t, res[0].Total, uint64(1))
+
+		// Second day - no users created so should contain the same total as the previous day
+		require.Equal(t, res[1].Date, daysAgo(1).Format(time.DateOnly))
+		require.Equal(t, res[1].Total, uint64(1))
+
+		// Third day
+		require.Equal(t, res[2].Date, today().Format(time.DateOnly))
+		require.Equal(t, res[2].Total, uint64(2))
 	})
+}
+
+func daysAgo(days int) time.Time {
+	return time.Now().UTC().AddDate(0, 0, -days).Truncate(24 * time.Hour)
+}
+
+func today() time.Time {
+	return time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 }

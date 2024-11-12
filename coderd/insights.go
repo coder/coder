@@ -508,11 +508,18 @@ func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+
 	var res codersdk.TotalUsersInsightResponse
-	for _, row := range rows {
+	currentTotal := uint64(0)
+	for d := startTime; d.Before(endTime) || d.Equal(endTime); d = d.AddDate(0, 0, 1) {
+		for _, row := range rows {
+			if row.Date.Equal(d) {
+				currentTotal = uint64(row.Count)
+			}
+		}
 		res = append(res, codersdk.TotalUserByDate{
-			Date:  row.Date.Format(time.DateOnly),
-			Total: uint64(row.Count),
+			Date:  d.Format(time.DateOnly),
+			Total: currentTotal,
 		})
 	}
 	httpapi.Write(r.Context(), rw, http.StatusOK, res)
