@@ -690,7 +690,7 @@ type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
 	// The intermediary SMTP host through which emails are sent (host:port).
-	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	Smarthost serpent.String `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
@@ -1028,7 +1028,6 @@ when required by your organization's security policy.`,
 		Description: "The intermediary SMTP host through which emails are sent.",
 		Flag:        "email-smarthost",
 		Env:         "CODER_EMAIL_SMARTHOST",
-		Default:     "localhost:587", // To pass validation.
 		Value:       &c.Notifications.SMTP.Smarthost,
 		Group:       &deploymentGroupEmail,
 		YAML:        "smarthost",
@@ -1038,7 +1037,6 @@ when required by your organization's security policy.`,
 		Description: "The hostname identifying the SMTP server.",
 		Flag:        "email-hello",
 		Env:         "CODER_EMAIL_HELLO",
-		Default:     "localhost",
 		Value:       &c.Notifications.SMTP.Hello,
 		Group:       &deploymentGroupEmail,
 		YAML:        "hello",
@@ -1048,7 +1046,6 @@ when required by your organization's security policy.`,
 		Description: "Force a TLS connection to the configured SMTP smarthost.",
 		Flag:        "email-force-tls",
 		Env:         "CODER_EMAIL_FORCE_TLS",
-		Default:     "false",
 		Value:       &c.Notifications.SMTP.ForceTLS,
 		Group:       &deploymentGroupEmail,
 		YAML:        "forceTLS",

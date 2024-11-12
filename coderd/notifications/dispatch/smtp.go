@@ -521,15 +521,9 @@ func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
 // Does not allow overriding.
 // nolint:revive // documented.
 func (s *SMTPHandler) smarthost() (string, string, error) {
-	host := s.cfg.Smarthost.Host
-	port := s.cfg.Smarthost.Port
-
-	// We don't validate the contents themselves; this will be done by the underlying SMTP library.
-	if host == "" {
-		return "", "", ValidationNoSmarthostHostErr
-	}
-	if port == "" {
-		return "", "", ValidationNoSmarthostPortErr
+	host, port, err := net.SplitHostPort(s.cfg.Smarthost.String())
+	if err != nil {
+		return "", "", fmt.Errorf("split host port: %w", err)
 	}
 
 	return host, port, nil
