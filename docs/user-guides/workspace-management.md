@@ -112,7 +112,8 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](../admin/templates/index.md#Start/stop) available.
+[template update](../admin/templates/managing-templates/index.md#updating-templates)
+available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).

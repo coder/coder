@@ -76,6 +76,6 @@ guide.
 ## SSH Fallback
 
 If you prefer to run web IDEs in localhost, you can port forward using
-[SSH](../index.md#ssh) or the Coder CLI `port-forward` sub-command. Some web
-IDEs may not support URL base path adjustment so port forwarding is the only
+[SSH](./index.md#ssh) or the Coder CLI `port-forward` sub-command. Some web IDEs
+may not support URL base path adjustment so port forwarding is the only
 approach.

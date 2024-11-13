@@ -1659,7 +1659,7 @@ func (m queryMetricsStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
+func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
 	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForAutoStartStop").Observe(time.Since(start).Seconds())

@@ -2803,7 +2803,7 @@ func (q *querier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID u
 	return q.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prep)
 }
 
-func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
+func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
 

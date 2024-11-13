@@ -137,7 +137,7 @@ provider_installation {
 
 ## Run offline via Docker
 
-Follow our [docker-compose](./docker.md#run-coder-with-docker-compose)
+Follow our [docker-compose](./docker.md#install-coder-via-docker-compose)
 documentation and modify the docker-compose file to specify your custom Coder
 image. Additionally, you can add a volume mount to add providers to the
 filesystem mirror without re-building the image.
