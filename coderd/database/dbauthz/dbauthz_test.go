@@ -2347,7 +2347,10 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAccumulatedUsersInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.GetAccumulatedUsersInsightsRow{}, nil)
+		check.Args(database.GetAccumulatedUsersInsightsParams{
+			StartTime: dbtime.Time(time.Now()),
+			EndTime:   dbtime.Time(time.Now()),
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
