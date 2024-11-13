@@ -42,6 +42,7 @@ environments:
 - [Amazon Web Services](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [Microsoft Azure](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 - [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
+- [Docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
 
 Other providers might also support authenticated environments. Check the
 [documentation of the Terraform provider](https://registry.terraform.io/browse/providers)
