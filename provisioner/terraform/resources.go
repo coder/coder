@@ -781,7 +781,7 @@ func convertAddressToLabel(address string) string {
 func convertAddressToModulePath(address string) (string, error) {
 	addr, err := tfaddr.NewAddress(address)
 	if err != nil {
-		return "", xerrors.Errorf("parse address: %w", err)
+		return "", xerrors.Errorf("parse terraform address: %w", err)
 	}
 	return addr.ModulePath.String(), nil
 }
