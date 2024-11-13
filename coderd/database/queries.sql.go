@@ -5273,7 +5273,7 @@ WHERE
 	organization_id = $1 :: uuid
 	AND
 	-- adding support for searching by tags:
-	($2 :: tagset = 'null' :: tagset OR tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
+	($2 :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
 `
 
 type GetProvisionerDaemonsByOrganizationParams struct {
@@ -5540,7 +5540,7 @@ WHERE
 			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
 			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
 			-- they are aliases and the code that calls this query already relies on a different type
-			AND tagset_contains($5 :: jsonb, potential_job.tags)
+			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags)
 		ORDER BY
 			potential_job.created_at
 		FOR UPDATE

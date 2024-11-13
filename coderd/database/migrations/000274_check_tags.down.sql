@@ -1,3 +1,3 @@
-DROP FUNCTION IF EXISTS tagset_contains(tagset, tagset);
+DROP FUNCTION IF EXISTS provisioner_tagset_contains(tagset, tagset);
 
 DROP DOMAIN IF EXISTS tagset;

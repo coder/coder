@@ -400,7 +400,7 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION tagset_contains(superset tagset, subset tagset) RETURNS boolean
+CREATE FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 BEGIN
@@ -412,7 +412,7 @@ BEGIN
 END;
 $$;
 
-COMMENT ON FUNCTION tagset_contains(superset tagset, subset tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
+COMMENT ON FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
 
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql
