@@ -2132,16 +2132,20 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 }
 
 const getAccumulatedUsersInsights = `-- name: GetAccumulatedUsersInsights :many
+WITH RECURSIVE date_series AS (
+    SELECT $1::timestamptz AS date
+    UNION ALL
+    SELECT date + INTERVAL '1 day'
+    FROM date_series
+    WHERE date + INTERVAL '1 day' <= $2::timestamptz
+)
 SELECT
-	date_trunc('day', created_at)::date AS date,
-	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS total
+    d.date::date AS date,
+    (SELECT COUNT(*) FROM users u WHERE u.created_at <= d.date) AS total
 FROM
-	users
-WHERE
-	created_at >= $1::timestamptz
-	AND created_at < $2::timestamptz
+    date_series d
 ORDER BY
-	date_trunc('day', created_at)::date
+    d.date
 `
 
 type GetAccumulatedUsersInsightsParams struct {

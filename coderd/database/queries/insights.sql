@@ -776,13 +776,17 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 -- GetAccumulatedUsersInsights returns the accumulated number of users created
 -- in the given timeframe. It returns the accumulated number of users for each date
 -- within the specified timeframe, providing a running total of user sign-ups.
+WITH RECURSIVE date_series AS (
+    SELECT @start_time::timestamptz AS date
+    UNION ALL
+    SELECT date + INTERVAL '1 day'
+    FROM date_series
+    WHERE date + INTERVAL '1 day' <= @end_time::timestamptz
+)
 SELECT
-	date_trunc('day', created_at)::date AS date,
-	COUNT(*) OVER (ORDER BY date_trunc('day', created_at)::date) AS total
+    d.date::date AS date,
+    (SELECT COUNT(*) FROM users u WHERE u.created_at <= d.date) AS total
 FROM
-	users
-WHERE
-	created_at >= @start_time::timestamptz
-	AND created_at < @end_time::timestamptz
+    date_series d
 ORDER BY
-	date_trunc('day', created_at)::date;
+    d.date;
