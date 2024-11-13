@@ -70,8 +70,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This will encode properly because it is a json.RawMessage.
-	httpapi.Write(ctx, rw, http.StatusOK, link.DebugContext)
+	httpapi.Write(ctx, rw, http.StatusOK, link.Claims)
 }
 
 // Returns whether the initial user has been created or not.

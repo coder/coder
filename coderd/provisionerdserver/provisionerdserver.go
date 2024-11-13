@@ -2083,7 +2083,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			OAuthRefreshToken:      link.OAuthRefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 			OAuthExpiry:            link.OAuthExpiry,
-			DebugContext:           link.DebugContext,
+			Claims:                 link.Claims,
 		})
 		if err != nil {
 			return "", xerrors.Errorf("update user link: %w", err)
