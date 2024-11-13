@@ -48,7 +48,7 @@ needs of different teams.
 
 - [Image management](./managing-templates/image-management.md): Learn how to
   create and publish images for use within Coder workspaces & templates.
-- [Dev Container support](./managing-templates/devcontainers/index.md.md):
+- [Dev Container support](./managing-templates/devcontainers/index.md):
   Enable dev containers to allow teams to bring their own tools into Coder
   workspaces.
 - [Template hardening](./extending-templates/resource-persistence.md#-bulletproofing):
