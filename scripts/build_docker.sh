@@ -124,7 +124,6 @@ if [[ "$build_base" != "" ]]; then
 	log "--- Building base Docker image for $arch ($build_base)"
 	docker build \
 		--platform "$arch" \
-		--provenance=true \
 		--tag "$build_base" \
 		--no-cache \
 		-f Dockerfile.base \
@@ -142,7 +141,6 @@ docker build \
 	--build-arg "BASE_IMAGE=$base_image" \
 	--build-arg "CODER_VERSION=$version" \
 	--no-cache \
-	--provenance=true \
 	--tag "$image_tag" \
 	-f Dockerfile \
 	. 1>&2
