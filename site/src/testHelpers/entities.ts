@@ -2774,6 +2774,7 @@ export const MockPermissions: Permissions = {
 	createGroup: true,
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
+	viewOrganizationIDPSyncSettings: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -2797,6 +2798,7 @@ export const MockNoPermissions: Permissions = {
 	createGroup: false,
 	viewAllLicenses: false,
 	viewNotificationTemplate: false,
+	viewOrganizationIDPSyncSettings: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

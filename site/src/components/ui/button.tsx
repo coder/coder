@@ -10,7 +10,7 @@ const buttonVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary",
+					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary border-none",
 				outline:
 					"border border-border-default text-content-primary bg-transparent hover:bg-surface-secondary",
 				subtle:
@@ -19,7 +19,7 @@ const buttonVariants = cva(
 					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
 			},
 			size: {
-				default: "h-10 px-3 py-2",
+				default: "h-9 px-3 py-2",
 				sm: "h-8 px-2 text-xs",
 			},
 		},

@@ -14,6 +14,7 @@
 		--surface-primary: 0, 0%, 98%;
 		--surface-secondary: 240, 4%, 96%;
 		--surface-tertiary: 240, 4%, 89%;
+		--surface-quaternary: 240, 5%, 84%;
 		--surface-invert-primary: 240, 3%, 15%;
 		--surface-invert-secondary: 240, 4%, 25%;
 		--surface-error: 0, 100%, 14%;
@@ -25,7 +26,13 @@
 		--chart-3: 197 37% 24%;
 		--chart-4: 43 74% 66%;
 		--chart-5: 27 87% 67%;
-		--background: 0, 0%, 98%;
+		--popover: 0 0% 100%;
+		--popover-foreground: 240 10% 3.9%;
+		--muted: 240 4.8% 95.9%;
+		--muted-foreground: 240 3.8% 46.1%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
 	}
 	.dark {
 		--content-primary: 0, 0%, 98%;
@@ -38,6 +45,7 @@
 		--surface-primary: 240, 5%, 4%;
 		--surface-secondary: 240, 5%, 9%;
 		--surface-tertiary: 240, 3%, 15%;
+		--surface-quaternary: 240, 5%, 26%;
 		--surface-invert-primary: 240, 4%, 89%;
 		--surface-invert-secondary: 240, 4%, 66%;
 		--surface-error: 0, 100%, 14%;
@@ -48,6 +56,18 @@
 		--chart-3: 30 80% 55%;
 		--chart-4: 280 65% 60%;
 		--chart-5: 340 75% 55%;
-		--background: 240, 5%, 4%;
+		--popover: 240 10% 3.9%;
+		--popover-foreground: 0 0% 98%;
+		--muted: 240 3.7% 15.9%;
+		--muted-foreground: 240 5% 64.9%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
 	}
 }

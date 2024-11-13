@@ -16,7 +16,10 @@
 		"skipLibCheck": true,
 		"strict": true,
 		"target": "es2020",
-		"baseUrl": "src/"
+		"baseUrl": "src/",
+		"paths": {
+			"@/*": ["./*"]
+		}
 	},
 	"include": ["**/*.ts", "**/*.tsx"],
 	"exclude": ["node_modules/", "_jest"],
