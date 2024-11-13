@@ -677,12 +677,20 @@ func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadat
 }
 
 func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
+	isCoderModule := strings.Contains(module.Source, "registry.coder.com")
+	source := module.Source
+	version := module.Version
+	if !isCoderModule {
+		source = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
+		version = fmt.Sprintf("%x", sha256.Sum256([]byte(version)))
+	}
+
 	return WorkspaceModule{
 		ID:         module.ID,
 		JobID:      module.JobID,
 		Transition: module.Transition,
-		Source:     module.Source,
-		Version:    module.Version,
+		Source:     source,
+		Version:    version,
 		Key:        module.Key,
 		CreatedAt:  module.CreatedAt,
 	}
