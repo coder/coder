@@ -1,11 +1,15 @@
 package cli_test
 
 import (
+	"bytes"
 	"context"
+	"encoding/csv"
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
+	"strings"
 	"testing"
 	"time"
 
@@ -864,24 +868,62 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
-		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		t.Run("Prompt", func(t *testing.T) {
+			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)
+			clitest.SetupConfig(t, member, root)
+			pty := ptytest.New(t).Attach(inv)
+			clitest.Start(t, inv)
 
-		matches := []string{
-			listOfStringsParameterName, "",
-			"aaa, bbb, ccc", "",
-			"Confirm create?", "yes",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			if value != "" {
-				pty.WriteLine(value)
+			matches := []string{
+				listOfStringsParameterName, "",
+				"aaa, bbb, ccc", "",
+				"Confirm create?", "yes",
 			}
-		}
+			for i := 0; i < len(matches); i += 2 {
+				match := matches[i]
+				value := matches[i+1]
+				pty.ExpectMatch(match)
+				if value != "" {
+					pty.WriteLine(value)
+				}
+			}
+		})
+
+		t.Run("Default", func(t *testing.T) {
+			t.Parallel()
+			inv, root := clitest.New(t, "create", "my-workspace-2", "--template", template.Name, "--yes")
+			clitest.SetupConfig(t, member, root)
+			clitest.Run(t, inv)
+		})
+
+		t.Run("CLIOverride/DoubleQuote", func(t *testing.T) {
+			t.Parallel()
+			inv, root := clitest.New(t, "create", "my-workspace-3", "--template", template.Name, "--parameter", "\""+listOfStringsParameterName+"=[\"\"ddd=foo\"\",\"\"eee=bar\"\",\"\"fff=baz\"\"]\"", "--yes")
+			clitest.SetupConfig(t, member, root)
+			clitest.Run(t, inv)
+		})
+
+		t.Run("CLIOverride/SingleQuote", func(t *testing.T) {
+			t.Parallel()
+			inv, root := clitest.New(t, "create", "my-workspace-4", "--template", template.Name, "--parameter", "\""+listOfStringsParameterName+"=[''ddd=foo'',''eee=bar'',''fff=baz'']\"", "--yes")
+			clitest.SetupConfig(t, member, root)
+			clitest.Run(t, inv)
+		})
+
+		t.Run("WhatShouldItLookLike", func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				b  bytes.Buffer
+				sb strings.Builder
+			)
+			require.NoError(t, json.NewEncoder(&b).Encode([]string{"ddd=foo", "eee=bar", "fff=baz"}))
+			cw := csv.NewWriter(&sb)
+			require.NoError(t, cw.Write([]string{listOfStringsParameterName + "=" + b.String()}))
+			cw.Flush()
+			require.NoError(t, cw.Error())
+			t.Logf("it looks like this: \n%q", strings.TrimSpace(sb.String()))
+		})
 	})
 
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {
