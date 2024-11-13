@@ -619,6 +619,30 @@ func TestEmailValuesTakeCorrectPrecedent(t *testing.T) {
 			newEnv:        "CODER_EMAIL_SMARTHOST",
 			expectedValue: "localhost:1000",
 		},
+		{
+			name: "CODER_NOTIFICATIONS_EMAIL_HELLO is not discarded",
+			envs: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_EMAIL_HELLO",
+					Value: "not-localhost",
+				},
+			},
+			oldEnv:        "CODER_NOTIFICATIONS_EMAIL_HELLO",
+			newEnv:        "CODER_EMAIL_HELLO",
+			expectedValue: "not-localhost",
+		},
+		{
+			name: "CODER_EMAIL_HELLO is not discarded",
+			envs: []serpent.EnvVar{
+				{
+					Name:  "CODER_EMAIL_HELLO",
+					Value: "not-localhost",
+				},
+			},
+			oldEnv:        "CODER_NOTIFICATIONS_EMAIL_HELLO",
+			newEnv:        "CODER_EMAIL_HELLO",
+			expectedValue: "not-localhost",
+		},
 	}
 
 	for _, tt := range tests {
