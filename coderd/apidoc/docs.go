@@ -11383,6 +11383,9 @@ const docTemplate = `{
                         }
                     ]
                 },
+                "enabled": {
+                    "type": "boolean"
+                },
                 "fetch_interval": {
                     "description": "How often to query the database for queued notifications.",
                     "type": "integer"

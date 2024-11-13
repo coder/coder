@@ -1894,6 +1894,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 					"start_tls": true
 				}
 			},
+			"enabled": true,
 			"fetch_interval": 0,
 			"lease_count": 0,
 			"lease_period": 0,
@@ -2318,6 +2319,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 				"start_tls": true
 			}
 		},
+		"enabled": true,
 		"fetch_interval": 0,
 		"lease_count": 0,
 		"lease_period": 0,
@@ -3421,6 +3423,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"start_tls": true
 		}
 	},
+	"enabled": true,
 	"fetch_interval": 0,
 	"lease_count": 0,
 	"lease_period": 0,
@@ -3453,6 +3456,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ------------------- | -------------------------------------------------------------------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `dispatch_timeout`  | integer                                                                    | false    |              | How long to wait while a notification is being sent before giving up.                                                                                                                                                                                                                                                                                                                                                                               |
 | `email`             | [codersdk.NotificationsEmailConfig](#codersdknotificationsemailconfig)     | false    |              | Email settings.                                                                                                                                                                                                                                                                                                                                                                                                                                     |
+| `enabled`           | boolean                                                                    | false    |              |                                                                                                                                                                                                                                                                                                                                                                                                                                                     |
 | `fetch_interval`    | integer                                                                    | false    |              | How often to query the database for queued notifications.                                                                                                                                                                                                                                                                                                                                                                                           |
 | `lease_count`       | integer                                                                    | false    |              | How many notifications a notifier should lease per fetch interval.                                                                                                                                                                                                                                                                                                                                                                                  |
 | `lease_period`      | integer                                                                    | false    |              | How long a notifier should lease a message. This is effectively how long a notification is 'owned' by a notifier, and once this period expires it will be available for lease by another notifier. Leasing is important in order for multiple running notifiers to not pick the same messages to deliver concurrently. This lease period will only expire if a notifier shuts down ungracefully; a dispatch of the notification releases the lease. |

@@ -276,6 +276,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 					"start_tls": true
 				}
 			},
+			"enabled": true,
 			"fetch_interval": 0,
 			"lease_count": 0,
 			"lease_period": 0,

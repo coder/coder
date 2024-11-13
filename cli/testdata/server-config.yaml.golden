@@ -520,6 +520,9 @@ userQuietHoursSchedule:
 allowWorkspaceRenames: false
 # Configure how notifications are processed and delivered.
 notifications:
+  # Controls if notifications are enabled.
+  # (default: true, type: bool)
+  enabled: true
   # Which delivery method to use (available options: 'smtp', 'webhook').
   # (default: smtp, type: string)
   method: smtp
@@ -621,7 +624,7 @@ email:
   # (default: localhost, type: string)
   hello: localhost
   # Force a TLS connection to the configured SMTP smarthost.
-  # (default: <unset>, type: bool)
+  # (default: false, type: bool)
   forceTLS: false
   # Configure SMTP authentication options.
   emailAuth:

@@ -110,7 +110,7 @@ Use a YAML configuration file when your server launch become unwieldy.
 EMAIL OPTIONS: 
 Configure how emails are sent.
 
-      --email-force-tls bool, $CODER_EMAIL_FORCE_TLS
+      --email-force-tls bool, $CODER_EMAIL_FORCE_TLS (default: false)
           Force a TLS connection to the configured SMTP smarthost.
 
       --email-from string, $CODER_EMAIL_FROM
@@ -392,6 +392,9 @@ Configure how notifications are processed and delivered.
 
       --notifications-dispatch-timeout duration, $CODER_NOTIFICATIONS_DISPATCH_TIMEOUT (default: 1m0s)
           How long to wait while a notification is being sent before giving up.
+
+      --notifications-enabled bool, $CODER_NOTIFICATIONS_ENABLED (default: true)
+          Controls if notifications are enabled.
 
       --notifications-max-send-attempts int, $CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS (default: 5)
           The upper limit of attempts to send a notification.

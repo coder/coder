@@ -649,6 +649,8 @@ type HealthcheckConfig struct {
 }
 
 type NotificationsConfig struct {
+	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
+
 	// The upper limit of attempts to send a notification.
 	MaxSendAttempts serpent.Int64 `json:"max_send_attempts" typescript:",notnull"`
 	// The minimum time between retries.
@@ -1047,6 +1049,7 @@ when required by your organization's security policy.`,
 		Description: "Force a TLS connection to the configured SMTP smarthost.",
 		Flag:        "email-force-tls",
 		Env:         "CODER_EMAIL_FORCE_TLS",
+		Default:     "false",
 		Value:       &c.Notifications.SMTP.ForceTLS,
 		Group:       &deploymentGroupEmail,
 		YAML:        "forceTLS",
@@ -2580,6 +2583,16 @@ Write out the current server config as YAML to stdout.`,
 			Annotations: serpent.Annotations{}.Mark(annotationFormatDuration, "true"),
 		},
 		// Notifications Options
+		{
+			Name:        "Notifications: Enabled",
+			Description: "Controls if notifications are enabled.",
+			Flag:        "notifications-enabled",
+			Env:         "CODER_NOTIFICATIONS_ENABLED",
+			Default:     "true",
+			Value:       &c.Notifications.Enabled,
+			Group:       &deploymentGroupNotifications,
+			YAML:        "enabled",
+		},
 		{
 			Name:        "Notifications: Method",
 			Description: "Which delivery method to use (available options: 'smtp', 'webhook').",

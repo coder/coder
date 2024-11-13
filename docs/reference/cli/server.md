@@ -1217,6 +1217,17 @@ Refresh interval for healthchecks.
 
 The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
 
+### --notifications-enabled
+
+|             |                                           |
+| ----------- | ----------------------------------------- |
+| Type        | <code>bool</code>                         |
+| Environment | <code>$CODER_NOTIFICATIONS_ENABLED</code> |
+| YAML        | <code>notifications.enabled</code>        |
+| Default     | <code>true</code>                         |
+
+Controls if notifications are enabled.
+
 ### --notifications-method
 
 |             |                                          |
@@ -1438,6 +1449,7 @@ The hostname identifying the SMTP server.
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_EMAIL_FORCE_TLS</code> |
 | YAML        | <code>email.forceTLS</code>         |
+| Default     | <code>false</code>                  |
 
 Force a TLS connection to the configured SMTP smarthost.
 
