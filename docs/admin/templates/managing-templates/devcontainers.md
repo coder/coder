@@ -67,6 +67,14 @@ simplify migration. This allows developers to take control of their own
 environments, while still following cloud-native security best practices. See
 the [Security section](#devcontainer-security) for more information.
 
+## Devcontainer Features
+
+[Devcontainer Features](https://containers.dev/implementors/features/) allow
+owners of a project to specify self-contained units of code and runtime
+configuration that can be composed together on top of an existing base image.
+This is a good place to install project-specific tools, such as
+language-specific runtimes and compilers.
+
 ## Add a devcontainer template to Coder
 
 A Coder admin adds a devcontainer-compatible template to Coder (Envbuilder).
@@ -157,12 +165,16 @@ for more information.
 To improve build times, dev containers can be cached. There are two main forms
 of caching:
 
-<dl>
-  <dt>Layer caching</dt>
-	<dd>Caches individual layers and pushes them to a remote registry. When building the image, Envbuilder will check the remote registry for pre-existing layers These will be fetched and extracted to disk instead of building the layers from scratch.</dd>
-	<dt>Image caching</dt>
-	<dd>Caches the entire image, skipping the build process completely (except for post-build lifecycle scripts).</dd>
-</dl>
+- **Layer caching**
+
+  - Caches individual layers and pushes them to a remote registry. When building
+    the image, Envbuilder will check the remote registry for pre-existing layers
+    These will be fetched and extracted to disk instead of building the layers
+    from scratch.
+
+- **Image caching**
+  - Caches the entire image, skipping the build process completely (except for
+    post-build [lifecycle scripts](#devcontainer-lifecycle-scripts)).
 
 Refer to the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
@@ -190,6 +202,15 @@ If you are building your own Devcontainer template, you can consult the
 [provider documentation](https://registry.terraform.io/providers/coder/envbuilder/latest/docs/resources/cached_image).
 You may also wish to consult a
 [documented example usage of the `envbuilder_cached_image` resource](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf).
+
+## Devcontainer lifecycle scripts
+
+The `onCreateCommand`, `updateContentCommand`, `postCreateCommand`, and
+`postStartCommand` lifecycle scripts are run each time the container is started.
+This could be used, for example, to fetch or update project dependencies before
+a user begins using the workspace.
+
+Lifecycle scripts are managed by project developers.
 
 ## Release channels
 
