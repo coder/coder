@@ -34,9 +34,9 @@ import (
 )
 
 var (
-	ValidationNoFromAddressErr = xerrors.New("no 'from' address defined")
-	ValidationNoToAddressErr   = xerrors.New("no 'to' address(es) defined")
-	ValidationNoSmarthostErr   = xerrors.New("no 'smarthost' defined")
+	ValidationNoFromAddressErr = xerrors.New("'from' address not defined")
+	ValidationNoToAddressErr   = xerrors.New("'to' address(es) not defined")
+	ValidationNoSmarthostErr   = xerrors.New("'smarthost' not defined")
 	ValidationNoHelloErr       = xerrors.New("'hello' not defined")
 
 	//go:embed smtp/html.gotmpl
