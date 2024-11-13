@@ -1,7 +1,7 @@
 # External provisioners
 
 By default, the Coder server runs
-[built-in provisioner daemons](../reference/cli/server.md#provisioner-daemons),
+[built-in provisioner daemons](../reference/cli/server.md#--provisioner-daemons),
 which execute `terraform` during workspace and template builds. However, there
 are often benefits to running external provisioner daemons:
 
@@ -235,17 +235,17 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
+[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
 [Template Admin](./users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+- [Built-in provisioners](../reference/cli/server.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
@@ -369,7 +369,7 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../reference/cli/server.md#provisioner-daemons).
+[flag or environment variable](../reference/cli/server.md#--provisioner-daemons).
 
 ```sh
 coder server --provisioner-daemons=0
