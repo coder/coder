@@ -7,7 +7,7 @@ RETURNS boolean as $$
 BEGIN
 	RETURN
 		-- Special case for untagged provisioners, where only an exact match should count
-		(job_tags = '{"scope": "organization", "owner": ""}' :: jsonb AND job_tags :: jsonb = provisioner_tags :: jsonb)
+		(job_tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb AND job_tags :: jsonb = provisioner_tags :: jsonb)
 		-- General case
 		OR job_tags :: jsonb <@ provisioner_tags :: jsonb;
 END;
