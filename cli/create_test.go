@@ -1,15 +1,11 @@
 package cli_test
 
 import (
-	"bytes"
 	"context"
-	"encoding/csv"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"os"
 	"regexp"
-	"strings"
 	"testing"
 	"time"
 
@@ -874,19 +870,10 @@ func TestCreateValidateRichParameters(t *testing.T) {
 			pty := ptytest.New(t).Attach(inv)
 			clitest.Start(t, inv)
 
-			matches := []string{
-				listOfStringsParameterName, "",
-				"aaa, bbb, ccc", "",
-				"Confirm create?", "yes",
-			}
-			for i := 0; i < len(matches); i += 2 {
-				match := matches[i]
-				value := matches[i+1]
-				pty.ExpectMatch(match)
-				if value != "" {
-					pty.WriteLine(value)
-				}
-			}
+			pty.ExpectMatch(listOfStringsParameterName)
+			pty.ExpectMatch("aaa, bbb, ccc")
+			pty.ExpectMatch("Confirm create?")
+			pty.WriteLine("yes")
 		})
 
 		t.Run("Default", func(t *testing.T) {
@@ -898,24 +885,12 @@ func TestCreateValidateRichParameters(t *testing.T) {
 
 		t.Run("CLIOverride/DoubleQuote", func(t *testing.T) {
 			t.Parallel()
-			inv, root := clitest.New(t, "create", "my-workspace-3", "--template", template.Name, "--parameter", "\""+listOfStringsParameterName+"=[\"\"ddd=foo\"\",\"\"eee=bar\"\",\"\"fff=baz\"\"]\"", "--yes")
+
+			// Note: see https://go.dev/play/p/vhTUTZsVrEb for how to escape this properly
+			parameterArg := fmt.Sprintf(`"%s=[""ddd=foo"",""eee=bar"",""fff=baz""]"`, listOfStringsParameterName)
+			inv, root := clitest.New(t, "create", "my-workspace-3", "--template", template.Name, "--parameter", parameterArg, "--yes")
 			clitest.SetupConfig(t, member, root)
 			clitest.Run(t, inv)
-		})
-
-		t.Run("WhatShouldItLookLike", func(t *testing.T) {
-			t.Parallel()
-
-			var (
-				b  bytes.Buffer
-				sb strings.Builder
-			)
-			require.NoError(t, json.NewEncoder(&b).Encode([]string{"ddd=foo", "eee=bar", "fff=baz"}))
-			cw := csv.NewWriter(&sb)
-			require.NoError(t, cw.Write([]string{listOfStringsParameterName + "=" + b.String()}))
-			cw.Flush()
-			require.NoError(t, cw.Error())
-			t.Logf("it looks like this: \n%q", strings.TrimSpace(sb.String()))
 		})
 	})
 
