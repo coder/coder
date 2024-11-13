@@ -557,7 +557,8 @@ FROM pending_workspaces, building_workspaces, running_workspaces, failed_workspa
 
 -- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.*
+	workspaces.id,
+	workspaces.name
 FROM
 	workspaces
 LEFT JOIN
@@ -579,52 +580,85 @@ WHERE
 	) AND
 
 	(
-		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
+		-- A workspace may be eligible for autostop if the following are true:
+		--   * The provisioner job has not failed.
+		--   * The workspace is not dormant.
+		--   * The workspace build was a start transition.
+		--   * The workspace's owner is suspended OR the workspace build deadline has passed.
 		(
-			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < @now :: timestamptz
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
+			workspaces.dormant_at IS NULL AND
+			workspace_builds.transition = 'start'::workspace_transition AND (
+				users.status = 'suspended'::user_status OR (
+					workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamptz AND
+					workspace_builds.deadline < @now :: timestamptz
+				)
+			)
 		) OR
 
-		-- If the workspace build was a stop transition, the workspace is
-		-- potentially eligible for autostart if it has a schedule set. The
-		-- caller must check if the template allows autostart in a license-aware
-		-- fashion as we cannot check it here.
+		-- A workspace may be eligible for autostart if the following are true:
+		--   * The workspace's owner is active.
+		--   * The provisioner job did not fail.
+		--   * The workspace build was a stop transition.
+		--   * The workspace has an autostart schedule.
 		(
+			users.status = 'active'::user_status AND
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
 		) OR
 
-		-- If the workspace's most recent job resulted in an error
-		-- it may be eligible for failed stop.
+		-- A workspace may be eligible for dormant stop if the following are true:
+		--   * The workspace is not dormant.
+		--   * The template has set a time 'til dormant.
+		--   * The workspace has been unused for longer than the time 'til dormancy.
 		(
-			provisioner_jobs.error IS NOT NULL AND
-			provisioner_jobs.error != '' AND
-			workspace_builds.transition = 'start'::workspace_transition
-		) OR
-
-		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for dormancy.
-		(
+			workspaces.dormant_at IS NULL AND
 			templates.time_til_dormant > 0 AND
-			workspaces.dormant_at IS NULL
+			(@now :: timestamptz) - workspaces.last_used_at > (INTERVAL '1 millisecond' * (templates.time_til_dormant / 1000000))
 		) OR
 
-		-- If the workspace's template has a time_til_dormant_autodelete set
-		-- and the workspace is already dormant.
+		-- A workspace may be eligible for deletion if the following are true:
+		--   * The workspace is dormant.
+		--   * The workspace is scheduled to be deleted.
+		--   * If there was a prior attempt to delete the workspace that failed:
+		--      * This attempt was at least 24 hours ago.
 		(
+			workspaces.dormant_at IS NOT NULL AND
+			workspaces.deleting_at IS NOT NULL AND
+			workspaces.deleting_at < @now :: timestamptz AND
 			templates.time_til_dormant_autodelete > 0 AND
-			workspaces.dormant_at IS NOT NULL
+			CASE
+				WHEN (
+					workspace_builds.transition = 'delete'::workspace_transition AND
+					provisioner_jobs.job_status = 'failed'::provisioner_job_status
+				) THEN (
+					(
+						provisioner_jobs.canceled_at IS NOT NULL OR
+						provisioner_jobs.completed_at IS NOT NULL
+					) AND (
+						(@now :: timestamptz) - (CASE
+							WHEN provisioner_jobs.canceled_at IS NOT NULL THEN provisioner_jobs.canceled_at
+							ELSE provisioner_jobs.completed_at
+						END) > INTERVAL '24 hours'
+					)
+				)
+				ELSE true
+			END
 		) OR
 
-		-- If the user account is suspended, and the workspace is running.
+		-- A workspace may be eligible for failed stop if the following are true:
+		--   * The template has a failure ttl set.
+		--   * The workspace build was a start transition.
+		--   * The provisioner job failed.
+		--   * The provisioner job had completed.
+		--   * The provisioner job has been completed for longer than the failure ttl.
 		(
-			users.status = 'suspended'::user_status AND
-			workspace_builds.transition = 'start'::workspace_transition
+			templates.failure_ttl > 0 AND
+			workspace_builds.transition = 'start'::workspace_transition AND
+			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
+			provisioner_jobs.completed_at IS NOT NULL AND
+			(@now :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
 	) AND workspaces.deleted = 'false';
 
@@ -727,5 +761,3 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;
-
-
