@@ -14,7 +14,7 @@ or deployment, such as:
 [`kubernetes_deployment`](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs/resources/deployment)
 Terraform resource, which requires the `coder` service account to have
 permission to create deployments. For example, if you use
-[Helm](../../install/kubernetes.md#install-coder-with-helm) to install Coder,
+[Helm](../../install/kubernetes.md#4-install-coder-with-helm) to install Coder,
 you should set `coder.serviceAccount.enableDeployments=true` in your
 `values.yaml`
 

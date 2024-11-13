@@ -4,11 +4,11 @@ on:
   schedule:
     - cron: "0 9 * * 1"
   workflow_dispatch: # allows to run manually for testing
-  # pull_request:
-  #   branches:
-  #     - main
-  #   paths:
-  #     - "docs/**"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "docs/**"
 
 permissions:
   contents: read
@@ -33,6 +33,7 @@ jobs:
           reporter: github-pr-review
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
+          filter_mode: "nofilter"
 
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'

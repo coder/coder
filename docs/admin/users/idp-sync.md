@@ -326,9 +326,8 @@ the OIDC provider. See
 > Depending on the OIDC provider, this claim may be named differently. Common
 > ones include `groups`, `memberOf`, and `roles`.
 
-Next configure the Coder server to read groups from the claim name with the
-[OIDC organization field](../../reference/cli/server.md#--oidc-organization-field)
-server flag:
+Next configure the Coder server to read groups from the claim name with the OIDC
+organization field server flag:
 
 ```sh
 # as an environment variable
