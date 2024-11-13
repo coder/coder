@@ -25,6 +25,9 @@ import (
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/healthcheck/derphealth"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps/apptest"
@@ -932,6 +935,9 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		if opts.PrimaryAppHost == "" {
 			opts.PrimaryAppHost = "*.primary.test.coder.com"
 		}
+
+		db, pubsub := dbtestutil.NewDB(t)
+
 		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
@@ -947,6 +953,8 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 					},
 				},
 				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
+				Database:                           db,
+				Pubsub:                             pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -957,6 +965,13 @@ func TestWorkspaceProxyWorkspaceApps(t *testing.T) {
 		})
 		t.Cleanup(func() {
 			_ = closer.Close()
+		})
+
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+		})
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		})
 
 		// Create the external proxy
@@ -1002,6 +1017,8 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		if opts.PrimaryAppHost == "" {
 			opts.PrimaryAppHost = "*.primary.test.coder.com"
 		}
+
+		db, pubsub := dbtestutil.NewDB(t)
 		client, closer, api, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
 				DeploymentValues:         deploymentValues,
@@ -1017,6 +1034,8 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 					},
 				},
 				WorkspaceAppsStatsCollectorOptions: opts.StatsCollectorOptions,
+				Database:                           db,
+				Pubsub:                             pubsub,
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
@@ -1027,6 +1046,13 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 		})
 		t.Cleanup(func() {
 			_ = closer.Close()
+		})
+
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsToken,
+		})
+		_ = dbgen.CryptoKey(t, db, database.CryptoKey{
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		})
 
 		// Create the external proxy

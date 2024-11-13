@@ -198,7 +198,7 @@ func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, fn func
 		e.fatalf("read error", "%v (wanted %q; got %q)", err, str, buffer.String())
 		return ""
 	}
-	e.logf("matched %q = %q", str, stripansi.Strip(buffer.String()))
+	e.logf("matched %q = %q", str, buffer.String())
 	return buffer.String()
 }
 

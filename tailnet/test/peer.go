@@ -101,6 +101,18 @@ func (p *Peer) AddTunnel(other uuid.UUID) {
 	}
 }
 
+func (p *Peer) RemoveTunnel(other uuid.UUID) {
+	p.t.Helper()
+	req := &proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(other)}}
+	select {
+	case <-p.ctx.Done():
+		p.t.Errorf("timeout removing tunnel for %s", p.name)
+		return
+	case p.reqs <- req:
+		return
+	}
+}
+
 func (p *Peer) UpdateDERP(derp int32) {
 	p.t.Helper()
 	node := &proto.Node{PreferredDerp: derp}
@@ -370,3 +382,20 @@ func (p *Peer) UngracefulDisconnect(ctx context.Context) {
 	close(p.reqs)
 	p.Close(ctx)
 }
+
+type FakeSubjectKey struct{}
+
+type FakeCoordinateeAuth struct {
+	Chan chan struct{}
+}
+
+func (f FakeCoordinateeAuth) Authorize(ctx context.Context, _ *proto.CoordinateRequest) error {
+	_, ok := ctx.Value(FakeSubjectKey{}).(struct{})
+	if !ok {
+		return xerrors.New("unauthorized")
+	}
+	f.Chan <- struct{}{}
+	return nil
+}
+
+var _ tailnet.CoordinateeAuth = (*FakeCoordinateeAuth)(nil)

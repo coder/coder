@@ -115,7 +115,7 @@ func TestStart(t *testing.T) {
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
-		inv, root := clitest.New(t, "start", workspace.Name, "--build-options")
+		inv, root := clitest.New(t, "start", workspace.Name, "--prompt-ephemeral-parameters")
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -140,7 +140,7 @@ func TestStart(t *testing.T) {
 		}
 		<-doneChan
 
-		// Verify if build option is set
+		// Verify if ephemeral parameter is set
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
@@ -154,7 +154,7 @@ func TestStart(t *testing.T) {
 		})
 	})
 
-	t.Run("BuildOptionFlags", func(t *testing.T) {
+	t.Run("EphemeralParameterFlags", func(t *testing.T) {
 		t.Parallel()
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
@@ -170,7 +170,7 @@ func TestStart(t *testing.T) {
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
 		inv, root := clitest.New(t, "start", workspace.Name,
-			"--build-option", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
+			"--ephemeral-parameter", fmt.Sprintf("%s=%s", ephemeralParameterName, ephemeralParameterValue))
 		clitest.SetupConfig(t, member, root)
 		doneChan := make(chan struct{})
 		pty := ptytest.New(t).Attach(inv)
@@ -183,7 +183,7 @@ func TestStart(t *testing.T) {
 		pty.ExpectMatch("workspace has been started")
 		<-doneChan
 
-		// Verify if build option is set
+		// Verify if ephemeral parameter is set
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
 
@@ -390,7 +390,7 @@ func TestStart_AlreadyRunning(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 	}).Do()
@@ -417,7 +417,7 @@ func TestStart_Starting(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 	}).

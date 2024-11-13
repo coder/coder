@@ -16,27 +16,6 @@ import (
 func TestParseOrganizationClaims(t *testing.T) {
 	t.Parallel()
 
-	t.Run("SingleOrgDeployment", func(t *testing.T) {
-		t.Parallel()
-
-		s := idpsync.NewAGPLSync(slogtest.Make(t, &slogtest.Options{}),
-			runtimeconfig.NewManager(),
-			idpsync.DeploymentSyncSettings{
-				OrganizationField:         "",
-				OrganizationMapping:       nil,
-				OrganizationAssignDefault: true,
-			})
-
-		ctx := testutil.Context(t, testutil.WaitMedium)
-
-		params, err := s.ParseOrganizationClaims(ctx, jwt.MapClaims{})
-		require.Nil(t, err)
-
-		require.Empty(t, params.Organizations)
-		require.True(t, params.IncludeDefault)
-		require.False(t, params.SyncEnabled)
-	})
-
 	t.Run("AGPL", func(t *testing.T) {
 		t.Parallel()
 
@@ -56,8 +35,6 @@ func TestParseOrganizationClaims(t *testing.T) {
 		params, err := s.ParseOrganizationClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
 
-		require.Empty(t, params.Organizations)
-		require.False(t, params.IncludeDefault)
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 }

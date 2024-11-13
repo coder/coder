@@ -10,10 +10,12 @@ import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { docs } from "utils/docs";
 import {
 	getFormHelpers,
@@ -33,7 +35,6 @@ export const Language = {
 	passwordRequired: "Please enter a password.",
 	create: "Create account",
 	welcomeMessage: <>Welcome to Coder</>,
-
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
 	companyLabel: "Company",
@@ -167,13 +168,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						fullWidth
 						label={Language.emailLabel}
 					/>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="current-password"
 						fullWidth
-						id="password"
 						label={Language.passwordLabel}
-						type="password"
 					/>
 					<label
 						htmlFor="trial"

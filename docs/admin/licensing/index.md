@@ -45,3 +45,12 @@ First, ensure you have a license key
    `coder licenses add -f <path to your license key>`
 
 </div>
+
+## Find your deployment ID
+
+You'll need your deployment ID to request a trial or license key.
+
+From your Coder dashboard, select your user avatar, then select the **Copy to
+clipboard** icon at the bottom:
+
+![Copy the deployment ID from the bottom of the user avatar dropdown](../../images/admin/deployment-id-copy-clipboard.png)

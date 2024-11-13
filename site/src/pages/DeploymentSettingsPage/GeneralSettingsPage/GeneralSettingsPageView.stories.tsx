@@ -50,13 +50,6 @@ type Story = StoryObj<typeof GeneralSettingsPageView>;
 
 export const Page: Story = {};
 
-export const WithUserLimit: Story = {
-	args: {
-		deploymentDAUs: MockDeploymentDAUResponse,
-		entitlements: MockEntitlementsWithUserLimit,
-	},
-};
-
 export const NoDAUs: Story = {
 	args: {
 		deploymentDAUs: undefined,

@@ -507,7 +507,7 @@ gen: \
 	examples/examples.gen.json \
 	tailnet/tailnettest/coordinatormock.go \
 	tailnet/tailnettest/coordinateemock.go \
-	tailnet/tailnettest/multiagentmock.go
+	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
@@ -536,7 +536,7 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		tailnet/tailnettest/coordinatormock.go \
 		tailnet/tailnettest/coordinateemock.go \
-		tailnet/tailnettest/multiagentmock.go \
+		coderd/database/pubsub/psmock/psmock.go \
 		"
 
 	for file in $$files; do
@@ -568,7 +568,7 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
 
-tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/multiagentmock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go tailnet/multiagent.go
+tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go
 	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
@@ -667,6 +667,7 @@ update-golden-files: \
 	enterprise/tailnet/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
+	coderd/notifications/.gen-golden \
 	provisioner/terraform/testdata/.gen-golden
 .PHONY: update-golden-files
 
@@ -696,6 +697,10 @@ helm/provisioner/tests/testdata/.gen-golden: $(wildcard helm/provisioner/tests/t
 
 coderd/.gen-golden: $(wildcard coderd/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/*_test.go)
 	go test ./coderd -run="Test.*Golden$$" -update
+	touch "$@"
+
+coderd/notifications/.gen-golden: $(wildcard coderd/notifications/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard coderd/notifications/*_test.go)
+	go test ./coderd/notifications -run="Test.*Golden$$" -update
 	touch "$@"
 
 provisioner/terraform/testdata/.gen-golden: $(wildcard provisioner/terraform/testdata/*/*.golden) $(GO_SRC_FILES) $(wildcard provisioner/terraform/*_test.go)
@@ -758,7 +763,7 @@ sqlc-vet: test-postgres-docker
 test-postgres: test-postgres-docker
 	# The postgres test is prone to failure, so we limit parallelism for
 	# more consistent execution.
-	$(GIT_FLAGS)  DB=ci DB_FROM=$(shell go run scripts/migrate-ci/main.go) gotestsum \
+	$(GIT_FLAGS)  DB=ci gotestsum \
 		--junitfile="gotests.xml" \
 		--jsonfile="gotests.json" \
 		--packages="./..." -- \
@@ -810,7 +815,7 @@ test-postgres-docker:
 
 # Make sure to keep this in sync with test-go-race from .github/workflows/ci.yaml.
 test-race:
-	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 ./...
+	$(GIT_FLAGS) gotestsum --junitfile="gotests.xml" -- -race -count=1 -parallel 4 -p 4 ./...
 .PHONY: test-race
 
 test-tailnet-integration:

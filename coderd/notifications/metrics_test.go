@@ -3,7 +3,9 @@ package notifications_test
 import (
 	"context"
 	"strconv"
+	"sync"
 	"testing"
+	"text/template"
 	"time"
 
 	"github.com/google/uuid"
@@ -14,11 +16,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
-
 	"github.com/coder/serpent"
 
-	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -38,11 +40,12 @@ func TestMetrics(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const (
 		method      = database.NotificationMethodSmtp
@@ -58,7 +61,7 @@ func TestMetrics(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100) // Twice as long as fetch interval to ensure we catch pending updates.
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), metrics, api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -68,13 +71,13 @@ func TestMetrics(t *testing.T) {
 		method: handler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// Build fingerprints for the two different series we expect.
-	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String())
+	methodTemplateFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, tmpl.String())
 	methodFP := fingerprintLabels(notifications.LabelMethod, string(method))
 
 	expected := map[string]func(metric *dto.Metric, series string) bool{
@@ -88,7 +91,7 @@ func TestMetrics(t *testing.T) {
 
 			var match string
 			for result, val := range results {
-				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, template.String(), notifications.LabelResult, result)
+				seriesFP := fingerprintLabels(notifications.LabelMethod, string(method), notifications.LabelTemplateID, tmpl.String(), notifications.LabelResult, result)
 				if !hasMatchingFingerprint(metric, seriesFP) {
 					continue
 				}
@@ -163,9 +166,9 @@ func TestMetrics(t *testing.T) {
 	}
 
 	// WHEN: 2 notifications are enqueued, 1 of which will fail until its retries are exhausted, and another which will succeed
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test") // this will succeed
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
@@ -211,25 +214,29 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	// SETUP
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const method = database.NotificationMethodSmtp
 
 	// GIVEN: a notification manager whose store updates are intercepted so we can read the number of pending updates set in the metric
 	cfg := defaultNotificationsConfig(method)
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
+	cfg.FetchInterval = serpent.Duration(time.Millisecond * 50)
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
-	syncer := &syncInterceptor{Store: api.Database}
+	syncer := &syncInterceptor{Store: store}
 	interceptor := newUpdateSignallingInterceptor(syncer)
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().NewTicker("Manager", "storeSync")
 	defer trap.Close()
-	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, api.Logger.Named("manager"),
+	fetchTrap := mClock.Trap().TickerFunc("notifier", "fetchInterval")
+	defer fetchTrap.Close()
+	mgr, err := notifications.NewManager(cfg, interceptor, defaultHelpers(), metrics, logger.Named("manager"),
 		notifications.WithTestClock(mClock))
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -240,37 +247,40 @@ func TestPendingUpdatesMetric(t *testing.T) {
 		method: handler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: 2 notifications are enqueued, one of which will fail and one which will succeed
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test") // this will succeed
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test") // this will succeed
 	require.NoError(t, err)
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "failure"}, "test2") // this will fail and retry (maxAttempts - 1) times
 	require.NoError(t, err)
 
 	mgr.Run(ctx)
 	trap.MustWait(ctx).Release() // ensures ticker has been set
+	fetchTrap.MustWait(ctx).Release()
+
+	// Advance to the first fetch
+	mClock.Advance(cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// THEN:
-	// Wait until the handler has dispatched the given notifications.
-	require.Eventually(t, func() bool {
+	// handler has dispatched the given notifications.
+	func() {
 		handler.mu.RLock()
 		defer handler.mu.RUnlock()
 
-		return len(handler.succeeded) == 1 && len(handler.failed) == 1
-	}, testutil.WaitShort, testutil.IntervalFast)
+		require.Len(t, handler.succeeded, 1)
+		require.Len(t, handler.failed, 1)
+	}()
 
 	// Both handler calls should be pending in the metrics.
-	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.PendingUpdates) == float64(2)
-	}, testutil.WaitShort, testutil.IntervalFast)
+	require.EqualValues(t, 2, promtest.ToFloat64(metrics.PendingUpdates))
 
 	// THEN:
 	// Trigger syncing updates
-	mClock.Advance(cfg.StoreSyncInterval.Value()).MustWait(ctx)
+	mClock.Advance(cfg.StoreSyncInterval.Value() - cfg.FetchInterval.Value()).MustWait(ctx)
 
 	// Wait until we intercept the calls to sync the pending updates to the store.
 	success := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, interceptor.updateSuccess)
@@ -295,11 +305,12 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// SETUP
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
-	template := notifications.TemplateWorkspaceDeleted
+	tmpl := notifications.TemplateWorkspaceDeleted
 
 	const method = database.NotificationMethodSmtp
 
@@ -310,28 +321,29 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	cfg.RetryInterval = serpent.Duration(time.Hour) // Delay retries so they don't interfere.
 	cfg.StoreSyncInterval = serpent.Duration(time.Millisecond * 100)
 
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), metrics, api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
 	})
 
 	handler := &fakeHandler{}
-	// Delayer will delay all dispatches by 2x fetch intervals to ensure we catch the requests inflight.
-	delayer := newDelayingHandler(cfg.FetchInterval.Value()*2, handler)
+	const msgCount = 2
+
+	// Barrier handler will wait until all notification messages are in-flight.
+	barrier := newBarrierHandler(msgCount, handler)
 	mgr.WithHandlers(map[database.NotificationMethod]notifications.Handler{
-		method: delayer,
+		method: barrier,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
 	// WHEN: notifications are enqueued which will succeed (and be delayed during dispatch)
-	const msgCount = 2
 	for i := 0; i < msgCount; i++ {
-		_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
+		_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success", "i": strconv.Itoa(i)}, "test")
 		require.NoError(t, err)
 	}
 
@@ -340,8 +352,12 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// THEN:
 	// Ensure we see the dispatches of the messages inflight.
 	require.Eventually(t, func() bool {
-		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), template.String())) == msgCount
+		return promtest.ToFloat64(metrics.InflightDispatches.WithLabelValues(string(method), tmpl.String())) == msgCount
 	}, testutil.WaitShort, testutil.IntervalFast)
+
+	for i := 0; i < msgCount; i++ {
+		barrier.wg.Done()
+	}
 
 	// Wait until the handler has dispatched the given notifications.
 	require.Eventually(t, func() bool {
@@ -368,12 +384,13 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
-	_, _, api := coderdtest.NewWithAPI(t, nil)
+	store, _ := dbtestutil.NewDB(t)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
 	var (
 		reg             = prometheus.NewRegistry()
 		metrics         = notifications.NewMetrics(reg)
-		template        = notifications.TemplateWorkspaceDeleted
+		tmpl            = notifications.TemplateWorkspaceDeleted
 		anotherTemplate = notifications.TemplateWorkspaceDormant
 	)
 
@@ -383,8 +400,8 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	)
 
 	// GIVEN: a template whose notification method differs from the default.
-	out, err := api.Database.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
-		ID:     template,
+	out, err := store.UpdateNotificationTemplateMethodByID(ctx, database.UpdateNotificationTemplateMethodByIDParams{
+		ID:     tmpl,
 		Method: database.NullNotificationMethod{NotificationMethod: customMethod, Valid: true},
 	})
 	require.NoError(t, err)
@@ -392,7 +409,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 
 	// WHEN: two notifications (each with different templates) are enqueued.
 	cfg := defaultNotificationsConfig(defaultMethod)
-	mgr, err := notifications.NewManager(cfg, api.Database, defaultHelpers(), metrics, api.Logger.Named("manager"))
+	mgr, err := notifications.NewManager(cfg, store, defaultHelpers(), metrics, logger.Named("manager"))
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		assert.NoError(t, mgr.Stop(ctx))
@@ -405,12 +422,12 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 		customMethod:  webhookHandler,
 	})
 
-	enq, err := notifications.NewStoreEnqueuer(cfg, api.Database, defaultHelpers(), api.Logger.Named("enqueuer"), quartz.NewReal())
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
 	require.NoError(t, err)
 
-	user := createSampleUser(t, api.Database)
+	user := createSampleUser(t, store)
 
-	_, err = enq.Enqueue(ctx, user.ID, template, map[string]string{"type": "success"}, "test")
+	_, err = enq.Enqueue(ctx, user.ID, tmpl, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
 	_, err = enq.Enqueue(ctx, user.ID, anotherTemplate, map[string]string{"type": "success"}, "test")
 	require.NoError(t, err)
@@ -431,7 +448,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	// THEN: we should have metric series for both the default and custom notification methods.
 	require.Eventually(t, func() bool {
 		return promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(defaultMethod), anotherTemplate.String(), notifications.ResultSuccess)) > 0 &&
-			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), template.String(), notifications.ResultSuccess)) > 0
+			promtest.ToFloat64(metrics.DispatchAttempts.WithLabelValues(string(customMethod), tmpl.String(), notifications.ResultSuccess)) > 0
 	}, testutil.WaitShort, testutil.IntervalFast)
 }
 
@@ -493,27 +510,30 @@ func (u *updateSignallingInterceptor) BulkMarkNotificationMessagesFailed(ctx con
 	return u.Store.BulkMarkNotificationMessagesFailed(ctx, arg)
 }
 
-type delayingHandler struct {
+type barrierHandler struct {
 	h notifications.Handler
 
-	delay time.Duration
+	wg *sync.WaitGroup
 }
 
-func newDelayingHandler(delay time.Duration, handler notifications.Handler) *delayingHandler {
-	return &delayingHandler{
-		delay: delay,
-		h:     handler,
+func newBarrierHandler(total int, handler notifications.Handler) *barrierHandler {
+	var wg sync.WaitGroup
+	wg.Add(total)
+
+	return &barrierHandler{
+		h:  handler,
+		wg: &wg,
 	}
 }
 
-func (d *delayingHandler) Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error) {
-	deliverFn, err := d.h.Dispatcher(payload, title, body)
+func (bh *barrierHandler) Dispatcher(payload types.MessagePayload, title, body string, helpers template.FuncMap) (dispatch.DeliveryFunc, error) {
+	deliverFn, err := bh.h.Dispatcher(payload, title, body, helpers)
 	if err != nil {
 		return nil, err
 	}
 
 	return func(ctx context.Context, msgID uuid.UUID) (retryable bool, err error) {
-		time.Sleep(d.delay)
+		bh.wg.Wait()
 
 		return deliverFn(ctx, msgID)
 	}, nil

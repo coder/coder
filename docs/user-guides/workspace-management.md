@@ -90,7 +90,7 @@ manually updated the workspace.
 
 ## Bulk operations (enterprise) (premium)
 
-Enterprise admins may apply bulk operations (update, delete, start, stop) in the
+Licensed admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.
@@ -112,7 +112,8 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](../admin/templates/index.md#Start/stop) available.
+[template update](../admin/templates/managing-templates/index.md#updating-templates)
+available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).

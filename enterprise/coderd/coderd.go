@@ -172,6 +172,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           coderd.ActivateDormantUser(options.Logger, &api.AGPL.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -284,6 +285,16 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Post("/organizations/{organization}/members/roles", api.postOrgRoles)
 			r.Put("/organizations/{organization}/members/roles", api.putOrgRoles)
 			r.Delete("/organizations/{organization}/members/roles/{roleName}", api.deleteOrgRole)
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
+			)
+			r.Route("/settings/idpsync/organization", func(r chi.Router) {
+				r.Get("/", api.organizationIDPSyncSettings)
+				r.Patch("/", api.patchOrganizationIDPSyncSettings)
+			})
 		})
 
 		r.Group(func(r chi.Router) {
@@ -455,8 +466,9 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
 			r.Use(
-				api.scimEnabledMW,
+				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
+			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
@@ -464,7 +476,26 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/{id}", api.scimGetUser)
 				r.Patch("/{id}", api.scimPatchUser)
 			})
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				u := r.URL.String()
+				httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("SCIM endpoint %s not found", u),
+					Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
+				})
+			})
 		})
+	} else {
+		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
+		// the frontend is the fallback. A html page is not a helpful error for
+		// a SCIM provider. This JSON has a call to action that __may__ resolve
+		// the issue.
+		// Using Mount to cover all subroute possibilities.
+		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
+				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
+			})
+		})))
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)

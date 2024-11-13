@@ -1,16 +1,19 @@
 # Releases
 
 Coder releases are cut directly from main in our
-[Github](https://github.com/coder/coder) on the first Tuesday of each month.
+[GitHub](https://github.com/coder/coder) on the first Tuesday of each month.
 
 We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
-We support two release channels: [mainline](#mainline-releases) for the bleeding
-edge version of Coder and [stable](#stable-releases) for those with lower
+We support two release channels:
+[mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
+edge version of Coder and
+[stable](https://github.com/coder/coder/releases/latest) for those with lower
 tolerance for fault. We field our mainline releases publicly for one month
-before promoting them to stable.
+before promoting them to stable. The version prior to stable receives patches
+only for security issues or CVEs.
 
 ### Mainline releases
 
@@ -23,15 +26,19 @@ before promoting them to stable.
 
 - Safest upgrade/installation path
 - May not include the latest features
-- Security vulnerabilities and major bugfixes are supported
+- All bugfixes and security patches are supported
 
-> Note: We support major security vulnerabilities (CVEs) for the past three
-> versions of Coder.
+### Security Support
+
+- In-product security vulnerabilities and CVEs are supported
+
+> For more information on feature rollout, see our
+> [feature stages documentation](../contributing/feature-stages.md).
 
 ## Installing stable
 
 When installing Coder, we generally advise specifying the desired version from
-our Github [releases page](https://github.com/coder/coder/releases).
+our GitHub [releases page](https://github.com/coder/coder/releases).
 
 You can also use our `install.sh` script with the `stable` flag to install the
 latest stable release:
@@ -47,15 +54,14 @@ pages.
 
 | Release name | Release Date       | Status           |
 | ------------ | ------------------ | ---------------- |
-| 2.9.x        | March 07, 2024     | Not Supported    |
-| 2.10.x       | April 03, 2024     | Not Supported    |
 | 2.11.x       | May 07, 2024       | Not Supported    |
 | 2.12.x       | June 04, 2024      | Not Supported    |
 | 2.13.x       | July 02, 2024      | Not Supported    |
 | 2.14.x       | August 06, 2024    | Security Support |
-| 2.15.x       | September 03, 2024 | Stable           |
-| 2.16.x       | October 01, 2024   | Mainline         |
-| 2.17.x       | November 05, 2024  | Not Released     |
+| 2.15.x       | September 03, 2024 | Security Support |
+| 2.16.x       | October 01, 2024   | Stable           |
+| 2.17.x       | November 05, 2024  | Mainline         |
+| 2.18.x       | November 05, 2024  | Not Released     |
 
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image

@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd"
@@ -56,6 +57,12 @@ func setScimAuth(key []byte) func(*http.Request) {
 	}
 }
 
+func setScimAuthBearer(key []byte) func(*http.Request) {
+	return func(r *http.Request) {
+		r.Header.Set("Authorization", "Bearer "+string(key))
+	}
+}
+
 //nolint:gocritic // SCIM authenticates via a special header and bypasses internal RBAC.
 func TestScim(t *testing.T) {
 	t.Parallel()
@@ -82,7 +89,7 @@ func TestScim(t *testing.T) {
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
 			require.NoError(t, err)
 			defer res.Body.Close()
-			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+			assert.Equal(t, http.StatusForbidden, res.StatusCode)
 		})
 
 		t.Run("noAuth", func(t *testing.T) {
@@ -116,7 +123,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			notifyEnq := &notificationstest.FakeEnqueuer{}
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					Auditor:               mockAudit,
@@ -134,9 +141,15 @@ func TestScim(t *testing.T) {
 			})
 			mockAudit.ResetLogs()
 
+			// verify scim is enabled
+			res, err := client.Request(ctx, http.MethodGet, "/scim/v2/ServiceProviderConfig", nil)
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
 			// when
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			require.Equal(t, http.StatusOK, res.StatusCode)
@@ -160,7 +173,63 @@ func TestScim(t *testing.T) {
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
 
 			// Expect zero notifications (SkipNotifications = true)
-			require.Empty(t, notifyEnq.Sent)
+			require.Empty(t, notifyEnq.Sent())
+		})
+
+		t.Run("OK_Bearer", func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			// given
+			scimAPIKey := []byte("hi")
+			mockAudit := audit.NewMock()
+			notifyEnq := &notificationstest.FakeEnqueuer{}
+			client, _ := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					Auditor:               mockAudit,
+					NotificationsEnqueuer: notifyEnq,
+				},
+				SCIMAPIKey:   scimAPIKey,
+				AuditLogging: true,
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					AccountID: "coolin",
+					Features: license.Features{
+						codersdk.FeatureSCIM:     1,
+						codersdk.FeatureAuditLog: 1,
+					},
+				},
+			})
+			mockAudit.ResetLogs()
+
+			// when
+			sUser := makeScimUser(t)
+			res, err := client.Request(ctx, "POST", "/scim/v2/Users", sUser, setScimAuthBearer(scimAPIKey))
+			require.NoError(t, err)
+			defer res.Body.Close()
+			require.Equal(t, http.StatusOK, res.StatusCode)
+
+			// then
+			// Expect audit logs
+			aLogs := mockAudit.AuditLogs()
+			require.Len(t, aLogs, 1)
+			af := map[string]string{}
+			err = json.Unmarshal([]byte(aLogs[0].AdditionalFields), &af)
+			require.NoError(t, err)
+			assert.Equal(t, coderd.SCIMAuditAdditionalFields, af)
+			assert.Equal(t, database.AuditActionCreate, aLogs[0].Action)
+
+			// Expect users exposed over API
+			userRes, err := client.Users(ctx, codersdk.UsersRequest{Search: sUser.Emails[0].Value})
+			require.NoError(t, err)
+			require.Len(t, userRes.Users, 1)
+			assert.Equal(t, sUser.Emails[0].Value, userRes.Users[0].Email)
+			assert.Equal(t, sUser.UserName, userRes.Users[0].Username)
+			assert.Len(t, userRes.Users[0].OrganizationIDs, 1)
+
+			// Expect zero notifications (SkipNotifications = true)
+			require.Empty(t, notifyEnq.Sent())
 		})
 
 		t.Run("OKNoDefault", func(t *testing.T) {
@@ -172,7 +241,7 @@ func TestScim(t *testing.T) {
 			// given
 			scimAPIKey := []byte("hi")
 			mockAudit := audit.NewMock()
-			notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+			notifyEnq := &notificationstest.FakeEnqueuer{}
 			dv := coderdtest.DeploymentValues(t)
 			dv.OIDC.OrganizationAssignDefault = false
 			client, _ := coderdenttest.New(t, &coderdenttest.Options{
@@ -219,7 +288,7 @@ func TestScim(t *testing.T) {
 			assert.Len(t, userRes.Users[0].OrganizationIDs, 0)
 
 			// Expect zero notifications (SkipNotifications = true)
-			require.Empty(t, notifyEnq.Sent)
+			require.Empty(t, notifyEnq.Sent())
 		})
 
 		t.Run("Duplicate", func(t *testing.T) {
@@ -362,7 +431,7 @@ func TestScim(t *testing.T) {
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
-			assert.Equal(t, http.StatusNotFound, res.StatusCode)
+			assert.Equal(t, http.StatusForbidden, res.StatusCode)
 		})
 
 		t.Run("noAuth", func(t *testing.T) {

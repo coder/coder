@@ -648,6 +648,21 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "NotificationMessages",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceNotificationMessage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			// Notification preferences are currently not organization-scoped
 			// Any owner/admin may access any users' preferences
 			// Members may not access other members' preferences
@@ -718,10 +733,25 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, orgAdmin, orgUserAdmin},
+				true: {owner, orgAdmin, orgUserAdmin, userAdmin},
 				false: {
 					orgMemberMe, otherOrgAdmin,
-					memberMe, userAdmin, templateAdmin,
+					memberMe, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "OrganizationIDPSyncSettings",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceIdpsyncSettings,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, userAdmin},
+				false: {
+					orgAdmin, orgUserAdmin,
+					orgMemberMe, otherOrgAdmin,
+					memberMe, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
 				},

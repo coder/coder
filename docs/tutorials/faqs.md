@@ -1,16 +1,17 @@
 # FAQs
 
-Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
-come from our community and enterprise customers, feel free to
+Frequently asked questions on Coder OSS and licensed deployments. These FAQs
+come from our community and customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our
-[Github discussions](https://github.com/coder/coder/discussions), or join our
+[GitHub discussions](https://github.com/coder/coder/discussions), or join our
 [Discord server](https://discord.gg/coder).
 
 ### How do I add a Premium trial license?
 
 Visit https://coder.com/trial or contact
+
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
 
 You can add a license through the UI or CLI.
@@ -62,9 +63,9 @@ troubleshooting.
 
 ### How do I configure NGINX as the reverse proxy in front of Coder?
 
-[This doc](../admin/setup/web-server/nginx/index.md) in our repo explains in
-detail how to configure NGINX with Coder so that our Tailscale Wireguard
-networking functions properly.
+[This tutorial](./reverse-proxy-nginx.md) in our docs explains in detail how to
+configure NGINX with Coder so that our Tailscale Wireguard networking functions
+properly.
 
 ### How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
@@ -291,8 +292,8 @@ tar -cvh -C ./template_1 | coder templates <push|create> -d - <name>
 
 References:
 
-- [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
-- [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
+- [Public GitHub Issue 6117](https://github.com/coder/coder/issues/6117)
+- [Public GitHub Issue 5677](https://github.com/coder/coder/issues/5677)
 - [Coder docs: Templates/Change Management](../admin/templates/managing-templates/change-management.md)
 
 ### Can I run Coder in an air-gapped or offline mode? (no Internet)?

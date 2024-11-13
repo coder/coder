@@ -20,14 +20,14 @@
   <br>
   <br>
 
-[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Enterprise](https://coder.com/docs/enterprise)
+[Quickstart](#quickstart) | [Docs](https://coder.com/docs) | [Why Coder](https://coder.com/why) | [Premium](https://coder.com/pricing#compare-plans)
 
 [![discord](https://img.shields.io/discord/747933592273027093?label=discord)](https://discord.gg/coder)
 [![release](https://img.shields.io/github/v/release/coder/coder)](https://github.com/coder/coder/releases/latest)
 [![godoc](https://pkg.go.dev/badge/github.com/coder/coder.svg)](https://pkg.go.dev/github.com/coder/coder)
 [![Go Report Card](https://goreportcard.com/badge/github.com/coder/coder/v2)](https://goreportcard.com/report/github.com/coder/coder/v2)
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/9511/badge)](https://www.bestpractices.dev/projects/9511)
-[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://api.securityscorecards.dev/projects/github.com/coder/coder)
+[![OpenSSF Scorecard](https://api.securityscorecards.dev/projects/github.com/coder/coder/badge)](https://scorecard.dev/viewer/?uri=github.com%2Fcoder%2Fcoder)
 [![license](https://img.shields.io/github/license/coder/coder)](./LICENSE)
 
 </div>
@@ -93,7 +93,7 @@ Browse our docs [here](https://coder.com/docs) or visit a specific section below
 - [**Workspaces**](https://coder.com/docs/workspaces): Workspaces contain the IDEs, dependencies, and configuration information needed for software development
 - [**IDEs**](https://coder.com/docs/ides): Connect your existing editor to a workspace
 - [**Administration**](https://coder.com/docs/admin): Learn how to operate Coder
-- [**Enterprise**](https://coder.com/docs/enterprise): Learn about our paid features built for large teams
+- [**Premium**](https://coder.com/pricing#compare-plans): Learn about our paid features built for large teams
 
 ## Support
 

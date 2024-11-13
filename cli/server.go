@@ -10,7 +10,6 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
-	"encoding/hex"
 	"errors"
 	"flag"
 	"fmt"
@@ -62,6 +61,7 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -97,7 +97,6 @@ import (
 	"github.com/coder/coder/v2/coderd/updatecheck"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	stringutil "github.com/coder/coder/v2/coderd/util/strings"
-	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -213,9 +212,15 @@ func enablePrometheus(
 	options.PrometheusRegistry.MustRegister(collectors.NewGoCollector())
 	options.PrometheusRegistry.MustRegister(collectors.NewProcessCollector(collectors.ProcessCollectorOpts{}))
 
-	closeUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.PrometheusRegistry, options.Database, 0)
+	closeActiveUsersFunc, err := prometheusmetrics.ActiveUsers(ctx, options.Logger.Named("active_user_metrics"), options.PrometheusRegistry, options.Database, 0)
 	if err != nil {
 		return nil, xerrors.Errorf("register active users prometheus metric: %w", err)
+	}
+	afterCtx(ctx, closeActiveUsersFunc)
+
+	closeUsersFunc, err := prometheusmetrics.Users(ctx, options.Logger.Named("user_metrics"), quartz.NewReal(), options.PrometheusRegistry, options.Database, 0)
+	if err != nil {
+		return nil, xerrors.Errorf("register users prometheus metric: %w", err)
 	}
 	afterCtx(ctx, closeUsersFunc)
 
@@ -718,7 +723,9 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if options.DeploymentValues.Prometheus.Enable && options.DeploymentValues.Prometheus.CollectDBMetrics {
-				options.Database = dbmetrics.New(options.Database, options.PrometheusRegistry)
+				options.Database = dbmetrics.NewQueryMetrics(options.Database, options.Logger, options.PrometheusRegistry)
+			} else {
+				options.Database = dbmetrics.NewDBMetrics(options.Database, options.Logger, options.PrometheusRegistry)
 			}
 
 			var deploymentID string
@@ -741,89 +748,30 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						return xerrors.Errorf("set deployment id: %w", err)
 					}
 				}
-
-				// Read the app signing key from the DB. We store it hex encoded
-				// since the config table uses strings for the value and we
-				// don't want to deal with automatic encoding issues.
-				appSecurityKeyStr, err := tx.GetAppSecurityKey(ctx)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("get app signing key: %w", err)
-				}
-				// If the string in the DB is an invalid hex string or the
-				// length is not equal to the current key length, generate a new
-				// one.
-				//
-				// If the key is regenerated, old signed tokens and encrypted
-				// strings will become invalid. New signed app tokens will be
-				// generated automatically on failure. Any workspace app token
-				// smuggling operations in progress may fail, although with a
-				// helpful error.
-				if decoded, err := hex.DecodeString(appSecurityKeyStr); err != nil || len(decoded) != len(workspaceapps.SecurityKey{}) {
-					b := make([]byte, len(workspaceapps.SecurityKey{}))
-					_, err := rand.Read(b)
-					if err != nil {
-						return xerrors.Errorf("generate fresh app signing key: %w", err)
-					}
-
-					appSecurityKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertAppSecurityKey(ctx, appSecurityKeyStr)
-					if err != nil {
-						return xerrors.Errorf("insert freshly generated app signing key to database: %w", err)
-					}
-				}
-
-				appSecurityKey, err := workspaceapps.KeyFromString(appSecurityKeyStr)
-				if err != nil {
-					return xerrors.Errorf("decode app signing key from database: %w", err)
-				}
-
-				options.AppSecurityKey = appSecurityKey
-
-				// Read the oauth signing key from the database. Like the app security, generate a new one
-				// if it is invalid for any reason.
-				oauthSigningKeyStr, err := tx.GetOAuthSigningKey(ctx)
-				if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-					return xerrors.Errorf("get app oauth signing key: %w", err)
-				}
-				if decoded, err := hex.DecodeString(oauthSigningKeyStr); err != nil || len(decoded) != len(options.OAuthSigningKey) {
-					b := make([]byte, len(options.OAuthSigningKey))
-					_, err := rand.Read(b)
-					if err != nil {
-						return xerrors.Errorf("generate fresh oauth signing key: %w", err)
-					}
-
-					oauthSigningKeyStr = hex.EncodeToString(b)
-					err = tx.UpsertOAuthSigningKey(ctx, oauthSigningKeyStr)
-					if err != nil {
-						return xerrors.Errorf("insert freshly generated oauth signing key to database: %w", err)
-					}
-				}
-
-				oauthKeyBytes, err := hex.DecodeString(oauthSigningKeyStr)
-				if err != nil {
-					return xerrors.Errorf("decode oauth signing key from database: %w", err)
-				}
-				if len(oauthKeyBytes) != len(options.OAuthSigningKey) {
-					return xerrors.Errorf("oauth signing key in database is not the correct length, expect %d got %d", len(options.OAuthSigningKey), len(oauthKeyBytes))
-				}
-				copy(options.OAuthSigningKey[:], oauthKeyBytes)
-				if options.OAuthSigningKey == [32]byte{} {
-					return xerrors.Errorf("oauth signing key in database is empty")
-				}
-
-				// Read the coordinator resume token signing key from the
-				// database.
-				resumeTokenKey, err := tailnet.ResumeTokenSigningKeyFromDatabase(ctx, tx)
-				if err != nil {
-					return xerrors.Errorf("get coordinator resume token key from database: %w", err)
-				}
-				options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(resumeTokenKey, quartz.NewReal(), tailnet.DefaultResumeTokenExpiry)
-
 				return nil
 			}, nil)
 			if err != nil {
-				return err
+				return xerrors.Errorf("set deployment id: %w", err)
 			}
+
+			fetcher := &cryptokeys.DBFetcher{
+				DB: options.Database,
+			}
+
+			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+				logger,
+				fetcher,
+				codersdk.CryptoKeyFeatureTailnetResume,
+			)
+			if err != nil {
+				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
+			}
+
+			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+				resumeKeycache,
+				quartz.NewReal(),
+				tailnet.DefaultResumeTokenExpiry,
+			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
@@ -865,7 +813,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 				defer options.Telemetry.Close()
 			} else {
-				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/telemetry`, vals.DocsURL.String()))
+				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
@@ -968,8 +916,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 			}
 
-			// nolint:gocritic // TODO: create own role.
-			notificationsManager.Run(dbauthz.AsSystemRestricted(ctx))
+			// nolint:gocritic // We need to run the manager in a notifier context.
+			notificationsManager.Run(dbauthz.AsNotifier(ctx))
 
 			// Run report generator to distribute periodic reports.
 			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
@@ -1093,7 +1041,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			autobuildTicker := time.NewTicker(vals.AutobuildPollInterval.Value())
 			defer autobuildTicker.Stop()
 			autobuildExecutor := autobuild.NewExecutor(
-				ctx, options.Database, options.Pubsub, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
+				ctx, options.Database, options.Pubsub, options.PrometheusRegistry, coderAPI.TemplateScheduleStore, &coderAPI.Auditor, coderAPI.AccessControlStore, logger, autobuildTicker.C, options.NotificationsEnqueuer)
 			autobuildExecutor.Run()
 
 			hangDetectorTicker := time.NewTicker(vals.JobHangDetectorInterval.Value())

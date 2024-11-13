@@ -29,7 +29,7 @@ export const TemplateUpload: FC<TemplateUploadProps> = ({
 			>
 				starter templates
 			</Link>{" "}
-			to getting started with Coder.
+			to get started with Coder.
 		</>
 	);
 

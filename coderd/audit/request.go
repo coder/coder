@@ -62,12 +62,13 @@ type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	UserID           uuid.UUID
-	RequestID        uuid.UUID
-	Status           int
-	Action           database.AuditAction
-	OrganizationID   uuid.UUID
-	IP               string
+	UserID         uuid.UUID
+	RequestID      uuid.UUID
+	Status         int
+	Action         database.AuditAction
+	OrganizationID uuid.UUID
+	IP             string
+	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
 	New T
@@ -82,7 +83,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.User:
 		return typed.Username
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return typed.Name
 	case database.WorkspaceBuild:
 		// this isn't used
@@ -133,7 +134,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.User:
 		return typed.ID
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return typed.ID
 	case database.WorkspaceBuild:
 		return typed.ID
@@ -181,7 +182,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTemplateVersion
 	case database.User:
 		return database.ResourceTypeUser
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return database.ResourceTypeWorkspace
 	case database.WorkspaceBuild:
 		return database.ResourceTypeWorkspaceBuild
@@ -225,7 +226,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	switch any(tgt).(type) {
 	case database.Template, database.TemplateVersion:
 		return true
-	case database.Workspace, database.WorkspaceBuild:
+	case database.WorkspaceTable, database.WorkspaceBuild:
 		return true
 	case database.AuditableGroup:
 		return true

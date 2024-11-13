@@ -38,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestActiveUsers(t *testing.T) {
@@ -98,7 +99,7 @@ func TestActiveUsers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), registry, tc.Database(t), time.Millisecond)
+			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), slogtest.Make(t, nil), registry, tc.Database(t), time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -108,6 +109,100 @@ func TestActiveUsers(t *testing.T) {
 				result := int(*metrics[0].Metric[0].Gauge.Value)
 				return result == tc.Count
 			}, testutil.WaitShort, testutil.IntervalFast)
+		})
+	}
+}
+
+func TestUsers(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		Name     string
+		Database func(t *testing.T) database.Store
+		Count    map[database.UserStatus]int
+	}{{
+		Name: "None",
+		Database: func(t *testing.T) database.Store {
+			return dbmem.New()
+		},
+		Count: map[database.UserStatus]int{},
+	}, {
+		Name: "One",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			return db
+		},
+		Count: map[database.UserStatus]int{database.UserStatusActive: 1},
+	}, {
+		Name: "MultipleStatuses",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+
+			return db
+		},
+		Count: map[database.UserStatus]int{database.UserStatusActive: 1, database.UserStatusDormant: 1},
+	}, {
+		Name: "MultipleActive",
+		Database: func(t *testing.T) database.Store {
+			db := dbmem.New()
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			dbgen.User(t, db, database.User{Status: database.UserStatusActive})
+			return db
+		},
+		Count: map[database.UserStatus]int{database.UserStatusActive: 3},
+	}} {
+		tc := tc
+		t.Run(tc.Name, func(t *testing.T) {
+			t.Parallel()
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+			defer cancel()
+
+			registry := prometheus.NewRegistry()
+			mClock := quartz.NewMock(t)
+			db := tc.Database(t)
+			closeFunc, err := prometheusmetrics.Users(context.Background(), slogtest.Make(t, nil), mClock, registry, db, time.Millisecond)
+			require.NoError(t, err)
+			t.Cleanup(closeFunc)
+
+			_, w := mClock.AdvanceNext()
+			w.MustWait(ctx)
+
+			checkFn := func() bool {
+				metrics, err := registry.Gather()
+				if err != nil {
+					return false
+				}
+
+				// If we get no metrics and we know none should exist, bail
+				// early. If we get no metrics but we expect some, retry.
+				if len(metrics) == 0 {
+					return len(tc.Count) == 0
+				}
+
+				for _, metric := range metrics[0].Metric {
+					if tc.Count[database.UserStatus(*metric.Label[0].Value)] != int(metric.Gauge.GetValue()) {
+						return false
+					}
+				}
+
+				return true
+			}
+
+			require.Eventually(t, checkFn, testutil.WaitShort, testutil.IntervalFast)
+
+			// Add another dormant user and ensure it updates
+			dbgen.User(t, db, database.User{Status: database.UserStatusDormant})
+			tc.Count[database.UserStatusDormant]++
+
+			_, w = mClock.AdvanceNext()
+			w.MustWait(ctx)
+
+			require.Eventually(t, checkFn, testutil.WaitShort, testutil.IntervalFast)
 		})
 	}
 }

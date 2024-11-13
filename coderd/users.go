@@ -28,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/coderd/userpassword"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -188,13 +189,17 @@ func (api *API) postFirstUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // needed to create first user
 	user, err := api.CreateUser(dbauthz.AsSystemRestricted(ctx), api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: codersdk.CreateUserRequestWithOrgs{
-			Email:           createUser.Email,
-			Username:        createUser.Username,
-			Name:            createUser.Name,
-			Password:        createUser.Password,
+			Email:    createUser.Email,
+			Username: createUser.Username,
+			Name:     createUser.Name,
+			Password: createUser.Password,
+			// There's no reason to create the first user as dormant, since you have
+			// to login immediately anyways.
+			UserStatus:      ptr.Ref(codersdk.UserStatusActive),
 			OrganizationIDs: []uuid.UUID{defaultOrg.ID},
 		},
-		LoginType: database.LoginTypePassword,
+		LoginType:          database.LoginTypePassword,
+		accountCreatorName: "coder",
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -479,10 +484,22 @@ func (api *API) postUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := httpmw.APIKey(r)
+
+	accountCreator, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to determine the details of the actor creating the account.",
+		})
+		return
+	}
+
 	user, err := api.CreateUser(ctx, api.Database, CreateUserRequest{
 		CreateUserRequestWithOrgs: req,
 		LoginType:                 loginType,
+		accountCreatorName:        accountCreator.Name,
 	})
+
 	if dbauthz.IsNotAuthorizedError(err) {
 		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
 			Message: "You are not authorized to create users.",
@@ -576,11 +593,25 @@ func (api *API) deleteUser(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	apiKey := httpmw.APIKey(r)
+
+	accountDeleter, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Unable to determine the details of the actor deleting the account.",
+		})
+		return
+	}
+
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountDeleted,
+		// nolint: gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountDeleted,
 			map[string]string{
-				"deleted_account_name": user.Username,
-			}, "api-users-delete",
+				"deleted_account_name":      user.Username,
+				"deleted_account_user_name": user.Name,
+				"initiator":                 accountDeleter.Name,
+			},
+			"api-users-delete",
 			user.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about deleted user", slog.F("deleted_user", user.Username), slog.Error(err))
@@ -844,6 +875,14 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			}
 		}
 
+		actingUser, err := api.Database.GetUserByID(ctx, apiKey.UserID)
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Unable to determine the details of the actor creating the account.",
+			})
+			return
+		}
+
 		targetUser, err := api.Database.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 			ID:        user.ID,
 			Status:    status,
@@ -858,7 +897,7 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 		}
 		aReq.New = targetUser
 
-		err = api.notifyUserStatusChanged(ctx, user, status)
+		err = api.notifyUserStatusChanged(ctx, actingUser.Name, user, status)
 		if err != nil {
 			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
 		}
@@ -871,24 +910,33 @@ func (api *API) putUserStatus(status database.UserStatus) func(rw http.ResponseW
 			})
 			return
 		}
+
 		httpapi.Write(ctx, rw, http.StatusOK, db2sdk.User(targetUser, organizations))
 	}
 }
 
-func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User, status database.UserStatus) error {
-	var key string
+func (api *API) notifyUserStatusChanged(ctx context.Context, actingUserName string, targetUser database.User, status database.UserStatus) error {
+	var labels map[string]string
 	var adminTemplateID, personalTemplateID uuid.UUID
 	switch status {
 	case database.UserStatusSuspended:
-		key = "suspended_account_name"
+		labels = map[string]string{
+			"suspended_account_name":      targetUser.Username,
+			"suspended_account_user_name": targetUser.Name,
+			"initiator":                   actingUserName,
+		}
 		adminTemplateID = notifications.TemplateUserAccountSuspended
 		personalTemplateID = notifications.TemplateYourAccountSuspended
 	case database.UserStatusActive:
-		key = "activated_account_name"
+		labels = map[string]string{
+			"activated_account_name":      targetUser.Username,
+			"activated_account_user_name": targetUser.Name,
+			"initiator":                   actingUserName,
+		}
 		adminTemplateID = notifications.TemplateUserAccountActivated
 		personalTemplateID = notifications.TemplateYourAccountActivated
 	default:
-		api.Logger.Error(ctx, "user status is not supported", slog.F("username", user.Username), slog.F("user_status", string(status)))
+		api.Logger.Error(ctx, "user status is not supported", slog.F("username", targetUser.Username), slog.F("user_status", string(status)))
 		return xerrors.Errorf("unable to notify admins as the user's status is unsupported")
 	}
 
@@ -899,22 +947,20 @@ func (api *API) notifyUserStatusChanged(ctx context.Context, user database.User,
 
 	// Send notifications to user admins and affected user
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, adminTemplateID,
-			map[string]string{
-				key: user.Username,
-			}, "api-put-user-status",
-			user.ID,
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, adminTemplateID,
+			labels, "api-put-user-status",
+			targetUser.ID,
 		); err != nil {
-			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", user.Username), slog.Error(err))
+			api.Logger.Warn(ctx, "unable to notify about changed user's status", slog.F("affected_user", targetUser.Username), slog.Error(err))
 		}
 	}
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, user.ID, personalTemplateID,
-		map[string]string{
-			key: user.Username,
-		}, "api-put-user-status",
-		user.ID,
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), targetUser.ID, personalTemplateID,
+		labels, "api-put-user-status",
+		targetUser.ID,
 	); err != nil {
-		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", user.Username), slog.Error(err))
+		api.Logger.Warn(ctx, "unable to notify user about status change of their account", slog.F("affected_user", targetUser.Username), slog.Error(err))
 	}
 	return nil
 }
@@ -979,6 +1025,7 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		ctx               = r.Context()
 		user              = httpmw.UserParam(r)
 		params            codersdk.UpdateUserPasswordRequest
+		apiKey            = httpmw.APIKey(r)
 		auditor           = *api.Auditor.Load()
 		aReq, commitAudit = audit.InitRequest[database.User](rw, &audit.RequestParams{
 			Audit:   auditor,
@@ -1006,6 +1053,14 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// A user need to put its own password to update it
+	if apiKey.UserID == user.ID && params.OldPassword == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Old password is required.",
+		})
+		return
+	}
+
 	err := userpassword.Validate(params.Password)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1020,7 +1075,6 @@ func (api *API) putUserPassword(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// admins can change passwords without sending old_password
 	if params.OldPassword != "" {
 		// if they send something let's validate it
 		ok, err := userpassword.Compare(string(user.HashedPassword), params.OldPassword)
@@ -1280,8 +1334,9 @@ func (api *API) organizationByUserAndName(rw http.ResponseWriter, r *http.Reques
 
 type CreateUserRequest struct {
 	codersdk.CreateUserRequestWithOrgs
-	LoginType         database.LoginType
-	SkipNotifications bool
+	LoginType          database.LoginType
+	SkipNotifications  bool
+	accountCreatorName string
 }
 
 func (api *API) CreateUser(ctx context.Context, store database.Store, req CreateUserRequest) (database.User, error) {
@@ -1295,6 +1350,10 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	err := store.InTx(func(tx database.Store) error {
 		orgRoles := make([]string, 0)
 
+		status := ""
+		if req.UserStatus != nil {
+			status = string(*req.UserStatus)
+		}
 		params := database.InsertUserParams{
 			ID:             uuid.New(),
 			Email:          req.Email,
@@ -1306,6 +1365,7 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 			// All new users are defaulted to members of the site.
 			RBACRoles: []string{},
 			LoginType: req.LoginType,
+			Status:    status,
 		}
 		// If a user signs up with OAuth, they can have no password!
 		if req.Password != "" {
@@ -1363,15 +1423,19 @@ func (api *API) CreateUser(ctx context.Context, store database.Store, req Create
 	}
 
 	for _, u := range userAdmins {
-		if _, err := api.NotificationsEnqueuer.Enqueue(ctx, u.ID, notifications.TemplateUserAccountCreated,
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), u.ID, notifications.TemplateUserAccountCreated,
 			map[string]string{
-				"created_account_name": user.Username,
+				"created_account_name":      user.Username,
+				"created_account_user_name": user.Name,
+				"initiator":                 req.accountCreatorName,
 			}, "api-users-create",
 			user.ID,
 		); err != nil {
 			api.Logger.Warn(ctx, "unable to notify about created user", slog.F("created_user", user.Username), slog.Error(err))
 		}
 	}
+
 	return user, err
 }
 
@@ -1416,15 +1480,6 @@ func userOrganizationIDs(ctx context.Context, api *API, user database.User) ([]u
 
 	member := organizationIDsByMemberIDsRows[0]
 	return member.OrganizationIDs, nil
-}
-
-func userByID(id uuid.UUID, users []database.User) (database.User, bool) {
-	for _, user := range users {
-		if id == user.ID {
-			return user, true
-		}
-	}
-	return database.User{}, false
 }
 
 func convertAPIKey(k database.APIKey) codersdk.APIKey {

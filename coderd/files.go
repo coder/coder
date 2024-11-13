@@ -16,6 +16,7 @@ import (
 	"github.com/google/uuid"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/archive"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -24,10 +25,11 @@ import (
 )
 
 const (
-	tarMimeType = "application/x-tar"
-	zipMimeType = "application/zip"
+	tarMimeType        = "application/x-tar"
+	zipMimeType        = "application/zip"
+	windowsZipMimeType = "application/x-zip-compressed"
 
-	httpFileMaxBytes = 10 * (10 << 20)
+	HTTPFileMaxBytes = 10 * (10 << 20)
 )
 
 // @Summary Upload file
@@ -47,7 +49,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 
 	contentType := r.Header.Get("Content-Type")
 	switch contentType {
-	case tarMimeType, zipMimeType:
+	case tarMimeType, zipMimeType, windowsZipMimeType:
 	default:
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: fmt.Sprintf("Unsupported content type header %q.", contentType),
@@ -55,7 +57,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	r.Body = http.MaxBytesReader(rw, r.Body, httpFileMaxBytes)
+	r.Body = http.MaxBytesReader(rw, r.Body, HTTPFileMaxBytes)
 	data, err := io.ReadAll(r.Body)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -65,7 +67,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if contentType == zipMimeType {
+	if contentType == zipMimeType || contentType == windowsZipMimeType {
 		zipReader, err := zip.NewReader(bytes.NewReader(data), int64(len(data)))
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -75,7 +77,7 @@ func (api *API) postFile(rw http.ResponseWriter, r *http.Request) {
 			return
 		}
 
-		data, err = CreateTarFromZip(zipReader)
+		data, err = archive.CreateTarFromZip(zipReader, HTTPFileMaxBytes)
 		if err != nil {
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Internal error processing .zip archive.",
@@ -181,7 +183,7 @@ func (api *API) fileByID(rw http.ResponseWriter, r *http.Request) {
 
 		rw.Header().Set("Content-Type", codersdk.ContentTypeZip)
 		rw.WriteHeader(http.StatusOK)
-		err = WriteZipArchive(rw, tar.NewReader(bytes.NewReader(file.Data)))
+		err = archive.WriteZip(rw, tar.NewReader(bytes.NewReader(file.Data)), HTTPFileMaxBytes)
 		if err != nil {
 			api.Logger.Error(ctx, "invalid .zip archive", slog.F("file_id", fileID), slog.F("mimetype", file.Mimetype), slog.Error(err))
 		}

@@ -36,10 +36,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -267,7 +269,7 @@ func TestAcquireJob(t *testing.T) {
 				Required:          true,
 				Sensitive:         false,
 			})
-			workspace := dbgen.Workspace(t, db, database.Workspace{
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				TemplateID:     template.ID,
 				OwnerID:        user.ID,
 				OrganizationID: pd.OrganizationID,
@@ -295,12 +297,19 @@ func TestAcquireJob(t *testing.T) {
 
 			startPublished := make(chan struct{})
 			var closed bool
-			closeStartSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-				if !closed {
-					close(startPublished)
-					closed = true
-				}
-			})
+			closeStartSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				wspubsub.HandleWorkspaceEvent(
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+							if !closed {
+								close(startPublished)
+								closed = true
+							}
+						}
+					}))
 			require.NoError(t, err)
 			defer closeStartSubscribe()
 
@@ -398,9 +407,16 @@ func TestAcquireJob(t *testing.T) {
 			})
 
 			stopPublished := make(chan struct{})
-			closeStopSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-				close(stopPublished)
-			})
+			closeStopSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+				wspubsub.HandleWorkspaceEvent(
+					func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+						if err != nil {
+							return
+						}
+						if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+							close(stopPublished)
+						}
+					}))
 			require.NoError(t, err)
 			defer closeStopSubscribe()
 
@@ -874,12 +890,11 @@ func TestFailJob(t *testing.T) {
 			auditor: auditor,
 		})
 		org := dbgen.Organization(t, db, database.Organization{})
-		workspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			ID:               uuid.New(),
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 			OrganizationID:   org.ID,
 		})
-		require.NoError(t, err)
 		buildID := uuid.New()
 		input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 			WorkspaceBuildID: buildID,
@@ -889,6 +904,7 @@ func TestFailJob(t *testing.T) {
 		job, err := db.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
 			ID:            uuid.New(),
 			Input:         input,
+			InitiatorID:   workspace.OwnerID,
 			Provisioner:   database.ProvisionerTypeEcho,
 			Type:          database.ProvisionerJobTypeWorkspaceBuild,
 			StorageMethod: database.ProvisionerStorageMethodFile,
@@ -897,6 +913,7 @@ func TestFailJob(t *testing.T) {
 		err = db.InsertWorkspaceBuild(ctx, database.InsertWorkspaceBuildParams{
 			ID:          buildID,
 			WorkspaceID: workspace.ID,
+			InitiatorID: workspace.OwnerID,
 			Transition:  database.WorkspaceTransitionStart,
 			Reason:      database.BuildReasonInitiator,
 			JobID:       job.ID,
@@ -913,9 +930,16 @@ func TestFailJob(t *testing.T) {
 		require.NoError(t, err)
 
 		publishedWorkspace := make(chan struct{})
-		closeWorkspaceSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, _ []byte) {
-			close(publishedWorkspace)
-		})
+		closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			wspubsub.HandleWorkspaceEvent(
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
+					if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspace.ID {
+						close(publishedWorkspace)
+					}
+				}))
 		require.NoError(t, err)
 		defer closeWorkspaceSubscribe()
 		publishedLogs := make(chan struct{})
@@ -1263,7 +1287,7 @@ func TestCompleteJob(t *testing.T) {
 						Valid: true,
 					}
 				}
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					Ttl:            workspaceTTL,
 					OwnerID:        user.ID,
@@ -1278,14 +1302,16 @@ func TestCompleteJob(t *testing.T) {
 					JobID: uuid.New(),
 				})
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspace.ID,
+					WorkspaceID:       workspaceTable.ID,
+					InitiatorID:       user.ID,
 					TemplateVersionID: version.ID,
 					Transition:        c.transition,
 					Reason:            database.BuildReasonInitiator,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1302,9 +1328,16 @@ func TestCompleteJob(t *testing.T) {
 				require.NoError(t, err)
 
 				publishedWorkspace := make(chan struct{})
-				closeWorkspaceSubscribe, err := ps.Subscribe(codersdk.WorkspaceNotifyChannel(build.WorkspaceID), func(_ context.Context, _ []byte) {
-					close(publishedWorkspace)
-				})
+				closeWorkspaceSubscribe, err := ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspaceTable.OwnerID),
+					wspubsub.HandleWorkspaceEvent(
+						func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+							if err != nil {
+								return
+							}
+							if e.Kind == wspubsub.WorkspaceEventKindStateChange && e.WorkspaceID == workspaceTable.ID {
+								close(publishedWorkspace)
+							}
+						}))
 				require.NoError(t, err)
 				defer closeWorkspaceSubscribe()
 				publishedLogs := make(chan struct{})
@@ -1331,7 +1364,7 @@ func TestCompleteJob(t *testing.T) {
 				<-publishedWorkspace
 				<-publishedLogs
 
-				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.Equal(t, c.transition == database.WorkspaceTransitionDelete, workspace.Deleted)
 
@@ -1602,7 +1635,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &testutil.FakeNotificationsEnqueuer{}
+				notifEnq := &notificationstest.FakeEnqueuer{}
 
 				srv, db, ps, pd := setup(t, false, &overrides{
 					notificationEnqueuer: notifEnq,
@@ -1622,7 +1655,7 @@ func TestNotifications(t *testing.T) {
 				template, err := db.GetTemplateByID(ctx, template.ID)
 				require.NoError(t, err)
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspaceTable := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1636,15 +1669,16 @@ func TestNotifications(t *testing.T) {
 					JobID: uuid.New(),
 				})
 				build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
-					WorkspaceID:       workspace.ID,
+					WorkspaceID:       workspaceTable.ID,
 					TemplateVersionID: version.ID,
 					InitiatorID:       initiator.ID,
 					Transition:        database.WorkspaceTransitionDelete,
 					Reason:            tc.deletionReason,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: initiator.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1674,23 +1708,24 @@ func TestNotifications(t *testing.T) {
 				})
 				require.NoError(t, err)
 
-				workspace, err = db.GetWorkspaceByID(ctx, workspace.ID)
+				workspace, err := db.GetWorkspaceByID(ctx, workspaceTable.ID)
 				require.NoError(t, err)
 				require.True(t, workspace.Deleted)
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
-					require.Len(t, notifEnq.Sent, 1)
-					require.Equal(t, notifEnq.Sent[0].UserID, user.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-					require.Contains(t, notifEnq.Sent[0].Targets, user.ID)
+					sent := notifEnq.Sent()
+					require.Len(t, sent, 1)
+					require.Equal(t, sent[0].UserID, user.ID)
+					require.Contains(t, sent[0].Targets, template.ID)
+					require.Contains(t, sent[0].Targets, workspace.ID)
+					require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+					require.Contains(t, sent[0].Targets, user.ID)
 					if tc.deletionReason == database.BuildReasonInitiator {
-						require.Equal(t, initiator.Username, notifEnq.Sent[0].Labels["initiator"])
+						require.Equal(t, initiator.Username, sent[0].Labels["initiator"])
 					}
 				} else {
-					require.Len(t, notifEnq.Sent, 0)
+					require.Len(t, notifEnq.Sent(), 0)
 				}
 			})
 		}
@@ -1722,7 +1757,7 @@ func TestNotifications(t *testing.T) {
 				t.Parallel()
 
 				ctx := context.Background()
-				notifEnq := &testutil.FakeNotificationsEnqueuer{}
+				notifEnq := &notificationstest.FakeEnqueuer{}
 
 				//	Otherwise `(*Server).FailJob` fails with:
 				// audit log - get build {"error": "sql: no rows in result set"}
@@ -1740,7 +1775,7 @@ func TestNotifications(t *testing.T) {
 					OrganizationID: pd.OrganizationID,
 				})
 				file := dbgen.File(t, db, database.File{CreatedBy: user.ID})
-				workspace := dbgen.Workspace(t, db, database.Workspace{
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 					TemplateID:     template.ID,
 					OwnerID:        user.ID,
 					OrganizationID: pd.OrganizationID,
@@ -1761,8 +1796,9 @@ func TestNotifications(t *testing.T) {
 					Reason:            tc.buildReason,
 				})
 				job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
-					FileID: file.ID,
-					Type:   database.ProvisionerJobTypeWorkspaceBuild,
+					FileID:      file.ID,
+					InitiatorID: initiator.ID,
+					Type:        database.ProvisionerJobTypeWorkspaceBuild,
 					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 						WorkspaceBuildID: build.ID,
 					})),
@@ -1790,15 +1826,16 @@ func TestNotifications(t *testing.T) {
 
 				if tc.shouldNotify {
 					// Validate that the notification was sent and contained the expected values.
-					require.Len(t, notifEnq.Sent, 1)
-					require.Equal(t, notifEnq.Sent[0].UserID, user.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-					require.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-					require.Contains(t, notifEnq.Sent[0].Targets, user.ID)
-					require.Equal(t, string(tc.buildReason), notifEnq.Sent[0].Labels["reason"])
+					sent := notifEnq.Sent()
+					require.Len(t, sent, 1)
+					require.Equal(t, sent[0].UserID, user.ID)
+					require.Contains(t, sent[0].Targets, template.ID)
+					require.Contains(t, sent[0].Targets, workspace.ID)
+					require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+					require.Contains(t, sent[0].Targets, user.ID)
+					require.Equal(t, string(tc.buildReason), sent[0].Labels["reason"])
 				} else {
-					require.Len(t, notifEnq.Sent, 0)
+					require.Len(t, notifEnq.Sent(), 0)
 				}
 			})
 		}
@@ -1810,7 +1847,7 @@ func TestNotifications(t *testing.T) {
 		ctx := context.Background()
 
 		// given
-		notifEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifEnq := &notificationstest.FakeEnqueuer{}
 		srv, db, ps, pd := setup(t, true /* ignoreLogErrors */, &overrides{notificationEnqueuer: notifEnq})
 
 		templateAdmin := dbgen.User(t, db, database.User{RBACRoles: []string{codersdk.RoleTemplateAdmin}})
@@ -1820,9 +1857,9 @@ func TestNotifications(t *testing.T) {
 		_ = dbgen.OrganizationMember(t, db, database.OrganizationMember{UserID: user.ID, OrganizationID: pd.OrganizationID})
 
 		template := dbgen.Template(t, db, database.Template{
-			Name: "template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
+			Name: "template", DisplayName: "William's Template", Provisioner: database.ProvisionerTypeEcho, OrganizationID: pd.OrganizationID,
 		})
-		workspace := dbgen.Workspace(t, db, database.Workspace{
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			TemplateID: template.ID, OwnerID: user.ID, OrganizationID: pd.OrganizationID,
 		})
 		version := dbgen.TemplateVersion(t, db, database.TemplateVersion{
@@ -1833,6 +1870,7 @@ func TestNotifications(t *testing.T) {
 		})
 		job := dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{
 			FileID:         dbgen.File(t, db, database.File{CreatedBy: user.ID}).ID,
+			InitiatorID:    user.ID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
 			Input:          must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{WorkspaceBuildID: build.ID})),
 			OrganizationID: pd.OrganizationID,
@@ -1851,19 +1889,20 @@ func TestNotifications(t *testing.T) {
 		require.NoError(t, err)
 
 		// then
-		require.Len(t, notifEnq.Sent, 1)
-		assert.Equal(t, notifEnq.Sent[0].UserID, templateAdmin.ID)
-		assert.Equal(t, notifEnq.Sent[0].TemplateID, notifications.TemplateWorkspaceManualBuildFailed)
-		assert.Contains(t, notifEnq.Sent[0].Targets, template.ID)
-		assert.Contains(t, notifEnq.Sent[0].Targets, workspace.ID)
-		assert.Contains(t, notifEnq.Sent[0].Targets, workspace.OrganizationID)
-		assert.Contains(t, notifEnq.Sent[0].Targets, user.ID)
-		assert.Equal(t, workspace.Name, notifEnq.Sent[0].Labels["name"])
-		assert.Equal(t, template.Name, notifEnq.Sent[0].Labels["template_name"])
-		assert.Equal(t, version.Name, notifEnq.Sent[0].Labels["template_version_name"])
-		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["initiator"])
-		assert.Equal(t, user.Username, notifEnq.Sent[0].Labels["workspace_owner_username"])
-		assert.Equal(t, strconv.Itoa(int(build.BuildNumber)), notifEnq.Sent[0].Labels["workspace_build_number"])
+		sent := notifEnq.Sent()
+		require.Len(t, sent, 1)
+		assert.Equal(t, sent[0].UserID, templateAdmin.ID)
+		assert.Equal(t, sent[0].TemplateID, notifications.TemplateWorkspaceManualBuildFailed)
+		assert.Contains(t, sent[0].Targets, template.ID)
+		assert.Contains(t, sent[0].Targets, workspace.ID)
+		assert.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		assert.Contains(t, sent[0].Targets, user.ID)
+		assert.Equal(t, workspace.Name, sent[0].Labels["name"])
+		assert.Equal(t, template.DisplayName, sent[0].Labels["template_name"])
+		assert.Equal(t, version.Name, sent[0].Labels["template_version_name"])
+		assert.Equal(t, user.Username, sent[0].Labels["initiator"])
+		assert.Equal(t, user.Username, sent[0].Labels["workspace_owner_username"])
+		assert.Equal(t, strconv.Itoa(int(build.BuildNumber)), sent[0].Labels["workspace_build_number"])
 	})
 }
 

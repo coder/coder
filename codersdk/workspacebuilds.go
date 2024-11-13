@@ -174,3 +174,70 @@ func (c *Client) WorkspaceBuildParameters(ctx context.Context, build uuid.UUID) 
 	var params []WorkspaceBuildParameter
 	return params, json.NewDecoder(res.Body).Decode(&params)
 }
+
+type TimingStage string
+
+const (
+	// Based on ProvisionerJobTimingStage
+	TimingStageInit  TimingStage = "init"
+	TimingStagePlan  TimingStage = "plan"
+	TimingStageGraph TimingStage = "graph"
+	TimingStageApply TimingStage = "apply"
+	// Based on  WorkspaceAgentScriptTimingStage
+	TimingStageStart TimingStage = "start"
+	TimingStageStop  TimingStage = "stop"
+	TimingStageCron  TimingStage = "cron"
+	// Custom timing stage to represent the time taken to connect to an agent
+	TimingStageConnect TimingStage = "connect"
+)
+
+type ProvisionerTiming struct {
+	JobID     uuid.UUID   `json:"job_id" format:"uuid"`
+	StartedAt time.Time   `json:"started_at" format:"date-time"`
+	EndedAt   time.Time   `json:"ended_at" format:"date-time"`
+	Stage     TimingStage `json:"stage"`
+	Source    string      `json:"source"`
+	Action    string      `json:"action"`
+	Resource  string      `json:"resource"`
+}
+
+type AgentScriptTiming struct {
+	StartedAt          time.Time   `json:"started_at" format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	ExitCode           int32       `json:"exit_code"`
+	Stage              TimingStage `json:"stage"`
+	Status             string      `json:"status"`
+	DisplayName        string      `json:"display_name"`
+	WorkspaceAgentID   string      `json:"workspace_agent_id"`
+	WorkspaceAgentName string      `json:"workspace_agent_name"`
+}
+
+type AgentConnectionTiming struct {
+	StartedAt          time.Time   `json:"started_at" format:"date-time"`
+	EndedAt            time.Time   `json:"ended_at" format:"date-time"`
+	Stage              TimingStage `json:"stage"`
+	WorkspaceAgentID   string      `json:"workspace_agent_id"`
+	WorkspaceAgentName string      `json:"workspace_agent_name"`
+}
+
+type WorkspaceBuildTimings struct {
+	ProvisionerTimings []ProvisionerTiming `json:"provisioner_timings"`
+	// TODO: Consolidate agent-related timing metrics into a single struct when
+	// updating the API version
+	AgentScriptTimings     []AgentScriptTiming     `json:"agent_script_timings"`
+	AgentConnectionTimings []AgentConnectionTiming `json:"agent_connection_timings"`
+}
+
+func (c *Client) WorkspaceBuildTimings(ctx context.Context, build uuid.UUID) (WorkspaceBuildTimings, error) {
+	path := fmt.Sprintf("/api/v2/workspacebuilds/%s/timings", build.String())
+	res, err := c.Request(ctx, http.MethodGet, path, nil)
+	if err != nil {
+		return WorkspaceBuildTimings{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return WorkspaceBuildTimings{}, ReadBodyAsError(res)
+	}
+	var timings WorkspaceBuildTimings
+	return timings, json.NewDecoder(res.Body).Decode(&timings)
+}

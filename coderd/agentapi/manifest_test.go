@@ -288,11 +288,9 @@ func TestGetManifest(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, _ *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspace.ID, nil
-			},
-			Database:  mDB,
-			DerpMapFn: derpMapFn,
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)
@@ -355,11 +353,9 @@ func TestGetManifest(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, _ *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspace.ID, nil
-			},
-			Database:  mDB,
-			DerpMapFn: derpMapFn,
+			WorkspaceID: workspace.ID,
+			Database:    mDB,
+			DerpMapFn:   derpMapFn,
 		}
 
 		mDB.EXPECT().GetWorkspaceAppsByAgentID(gomock.Any(), agent.ID).Return(apps, nil)

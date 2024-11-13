@@ -35,7 +35,13 @@ import { ResetPasswordDialog } from "./ResetPasswordDialog";
 import { useStatusFilterMenu } from "./UsersFilter";
 import { UsersPageView } from "./UsersPageView";
 
-const UsersPage: FC = () => {
+type UserPageProps = {
+	// Used by Storybook to prevent generating a new password each time the story
+	// loads, avoiding Chromatic snapshot differences.
+	defaultNewPassword?: string;
+};
+
+const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
 	const location = useLocation();
@@ -134,7 +140,7 @@ const UsersPage: FC = () => {
 				onResetUserPassword={(user) => {
 					setConfirmResetPassword({
 						user,
-						newPassword: generateRandomString(12),
+						newPassword: defaultNewPassword ?? generateRandomString(12),
 					});
 				}}
 				onUpdateUserRoles={async (userId, roles) => {

@@ -1,6 +1,7 @@
 package tailnet_test
 
 import (
+	"context"
 	"io"
 	"net"
 	"sync/atomic"
@@ -52,7 +53,13 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "2.0", s, clientID, agentID)
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
+		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
@@ -74,7 +81,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	require.NotNil(t, call)
 	require.Equal(t, call.ID, clientID)
 	require.Equal(t, call.Name, "client")
-	require.NoError(t, call.Auth.Authorize(&proto.CoordinateRequest{
+	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
 		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]},
 	}))
 	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
@@ -157,7 +164,13 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	agentID := uuid.MustParse("20000001-0000-0000-0000-000000000000")
 	errCh := make(chan error, 1)
 	go func() {
-		err := uut.ServeClient(ctx, "1.0", s, clientID, agentID)
+		err := uut.ServeClient(ctx, "1.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientCoordinateeAuth{
+				AgentID: agentID,
+			},
+		})
 		t.Logf("ServeClient returned; err=%v", err)
 		errCh <- err
 	}()
@@ -213,3 +226,170 @@ func TestNetworkTelemetryBatcher(t *testing.T) {
 	require.Equal(t, "5", string(batch[0].Id))
 	require.Equal(t, "6", string(batch[1].Id))
 }
+
+func TestClientUserCoordinateeAuth(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	agentID := uuid.UUID{0x01}
+	agentID2 := uuid.UUID{0x02}
+	clientID := uuid.UUID{0x03}
+
+	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
+	updatesProvider := &fakeUpdatesProvider{ch: updatesCh}
+
+	fCoord, client := createUpdateService(t, ctx, clientID, updatesProvider)
+
+	// Coordinate
+	stream, err := client.Coordinate(ctx)
+	require.NoError(t, err)
+	defer stream.Close()
+
+	err = stream.Send(&proto.CoordinateRequest{
+		UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: &proto.Node{PreferredDerp: 11}},
+	})
+	require.NoError(t, err)
+
+	call := testutil.RequireRecvCtx(ctx, t, fCoord.CoordinateCalls)
+	require.NotNil(t, call)
+	require.Equal(t, call.ID, clientID)
+	require.Equal(t, call.Name, "client")
+	req := testutil.RequireRecvCtx(ctx, t, call.Reqs)
+	require.Equal(t, int32(11), req.GetUpdateSelf().GetNode().GetPreferredDerp())
+
+	// Authorize uses `ClientUserCoordinateeAuth`
+	require.NoError(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID)},
+	}))
+	require.Error(t, call.Auth.Authorize(ctx, &proto.CoordinateRequest{
+		AddTunnel: &proto.CoordinateRequest_Tunnel{Id: tailnet.UUIDToByteSlice(agentID2)},
+	}))
+}
+
+func TestWorkspaceUpdates(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
+	updatesProvider := &fakeUpdatesProvider{ch: updatesCh}
+
+	clientID := uuid.UUID{0x03}
+	wsID := uuid.UUID{0x04}
+
+	_, client := createUpdateService(t, ctx, clientID, updatesProvider)
+
+	// Workspace updates
+	expected := &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{
+			{
+				Id:     tailnet.UUIDToByteSlice(wsID),
+				Name:   "ws1",
+				Status: proto.Workspace_RUNNING,
+			},
+		},
+		UpsertedAgents:    []*proto.Agent{},
+		DeletedWorkspaces: []*proto.Workspace{},
+		DeletedAgents:     []*proto.Agent{},
+	}
+	updatesCh <- expected
+
+	updatesStream, err := client.WorkspaceUpdates(ctx, &proto.WorkspaceUpdatesRequest{
+		WorkspaceOwnerId: tailnet.UUIDToByteSlice(clientID),
+	})
+	require.NoError(t, err)
+	defer updatesStream.Close()
+
+	updates, err := updatesStream.Recv()
+	require.NoError(t, err)
+	require.Len(t, updates.GetUpsertedWorkspaces(), 1)
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetName(), updates.GetUpsertedWorkspaces()[0].GetName())
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetStatus(), updates.GetUpsertedWorkspaces()[0].GetStatus())
+	require.Equal(t, expected.GetUpsertedWorkspaces()[0].GetId(), updates.GetUpsertedWorkspaces()[0].GetId())
+}
+
+//nolint:revive // t takes precedence
+func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, updates tailnet.WorkspaceUpdatesProvider) (*tailnettest.FakeCoordinator, proto.DRPCTailnetClient) {
+	fCoord := tailnettest.NewFakeCoordinator()
+	var coord tailnet.Coordinator = fCoord
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
+		Logger:                   logger,
+		CoordPtr:                 &coordPtr,
+		WorkspaceUpdatesProvider: updates,
+	})
+	require.NoError(t, err)
+
+	c, s := net.Pipe()
+	t.Cleanup(func() {
+		_ = c.Close()
+		_ = s.Close()
+	})
+
+	errCh := make(chan error, 1)
+	go func() {
+		err := uut.ServeClient(ctx, "2.0", s, tailnet.StreamID{
+			Name: "client",
+			ID:   clientID,
+			Auth: tailnet.ClientUserCoordinateeAuth{
+				Auth: &fakeTunnelAuth{},
+			},
+		})
+		t.Logf("ServeClient returned; err=%v", err)
+		errCh <- err
+	}()
+
+	client, err := tailnet.NewDRPCClient(c, logger)
+	require.NoError(t, err)
+
+	t.Cleanup(func() {
+		err = c.Close()
+		require.NoError(t, err)
+		err = testutil.RequireRecvCtx(ctx, t, errCh)
+		require.True(t, xerrors.Is(err, io.EOF) || xerrors.Is(err, io.ErrClosedPipe))
+	})
+	return fCoord, client
+}
+
+type fakeUpdatesProvider struct {
+	ch chan *proto.WorkspaceUpdate
+}
+
+func (*fakeUpdatesProvider) Close() error {
+	return nil
+}
+
+func (f *fakeUpdatesProvider) Subscribe(context.Context, uuid.UUID) (tailnet.Subscription, error) {
+	return &fakeSubscription{ch: f.ch}, nil
+}
+
+type fakeSubscription struct {
+	ch chan *proto.WorkspaceUpdate
+}
+
+func (*fakeSubscription) Close() error {
+	return nil
+}
+
+func (f *fakeSubscription) Updates() <-chan *proto.WorkspaceUpdate {
+	return f.ch
+}
+
+var _ tailnet.Subscription = (*fakeSubscription)(nil)
+
+var _ tailnet.WorkspaceUpdatesProvider = (*fakeUpdatesProvider)(nil)
+
+type fakeTunnelAuth struct{}
+
+// AuthorizeTunnel implements tailnet.TunnelAuthorizer.
+func (*fakeTunnelAuth) AuthorizeTunnel(_ context.Context, agentID uuid.UUID) error {
+	if agentID[0] != 1 {
+		return xerrors.New("policy disallows request")
+	}
+	return nil
+}
+
+var _ tailnet.TunnelAuthorizer = (*fakeTunnelAuth)(nil)

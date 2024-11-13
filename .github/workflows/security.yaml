@@ -3,7 +3,6 @@ name: "security"
 permissions:
   actions: read
   contents: read
-  security-events: write
 
 on:
   workflow_dispatch:
@@ -23,16 +22,23 @@ concurrency:
 
 jobs:
   codeql:
+    permissions:
+      security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
 
       - name: Setup Go
         uses: ./.github/actions/setup-go
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
         with:
           languages: go, javascript
 
@@ -42,7 +48,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -56,10 +62,17 @@ jobs:
             "${{ secrets.SLACK_SECURITY_FAILURE_WEBHOOK_URL }}"
 
   trivy:
+    permissions:
+      security-events: write
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
         with:
           fetch-depth: 0
 
@@ -85,13 +98,20 @@ jobs:
           # protoc must be in lockstep with our dogfood Dockerfile or the
           # version in the comments will differ. This is also defined in
           # ci.yaml.
-          set -x
-          cd dogfood
+          set -euxo pipefail
+          cd dogfood/contents
+          mkdir -p /usr/local/bin
+          mkdir -p /usr/local/include
+
           DOCKER_BUILDKIT=1 docker build . --target proto -t protoc
           protoc_path=/usr/local/bin/protoc
           docker run --rm --entrypoint cat protoc /tmp/bin/protoc > $protoc_path
           chmod +x $protoc_path
           protoc --version
+          # Copy the generated files to the include directory.
+          docker run --rm -v /usr/local/include:/target protoc cp -r /tmp/include/google /target/
+          ls -la /usr/local/include/google/protobuf/
+          stat /usr/local/include/google/protobuf/timestamp.proto
 
       - name: Build Coder linux amd64 Docker image
         id: build
@@ -114,7 +134,7 @@ jobs:
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
-        uses: aquasecurity/trivy-action@f781cce5aab226378ee181d764ab90ea0be3cdd8
+        uses: aquasecurity/trivy-action@915b19bbe73b92a6cf82a1bc12b087c9a19a5fe2
         with:
           image-ref: ${{ steps.build.outputs.image }}
           format: sarif
@@ -122,27 +142,17 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@v3
+        uses: github/codeql-action/upload-sarif@4f3212b61783c3c68e8309a0f18a699764811cda # v3.27.1
         with:
           sarif_file: trivy-results.sarif
           category: "Trivy"
 
       - name: Upload Trivy scan results as an artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@604373da6381bf24206979c74d06a550515601b9 # v4.4.1
         with:
           name: trivy
           path: trivy-results.sarif
           retention-days: 7
-
-      # Prisma cloud scan runs last because it fails the entire job if it
-      # detects vulnerabilities. :|
-      - name: Run Prisma Cloud image scan
-        uses: PaloAltoNetworks/prisma-cloud-scan@v1
-        with:
-          pcc_console_url: ${{ secrets.PRISMA_CLOUD_URL }}
-          pcc_user: ${{ secrets.PRISMA_CLOUD_ACCESS_KEY }}
-          pcc_pass: ${{ secrets.PRISMA_CLOUD_SECRET_KEY }}
-          image_name: ${{ steps.build.outputs.image }}
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}

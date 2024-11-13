@@ -53,6 +53,28 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
+		name:          "provisionerd_key",
+		expectedError: "",
+	},
+	// Test explicitly for the workaround where setting provisionerDaemon.pskSecretName=""
+	// was required to use provisioner keys.
+	{
+		name:          "provisionerd_key_psk_empty_workaround",
+		expectedError: "",
+	},
+	{
+		name:          "provisionerd_psk_and_key",
+		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both.`,
+	},
+	{
+		name:          "provisionerd_no_psk_or_key",
+		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified.`,
+	},
+	{
+		name:          "provisionerd_key_tags",
+		expectedError: `provisionerDaemon.tags may not be specified with provisionerDaemon.keySecretName.`,
+	},
+	{
 		name:          "extra_templates",
 		expectedError: "",
 	},

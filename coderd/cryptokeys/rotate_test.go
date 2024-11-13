@@ -34,8 +34,7 @@ func TestRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, dbkeys, 0)
 
-		err = cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
-		require.NoError(t, err)
+		cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
 
 		// Fetch the keys from the database and ensure they
 		// are as expected.
@@ -58,7 +57,7 @@ func TestRotator(t *testing.T) {
 		now := clock.Now().UTC()
 
 		rotatingKey := dbgen.CryptoKey(t, db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			StartsAt: now.Add(-cryptokeys.DefaultKeyDuration + time.Hour + time.Minute),
 			Sequence: 12345,
 		})
@@ -66,8 +65,7 @@ func TestRotator(t *testing.T) {
 		trap := clock.Trap().TickerFunc()
 		t.Cleanup(trap.Close)
 
-		err := cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
-		require.NoError(t, err)
+		cryptokeys.StartRotator(ctx, logger, db, cryptokeys.WithClock(clock))
 
 		initialKeyLen := len(database.AllCryptoKeyFeatureValues())
 		// Fetch the keys from the database and ensure they
@@ -85,7 +83,7 @@ func TestRotator(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, keys, initialKeyLen+1)
 
-		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		newKey, err := db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.Equal(t, rotatingKey.Sequence+1, newKey.Sequence)
 		require.Equal(t, rotatingKey.ExpiresAt(cryptokeys.DefaultKeyDuration), newKey.StartsAt.UTC())

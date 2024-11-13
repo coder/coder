@@ -116,7 +116,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -236,7 +236,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -338,7 +338,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})

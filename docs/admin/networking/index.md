@@ -56,7 +56,7 @@ In order for clients to be able to establish direct connections:
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server.md#derp-server-stun-addresses)
+  [the configured STUN servers](../../reference/cli/server.md#--derp-server-stun-addresses)
   to try and determine which `ip:port` can be used to communicate with their
   counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
@@ -173,7 +173,7 @@ $ coder server --derp-config-path derpmap.json
 
 The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
-our Enterprise Edition. [Reach out to Sales](https://coder.com/contact) to learn
+our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
 more.
 
 ## Browser-only connections (enterprise) (premium)

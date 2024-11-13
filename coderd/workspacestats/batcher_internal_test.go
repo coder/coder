@@ -63,7 +63,7 @@ func TestBatchStats(t *testing.T) {
 	// Given: a single data point is added for workspace
 	t2 := t1.Add(time.Second)
 	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false))
+	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
@@ -87,9 +87,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false))
+				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
 			} else {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false))
+				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false)
 			}
 		}
 	}()
@@ -162,7 +162,7 @@ type deps struct {
 	Agent     database.WorkspaceAgent
 	Template  database.Template
 	User      database.User
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 // setupDeps sets up a set of test dependencies.
@@ -189,7 +189,7 @@ func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 		OrganizationID:  org.ID,
 		ActiveVersionID: tv.ID,
 	})
-	ws := dbgen.Workspace(t, store, database.Workspace{
+	ws := dbgen.Workspace(t, store, database.WorkspaceTable{
 		TemplateID:     tpl.ID,
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,

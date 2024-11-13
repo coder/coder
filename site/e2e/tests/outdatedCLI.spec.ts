@@ -17,6 +17,8 @@ const clientVersion = "v2.8.0";
 test.beforeEach(({ page }) => beforeCoderTest(page));
 
 test(`ssh with client ${clientVersion}`, async ({ page }) => {
+	test.setTimeout(60_000);
+
 	const token = randomUUID();
 	const template = await createTemplate(page, {
 		apply: [

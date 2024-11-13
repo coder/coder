@@ -30,8 +30,8 @@ manage infrastructure costs.
 ## Failure cleanup (enterprise) (premium)
 
 Failure cleanup defines how long a workspace is permitted to remain in the
-failed state prior to being automatically stopped. Failure cleanup is an
-enterprise-only feature.
+failed state prior to being automatically stopped. Failure cleanup is only
+available for licensed customers.
 
 ## Dormancy threshold (enterprise) (premium)
 
@@ -41,13 +41,13 @@ by the time elapsed since a user last accessed the workspace. A workspace in the
 dormant state is not eligible for autostart and must be manually activated by
 the user before being accessible. Coder stops workspaces during their transition
 to the dormant state if they are detected to be running. Dormancy Threshold is
-an enterprise-only feature.
+only available for licensed customers.
 
 ## Dormancy auto-deletion (enterprise) (premium)
 
 Dormancy Auto-Deletion allows a template admin to dictate how long a workspace
 is permitted to remain dormant before it is automatically deleted. Dormancy
-Auto-Deletion is an enterprise-only feature.
+Auto-Deletion is only available for licensed customers.
 
 ## Autostop requirement (enterprise) (premium)
 
@@ -97,7 +97,7 @@ to set the default quiet hours to a time when most users are not expected to be
 using Coder.
 
 Admins can force users to use the default quiet hours with the
-[CODER_ALLOW_CUSTOM_QUIET_HOURS](../../../reference/cli/server.md#allow-custom-quiet-hours)
+[CODER_ALLOW_CUSTOM_QUIET_HOURS](../../../reference/cli/server.md#--allow-custom-quiet-hours)
 environment variable. Users will still be able to see the page, but will be
 unable to set a custom time or timezone. If users have already set a custom
 quiet hours schedule, it will be ignored and the default will be used instead.

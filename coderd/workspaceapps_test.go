@@ -5,16 +5,23 @@ import (
 	"net/http"
 	"net/url"
 	"testing"
+	"time"
 
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/coderd/coderdtest"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestGetAppHost(t *testing.T) {
@@ -181,16 +188,28 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 		t.Run(c.name, func(t *testing.T) {
 			t.Parallel()
 
-			db, pubsub := dbtestutil.NewDB(t)
-
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := slogtest.Make(t, nil)
 			accessURL, err := url.Parse(c.accessURL)
 			require.NoError(t, err)
 
+			db, ps := dbtestutil.NewDB(t)
+			fetcher := &cryptokeys.DBFetcher{
+				DB: db,
+			}
+
+			kc, err := cryptokeys.NewEncryptionCache(ctx, logger, fetcher, codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey)
+			require.NoError(t, err)
+
+			clock := quartz.NewMock(t)
+
 			client := coderdtest.New(t, &coderdtest.Options{
-				Database:    db,
-				Pubsub:      pubsub,
-				AccessURL:   accessURL,
-				AppHostname: c.appHostname,
+				AccessURL:             accessURL,
+				AppHostname:           c.appHostname,
+				Database:              db,
+				Pubsub:                ps,
+				APIKeyEncryptionCache: kc,
+				Clock:                 clock,
 			})
 			_ = coderdtest.CreateFirstUser(t, client)
 
@@ -240,7 +259,15 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			loc.RawQuery = q.Encode()
 			require.Equal(t, c.expectRedirect, loc.String())
 
-			// The decrypted key is verified in the apptest test suite.
+			var token workspaceapps.EncryptedAPIKeyPayload
+			err = jwtutils.Decrypt(ctx, kc, encryptedAPIKey, &token, jwtutils.WithDecryptExpected(jwt.Expected{
+				Time:        clock.Now(),
+				AnyAudience: jwt.Audience{"wsproxy"},
+				Issuer:      "coderd",
+			}))
+			require.NoError(t, err)
+			require.Equal(t, jwt.NewNumericDate(clock.Now().Add(time.Minute)), token.Expiry)
+			require.Equal(t, jwt.NewNumericDate(clock.Now().Add(-time.Minute)), token.NotBefore)
 		})
 	}
 }

@@ -69,7 +69,7 @@ export const WorkspaceDeleteDialog: FC<WorkspaceDeleteDialogProps> = ({
 
 					<p>Deleting this workspace is irreversible!</p>
 					<p>
-						Type &ldquo;<strong>{workspace.name}</strong>&ldquo; below to
+						Type &ldquo;<strong>{workspace.name}</strong>&rdquo; below to
 						confirm:
 					</p>
 

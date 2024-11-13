@@ -20,6 +20,26 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## User-scoped tailnet RPC connection
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/tailnet \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /tailnet`
+
+### Responses
+
+| Status | Meaning                                                                  | Description         | Schema |
+| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+| 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Authenticate agent on AWS instance
 
 ### Code samples

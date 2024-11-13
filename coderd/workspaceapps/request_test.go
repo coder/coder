@@ -279,7 +279,7 @@ func Test_RequestValidate(t *testing.T) {
 			if !c.noNormalize {
 				req = c.req.Normalize()
 			}
-			err := req.Validate()
+			err := req.Check()
 			if c.errContains == "" {
 				require.NoError(t, err)
 			} else {

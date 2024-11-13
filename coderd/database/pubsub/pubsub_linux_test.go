@@ -40,9 +40,8 @@ func TestPubsub(t *testing.T) {
 		defer cancelFunc()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-		connectionURL, closePg, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
@@ -69,9 +68,8 @@ func TestPubsub(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		connectionURL, closePg, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
@@ -85,9 +83,8 @@ func TestPubsub(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		connectionURL, closePg, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
-		defer closePg()
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
 		defer db.Close()
@@ -122,9 +119,8 @@ func TestPubsub_ordering(t *testing.T) {
 	defer cancelFunc()
 	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
 
-	connectionURL, closePg, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
 	require.NoError(t, err)
 	defer db.Close()
@@ -167,7 +163,7 @@ const disconnectTestPort = 26892
 func TestPubsub_Disconnect(t *testing.T) {
 	// we always use a Docker container for this test, even in CI, since we need to be able to kill
 	// postgres and bring it back on the same port.
-	connectionURL, closePg, err := dbtestutil.OpenContainerized(disconnectTestPort)
+	connectionURL, closePg, err := dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{Port: disconnectTestPort})
 	require.NoError(t, err)
 	defer closePg()
 	db, err := sql.Open("postgres", connectionURL)
@@ -238,7 +234,7 @@ func TestPubsub_Disconnect(t *testing.T) {
 
 	// restart postgres on the same port --- since we only use LISTEN/NOTIFY it doesn't
 	// matter that the new postgres doesn't have any persisted state from before.
-	_, closeNewPg, err := dbtestutil.OpenContainerized(disconnectTestPort)
+	_, closeNewPg, err := dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{Port: disconnectTestPort})
 	require.NoError(t, err)
 	defer closeNewPg()
 
@@ -305,7 +301,7 @@ func TestMeasureLatency(t *testing.T) {
 	newPubsub := func() (pubsub.Pubsub, func()) {
 		ctx, cancel := context.WithCancel(context.Background())
 		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-		connectionURL, closePg, err := dbtestutil.Open()
+		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
 		require.NoError(t, err)
@@ -315,7 +311,6 @@ func TestMeasureLatency(t *testing.T) {
 		return ps, func() {
 			_ = ps.Close()
 			_ = db.Close()
-			closePg()
 			cancel()
 		}
 	}

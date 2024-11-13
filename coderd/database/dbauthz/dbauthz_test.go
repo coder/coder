@@ -90,7 +90,7 @@ func TestInTX(t *testing.T) {
 		Scope:  rbac.ScopeAll,
 	}
 
-	w := dbgen.Workspace(t, db, database.Workspace{})
+	w := dbgen.Workspace(t, db, database.WorkspaceTable{})
 	ctx := dbauthz.As(context.Background(), actor)
 	err := q.InTx(func(tx database.Store) error {
 		// The inner tx should use the parent's authz
@@ -108,7 +108,7 @@ func TestNew(t *testing.T) {
 
 	var (
 		db  = dbmem.New()
-		exp = dbgen.Workspace(t, db, database.Workspace{})
+		exp = dbgen.Workspace(t, db, database.WorkspaceTable{})
 		rec = &coderdtest.RecordingAuthorizer{
 			Wrapped: &coderdtest.FakeAuthorizer{},
 		}
@@ -123,7 +123,7 @@ func TestNew(t *testing.T) {
 
 	w, err := az.GetWorkspaceByID(ctx, exp.ID)
 	require.NoError(t, err, "must not error")
-	require.Equal(t, exp, w, "must be equal")
+	require.Equal(t, exp, w.WorkspaceTable(), "must be equal")
 
 	rec.AssertActor(t, subj, rec.Pair(policy.ActionRead, exp))
 	require.NoError(t, rec.AllAsserted(), "should only be 1 rbac call")
@@ -152,7 +152,10 @@ func TestDBAuthzRecursive(t *testing.T) {
 		for i := 2; i < method.Type.NumIn(); i++ {
 			ins = append(ins, reflect.New(method.Type.In(i)).Elem())
 		}
-		if method.Name == "InTx" || method.Name == "Ping" || method.Name == "Wrappers" {
+		if method.Name == "InTx" ||
+			method.Name == "Ping" ||
+			method.Name == "Wrappers" ||
+			method.Name == "PGLocks" {
 			continue
 		}
 		// Log the name of the last method, so if there is a panic, it is
@@ -465,7 +468,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		}).Asserts(v.RBACObject(tpl), policy.ActionUpdate)
 	}))
 	s.Run("Build/GetProvisionerJobByID", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
@@ -498,7 +501,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("Build/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{AllowUserCancelWorkspaceJobs: true})
-		w := dbgen.Workspace(s.T(), db, database.Workspace{TemplateID: tpl.ID})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{TemplateID: tpl.ID})
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
@@ -507,7 +510,7 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 	}))
 	s.Run("BuildFalseCancel/UpdateProvisionerJobWithCancelByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{AllowUserCancelWorkspaceJobs: false})
-		w := dbgen.Workspace(s.T(), db, database.Workspace{TemplateID: tpl.ID})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{TemplateID: tpl.ID})
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
@@ -551,33 +554,13 @@ func (s *MethodTestSuite) TestProvisionerJob() {
 		check.Args(database.UpdateProvisionerJobWithCancelByIDParams{ID: j.ID}).
 			Asserts(v.RBACObject(tpl), []policy.Action{policy.ActionRead, policy.ActionUpdate}).Returns()
 	}))
-	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
-		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			Type: database.ProvisionerJobTypeWorkspaceBuild,
-		})
-		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
-		t := dbgen.ProvisionerJobTimings(s.T(), db, database.InsertProvisionerJobTimingsParams{
-			JobID:     j.ID,
-			StartedAt: []time.Time{dbtime.Now(), dbtime.Now()},
-			EndedAt:   []time.Time{dbtime.Now(), dbtime.Now()},
-			Stage: []database.ProvisionerJobTimingStage{
-				database.ProvisionerJobTimingStageInit,
-				database.ProvisionerJobTimingStagePlan,
-			},
-			Source:   []string{"source1", "source2"},
-			Action:   []string{"action1", "action2"},
-			Resource: []string{"resource1", "resource2"},
-		})
-		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
-	}))
 	s.Run("GetProvisionerJobsByIDs", s.Subtest(func(db database.Store, check *expects) {
 		a := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		b := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{})
 		check.Args([]uuid.UUID{a.ID, b.ID}).Asserts().Returns(slice.New(a, b))
 	}))
 	s.Run("GetProvisionerLogsAfterID", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			Type: database.ProvisionerJobTypeWorkspaceBuild,
 		})
@@ -1475,29 +1458,47 @@ func (s *MethodTestSuite) TestUser() {
 
 func (s *MethodTestSuite) TestWorkspace() {
 	s.Run("GetWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaces", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.Workspace(s.T(), db, database.Workspace{})
-		_ = dbgen.Workspace(s.T(), db, database.Workspace{})
+		_ = dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		_ = dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}).Asserts()
 	}))
 	s.Run("GetAuthorizedWorkspaces", s.Subtest(func(db database.Store, check *expects) {
-		_ = dbgen.Workspace(s.T(), db, database.Workspace{})
-		_ = dbgen.Workspace(s.T(), db, database.Workspace{})
+		_ = dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		_ = dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		// No asserts here because SQLFilter.
 		check.Args(database.GetWorkspacesParams{}, emptyPreparedAuthorized{}).Asserts()
 	}))
+	s.Run("GetWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID).Asserts()
+	}))
+	s.Run("GetAuthorizedWorkspacesAndAgentsByOwnerID", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
+		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
+		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
+		_ = dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
+		// No asserts here because SQLFilter.
+		check.Args(ws.OwnerID, emptyPreparedAuthorized{}).Asserts()
+	}))
 	s.Run("GetLatestWorkspaceBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead).Returns(b)
 	}))
 	s.Run("GetWorkspaceAgentByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1507,7 +1508,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1517,7 +1518,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAgentMetadata", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1535,7 +1536,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAgentByInstanceID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1545,7 +1546,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentLifecycleStateByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1558,7 +1559,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentMetadata", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1570,7 +1571,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentLogOverflowByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1583,7 +1584,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("UpdateWorkspaceAgentStartupByID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1598,7 +1599,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAgentLogsAfter", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1610,7 +1611,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAppByAgentIDAndSlug", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1625,7 +1626,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceAppsByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1637,17 +1638,17 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(agt.ID).Asserts(ws, policy.ActionRead).Returns(slice.New(a, b))
 	}))
 	s.Run("GetWorkspaceBuildByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args(build.ID).Asserts(ws, policy.ActionRead).Returns(build)
 	}))
 	s.Run("GetWorkspaceBuildByJobID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args(build.JobID).Asserts(ws, policy.ActionRead).Returns(build)
 	}))
 	s.Run("GetWorkspaceBuildByWorkspaceIDAndBuildNumber", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 10})
 		check.Args(database.GetWorkspaceBuildByWorkspaceIDAndBuildNumberParams{
 			WorkspaceID: ws.ID,
@@ -1655,13 +1656,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(ws, policy.ActionRead).Returns(build)
 	}))
 	s.Run("GetWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args(build.ID).Asserts(ws, policy.ActionRead).
 			Returns([]database.WorkspaceBuildParameter{})
 	}))
 	s.Run("GetWorkspaceBuildsByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 1})
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 2})
 		_ = dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, BuildNumber: 3})
@@ -1669,20 +1670,17 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("GetWorkspaceByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
-		check.Args(agt.ID).Asserts(ws, policy.ActionRead).Returns(database.GetWorkspaceByAgentIDRow{
-			Workspace:    ws,
-			TemplateName: tpl.Name,
-		})
+		check.Args(agt.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsInLatestBuildByWorkspaceID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
@@ -1691,22 +1689,22 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceByOwnerIDAndName", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.GetWorkspaceByOwnerIDAndNameParams{
 			OwnerID: ws.OwnerID,
 			Deleted: ws.Deleted,
 			Name:    ws.Name,
-		}).Asserts(ws, policy.ActionRead).Returns(ws)
+		}).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceResourceByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		check.Args(res.ID).Asserts(ws, policy.ActionRead).Returns(res)
 	}))
 	s.Run("Build/GetWorkspaceResourcesByJobID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args(job.ID).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceResource{})
@@ -1729,7 +1727,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("Start/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		t := dbgen.Template(s.T(), db, database.Template{})
-		w := dbgen.Workspace(s.T(), db, database.Workspace{
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: t.ID,
 		})
 		check.Args(database.InsertWorkspaceBuildParams{
@@ -1740,7 +1738,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("Stop/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		t := dbgen.Template(s.T(), db, database.Template{})
-		w := dbgen.Workspace(s.T(), db, database.Workspace{
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: t.ID,
 		})
 		check.Args(database.InsertWorkspaceBuildParams{
@@ -1760,7 +1758,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
 			TemplateID: uuid.NullUUID{UUID: t.ID},
 		})
-		w := dbgen.Workspace(s.T(), db, database.Workspace{
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: t.ID,
 		})
 		check.Args(database.InsertWorkspaceBuildParams{
@@ -1786,7 +1784,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		})
 		require.NoError(s.T(), err)
 
-		w := dbgen.Workspace(s.T(), db, database.Workspace{
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: t.ID,
 		})
 		// Assert that we do not check for template update permissions
@@ -1801,7 +1799,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		)
 	}))
 	s.Run("Delete/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.InsertWorkspaceBuildParams{
 			WorkspaceID: w.ID,
 			Transition:  database.WorkspaceTransitionDelete,
@@ -1809,7 +1807,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(w, policy.ActionDelete)
 	}))
 	s.Run("InsertWorkspaceBuildParameters", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: w.ID})
 		check.Args(database.InsertWorkspaceBuildParametersParams{
 			WorkspaceBuildID: b.ID,
@@ -1818,7 +1816,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		expected := w
 		expected.Name = ""
 		check.Args(database.UpdateWorkspaceParams{
@@ -1826,20 +1824,20 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(w, policy.ActionUpdate).Returns(expected)
 	}))
 	s.Run("UpdateWorkspaceDormantDeletingAt", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.UpdateWorkspaceDormantDeletingAtParams{
 			ID: w.ID,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspaceAutomaticUpdates", s.Subtest(func(db database.Store, check *expects) {
-		w := dbgen.Workspace(s.T(), db, database.Workspace{})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.UpdateWorkspaceAutomaticUpdatesParams{
 			ID:               w.ID,
 			AutomaticUpdates: database.AutomaticUpdatesAlways,
 		}).Asserts(w, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspaceAppHealthByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
@@ -1850,13 +1848,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateWorkspaceAutostart", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.UpdateWorkspaceAutostartParams{
 			ID: ws.ID,
 		}).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateWorkspaceBuildDeadlineByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildDeadlineByIDParams{
 			ID:        build.ID,
@@ -1865,46 +1863,46 @@ func (s *MethodTestSuite) TestWorkspace() {
 		}).Asserts(ws, policy.ActionUpdate)
 	}))
 	s.Run("SoftDeleteWorkspaceByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		ws.Deleted = true
 		check.Args(ws.ID).Asserts(ws, policy.ActionDelete).Returns()
 	}))
 	s.Run("UpdateWorkspaceDeletedByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{Deleted: true})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{Deleted: true})
 		check.Args(database.UpdateWorkspaceDeletedByIDParams{
 			ID:      ws.ID,
 			Deleted: true,
 		}).Asserts(ws, policy.ActionDelete).Returns()
 	}))
 	s.Run("UpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.UpdateWorkspaceLastUsedAtParams{
 			ID: ws.ID,
 		}).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
-		ws1 := dbgen.Workspace(s.T(), db, database.Workspace{})
-		ws2 := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws1 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		ws2 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.BatchUpdateWorkspaceLastUsedAtParams{
 			IDs: []uuid.UUID{ws1.ID, ws2.ID},
 		}).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate).Returns()
 	}))
 	s.Run("UpdateWorkspaceTTL", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		check.Args(database.UpdateWorkspaceTTLParams{
 			ID: ws.ID,
 		}).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("GetWorkspaceByWorkspaceAppID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
 		app := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: agt.ID})
-		check.Args(app.ID).Asserts(ws, policy.ActionRead).Returns(ws)
+		check.Args(app.ID).Asserts(ws, policy.ActionRead)
 	}))
 	s.Run("ActivityBumpWorkspace", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args(database.ActivityBumpWorkspaceParams{
@@ -1913,12 +1911,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 	}))
 	s.Run("FavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		check.Args(ws.ID).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 	s.Run("UnfavoriteWorkspace", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		check.Args(ws.ID).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
 }
@@ -1926,7 +1924,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	s.Run("UpsertWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		//nolint:gosimple // casting is not a simplification
 		check.Args(database.UpsertWorkspaceAgentPortShareParams{
@@ -1939,7 +1937,7 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	}))
 	s.Run("GetWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(database.GetWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
@@ -1949,13 +1947,13 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	}))
 	s.Run("ListWorkspaceAgentPortShares", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(ws.ID).Asserts(ws, policy.ActionRead).Returns([]database.WorkspaceAgentPortShare{ps})
 	}))
 	s.Run("DeleteWorkspaceAgentPortShare", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID})
 		ps := dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(database.DeleteWorkspaceAgentPortShareParams{
 			WorkspaceID: ps.WorkspaceID,
@@ -1966,14 +1964,14 @@ func (s *MethodTestSuite) TestWorkspacePortSharing() {
 	s.Run("DeleteWorkspaceAgentPortSharesByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		t := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, TemplateID: t.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: t.ID})
 		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(t.ID).Asserts(t, policy.ActionUpdate).Returns()
 	}))
 	s.Run("ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
 		t := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{OwnerID: u.ID, TemplateID: t.ID})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OwnerID: u.ID, TemplateID: t.ID})
 		_ = dbgen.WorkspaceAgentPortShare(s.T(), db, database.WorkspaceAgentPortShare{WorkspaceID: ws.ID})
 		check.Args(t.ID).Asserts(t, policy.ActionUpdate).Returns()
 	}))
@@ -2266,13 +2264,13 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("InsertCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertCryptoKeyParams{
-			Feature: database.CryptoKeyFeatureWorkspaceApps,
+			Feature: database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		}).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionCreate)
 	}))
 	s.Run("DeleteCryptoKey", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.DeleteCryptoKeyParams{
@@ -2282,7 +2280,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetCryptoKeyByFeatureAndSequence", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.GetCryptoKeyByFeatureAndSequenceParams{
@@ -2292,14 +2290,14 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 	}))
 	s.Run("GetLatestCryptoKeyByFeature", s.Subtest(func(db database.Store, check *expects) {
 		dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 	s.Run("UpdateCryptoKeyDeletesAt", s.Subtest(func(db database.Store, check *expects) {
 		key := dbgen.CryptoKey(s.T(), db, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 4,
 		})
 		check.Args(database.UpdateCryptoKeyDeletesAtParams{
@@ -2309,7 +2307,7 @@ func (s *MethodTestSuite) TestCryptoKeys() {
 		}).Asserts(rbac.ResourceCryptoKey, policy.ActionUpdate)
 	}))
 	s.Run("GetCryptoKeysByFeature", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.CryptoKeyFeatureWorkspaceApps).
+		check.Args(database.CryptoKeyFeatureWorkspaceAppsAPIKey).
 			Asserts(rbac.ResourceCryptoKey, policy.ActionRead)
 	}))
 }
@@ -2325,7 +2323,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(l)
 	}))
 	s.Run("GetLatestWorkspaceBuildsByWorkspaceIDs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID})
 		check.Args([]uuid.UUID{ws.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(slice.New(b))
 	}))
@@ -2408,7 +2406,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
 	}))
 	s.Run("UpdateWorkspaceBuildProvisionerStateByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		check.Args(database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 			ID:               build.ID,
@@ -2477,13 +2475,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(tpl, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
-		aWs := dbgen.Workspace(s.T(), db, database.Workspace{})
+		aWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		aBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: aWs.ID, JobID: uuid.New()})
 		aRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: aBuild.JobID})
 		aAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: aRes.ID})
 		a := dbgen.WorkspaceApp(s.T(), db, database.WorkspaceApp{AgentID: aAgt.ID})
 
-		bWs := dbgen.Workspace(s.T(), db, database.Workspace{})
+		bWs := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		bBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: bWs.ID, JobID: uuid.New()})
 		bRes := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: bBuild.JobID})
 		bAgt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: bRes.ID})
@@ -2498,7 +2496,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		v := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, JobID: uuid.New()})
 		tJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: v.JobID, Type: database.ProvisionerJobTypeTemplateVersionImport})
 
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		wJob := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		check.Args([]uuid.UUID{tJob.ID, wJob.ID}).
@@ -2506,7 +2504,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Returns([]database.WorkspaceResource{})
 	}))
 	s.Run("GetWorkspaceResourceMetadataByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		_ = dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: build.JobID, Type: database.ProvisionerJobTypeWorkspaceBuild})
 		a := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
@@ -2515,7 +2513,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspaceAgentsByResourceIDs", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
@@ -2549,7 +2547,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("UpdateWorkspaceAgentConnectionByID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: uuid.New()})
 		res := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{JobID: build.JobID})
 		agt := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{ResourceID: res.ID})
@@ -2792,7 +2790,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{})
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{})
 
 		err := db.UpsertJFrogXrayScanByWorkspaceAndAgentID(context.Background(), database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
@@ -2821,7 +2819,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("UpsertJFrogXrayScanByWorkspaceAndAgentID", s.Subtest(func(db database.Store, check *expects) {
 		tpl := dbgen.Template(s.T(), db, database.Template{})
-		ws := dbgen.Workspace(s.T(), db, database.Workspace{
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			TemplateID: tpl.ID,
 		})
 		check.Args(database.UpsertJFrogXrayScanByWorkspaceAndAgentIDParams{
@@ -2867,44 +2865,79 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			LastGeneratedAt:        dbtime.Now(),
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
+	s.Run("GetProvisionerJobTimingsByJobID", s.Subtest(func(db database.Store, check *expects) {
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		b := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: j.ID, WorkspaceID: w.ID})
+		t := dbgen.ProvisionerJobTimings(s.T(), db, b, 2)
+		check.Args(j.ID).Asserts(w, policy.ActionRead).Returns(t)
+	}))
+	s.Run("GetWorkspaceAgentScriptTimingsByBuildID", s.Subtest(func(db database.Store, check *expects) {
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		build := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{JobID: job.ID, WorkspaceID: workspace.ID})
+		resource := dbgen.WorkspaceResource(s.T(), db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(s.T(), db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(s.T(), db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		timing := dbgen.WorkspaceAgentScriptTiming(s.T(), db, database.WorkspaceAgentScriptTiming{
+			ScriptID: script.ID,
+		})
+		rows := []database.GetWorkspaceAgentScriptTimingsByBuildIDRow{
+			{
+				StartedAt:          timing.StartedAt,
+				EndedAt:            timing.EndedAt,
+				Stage:              timing.Stage,
+				ScriptID:           timing.ScriptID,
+				ExitCode:           timing.ExitCode,
+				Status:             timing.Status,
+				DisplayName:        script.DisplayName,
+				WorkspaceAgentID:   agent.ID,
+				WorkspaceAgentName: agent.Name,
+			},
+		}
+		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {
 	// System functions
-	s.Run("AcquireNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("AcquireNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.AcquireNotificationMessagesParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesFailed", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesFailedParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	s.Run("BulkMarkNotificationMessagesSent", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args(database.BulkMarkNotificationMessagesSentParams{}).Asserts(rbac.ResourceNotificationMessage, policy.ActionUpdate)
 	}))
-	s.Run("DeleteOldNotificationMessages", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionDelete)
+	s.Run("DeleteOldNotificationMessages", s.Subtest(func(_ database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceNotificationMessage, policy.ActionDelete)
 	}))
-	s.Run("EnqueueNotificationMessage", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("EnqueueNotificationMessage", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.EnqueueNotificationMessageParams{
 			Method:  database.NotificationMethodWebhook,
 			Payload: []byte("{}"),
-		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionCreate)
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
-	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(db database.Store, check *expects) {
-		// TODO: update this test once we have a specific role for notifications
+	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.GetNotificationMessagesByStatusParams{
 			Status: database.NotificationMessageStatusLeased,
 			Limit:  10,
-		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+		}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead)
 	}))
 
 	// Notification templates

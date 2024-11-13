@@ -54,7 +54,7 @@ RUN mkdir -p /opt/terraform
 # The below step is optional if you wish to keep the existing version.
 # See https://github.com/coder/coder/blob/main/provisioner/terraform/install.go#L23-L24
 # for supported Terraform versions.
-ARG TERRAFORM_VERSION=1.9.2
+ARG TERRAFORM_VERSION=1.9.8
 RUN apk update && \
     apk del terraform && \
     curl -LOs https://releases.hashicorp.com/terraform/${TERRAFORM_VERSION}/terraform_${TERRAFORM_VERSION}_linux_amd64.zip \
@@ -137,7 +137,7 @@ provider_installation {
 
 ## Run offline via Docker
 
-Follow our [docker-compose](./docker.md#run-coder-with-docker-compose)
+Follow our [docker-compose](./docker.md#install-coder-via-docker-compose)
 documentation and modify the docker-compose file to specify your custom Coder
 image. Additionally, you can add a volume mount to add providers to the
 filesystem mirror without re-building the image.

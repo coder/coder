@@ -1,4 +1,4 @@
-FROM rust:slim AS rust-utils
+FROM rust:slim@sha256:9abf10cc84dfad6ace1b0aae3951dc5200f467c593394288c11db1e17bb4d349 AS rust-utils
 # Install rust helper programs
 # ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
 ENV CARGO_INSTALL_ROOT=/tmp/
@@ -6,10 +6,10 @@ RUN cargo install exa bat ripgrep typos-cli watchexec-cli && \
 	# Reduce image size.
 	rm -rf /usr/local/cargo/registry
 
-FROM ubuntu:jammy AS go
+FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97 AS go
 
 # Install Go manually, so that we can control the version
-ARG GO_VERSION=1.22.5
+ARG GO_VERSION=1.22.8
 
 # Boring Go is needed to build FIPS-compliant binaries.
 RUN apt-get update && \
@@ -70,7 +70,7 @@ RUN apt-get update && \
 	go install github.com/dvyukov/go-fuzz/go-fuzz-build@latest && \
 	# go-releaser for building 'fat binaries' that work cross-platform
 	go install github.com/goreleaser/goreleaser@v1.6.1 && \
-	go install mvdan.cc/sh/v3/cmd/shfmt@latest && \
+	go install mvdan.cc/sh/v3/cmd/shfmt@v3.7.0 && \
 	# nfpm is used with `make build` to make release packages
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
@@ -94,7 +94,7 @@ RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/d
 	unzip protoc.zip && \
 	rm protoc.zip
 
-FROM ubuntu:jammy
+FROM ubuntu:jammy@sha256:0e5e4a57c2499249aafc3b40fcd541e9a456aab7296681a3994d631587203f97
 
 SHELL ["/bin/bash", "-c"]
 
@@ -189,9 +189,9 @@ RUN apt-get update --quiet && apt-get install --yes \
 	# Configure FIPS-compliant policies
 	update-crypto-policies --set FIPS
 
-# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.2.
+# NOTE: In scripts/Dockerfile.base we specifically install Terraform version 1.9.8.
 # Installing the same version here to match.
-RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.2/terraform_1.9.2_linux_amd64.zip" && \
+RUN wget -O /tmp/terraform.zip "https://releases.hashicorp.com/terraform/1.9.8/terraform_1.9.8_linux_amd64.zip" && \
 	unzip /tmp/terraform.zip -d /usr/local/bin && \
 	rm -f /tmp/terraform.zip && \
 	chmod +x /usr/local/bin/terraform && \

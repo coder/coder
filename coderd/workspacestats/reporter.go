@@ -2,11 +2,11 @@ package workspacestats
 
 import (
 	"context"
+	"encoding/json"
 	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
-	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -19,7 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
-	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 )
 
 type ReporterOptions struct {
@@ -118,70 +118,75 @@ func (r *Reporter) ReportAppStats(ctx context.Context, stats []workspaceapps.Sta
 	return nil
 }
 
+// nolint:revive // usage is a control flag while we have the experiment
 func (r *Reporter) ReportAgentStats(ctx context.Context, now time.Time, workspace database.Workspace, workspaceAgent database.WorkspaceAgent, templateName string, stats *agentproto.Stats, usage bool) error {
-	if stats.ConnectionCount > 0 {
-		var nextAutostart time.Time
-		if workspace.AutostartSchedule.String != "" {
-			templateSchedule, err := (*(r.opts.TemplateScheduleStore.Load())).Get(ctx, r.opts.Database, workspace.TemplateID)
-			// If the template schedule fails to load, just default to bumping
-			// without the next transition and log it.
-			if err != nil {
-				r.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
-					slog.F("workspace_id", workspace.ID),
-					slog.F("template_id", workspace.TemplateID),
-					slog.Error(err),
-				)
-			} else {
-				next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
-				if allowed {
-					nextAutostart = next
-				}
-			}
-		}
-		ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
-	}
+	// update agent stats
+	r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
 
-	var errGroup errgroup.Group
-	errGroup.Go(func() error {
-		err := r.opts.StatsBatcher.Add(now, workspaceAgent.ID, workspace.TemplateID, workspace.OwnerID, workspace.ID, stats, usage)
-		if err != nil {
-			r.opts.Logger.Error(ctx, "add agent stats to batcher", slog.Error(err))
-			return xerrors.Errorf("insert workspace agent stats batch: %w", err)
-		}
-		return nil
-	})
-	errGroup.Go(func() error {
-		err := r.opts.Database.UpdateWorkspaceLastUsedAt(ctx, database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		})
-		if err != nil {
-			return xerrors.Errorf("update workspace LastUsedAt: %w", err)
-		}
-		return nil
-	})
+	// update prometheus metrics
 	if r.opts.UpdateAgentMetricsFn != nil {
-		errGroup.Go(func() error {
-			user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
-			if err != nil {
-				return xerrors.Errorf("get user: %w", err)
+		user, err := r.opts.Database.GetUserByID(ctx, workspace.OwnerID)
+		if err != nil {
+			return xerrors.Errorf("get user: %w", err)
+		}
+
+		r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
+			Username:      user.Username,
+			WorkspaceName: workspace.Name,
+			AgentName:     workspaceAgent.Name,
+			TemplateName:  templateName,
+		}, stats.Metrics)
+	}
+
+	// workspace activity: if no sessions we do not bump activity
+	if usage && stats.SessionCountVscode == 0 && stats.SessionCountJetbrains == 0 && stats.SessionCountReconnectingPty == 0 && stats.SessionCountSsh == 0 {
+		return nil
+	}
+
+	// legacy stats: if no active connections we do not bump activity
+	if !usage && stats.ConnectionCount == 0 {
+		return nil
+	}
+
+	// check next autostart
+	var nextAutostart time.Time
+	if workspace.AutostartSchedule.String != "" {
+		templateSchedule, err := (*(r.opts.TemplateScheduleStore.Load())).Get(ctx, r.opts.Database, workspace.TemplateID)
+		// If the template schedule fails to load, just default to bumping
+		// without the next transition and log it.
+		if err == nil {
+			next, allowed := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateSchedule)
+			if allowed {
+				nextAutostart = next
 			}
-
-			r.opts.UpdateAgentMetricsFn(ctx, prometheusmetrics.AgentMetricLabels{
-				Username:      user.Username,
-				WorkspaceName: workspace.Name,
-				AgentName:     workspaceAgent.Name,
-				TemplateName:  templateName,
-			}, stats.Metrics)
-			return nil
-		})
+		} else if database.IsQueryCanceledError(err) {
+			r.opts.Logger.Debug(ctx, "query canceled while loading template schedule",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("template_id", workspace.TemplateID))
+		} else {
+			r.opts.Logger.Error(ctx, "failed to load template schedule bumping activity, defaulting to bumping by 60min",
+				slog.F("workspace_id", workspace.ID),
+				slog.F("template_id", workspace.TemplateID),
+				slog.Error(err),
+			)
+		}
 	}
-	err := errGroup.Wait()
+
+	// bump workspace activity
+	ActivityBumpWorkspace(ctx, r.opts.Logger.Named("activity_bump"), r.opts.Database, workspace.ID, nextAutostart)
+
+	// bump workspace last_used_at
+	r.opts.UsageTracker.Add(workspace.ID)
+
+	// notify workspace update
+	msg, err := json.Marshal(wspubsub.WorkspaceEvent{
+		Kind:        wspubsub.WorkspaceEventKindStatsUpdate,
+		WorkspaceID: workspace.ID,
+	})
 	if err != nil {
-		return xerrors.Errorf("update stats in database: %w", err)
+		return xerrors.Errorf("marshal workspace agent stats event: %w", err)
 	}
-
-	err = r.opts.Pubsub.Publish(codersdk.WorkspaceNotifyChannel(workspace.ID), []byte{})
+	err = r.opts.Pubsub.Publish(wspubsub.WorkspaceEventChannel(workspace.OwnerID), msg)
 	if err != nil {
 		r.opts.Logger.Warn(ctx, "failed to publish workspace agent stats",
 			slog.F("workspace_id", workspace.ID), slog.Error(err))

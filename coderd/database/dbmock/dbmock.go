@@ -11,7 +11,6 @@ package dbmock
 
 import (
 	context "context"
-	sql "database/sql"
 	reflect "reflect"
 	time "time"
 
@@ -1056,6 +1055,21 @@ func (m *MockStore) GetAuthorizedWorkspaces(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) GetAuthorizedWorkspaces(arg0, arg1, arg2 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspaces", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspaces), arg0, arg1, arg2)
+}
+
+// GetAuthorizedWorkspacesAndAgentsByOwnerID mocks base method.
+func (m *MockStore) GetAuthorizedWorkspacesAndAgentsByOwnerID(arg0 context.Context, arg1 uuid.UUID, arg2 rbac.PreparedAuthorized) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetAuthorizedWorkspacesAndAgentsByOwnerID", arg0, arg1, arg2)
+	ret0, _ := ret[0].([]database.GetWorkspacesAndAgentsByOwnerIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetAuthorizedWorkspacesAndAgentsByOwnerID indicates an expected call of GetAuthorizedWorkspacesAndAgentsByOwnerID.
+func (mr *MockStoreMockRecorder) GetAuthorizedWorkspacesAndAgentsByOwnerID(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetAuthorizedWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetAuthorizedWorkspacesAndAgentsByOwnerID), arg0, arg1, arg2)
 }
 
 // GetCoordinatorResumeTokenSigningKey mocks base method.
@@ -2933,6 +2947,21 @@ func (mr *MockStoreMockRecorder) GetWorkspaceAgentPortShare(arg0, arg1 any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentPortShare", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentPortShare), arg0, arg1)
 }
 
+// GetWorkspaceAgentScriptTimingsByBuildID mocks base method.
+func (m *MockStore) GetWorkspaceAgentScriptTimingsByBuildID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceAgentScriptTimingsByBuildID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspaceAgentScriptTimingsByBuildIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceAgentScriptTimingsByBuildID indicates an expected call of GetWorkspaceAgentScriptTimingsByBuildID.
+func (mr *MockStoreMockRecorder) GetWorkspaceAgentScriptTimingsByBuildID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceAgentScriptTimingsByBuildID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceAgentScriptTimingsByBuildID), arg0, arg1)
+}
+
 // GetWorkspaceAgentScriptsByAgentIDs mocks base method.
 func (m *MockStore) GetWorkspaceAgentScriptsByAgentIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
 	m.ctrl.T.Helper()
@@ -3219,10 +3248,10 @@ func (mr *MockStoreMockRecorder) GetWorkspaceBuildsCreatedAfter(arg0, arg1 any) 
 }
 
 // GetWorkspaceByAgentID mocks base method.
-func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.GetWorkspaceByAgentIDRow, error) {
+func (m *MockStore) GetWorkspaceByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.Workspace, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspaceByAgentID", arg0, arg1)
-	ret0, _ := ret[0].(database.GetWorkspaceByAgentIDRow)
+	ret0, _ := ret[0].(database.Workspace)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3458,11 +3487,26 @@ func (mr *MockStoreMockRecorder) GetWorkspaces(arg0, arg1 any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaces", reflect.TypeOf((*MockStore)(nil).GetWorkspaces), arg0, arg1)
 }
 
+// GetWorkspacesAndAgentsByOwnerID mocks base method.
+func (m *MockStore) GetWorkspacesAndAgentsByOwnerID(arg0 context.Context, arg1 uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspacesAndAgentsByOwnerID", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetWorkspacesAndAgentsByOwnerIDRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspacesAndAgentsByOwnerID indicates an expected call of GetWorkspacesAndAgentsByOwnerID.
+func (mr *MockStoreMockRecorder) GetWorkspacesAndAgentsByOwnerID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesAndAgentsByOwnerID), arg0, arg1)
+}
+
 // GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.Workspace, error) {
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -3474,7 +3518,7 @@ func (mr *MockStoreMockRecorder) GetWorkspacesEligibleForTransition(arg0, arg1 a
 }
 
 // InTx mocks base method.
-func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *sql.TxOptions) error {
+func (m *MockStore) InTx(arg0 func(database.Store) error, arg1 *database.TxOptions) error {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InTx", arg0, arg1)
 	ret0, _ := ret[0].(error)
@@ -4006,10 +4050,10 @@ func (mr *MockStoreMockRecorder) InsertUserLink(arg0, arg1 any) *gomock.Call {
 }
 
 // InsertWorkspace mocks base method.
-func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) InsertWorkspace(arg0 context.Context, arg1 database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -4080,11 +4124,12 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(arg0, arg1 any) *g
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.
-func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) error {
+func (m *MockStore) InsertWorkspaceAgentScriptTimings(arg0 context.Context, arg1 database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "InsertWorkspaceAgentScriptTimings", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
+	ret0, _ := ret[0].(database.WorkspaceAgentScriptTiming)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
 }
 
 // InsertWorkspaceAgentScriptTimings indicates an expected call of InsertWorkspaceAgentScriptTimings.
@@ -4282,6 +4327,21 @@ func (m *MockStore) OrganizationMembers(arg0 context.Context, arg1 database.Orga
 func (mr *MockStoreMockRecorder) OrganizationMembers(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OrganizationMembers", reflect.TypeOf((*MockStore)(nil).OrganizationMembers), arg0, arg1)
+}
+
+// PGLocks mocks base method.
+func (m *MockStore) PGLocks(arg0 context.Context) (database.PGLocks, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "PGLocks", arg0)
+	ret0, _ := ret[0].(database.PGLocks)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// PGLocks indicates an expected call of PGLocks.
+func (mr *MockStoreMockRecorder) PGLocks(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "PGLocks", reflect.TypeOf((*MockStore)(nil).PGLocks), arg0)
 }
 
 // Ping mocks base method.
@@ -5025,10 +5085,10 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(arg0, arg1 any) *gomock.Call {
 }
 
 // UpdateWorkspace mocks base method.
-func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspace(arg0 context.Context, arg1 database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspace", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5208,10 +5268,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceDeletedByID(arg0, arg1 any) *gom
 }
 
 // UpdateWorkspaceDormantDeletingAt mocks base method.
-func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.Workspace, error) {
+func (m *MockStore) UpdateWorkspaceDormantDeletingAt(arg0 context.Context, arg1 database.UpdateWorkspaceDormantDeletingAtParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspaceDormantDeletingAt", arg0, arg1)
-	ret0, _ := ret[0].(database.Workspace)
+	ret0, _ := ret[0].(database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
@@ -5280,10 +5340,10 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceTTL(arg0, arg1 any) *gomock.Call
 }
 
 // UpdateWorkspacesDormantDeletingAtByTemplateID mocks base method.
-func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.Workspace, error) {
+func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesDormantDeletingAtByTemplateIDParams) ([]database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "UpdateWorkspacesDormantDeletingAtByTemplateID", arg0, arg1)
-	ret0, _ := ret[0].([]database.Workspace)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

@@ -1641,6 +1641,27 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ```json
 {
+	"agent_connection_timings": [
+		{
+			"ended_at": "2019-08-24T14:15:22Z",
+			"stage": "init",
+			"started_at": "2019-08-24T14:15:22Z",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
+		}
+	],
+	"agent_script_timings": [
+		{
+			"display_name": "string",
+			"ended_at": "2019-08-24T14:15:22Z",
+			"exit_code": 0,
+			"stage": "init",
+			"started_at": "2019-08-24T14:15:22Z",
+			"status": "string",
+			"workspace_agent_id": "string",
+			"workspace_agent_name": "string"
+		}
+	],
 	"provisioner_timings": [
 		{
 			"action": "string",
@@ -1648,7 +1669,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
 			"resource": "string",
 			"source": "string",
-			"stage": "string",
+			"stage": "init",
 			"started_at": "2019-08-24T14:15:22Z"
 		}
 	]
@@ -1657,9 +1678,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/timings \
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                           |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceTimings](schemas.md#codersdkworkspacetimings) |
+| Status | Meaning                                                 | Description | Schema                                                                     |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

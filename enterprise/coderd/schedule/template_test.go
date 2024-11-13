@@ -16,9 +16,11 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/cryptorand"
@@ -211,7 +213,7 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					ActiveVersionID: templateVersion.ID,
 					CreatedBy:       user.ID,
 				})
-				ws = dbgen.Workspace(t, db, database.Workspace{
+				ws = dbgen.Workspace(t, db, database.WorkspaceTable{
 					OrganizationID: organizationID,
 					OwnerID:        user.ID,
 					TemplateID:     template.ID,
@@ -357,7 +359,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	)
 
 	// Create a workspace that will be shared by two builds.
-	ws := dbgen.Workspace(t, db, database.Workspace{
+	ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OwnerID:        user.ID,
 		TemplateID:     template.ID,
 		OrganizationID: templateJob.OrganizationID,
@@ -474,7 +476,7 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	for i, b := range builds {
 		wsID := b.workspaceID
 		if wsID == uuid.Nil {
-			ws := dbgen.Workspace(t, db, database.Workspace{
+			ws := dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     b.templateID,
 				OrganizationID: templateJob.OrganizationID,
@@ -642,21 +644,21 @@ func TestNotifications(t *testing.T) {
 		)
 
 		// Add two dormant workspaces and one active workspace.
-		dormantWorkspaces := []database.Workspace{
-			dbgen.Workspace(t, db, database.Workspace{
+		dormantWorkspaces := []database.WorkspaceTable{
+			dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     time.Now().Add(-time.Hour),
 			}),
-			dbgen.Workspace(t, db, database.Workspace{
+			dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     time.Now().Add(-time.Hour),
 			}),
 		}
-		dbgen.Workspace(t, db, database.Workspace{
+		dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			TemplateID:     template.ID,
 			OrganizationID: templateJob.OrganizationID,
@@ -673,7 +675,7 @@ func TestNotifications(t *testing.T) {
 		}
 
 		// Setup dependencies
-		notifyEnq := testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := notificationstest.FakeEnqueuer{}
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
 		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
@@ -685,21 +687,23 @@ func TestNotifications(t *testing.T) {
 
 		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
 		// triggers notifications.
-		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+		// nolint:gocritic // Need an actor in the context.
+		_, err = templateScheduleStore.Set(dbauthz.AsNotifier(ctx), db, template, agplschedule.TemplateScheduleOptions{
 			TimeTilDormant:           timeTilDormant / 2,
 			TimeTilDormantAutoDelete: timeTilDormant / 2,
 		})
 		require.NoError(t, err)
 
 		// We should expect a notification for each dormant workspace.
-		require.Len(t, notifyEnq.Sent, len(dormantWorkspaces))
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, len(dormantWorkspaces))
 		for i, dormantWs := range dormantWorkspaces {
-			require.Equal(t, notifyEnq.Sent[i].UserID, dormantWs.OwnerID)
-			require.Equal(t, notifyEnq.Sent[i].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
-			require.Contains(t, notifyEnq.Sent[i].Targets, template.ID)
-			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.ID)
-			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OrganizationID)
-			require.Contains(t, notifyEnq.Sent[i].Targets, dormantWs.OwnerID)
+			require.Equal(t, sent[i].UserID, dormantWs.OwnerID)
+			require.Equal(t, sent[i].TemplateID, notifications.TemplateWorkspaceMarkedForDeletion)
+			require.Contains(t, sent[i].Targets, template.ID)
+			require.Contains(t, sent[i].Targets, dormantWs.ID)
+			require.Contains(t, sent[i].Targets, dormantWs.OrganizationID)
+			require.Contains(t, sent[i].Targets, dormantWs.OwnerID)
 		}
 	})
 }

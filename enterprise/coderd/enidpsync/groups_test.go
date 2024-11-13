@@ -39,7 +39,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		params, err := s.ParseGroupClaims(ctx, jwt.MapClaims{})
 		require.Nil(t, err)
 
-		require.False(t, params.SyncEnabled)
+		require.False(t, params.SyncEntitled)
 	})
 
 	t.Run("NotInAllowList", func(t *testing.T) {
@@ -90,7 +90,7 @@ func TestEnterpriseParseGroupClaims(t *testing.T) {
 		}
 		params, err := s.ParseGroupClaims(ctx, claims)
 		require.Nil(t, err)
-		require.True(t, params.SyncEnabled)
+		require.True(t, params.SyncEntitled)
 		require.Equal(t, claims, params.MergedClaims)
 	})
 }

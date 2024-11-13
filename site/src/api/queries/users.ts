@@ -3,11 +3,13 @@ import type {
 	AuthorizationRequest,
 	GenerateAPIKeyResponse,
 	GetUsersResponse,
+	RequestOneTimePasscodeRequest,
 	UpdateUserAppearanceSettingsRequest,
 	UpdateUserPasswordRequest,
 	UpdateUserProfileRequest,
 	User,
 	UsersRequest,
+	ValidateUserPasswordRequest,
 } from "api/typesGenerated";
 import {
 	type MetadataState,
@@ -251,5 +253,18 @@ export const updateAppearanceSettings = (
 				await queryClient.invalidateQueries(meKey);
 			}
 		},
+	};
+};
+
+export const requestOneTimePassword = () => {
+	return {
+		mutationFn: (req: RequestOneTimePasscodeRequest) =>
+			API.requestOneTimePassword(req),
+	};
+};
+
+export const changePasswordWithOTP = () => {
+	return {
+		mutationFn: API.changePasswordWithOTP,
 	};
 };

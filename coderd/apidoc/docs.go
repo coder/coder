@@ -3166,6 +3166,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3182,6 +3185,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
                     }
                 ],
                 "responses": {
@@ -3234,6 +3246,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3250,6 +3265,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
                     }
                 ],
                 "responses": {
@@ -3623,11 +3647,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/scim/v2/ServiceProviderConfig": {
+            "get": {
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Service Provider Config",
+                "operationId": "scim-get-service-provider-config",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/scim/v2/Users": {
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3647,7 +3688,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3683,7 +3724,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3713,7 +3754,7 @@ const docTemplate = `{
             "patch": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3749,6 +3790,87 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/organization": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization IdP Sync settings",
+                "operationId": "get-organization-idp-sync-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync settings",
+                "operationId": "update-organization-idp-sync-settings",
+                "parameters": [
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "User-scoped tailnet RPC connection",
+                "operationId": "user-scoped-tailnet-rpc-connection",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -5332,6 +5454,45 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.AssignableRoles"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/validate-password": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Validate user password",
+                "operationId": "validate-user-password",
+                "parameters": [
+                    {
+                        "description": "Validate user password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
                 }
@@ -7473,6 +7634,41 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspacebuilds/{workspacebuild}/timings": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Builds"
+                ],
+                "summary": "Get workspace build timings by ID",
+                "operationId": "get-workspace-build-timings-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace build ID",
+                        "name": "workspacebuild",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceproxies": {
             "get": {
                 "security": [
@@ -7611,6 +7807,15 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace proxy crypto keys",
                 "operationId": "get-workspace-proxy-crypto-keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feature key",
+                        "name": "feature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -8506,7 +8711,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.WorkspaceTimings"
+                            "$ref": "#/definitions/codersdk.WorkspaceBuildTimings"
                         }
                     }
                 }
@@ -8940,6 +9145,59 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentConnectionTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "stage": {
+                    "$ref": "#/definitions/codersdk.TimingStage"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.AgentScriptTiming": {
+            "type": "object",
+            "properties": {
+                "display_name": {
+                    "type": "string"
+                },
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "exit_code": {
+                    "type": "integer"
+                },
+                "stage": {
+                    "$ref": "#/definitions/codersdk.TimingStage"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "status": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentSubsystem": {
             "type": "string",
             "enum": [
@@ -9056,7 +9314,8 @@ const docTemplate = `{
                 "stop",
                 "login",
                 "logout",
-                "register"
+                "register",
+                "request_password_reset"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -9066,7 +9325,8 @@ const docTemplate = `{
                 "AuditActionStop",
                 "AuditActionLogin",
                 "AuditActionLogout",
-                "AuditActionRegister"
+                "AuditActionRegister",
+                "AuditActionRequestPasswordReset"
             ]
         },
         "codersdk.AuditDiff": {
@@ -9808,6 +10068,14 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "user_status": {
+                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "username": {
                     "type": "string"
                 }
@@ -9949,12 +10217,14 @@ const docTemplate = `{
         "codersdk.CryptoKeyFeature": {
             "type": "string",
             "enum": [
-                "workspace_apps",
+                "workspace_apps_api_key",
+                "workspace_apps_token",
                 "oidc_convert",
                 "tailnet_resume"
             ],
             "x-enum-varnames": [
-                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureWorkspaceAppsAPIKey",
+                "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
                 "CryptoKeyFeatureTailnetResume"
             ]
@@ -11623,6 +11893,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSyncSettings": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\norganizations. If the field is the empty string, then no organization\nupdates will ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC claim --\u003e Coder organization uuid",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "organization_assign_default": {
+                    "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.PatchGroupRequest": {
             "type": "object",
             "properties": {
@@ -12053,7 +12346,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
@@ -12175,6 +12468,7 @@ const docTemplate = `{
                 "group_member",
                 "idpsync_settings",
                 "license",
+                "notification_message",
                 "notification_preference",
                 "notification_template",
                 "oauth2_app",
@@ -12208,6 +12502,7 @@ const docTemplate = `{
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
                 "ResourceLicense",
+                "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
@@ -13354,6 +13649,29 @@ const docTemplate = `{
                 "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
+        "codersdk.TimingStage": {
+            "type": "string",
+            "enum": [
+                "init",
+                "plan",
+                "graph",
+                "apply",
+                "start",
+                "stop",
+                "cron",
+                "connect"
+            ],
+            "x-enum-varnames": [
+                "TimingStageInit",
+                "TimingStagePlan",
+                "TimingStageGraph",
+                "TimingStageApply",
+                "TimingStageStart",
+                "TimingStageStop",
+                "TimingStageCron",
+                "TimingStageConnect"
+            ]
+        },
         "codersdk.TokenConfig": {
             "type": "object",
             "properties": {
@@ -13925,6 +14243,28 @@ const docTemplate = `{
                 "UserStatusDormant",
                 "UserStatusSuspended"
             ]
+        },
+        "codersdk.ValidateUserPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ValidateUserPasswordResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.ValidationError": {
             "type": "object",
@@ -14684,6 +15024,30 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceBuildTimings": {
+            "type": "object",
+            "properties": {
+                "agent_connection_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentConnectionTiming"
+                    }
+                },
+                "agent_script_timings": {
+                    "description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentScriptTiming"
+                    }
+                },
+                "provisioner_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceConnectionLatencyMS": {
             "type": "object",
             "properties": {
@@ -14926,17 +15290,6 @@ const docTemplate = `{
                 "WorkspaceStatusDeleting",
                 "WorkspaceStatusDeleted"
             ]
-        },
-        "codersdk.WorkspaceTimings": {
-            "type": "object",
-            "properties": {
-                "provisioner_timings": {
-                    "type": "array",
-                    "items": {
-                        "$ref": "#/definitions/codersdk.ProvisionerTiming"
-                    }
-                }
-            }
         },
         "codersdk.WorkspaceTransition": {
             "type": "string",
@@ -16176,9 +16529,6 @@ const docTemplate = `{
         "wsproxysdk.RegisterWorkspaceProxyResponse": {
             "type": "object",
             "properties": {
-                "app_security_key": {
-                    "type": "string"
-                },
                 "derp_force_websockets": {
                     "type": "boolean"
                 },
@@ -16213,6 +16563,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "Authorization": {
+            "type": "apiKey",
+            "name": "Authorizaiton",
+            "in": "header"
+        },
         "CoderSessionToken": {
             "type": "apiKey",
             "name": "Coder-Session-Token",

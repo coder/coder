@@ -71,7 +71,6 @@ func NewClient(t testing.TB,
 		t:              t,
 		logger:         logger.Named("client"),
 		agentID:        agentID,
-		coordinator:    coordinator,
 		server:         server,
 		fakeAgentAPI:   fakeAAPI,
 		derpMapUpdates: derpMapUpdates,
@@ -82,7 +81,6 @@ type Client struct {
 	t                  testing.TB
 	logger             slog.Logger
 	agentID            uuid.UUID
-	coordinator        tailnet.Coordinator
 	server             *drpcserver.Server
 	fakeAgentAPI       *FakeAgentAPI
 	LastWorkspaceAgent func()

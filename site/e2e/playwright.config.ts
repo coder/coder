@@ -65,11 +65,12 @@ export default defineConfig({
 			testMatch: /.*\.spec\.ts/,
 			dependencies: ["testsSetup"],
 			use: { storageState },
-			timeout: 50_000,
+			timeout: 30_000,
 		},
 	],
 	reporter: [["./reporter.ts"]],
 	use: {
+		actionTimeout: 5000,
 		baseURL: `http://localhost:${coderPort}`,
 		video: "retain-on-failure",
 		...(wsEndpoint

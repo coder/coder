@@ -1134,11 +1134,19 @@ func (a *agent) trackGoroutine(fn func()) error {
 }
 
 func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *tailcfg.DERPMap, derpForceWebSockets, disableDirectConnections bool) (_ *tailnet.Conn, err error) {
+	// Inject `CODER_AGENT_HEADER` into the DERP header.
+	var header http.Header
+	if client, ok := a.client.(*agentsdk.Client); ok {
+		if headerTransport, ok := client.SDK.HTTPClient.Transport.(*codersdk.HeaderTransport); ok {
+			header = headerTransport.Header
+		}
+	}
 	network, err := tailnet.NewConn(&tailnet.Options{
 		ID:                  agentID,
 		Addresses:           a.wireguardAddresses(agentID),
 		DERPMap:             derpMap,
 		DERPForceWebSockets: derpForceWebSockets,
+		DERPHeader:          &header,
 		Logger:              a.logger.Named("net.tailnet"),
 		ListenPort:          a.tailnetListenPort,
 		BlockEndpoints:      disableDirectConnections,
@@ -1344,7 +1352,8 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 	defer close(disconnected)
 	a.closeMutex.Unlock()
 
-	coordination := tailnet.NewRemoteCoordination(a.logger, coordinate, network, uuid.Nil)
+	ctrl := tailnet.NewAgentCoordinationController(a.logger, network)
+	coordination := ctrl.New(coordinate)
 
 	errCh := make(chan error, 1)
 	go func() {
@@ -1356,7 +1365,7 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 				a.logger.Warn(ctx, "failed to close remote coordination", slog.Error(err))
 			}
 			return
-		case err := <-coordination.Error():
+		case err := <-coordination.Wait():
 			errCh <- err
 		}
 	}()
@@ -1670,7 +1679,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		}
 
 		score, niceErr := proc.Niceness(a.syscaller)
-		if !isBenignProcessErr(niceErr) {
+		if niceErr != nil && !isBenignProcessErr(niceErr) {
 			debouncer.Warn(ctx, "unable to get proc niceness",
 				slog.F("cmd", proc.Cmd()),
 				slog.F("pid", proc.PID),
@@ -1689,7 +1698,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 
 		if niceErr == nil {
 			err := proc.SetNiceness(a.syscaller, niceness)
-			if !isBenignProcessErr(err) {
+			if err != nil && !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set proc niceness",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),
@@ -1703,7 +1712,7 @@ func (a *agent) manageProcessPriority(ctx context.Context, debouncer *logDebounc
 		if oomScore != unsetOOMScore && oomScore != proc.OOMScoreAdj && !isCustomOOMScore(agentScore, proc) {
 			oomScoreStr := strconv.Itoa(oomScore)
 			err := afero.WriteFile(a.filesystem, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), []byte(oomScoreStr), 0o644)
-			if !isBenignProcessErr(err) {
+			if err != nil && !isBenignProcessErr(err) {
 				debouncer.Warn(ctx, "unable to set oom_score_adj",
 					slog.F("cmd", proc.Cmd()),
 					slog.F("pid", proc.PID),

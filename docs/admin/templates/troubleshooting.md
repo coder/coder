@@ -58,9 +58,10 @@ terminating processes started by it or terminating the startup script itself (on
 Linux, `ps` and `kill` are useful tools).
 
 For tips on how to write a startup script that doesn't run forever, see the
-[`startup_script`](#startup_script) section. For more ways to override the
-startup script behavior, see the
-[`startup_script_behavior`](#startup_script_behavior) section.
+[`startup_script`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
+section. For more ways to override the startup script behavior, see the
+[`startup_script_behavior`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior)
+section.
 
 Template authors can also set the
 [startup script behavior](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script_behavior)
@@ -75,9 +76,9 @@ be aware that programs, files, or settings may be missing from your workspace.
 This can happen if the
 [startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script)
 is still running or has exited with a non-zero status (see
-[startup script error](#startup-script-error)). No action is necessary, but you
-may want to
-[start a new shell session](#session-was-started-before-the-startup-script-finished-web-terminal)
+[startup script error](#startup-script-exited-with-an-error)). No action is
+necessary, but you may want to
+[start a new shell session](#session-was-started-before-the-startup-script-finished)
 after it has completed or check the
 [startup script logs](#debugging-the-startup-script) to see if there are any
 issues.
@@ -153,3 +154,17 @@ the top of the script to exit on error.
 
 > **Note:** If you aren't seeing any logs, check that the `dir` directive points
 > to a valid directory in the file system.
+
+## Slow workspace startup times
+
+If your workspaces are taking longer to start than expected, or longer than
+desired, you can diagnose which steps have the highest impact in the workspace
+build timings UI (available in v2.17 and beyond). Admins can can
+programmatically pull startup times for individual workspace builds using our
+[build timings API endpoint](../../reference/api/builds.md#get-workspace-build-timings-by-id).
+
+See our
+[guide on optimizing workspace build times](../../tutorials/best-practices/speed-up-templates.md)
+to optimize your templates based on this data.
+
+![Workspace build timings UI](../../images/admin/templates/troubleshooting/workspace-build-timings-ui.png)

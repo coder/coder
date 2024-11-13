@@ -27,13 +27,13 @@ Give your template a name, description, and icon and press `Create template`.
 
 > **⚠️ Note**: If template creation fails, Coder is likely not authorized to
 > deploy infrastructure in the given location. Learn how to configure
-> [provisioner authentication](#TODO).
+> [provisioner authentication](./extending-templates/provider-authentication.md).
 
 ### CLI
 
 You can the [Coder CLI](../../install/cli.md) to manage templates for Coder.
-After [logging in](#TODO) to your deployment, create a folder to store your
-templates:
+After [logging in](../../reference/cli/login.md) to your deployment, create a
+folder to store your templates:
 
 ```sh
 # This snippet applies to macOS and Linux only
@@ -145,7 +145,7 @@ You will then see your new template in the dashboard.
 ## From scratch (advanced)
 
 There may be cases where you want to create a template from scratch. You can use
-[any Terraform provider](https://registry.terraform.com) with Coder to create
+[any Terraform provider](https://registry.terraform.io) with Coder to create
 templates for additional clouds (e.g. Hetzner, Alibaba) or orchestrators
 (VMware, Proxmox) that we do not provide example templates for.
 
