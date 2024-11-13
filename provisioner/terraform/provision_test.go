@@ -383,6 +383,8 @@ func TestProvision(t *testing.T) {
 		ExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
+		// Some tests may need to be skipped until the relevant provider version is released.
+		SkipReason string
 	}{
 		{
 			Name: "missing-variable",
@@ -704,7 +706,8 @@ func TestProvision(t *testing.T) {
 			},
 		},
 		{
-			Name: "workspace-owner-login-type",
+			Name:       "workspace-owner-login-type",
+			SkipReason: "field will be added in provider version 1.1.0",
 			Files: map[string]string{
 				"main.tf": `terraform {
 					required_providers {
@@ -748,6 +751,10 @@ func TestProvision(t *testing.T) {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
+
+			if testCase.SkipReason != "" {
+				t.Skip(testCase.SkipReason)
+			}
 
 			ctx, api := setupProvisioner(t, nil)
 			sess := configure(ctx, t, api, &proto.Config{
