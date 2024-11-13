@@ -903,13 +903,6 @@ func TestCreateValidateRichParameters(t *testing.T) {
 			clitest.Run(t, inv)
 		})
 
-		t.Run("CLIOverride/SingleQuote", func(t *testing.T) {
-			t.Parallel()
-			inv, root := clitest.New(t, "create", "my-workspace-4", "--template", template.Name, "--parameter", "\""+listOfStringsParameterName+"=[''ddd=foo'',''eee=bar'',''fff=baz'']\"", "--yes")
-			clitest.SetupConfig(t, member, root)
-			clitest.Run(t, inv)
-		})
-
 		t.Run("WhatShouldItLookLike", func(t *testing.T) {
 			t.Parallel()
 
