@@ -1378,7 +1378,7 @@ func (q *querier) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed time.Tim
 }
 
 func (q *querier) GetAccumulatedUsersInsights(ctx context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionViewInsights, rbac.ResourceUser); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.GetAccumulatedUsersInsights(ctx, arg)

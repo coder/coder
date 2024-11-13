@@ -84,8 +84,6 @@ var RBACPermissions = map[string]PermissionDefinition{
 
 			ActionReadPersonal:   actDef("read personal user data like user settings and auth links"),
 			ActionUpdatePersonal: actDef("update personal data"),
-
-			ActionViewInsights: actDef("view insights"),
 		},
 	},
 	"workspace": {
