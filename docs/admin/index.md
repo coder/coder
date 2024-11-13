@@ -17,26 +17,50 @@ For any information not strictly contained in these sections, check out our
 
 ## What is an image, template, devcontainer, or workspace
 
-- **Template**
-  - [Templates](./templates/index.md) are
-	<!-- Managed by Coder Template Administrators The template should include infrastructure-level dependencies for the workspace (for example, Kubernetes PersistentVolumeClaims, docker containers, or EC2 VMs). These should be applicable to all workspaces built from the template. -->
-
-- **Workspace**
-  - A [workspace](../user-guides/workspace-management.md) is the environment
-    that a developer works in. Developers on a team each work from their own
-    workspace and can use [multiple IDEs](./workspace-access/index.md).
 - **Image**
-  - A [base image](./templates/managing-templates/image-management.md) contains the
-    utilities that the Coder workspace is built on. It can be an
+
+  - A [base image](./templates/managing-templates/image-management.md) contains
+    the operating system (OS), OS-level packages, and utilities that the Coder
+    workspace is built on. It can be an
     [example image](https://github.com/coder/images), custom image, or one from
     [Docker Hub](https://hub.docker.com/search). It is defined in each template.
-		Managed externally to Coder.
-		<!-- The devcontainer base image should include dependencies such as the base OS (for example, Debian or Fedora), and OS-level packages (curl, git, java). Include as much as possible here to leverage image and layer caching. Avoid including project-specific tools here. Language-specific runtimes may be added here or in a Dev Container feature. -->
+  - Managed by: Externally to Coder.
 
-- **Development containers**
-  - more about devcontainers...
+- **Template**
+
+  - [Templates](./templates/index.md) include infrastructure-level dependencies
+    for the workspace. For example, a template can include Kubernetes
+    PersistentVolumeClaims, Docker containers, or EC2 VMs.
+  - Managed by: Template administrators from within the Coder deployment.
 
 - **Startup scripts**
-  -
+
+  - Agent startup scripts apply to all users of a template. This is an
+    intentionally flexible area that template authors have at their disposal to
+    manage the "last mile" of workspace creation.
+  - Managed by: Coder template administrators.
+
+- **Workspace**
+
+  - A [workspace](../user-guides/workspace-management.md) is the environment
+    that a developer works in. Developers on a team each work from their own
+    workspace and can use
+    [multiple IDEs](../user-guides/workspace-access/index.md).
+  - Managed by:
+
+- **Development containers**
+
+  - more about devcontainers...
+  - Managed by:
+
+- **Dotfiles / personalization**
+
+  - Users may have their own specific preferences relating to shell prompt,
+    custom keybindings, color schemes, and more. Users can leverage Coder's
+    [dotfiles support](../user-guides/workspace-dotfiles.md) or create their own
+    script to personalize their workspace. Be aware that users with root
+    permissions in their workspace can override almost all of the previous
+    configuration.
+  - Managed by: User
 
 <children></children>

@@ -53,7 +53,7 @@ image caching ensures optimal start and stop times.
 
 ## When to use a dev container
 
-A development container 
+A development container
 
 ## Coder Envbuilder
 
@@ -168,6 +168,8 @@ Refer to the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
 for more information.
 
+Note that caching requires push access to a registry, and may require approval.
+
 ### Image caching
 
 To support resuming from a cached image, use the
@@ -208,6 +210,29 @@ Refer to the
 information and to submit feature requests or bug reports.
 
 ## Known issues
+
+- Image caching: error pushing image
+
+  - `BLOB_UNKNOWN: Manifest references unknown blob(s)`
+  - [Issue 385](https://github.com/coder/envbuilder/issues/385)
+
+- Support for VS Code Extensions requires a workaround.
+
+  - [Issue 68](https://github.com/coder/envbuilder/issues/68#issuecomment-1805974271)
+
+- Envbuilder does not support Volume Mounts
+
+- Support for lifecycle hooks is limited.
+  ([Issue](https://github.com/coder/envbuilder/issues/395))
+  - Supported:
+    - `onCreateCommand`
+    - `updateContentCommand`
+    - `postCreateCommand`
+    - `postStartCommand`
+  - Not supported:
+    - `initializeCommand`
+    - `postAttachCommand`
+    - `waitFor`
 
 Visit the
 [Envbuilder repository](https://github.com/coder/envbuilder/blob/main/docs/devcontainer-spec-support.md)
