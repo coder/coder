@@ -344,7 +344,7 @@ func TestRolePermissions(t *testing.T) {
 		},
 		{
 			Name:     "UserData",
-			Actions:  []policy.Action{policy.ActionReadPersonal, policy.ActionUpdatePersonal, policy.ActionViewInsights},
+			Actions:  []policy.Action{policy.ActionReadPersonal, policy.ActionUpdatePersonal},
 			Resource: rbac.ResourceUserObject(currentUser),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true:  {owner, orgMemberMe, memberMe, userAdmin},
