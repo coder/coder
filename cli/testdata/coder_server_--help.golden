@@ -115,7 +115,7 @@ Configure how emails are sent.
       --email-from string, $CODER_EMAIL_FROM
           The sender's address to use.
 
-      --email-hello string, $CODER_EMAIL_HELLO
+      --email-hello string, $CODER_EMAIL_HELLO (default: localhost)
           The hostname identifying the SMTP server.
 
       --email-smarthost string, $CODER_EMAIL_SMARTHOST
@@ -409,7 +409,7 @@ Configure how email notifications are sent.
           The sender's address to use.
           DEPRECATED: Use --email-from instead.
 
-      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO
+      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO (default: localhost)
           The hostname identifying the SMTP server.
           DEPRECATED: Use --email-hello instead.
 

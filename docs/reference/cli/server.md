@@ -1266,6 +1266,7 @@ The intermediary SMTP host through which emails are sent.
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_HELLO</code> |
 | YAML        | <code>notifications.email.hello</code>        |
+| Default     | <code>localhost</code>                        |
 
 The hostname identifying the SMTP server.
 
@@ -1426,6 +1427,7 @@ The intermediary SMTP host through which emails are sent.
 | Type        | <code>string</code>             |
 | Environment | <code>$CODER_EMAIL_HELLO</code> |
 | YAML        | <code>email.hello</code>        |
+| Default     | <code>localhost</code>          |
 
 The hostname identifying the SMTP server.
 

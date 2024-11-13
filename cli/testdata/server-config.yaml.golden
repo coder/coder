@@ -535,8 +535,8 @@ notifications:
     # (default: <unset>, type: string)
     smarthost: ""
     # The hostname identifying the SMTP server.
-    # (default: <unset>, type: string)
-    hello: ""
+    # (default: localhost, type: string)
+    hello: localhost
     # Force a TLS connection to the configured SMTP smarthost.
     # (default: <unset>, type: bool)
     forceTLS: false
@@ -618,8 +618,8 @@ email:
   # (default: <unset>, type: string)
   smarthost: ""
   # The hostname identifying the SMTP server.
-  # (default: <unset>, type: string)
-  hello: ""
+  # (default: localhost, type: string)
+  hello: localhost
   # Force a TLS connection to the configured SMTP smarthost.
   # (default: <unset>, type: bool)
   forceTLS: false
