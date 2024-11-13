@@ -2347,7 +2347,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAccumulatedUsersInsights", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.GetAccumulatedUsersInsightsRow{}, nil)
 	}))
 	s.Run("GetActiveUserCount", s.Subtest(func(db database.Store, check *expects) {
 		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(int64(0))
