@@ -2581,11 +2581,8 @@
 						"required": true
 					},
 					{
-						"type": "array",
-						"items": {
-							"type": "string"
-						},
-						"description": "Provisioner tags to filter by",
+						"type": "object",
+						"description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
 						"name": "tags",
 						"in": "query"
 					}

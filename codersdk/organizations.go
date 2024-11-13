@@ -315,16 +315,16 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags []string) ([]ProvisionerDaemon, error) {
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemon, error) {
 	baseURL := fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String())
 
 	queryParams := url.Values{}
-	if len(tags) > 0 {
-		for _, tag := range tags {
-			queryParams.Add("tags", tag)
-		}
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
 	}
 
+	queryParams.Add("tags", string(tagsJSON))
 	if len(queryParams) > 0 {
 		baseURL = fmt.Sprintf("%s?%s", baseURL, queryParams.Encode())
 	}

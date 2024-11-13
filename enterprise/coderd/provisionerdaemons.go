@@ -3,6 +3,7 @@ package coderd
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -56,14 +57,27 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param tags query []string false "Provisioner tags to filter by"
+// @Param tags query coderd.provisionerDaemons.tagsQuery false "Provisioner tags to filter by"
+// @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	tags := provisionerTags(r)
+	// For documentation purposes above:
+	type tagsQuery = map[string]string
+
+	var tags tagsQuery
+	err := json.Unmarshal([]byte(r.URL.Query().Get("tags")), &tags)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid tags query parameter",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
 		ctx,
 		database.GetProvisionerDaemonsByOrganizationParams{
@@ -80,24 +94,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
-}
-
-func provisionerTags(r *http.Request) map[string]string {
-	tags := r.URL.Query()["tags"]
-	if len(tags) == 0 {
-		return nil
-	}
-
-	tagMap := map[string]string{}
-	for _, tag := range tags {
-		parts := strings.SplitN(tag, "=", 2)
-		if len(parts) == 2 {
-			// TODO(sas): seems like the kind of place where nilpointers would pop up.
-			tagMap[parts[0]] = parts[1]
-		}
-	}
-
-	return tagMap
 }
 
 type provisiionerDaemonAuthResponse struct {
