@@ -10401,6 +10401,27 @@ const docTemplate = `{
                 "pg_connection_url": {
                     "type": "string"
                 },
+                "pg_database": {
+                    "type": "string"
+                },
+                "pg_host": {
+                    "type": "string"
+                },
+                "pg_options": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "pg_password": {
+                    "type": "string"
+                },
+                "pg_port": {
+                    "type": "string"
+                },
+                "pg_username": {
+                    "type": "string"
+                },
                 "pprof": {
                     "$ref": "#/definitions/codersdk.PprofConfig"
                 },

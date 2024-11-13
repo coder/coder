@@ -359,6 +359,12 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 		},
 		"pg_auth": "string",
 		"pg_connection_url": "string",
+		"pg_database": "string",
+		"pg_host": "string",
+		"pg_options": ["string"],
+		"pg_password": "string",
+		"pg_port": "string",
+		"pg_username": "string",
 		"pprof": {
 			"address": {
 				"host": "string",

@@ -1977,6 +1977,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		},
 		"pg_auth": "string",
 		"pg_connection_url": "string",
+		"pg_database": "string",
+		"pg_host": "string",
+		"pg_options": ["string"],
+		"pg_password": "string",
+		"pg_port": "string",
+		"pg_username": "string",
 		"pprof": {
 			"address": {
 				"host": "string",
@@ -2404,6 +2410,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	},
 	"pg_auth": "string",
 	"pg_connection_url": "string",
+	"pg_database": "string",
+	"pg_host": "string",
+	"pg_options": ["string"],
+	"pg_password": "string",
+	"pg_port": "string",
+	"pg_username": "string",
 	"pprof": {
 		"address": {
 			"host": "string",
@@ -2552,6 +2564,12 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `oidc`                               | [codersdk.OIDCConfig](#codersdkoidcconfig)                                                           | false    |              |                                                                    |
 | `pg_auth`                            | string                                                                                               | false    |              |                                                                    |
 | `pg_connection_url`                  | string                                                                                               | false    |              |                                                                    |
+| `pg_database`                        | string                                                                                               | false    |              |                                                                    |
+| `pg_host`                            | string                                                                                               | false    |              |                                                                    |
+| `pg_options`                         | array of string                                                                                      | false    |              |                                                                    |
+| `pg_password`                        | string                                                                                               | false    |              |                                                                    |
+| `pg_port`                            | string                                                                                               | false    |              |                                                                    |
+| `pg_username`                        | string                                                                                               | false    |              |                                                                    |
 | `pprof`                              | [codersdk.PprofConfig](#codersdkpprofconfig)                                                         | false    |              |                                                                    |
 | `prometheus`                         | [codersdk.PrometheusConfig](#codersdkprometheusconfig)                                               | false    |              |                                                                    |
 | `provisioner`                        | [codersdk.ProvisionerConfig](#codersdkprovisionerconfig)                                             | false    |              |                                                                    |
