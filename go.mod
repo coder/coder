@@ -204,7 +204,7 @@ require (
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v1.0.0
-	github.com/coder/serpent v0.8.1-0.20241113110052-e053fdac0b0d
+	github.com/coder/serpent v0.8.1-0.20241113221201-ee63bee4640b
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
 	github.com/emersion/go-smtp v0.21.2
 	github.com/go-jose/go-jose/v4 v4.0.2
