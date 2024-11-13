@@ -1,12 +1,14 @@
 # Development containers on Coder
 
-A development container is an
+A development container (dev container or devcontainer) is an
 [open source specification](https://containers.dev/implementors/spec/) for
 defining containerized development environments.
 
 Leverage Coder with dev containers and apply cloud-native security practices to
 traditional ticket-ops and approval-ops workflows to help enable developers to
 self-service.
+
+## Benefits of devcontainers
 
 There are several benefits to adding a devcontainer-compatible template to
 Coder:
@@ -15,8 +17,6 @@ Coder:
 - Improved security
 - Performance efficiency
 - Cost Optimization
-
-## Benefits of devcontainers
 
 ### Reliability and scalability
 
@@ -50,6 +50,10 @@ possible, such as layer caching and even full image caching and fetching via the
 By creating unique images per-project, you remove unnecessary dependencies and
 reduce the workspace size and resource consumption of any given project. Full
 image caching ensures optimal start and stop times.
+
+## When to use a dev container
+
+A development container 
 
 ## Coder Envbuilder
 
