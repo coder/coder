@@ -44,6 +44,16 @@ environments:
 - [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
 - [Docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
 
+## Using remote Docker host
+
+You can use a remote Docker host in 2 ways.
+
+1. Configuring docker provider to use a
+   [remote host](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts)
+   over SSH or TCP.
+2. Running an [external provisioner](../../provisioners.md) on the remote docker
+   host.
+
 Other providers might also support authenticated environments. Check the
 [documentation of the Terraform provider](https://registry.terraform.io/browse/providers)
 for details.
