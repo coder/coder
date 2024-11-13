@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -57,7 +56,6 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
-// @Param tags query coderd.provisionerDaemons.tagsQuery false "Provisioner tags to filter by"
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /organizations/{organization}/provisionerdaemons [get]
@@ -65,17 +63,17 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
-	// For documentation purposes above:
-	type tagsQuery = map[string]string
-
-	var tags tagsQuery
-	err := json.Unmarshal([]byte(r.URL.Query().Get("tags")), &tags)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-			Message: "Invalid tags query parameter",
-			Detail:  err.Error(),
-		})
-		return
+	tags := database.StringMap{}
+	tagParam := r.URL.Query()["tags"]
+	if len(tagParam) > 0 {
+		err := tags.Scan([]byte(tagParam[0]))
+		if err != nil {
+			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+				Message: "Invalid tags query parameter",
+				Detail:  err.Error(),
+			})
+			return
+		}
 	}
 
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
