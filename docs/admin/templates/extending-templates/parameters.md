@@ -94,19 +94,18 @@ data "coder_parameter" "security_groups" {
 > --parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
 > ```
 >
-> You can use [this Go Playground link](https://go.dev/play/p/yvI9rdtS0ch) to generate a
-> correctly-quoted argument.
+> You can use [this Go Playground link](https://go.dev/play/p/yvI9rdtS0ch) to
+> generate a correctly-quoted argument.
 >
-> Alternatively, you can use `--rich-parameter-file` to work around the above issues.
-> This allows you to specify parameters as YAML.
-> An equivalent parameter file for the above `--parameter` is provided below:
+> Alternatively, you can use `--rich-parameter-file` to work around the above
+> issues. This allows you to specify parameters as YAML. An equivalent parameter
+> file for the above `--parameter` is provided below:
 >
 > ```yaml
 > security_groups:
 >   - DevOps Security Group
 >   - Backend Security Group
 > ```
-
 
 ## Options
 
