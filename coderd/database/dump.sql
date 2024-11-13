@@ -380,19 +380,20 @@ BEGIN
 END;
 $$;
 
-CREATE FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) RETURNS boolean
+CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	RETURN
+	RETURN CASE
 		-- Special case for untagged provisioners, where only an exact match should count
-		(subset = '{"scope": "organization", "owner": ""}' :: jsonb AND subset :: jsonb = superset :: jsonb)
+		WHEN job_tags::jsonb = '{"scope": "organization", "owner": ""}'::jsonb THEN job_tags::jsonb = provisioner_tags::jsonb
 		-- General case
-		OR subset :: jsonb <@ superset :: jsonb;
+		ELSE job_tags::jsonb <@ provisioner_tags::jsonb
+	END;
 END;
 $$;
 
-COMMENT ON FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
+COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
 
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql

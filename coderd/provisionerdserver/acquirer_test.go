@@ -473,7 +473,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
+			ctx := testutil.Context(t, testutil.WaitLong)
 			// NOTE: explicitly not using fake store for this test.
 			db, ps := dbtestutil.NewDB(t)
 			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)

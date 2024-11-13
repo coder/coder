@@ -24,7 +24,7 @@ WHERE
 			AND potential_job.provisioner = ANY(@types :: provisioner_type [ ])
 			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
 			-- they are aliases and the code that calls this query already relies on a different type
-			AND provisioner_tagset_contains(@provisioner_tags :: jsonb, potential_job.tags)
+			AND provisioner_tagset_contains(@provisioner_tags :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
 			potential_job.created_at
 		FOR UPDATE

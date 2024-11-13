@@ -3,13 +3,14 @@ CREATE DOMAIN tagset AS jsonb;
 COMMENT ON DOMAIN tagset IS 'A set of tags that match provisioner daemons to provisioner jobs, which can originate from workspaces or templates. tagset is a narrowed type over jsonb. It is expected to be the JSON representation of map[string]string. That is, {"key1": "value1", "key2": "value2"}. We need the narrowed type instead of just using jsonb so that we can give sqlc a type hint, otherwise it defaults to json.RawMessage. json.RawMessage is a suboptimal type to use in the context that we need tagset for.';
 
 CREATE OR REPLACE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset)
-RETURNS boolean as $$
+RETURNS boolean AS $$
 BEGIN
-	RETURN
+	RETURN CASE
 		-- Special case for untagged provisioners, where only an exact match should count
-		(job_tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb AND job_tags :: jsonb = provisioner_tags :: jsonb)
+		WHEN job_tags::jsonb = '{"scope": "organization", "owner": ""}'::jsonb THEN job_tags::jsonb = provisioner_tags::jsonb
 		-- General case
-		OR job_tags :: jsonb <@ provisioner_tags :: jsonb;
+		ELSE job_tags::jsonb <@ provisioner_tags::jsonb
+	END;
 END;
 $$ LANGUAGE plpgsql;
 
