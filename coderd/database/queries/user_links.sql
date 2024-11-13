@@ -32,7 +32,7 @@ INSERT INTO
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
 		oauth_expiry,
-	    debug_context
+		claims
 	)
 VALUES
 	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING *;
@@ -54,6 +54,6 @@ SET
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
 	oauth_expiry = $5,
-	debug_context = $6
+	claims = $6
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
