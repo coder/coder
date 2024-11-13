@@ -7,7 +7,7 @@ RETURNS boolean as $$
 BEGIN
 	RETURN
 		-- Special case for untagged provisioners, where only an exact match should count
-		(superset = '{"scope": "organization", "owner": ""}' :: tagset AND subset = superset)
+		(subset = '{"scope": "organization", "owner": ""}' :: tagset AND subset = superset)
 		-- General case
 		OR subset <@ superset;
 END;
