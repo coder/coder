@@ -1,6 +1,7 @@
 package terraform
 
 import (
+	"context"
 	"fmt"
 	"strings"
 
@@ -8,6 +9,8 @@ import (
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/mitchellh/mapstructure"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 
 	"github.com/coder/terraform-provider-coder/provider"
 
@@ -134,7 +137,7 @@ type State struct {
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocognit // This function makes more sense being large for now, until refactored.
-func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error) {
+func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph string, logger slog.Logger) (*State, error) {
 	parsedGraph, err := gographviz.ParseString(rawGraph)
 	if err != nil {
 		return nil, xerrors.Errorf("parse graph: %w", err)
@@ -598,9 +601,16 @@ func ConvertState(modules []*tfjson.StateModule, rawGraph string) (*State, error
 			modulePath, err := convertAddressToModulePath(resource.Address)
 			if err != nil {
 				// Module path recording was added primarily to keep track of
-				// modules in telemetry. We're adding this fallback so we can
-				// detect if there are any issues with the address parsing.
-				modulePath = fmt.Sprintf("error parsing address: %s", resource.Address)
+				// modules in telemetry. We're adding this sentinel value so
+				// we can detect if there are any issues with the address
+				// parsing.
+				//
+				// We don't want to set modulePath to null here because, in
+				// the database, a null value in WorkspaceResource's ModulePath
+				// indicates "this resource was created before module paths
+				// were tracked."
+				modulePath = "FAILED_TO_PARSE_TERRAFORM_ADDRESS"
+				logger.Error(ctx, "failed to parse Terraform address", slog.F("address", resource.Address))
 			}
 
 			agents, exists := resourceAgents[label]
