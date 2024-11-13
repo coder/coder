@@ -2333,27 +2333,20 @@ func (q *FakeQuerier) GetAccumulatedUsersInsights(_ context.Context, arg databas
 		newUsersByDate[date]++
 	}
 
-	accumulatedByDate := make(map[time.Time]int64)
-	var accumulatedCount int64
-	sortedDates := make([]time.Time, 0, len(newUsersByDate))
-
-	for date := range newUsersByDate {
-		sortedDates = append(sortedDates, date)
+	dateSeries := make([]time.Time, 0)
+	for date := arg.StartTime.Truncate(24 * time.Hour); date.Before(arg.EndTime); date = date.AddDate(0, 0, 1) {
+		dateSeries = append(dateSeries, date)
 	}
 
-	// Sort dates in ascending order
-	sort.Slice(sortedDates, func(i, j int) bool {
-		return sortedDates[i].Before(sortedDates[j])
-	})
-
-	// Calculate accumulated count
-	for _, date := range sortedDates {
+	accumulatedByDate := make(map[time.Time]int64)
+	var accumulatedCount int64
+	for _, date := range dateSeries {
 		accumulatedCount += newUsersByDate[date]
 		accumulatedByDate[date] = accumulatedCount
 	}
 
 	var rows []database.GetAccumulatedUsersInsightsRow
-	for _, date := range sortedDates {
+	for _, date := range dateSeries {
 		rows = append(rows, database.GetAccumulatedUsersInsightsRow{
 			Date:  date,
 			Total: accumulatedByDate[date],
