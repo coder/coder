@@ -22,14 +22,26 @@ func (RootCmd) promptExample() *serpent.Command {
 		}
 	}
 
-	var useSearch bool
-	useSearchOption := serpent.Option{
-		Name:        "search",
-		Description: "Show the search.",
-		Required:    false,
-		Flag:        "search",
-		Value:       serpent.BoolOf(&useSearch),
-	}
+	var (
+		useSearch       bool
+		useSearchOption = serpent.Option{
+			Name:        "search",
+			Description: "Show the search.",
+			Required:    false,
+			Flag:        "search",
+			Value:       serpent.BoolOf(&useSearch),
+		}
+
+		multiSelectValues []string
+		multiSelectError  error
+		useThingsOption   = serpent.Option{
+			Name:        "things",
+			Description: "Tell me what things you want.",
+			Flag:        "things",
+			Default:     "",
+			Value:       serpent.StringArrayOf(&multiSelectValues),
+		}
+	)
 	cmd := &serpent.Command{
 		Use:   "prompt-example",
 		Short: "Example of various prompt types used within coder cli.",
@@ -140,16 +152,18 @@ func (RootCmd) promptExample() *serpent.Command {
 				return err
 			}),
 			promptCmd("multi-select", func(inv *serpent.Invocation) error {
-				values, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
-					Message: "Select some things:",
-					Options: []string{
-						"Code", "Chair", "Whale", "Diamond", "Carrot",
-					},
-					Defaults: []string{"Code"},
-				})
-				_, _ = fmt.Fprintf(inv.Stdout, "%q are nice choices.\n", strings.Join(values, ", "))
-				return err
-			}),
+				if len(multiSelectValues) == 0 {
+					multiSelectValues, multiSelectError = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+						Message: "Select some things:",
+						Options: []string{
+							"Code", "Chair", "Whale", "Diamond", "Carrot",
+						},
+						Defaults: []string{"Code"},
+					})
+				}
+				_, _ = fmt.Fprintf(inv.Stdout, "%q are nice choices.\n", strings.Join(multiSelectValues, ", "))
+				return multiSelectError
+			}, useThingsOption),
 			promptCmd("rich-parameter", func(inv *serpent.Invocation) error {
 				value, err := cliui.RichSelect(inv, cliui.RichSelectOptions{
 					Options: []codersdk.TemplateVersionParameterOption{
