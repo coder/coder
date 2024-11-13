@@ -226,6 +226,6 @@ func (a *UserLinkClaims) Scan(src interface{}) error {
 	return xerrors.Errorf("unexpected type %T", src)
 }
 
-func (a *UserLinkClaims) Value() (driver.Value, error) {
+func (a UserLinkClaims) Value() (driver.Value, error) {
 	return json.Marshal(a)
 }
