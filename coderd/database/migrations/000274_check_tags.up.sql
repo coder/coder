@@ -7,9 +7,9 @@ RETURNS boolean as $$
 BEGIN
 	RETURN
 		-- Special case for untagged provisioners, where only an exact match should count
-		(subset = '{"scope": "organization", "owner": ""}' :: tagset AND subset = superset)
+		(subset = '{"scope": "organization", "owner": ""}' :: jsonb AND subset :: jsonb = superset :: jsonb)
 		-- General case
-		OR subset <@ superset;
+		OR subset :: jsonb <@ superset :: jsonb;
 END;
 $$ LANGUAGE plpgsql;
 

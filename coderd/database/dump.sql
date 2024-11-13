@@ -380,6 +380,20 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	RETURN
+		-- Special case for untagged provisioners, where only an exact match should count
+		(subset = '{"scope": "organization", "owner": ""}' :: jsonb AND subset :: jsonb = superset :: jsonb)
+		-- General case
+		OR subset :: jsonb <@ superset :: jsonb;
+END;
+$$;
+
+COMMENT ON FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
+
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -399,20 +413,6 @@ BEGIN
 	RETURN OLD;
 END;
 $$;
-
-CREATE FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) RETURNS boolean
-    LANGUAGE plpgsql
-    AS $$
-BEGIN
-	RETURN
-		-- Special case for untagged provisioners, where only an exact match should count
-		(superset = '{"scope": "organization", "owner": ""}' :: tagset AND subset = superset)
-		-- General case
-		OR subset <@ superset;
-END;
-$$;
-
-COMMENT ON FUNCTION provisioner_tagset_contains(superset tagset, subset tagset) IS 'Returns true if the superset contains the subset, or if the subset represents an untagged provisioner and the superset is exactly equal to the subset.';
 
 CREATE FUNCTION tailnet_notify_agent_change() RETURNS trigger
     LANGUAGE plpgsql

@@ -3634,10 +3634,16 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 		if daemon.OrganizationID != arg.OrganizationID {
 			continue
 		}
-		for k, v := range arg.WantTags {
-			if t, found := daemon.Tags[k]; !found || t != v {
-				continue
-			}
+		// Special case for untagged provisioners: only match untagged jobs.
+		// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+		// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+		//      THEN nested.tags :: jsonb = @tags :: jsonb
+		if tagsEqual(arg.WantTags, tagsUntagged) && !tagsEqual(arg.WantTags, daemon.Tags) {
+			continue
+		}
+		// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+		if !tagsSubset(arg.WantTags, daemon.Tags) {
+			continue
 		}
 		daemon.Tags = maps.Clone(daemon.Tags)
 		daemons = append(daemons, daemon)
