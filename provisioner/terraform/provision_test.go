@@ -703,6 +703,45 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "workspace-owner-login-type",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "1.0.5"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "login_type"
+						value = data.coder_workspace_owner.me.login_type
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerLoginType: "github",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "login_type",
+						Value: "github",
+					}},
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
