@@ -1,6 +1,7 @@
 resource "google_sql_database_instance" "db" {
-  name                = var.name
-  region              = var.region
+  name                = "${var.name}-coder"
+  project             = var.project_id
+  region              = var.deployments[0].region
   database_version    = var.cloudsql_version
   deletion_protection = false
 
@@ -12,7 +13,7 @@ resource "google_sql_database_instance" "db" {
     availability_type = "ZONAL"
 
     location_preference {
-      zone = var.zone
+      zone = var.deployments[0].zone
     }
 
     database_flags {
@@ -49,11 +50,11 @@ resource "google_sql_database" "coder" {
   }
 }
 
-resource "random_password" "coder-postgres-password" {
+resource "random_password" "coder_postgres_password" {
   length = 12
 }
 
-resource "random_password" "prometheus-postgres-password" {
+resource "random_password" "prometheus_postgres_password" {
   length = 12
 }
 
@@ -62,7 +63,7 @@ resource "google_sql_user" "coder" {
   instance = google_sql_database_instance.db.id
   name     = "${var.name}-coder"
   type     = "BUILT_IN"
-  password = random_password.coder-postgres-password.result
+  password = random_password.coder_postgres_password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
   lifecycle {
@@ -75,7 +76,7 @@ resource "google_sql_user" "prometheus" {
   instance = google_sql_database_instance.db.id
   name     = "${var.name}-prometheus"
   type     = "BUILT_IN"
-  password = random_password.prometheus-postgres-password.result
+  password = random_password.prometheus_postgres_password.result
   # required for postgres, otherwise user fails to delete
   deletion_policy = "ABANDON"
   lifecycle {
@@ -84,5 +85,5 @@ resource "google_sql_user" "prometheus" {
 }
 
 locals {
-  coder_db_url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder-postgres-password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
+  coder_db_url = "postgres://${google_sql_user.coder.name}:${urlencode(random_password.coder_postgres_password.result)}@${google_sql_database_instance.db.private_ip_address}/${google_sql_database.coder.name}?sslmode=disable"
 }

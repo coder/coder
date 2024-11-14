@@ -101,7 +101,7 @@ prometheus:
   ]
 }
 
-resource "kubernetes_secret" "prometheus-postgres-password" {
+resource "kubernetes_secret" "prometheus_postgres_password" {
   type = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-postgres"
@@ -138,7 +138,7 @@ config:
     user: "${var.prometheus_postgres_user}"
     database: "${var.prometheus_postgres_dbname}"
     passwordSecret:
-      name: "${kubernetes_secret.prometheus-postgres-password.metadata.0.name}"
+      name: "${kubernetes_secret.prometheus_postgres_password.metadata.0.name}"
       key: password
     autoDiscoverDatabases: true
 serviceMonitor:
