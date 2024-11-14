@@ -263,8 +263,8 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	})
 }
 
-// @Summary Get the available idp sync claim fields
-// @ID get-the-available-idp-sync-claim-fields
+// @Summary Get the available organization idp sync claim fields
+// @ID get-the-available-organization-idp-sync-claim-fields
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
