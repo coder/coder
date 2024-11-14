@@ -898,16 +898,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			// Manage notifications.
 			var (
-				cfg                  = options.DeploymentValues.Notifications
+				notificationsCfg     = options.DeploymentValues.Notifications
 				notificationsManager *notifications.Manager
 			)
 
-			if cfg.Enabled {
+			if notificationsCfg.Enabled {
 				metrics := notifications.NewMetrics(options.PrometheusRegistry)
 				helpers := templateHelpers(options)
 
 				// The enqueuer is responsible for enqueueing notifications to the given store.
-				enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+				enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
 				}
@@ -916,7 +916,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// The notification manager is responsible for:
 				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
 				//   - keeping the store updated with status updates
-				notificationsManager, err = notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
 				if err != nil {
 					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
 				}
