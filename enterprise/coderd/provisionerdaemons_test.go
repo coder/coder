@@ -953,6 +953,17 @@ func TestGetProvisionerDaemons(t *testing.T) {
 				orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgMember(org.ID))
 
 				daemonCreatedAt := time.Now()
+
+				provisionerKey, err := db.InsertProvisionerKey(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerKeyParams{
+					Name:           "Test Provisioner Key",
+					ID:             uuid.New(),
+					CreatedAt:      daemonCreatedAt,
+					OrganizationID: org.ID,
+					HashedSecret:   []byte{},
+					Tags:           tt.provisionerDaemonTags,
+				})
+				require.NoError(t, err, "should be able to create a provisioner key")
+
 				pd, err := db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
 					CreatedAt:    daemonCreatedAt,
 					Name:         "Test Provisioner Daemon",
@@ -965,6 +976,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 					Version:        "",
 					OrganizationID: org.ID,
 					APIVersion:     "",
+					KeyID:          provisionerKey.ID,
 				})
 				require.NoError(t, err, "should be able to create provisioner daemon")
 				daemonAsCreated := db2sdk.ProvisionerDaemon(pd)
@@ -978,6 +990,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 					require.NoError(t, err)
 					require.Len(t, daemonsAsFound, 1)
 					require.Equal(t, daemonAsCreated.Tags, daemonsAsFound[0].Tags, "found daemon should have the same tags as created daemon")
+					require.Equal(t, daemonsAsFound[0].KeyID, provisionerKey.ID)
 				} else {
 					require.NoError(t, err)
 					assert.Empty(t, daemonsAsFound, "should not have found daemon")
