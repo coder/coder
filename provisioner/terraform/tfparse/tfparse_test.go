@@ -365,7 +365,11 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tar := createTar(t, tc.files)
 			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-			tags, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, tar, "application/x-tar")
+			tmpDir := t.TempDir()
+			tfparse.WriteArchive(tar, "application/x-tar", tmpDir)
+			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+			require.NoError(t, diags.Err())
+			tags, err := parser.WorkspaceTagDefaults(ctx)
 			if tc.expectError != "" {
 				require.NotNil(t, err)
 				require.Contains(t, err.Error(), tc.expectError)
@@ -379,8 +383,13 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			zip := createZip(t, tc.files)
 			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
-			tags, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, zip, "application/zip")
+			tmpDir := t.TempDir()
+			tfparse.WriteArchive(zip, "application/zip", tmpDir)
+			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+			require.NoError(t, diags.Err())
+			tags, err := parser.WorkspaceTagDefaults(ctx)
 			if tc.expectError != "" {
+				require.Error(t, err)
 				require.Contains(t, err.Error(), tc.expectError)
 			} else {
 				require.NoError(t, err)
@@ -458,7 +467,11 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 	b.Run("Tar", func(b *testing.B) {
 		ctx := context.Background()
 		for i := 0; i < b.N; i++ {
-			_, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, tarFile, "application/x-tar")
+			tmpDir := b.TempDir()
+			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
+			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+			require.NoError(b, diags.Err())
+			_, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -468,7 +481,11 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 	b.Run("Zip", func(b *testing.B) {
 		ctx := context.Background()
 		for i := 0; i < b.N; i++ {
-			_, err := tfparse.WorkspaceTagDefaultsFromFile(ctx, logger, zipFile, "application/zip")
+			tmpDir := b.TempDir()
+			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
+			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
+			require.NoError(b, diags.Err())
+			_, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}

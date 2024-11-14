@@ -31,25 +31,60 @@ import (
 // introducing a circular dependency
 const maxFileSizeBytes = 10 * (10 << 20) // 10 MB
 
-// ParseHCLFile() is only method of hclparse.Parser we use in this package.
-// hclparse.Parser will by default cache all previous files it has ever
-// parsed. While leveraging this caching behavior is nice, we _never_ want
-// to end up in a situation where we end up returning stale values.
-type Parser interface {
+// parseHCLFiler is the actual interface of *hclparse.Parser we use
+// to parse HCL. This is extracted to an interface so we can more
+// easily swap this out for an alternative implementation later on.
+type parseHCLFiler interface {
 	ParseHCLFile(filename string) (*hcl.File, hcl.Diagnostics)
 }
 
-// WorkspaceTags extracts tags from coder_workspace_tags data sources defined in module.
-// Note that this only returns the lexical values of the data source, and does not
-// evaluate variables and such. To do this, see evalProvisionerTags below.
-// If the provided Parser is nil, a new instance of hclparse.Parser will be used instead.
-func WorkspaceTags(ctx context.Context, logger slog.Logger, parser Parser, module *tfconfig.Module) (map[string]string, error) {
-	if parser == nil {
-		parser = hclparse.NewParser()
+// Parser parses a Terraform module on disk.
+type Parser struct {
+	logger     slog.Logger
+	underlying parseHCLFiler
+	module     *tfconfig.Module
+	workdir    string
+}
+
+// Option is an option for a new instance of Parser.
+type Option func(*Parser)
+
+// WithLogger sets the logger to be used by Parser
+func WithLogger(logger slog.Logger) Option {
+	return func(p *Parser) {
+		p.logger = logger
 	}
+}
+
+// New returns a new instance of Parser, as well as any diagnostics
+// encountered while parsing the module.
+func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
+	p := Parser{
+		logger:     slog.Make(),
+		underlying: hclparse.NewParser(),
+		workdir:    workdir,
+		module:     nil,
+	}
+	for _, o := range opts {
+		o(&p)
+	}
+
+	var diags tfconfig.Diagnostics
+	if p.module == nil {
+		m, ds := tfconfig.LoadModule(workdir)
+		diags = ds
+		p.module = m
+	}
+
+	return &p, diags
+}
+
+// WorkspaceTags looks for all coder_workspace_tags datasource in the module
+// and returns the raw values for the tags. Use
+func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
 	tags := map[string]string{}
 	var skipped []string
-	for _, dataResource := range module.DataResources {
+	for _, dataResource := range p.module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
 			skipped = append(skipped, strings.Join([]string{"data", dataResource.Type, dataResource.Name}, "."))
 			continue
@@ -62,7 +97,7 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, parser Parser, modul
 			continue
 		}
 		// We know in which HCL file is the data resource defined.
-		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		file, diags = p.underlying.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
@@ -119,46 +154,25 @@ func WorkspaceTags(ctx context.Context, logger slog.Logger, parser Parser, modul
 			}
 		}
 	}
-	logger.Debug(ctx, "found workspace tags", slog.F("tags", maps.Keys(tags)), slog.F("skipped", skipped))
+	p.logger.Debug(ctx, "found workspace tags", slog.F("tags", maps.Keys(tags)), slog.F("skipped", skipped))
 	return tags, nil
 }
 
-//	WorkspaceTagDefaultsFromFile extracts the default values for a `coder_workspace_tags` resource from the given
-//
-// file. It also ensures that any uses of the `coder_workspace_tags` data source only
-// reference the following data types:
-// 1. Static variables
-// 2. Template variables
-// 3. Coder parameters
-// Any other data types are not allowed, as their values cannot be known at
-// the time of template import.
-func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file []byte, mimetype string) (tags map[string]string, err error) {
-	module, cleanup, err := loadModuleFromFile(file, mimetype)
-	if err != nil {
-		return nil, xerrors.Errorf("load module from file: %w", err)
-	}
-	defer func() {
-		if err := cleanup(); err != nil {
-			logger.Error(ctx, "failed to clean up", slog.Error(err))
-		}
-	}()
-
-	parser := hclparse.NewParser()
-
+func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, error) {
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err = WorkspaceTags(ctx, logger, parser, module)
+	tags, err := p.WorkspaceTags(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
 	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
-	varsDefaults, err := loadVarsDefaults(ctx, logger, maps.Values(module.Variables))
+	varsDefaults, err := p.VariableDefaults(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := loadParamsDefaults(ctx, logger, parser, maps.Values(module.DataResources))
+	paramsDefaults, err := p.CoderParameterDefaults(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -166,7 +180,7 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 	// Evaluate the tags expressions given the inputs.
 	// This will resolve any variables or parameters to their default
 	// values.
-	evalTags, err := EvalProvisionerTags(varsDefaults, paramsDefaults, tags)
+	evalTags, err := evaluateWorkspaceTags(varsDefaults, paramsDefaults, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
@@ -181,54 +195,64 @@ func WorkspaceTagDefaultsFromFile(ctx context.Context, logger slog.Logger, file 
 	return evalTags, nil
 }
 
-func loadModuleFromFile(file []byte, mimetype string) (module *tfconfig.Module, cleanup func() error, err error) {
-	// Create a temporary directory
-	cleanup = func() error { return nil } // no-op cleanup
-	tmpDir, err := os.MkdirTemp("", "tfparse-*")
-	if err != nil {
-		return nil, cleanup, xerrors.Errorf("create temp dir: %w", err)
+// TemplateVariables returns all of the Terraform variables in the module
+// as TemplateVariables.
+func (p *Parser) TemplateVariables() ([]*proto.TemplateVariable, error) {
+	// Sort variables by (filename, line) to make the ordering consistent
+	variables := make([]*tfconfig.Variable, 0, len(p.module.Variables))
+	for _, v := range p.module.Variables {
+		variables = append(variables, v)
 	}
-	cleanup = func() error { // real cleanup
-		return os.RemoveAll(tmpDir)
-	}
+	sort.Slice(variables, func(i, j int) bool {
+		return compareSourcePos(variables[i].Pos, variables[j].Pos)
+	})
 
-	// Untar the file into the temporary directory
+	var templateVariables []*proto.TemplateVariable
+	for _, v := range variables {
+		mv, err := convertTerraformVariable(v)
+		if err != nil {
+			return nil, err
+		}
+		templateVariables = append(templateVariables, mv)
+	}
+	return templateVariables, nil
+}
+
+// WriteArchive is a helper function to write a in-memory archive
+// with the given mimetype to disk. Only zip and tar archives
+// are currently supported.
+func WriteArchive(bs []byte, mimetype string, path string) error {
+	// Check if we need to convert the file first!
 	var rdr io.Reader
 	switch mimetype {
 	case "application/x-tar":
-		rdr = bytes.NewReader(file)
+		rdr = bytes.NewReader(bs)
 	case "application/zip":
-		zr, err := zip.NewReader(bytes.NewReader(file), int64(len(file)))
-		if err != nil {
-			return nil, cleanup, xerrors.Errorf("read zip file: %w", err)
+		if zr, err := zip.NewReader(bytes.NewReader(bs), int64(len(bs))); err != nil {
+			return xerrors.Errorf("read zip file: %w", err)
+		} else if tarBytes, err := archive.CreateTarFromZip(zr, maxFileSizeBytes); err != nil {
+			return xerrors.Errorf("convert zip to tar: %w", err)
+		} else {
+			rdr = bytes.NewReader(tarBytes)
 		}
-		tarBytes, err := archive.CreateTarFromZip(zr, maxFileSizeBytes)
-		if err != nil {
-			return nil, cleanup, xerrors.Errorf("convert zip to tar: %w", err)
-		}
-		rdr = bytes.NewReader(tarBytes)
 	default:
-		return nil, cleanup, xerrors.Errorf("unsupported mimetype: %s", mimetype)
+		return xerrors.Errorf("unsupported mimetype: %s", mimetype)
 	}
 
-	if err := provisionersdk.Untar(tmpDir, rdr); err != nil {
-		return nil, cleanup, xerrors.Errorf("untar: %w", err)
+	// Untar the file into the temporary directory
+	if err := provisionersdk.Untar(path, rdr); err != nil {
+		return xerrors.Errorf("untar: %w", err)
 	}
 
-	module, diags := tfconfig.LoadModule(tmpDir)
-	if diags.HasErrors() {
-		return nil, cleanup, xerrors.Errorf("load module: %s", diags.Error())
-	}
-
-	return module, cleanup, nil
+	return nil
 }
 
-// loadVarsDefaults returns the default values for all variables passed to it.
-func loadVarsDefaults(ctx context.Context, logger slog.Logger, variables []*tfconfig.Variable) (map[string]string, error) {
+// VariableDefaults returns the default values for all variables passed to it.
+func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error) {
 	// iterate through vars to get the default values for all
 	// variables.
 	m := make(map[string]string)
-	for _, v := range variables {
+	for _, v := range p.module.Variables {
 		if v == nil {
 			continue
 		}
@@ -238,15 +262,21 @@ func loadVarsDefaults(ctx context.Context, logger slog.Logger, variables []*tfco
 		}
 		m[v.Name] = strings.Trim(sv, `"`)
 	}
-	logger.Debug(ctx, "found default values for variables", slog.F("defaults", m))
+	p.logger.Debug(ctx, "found default values for variables", slog.F("defaults", m))
 	return m, nil
 }
 
-// loadParamsDefaults returns the default values of all coder_parameter data sources data sources provided.
-func loadParamsDefaults(ctx context.Context, logger slog.Logger, parser Parser, dataSources []*tfconfig.Resource) (map[string]string, error) {
+// CoderParameterDefaults returns the default values of all coder_parameter data sources
+// in the parsed module.
+func (p *Parser) CoderParameterDefaults(ctx context.Context) (map[string]string, error) {
 	defaultsM := make(map[string]string)
-	var skipped []string
-	for _, dataResource := range dataSources {
+	var (
+		skipped []string
+		file    *hcl.File
+		diags   hcl.Diagnostics
+	)
+
+	for _, dataResource := range p.module.DataResources {
 		if dataResource == nil {
 			continue
 		}
@@ -256,15 +286,13 @@ func loadParamsDefaults(ctx context.Context, logger slog.Logger, parser Parser, 
 			continue
 		}
 
-		var file *hcl.File
-		var diags hcl.Diagnostics
-
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
 			continue
 		}
 
 		// We know in which HCL file is the data resource defined.
-		file, diags = parser.ParseHCLFile(dataResource.Pos.Filename)
+		// NOTE: hclparse.Parser will cache multiple successive calls to parse the same file.
+		file, diags = p.underlying.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
 			return nil, xerrors.Errorf("can't parse the resource file %q: %s", dataResource.Pos.Filename, diags.Error())
 		}
@@ -299,13 +327,13 @@ func loadParamsDefaults(ctx context.Context, logger slog.Logger, parser Parser, 
 			}
 		}
 	}
-	logger.Debug(ctx, "found default values for parameters", slog.F("defaults", defaultsM), slog.F("skipped", skipped))
+	p.logger.Debug(ctx, "found default values for parameters", slog.F("defaults", defaultsM), slog.F("skipped", skipped))
 	return defaultsM, nil
 }
 
-// EvalProvisionerTags evaluates the given workspaceTags based on the given
+// evaluateWorkspaceTags evaluates the given workspaceTags based on the given
 // default values for variables and coder_parameter data sources.
-func EvalProvisionerTags(varsDefaults, paramsDefaults, workspaceTags map[string]string) (map[string]string, error) {
+func evaluateWorkspaceTags(varsDefaults, paramsDefaults, workspaceTags map[string]string) (map[string]string, error) {
 	// Filter only allowed data sources for preflight check.
 	// This is not strictly required but provides a friendlier error.
 	if err := validWorkspaceTagValues(workspaceTags); err != nil {
@@ -419,29 +447,6 @@ func previewFileContent(fileRange hcl.Range) (string, error) {
 		return "", err
 	}
 	return string(fileRange.SliceBytes(body)), nil
-}
-
-// LoadTerraformVariables extracts all Terraform variables from module and converts them
-// to template variables. The variables are sorted by source position.
-func LoadTerraformVariables(module *tfconfig.Module) ([]*proto.TemplateVariable, error) {
-	// Sort variables by (filename, line) to make the ordering consistent
-	variables := make([]*tfconfig.Variable, 0, len(module.Variables))
-	for _, v := range module.Variables {
-		variables = append(variables, v)
-	}
-	sort.Slice(variables, func(i, j int) bool {
-		return compareSourcePos(variables[i].Pos, variables[j].Pos)
-	})
-
-	var templateVariables []*proto.TemplateVariable
-	for _, v := range variables {
-		mv, err := convertTerraformVariable(v)
-		if err != nil {
-			return nil, err
-		}
-		templateVariables = append(templateVariables, mv)
-	}
-	return templateVariables, nil
 }
 
 // convertTerraformVariable converts a Terraform variable to a template-wide variable, processed by Coder.
