@@ -21,6 +21,7 @@ func main() {
 			Username("postgres").
 			Password("postgres").
 			Database("postgres").
+			Encoding("UTF8").
 			Port(uint32(5432)).
 			Logger(os.Stdout),
 	)
@@ -40,6 +41,7 @@ func main() {
 		`ALTER SYSTEM SET max_connections = '1000';`,
 		`ALTER SYSTEM SET shared_buffers = '1GB';`,
 		`ALTER SYSTEM SET synchronous_commit = 'off';`,
+		`ALTER SYSTEM SET client_encoding = 'UTF8';`,
 	}
 	db, err := sql.Open("postgres", "postgres://postgres:postgres@127.0.0.1:5432/postgres?sslmode=disable")
 	if err != nil {
