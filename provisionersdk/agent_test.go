@@ -120,7 +120,7 @@ func TestAgentScript(t *testing.T) {
 		// Kill the command, wait for the command to yield.
 		err := cmd.Cancel()
 		if err != nil {
-			t.Fatalf("unable to cancel the command, see logs:\n%s", output.String())
+			t.Fatalf("unable to cancel the command: %v, see logs:\n%s", err, output.String())
 		}
 		wg.Wait()
 
