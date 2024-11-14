@@ -434,8 +434,8 @@ func createZip(t testing.TB, files map[string]string) []byte {
 // goarch: amd64
 // pkg: github.com/coder/coder/v2/provisioner/terraform/tfparse
 // cpu: AMD EPYC 7502P 32-Core Processor
-// BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1770	   1064920 ns/op	  197638 B/op	    1312 allocs/op
-// BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	     954	   1197070 ns/op	  246819 B/op	    1369 allocs/op
+// BenchmarkWorkspaceTagDefaultsFromFile/Tar-16         	    1922	    847236 ns/op	  176257 B/op	    1073 allocs/op
+// BenchmarkWorkspaceTagDefaultsFromFile/Zip-16         	    1273	    946910 ns/op	  225293 B/op	    1130 allocs/op
 // PASS
 func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 	files := map[string]string{
