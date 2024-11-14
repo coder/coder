@@ -109,6 +109,7 @@ func TestOIDCClaims(t *testing.T) {
 			charlie,
 		)...,
 	).Do()
+	orgC := dbfake.Organization(t, db).Members().Do()
 
 	// Verify the OIDC claim fields
 	always := []string{"array", "map", "nil", "number"}
@@ -116,6 +117,7 @@ func TestOIDCClaims(t *testing.T) {
 	expectB := append([]string{"sub", "bob-id", "bob-info", "charlie-id", "charlie-info"}, always...)
 	requireClaims(t, db, orgA.Org.ID, expectA)
 	requireClaims(t, db, orgB.Org.ID, expectB)
+	requireClaims(t, db, orgC.Org.ID, []string{})
 	requireClaims(t, db, uuid.Nil, slice.Unique(append(expectA, expectB...)))
 }
 
