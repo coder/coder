@@ -185,6 +185,17 @@ Multiple providers are an Enterprise feature.
 [Learn more](https://coder.com/pricing#compare-plans). Below is an example
 configuration with multiple providers.
 
+<blockquote class="admonition warning">
+
+**Note:** To support regex matching for paths (e.g. github\.com/org), you'll
+need to add this to the [Coder agent startup script][agent_startup]:
+
+```shell
+git config --global credential.useHttpPath true
+```
+
+</blockquote>
+
 ```env
 # Provider 1) github.com
 CODER_EXTERNAL_AUTH_0_ID=primary-github
@@ -204,10 +215,4 @@ CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_t
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
-To support regex matching for paths (e.g. github\.com/org), you'll need to add
-this to the
-[Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
-
-```shell
-git config --global credential.useHttpPath true
-```
+[agent_startup]: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script
