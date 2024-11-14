@@ -160,11 +160,11 @@ func TestProvisionerKeyTags(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		tags, err := client.FetchProvisionerTagsTagsByKey(ctx, owner.OrganizationID, "key")
+		tags, err := client.FetchProvisionerTagsByKey(ctx, owner.OrganizationID, "key")
 		require.NoError(t, err)
 		require.Equal(t, tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
 
-		_, err = client.FetchProvisionerTagsTagsByKey(ctx, owner.OrganizationID, "invalid_key")
+		_, err = client.FetchProvisionerTagsByKey(ctx, owner.OrganizationID, "invalid_key")
 		require.ErrorContains(t, err, "Resource not found")
 	})
 }
