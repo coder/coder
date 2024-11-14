@@ -137,14 +137,7 @@ type userGenerator struct {
 }
 
 func (g userGenerator) noLink(lt database.LoginType) database.User {
-	return g.user(lt, false, nil)
-}
 
-func (g userGenerator) withLink(lt database.LoginType, rawJSON json.RawMessage) database.User {
-	return g.user(lt, true, rawJSON)
-}
-
-func (g userGenerator) user(lt database.LoginType, createLink bool, rawJSON json.RawMessage) database.User {
 	t := g.t
 	db := g.db
 
@@ -153,13 +146,17 @@ func (g userGenerator) user(lt database.LoginType, createLink bool, rawJSON json
 	u := dbgen.User(t, db, database.User{
 		LoginType: lt,
 	})
+	return u
+}
 
-	if !createLink {
-		return u
-	}
+func (g userGenerator) withLink(lt database.LoginType, rawJSON json.RawMessage) database.User {
+	t := g.t
+	db := g.db
+
+	user := g.noLink(lt)
 
 	link := dbgen.UserLink(t, db, database.UserLink{
-		UserID:    u.ID,
+		UserID:    user.ID,
 		LoginType: lt,
 	})
 
@@ -188,7 +185,7 @@ func (g userGenerator) user(lt database.LoginType, createLink bool, rawJSON json
 		require.NoError(t, err)
 	}
 
-	return u
+	return user
 }
 
 type rawUpdater interface {

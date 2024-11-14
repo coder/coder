@@ -8409,7 +8409,7 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
-func (q *FakeQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUID) ([]string, error) {
 	orgMembers := q.getOrganizationMemberNoLock(organizationID)
 
 	var fields []string
