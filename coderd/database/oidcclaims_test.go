@@ -137,7 +137,6 @@ type userGenerator struct {
 }
 
 func (g userGenerator) noLink(lt database.LoginType) database.User {
-
 	t := g.t
 	db := g.db
 
