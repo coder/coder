@@ -383,6 +383,8 @@ func TestProvision(t *testing.T) {
 		ExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
+		// Some tests may need to be skipped until the relevant provider version is released.
+		SkipReason string
 	}{
 		{
 			Name: "missing-variable",
@@ -703,12 +705,56 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name:       "workspace-owner-login-type",
+			SkipReason: "field will be added in provider version 1.1.0",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "1.1.0"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "login_type"
+						value = data.coder_workspace_owner.me.login_type
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerLoginType: "github",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "login_type",
+						Value: "github",
+					}},
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
 		testCase := testCase
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
+
+			if testCase.SkipReason != "" {
+				t.Skip(testCase.SkipReason)
+			}
 
 			ctx, api := setupProvisioner(t, nil)
 			sess := configure(ctx, t, api, &proto.Config{
