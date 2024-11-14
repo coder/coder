@@ -202,12 +202,13 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 
 // @Summary Get provisioner key tags by ID
 // @ID get-provisioner-key-tags-by-id
+// @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param organization path string true "Organization ID"
-// @Param provisionerkeyid path string true "Provisioner Key ID" format(uuid)
+// @Param provisionerkey path string true "Provisioner Key"
 // @Success 200 {object} codersdk.ProvisionerKeyTags
-// @Router /organizations/{organization}/provisionerkeys/{provisionerkeyid}/tags [get]
+// @Router /organizations/{organization}/provisionerkeys/{provisionerkey}/tags [get]
 func (*API) fetchProvisionerKeyTags(rw http.ResponseWriter, r *http.Request) {
 	var (
 		ctx = r.Context()

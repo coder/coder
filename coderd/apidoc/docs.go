@@ -3091,43 +3091,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{organization}/provisionerkeys/{provisionerkeyid}/tags": {
-            "get": {
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get provisioner key tags by ID",
-                "operationId": "get-provisioner-key-tags-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "format": "uuid",
-                        "description": "Provisioner Key ID",
-                        "name": "provisionerkeyid",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
-                        }
-                    }
-                }
-            }
-        },
         "/organizations/{organization}/provisionerkeys/{provisionerkey}": {
             "delete": {
                 "security": [
@@ -3159,6 +3122,47 @@ const docTemplate = `{
                 "responses": {
                     "204": {
                         "description": "No Content"
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerkeys/{provisionerkey}/tags": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get provisioner key tags by ID",
+                "operationId": "get-provisioner-key-tags-by-id",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "description": "Provisioner Key",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
+                        }
                     }
                 }
             }
