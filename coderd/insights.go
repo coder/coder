@@ -506,11 +506,11 @@ func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	zone, _ := startTime.Zone()
+	_, offset := startTime.Zone()
 	rows, err := api.Database.GetAccumulatedUsersInsights(ctx, database.GetAccumulatedUsersInsightsParams{
 		StartTime: startTime,
 		EndTime:   endTime,
-		Timezone:  zone,
+		Timezone:  string(offset),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
