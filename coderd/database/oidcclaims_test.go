@@ -163,7 +163,7 @@ func (g userGenerator) withLink(lt database.LoginType, rawJSON json.RawMessage) 
 	if sql, ok := db.(rawUpdater); ok {
 		// The only way to put arbitrary json into the db for testing edge cases.
 		// Making this a public API would be a mistake.
-		err := sql.UpdateUserLinkRawJSON(context.Background(), u.ID, rawJSON)
+		err := sql.UpdateUserLinkRawJSON(context.Background(), user.ID, rawJSON)
 		require.NoError(t, err)
 	} else {
 		// no need to test the json key logic in dbmem. Everything is type safe.
