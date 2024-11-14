@@ -352,6 +352,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Use(
 					httpmw.ExtractProvisionerKeyParam(options.Database),
 				)
+				r.Get("/tags", api.fetchProvisionerKeyTags)
 				r.Delete("/", api.deleteProvisionerKey)
 			})
 		})

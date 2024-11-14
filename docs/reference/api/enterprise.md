@@ -1750,6 +1750,42 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get provisioner key tags by ID
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerkeys/{provisionerkeyid}/tags \
+  -H 'Accept: application/json'
+```
+
+`GET /organizations/{organization}/provisionerkeys/{provisionerkeyid}/tags`
+
+### Parameters
+
+| Name               | In   | Type         | Required | Description        |
+| ------------------ | ---- | ------------ | -------- | ------------------ |
+| `organization`     | path | string       | true     | Organization ID    |
+| `provisionerkeyid` | path | string(uuid) | true     | Provisioner Key ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"property1": "string",
+	"property2": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                               |
+| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags) |
+
 ## Delete provisioner key
 
 ### Code samples

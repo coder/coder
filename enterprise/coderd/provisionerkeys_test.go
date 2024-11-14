@@ -133,3 +133,38 @@ func TestProvisionerKeys(t *testing.T) {
 	err = orgAdmin.DeleteProvisionerKey(ctx, owner.OrganizationID, codersdk.ProvisionerKeyNamePSK)
 	require.ErrorContains(t, err, "reserved")
 }
+
+func TestProvisionerKeyTags(t *testing.T) {
+	t.Parallel()
+	t.Run("GetTags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
+		t.Cleanup(cancel)
+		dv := coderdtest.DeploymentValues(t)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		//nolint:gocritic // Not the purpose of this test
+		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "key",
+			Tags: map[string]string{"key1": "value1", "key2": "value2"},
+		})
+		require.NoError(t, err)
+
+		tags, err := client.GetProvisionTagsByKeyID(ctx, owner.OrganizationID, "key")
+		require.NoError(t, err)
+		require.Equal(t, tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
+
+		err = client.DeleteProvisionerKey(ctx, owner.OrganizationID, "invalid_key")
+		require.ErrorContains(t, err, "Resource not found")
+	})
+}
