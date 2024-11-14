@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"net/http"
 )
 
@@ -62,14 +61,10 @@ type AuthorizationObject struct {
 // AuthCheck allows the authenticated user to check if they have the given permissions
 // to a set of resources.
 func (c *Client) AuthCheck(ctx context.Context, req AuthorizationRequest) (AuthorizationResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/authcheck", req)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode != http.StatusOK {
-		return AuthorizationResponse{}, ReadBodyAsError(res)
-	}
-	var resp AuthorizationResponse
-	return resp, json.NewDecoder(res.Body).Decode(&resp)
+	return makeSDKRequest[AuthorizationResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        "/api/v2/authcheck",
+		Body:       req,
+		ExpectCode: http.StatusOK,
+	})
 }

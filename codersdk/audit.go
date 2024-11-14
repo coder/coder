@@ -179,45 +179,33 @@ type CreateTestAuditLogRequest struct {
 
 // AuditLogs retrieves audit logs from the given page.
 func (c *Client) AuditLogs(ctx context.Context, req AuditLogsRequest) (AuditLogResponse, error) {
-	res, err := c.Request(ctx, http.MethodGet, "/api/v2/audit", nil, req.Pagination.asRequestOption(), func(r *http.Request) {
-		q := r.URL.Query()
-		var params []string
-		if req.SearchQuery != "" {
-			params = append(params, req.SearchQuery)
-		}
-		q.Set("q", strings.Join(params, " "))
-		r.URL.RawQuery = q.Encode()
+	return makeSDKRequest[AuditLogResponse](ctx, c, sdkRequestArgs{
+		Method: http.MethodGet,
+		URL:    "/api/v2/audit",
+		ReqOpts: []RequestOption{
+			req.Pagination.asRequestOption(),
+			func(r *http.Request) {
+				q := r.URL.Query()
+				var params []string
+				if req.SearchQuery != "" {
+					params = append(params, req.SearchQuery)
+				}
+				q.Set("q", strings.Join(params, " "))
+				r.URL.RawQuery = q.Encode()
+			},
+		},
+		ExpectCode: http.StatusOK,
 	})
-	if err != nil {
-		return AuditLogResponse{}, err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return AuditLogResponse{}, ReadBodyAsError(res)
-	}
-
-	var logRes AuditLogResponse
-	err = json.NewDecoder(res.Body).Decode(&logRes)
-	if err != nil {
-		return AuditLogResponse{}, err
-	}
-
-	return logRes, nil
 }
 
 // CreateTestAuditLog creates a fake audit log. Only owners of the organization
 // can perform this action. It's used for testing purposes.
 func (c *Client) CreateTestAuditLog(ctx context.Context, req CreateTestAuditLogRequest) error {
-	res, err := c.Request(ctx, http.MethodPost, "/api/v2/audit/testgenerate", req)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusNoContent {
-		return err
-	}
-
-	return nil
+	_, err := makeSDKRequest[noResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        "/api/v2/audit/testgenerate",
+		Body:       req,
+		ExpectCode: http.StatusNoContent,
+	})
+	return err
 }
