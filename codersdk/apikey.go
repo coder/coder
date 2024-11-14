@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"time"
@@ -65,17 +64,12 @@ type GenerateAPIKeyResponse struct {
 // custom expiration. These tokens can be used for long-lived access,
 // like for use with CI.
 func (c *Client) CreateToken(ctx context.Context, userID string, req CreateTokenRequest) (GenerateAPIKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), req)
-	if err != nil {
-		return GenerateAPIKeyResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
-	}
-
-	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return makeSDKRequest[GenerateAPIKeyResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID),
+		Body:       req,
+		ExpectCode: http.StatusCreated,
+	})
 }
 
 // CreateAPIKey generates an API key for the user ID provided.
@@ -84,17 +78,13 @@ func (c *Client) CreateToken(ctx context.Context, userID string, req CreateToken
 // Only use CreateAPIKey if you want to emulate the session created for
 // a browser like login.
 func (c *Client) CreateAPIKey(ctx context.Context, user string) (GenerateAPIKeyResponse, error) {
-	res, err := c.Request(ctx, http.MethodPost, fmt.Sprintf("/api/v2/users/%s/keys", user), nil)
-	if err != nil {
-		return GenerateAPIKeyResponse{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusCreated {
-		return GenerateAPIKeyResponse{}, ReadBodyAsError(res)
-	}
-
-	var apiKey GenerateAPIKeyResponse
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return makeSDKRequest[GenerateAPIKeyResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodPost,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys", user),
+		Body:       nil,
+		ReqOpts:    nil,
+		ExpectCode: http.StatusCreated,
+	})
 }
 
 type TokensFilter struct {
@@ -122,69 +112,47 @@ func (f TokensFilter) asRequestOption() RequestOption {
 
 // Tokens list machine API keys.
 func (c *Client) Tokens(ctx context.Context, userID string, filter TokensFilter) ([]APIKeyWithOwner, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID), nil, filter.asRequestOption())
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-	apiKey := []APIKeyWithOwner{}
-	return apiKey, json.NewDecoder(res.Body).Decode(&apiKey)
+	return makeSDKRequest[[]APIKeyWithOwner](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/tokens", userID),
+		ReqOpts:    []RequestOption{filter.asRequestOption()},
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // APIKeyByID returns the api key by id.
 func (c *Client) APIKeyByID(ctx context.Context, userID string, id string) (*APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusCreated {
-		return nil, ReadBodyAsError(res)
-	}
-	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return makeSDKRequest[*APIKey](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // APIKeyByName returns the api key by name.
 func (c *Client) APIKeyByName(ctx context.Context, userID string, name string) (*APIKey, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", userID, name), nil)
-	if err != nil {
-		return nil, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusCreated {
-		return nil, ReadBodyAsError(res)
-	}
-	apiKey := &APIKey{}
-	return apiKey, json.NewDecoder(res.Body).Decode(apiKey)
+	return makeSDKRequest[*APIKey](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/tokens/%s", userID, name),
+		ExpectCode: http.StatusOK,
+	})
 }
 
 // DeleteAPIKey deletes API key by id.
 func (c *Client) DeleteAPIKey(ctx context.Context, userID string, id string) error {
-	res, err := c.Request(ctx, http.MethodDelete, fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id), nil)
-	if err != nil {
-		return err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusNoContent {
-		return ReadBodyAsError(res)
-	}
-	return nil
+	_, err := makeSDKRequest[noResponse](ctx, c, sdkRequestArgs{
+		Method:     http.MethodDelete,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/%s", userID, id),
+		ExpectCode: http.StatusNoContent,
+	})
+	return err
 }
 
 // GetTokenConfig returns deployment options related to token management
 func (c *Client) GetTokenConfig(ctx context.Context, userID string) (TokenConfig, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/users/%s/keys/tokens/tokenconfig", userID), nil)
-	if err != nil {
-		return TokenConfig{}, err
-	}
-	defer res.Body.Close()
-	if res.StatusCode > http.StatusOK {
-		return TokenConfig{}, ReadBodyAsError(res)
-	}
-	tokenConfig := TokenConfig{}
-	return tokenConfig, json.NewDecoder(res.Body).Decode(&tokenConfig)
+	return makeSDKRequest[TokenConfig](ctx, c, sdkRequestArgs{
+		Method:     http.MethodGet,
+		URL:        fmt.Sprintf("/api/v2/users/%s/keys/tokens/tokenconfig", userID),
+		ExpectCode: http.StatusOK,
+	})
 }

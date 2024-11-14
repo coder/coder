@@ -2,7 +2,6 @@ package codersdk
 
 import (
 	"context"
-	"encoding/json"
 	"fmt"
 	"net/http"
 	"strings"
@@ -265,22 +264,12 @@ func (c *Client) DeleteOrganization(ctx context.Context, orgID string) error {
 
 // ProvisionerDaemons returns provisioner daemons available.
 func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
-	res, err := c.Request(ctx, http.MethodGet,
+	return makeSDKRequest[[]ProvisionerDaemon](ctx, c, sdkRequestArgs{
+		Method: http.MethodGet,
 		// TODO: the organization path parameter is currently ignored.
-		"/api/v2/organizations/default/provisionerdaemons",
-		nil,
-	)
-	if err != nil {
-		return nil, xerrors.Errorf("execute request: %w", err)
-	}
-	defer res.Body.Close()
-
-	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
-	}
-
-	var daemons []ProvisionerDaemon
-	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+		URL:        "/api/v2/organizations/default/provisionerdaemons",
+		ExpectCode: http.StatusOK,
+	})
 }
 
 func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
