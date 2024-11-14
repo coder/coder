@@ -370,15 +370,17 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    needs:
-      - changes
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    # This timeout must be greater than the timeout set by `go test` in
-    # `make test-postgres` to ensure we receive a trace of running
-    # goroutines. Setting this to the timeout +5m should work quite well
-    # even if some of the preceding steps are slow.
     timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
@@ -400,8 +402,31 @@ jobs:
         env:
           POSTGRES_VERSION: "13"
           TS_DEBUG_DISCO: "true"
+        shell: bash
         run: |
-          make test-postgres
+          # if macOS, install google-chrome for scaletests
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            brew install google-chrome
+          fi
+
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
+
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            make test-postgres
+          else
+            go run scripts/embedded-pg/main.go
+            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
+          fi
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
