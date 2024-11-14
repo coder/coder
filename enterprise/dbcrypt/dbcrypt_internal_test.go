@@ -51,12 +51,29 @@ func TestUserLinks(t *testing.T) {
 			UserID: user.ID,
 		})
 
+		expectedClaims := database.UserLinkClaims{
+			IDTokenClaims: map[string]interface{}{
+				"sub": "123",
+				"groups": []string{
+					"foo", "bar",
+				},
+			},
+			UserInfoClaims: map[string]interface{}{
+				"number": 1,
+				"struct": struct {
+					Number int
+				}{
+					Number: 2,
+				},
+			},
+		}
+
 		updated, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
-			Claims:            database.UserLinkClaims{},
+			Claims:            expectedClaims,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)
@@ -68,6 +85,7 @@ func TestUserLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "refresh")
+		require.Equal(t, expectedClaims, rawLink.Claims)
 	})
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
