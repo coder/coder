@@ -64,15 +64,13 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
 
 	tags := database.StringMap{}
-	if tagParam := r.URL.Query().Get("tags"); tagParam != "" {
-		err := tags.Scan([]byte(tagParam))
-		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Invalid tags query parameter",
-				Detail:  err.Error(),
-			})
-			return
-		}
+	tagParam := r.URL.Query().Get("tags")
+	if err := tags.Scan([]byte(tagParam)); err != nil {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "Invalid tags query parameter",
+			Detail:  err.Error(),
+		})
+		return
 	}
 
 	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(
