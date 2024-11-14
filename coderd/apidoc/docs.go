@@ -11474,7 +11474,11 @@ const docTemplate = `{
                 },
                 "smarthost": {
                     "description": "The intermediary SMTP host through which emails are sent (host:port).",
-                    "type": "string"
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/serpent.HostPort"
+                        }
+                    ]
                 },
                 "tls": {
                     "description": "TLS details.",

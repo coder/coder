@@ -266,7 +266,10 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 				"force_tls": true,
 				"from": "string",
 				"hello": "string",
-				"smarthost": "string",
+				"smarthost": {
+					"host": "string",
+					"port": "string"
+				},
 				"tls": {
 					"ca_file": "string",
 					"cert_file": "string",

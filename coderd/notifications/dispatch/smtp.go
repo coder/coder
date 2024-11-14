@@ -34,10 +34,11 @@ import (
 )
 
 var (
-	ValidationNoFromAddressErr = xerrors.New("'from' address not defined")
-	ValidationNoToAddressErr   = xerrors.New("'to' address(es) not defined")
-	ValidationNoSmarthostErr   = xerrors.New("'smarthost' not defined")
-	ValidationNoHelloErr       = xerrors.New("'hello' not defined")
+	ValidationNoFromAddressErr   = xerrors.New("'from' address not defined")
+	ValidationNoToAddressErr     = xerrors.New("'to' address(es) not defined")
+	ValidationNoSmarthostHostErr = xerrors.New("smarthost 'host' is not defined, or is invalid")
+	ValidationNoSmarthostPortErr = xerrors.New("smarthost 'port' is not defined, or is invalid")
+	ValidationNoHelloErr         = xerrors.New("'hello' not defined")
 
 	//go:embed smtp/html.gotmpl
 	htmlTemplate string
@@ -520,14 +521,15 @@ func (s *SMTPHandler) validateToAddrs(to string) ([]string, error) {
 // Does not allow overriding.
 // nolint:revive // documented.
 func (s *SMTPHandler) smarthost() (string, string, error) {
-	hostport := strings.TrimSpace(s.cfg.Smarthost.String())
-	if hostport == "" {
-		return "", "", ValidationNoSmarthostErr
-	}
+	host := s.cfg.Smarthost.Host
+	port := s.cfg.Smarthost.Port
 
-	host, port, err := net.SplitHostPort(hostport)
-	if err != nil {
-		return "", "", xerrors.Errorf("split host port: %w", err)
+	// We don't validate the contents themselves; this will be done by the underlying SMTP library.
+	if host == "" {
+		return "", "", ValidationNoSmarthostHostErr
+	}
+	if port == "" {
+		return "", "", ValidationNoSmarthostPortErr
 	}
 
 	return host, port, nil

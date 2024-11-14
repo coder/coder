@@ -535,8 +535,8 @@ notifications:
     # (default: <unset>, type: string)
     from: ""
     # The intermediary SMTP host through which emails are sent.
-    # (default: <unset>, type: string)
-    smarthost: ""
+    # (default: <unset>, type: host:port)
+    smarthost: localhost:587
     # The hostname identifying the SMTP server.
     # (default: localhost, type: string)
     hello: localhost
@@ -618,8 +618,8 @@ email:
   # (default: <unset>, type: string)
   from: ""
   # The intermediary SMTP host through which emails are sent.
-  # (default: <unset>, type: string)
-  smarthost: ""
+  # (default: localhost:587, type: host:port)
+  smarthost: localhost:587
   # The hostname identifying the SMTP server.
   # (default: localhost, type: string)
   hello: localhost
