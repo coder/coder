@@ -12,22 +12,19 @@ variable "project_id" {
 }
 
 variable "name" {
-  description = "Adds a prefix to resources."
+  description = "The name all resources will be prefixed with"
 }
 
-variable "region" {
-  description = "GCP region in which to provision resources."
-  default     = "us-east1"
-}
-
-variable "zone" {
-  description = "GCP zone in which to provision resources."
-  default     = "us-east1-c"
-}
-
-variable "subnet_cidr" {
-  description = "CIDR range for the subnet."
-  default     = "10.200.0.0/24"
+variable "deployments" {
+  type = list(object({
+    name = string
+    region = string
+    zone   = string
+    subnet_cidr = string
+    coder_node_pool_size = number
+    workspaces_node_pool_size = number
+    misc_node_pool_size = number
+  }))
 }
 
 variable "k8s_version" {

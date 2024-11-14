@@ -8,11 +8,21 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  name          = var.name
+  count         = length(var.deployments)
+  name          = "${var.name}-${var.deployments[count.index].name}"
   project       = var.project_id
-  region        = var.region
+  region        = var.deployments[count.index].region
   network       = google_compute_network.vpc.name
-  ip_cidr_range = var.subnet_cidr
+  ip_cidr_range = var.deployments[count.index].subnet_cidr
+}
+
+resource "google_compute_address" "coder" {
+  count        = length(var.deployments)
+  project      = var.project_id
+  region       = var.deployments[count.index].region
+  name         = "${var.name}-${var.deployments[count.index].name}-coder"
+  address_type = "EXTERNAL"
+  network_tier = "PREMIUM"
 }
 
 resource "google_compute_global_address" "sql_peering" {
@@ -22,14 +32,6 @@ resource "google_compute_global_address" "sql_peering" {
   address_type  = "INTERNAL"
   prefix_length = 16
   network       = google_compute_network.vpc.id
-}
-
-resource "google_compute_address" "coder" {
-  project      = var.project_id
-  region       = var.region
-  name         = "${var.name}-coder"
-  address_type = "EXTERNAL"
-  network_tier = "PREMIUM"
 }
 
 resource "google_service_networking_connection" "private_vpc_connection" {
