@@ -393,7 +393,7 @@ Configure how notifications are processed and delivered.
           How long to wait while a notification is being sent before giving up.
 
       --notifications-enabled bool, $CODER_NOTIFICATIONS_ENABLED (default: true)
-          Controls if notifications are enabled.
+          Enable or disable notifications.
 
       --notifications-max-send-attempts int, $CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS (default: 5)
           The upper limit of attempts to send a notification.

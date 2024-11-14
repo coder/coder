@@ -565,7 +565,7 @@ email:
     certKeyFile: ""
 # Configure how notifications are processed and delivered.
 notifications:
-  # Controls if notifications are enabled.
+  # Enable or disable notifications.
   # (default: true, type: bool)
   enabled: true
   # Which delivery method to use (available options: 'smtp', 'webhook').

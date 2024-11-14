@@ -1368,7 +1368,7 @@ Certificate key file to use.
 | YAML        | <code>notifications.enabled</code>        |
 | Default     | <code>true</code>                         |
 
-Controls if notifications are enabled.
+Enable or disable notifications.
 
 ### --notifications-method
 
