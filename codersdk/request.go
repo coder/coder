@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 )
 
+// @typescript-ignore sdkRequestArgs
 type sdkRequestArgs struct {
 	Method     string
 	URL        string
@@ -13,6 +14,7 @@ type sdkRequestArgs struct {
 	ExpectCode int
 }
 
+// @typescript-ignore noResponse
 type noResponse struct{}
 
 func makeSDKRequest[T any](ctx context.Context, cli *Client, req sdkRequestArgs) (T, error) {
