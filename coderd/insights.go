@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"time"
 
@@ -510,7 +511,7 @@ func (api *API) insightsTotalUsers(rw http.ResponseWriter, r *http.Request) {
 	rows, err := api.Database.GetAccumulatedUsersInsights(ctx, database.GetAccumulatedUsersInsightsParams{
 		StartTime: startTime,
 		EndTime:   endTime,
-		Timezone:  string(offset),
+		Timezone:  strconv.Itoa(offset),
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
