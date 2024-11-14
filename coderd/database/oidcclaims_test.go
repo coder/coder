@@ -10,8 +10,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,29 +36,41 @@ func TestOIDCClaims(t *testing.T) {
 	alice := g.withLink(database.LoginTypeOIDC, toJSON(extraKeys{
 		UserLinkClaims: database.UserLinkClaims{
 			IDTokenClaims: map[string]interface{}{
-				"sub": "alice",
+				"sub":      "alice",
+				"alice-id": "from-bob",
 			},
-			UserInfoClaims: map[string]interface{}{
-				"sub": "alice",
-			},
+			UserInfoClaims: nil,
 		},
 		// Always should be a no-op
 		Foo: "bar",
 	}))
 	bob := g.withLink(database.LoginTypeOIDC, toJSON(database.UserLinkClaims{
 		IDTokenClaims: map[string]interface{}{
-			"sub": "bob",
+			"sub":    "bob",
+			"bob-id": "from-bob",
+			"array": []string{
+				"a", "b", "c",
+			},
+			"map": map[string]interface{}{
+				"key": "value",
+				"foo": "bar",
+			},
+			"nil": nil,
 		},
 		UserInfoClaims: map[string]interface{}{
-			"sub": "bob",
+			"sub":      "bob",
+			"bob-info": []string{},
+			"number":   42,
 		},
 	}))
 	charlie := g.withLink(database.LoginTypeOIDC, toJSON(database.UserLinkClaims{
 		IDTokenClaims: map[string]interface{}{
-			"sub": "charlie",
+			"sub":        "charlie",
+			"charlie-id": "charlie",
 		},
 		UserInfoClaims: map[string]interface{}{
-			"sub": "charlie",
+			"sub":          "charlie",
+			"charlie-info": "charlie",
 		},
 	}))
 
@@ -87,17 +100,23 @@ func TestOIDCClaims(t *testing.T) {
 	orgA := dbfake.Organization(t, db).Members(
 		append(problematics,
 			alice,
-			bob)...,
+			bob,
+		)...,
 	).Do()
 	orgB := dbfake.Organization(t, db).Members(
 		append(problematics,
+			bob,
 			charlie,
 		)...,
 	).Do()
 
 	// Verify the OIDC claim fields
-	requireClaims(t, db, orgA.Org.ID, []string{"sub"})
-	requireClaims(t, db, orgB.Org.ID, []string{"sub"})
+	always := []string{"array", "map", "nil", "number"}
+	expectA := append([]string{"sub", "alice-id", "bob-id", "bob-info"}, always...)
+	expectB := append([]string{"sub", "bob-id", "bob-info", "charlie-id", "charlie-info"}, always...)
+	requireClaims(t, db, orgA.Org.ID, expectA)
+	requireClaims(t, db, orgB.Org.ID, expectB)
+	requireClaims(t, db, uuid.Nil, slice.Unique(append(expectA, expectB...)))
 }
 
 func requireClaims(t *testing.T, db database.Store, orgID uuid.UUID, want []string) {
@@ -129,34 +148,23 @@ func (g userGenerator) user(lt database.LoginType, createLink bool, rawJSON json
 
 	t.Helper()
 
-	u, err := db.InsertUser(context.Background(), database.InsertUserParams{
-		ID:        uuid.New(),
-		Email:     testutil.GetRandomName(t),
-		Username:  testutil.GetRandomName(t),
-		Name:      testutil.GetRandomName(t),
-		CreatedAt: dbtime.Now(),
-		UpdatedAt: dbtime.Now(),
-		RBACRoles: []string{},
+	u := dbgen.User(t, db, database.User{
 		LoginType: lt,
-		Status:    string(database.UserStatusActive),
 	})
-	require.NoError(t, err)
 
 	if !createLink {
 		return u
 	}
 
-	link, err := db.InsertUserLink(context.Background(), database.InsertUserLinkParams{
+	link := dbgen.UserLink(t, db, database.UserLink{
 		UserID:    u.ID,
 		LoginType: lt,
-		Claims:    database.UserLinkClaims{},
 	})
-	require.NoError(t, err)
 
 	if sql, ok := db.(rawUpdater); ok {
 		// The only way to put arbitrary json into the db for testing edge cases.
 		// Making this a public API would be a mistake.
-		err = sql.UpdateUserLinkRawJSON(context.Background(), u.ID, rawJSON)
+		err := sql.UpdateUserLinkRawJSON(context.Background(), u.ID, rawJSON)
 		require.NoError(t, err)
 	} else {
 		// no need to test the json key logic in dbmem. Everything is type safe.

@@ -531,6 +531,6 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 
 // UpdateUserLinkRawJSON is a custom query for unit testing. Do not ever expose this
 func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
-	_, err := q.sdb.Exec("INSERT INTO user_links (user_id, claims) VALUES ($1, $2)", userID, data)
+	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)
 	return err
 }
