@@ -35,6 +35,8 @@ import (
 	"github.com/coder/quartz"
 )
 
+var unimplementedError = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+
 func TestInMemoryCoordination(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
@@ -706,7 +708,7 @@ func TestBasicTelemetryController_Unimplemented(t *testing.T) {
 	call = testutil.RequireRecvCtx(ctx, t, ft.calls)
 
 	// for real this time
-	telemetryError = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.Unimplemented)
+	telemetryError = unimplementedError
 	testutil.RequireSendCtx(ctx, t, call.errCh, telemetryError)
 	testutil.RequireRecvCtx(ctx, t, sendDone)
 
@@ -930,6 +932,27 @@ func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
 	require.NoError(t, err)
 	err = testutil.RequireRecvCtx(ctx, t, cw2.Wait())
 	require.NoError(t, err)
+}
+
+func TestBasicResumeTokenController_Unimplemented(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	mClock := quartz.NewMock(t)
+
+	uut := tailnet.NewBasicResumeTokenController(logger, mClock)
+	_, ok := uut.Token()
+	require.False(t, ok)
+
+	fr := newFakeResumeTokenClient(ctx)
+	cw := uut.New(fr)
+
+	call := testutil.RequireRecvCtx(ctx, t, fr.calls)
+	testutil.RequireSendCtx(ctx, t, call.errCh, unimplementedError)
+	err := testutil.RequireRecvCtx(ctx, t, cw.Wait())
+	require.NoError(t, err)
+	_, ok = uut.Token()
+	require.False(t, ok)
 }
 
 func newFakeResumeTokenClient(ctx context.Context) *fakeResumeTokenClient {

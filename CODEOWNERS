@@ -1,0 +1,6 @@
+# These APIs are versioned, so any changes need to be carefully reviewed for whether
+# to bump API major or minor versions.
+agent/proto/ @spikecurtis @johnstcn
+tailnet/proto/ @spikecurtis @johnstcn
+vpn/vpn.proto @spikecurtis @johnstcn
+vpn/version.go @spikecurtis @johnstcn
