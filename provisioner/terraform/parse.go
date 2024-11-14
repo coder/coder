@@ -21,10 +21,6 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 	defer span.End()
 
 	// Load the module and print any parse errors.
-	// module, diags := tfconfig.LoadModule(sess.WorkDirectory)
-	// if diags.HasErrors() {
-	// }
-
 	parser, diags := tfparse.New(sess.WorkDirectory, tfparse.WithLogger(s.logger.Named("tfparse")))
 	if diags.HasErrors() {
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
