@@ -368,8 +368,8 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// GetProvisionTagsByKey returns the provisioner tags associated with the provisioner key.
-func (c *Client) GetProvisionTagsByKey(ctx context.Context, organizationID uuid.UUID, provisionerKey string) (ProvisionerKeyTags, error) {
+// FetchProvisionerTagsTagsByKey returns the provisioner tags associated with the provisioner key.
+func (c *Client) FetchProvisionerTagsTagsByKey(ctx context.Context, organizationID uuid.UUID, provisionerKey string) (ProvisionerKeyTags, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys/%s/tags", organizationID.String(), provisionerKey),
 		nil,
