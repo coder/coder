@@ -3283,6 +3283,18 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
+func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	resource := rbac.ResourceIdpsyncSettings
+	if organizationID != uuid.Nil {
+		resource = resource.InOrg(organizationID)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, resource); err != nil {
+		return nil, err
+	}
+	return q.db.OIDCClaimFields(ctx, organizationID)
+}
+
 func (q *querier) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.OrganizationMembers)(ctx, arg)
 }

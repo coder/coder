@@ -4359,6 +4359,21 @@ func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), arg0, arg1)
 }
 
+// OIDCClaimFields mocks base method.
+func (m *MockStore) OIDCClaimFields(arg0 context.Context, arg1 uuid.UUID) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OIDCClaimFields", arg0, arg1)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OIDCClaimFields indicates an expected call of OIDCClaimFields.
+func (mr *MockStoreMockRecorder) OIDCClaimFields(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OIDCClaimFields", reflect.TypeOf((*MockStore)(nil).OIDCClaimFields), arg0, arg1)
+}
+
 // OrganizationMembers mocks base method.
 func (m *MockStore) OrganizationMembers(arg0 context.Context, arg1 database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	m.ctrl.T.Helper()

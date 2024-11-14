@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -526,4 +527,10 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 	}
 	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
 	return filtered, nil
+}
+
+// UpdateUserLinkRawJSON is a custom query for unit testing. Do not ever expose this
+func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
+	_, err := q.sdb.Exec("INSERT INTO user_links (user_id, claims) VALUES ($1, $2)", userID, data)
+	return err
 }
