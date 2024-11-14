@@ -2380,11 +2380,17 @@ func TestTotalUsersInsight(t *testing.T) {
 			Username:  "user3",
 			CreatedAt: daysAgo(1),
 		})
+		dbgen.User(t, db, database.User{
+			Email:     "user4@coder.com",
+			Username:  "user4",
+			CreatedAt: daysAgo(0),
+		})
 
 		// When: requesting the accumulated total of users by day
+		now := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 		res, err := client.TotalUsersInsight(ctx, codersdk.TotalUsersInsightRequest{
 			StartTime: daysAgo(2),
-			EndTime:   today(),
+			EndTime:   now,
 		})
 		require.NoError(t, err)
 
@@ -2400,7 +2406,7 @@ func TestTotalUsersInsight(t *testing.T) {
 		require.Equal(t, res[1].Total, uint64(3))
 
 		// Third day
-		require.Equal(t, res[2].Date, today().Format(time.DateOnly))
+		require.Equal(t, res[2].Date, daysAgo(0).Format(time.DateOnly))
 		require.Equal(t, res[2].Total, uint64(4))
 	})
 
@@ -2417,11 +2423,17 @@ func TestTotalUsersInsight(t *testing.T) {
 			Username:  "user1",
 			CreatedAt: daysAgo(2),
 		})
+		dbgen.User(t, db, database.User{
+			Email:     "user2@coder.com",
+			Username:  "user2",
+			CreatedAt: daysAgo(1),
+		})
 
 		// When: requesting the accumulated total of users for dates with no users created
+		now := time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 		res, err := client.TotalUsersInsight(ctx, codersdk.TotalUsersInsightRequest{
 			StartTime: daysAgo(2).Truncate(24 * time.Hour),
-			EndTime:   today(),
+			EndTime:   now,
 		})
 		require.NoError(t, err)
 
@@ -2434,18 +2446,14 @@ func TestTotalUsersInsight(t *testing.T) {
 
 		// Second day - no users created so should contain the same total as the previous day
 		require.Equal(t, res[1].Date, daysAgo(1).Format(time.DateOnly))
-		require.Equal(t, res[1].Total, uint64(1))
+		require.Equal(t, res[1].Total, uint64(2))
 
 		// Third day
-		require.Equal(t, res[2].Date, today().Format(time.DateOnly))
+		require.Equal(t, res[2].Date, daysAgo(0).Format(time.DateOnly))
 		require.Equal(t, res[2].Total, uint64(2))
 	})
 }
 
 func daysAgo(days int) time.Time {
 	return time.Now().UTC().AddDate(0, 0, -days).Truncate(24 * time.Hour)
-}
-
-func today() time.Time {
-	return time.Now().UTC().Truncate(time.Hour).Add(time.Hour)
 }
