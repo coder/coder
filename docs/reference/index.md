@@ -82,7 +82,7 @@ activity.
   }"
   ```
 
-- [Manually send workspace activity](../reference/api/agents.md#submit-workspace-agent-stats):
+- [Manually send workspace activity](../reference/api/workspaces.md#extend-workspace-deadline-by-id):
   Keep a workspace "active," even if there is not an open connection (e.g. for a
   long-running machine learning job).
 
@@ -94,10 +94,10 @@ activity.
   do
   if pgrep -f "my_training_script.py" > /dev/null
   then
-    curl -X POST "https://coder.example.com/api/v2/workspaceagents/me/report-stats" \
+    curl -X POST "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
     -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
     -d '{
-  	"connection_count": 1
+  	"deadline": "2019-08-24T14:15:22Z"
     }'
 
     # Sleep for 30 minutes (1800 seconds) if the job is running

@@ -377,6 +377,7 @@ func TestAcquireJob(t *testing.T) {
 						WorkspaceOwnerSshPublicKey:    sshKey.PublicKey,
 						WorkspaceOwnerSshPrivateKey:   sshKey.PrivateKey,
 						WorkspaceBuildId:              build.ID.String(),
+						WorkspaceOwnerLoginType:       string(user.LoginType),
 					},
 				},
 			})

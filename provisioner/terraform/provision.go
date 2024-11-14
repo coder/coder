@@ -246,6 +246,7 @@ func provisionEnv(
 		"CODER_WORKSPACE_OWNER_GROUPS="+string(ownerGroups),
 		"CODER_WORKSPACE_OWNER_SSH_PUBLIC_KEY="+metadata.GetWorkspaceOwnerSshPublicKey(),
 		"CODER_WORKSPACE_OWNER_SSH_PRIVATE_KEY="+metadata.GetWorkspaceOwnerSshPrivateKey(),
+		"CODER_WORKSPACE_OWNER_LOGIN_TYPE="+metadata.GetWorkspaceOwnerLoginType(),
 		"CODER_WORKSPACE_ID="+metadata.GetWorkspaceId(),
 		"CODER_WORKSPACE_OWNER_ID="+metadata.GetWorkspaceOwnerId(),
 		"CODER_WORKSPACE_OWNER_SESSION_TOKEN="+metadata.GetWorkspaceOwnerSessionToken(),

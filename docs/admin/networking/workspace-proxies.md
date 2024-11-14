@@ -4,7 +4,8 @@ Workspace proxies provide low-latency experiences for geo-distributed teams.
 
 Coder's networking does a best effort to make direct connections to a workspace.
 In situations where this is not possible, such as connections via the web
-terminal and [web IDEs](../../user-guides/workspace-access/index.md#web-ides),
+terminal and
+[web IDEs](../../user-guides/workspace-access/index.md#other-web-ides),
 workspace proxies are able to reduce the amount of distance the network traffic
 needs to travel.
 

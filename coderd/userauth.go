@@ -3,7 +3,6 @@ package coderd
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"errors"
 	"fmt"
 	"net/http"
@@ -966,7 +965,7 @@ func (api *API) userOAuth2Github(rw http.ResponseWriter, r *http.Request) {
 		Username:     username,
 		AvatarURL:    ghUser.GetAvatarURL(),
 		Name:         normName,
-		DebugContext: OauthDebugContext{},
+		UserClaims:   database.UserLinkClaims{},
 		GroupSync: idpsync.GroupParams{
 			SyncEntitled: false,
 		},
@@ -1324,7 +1323,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		OrganizationSync: orgSync,
 		GroupSync:        groupSync,
 		RoleSync:         roleSync,
-		DebugContext: OauthDebugContext{
+		UserClaims: database.UserLinkClaims{
 			IDTokenClaims:  idtokenClaims,
 			UserInfoClaims: userInfoClaims,
 		},
@@ -1421,7 +1420,9 @@ type oauthLoginParams struct {
 	GroupSync        idpsync.GroupParams
 	RoleSync         idpsync.RoleParams
 
-	DebugContext OauthDebugContext
+	// UserClaims should only be populated for OIDC logins.
+	// It is used to save the user's claims on login.
+	UserClaims database.UserLinkClaims
 
 	commitLock       sync.Mutex
 	initAuditRequest func(params *audit.RequestParams) *audit.Request[database.User]
@@ -1591,11 +1592,6 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 			dormantConvertAudit.New = user
 		}
 
-		debugContext, err := json.Marshal(params.DebugContext)
-		if err != nil {
-			return xerrors.Errorf("marshal debug context: %w", err)
-		}
-
 		if link.UserID == uuid.Nil {
 			//nolint:gocritic // System needs to insert the user link (linked_id, oauth_token, oauth_expiry).
 			link, err = tx.InsertUserLink(dbauthz.AsSystemRestricted(ctx), database.InsertUserLinkParams{
@@ -1607,7 +1603,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
-				DebugContext:           debugContext,
+				Claims:                 params.UserClaims,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert user link: %w", err)
@@ -1624,7 +1620,7 @@ func (api *API) oauthLogin(r *http.Request, params *oauthLoginParams) ([]*http.C
 				OAuthRefreshToken:      params.State.Token.RefreshToken,
 				OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 				OAuthExpiry:            params.State.Token.Expiry,
-				DebugContext:           debugContext,
+				Claims:                 params.UserClaims,
 			})
 			if err != nil {
 				return xerrors.Errorf("update user link: %w", err)

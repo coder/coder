@@ -2,6 +2,8 @@
 
 Package `rbac` implements Role-Based Access Control for Coder.
 
+See [USAGE.md](USAGE.md) for a hands-on approach to using this package.
+
 ## Overview
 
 Authorization defines what **permission** a **subject** has to perform **actions** to **objects**:

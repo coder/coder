@@ -2,6 +2,7 @@ package tailnet_test
 
 import (
 	"context"
+	"fmt"
 	"io"
 	"net"
 	"slices"
@@ -344,6 +345,10 @@ func TestTunnelSrcCoordController_Sync(t *testing.T) {
 	call = testutil.RequireRecvCtx(ctx, t, client1.reqs)
 	require.Equal(t, dest1[:], call.req.GetRemoveTunnel().GetId())
 	testutil.RequireSendCtx(ctx, t, call.err, nil)
+
+	testutil.RequireRecvCtx(ctx, t, syncDone)
+	// dest3 should be added to coordinatee
+	require.Contains(t, fConn.tunnelDestinations, dest3)
 
 	// shut down
 	respCall := testutil.RequireRecvCtx(ctx, t, client1.resps)
@@ -1261,4 +1266,313 @@ type coordReqCall struct {
 type coordRespCall struct {
 	resp chan<- *proto.CoordinateResponse
 	err  chan<- error
+}
+
+type fakeWorkspaceUpdateClient struct {
+	ctx   context.Context
+	t     testing.TB
+	recv  chan *updateRecvCall
+	close chan chan<- error
+}
+
+func (f *fakeWorkspaceUpdateClient) Close() error {
+	f.t.Helper()
+	errs := make(chan error)
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting to send close call")
+		return f.ctx.Err()
+	case f.close <- errs:
+		// OK
+	}
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting for close call response")
+		return f.ctx.Err()
+	case err := <-errs:
+		return err
+	}
+}
+
+func (f *fakeWorkspaceUpdateClient) Recv() (*proto.WorkspaceUpdate, error) {
+	f.t.Helper()
+	resps := make(chan *proto.WorkspaceUpdate)
+	errs := make(chan error)
+	call := &updateRecvCall{
+		resp: resps,
+		err:  errs,
+	}
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting to send Recv() call")
+		return nil, f.ctx.Err()
+	case f.recv <- call:
+		// OK
+	}
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting for Recv() call response")
+		return nil, f.ctx.Err()
+	case err := <-errs:
+		return nil, err
+	case resp := <-resps:
+		return resp, nil
+	}
+}
+
+func newFakeWorkspaceUpdateClient(ctx context.Context, t testing.TB) *fakeWorkspaceUpdateClient {
+	return &fakeWorkspaceUpdateClient{
+		ctx:   ctx,
+		t:     t,
+		recv:  make(chan *updateRecvCall),
+		close: make(chan chan<- error),
+	}
+}
+
+type updateRecvCall struct {
+	resp chan<- *proto.WorkspaceUpdate
+	err  chan<- error
+}
+
+// testUUID returns a UUID with bytes set as b, but shifted 6 bytes so that service prefixes don't
+// overwrite them.
+func testUUID(b ...byte) uuid.UUID {
+	o := uuid.UUID{}
+	for i := range b {
+		o[i+6] = b[i]
+	}
+	return o
+}
+
+func setupConnectedAllWorkspaceUpdatesController(
+	ctx context.Context, t testing.TB, logger slog.Logger,
+) (
+	*fakeCoordinatorClient, *fakeWorkspaceUpdateClient,
+) {
+	fConn := &fakeCoordinatee{}
+	tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
+	uut := tailnet.NewTunnelAllWorkspaceUpdatesController(logger, tsc)
+
+	// connect up a coordinator client, to track adding and removing tunnels
+	coordC := newFakeCoordinatorClient(ctx, t)
+	coordCW := tsc.New(coordC)
+	t.Cleanup(func() {
+		// hang up coord client
+		coordRecv := testutil.RequireRecvCtx(ctx, t, coordC.resps)
+		testutil.RequireSendCtx(ctx, t, coordRecv.err, io.EOF)
+		// sends close on client
+		cCall := testutil.RequireRecvCtx(ctx, t, coordC.close)
+		testutil.RequireSendCtx(ctx, t, cCall, nil)
+		err := testutil.RequireRecvCtx(ctx, t, coordCW.Wait())
+		require.ErrorIs(t, err, io.EOF)
+	})
+
+	// connect up the updates client
+	updateC := newFakeWorkspaceUpdateClient(ctx, t)
+	updateCW := uut.New(updateC)
+	t.Cleanup(func() {
+		// hang up WorkspaceUpdates client
+		upRecvCall := testutil.RequireRecvCtx(ctx, t, updateC.recv)
+		testutil.RequireSendCtx(ctx, t, upRecvCall.err, io.EOF)
+		err := testutil.RequireRecvCtx(ctx, t, updateCW.Wait())
+		require.ErrorIs(t, err, io.EOF)
+	})
+	return coordC, updateC
+}
+
+func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger)
+
+	// Initial update contains 2 workspaces with 1 & 2 agents, respectively
+	w1ID := testUUID(1)
+	w2ID := testUUID(2)
+	w1a1ID := testUUID(1, 1)
+	w2a1ID := testUUID(2, 1)
+	w2a2ID := testUUID(2, 2)
+	initUp := &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{
+			{Id: w1ID[:], Name: "w1"},
+			{Id: w2ID[:], Name: "w2"},
+		},
+		UpsertedAgents: []*proto.Agent{
+			{Id: w1a1ID[:], Name: "w1a1", WorkspaceId: w1ID[:]},
+			{Id: w2a1ID[:], Name: "w2a1", WorkspaceId: w2ID[:]},
+			{Id: w2a2ID[:], Name: "w2a2", WorkspaceId: w2ID[:]},
+		},
+	}
+
+	upRecvCall := testutil.RequireRecvCtx(ctx, t, updateC.recv)
+	testutil.RequireSendCtx(ctx, t, upRecvCall.resp, initUp)
+
+	// This should trigger AddTunnel for each agent
+	var adds []uuid.UUID
+	for range 3 {
+		coordCall := testutil.RequireRecvCtx(ctx, t, coordC.reqs)
+		adds = append(adds, uuid.Must(uuid.FromBytes(coordCall.req.GetAddTunnel().GetId())))
+		testutil.RequireSendCtx(ctx, t, coordCall.err, nil)
+	}
+	require.Contains(t, adds, w1a1ID)
+	require.Contains(t, adds, w2a1ID)
+	require.Contains(t, adds, w2a2ID)
+}
+
+func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+
+	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger)
+
+	w1ID := testUUID(1)
+	w1a1ID := testUUID(1, 1)
+	w1a2ID := testUUID(1, 2)
+	initUp := &proto.WorkspaceUpdate{
+		UpsertedWorkspaces: []*proto.Workspace{
+			{Id: w1ID[:], Name: "w1"},
+		},
+		UpsertedAgents: []*proto.Agent{
+			{Id: w1a1ID[:], Name: "w1a1", WorkspaceId: w1ID[:]},
+		},
+	}
+
+	upRecvCall := testutil.RequireRecvCtx(ctx, t, updateC.recv)
+	testutil.RequireSendCtx(ctx, t, upRecvCall.resp, initUp)
+
+	// Add for w1a1
+	coordCall := testutil.RequireRecvCtx(ctx, t, coordC.reqs)
+	require.Equal(t, w1a1ID[:], coordCall.req.GetAddTunnel().GetId())
+	testutil.RequireSendCtx(ctx, t, coordCall.err, nil)
+
+	// Send update that removes w1a1 and adds w1a2
+	agentUpdate := &proto.WorkspaceUpdate{
+		UpsertedAgents: []*proto.Agent{
+			{Id: w1a2ID[:], Name: "w1a2", WorkspaceId: w1ID[:]},
+		},
+		DeletedAgents: []*proto.Agent{
+			{Id: w1a1ID[:], WorkspaceId: w1ID[:]},
+		},
+	}
+	upRecvCall = testutil.RequireRecvCtx(ctx, t, updateC.recv)
+	testutil.RequireSendCtx(ctx, t, upRecvCall.resp, agentUpdate)
+
+	// Add for w1a2
+	coordCall = testutil.RequireRecvCtx(ctx, t, coordC.reqs)
+	require.Equal(t, w1a2ID[:], coordCall.req.GetAddTunnel().GetId())
+	testutil.RequireSendCtx(ctx, t, coordCall.err, nil)
+
+	// Remove for w1a1
+	coordCall = testutil.RequireRecvCtx(ctx, t, coordC.reqs)
+	require.Equal(t, w1a1ID[:], coordCall.req.GetRemoveTunnel().GetId())
+	testutil.RequireSendCtx(ctx, t, coordCall.err, nil)
+}
+
+func TestTunnelAllWorkspaceUpdatesController_HandleErrors(t *testing.T) {
+	t.Parallel()
+	validWorkspaceID := testUUID(1)
+	validAgentID := testUUID(1, 1)
+
+	testCases := []struct {
+		name          string
+		update        *proto.WorkspaceUpdate
+		errorContains string
+	}{
+		{
+			name: "unparsableUpsertWorkspaceID",
+			update: &proto.WorkspaceUpdate{
+				UpsertedWorkspaces: []*proto.Workspace{
+					{Id: []byte{2, 2}, Name: "bander"},
+				},
+			},
+			errorContains: "failed to parse workspace ID",
+		},
+		{
+			name: "unparsableDeleteWorkspaceID",
+			update: &proto.WorkspaceUpdate{
+				DeletedWorkspaces: []*proto.Workspace{
+					{Id: []byte{2, 2}, Name: "bander"},
+				},
+			},
+			errorContains: "failed to parse workspace ID",
+		},
+		{
+			name: "unparsableDeleteAgentWorkspaceID",
+			update: &proto.WorkspaceUpdate{
+				DeletedAgents: []*proto.Agent{
+					{Id: validAgentID[:], Name: "devo", WorkspaceId: []byte{2, 2}},
+				},
+			},
+			errorContains: "failed to parse workspace ID",
+		},
+		{
+			name: "unparsableUpsertAgentWorkspaceID",
+			update: &proto.WorkspaceUpdate{
+				UpsertedAgents: []*proto.Agent{
+					{Id: validAgentID[:], Name: "devo", WorkspaceId: []byte{2, 2}},
+				},
+			},
+			errorContains: "failed to parse workspace ID",
+		},
+		{
+			name: "unparsableDeleteAgentID",
+			update: &proto.WorkspaceUpdate{
+				DeletedAgents: []*proto.Agent{
+					{Id: []byte{2, 2}, Name: "devo", WorkspaceId: validWorkspaceID[:]},
+				},
+			},
+			errorContains: "failed to parse agent ID",
+		},
+		{
+			name: "unparsableUpsertAgentID",
+			update: &proto.WorkspaceUpdate{
+				UpsertedAgents: []*proto.Agent{
+					{Id: []byte{2, 2}, Name: "devo", WorkspaceId: validWorkspaceID[:]},
+				},
+			},
+			errorContains: "failed to parse agent ID",
+		},
+		{
+			name: "upsertAgentMissingWorkspace",
+			update: &proto.WorkspaceUpdate{
+				UpsertedAgents: []*proto.Agent{
+					{Id: validAgentID[:], Name: "devo", WorkspaceId: validWorkspaceID[:]},
+				},
+			},
+			errorContains: fmt.Sprintf("workspace %s not found", validWorkspaceID.String()),
+		},
+		{
+			name: "deleteAgentMissingWorkspace",
+			update: &proto.WorkspaceUpdate{
+				DeletedAgents: []*proto.Agent{
+					{Id: validAgentID[:], Name: "devo", WorkspaceId: validWorkspaceID[:]},
+				},
+			},
+			errorContains: fmt.Sprintf("workspace %s not found", validWorkspaceID.String()),
+		},
+	}
+	// nolint: paralleltest // no longer need to reinitialize loop vars in go 1.22
+	for _, tc := range testCases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+
+			fConn := &fakeCoordinatee{}
+			tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
+			uut := tailnet.NewTunnelAllWorkspaceUpdatesController(logger, tsc)
+			updateC := newFakeWorkspaceUpdateClient(ctx, t)
+			updateCW := uut.New(updateC)
+
+			recvCall := testutil.RequireRecvCtx(ctx, t, updateC.recv)
+			testutil.RequireSendCtx(ctx, t, recvCall.resp, tc.update)
+			closeCall := testutil.RequireRecvCtx(ctx, t, updateC.close)
+			testutil.RequireSendCtx(ctx, t, closeCall, nil)
+
+			err := testutil.RequireRecvCtx(ctx, t, updateCW.Wait())
+			require.ErrorContains(t, err, tc.errorContains)
+		})
+	}
 }

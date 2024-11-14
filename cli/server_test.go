@@ -1620,6 +1620,39 @@ func TestServer_Production(t *testing.T) {
 	require.NoError(t, err)
 }
 
+//nolint:tparallel,paralleltest // This test sets environment variables.
+func TestServer_TelemetryDisable(t *testing.T) {
+	// Set the default telemetry to true (normally disabled in tests).
+	t.Setenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE", "true")
+
+	//nolint:paralleltest // No need to reinitialise the variable tt (Go version).
+	for _, tt := range []struct {
+		key  string
+		val  string
+		want bool
+	}{
+		{"", "", true},
+		{"CODER_TELEMETRY_ENABLE", "true", true},
+		{"CODER_TELEMETRY_ENABLE", "false", false},
+		{"CODER_TELEMETRY", "true", true},
+		{"CODER_TELEMETRY", "false", false},
+	} {
+		t.Run(fmt.Sprintf("%s=%s", tt.key, tt.val), func(t *testing.T) {
+			t.Parallel()
+			var b bytes.Buffer
+			inv, _ := clitest.New(t, "server", "--write-config")
+			inv.Stdout = &b
+			inv.Environ.Set(tt.key, tt.val)
+			clitest.Run(t, inv)
+
+			var dv codersdk.DeploymentValues
+			err := yaml.Unmarshal(b.Bytes(), &dv)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, dv.Telemetry.Enable.Value())
+		})
+	}
+}
+
 //nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
 func TestServer_InterruptShutdown(t *testing.T) {
 	t.Skip("This test issues an interrupt signal which will propagate to the test runner.")

@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"io"
 	"testing"
 	"time"
@@ -52,12 +51,27 @@ func TestUserLinks(t *testing.T) {
 			UserID: user.ID,
 		})
 
+		expectedClaims := database.UserLinkClaims{
+			IDTokenClaims: map[string]interface{}{
+				"sub": "123",
+				"groups": []interface{}{
+					"foo", "bar",
+				},
+			},
+			UserInfoClaims: map[string]interface{}{
+				"number": float64(2),
+				"struct": map[string]interface{}{
+					"number": float64(2),
+				},
+			},
+		}
+
 		updated, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
-			DebugContext:      json.RawMessage("{}"),
+			Claims:            expectedClaims,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)
@@ -69,6 +83,7 @@ func TestUserLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "refresh")
+		require.EqualValues(t, expectedClaims, rawLink.Claims)
 	})
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {

@@ -1143,6 +1143,16 @@ when required by your organization's security policy.`,
 		Group:       &deploymentGroupEmailTLS,
 		YAML:        "certKeyFile",
 	}
+	telemetryEnable := serpent.Option{
+		Name:        "Telemetry Enable",
+		Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+		Flag:        "telemetry",
+		Env:         "CODER_TELEMETRY_ENABLE",
+		Default:     strconv.FormatBool(flag.Lookup("test.v") == nil || os.Getenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE") == "true"),
+		Value:       &c.Telemetry.Enable,
+		Group:       &deploymentGroupTelemetry,
+		YAML:        "enable",
+	}
 	opts := serpent.OptionSet{
 		{
 			Name:        "Access URL",
@@ -1903,15 +1913,19 @@ when required by your organization's security policy.`,
 			YAML:  "dangerousSkipIssuerChecks",
 		},
 		// Telemetry settings
+		telemetryEnable,
 		{
-			Name:        "Telemetry Enable",
-			Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
-			Flag:        "telemetry",
-			Env:         "CODER_TELEMETRY_ENABLE",
-			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
-			Value:       &c.Telemetry.Enable,
-			Group:       &deploymentGroupTelemetry,
-			YAML:        "enable",
+			Hidden: true,
+			Name:   "Telemetry (backwards compatibility)",
+			// Note the flip-flop of flag and env to maintain backwards
+			// compatibility and consistency. Inconsistently, the env
+			// was renamed to CODER_TELEMETRY_ENABLE in the past, but
+			// the flag was not renamed -enable.
+			Flag:       "telemetry-enable",
+			Env:        "CODER_TELEMETRY",
+			Value:      &c.Telemetry.Enable,
+			Group:      &deploymentGroupTelemetry,
+			UseInstead: []serpent.Option{telemetryEnable},
 		},
 		{
 			Name:        "Telemetry URL",
