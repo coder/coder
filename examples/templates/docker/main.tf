@@ -169,22 +169,9 @@ resource "docker_volume" "home_volume" {
   }
 }
 
-resource "docker_image" "main" {
-  name = "coder-${data.coder_workspace.me.id}"
-  build {
-    context = "./build"
-    build_args = {
-      USER = local.username
-    }
-  }
-  triggers = {
-    dir_sha1 = sha1(join("", [for f in fileset(path.module, "build/*") : filesha1(f)]))
-  }
-}
-
 resource "docker_container" "workspace" {
   count = data.coder_workspace.me.start_count
-  image = docker_image.main.name
+  image = "codercom/enterprise-base:ubuntu"
   # Uses lower() to avoid Docker restriction on container names.
   name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
   # Hostname makes the shell more user friendly: coder@my-workspace:~$
