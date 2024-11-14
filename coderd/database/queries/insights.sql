@@ -784,7 +784,7 @@ WITH RECURSIVE date_series AS (
     WHERE date + INTERVAL '1 day' <= @end_time::timestamptz
 )
 SELECT
-    d.date::date AS date,
+    (d.date AT TIME ZONE @timezone::text)::date AS date,
     (SELECT COUNT(*) FROM users u WHERE u.created_at <= d.date) AS total
 FROM
     date_series d

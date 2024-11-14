@@ -2133,14 +2133,14 @@ func (q *sqlQuerier) UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDPar
 
 const getAccumulatedUsersInsights = `-- name: GetAccumulatedUsersInsights :many
 WITH RECURSIVE date_series AS (
-    SELECT $1::timestamptz AS date
+    SELECT $2::timestamptz AS date
     UNION ALL
     SELECT date + INTERVAL '1 day'
     FROM date_series
-    WHERE date + INTERVAL '1 day' <= $2::timestamptz
+    WHERE date + INTERVAL '1 day' <= $3::timestamptz
 )
 SELECT
-    d.date::date AS date,
+    (d.date AT TIME ZONE $1::text)::date AS date,
     (SELECT COUNT(*) FROM users u WHERE u.created_at <= d.date) AS total
 FROM
     date_series d
@@ -2149,6 +2149,7 @@ ORDER BY
 `
 
 type GetAccumulatedUsersInsightsParams struct {
+	Timezone  string    `db:"timezone" json:"timezone"`
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
@@ -2162,7 +2163,7 @@ type GetAccumulatedUsersInsightsRow struct {
 // in the given timeframe. It returns the accumulated number of users for each date
 // within the specified timeframe, providing a running total of user sign-ups.
 func (q *sqlQuerier) GetAccumulatedUsersInsights(ctx context.Context, arg GetAccumulatedUsersInsightsParams) ([]GetAccumulatedUsersInsightsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getAccumulatedUsersInsights, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getAccumulatedUsersInsights, arg.Timezone, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
