@@ -2615,7 +2615,7 @@ Write out the current server config as YAML to stdout.`,
 		// Notifications Options
 		{
 			Name:        "Notifications: Enabled",
-			Description: "Controls if notifications are enabled.",
+			Description: "Enable or disable notifications.",
 			Flag:        "notifications-enabled",
 			Env:         "CODER_NOTIFICATIONS_ENABLED",
 			Default:     "true",
