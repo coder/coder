@@ -35,7 +35,7 @@ import (
 
 var (
 	ValidationNoFromAddressErr   = xerrors.New("no 'from' address defined")
-	ValidationNoToAddressErr     = xerrors.New("no 'to' address(es) not defined")
+	ValidationNoToAddressErr     = xerrors.New("no 'to' address(es) defined")
 	ValidationNoSmarthostHostErr = xerrors.New("smarthost 'host' is not defined, or is invalid")
 	ValidationNoSmarthostPortErr = xerrors.New("smarthost 'port' is not defined, or is invalid")
 	ValidationNoHelloErr         = xerrors.New("'hello' not defined")
