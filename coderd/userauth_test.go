@@ -843,7 +843,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			OAuthAccessToken:  "random",
 			OAuthRefreshToken: "random",
 			OAuthExpiry:       time.Now(),
-			DebugContext:      []byte(`{}`),
+			Claims:            database.UserLinkClaims{},
 		})
 		require.ErrorContains(t, err, "Cannot create user_link for deleted user")
 

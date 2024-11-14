@@ -1281,7 +1281,7 @@ func (s *MethodTestSuite) TestUser() {
 			OAuthExpiry:       link.OAuthExpiry,
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
-			DebugContext:      json.RawMessage("{}"),
+			Claims:            database.UserLinkClaims{},
 		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal).Returns(link)
 	}))
 	s.Run("UpdateUserRoles", s.Subtest(func(db database.Store, check *expects) {

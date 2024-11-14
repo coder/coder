@@ -207,3 +207,25 @@ func (p *AgentIDNamePair) Scan(src interface{}) error {
 func (p AgentIDNamePair) Value() (driver.Value, error) {
 	return fmt.Sprintf(`(%s,%s)`, p.ID.String(), p.Name), nil
 }
+
+// UserLinkClaims is the returned IDP claims for a given user link.
+// These claims are fetched at login time. These are the claims that were
+// used for IDP sync.
+type UserLinkClaims struct {
+	IDTokenClaims  map[string]interface{} `json:"id_token_claims"`
+	UserInfoClaims map[string]interface{} `json:"user_info_claims"`
+}
+
+func (a *UserLinkClaims) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a UserLinkClaims) Value() (driver.Value, error) {
+	return json.Marshal(a)
+}
