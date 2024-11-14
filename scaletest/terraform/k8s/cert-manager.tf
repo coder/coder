@@ -36,32 +36,54 @@ EOF
   ]
 }
 
-resource "kubernetes_manifest" "cloudflare-cluster-issuer" {
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "ClusterIssuer"
-    metadata = {
-      name = "cloudflare-issuer"
-    }
-    spec = {
-      acme = {
-        email = var.cloudflare_email
-        privateKeySecretRef = {
-          name = local.cloudflare_issuer_private_key_secret_name
-        }
-        solvers = [
-          {
-            dns01 = {
-              cloudflare = {
-                apiTokenSecretRef = {
-                  name = kubernetes_secret.cloudflare-api-key.metadata.0.name
-                  key  = "api-token"
-                }
-              }
-            }
-          }
-        ]
-      }
-    }
-  }
+# resource "kubernetes_manifest" "cloudflare-cluster-issuer" {
+#   manifest = {
+#     apiVersion = "cert-manager.io/v1"
+#     kind       = "ClusterIssuer"
+#     metadata = {
+#       name = "cloudflare-issuer"
+#     }
+#     spec = {
+#       acme = {
+#         email = var.cloudflare_email
+#         privateKeySecretRef = {
+#           name = local.cloudflare_issuer_private_key_secret_name
+#         }
+#         solvers = [
+#           {
+#             dns01 = {
+#               cloudflare = {
+#                 apiTokenSecretRef = {
+#                   name = kubernetes_secret.cloudflare-api-key.metadata.0.name
+#                   key  = "api-token"
+#                 }
+#               }
+#             }
+#           }
+#         ]
+#       }
+#     }
+#   }
+# }
+
+resource "kubectl_manifest" "cloudflare-cluster-issuer" {
+  depends_on = [ helm_release.cert-manager ]
+    yaml_body = <<YAML
+apiVersion: cert-manager.io/v1
+kind: ClusterIssuer
+metadata:
+  name: cloudflare-issuer
+spec:
+  acme:
+    email: ${var.cloudflare_email}
+    server: https://acme-staging-v02.api.letsencrypt.org/directory
+    privateKeySecretRef:
+      name: ${local.cloudflare_issuer_private_key_secret_name}
+    solvers:
+      - dns01:
+          cloudflare:
+            apiTokenSecretRef:
+              name: ${kubernetes_secret.cloudflare-api-key.metadata.0.name}
+              key: api-token
+YAML
 }

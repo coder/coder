@@ -147,27 +147,45 @@ serviceMonitor:
   ]
 }
 
-resource "kubernetes_manifest" "coder_monitoring" {
-  depends_on = [helm_release.prometheus-chart]
-  manifest = {
-    apiVersion = "monitoring.coreos.com/v1"
-    kind       = "PodMonitor"
-    metadata = {
-      namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-      name      = "coder-monitoring"
-    }
-    spec = {
-      selector = {
-        matchLabels = {
-          "app.kubernetes.io/name" : "coder"
-        }
-      }
-      podMetricsEndpoints = [
-        {
-          port     = "prometheus-http"
-          interval = "30s"
-        }
-      ]
-    }
-  }
+# resource "kubernetes_manifest" "coder_monitoring" {
+#   depends_on = [helm_release.prometheus-chart]
+#   manifest = {
+#     apiVersion = "monitoring.coreos.com/v1"
+#     kind       = "PodMonitor"
+#     metadata = {
+#       namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+#       name      = "coder-monitoring"
+#     }
+#     spec = {
+#       selector = {
+#         matchLabels = {
+#           "app.kubernetes.io/name" : "coder"
+#         }
+#       }
+#       podMetricsEndpoints = [
+#         {
+#           port     = "prometheus-http"
+#           interval = "30s"
+#         }
+#       ]
+#     }
+#   }
+# }
+
+resource "kubectl_manifest" "coder_monitoring" {
+  depends_on = [ helm_release.prometheus-chart ]
+    yaml_body = <<YAML
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: coder-monitoring
+  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: coder
+  podMetricsEndpoints:
+    - port: prometheus-http
+      interval: 30s
+YAML
 }

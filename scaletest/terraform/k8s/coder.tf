@@ -10,6 +10,7 @@ locals {
   coder_release_name        = var.name
   provisionerd_helm_chart   = "coder-provisioner"
   provisionerd_release_name = "${var.name}-provisionerd"
+  dnsNames = regex("https?://([^/]+)", local.coder_url)
 }
 
 resource "kubernetes_namespace" "coder_namespace" {
@@ -61,23 +62,41 @@ data "kubernetes_secret" "coder_oidc" {
   }
 }
 
-resource "kubernetes_manifest" "coder_certificate" {
-  manifest = {
-    apiVersion = "cert-manager.io/v1"
-    kind       = "Certificate"
-    metadata = {
-      name      = "${var.name}"
-      namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-    }
-    spec = {
-      secretName = "${var.name}-tls"
-      dnsNames   = regex("https?://([^/]+)", local.coder_url)
-      issuerRef = {
-        name = kubernetes_manifest.cloudflare-cluster-issuer.manifest.metadata.name
-        kind = "ClusterIssuer"
-      }
-    }
-  }
+# resource "kubernetes_manifest" "coder_certificate" {
+#   manifest = {
+#     apiVersion = "cert-manager.io/v1"
+#     kind       = "Certificate"
+#     metadata = {
+#       name      = "${var.name}"
+#       namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+#     }
+#     spec = {
+#       secretName = "${var.name}-tls"
+#       dnsNames   = regex("https?://([^/]+)", local.coder_url)
+#       issuerRef = {
+#         name = "cloudflare-issuer"
+#         kind = "ClusterIssuer"
+#       }
+#     }
+#   }
+# }
+
+resource "kubectl_manifest" "coder_certificate" {
+  depends_on = [ helm_release.cert-manager ]
+  yaml_body = <<YAML
+apiVersion: cert-manager.io/v1
+kind: Certificate
+metadata:
+  name: ${var.name}
+  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
+spec:
+  secretName: ${var.name}-tls
+  dnsNames:
+    - ${local.dnsNames.0}
+  issuerRef:
+    name: cloudflare-issuer
+    kind: ClusterIssuer
+YAML
 }
 
 data "kubernetes_secret" "coder_tls" {
@@ -85,7 +104,7 @@ data "kubernetes_secret" "coder_tls" {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
     name      = "${var.name}-tls"
   }
-  depends_on = [kubernetes_manifest.coder_certificate]
+  depends_on = [kubectl_manifest.coder_certificate]
 }
 
 resource "helm_release" "coder-chart" {
@@ -153,29 +172,29 @@ coder:
           key: psk
           name: "${kubernetes_secret.provisionerd_psk.metadata.0.name}"
     # Enable OIDC
-    - name: "CODER_OIDC_ISSUER_URL"
-      valueFrom:
-        secretKeyRef:
-          key: issuer-url
-          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
-    - name: "CODER_OIDC_EMAIL_DOMAIN"
-      valueFrom:
-        secretKeyRef:
-          key: email-domain
-          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
-    - name: "CODER_OIDC_CLIENT_ID"
-      valueFrom:
-        secretKeyRef:
-          key: client-id
-          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
-    - name: "CODER_OIDC_CLIENT_SECRET"
-      valueFrom:
-        secretKeyRef:
-          key: client-secret
-          name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # - name: "CODER_OIDC_ISSUER_URL"
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: issuer-url
+    #       name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # - name: "CODER_OIDC_EMAIL_DOMAIN"
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: email-domain
+    #       name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # - name: "CODER_OIDC_CLIENT_ID"
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: client-id
+    #       name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
+    # - name: "CODER_OIDC_CLIENT_SECRET"
+    #   valueFrom:
+    #     secretKeyRef:
+    #       key: client-secret
+    #       name: "${data.kubernetes_secret.coder_oidc.metadata.0.name}"
     # Send OTEL traces to the cluster-local collector to sample 10%
     - name: "OTEL_EXPORTER_OTLP_ENDPOINT"
-      value: "http://${kubernetes_manifest.otel-collector.manifest.metadata.name}-collector.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
+      value: "http://otel-collector.${kubernetes_namespace.coder_namespace.metadata.0.name}.svc.cluster.local:4317"
     - name: "OTEL_TRACES_SAMPLER"
       value: parentbased_traceidratio
     - name: "OTEL_TRACES_SAMPLER_ARG"
@@ -240,6 +259,8 @@ coder:
       value: "${local.coder_url}"
     - name: "CODER_VERBOSE"
       value: "true"
+    - name: "CODER_CONFIG_DIR"
+      value: "/tmp/config"
     - name: "CODER_CACHE_DIRECTORY"
       value: "/tmp/coder"
     - name: "CODER_TELEMETRY_ENABLE"
@@ -251,7 +272,7 @@ coder:
     - name: "CODER_PROMETHEUS_ENABLE"
       value: "true"
     - name: "CODER_PROVISIONERD_TAGS"
-      value = "socpe=organization"
+      value: "scope=organization"
   image:
     repo: ${var.provisionerd_image_repo}
     tag: ${var.provisionerd_image_tag}
