@@ -538,7 +538,7 @@ notifications:
     # (default: <unset>, type: host:port)
     smarthost: localhost:587
     # The hostname identifying the SMTP server.
-    # (default: localhost, type: string)
+    # (default: <unset>, type: string)
     hello: localhost
     # Force a TLS connection to the configured SMTP smarthost.
     # (default: <unset>, type: bool)
