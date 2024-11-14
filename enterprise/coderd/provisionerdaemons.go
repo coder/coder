@@ -60,12 +60,15 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 // @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	org := httpmw.OrganizationParam(r)
+	var (
+		ctx      = r.Context()
+		org      = httpmw.OrganizationParam(r)
+		tagParam = r.URL.Query().Get("tags")
+		tags     = database.StringMap{}
+		err      = tags.Scan([]byte(tagParam))
+	)
 
-	tags := database.StringMap{}
-	tagParam := r.URL.Query().Get("tags")
-	if err := tags.Scan([]byte(tagParam)); err != nil {
+	if tagParam != "" && err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "Invalid tags query parameter",
 			Detail:  err.Error(),
