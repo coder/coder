@@ -217,14 +217,14 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := coordinateURL.Query()
-	// TODO (ethanndickson) - the current version includes 2 additions we don't currently use:
+	// The current version includes additions
 	//
 	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
 	// 2.2 PostTelemetry on the Tailnet API
+	// 2.3 RefreshResumeToken, WorkspaceUpdates
 	//
-	// So, asking for API 2.2 just makes us incompatible back level servers, for no real benefit.
-	// As a temporary measure, we'll specifically ask for API version 2.0 until we implement sending
-	// telemetry.
+	// Since resume tokens and telemetry are optional, and fail gracefully, and we don't use
+	// WorkspaceUpdates to talk to a single agent, we ask for version 2.0 for maximum compatibility
 	q.Add("version", "2.0")
 	coordinateURL.RawQuery = q.Encode()
 

@@ -684,9 +684,7 @@ func sendTelemetry(
 	_, err := client.PostTelemetry(ctx, &proto.TelemetryRequest{
 		Events: []*proto.TelemetryEvent{event},
 	})
-	if drpcerr.Code(err) == drpcerr.Unimplemented ||
-		drpc.ProtocolError.Has(err) &&
-			strings.Contains(err.Error(), "unknown rpc: ") {
+	if IsDRPCUnimplementedError(err) {
 		logger.Debug(
 			context.Background(),
 			"attempted to send telemetry to a server that doesn't support it",
@@ -701,6 +699,14 @@ func sendTelemetry(
 		)
 	}
 	return false
+}
+
+// IsDRPCUnimplementedError returns true if the error indicates the RPC called is not implemented
+// by the server.
+func IsDRPCUnimplementedError(err error) bool {
+	return drpcerr.Code(err) == drpcerr.Unimplemented ||
+		drpc.ProtocolError.Has(err) &&
+			strings.Contains(err.Error(), "unknown rpc: ")
 }
 
 type basicResumeTokenController struct {
@@ -810,7 +816,14 @@ func (r *basicResumeTokenRefresher) refresh() {
 		}
 		return
 	}
-	if err != nil {
+	if IsDRPCUnimplementedError(err) {
+		r.logger.Info(r.ctx, "resume token is not supported by the server")
+		select {
+		case r.errCh <- nil:
+		default: // already have an error
+		}
+		return
+	} else if err != nil {
 		r.logger.Error(r.ctx, "error refreshing coordinator resume token", slog.Error(err))
 		select {
 		case r.errCh <- err:
