@@ -144,7 +144,7 @@ func (s *server) Plan(
 
 	modules, err := getModules(sess.WorkDirectory)
 	if err != nil {
-		return provisionersdk.PlanErrorf("get modules: %s", err)
+		s.logger.Error(ctx, "failed to get modules from disk", slog.Error(err))
 	}
 
 	initTimings.ingest(createInitTimingsEvent(timingInitComplete))
