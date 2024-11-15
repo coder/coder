@@ -905,10 +905,6 @@ jobs:
                       print("test-go-pg on windows-2022 failed, but we are temporarily skipping it until it's fixed")
                       continue
 
-              if job_name == "test-go-race-pg" and result == "failure":
-                  print("test-go-race-pg failed, but we are temporarily skipping it until it's fixed")
-                  continue
-
               if result in ["failure", "cancelled"]:
                   failed = True
                   break
