@@ -696,7 +696,11 @@ export const createServer = async (
 	return e;
 };
 
-async function waitForPort(port: number, host = "0.0.0.0", timeout = 5000): Promise<void> {
+async function waitForPort(
+	port: number,
+	host = "0.0.0.0",
+	timeout = 5000,
+): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {
 		const available = await isPortAvailable(port, host);
@@ -705,20 +709,23 @@ async function waitForPort(port: number, host = "0.0.0.0", timeout = 5000): Prom
 		}
 		await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 1 second before retrying
 	}
-	throw new Error(`Timeout: port ${port} is still in use after ${timeout / 1000} seconds.`);
+	throw new Error(
+		`Timeout: port ${port} is still in use after ${timeout / 1000} seconds.`,
+	);
 }
 
 function isPortAvailable(port: number, host = "0.0.0.0"): Promise<boolean> {
 	return new Promise((resolve) => {
-		const probe = net.createServer()
-			.once('error', (err: NodeJS.ErrnoException) => {
-				if (err.code === 'EADDRINUSE') {
+		const probe = net
+			.createServer()
+			.once("error", (err: NodeJS.ErrnoException) => {
+				if (err.code === "EADDRINUSE") {
 					resolve(false); // port is in use
 				} else {
 					resolve(false); // some other error occurred
 				}
 			})
-			.once('listening', () => {
+			.once("listening", () => {
 				probe.close();
 				resolve(true); // port is available
 			})
