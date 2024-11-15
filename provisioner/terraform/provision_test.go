@@ -3,8 +3,6 @@
 package terraform_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type provisionerServeOptions struct {
@@ -78,24 +77,24 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	return ctx, api
 }
 
-func makeTar(t *testing.T, files map[string]string) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for name, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: name,
-			Size: int64(len(content)),
-			Mode: 0o644,
-		})
-		require.NoError(t, err)
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
-}
+// func testutil.CreateTar(t *testing.T, files map[string]string) []byte {
+// t.Helper()
+// var buffer bytes.Buffer
+// writer := tar.NewWriter(&buffer)
+// for name, content := range files {
+// err := writer.WriteHeader(&tar.Header{
+// Name: name,
+// Size: int64(len(content)),
+// Mode: 0o644,
+// })
+// require.NoError(t, err)
+// _, err = writer.Write([]byte(content))
+// require.NoError(t, err)
+// }
+// err := writer.Flush()
+// require.NoError(t, err)
+// return buffer.Bytes()
+// }
 
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
 	t.Helper()
@@ -186,7 +185,7 @@ func TestProvision_Cancel(t *testing.T) {
 				binaryPath: binPath,
 			})
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, nil),
+				TemplateSourceArchive: testutil.CreateTar(t, nil),
 			})
 
 			err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -257,7 +256,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	// provisioner requires plan before apply, so test cancel with plan.
@@ -346,7 +345,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -758,7 +757,7 @@ func TestProvision(t *testing.T) {
 
 			ctx, api := setupProvisioner(t, nil)
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, testCase.Files),
+				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
 			})
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
@@ -863,7 +862,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
@@ -913,7 +912,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": echoResource}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": echoResource}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
