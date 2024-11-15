@@ -27,6 +27,7 @@ func TestProvisionerKeys(t *testing.T) {
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
 				codersdk.FeatureExternalProvisionerDaemons: 1,
+				codersdk.FeatureMultipleOrganizations:      1,
 			},
 		},
 	})
