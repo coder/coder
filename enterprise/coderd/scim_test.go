@@ -597,10 +597,14 @@ func TestScimError(t *testing.T) {
 	// Demonstrates that we cannot use the standard errors
 	rw := httptest.NewRecorder()
 	_ = handlerutil.WriteError(rw, spec.ErrNotFound)
-	require.Equal(t, http.StatusInternalServerError, rw.Result().StatusCode)
+	resp := rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 
 	// Our error wrapper works
 	rw = httptest.NewRecorder()
 	_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusNotFound, spec.ErrNotFound.Type, fmt.Errorf("not found")))
-	require.Equal(t, http.StatusNotFound, rw.Result().StatusCode)
+	resp = rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }
