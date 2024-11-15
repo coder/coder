@@ -12,3 +12,5 @@ CREATE TABLE workspace_modules (
     key TEXT NOT NULL,
     created_at timestamp with time zone NOT NULL
 );
+
+CREATE INDEX workspace_modules_created_at_idx ON workspace_modules (created_at);
