@@ -495,6 +495,7 @@ gen: \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
 	site/src/api/rbacresourcesGenerated.ts \
+	site/src/api/countriesGenerated.ts \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
@@ -525,6 +526,7 @@ gen/mark-fresh:
 		coderd/rbac/object_gen.go \
 		codersdk/rbacresources_gen.go \
 		site/src/api/rbacresourcesGenerated.ts \
+		site/src/api/countriesGenerated.ts \
 		docs/admin/integrations/prometheus.md \
 		docs/reference/cli/index.md \
 		docs/admin/security/audit-logs.md \
@@ -626,17 +628,20 @@ site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
-coderd/rbac/object_gen.go: scripts/rbacgen/rbacobject.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/rbacgen/main.go rbac > coderd/rbac/object_gen.go
+coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+	go run scripts/typegen/main.go rbac object > coderd/rbac/object_gen.go
 
-codersdk/rbacresources_gen.go: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
  	# the `codersdk` package and any parallel build targets.
-	go run scripts/rbacgen/main.go codersdk > /tmp/rbacresources_gen.go
+	go run scripts/typegen/main.go rbac codersdk > /tmp/rbacresources_gen.go
 	mv /tmp/rbacresources_gen.go codersdk/rbacresources_gen.go
 
-site/src/api/rbacresourcesGenerated.ts: scripts/rbacgen/codersdk.gotmpl scripts/rbacgen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/rbacgen/main.go typescript > "$@"
+site/src/api/rbacresourcesGenerated.ts: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
+	go run scripts/typegen/main.go rbac typescript > "$@"
+
+site/src/api/countriesGenerated.ts: scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
+	go run scripts/typegen/main.go countries > "$@"
 
 docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
