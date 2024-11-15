@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -251,6 +252,44 @@ func TestUserRealNameValid(t *testing.T) {
 			assert.NoError(t, normErr)
 			assert.Equal(t, testCase.Valid, err == nil)
 			assert.Equal(t, testCase.Valid, norm == testCase.Name, "invalid name should be different after normalization")
+		})
+	}
+}
+
+func TestGroupNameValid(t *testing.T) {
+	t.Parallel()
+
+	random255String, err := cryptorand.String(255)
+	require.NoError(t, err, "failed to generate 255 random string")
+	random256String, err := cryptorand.String(256)
+	require.NoError(t, err, "failed to generate 256 random string")
+
+	testCases := []struct {
+		Name  string
+		Valid bool
+	}{
+		{"", false},
+		{"my-group", true},
+		{"create", false},
+		{"new", false},
+		{"Lord Voldemort Team", false},
+		{random255String, true},
+		{random256String, false},
+	}
+	for _, testCase := range testCases {
+		testCase := testCase
+		t.Run(testCase.Name, func(t *testing.T) {
+			t.Parallel()
+			err := codersdk.GroupNameValid(testCase.Name)
+			assert.Equal(
+				t,
+				testCase.Valid,
+				err == nil,
+				"Test case %s failed: expected valid=%t but got error: %v",
+				testCase.Name,
+				testCase.Valid,
+				err,
+			)
 		})
 	}
 }

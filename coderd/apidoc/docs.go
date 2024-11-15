@@ -2941,6 +2941,12 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "object",
+                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "name": "tags",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -3166,6 +3172,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3182,6 +3191,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
                     }
                 ],
                 "responses": {
@@ -3234,6 +3252,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3250,6 +3271,15 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
                     }
                 ],
                 "responses": {
@@ -3765,6 +3795,68 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/organization": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization IdP Sync settings",
+                "operationId": "get-organization-idp-sync-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync settings",
+                "operationId": "update-organization-idp-sync-settings",
+                "parameters": [
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
                         }
                     }
                 }
@@ -5368,6 +5460,45 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.AssignableRoles"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/validate-password": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Validate user password",
+                "operationId": "validate-user-password",
+                "parameters": [
+                    {
+                        "description": "Validate user password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
                 }
@@ -11789,6 +11920,29 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSyncSettings": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\norganizations. If the field is the empty string, then no organization\nupdates will ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC claim --\u003e Coder organization uuid",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "organization_assign_default": {
+                    "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.PatchGroupRequest": {
             "type": "object",
             "properties": {
@@ -14116,6 +14270,28 @@ const docTemplate = `{
                 "UserStatusDormant",
                 "UserStatusSuspended"
             ]
+        },
+        "codersdk.ValidateUserPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ValidateUserPasswordResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
         },
         "codersdk.ValidationError": {
             "type": "object",

@@ -627,14 +627,17 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	dialer := &InmemTailnetDialer{
+		CoordPtr: &api.TailnetCoordinator,
+		DERPFn:   api.DERPMap,
+		Logger:   options.Logger,
+		ClientID: uuid.New(),
+	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
 		options.DERPServer,
-		api.DERPMap,
+		dialer,
 		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		func(context.Context) (tailnet.MultiAgentConn, error) {
-			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
-		},
 		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		api.TracerProvider,
 	)
@@ -1047,6 +1050,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
 				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {

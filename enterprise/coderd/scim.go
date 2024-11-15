@@ -281,7 +281,13 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	// the default org, regardless if sync is enabled or not.
 	// This is to preserve single org deployment behavior.
 	organizations := []uuid.UUID{}
-	if api.IDPSync.AssignDefaultOrganization() {
+	//nolint:gocritic // SCIM operations are a system user
+	orgSync, err := api.IDPSync.OrganizationSyncSettings(dbauthz.AsSystemRestricted(ctx), api.Database)
+	if err != nil {
+		_ = handlerutil.WriteError(rw, xerrors.Errorf("failed to get organization sync settings: %w", err))
+		return
+	}
+	if orgSync.AssignDefault {
 		//nolint:gocritic // SCIM operations are a system user
 		defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		if err != nil {

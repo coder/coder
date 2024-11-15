@@ -37,10 +37,11 @@ func main() {
 		}
 	}()
 
-	connection, err := dbtestutil.Open(t)
+	connection, cleanup, err := dbtestutil.OpenContainerized(t, dbtestutil.DBContainerOptions{})
 	if err != nil {
 		panic(err)
 	}
+	defer cleanup()
 
 	db, err := sql.Open("postgres", connection)
 	if err != nil {

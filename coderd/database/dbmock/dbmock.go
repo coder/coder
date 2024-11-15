@@ -1973,7 +1973,7 @@ func (mr *MockStoreMockRecorder) GetProvisionerDaemons(arg0 any) *gomock.Call {
 }
 
 // GetProvisionerDaemonsByOrganization mocks base method.
-func (m *MockStore) GetProvisionerDaemonsByOrganization(arg0 context.Context, arg1 uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (m *MockStore) GetProvisionerDaemonsByOrganization(arg0 context.Context, arg1 database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetProvisionerDaemonsByOrganization", arg0, arg1)
 	ret0, _ := ret[0].([]database.ProvisionerDaemon)
@@ -3503,10 +3503,10 @@ func (mr *MockStoreMockRecorder) GetWorkspacesAndAgentsByOwnerID(arg0, arg1 any)
 }
 
 // GetWorkspacesEligibleForTransition mocks base method.
-func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceTable, error) {
+func (m *MockStore) GetWorkspacesEligibleForTransition(arg0 context.Context, arg1 time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetWorkspacesEligibleForTransition", arg0, arg1)
-	ret0, _ := ret[0].([]database.WorkspaceTable)
+	ret0, _ := ret[0].([]database.GetWorkspacesEligibleForTransitionRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

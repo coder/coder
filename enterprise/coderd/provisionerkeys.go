@@ -137,7 +137,7 @@ func (api *API) provisionerKeyDaemons(rw http.ResponseWriter, r *http.Request) {
 	}
 	sdkKeys := convertProvisionerKeys(pks)
 
-	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, organization.ID)
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: organization.ID})
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return

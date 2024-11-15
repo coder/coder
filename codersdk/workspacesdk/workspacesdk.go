@@ -217,24 +217,26 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
 	q := coordinateURL.Query()
-	// TODO (ethanndickson) - the current version includes 2 additions we don't currently use:
+	// The current version includes additions
 	//
 	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
 	// 2.2 PostTelemetry on the Tailnet API
+	// 2.3 RefreshResumeToken, WorkspaceUpdates
 	//
-	// So, asking for API 2.2 just makes us incompatible back level servers, for no real benefit.
-	// As a temporary measure, we'll specifically ask for API version 2.0 until we implement sending
-	// telemetry.
+	// Since resume tokens and telemetry are optional, and fail gracefully, and we don't use
+	// WorkspaceUpdates to talk to a single agent, we ask for version 2.0 for maximum compatibility
 	q.Add("version", "2.0")
 	coordinateURL.RawQuery = q.Encode()
 
-	connector := newTailnetAPIConnector(ctx, options.Logger, agentID, coordinateURL.String(), quartz.NewReal(),
-		&websocket.DialOptions{
-			HTTPClient: c.client.HTTPClient,
-			HTTPHeader: headers,
-			// Need to disable compression to avoid a data-race.
-			CompressionMode: websocket.CompressionDisabled,
-		})
+	dialer := NewWebsocketDialer(options.Logger, coordinateURL, &websocket.DialOptions{
+		HTTPClient: c.client.HTTPClient,
+		HTTPHeader: headers,
+		// Need to disable compression to avoid a data-race.
+		CompressionMode: websocket.CompressionDisabled,
+	})
+	clk := quartz.NewReal()
+	controller := tailnet.NewController(options.Logger, dialer)
+	controller.ResumeTokenCtrl = tailnet.NewBasicResumeTokenController(options.Logger, clk)
 
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
 	var header http.Header
@@ -243,7 +245,9 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	}
 	var telemetrySink tailnet.TelemetrySink
 	if options.EnableTelemetry {
-		telemetrySink = connector
+		basicTel := tailnet.NewBasicTelemetryController(options.Logger)
+		telemetrySink = basicTel
+		controller.TelemetryCtrl = basicTel
 	}
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses:           []netip.Prefix{netip.PrefixFrom(ip, 128)},
@@ -264,14 +268,18 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 			_ = conn.Close()
 		}
 	}()
-	connector.runConnector(conn)
+	coordCtrl := tailnet.NewTunnelSrcCoordController(options.Logger, conn)
+	coordCtrl.AddDestination(agentID)
+	controller.CoordCtrl = coordCtrl
+	controller.DERPCtrl = tailnet.NewBasicDERPController(options.Logger, conn)
+	controller.Run(ctx)
 
 	options.Logger.Debug(ctx, "running tailnet API v2+ connector")
 
 	select {
 	case <-dialCtx.Done():
 		return nil, xerrors.Errorf("timed out waiting for coordinator and derp map: %w", dialCtx.Err())
-	case err = <-connector.connected:
+	case err = <-dialer.Connected():
 		if err != nil {
 			options.Logger.Error(ctx, "failed to connect to tailnet v2+ API", slog.Error(err))
 			return nil, xerrors.Errorf("start connector: %w", err)
@@ -283,7 +291,7 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 		AgentID: agentID,
 		CloseFunc: func() error {
 			cancel()
-			<-connector.closed
+			<-controller.Closed()
 			return conn.Close()
 		},
 	})

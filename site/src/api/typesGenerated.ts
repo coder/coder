@@ -980,6 +980,13 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly global_roles: Readonly<Array<SlimRole>>;
 }
 
+// From codersdk/idpsync.go
+export interface OrganizationSyncSettings {
+	readonly field: string;
+	readonly mapping: Record<string, Readonly<Array<string>>>;
+	readonly organization_assign_default: boolean;
+}
+
 // From codersdk/pagination.go
 export interface Pagination {
 	readonly after_id?: string;
@@ -1783,6 +1790,17 @@ export interface UserRoles {
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {
 	readonly q?: string;
+}
+
+// From codersdk/users.go
+export interface ValidateUserPasswordRequest {
+	readonly password: string;
+}
+
+// From codersdk/users.go
+export interface ValidateUserPasswordResponse {
+	readonly valid: boolean;
+	readonly details: string;
 }
 
 // From codersdk/client.go

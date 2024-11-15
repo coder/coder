@@ -140,7 +140,8 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		templateNameLabel = template.Name
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      templateNameLabel,
 			"initiator": initiator.Username,
@@ -841,7 +842,17 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Template with name %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
 		return
 	}
 

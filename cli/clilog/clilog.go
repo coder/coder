@@ -4,11 +4,11 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strings"
 
 	"golang.org/x/xerrors"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -104,7 +104,6 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 		switch loc {
 		case "":
-
 		case "/dev/stdout":
 			sinks = append(sinks, sinkFn(inv.Stdout))
 
@@ -112,12 +111,14 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 			sinks = append(sinks, sinkFn(inv.Stderr))
 
 		default:
-			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-			if err != nil {
-				return xerrors.Errorf("open log file %q: %w", loc, err)
+			logWriter := &lumberjack.Logger{
+				Filename: loc,
+				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
 			}
-			closers = append(closers, fi.Close)
-			sinks = append(sinks, sinkFn(fi))
+			closers = append(closers, logWriter.Close)
+			sinks = append(sinks, sinkFn(logWriter))
 		}
 		return nil
 	}

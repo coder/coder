@@ -1149,6 +1149,16 @@ when required by your organization's security policy.`,
 		Group:       &deploymentGroupEmailTLS,
 		YAML:        "certKeyFile",
 	}
+	telemetryEnable := serpent.Option{
+		Name:        "Telemetry Enable",
+		Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+		Flag:        "telemetry",
+		Env:         "CODER_TELEMETRY_ENABLE",
+		Default:     strconv.FormatBool(flag.Lookup("test.v") == nil || os.Getenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE") == "true"),
+		Value:       &c.Telemetry.Enable,
+		Group:       &deploymentGroupTelemetry,
+		YAML:        "enable",
+	}
 	opts := serpent.OptionSet{
 		{
 			Name:        "Access URL",
@@ -1755,6 +1765,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationField,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationField",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name: "OIDC Assign Default Organization",
@@ -1768,6 +1779,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationAssignDefault,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationAssignDefault",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name: "OIDC Organization Sync Mapping",
@@ -1779,6 +1791,7 @@ when required by your organization's security policy.`,
 			Value:   &c.OIDC.OrganizationMapping,
 			Group:   &deploymentGroupOIDC,
 			YAML:    "organizationMapping",
+			Hidden:  true, // Use db runtime config instead
 		},
 		{
 			Name:        "OIDC Group Field",
@@ -1906,15 +1919,19 @@ when required by your organization's security policy.`,
 			YAML:  "dangerousSkipIssuerChecks",
 		},
 		// Telemetry settings
+		telemetryEnable,
 		{
-			Name:        "Telemetry Enable",
-			Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
-			Flag:        "telemetry",
-			Env:         "CODER_TELEMETRY_ENABLE",
-			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
-			Value:       &c.Telemetry.Enable,
-			Group:       &deploymentGroupTelemetry,
-			YAML:        "enable",
+			Hidden: true,
+			Name:   "Telemetry (backwards compatibility)",
+			// Note the flip-flop of flag and env to maintain backwards
+			// compatibility and consistency. Inconsistently, the env
+			// was renamed to CODER_TELEMETRY_ENABLE in the past, but
+			// the flag was not renamed -enable.
+			Flag:       "telemetry-enable",
+			Env:        "CODER_TELEMETRY",
+			Value:      &c.Telemetry.Enable,
+			Group:      &deploymentGroupTelemetry,
+			UseInstead: []serpent.Option{telemetryEnable},
 		},
 		{
 			Name:        "Telemetry URL",

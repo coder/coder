@@ -1,24 +1,24 @@
 {
-  "compilerOptions": {
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "incremental": true,
-    "isolatedModules": true,
-    "jsx": "react-jsx",
-    "jsxImportSource": "@emotion/react",
-    "lib": ["dom", "dom.iterable", "esnext"],
-    "module": "esnext",
-    "moduleResolution": "node",
-    "noEmit": true,
-    "outDir": "build/",
-    "preserveWatchOutput": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
-    "strict": true,
-    "target": "es2020",
-    "baseUrl": "src/"
-  },
-  "include": ["**/*.ts", "**/*.tsx"],
-  "exclude": ["node_modules/", "_jest"],
-  "types": ["@emotion/react", "@testing-library/jest-dom", "jest", "node"]
+	"compilerOptions": {
+		"esModuleInterop": true,
+		"forceConsistentCasingInFileNames": true,
+		"incremental": true,
+		"isolatedModules": true,
+		"jsx": "react-jsx",
+		"jsxImportSource": "@emotion/react",
+		"lib": ["dom", "dom.iterable", "esnext"],
+		"module": "esnext",
+		"moduleResolution": "node",
+		"noEmit": true,
+		"outDir": "build/",
+		"preserveWatchOutput": true,
+		"resolveJsonModule": true,
+		"skipLibCheck": true,
+		"strict": true,
+		"target": "es2020",
+		"baseUrl": "src/"
+	},
+	"include": ["**/*.ts", "**/*.tsx"],
+	"exclude": ["node_modules/", "_jest"],
+	"types": ["@emotion/react", "@testing-library/jest-dom", "jest", "node"]
 }

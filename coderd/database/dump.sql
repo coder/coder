@@ -198,6 +198,10 @@ CREATE TYPE startup_script_behavior AS ENUM (
     'non-blocking'
 );
 
+CREATE DOMAIN tagset AS jsonb;
+
+COMMENT ON DOMAIN tagset IS 'A set of tags that match provisioner daemons to provisioner jobs, which can originate from workspaces or templates. tagset is a narrowed type over jsonb. It is expected to be the JSON representation of map[string]string. That is, {"key1": "value1", "key2": "value2"}. We need the narrowed type instead of just using jsonb so that we can give sqlc a type hint, otherwise it defaults to json.RawMessage. json.RawMessage is a suboptimal type to use in the context that we need tagset for.';
+
 CREATE TYPE tailnet_status AS ENUM (
     'ok',
     'lost'
@@ -375,6 +379,21 @@ BEGIN
 	RETURN NEW;
 END;
 $$;
+
+CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	RETURN CASE
+		-- Special case for untagged provisioners, where only an exact match should count
+		WHEN job_tags::jsonb = '{"scope": "organization", "owner": ""}'::jsonb THEN job_tags::jsonb = provisioner_tags::jsonb
+		-- General case
+		ELSE job_tags::jsonb <@ provisioner_tags::jsonb
+	END;
+END;
+$$;
+
+COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
 
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
@@ -1337,14 +1356,14 @@ CREATE TABLE user_links (
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
-    debug_context jsonb DEFAULT '{}'::jsonb NOT NULL
+    claims jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
-COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
+COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,

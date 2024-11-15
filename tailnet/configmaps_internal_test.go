@@ -13,8 +13,10 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/dnstype"
 	"tailscale.com/types/key"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg"
@@ -1157,6 +1159,97 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 	}
 }
 
+func TestConfigMaps_addRemoveHosts(t *testing.T) {
+	t.Parallel()
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	fEng := newFakeEngineConfigurable()
+	nodePrivateKey := key.NewNode()
+	nodeID := tailcfg.NodeID(5)
+	discoKey := key.NewDisco()
+	uut := newConfigMaps(logger, fEng, nodeID, nodePrivateKey, discoKey.Public())
+	defer uut.close()
+
+	addr1 := CoderServicePrefix.AddrFromUUID(uuid.New())
+	addr2 := CoderServicePrefix.AddrFromUUID(uuid.New())
+	addr3 := CoderServicePrefix.AddrFromUUID(uuid.New())
+	addr4 := CoderServicePrefix.AddrFromUUID(uuid.New())
+
+	// WHEN: we set two hosts
+	uut.setHosts(map[dnsname.FQDN][]netip.Addr{
+		"agent.myws.me.coder.": {
+			addr1,
+		},
+		"dev.main.me.coder.": {
+			addr2,
+			addr3,
+		},
+	})
+
+	// THEN: the engine is reconfigured with those same hosts
+	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	req := testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Equal(t, req.dnsCfg, &dns.Config{
+		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
+			CoderDNSSuffix: nil,
+		},
+		Hosts: map[dnsname.FQDN][]netip.Addr{
+			"agent.myws.me.coder.": {
+				addr1,
+			},
+			"dev.main.me.coder.": {
+				addr2,
+				addr3,
+			},
+		},
+		OnlyIPv6: true,
+	})
+
+	// WHEN: We replace the hosts with a new set
+	uut.setHosts(map[dnsname.FQDN][]netip.Addr{
+		"newagent.myws.me.coder.": {
+			addr4,
+		},
+		"newagent2.main.me.coder.": {
+			addr1,
+		},
+	})
+
+	// THEN: The engine is reconfigured with only the new hosts
+	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+	require.Equal(t, req.dnsCfg, &dns.Config{
+		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
+			CoderDNSSuffix: nil,
+		},
+		Hosts: map[dnsname.FQDN][]netip.Addr{
+			"newagent.myws.me.coder.": {
+				addr4,
+			},
+			"newagent2.main.me.coder.": {
+				addr1,
+			},
+		},
+		OnlyIPv6: true,
+	})
+
+	// WHEN: we remove all the hosts
+	uut.setHosts(map[dnsname.FQDN][]netip.Addr{})
+	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
+	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
+
+	// THEN: the engine is reconfigured with an empty config
+	require.Equal(t, req.dnsCfg, &dns.Config{})
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		uut.close()
+	}()
+	_ = testutil.RequireRecvCtx(ctx, t, done)
+}
+
 func newTestNode(id int) *Node {
 	return &Node{
 		ID:            tailcfg.NodeID(id),
@@ -1199,6 +1292,7 @@ func requireNeverConfigures(ctx context.Context, t *testing.T, uut *phased) {
 type reconfigCall struct {
 	wg     *wgcfg.Config
 	router *router.Config
+	dnsCfg *dns.Config
 }
 
 var _ engineConfigurable = &fakeEngineConfigurable{}
@@ -1235,8 +1329,8 @@ func (f fakeEngineConfigurable) SetNetworkMap(networkMap *netmap.NetworkMap) {
 	f.setNetworkMap <- networkMap
 }
 
-func (f fakeEngineConfigurable) Reconfig(wg *wgcfg.Config, r *router.Config, _ *dns.Config, _ *tailcfg.Debug) error {
-	f.reconfig <- reconfigCall{wg: wg, router: r}
+func (f fakeEngineConfigurable) Reconfig(wg *wgcfg.Config, r *router.Config, dnsCfg *dns.Config, _ *tailcfg.Debug) error {
+	f.reconfig <- reconfigCall{wg: wg, router: r, dnsCfg: dnsCfg}
 	return nil
 }
 

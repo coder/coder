@@ -2,7 +2,7 @@ coder:
   image:
     tag: latest
 provisionerDaemon:
-  pskSecretName: "coder-provisionerd-psk"
+  pskSecretName: "not-the-default-coder-provisioner-psk"
   keySecretName: "coder-provisionerd-key"
   keySecretKey: "provisionerd-key"
   tags:

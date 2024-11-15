@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net/netip"
+	"slices"
 	"sync"
 	"time"
 
@@ -14,9 +16,11 @@ import (
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/tailcfg"
+	"tailscale.com/types/dnstype"
 	"tailscale.com/types/ipproto"
 	"tailscale.com/types/key"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/filter"
 	"tailscale.com/wgengine/router"
@@ -29,6 +33,10 @@ import (
 )
 
 const lostTimeout = 15 * time.Minute
+
+// CoderDNSSuffix is the default DNS suffix that we append to Coder DNS
+// records.
+const CoderDNSSuffix = "coder."
 
 // engineConfigurable is the subset of wgengine.Engine that we use for configuration.
 //
@@ -63,6 +71,7 @@ type configMaps struct {
 
 	engine         engineConfigurable
 	static         netmap.NetworkMap
+	hosts          map[dnsname.FQDN][]netip.Addr
 	peers          map[uuid.UUID]*peerLifecycle
 	addresses      []netip.Prefix
 	derpMap        *tailcfg.DERPMap
@@ -79,6 +88,7 @@ func newConfigMaps(logger slog.Logger, engine engineConfigurable, nodeID tailcfg
 		phased: phased{Cond: *(sync.NewCond(&sync.Mutex{}))},
 		logger: logger,
 		engine: engine,
+		hosts:  make(map[dnsname.FQDN][]netip.Addr),
 		static: netmap.NetworkMap{
 			SelfNode: &tailcfg.Node{
 				ID:       nodeID,
@@ -153,10 +163,11 @@ func (c *configMaps) configLoop() {
 		}
 		if c.netmapDirty {
 			nm := c.netMapLocked()
+			hosts := c.hostsLocked()
 			actions = append(actions, func() {
 				c.logger.Debug(context.Background(), "updating engine network map", slog.F("network_map", nm))
 				c.engine.SetNetworkMap(nm)
-				c.reconfig(nm)
+				c.reconfig(nm, hosts)
 			})
 		}
 		if c.filterDirty {
@@ -212,6 +223,11 @@ func (c *configMaps) netMapLocked() *netmap.NetworkMap {
 	return nm
 }
 
+// hostsLocked returns the current DNS hosts mapping.  c.L must be held.
+func (c *configMaps) hostsLocked() map[dnsname.FQDN][]netip.Addr {
+	return maps.Clone(c.hosts)
+}
+
 // peerConfigLocked returns the set of peer nodes we have.  c.L must be held.
 func (c *configMaps) peerConfigLocked() []*tailcfg.Node {
 	out := make([]*tailcfg.Node, 0, len(c.peers))
@@ -261,6 +277,17 @@ func (c *configMaps) setAddresses(ips []netip.Prefix) {
 	c.Broadcast()
 }
 
+func (c *configMaps) setHosts(hosts map[dnsname.FQDN][]netip.Addr) {
+	c.L.Lock()
+	defer c.L.Unlock()
+	c.hosts = make(map[dnsname.FQDN][]netip.Addr)
+	for name, addrs := range hosts {
+		c.hosts[name] = slices.Clone(addrs)
+	}
+	c.netmapDirty = true
+	c.Broadcast()
+}
+
 // setBlockEndpoints sets whether we should block configuring endpoints we learn
 // from peers.  It triggers a configuration of the engine if the value changes.
 // nolint: revive
@@ -305,7 +332,15 @@ func (c *configMaps) derpMapLocked() *tailcfg.DERPMap {
 // reconfig computes the correct wireguard config and calls the engine.Reconfig
 // with the config we have.  It is not intended for this to be called outside of
 // the updateLoop()
-func (c *configMaps) reconfig(nm *netmap.NetworkMap) {
+func (c *configMaps) reconfig(nm *netmap.NetworkMap, hosts map[dnsname.FQDN][]netip.Addr) {
+	dnsCfg := &dns.Config{}
+	if len(hosts) > 0 {
+		dnsCfg.Hosts = hosts
+		dnsCfg.OnlyIPv6 = true
+		dnsCfg.Routes = map[dnsname.FQDN][]*dnstype.Resolver{
+			CoderDNSSuffix: nil,
+		}
+	}
 	cfg, err := nmcfg.WGCfg(nm, Logger(c.logger.Named("net.wgconfig")), netmap.AllowSingleHosts, "")
 	if err != nil {
 		// WGCfg never returns an error at the time this code was written.  If it starts, returning
@@ -314,8 +349,11 @@ func (c *configMaps) reconfig(nm *netmap.NetworkMap) {
 		return
 	}
 
-	rc := &router.Config{LocalAddrs: nm.Addresses}
-	err = c.engine.Reconfig(cfg, rc, &dns.Config{}, &tailcfg.Debug{})
+	rc := &router.Config{
+		LocalAddrs: nm.Addresses,
+		Routes:     []netip.Prefix{CoderServicePrefix.AsNetip()},
+	}
+	err = c.engine.Reconfig(cfg, rc, dnsCfg, &tailcfg.Debug{})
 	if err != nil {
 		if errors.Is(err, wgengine.ErrNoChanges) {
 			return

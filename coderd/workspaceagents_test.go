@@ -2041,13 +2041,12 @@ func requireGetManifest(ctx context.Context, t testing.TB, aAPI agentproto.DRPCA
 }
 
 func postStartup(ctx context.Context, t testing.TB, client agent.Client, startup *agentproto.Startup) error {
-	conn, err := client.ConnectRPC(ctx)
+	aAPI, _, err := client.ConnectRPC23(ctx)
 	require.NoError(t, err)
 	defer func() {
-		cErr := conn.Close()
+		cErr := aAPI.DRPCConn().Close()
 		require.NoError(t, cErr)
 	}()
-	aAPI := agentproto.NewDRPCAgentClient(conn)
 	_, err = aAPI.UpdateStartup(ctx, &agentproto.UpdateStartupRequest{Startup: startup})
 	return err
 }

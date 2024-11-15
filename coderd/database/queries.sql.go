@@ -5269,11 +5269,20 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = $1
+	-- This is the original search criteria:
+	organization_id = $1 :: uuid
+	AND
+	-- adding support for searching by tags:
+	($2 :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
 `
 
-func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
+type GetProvisionerDaemonsByOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WantTags       StringMap `db:"want_tags" json:"want_tags"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.WantTags)
 	if err != nil {
 		return nil, err
 	}
@@ -5523,21 +5532,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = $3
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = $5 :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ $5 :: jsonb
-			END
+			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
+			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -5546,11 +5551,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt      sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID       uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Types          []ProvisionerType `db:"types" json:"types"`
-	Tags           json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt       sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID        uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	OrganizationID  uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Types           []ProvisionerType `db:"types" json:"types"`
+	ProvisionerTags json.RawMessage   `db:"provisioner_tags" json:"provisioner_tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -5565,7 +5570,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		arg.WorkerID,
 		arg.OrganizationID,
 		pq.Array(arg.Types),
-		arg.Tags,
+		arg.ProvisionerTags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -6746,25 +6751,19 @@ FROM
 INNER JOIN
 	workspaces on wb.workspace_id = workspaces.id
 WHERE
+	-- Only return workspaces that match the user + organization.
+	-- Quotas are calculated per user per organization.
+	NOT workspaces.deleted AND
 	workspaces.owner_id = $1 AND
 	workspaces.organization_id = $2
 ORDER BY
 	wb.workspace_id,
-	wb.created_at DESC
+	wb.build_number DESC
 )
 SELECT
 	coalesce(SUM(daily_cost), 0)::BIGINT
 FROM
-	workspaces
-INNER JOIN latest_builds ON
-	latest_builds.workspace_id = workspaces.id
-WHERE
-	NOT deleted AND
-	-- We can likely remove these conditions since we check above.
-	-- But it does not hurt to be defensive and make sure future query changes
-	-- do not break anything.
-	workspaces.owner_id = $1 AND
-	workspaces.organization_id = $2
+	latest_builds
 `
 
 type GetQuotaConsumedForUserParams struct {
@@ -9695,7 +9694,7 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.debug_context
+	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims
 FROM
 	user_links
 INNER JOIN
@@ -9718,14 +9717,14 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 FROM
 	user_links
 WHERE
@@ -9749,13 +9748,13 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
 
 const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
-SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context FROM user_links WHERE user_id = $1
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims FROM user_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
@@ -9776,7 +9775,7 @@ func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID)
 			&i.OAuthExpiry,
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
-			&i.DebugContext,
+			&i.Claims,
 		); err != nil {
 			return nil, err
 		}
@@ -9802,22 +9801,22 @@ INSERT INTO
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
 		oauth_expiry,
-	    debug_context
+		claims
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type InsertUserLinkParams struct {
-	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
-	LoginType              LoginType       `db:"login_type" json:"login_type"`
-	LinkedID               string          `db:"linked_id" json:"linked_id"`
-	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
-	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	LinkedID               string         `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	Claims                 UserLinkClaims `db:"claims" json:"claims"`
 }
 
 func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
@@ -9830,7 +9829,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
-		arg.DebugContext,
+		arg.Claims,
 	)
 	var i UserLink
 	err := row.Scan(
@@ -9842,7 +9841,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
@@ -9856,20 +9855,20 @@ SET
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
 	oauth_expiry = $5,
-	debug_context = $6
+	claims = $6
 WHERE
-	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type UpdateUserLinkParams struct {
-	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
-	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
-	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
-	LoginType              LoginType       `db:"login_type" json:"login_type"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	Claims                 UserLinkClaims `db:"claims" json:"claims"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
@@ -9879,7 +9878,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
-		arg.DebugContext,
+		arg.Claims,
 		arg.UserID,
 		arg.LoginType,
 	)
@@ -9893,7 +9892,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
@@ -9904,7 +9903,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -9925,7 +9924,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
@@ -15369,7 +15368,8 @@ func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerI
 
 const getWorkspacesEligibleForTransition = `-- name: GetWorkspacesEligibleForTransition :many
 SELECT
-	workspaces.id, workspaces.created_at, workspaces.updated_at, workspaces.owner_id, workspaces.organization_id, workspaces.template_id, workspaces.deleted, workspaces.name, workspaces.autostart_schedule, workspaces.ttl, workspaces.last_used_at, workspaces.dormant_at, workspaces.deleting_at, workspaces.automatic_updates, workspaces.favorite
+	workspaces.id,
+	workspaces.name
 FROM
 	workspaces
 LEFT JOIN
@@ -15391,82 +15391,104 @@ WHERE
 	) AND
 
 	(
-		-- If the workspace build was a start transition, the workspace is
-		-- potentially eligible for autostop if it's past the deadline. The
-		-- deadline is computed at build time upon success and is bumped based
-		-- on activity (up the max deadline if set). We don't need to check
-		-- license here since that's done when the values are written to the build.
+		-- A workspace may be eligible for autostop if the following are true:
+		--   * The provisioner job has not failed.
+		--   * The workspace is not dormant.
+		--   * The workspace build was a start transition.
+		--   * The workspace's owner is suspended OR the workspace build deadline has passed.
 		(
-			workspace_builds.transition = 'start'::workspace_transition AND
-			workspace_builds.deadline IS NOT NULL AND
-			workspace_builds.deadline < $1 :: timestamptz
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
+			workspaces.dormant_at IS NULL AND
+			workspace_builds.transition = 'start'::workspace_transition AND (
+				users.status = 'suspended'::user_status OR (
+					workspace_builds.deadline != '0001-01-01 00:00:00+00'::timestamptz AND
+					workspace_builds.deadline < $1 :: timestamptz
+				)
+			)
 		) OR
 
-		-- If the workspace build was a stop transition, the workspace is
-		-- potentially eligible for autostart if it has a schedule set. The
-		-- caller must check if the template allows autostart in a license-aware
-		-- fashion as we cannot check it here.
+		-- A workspace may be eligible for autostart if the following are true:
+		--   * The workspace's owner is active.
+		--   * The provisioner job did not fail.
+		--   * The workspace build was a stop transition.
+		--   * The workspace has an autostart schedule.
 		(
+			users.status = 'active'::user_status AND
+			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL
 		) OR
 
-		-- If the workspace's most recent job resulted in an error
-		-- it may be eligible for failed stop.
+		-- A workspace may be eligible for dormant stop if the following are true:
+		--   * The workspace is not dormant.
+		--   * The template has set a time 'til dormant.
+		--   * The workspace has been unused for longer than the time 'til dormancy.
 		(
-			provisioner_jobs.error IS NOT NULL AND
-			provisioner_jobs.error != '' AND
-			workspace_builds.transition = 'start'::workspace_transition
-		) OR
-
-		-- If the workspace's template has an inactivity_ttl set
-		-- it may be eligible for dormancy.
-		(
+			workspaces.dormant_at IS NULL AND
 			templates.time_til_dormant > 0 AND
-			workspaces.dormant_at IS NULL
+			($1 :: timestamptz) - workspaces.last_used_at > (INTERVAL '1 millisecond' * (templates.time_til_dormant / 1000000))
 		) OR
 
-		-- If the workspace's template has a time_til_dormant_autodelete set
-		-- and the workspace is already dormant.
+		-- A workspace may be eligible for deletion if the following are true:
+		--   * The workspace is dormant.
+		--   * The workspace is scheduled to be deleted.
+		--   * If there was a prior attempt to delete the workspace that failed:
+		--      * This attempt was at least 24 hours ago.
 		(
+			workspaces.dormant_at IS NOT NULL AND
+			workspaces.deleting_at IS NOT NULL AND
+			workspaces.deleting_at < $1 :: timestamptz AND
 			templates.time_til_dormant_autodelete > 0 AND
-			workspaces.dormant_at IS NOT NULL
+			CASE
+				WHEN (
+					workspace_builds.transition = 'delete'::workspace_transition AND
+					provisioner_jobs.job_status = 'failed'::provisioner_job_status
+				) THEN (
+					(
+						provisioner_jobs.canceled_at IS NOT NULL OR
+						provisioner_jobs.completed_at IS NOT NULL
+					) AND (
+						($1 :: timestamptz) - (CASE
+							WHEN provisioner_jobs.canceled_at IS NOT NULL THEN provisioner_jobs.canceled_at
+							ELSE provisioner_jobs.completed_at
+						END) > INTERVAL '24 hours'
+					)
+				)
+				ELSE true
+			END
 		) OR
 
-		-- If the user account is suspended, and the workspace is running.
+		-- A workspace may be eligible for failed stop if the following are true:
+		--   * The template has a failure ttl set.
+		--   * The workspace build was a start transition.
+		--   * The provisioner job failed.
+		--   * The provisioner job had completed.
+		--   * The provisioner job has been completed for longer than the failure ttl.
 		(
-			users.status = 'suspended'::user_status AND
-			workspace_builds.transition = 'start'::workspace_transition
+			templates.failure_ttl > 0 AND
+			workspace_builds.transition = 'start'::workspace_transition AND
+			provisioner_jobs.job_status = 'failed'::provisioner_job_status AND
+			provisioner_jobs.completed_at IS NOT NULL AND
+			($1 :: timestamptz) - provisioner_jobs.completed_at > (INTERVAL '1 millisecond' * (templates.failure_ttl / 1000000))
 		)
 	) AND workspaces.deleted = 'false'
 `
 
-func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]WorkspaceTable, error) {
+type GetWorkspacesEligibleForTransitionRow struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error) {
 	rows, err := q.db.QueryContext(ctx, getWorkspacesEligibleForTransition, now)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []WorkspaceTable
+	var items []GetWorkspacesEligibleForTransitionRow
 	for rows.Next() {
-		var i WorkspaceTable
-		if err := rows.Scan(
-			&i.ID,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-			&i.OwnerID,
-			&i.OrganizationID,
-			&i.TemplateID,
-			&i.Deleted,
-			&i.Name,
-			&i.AutostartSchedule,
-			&i.Ttl,
-			&i.LastUsedAt,
-			&i.DormantAt,
-			&i.DeletingAt,
-			&i.AutomaticUpdates,
-			&i.Favorite,
-		); err != nil {
+		var i GetWorkspacesEligibleForTransitionRow
+		if err := rows.Scan(&i.ID, &i.Name); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

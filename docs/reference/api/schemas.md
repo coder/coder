@@ -3959,6 +3959,28 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `user_id`         | string                                          | false    |              |             |
 | `username`        | string                                          | false    |              |             |
 
+## codersdk.OrganizationSyncSettings
+
+```json
+{
+	"field": "string",
+	"mapping": {
+		"property1": ["string"],
+		"property2": ["string"]
+	},
+	"organization_assign_default": true
+}
+```
+
+### Properties
+
+| Name                          | Type            | Required | Restrictions | Description                                                                                                                                                                         |
+| ----------------------------- | --------------- | -------- | ------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`                       | string          | false    |              | Field selects the claim field to be used as the created user's organizations. If the field is the empty string, then no organization updates will ever come from the OIDC provider. |
+| `mapping`                     | object          | false    |              | Mapping maps from an OIDC claim --> Coder organization uuid                                                                                                                         |
+| » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
+| `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
+
 ## codersdk.PatchGroupRequest
 
 ```json
@@ -6463,6 +6485,36 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `active`    |
 | `dormant`   |
 | `suspended` |
+
+## codersdk.ValidateUserPasswordRequest
+
+```json
+{
+	"password": "string"
+}
+```
+
+### Properties
+
+| Name       | Type   | Required | Restrictions | Description |
+| ---------- | ------ | -------- | ------------ | ----------- |
+| `password` | string | true     |              |             |
+
+## codersdk.ValidateUserPasswordResponse
+
+```json
+{
+	"details": "string",
+	"valid": true
+}
+```
+
+### Properties
+
+| Name      | Type    | Required | Restrictions | Description |
+| --------- | ------- | -------- | ------------ | ----------- |
+| `details` | string  | false    |              |             |
+| `valid`   | boolean | false    |              |             |
 
 ## codersdk.ValidationError
 

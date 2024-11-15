@@ -614,6 +614,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerSshPublicKey:    ownerSSHPublicKey,
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
+					WorkspaceOwnerLoginType:       string(owner.LoginType),
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -2082,7 +2083,7 @@ func obtainOIDCAccessToken(ctx context.Context, db database.Store, oidcConfig pr
 			OAuthRefreshToken:      link.OAuthRefreshToken,
 			OAuthRefreshTokenKeyID: sql.NullString{}, // set by dbcrypt if required
 			OAuthExpiry:            link.OAuthExpiry,
-			DebugContext:           link.DebugContext,
+			Claims:                 link.Claims,
 		})
 		if err != nil {
 			return "", xerrors.Errorf("update user link: %w", err)

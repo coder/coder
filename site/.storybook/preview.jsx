@@ -16,6 +16,7 @@
  * Storybook decorator function used to inject baseline data dependencies into
  * our React components during testing.
  */
+import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
@@ -133,6 +134,12 @@ function withTheme(Story, context) {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
 	const { themeOverride } = DecoratorHelpers.useThemeParameters();
 	const selected = themeOverride || selectedTheme || "dark";
+
+	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
+	// theme to the HTML class list. This approach is necessary because Tailwind
+	// CSS relies on class names to apply styles, and dynamically changing themes
+	// requires updating the class list accordingly.
+	document.querySelector("html")?.setAttribute("class", selected);
 
 	return (
 		<StrictMode>

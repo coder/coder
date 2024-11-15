@@ -35,6 +35,9 @@ sql:
           - db_type: "name_organization_pair"
             go_type:
               type: "NameOrganizationPair"
+          - db_type: "tagset"
+            go_type:
+              type: "StringMap"
           - column: "custom_roles.site_permissions"
             go_type:
               type: "CustomRolePermissions"
@@ -79,6 +82,9 @@ sql:
           - column: "provisioner_job_stats.*_secs"
             go_type:
               type: "float64"
+          - column: "user_links.claims"
+            go_type:
+              type: "UserLinkClaims"
         rename:
           group_member: GroupMemberTable
           group_members_expanded: GroupMember

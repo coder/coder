@@ -959,9 +959,9 @@ func (m queryMetricsStore) GetProvisionerDaemons(ctx context.Context) ([]databas
 	return daemons, err
 }
 
-func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, organizationID)
+	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsByOrganization").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -1659,7 +1659,7 @@ func (m queryMetricsStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, 
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
+func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
 	m.queryLatencies.WithLabelValues("GetWorkspacesEligibleForAutoStartStop").Observe(time.Since(start).Seconds())

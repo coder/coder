@@ -399,6 +399,8 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 	t.Cleanup(func() {
 		_ = coord.Close()
 	})
+	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
+	coordPtr.Store(&coord)
 
 	agents := []agentWithID{}
 
@@ -430,13 +432,18 @@ func setupServerTailnetAgent(t *testing.T, agentNum int, opts ...tailnettest.DER
 		agents = append(agents, agentWithID{id: manifest.AgentID, Agent: ag})
 	}
 
+	dialer := &coderd.InmemTailnetDialer{
+		CoordPtr: &coordPtr,
+		DERPFn:   func() *tailcfg.DERPMap { return derpMap },
+		Logger:   logger,
+		ClientID: uuid.UUID{5},
+	}
 	serverTailnet, err := coderd.NewServerTailnet(
 		context.Background(),
 		logger,
 		derpServer,
-		func() *tailcfg.DERPMap { return derpMap },
+		dialer,
 		false,
-		func(context.Context) (tailnet.MultiAgentConn, error) { return coord.ServeMultiAgent(uuid.New()), nil },
 		!derpMap.HasSTUN(),
 		trace.NewNoopTracerProvider(),
 	)

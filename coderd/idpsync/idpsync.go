@@ -24,8 +24,13 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
-	AssignDefaultOrganization() bool
-	OrganizationSyncEnabled() bool
+	OrganizationSyncEntitled() bool
+	OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error)
+	UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error
+	// OrganizationSyncEnabled returns true if all OIDC users are assigned
+	// to organizations via org sync settings.
+	// This is used to know when to disable manual org membership assignment.
+	OrganizationSyncEnabled(ctx context.Context, db database.Store) bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
 	ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (OrganizationParams, *HTTPError)
@@ -33,7 +38,7 @@ type IDPSync interface {
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
 
-	GroupSyncEnabled() bool
+	GroupSyncEntitled() bool
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
 	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
@@ -147,8 +152,9 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 type SyncSettings struct {
 	DeploymentSyncSettings
 
-	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
-	Role  runtimeconfig.RuntimeEntry[*RoleSyncSettings]
+	Group        runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	Role         runtimeconfig.RuntimeEntry[*RoleSyncSettings]
+	Organization runtimeconfig.RuntimeEntry[*OrganizationSyncSettings]
 }
 
 func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
@@ -159,6 +165,7 @@ func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings De
 			DeploymentSyncSettings: settings,
 			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
 			Role:                   runtimeconfig.MustNew[*RoleSyncSettings]("role-sync-settings"),
+			Organization:           runtimeconfig.MustNew[*OrganizationSyncSettings]("organization-sync-settings"),
 		},
 	}
 }

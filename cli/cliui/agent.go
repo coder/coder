@@ -411,7 +411,8 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 
 	if d.DisableDirect {
-		general = append(general, "❗ Direct connections are disabled locally, by `--disable-direct` or `CODER_DISABLE_DIRECT`")
+		general = append(general, "❗ Direct connections are disabled locally, by `--disable-direct-connections` or `CODER_DISABLE_DIRECT_CONNECTIONS`.\n"+
+			"   They may still be established over a private network.")
 		if !d.Verbose {
 			return general, client, agent
 		}

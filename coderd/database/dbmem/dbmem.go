@@ -1104,6 +1104,19 @@ func (q *FakeQuerier) getOrganizationByIDNoLock(id uuid.UUID) (database.Organiza
 	return database.Organization{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) ([]database.WorkspaceAgentScript, error) {
+	scripts := make([]database.WorkspaceAgentScript, 0)
+	for _, script := range q.workspaceAgentScripts {
+		for _, id := range ids {
+			if script.WorkspaceAgentID == id {
+				scripts = append(scripts, script)
+				break
+			}
+		}
+	}
+	return scripts, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -1181,8 +1194,8 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			continue
 		}
 		tags := map[string]string{}
-		if arg.Tags != nil {
-			err := json.Unmarshal(arg.Tags, &tags)
+		if arg.ProvisionerTags != nil {
+			err := json.Unmarshal(arg.ProvisionerTags, &tags)
 			if err != nil {
 				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
 			}
@@ -3612,16 +3625,28 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	daemons := make([]database.ProvisionerDaemon, 0)
 	for _, daemon := range q.provisionerDaemons {
-		if daemon.OrganizationID == organizationID {
-			daemon.Tags = maps.Clone(daemon.Tags)
-			daemons = append(daemons, daemon)
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
 		}
+		// Special case for untagged provisioners: only match untagged jobs.
+		// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+		// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+		//      THEN nested.tags :: jsonb = @tags :: jsonb
+		if tagsEqual(arg.WantTags, tagsUntagged) && !tagsEqual(arg.WantTags, daemon.Tags) {
+			continue
+		}
+		// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+		if !tagsSubset(arg.WantTags, daemon.Tags) {
+			continue
+		}
+		daemon.Tags = maps.Clone(daemon.Tags)
+		daemons = append(daemons, daemon)
 	}
 
 	return daemons, nil
@@ -5854,12 +5879,12 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	build, err := q.GetWorkspaceBuildByID(ctx, id)
+	build, err := q.getWorkspaceBuildByIDNoLock(ctx, id)
 	if err != nil {
 		return nil, xerrors.Errorf("get build: %w", err)
 	}
 
-	resources, err := q.GetWorkspaceResourcesByJobID(ctx, build.JobID)
+	resources, err := q.getWorkspaceResourcesByJobIDNoLock(ctx, build.JobID)
 	if err != nil {
 		return nil, xerrors.Errorf("get resources: %w", err)
 	}
@@ -5868,7 +5893,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		resourceIDs = append(resourceIDs, res.ID)
 	}
 
-	agents, err := q.GetWorkspaceAgentsByResourceIDs(ctx, resourceIDs)
+	agents, err := q.getWorkspaceAgentsByResourceIDsNoLock(ctx, resourceIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get agents: %w", err)
 	}
@@ -5877,7 +5902,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 		agentIDs = append(agentIDs, agent.ID)
 	}
 
-	scripts, err := q.GetWorkspaceAgentScriptsByAgentIDs(ctx, agentIDs)
+	scripts, err := q.getWorkspaceAgentScriptsByAgentIDsNoLock(agentIDs)
 	if err != nil {
 		return nil, xerrors.Errorf("get scripts: %w", err)
 	}
@@ -5933,16 +5958,7 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptsByAgentIDs(_ context.Context, ids 
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	scripts := make([]database.WorkspaceAgentScript, 0)
-	for _, script := range q.workspaceAgentScripts {
-		for _, id := range ids {
-			if script.WorkspaceAgentID == id {
-				scripts = append(scripts, script)
-				break
-			}
-		}
-	}
-	return scripts, nil
+	return q.getWorkspaceAgentScriptsByAgentIDsNoLock(ids)
 }
 
 func (q *FakeQuerier) GetWorkspaceAgentStats(_ context.Context, createdAfter time.Time) ([]database.GetWorkspaceAgentStatsRow, error) {
@@ -6864,60 +6880,99 @@ func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, owner
 	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
 }
 
-func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.WorkspaceTable, error) {
+func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	workspaces := []database.WorkspaceTable{}
+	workspaces := []database.GetWorkspacesEligibleForTransitionRow{}
 	for _, workspace := range q.workspaces {
 		build, err := q.getLatestWorkspaceBuildByWorkspaceIDNoLock(ctx, workspace.ID)
 		if err != nil {
-			return nil, err
-		}
-
-		if build.Transition == database.WorkspaceTransitionStart &&
-			!build.Deadline.IsZero() &&
-			build.Deadline.Before(now) &&
-			!workspace.DormantAt.Valid {
-			workspaces = append(workspaces, workspace)
-			continue
-		}
-
-		if build.Transition == database.WorkspaceTransitionStop &&
-			workspace.AutostartSchedule.Valid &&
-			!workspace.DormantAt.Valid {
-			workspaces = append(workspaces, workspace)
-			continue
-		}
-
-		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
-		if err != nil {
-			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
-		}
-		if codersdk.ProvisionerJobStatus(job.JobStatus) == codersdk.ProvisionerJobFailed {
-			workspaces = append(workspaces, workspace)
-			continue
-		}
-
-		template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
-		if err != nil {
-			return nil, xerrors.Errorf("get template by ID: %w", err)
-		}
-		if !workspace.DormantAt.Valid && template.TimeTilDormant > 0 {
-			workspaces = append(workspaces, workspace)
-			continue
-		}
-		if workspace.DormantAt.Valid && template.TimeTilDormantAutoDelete > 0 {
-			workspaces = append(workspaces, workspace)
-			continue
+			return nil, xerrors.Errorf("get workspace build by ID: %w", err)
 		}
 
 		user, err := q.getUserByIDNoLock(workspace.OwnerID)
 		if err != nil {
 			return nil, xerrors.Errorf("get user by ID: %w", err)
 		}
-		if user.Status == database.UserStatusSuspended && build.Transition == database.WorkspaceTransitionStart {
-			workspaces = append(workspaces, workspace)
+
+		job, err := q.getProvisionerJobByIDNoLock(ctx, build.JobID)
+		if err != nil {
+			return nil, xerrors.Errorf("get provisioner job by ID: %w", err)
+		}
+
+		template, err := q.getTemplateByIDNoLock(ctx, workspace.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template by ID: %w", err)
+		}
+
+		if workspace.Deleted {
+			continue
+		}
+
+		if job.JobStatus != database.ProvisionerJobStatusFailed &&
+			!workspace.DormantAt.Valid &&
+			build.Transition == database.WorkspaceTransitionStart &&
+			(user.Status == database.UserStatusSuspended || (!build.Deadline.IsZero() && build.Deadline.Before(now))) {
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
+			continue
+		}
+
+		if user.Status == database.UserStatusActive &&
+			job.JobStatus != database.ProvisionerJobStatusFailed &&
+			build.Transition == database.WorkspaceTransitionStop &&
+			workspace.AutostartSchedule.Valid {
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
+			continue
+		}
+
+		if !workspace.DormantAt.Valid &&
+			template.TimeTilDormant > 0 &&
+			now.Sub(workspace.LastUsedAt) > time.Duration(template.TimeTilDormant) {
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
+			continue
+		}
+
+		if workspace.DormantAt.Valid &&
+			workspace.DeletingAt.Valid &&
+			workspace.DeletingAt.Time.Before(now) &&
+			template.TimeTilDormantAutoDelete > 0 {
+			if build.Transition == database.WorkspaceTransitionDelete &&
+				job.JobStatus == database.ProvisionerJobStatusFailed {
+				if job.CanceledAt.Valid && now.Sub(job.CanceledAt.Time) <= 24*time.Hour {
+					continue
+				}
+
+				if job.CompletedAt.Valid && now.Sub(job.CompletedAt.Time) <= 24*time.Hour {
+					continue
+				}
+			}
+
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
+			continue
+		}
+
+		if template.FailureTTL > 0 &&
+			build.Transition == database.WorkspaceTransitionStart &&
+			job.JobStatus == database.ProvisionerJobStatusFailed &&
+			job.CompletedAt.Valid &&
+			now.Sub(job.CompletedAt.Time) > time.Duration(template.FailureTTL) {
+			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
+				ID:   workspace.ID,
+				Name: workspace.Name,
+			})
 			continue
 		}
 	}
@@ -7710,21 +7765,6 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		return database.User{}, err
 	}
 
-	// There is a common bug when using dbmem that 2 inserted users have the
-	// same created_at time. This causes user order to not be deterministic,
-	// which breaks some unit tests.
-	// To fix this, we make sure that the created_at time is always greater
-	// than the last user's created_at time.
-	allUsers, _ := q.GetUsers(context.Background(), database.GetUsersParams{})
-	if len(allUsers) > 0 {
-		lastUser := allUsers[len(allUsers)-1]
-		if arg.CreatedAt.Before(lastUser.CreatedAt) ||
-			arg.CreatedAt.Equal(lastUser.CreatedAt) {
-			// 1 ms is a good enough buffer.
-			arg.CreatedAt = lastUser.CreatedAt.Add(time.Millisecond)
-		}
-	}
-
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
@@ -7752,6 +7792,9 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 		LoginType:      arg.LoginType,
 	}
 	q.users = append(q.users, user)
+	sort.Slice(q.users, func(i, j int) bool {
+		return q.users[i].CreatedAt.Before(q.users[j].CreatedAt)
+	})
 	return user, nil
 }
 
@@ -7826,7 +7869,7 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 		OAuthRefreshToken:      args.OAuthRefreshToken,
 		OAuthRefreshTokenKeyID: args.OAuthRefreshTokenKeyID,
 		OAuthExpiry:            args.OAuthExpiry,
-		DebugContext:           args.DebugContext,
+		Claims:                 args.Claims,
 	}
 
 	q.userLinks = append(q.userLinks, link)
@@ -9287,7 +9330,7 @@ func (q *FakeQuerier) UpdateUserLink(_ context.Context, params database.UpdateUs
 			link.OAuthRefreshToken = params.OAuthRefreshToken
 			link.OAuthRefreshTokenKeyID = params.OAuthRefreshTokenKeyID
 			link.OAuthExpiry = params.OAuthExpiry
-			link.DebugContext = params.DebugContext
+			link.Claims = params.Claims
 
 			q.userLinks[i] = link
 			return link, nil
