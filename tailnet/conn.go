@@ -451,22 +451,6 @@ func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	return nil
 }
 
-func (c *Conn) AddDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
-	if c.dnsConfigurator == nil {
-		return xerrors.New("no DNSConfigurator set")
-	}
-	c.configMaps.addHosts(hosts)
-	return nil
-}
-
-func (c *Conn) RemoveDNSHosts(names []dnsname.FQDN) error {
-	if c.dnsConfigurator == nil {
-		return xerrors.New("no DNSConfigurator set")
-	}
-	c.configMaps.removeHosts(names)
-	return nil
-}
-
 // SetDNSHosts replaces the map of DNS hosts for the connection.
 func (c *Conn) SetDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
 	if c.dnsConfigurator == nil {
