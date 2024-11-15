@@ -24,7 +24,7 @@ Before proceeding, ensure the following:
 - **Coder CLI** is installed and configured in your environment.
 - **Terraform CLI** is installed and available in your CI environment.
 - Access to your **Coder instance** with the appropriate
-  [permissions](../admin/users/groups-roles#roles).
+  [permissions](../admin/users/groups-roles.md#roles).
 
 ## Example GitHub Action Workflow
 
@@ -44,8 +44,8 @@ workspace creation.
 
 ### Workflow File
 
-Save the following workflow file as `.github/workflows/template-ci.yaml` in your
-repository:
+Save the following workflow file as `.github/workflows/publish-template.yaml` in
+your repository:
 
 ```yaml
 name: Test and Publish Coder Template
@@ -59,8 +59,8 @@ on:
 jobs:
   test-and-publish:
     runs-on: ubuntu-latest
-		env:
-			TEMPLATE_NAME: "my-template"
+    env:
+      TEMPLATE_NAME: "my-template"
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -73,8 +73,8 @@ jobs:
       - name: Set up Coder CLI
         uses: coder/setup-action@v1
         with:
-          access_url: 'https://coder.example.com'
-					coder_session_token: ${{ secrets.CODER_SESSION_TOKEN }}
+          access_url: "https://coder.example.com"
+          coder_session_token: ${{ secrets.CODER_SESSION_TOKEN }}
 
       - name: Validate Terraform template
         run: terraform validate
@@ -85,11 +85,13 @@ jobs:
 
       - name: Get latest commit title to use as template version description
         id: message
-        run: echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >> $GITHUB_OUTPUT
+        run:
+          echo "pr_title=$(git log --format=%s -n 1 ${{ github.sha }})" >>
+          $GITHUB_OUTPUT
 
       - name: Push template to Coder
         run: |
-          coder templates push $TEMPLATE_NAME --activate=false --name ${{ steps.name.outputs.version_name }} --message ${{ steps.message.outputs.pr_title }} --yes
+          coder templates push $TEMPLATE_NAME --activate=false --name ${{ steps.name.outputs.version_name }} --message "${{ steps.message.outputs.pr_title }}" --yes
 
       - name: Create a test workspace
         run: |
@@ -99,5 +101,4 @@ jobs:
         if: success()
         run: |
           coder template version promote --template=$TEMPLATE_NAME --template-version=${{ steps.name.outputs.version_name }} --yes
-
 ```
