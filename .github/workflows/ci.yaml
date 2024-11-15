@@ -379,7 +379,6 @@ jobs:
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
     strategy:
-      fail-fast: false
       matrix:
         os:
           - ubuntu-latest
