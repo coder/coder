@@ -216,17 +216,6 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := coordinateURL.Query()
-	// The current version includes additions
-	//
-	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
-	// 2.2 PostTelemetry on the Tailnet API
-	// 2.3 RefreshResumeToken, WorkspaceUpdates
-	//
-	// Since resume tokens and telemetry are optional, and fail gracefully, and we don't use
-	// WorkspaceUpdates to talk to a single agent, we ask for version 2.0 for maximum compatibility
-	q.Add("version", "2.0")
-	coordinateURL.RawQuery = q.Encode()
 
 	dialer := NewWebsocketDialer(options.Logger, coordinateURL, &websocket.DialOptions{
 		HTTPClient: c.client.HTTPClient,

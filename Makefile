@@ -482,6 +482,13 @@ DB_GEN_FILES := \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
+TAILNETTEST_MOCKS := \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/workspaceupdatesprovidermock.go \
+	tailnet/tailnettest/subscriptionmock.go
+
+
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
 	tailnet/proto/tailnet.pb.go \
@@ -506,8 +513,7 @@ gen: \
 	site/e2e/provisionerGenerated.ts \
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
-	tailnet/tailnettest/coordinatormock.go \
-	tailnet/tailnettest/coordinateemock.go \
+	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
@@ -536,8 +542,7 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
-		tailnet/tailnettest/coordinatormock.go \
-		tailnet/tailnettest/coordinateemock.go \
+		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
 		"
 
@@ -570,7 +575,7 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
 
-tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go
+$(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto
