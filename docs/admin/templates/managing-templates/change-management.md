@@ -88,6 +88,14 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
 
+You can also use the [coder/setup-action](https://github.com/coder/setup-coder)
+GitHub Action to install the Coder CLI and push new template versions.
+
+## Testing and Publishing Coder Templates in CI/CD
+
+See our [testing templates](../../../tutorials/testing-templates.md) tutorial
+for an example of how to test and publish Coder templates in a CI/CD pipeline.
+
 ### Next steps
 
 - [Coder CLI Reference](../../../reference/cli/templates.md)
