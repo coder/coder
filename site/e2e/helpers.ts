@@ -1,8 +1,8 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
-import net from "node:net";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
 import { API } from "api/api";
 import type {
@@ -711,7 +711,7 @@ async function waitForPort(port: number, host = "0.0.0.0", timeout = 5000): Prom
 function isPortAvailable(port: number, host = "0.0.0.0"): Promise<boolean> {
 	return new Promise((resolve) => {
 		const probe = net.createServer()
-			.once('error', (err: any) => {
+			.once('error', (err: NodeJS.ErrnoException) => {
 				if (err.code === 'EADDRINUSE') {
 					resolve(false); // port is in use
 				} else {
