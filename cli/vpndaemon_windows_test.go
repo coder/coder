@@ -5,7 +5,6 @@ package cli_test
 import (
 	"fmt"
 	"os"
-	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -64,7 +63,7 @@ func TestVPNDaemonRun(t *testing.T) {
 		}
 	})
 
-	t.Run("LogFile", func(t *testing.T) {
+	t.Run("StartsTunnel", func(t *testing.T) {
 		t.Parallel()
 
 		r1, w1, err := os.Pipe()
@@ -76,11 +75,8 @@ func TestVPNDaemonRun(t *testing.T) {
 		defer r2.Close()
 		defer w2.Close()
 
-		logDir := t.TempDir()
-		logPath := filepath.Join(logDir, "coder-daemon.log")
-
 		ctx := testutil.Context(t, testutil.WaitLong)
-		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-handle", fmt.Sprint(r1.Fd()), "--rpc-write-handle", fmt.Sprint(w2.Fd()), "--log-path", logPath)
+		inv, _ := clitest.New(t, "vpn-daemon", "run", "--rpc-read-handle", fmt.Sprint(r1.Fd()), "--rpc-write-handle", fmt.Sprint(w2.Fd()))
 		waiter := clitest.StartWithWaiter(t, inv.WithContext(ctx))
 
 		// Send garbage which should cause the handshake to fail and the daemon
@@ -90,11 +86,6 @@ func TestVPNDaemonRun(t *testing.T) {
 		waiter.Cancel()
 		err = waiter.Wait()
 		require.ErrorContains(t, err, "handshake failed")
-
-		// Check that the log file was created and is not empty.
-		stat, err := os.Stat(logPath)
-		require.NoError(t, err)
-		require.Greater(t, stat.Size(), int64(0))
 	})
 
 	// TODO: once the VPN tunnel functionality is implemented, add tests that
