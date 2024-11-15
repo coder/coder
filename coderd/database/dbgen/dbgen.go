@@ -531,11 +531,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt:      orig.StartedAt,
-			OrganizationID: job.OrganizationID,
-			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:           must(json.Marshal(orig.Tags)),
-			WorkerID:       uuid.NullUUID{},
+			StartedAt:       orig.StartedAt,
+			OrganizationID:  job.OrganizationID,
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(orig.Tags)),
+			WorkerID:        uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.

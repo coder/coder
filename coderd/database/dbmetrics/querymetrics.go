@@ -959,9 +959,9 @@ func (m queryMetricsStore) GetProvisionerDaemons(ctx context.Context) ([]databas
 	return daemons, err
 }
 
-func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, organizationID)
+	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsByOrganization").Observe(time.Since(start).Seconds())
 	return r0, r1
 }

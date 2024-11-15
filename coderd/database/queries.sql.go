@@ -5269,11 +5269,20 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = $1
+	-- This is the original search criteria:
+	organization_id = $1 :: uuid
+	AND
+	-- adding support for searching by tags:
+	($2 :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
 `
 
-func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
+type GetProvisionerDaemonsByOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WantTags       StringMap `db:"want_tags" json:"want_tags"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.WantTags)
 	if err != nil {
 		return nil, err
 	}
@@ -5523,21 +5532,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = $3
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = $5 :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ $5 :: jsonb
-			END
+			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
+			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -5546,11 +5551,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt      sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID       uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Types          []ProvisionerType `db:"types" json:"types"`
-	Tags           json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt       sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID        uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	OrganizationID  uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Types           []ProvisionerType `db:"types" json:"types"`
+	ProvisionerTags json.RawMessage   `db:"provisioner_tags" json:"provisioner_tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -5565,7 +5570,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		arg.WorkerID,
 		arg.OrganizationID,
 		pq.Array(arg.Types),
-		arg.Tags,
+		arg.ProvisionerTags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(

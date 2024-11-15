@@ -1194,8 +1194,8 @@ func (q *FakeQuerier) AcquireProvisionerJob(_ context.Context, arg database.Acqu
 			continue
 		}
 		tags := map[string]string{}
-		if arg.Tags != nil {
-			err := json.Unmarshal(arg.Tags, &tags)
+		if arg.ProvisionerTags != nil {
+			err := json.Unmarshal(arg.ProvisionerTags, &tags)
 			if err != nil {
 				return provisionerJob, xerrors.Errorf("unmarshal: %w", err)
 			}
@@ -3625,16 +3625,28 @@ func (q *FakeQuerier) GetProvisionerDaemons(_ context.Context) ([]database.Provi
 	return out, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
 	daemons := make([]database.ProvisionerDaemon, 0)
 	for _, daemon := range q.provisionerDaemons {
-		if daemon.OrganizationID == organizationID {
-			daemon.Tags = maps.Clone(daemon.Tags)
-			daemons = append(daemons, daemon)
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
 		}
+		// Special case for untagged provisioners: only match untagged jobs.
+		// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+		// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+		//      THEN nested.tags :: jsonb = @tags :: jsonb
+		if tagsEqual(arg.WantTags, tagsUntagged) && !tagsEqual(arg.WantTags, daemon.Tags) {
+			continue
+		}
+		// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+		if !tagsSubset(arg.WantTags, daemon.Tags) {
+			continue
+		}
+		daemon.Tags = maps.Clone(daemon.Tags)
+		daemons = append(daemons, daemon)
 	}
 
 	return daemons, nil

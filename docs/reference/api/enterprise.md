@@ -1480,9 +1480,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In    | Type         | Required | Description                                                                        |
+| -------------- | ----- | ------------ | -------- | ---------------------------------------------------------------------------------- |
+| `organization` | path  | string(uuid) | true     | Organization ID                                                                    |
+| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
 
 ### Example responses
 

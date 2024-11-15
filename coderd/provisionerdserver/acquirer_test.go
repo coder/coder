@@ -653,7 +653,7 @@ func (s *fakeTaggedStore) AcquireProvisionerJob(
 ) {
 	defer func() { s.params <- params }()
 	var tags provisionerdserver.Tags
-	err := json.Unmarshal(params.Tags, &tags)
+	err := json.Unmarshal(params.ProvisionerTags, &tags)
 	if !assert.NoError(s.t, err) {
 		return database.ProvisionerJob{}, err
 	}

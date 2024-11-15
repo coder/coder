@@ -250,8 +250,8 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 					UUID:  uuid.New(),
 					Valid: true,
 				},
-				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-				Tags:  json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, c.name)),
 			})
 			require.NoError(t, err)
 			require.Equal(t, job.ID, acquiredJob.ID)
@@ -534,8 +534,8 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 				UUID:  uuid.New(),
 				Valid: true,
 			},
-			Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:  json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, wsID)),
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: json.RawMessage(fmt.Sprintf(`{%q: "yeah"}`, wsID)),
 		})
 		require.NoError(t, err)
 		require.Equal(t, job.ID, acquiredJob.ID)
