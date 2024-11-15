@@ -42,12 +42,9 @@ func MutateTags(userID uuid.UUID, provided ...map[string]string) map[string]stri
 	return tags
 }
 
-// mergeTags merges multiple sets of provisioner tags.
-// Given maps a and b, the result will contain all
-// keys and values contained in a and in b.
-// An exception is made for key-value pairs for which
-// a[key] is non-empty but b[key] is empty. In this case
-// the non-empty value from a will win.
+// mergeTags merges two sets of provisioner tags.
+// If b[key] is an empty string, the value from a[key] is retained.
+// This function handles nil maps gracefully.
 func mergeTags(a, b map[string]string) map[string]string {
 	m := make(map[string]string)
 	for k, v := range a {

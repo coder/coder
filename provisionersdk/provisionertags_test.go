@@ -3,7 +3,6 @@ package provisionersdk_test
 import (
 	"testing"
 
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -33,7 +32,7 @@ func TestMutateTags(t *testing.T) {
 		{
 			name:   "empty tags",
 			userID: uuid.Nil,
-			tags:   slice.New(map[string]string{}),
+			tags:   []map[string]string{{}},
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				provisionersdk.TagOwner: "",
@@ -41,9 +40,9 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "user scope",
-			tags: slice.New(
-				map[string]string{provisionersdk.TagScope: provisionersdk.ScopeUser},
-			),
+			tags: []map[string]string{
+				{provisionersdk.TagScope: provisionersdk.ScopeUser},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeUser,
@@ -52,9 +51,9 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "organization scope",
-			tags: slice.New(
-				map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
-			),
+			tags: []map[string]string{
+				{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -63,12 +62,12 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "organization scope with owner",
-			tags: slice.New(
-				map[string]string{
+			tags: []map[string]string{
+				{
 					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 					provisionersdk.TagOwner: testUserID.String(),
 				},
-			),
+			},
 			userID: uuid.Nil,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -77,11 +76,11 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "owner tag with no other context",
-			tags: slice.New(
-				map[string]string{
+			tags: []map[string]string{
+				{
 					provisionersdk.TagOwner: testUserID.String(),
 				},
-			),
+			},
 			userID: uuid.Nil,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -90,9 +89,9 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "invalid scope",
-			tags: slice.New(
-				map[string]string{provisionersdk.TagScope: "360noscope"},
-			),
+			tags: []map[string]string{
+				{provisionersdk.TagScope: "360noscope"},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -101,10 +100,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "merge two empty maps",
-			tags: slice.New(
-				map[string]string{},
-				map[string]string{},
-			),
+			tags: []map[string]string{
+				{},
+				{},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -113,10 +112,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "merge empty map with non-empty map",
-			tags: slice.New(
-				map[string]string{},
-				map[string]string{"foo": "bar"},
-			),
+			tags: []map[string]string{
+				{},
+				{"foo": "bar"},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -126,10 +125,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "merge non-empty map with empty map",
-			tags: slice.New(
-				map[string]string{"foo": "bar"},
-				map[string]string{},
-			),
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -139,10 +138,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "merge map with same map",
-			tags: slice.New(
-				map[string]string{"foo": "bar"},
-				map[string]string{"foo": "bar"},
-			),
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": "bar"},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -152,10 +151,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "merge map with override",
-			tags: slice.New(
-				map[string]string{"foo": "bar"},
-				map[string]string{"foo": "baz"},
-			),
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": "baz"},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -165,15 +164,24 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "do not override empty in second map",
-			tags: slice.New(
-				map[string]string{"foo": "bar"},
-				map[string]string{"foo": ""},
-			),
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": ""},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				provisionersdk.TagOwner: "",
 				"foo":                   "bar",
+			},
+		},
+		{
+			name:   "merge nil map with nil map",
+			tags:   []map[string]string{nil, nil},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
 			},
 		},
 	} {
