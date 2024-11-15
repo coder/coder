@@ -816,6 +816,25 @@ func TestConvertResources(t *testing.T) {
 	}
 }
 
+func TestInvalidTerraformAddress(t *testing.T) {
+	t.Parallel()
+	ctx, logger := context.Background(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{{
+			Address:         "invalid",
+			Type:            "invalid",
+			Name:            "invalid",
+			Mode:            tfjson.ManagedResourceMode,
+			AttributeValues: map[string]interface{}{},
+		}},
+		// This is manually created to join the edges.
+	}}, `digraph {}`, logger)
+	require.Nil(t, err)
+	require.Len(t, state.Resources, 1)
+	require.Equal(t, state.Resources[0].Name, "invalid")
+	require.Equal(t, state.Resources[0].ModulePath, "invalid terraform address")
+}
+
 func TestAppSlugValidation(t *testing.T) {
 	t.Parallel()
 	ctx, logger := ctxAndLogger(t)

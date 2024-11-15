@@ -134,6 +134,8 @@ type State struct {
 	ExternalAuthProviders []*proto.ExternalAuthProviderResource
 }
 
+var ErrInvalidTerraformAddr = xerrors.New("invalid terraform address")
+
 // ConvertState consumes Terraform state and a GraphViz representation
 // produced by `terraform graph` to produce resources consumable by Coder.
 // nolint:gocognit // This function makes more sense being large for now, until refactored.
@@ -609,7 +611,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				// the database, a null value in WorkspaceResource's ModulePath
 				// indicates "this resource was created before module paths
 				// were tracked."
-				modulePath = "FAILED_TO_PARSE_TERRAFORM_ADDRESS"
+				modulePath = fmt.Sprintf("%s", ErrInvalidTerraformAddr)
 				logger.Error(ctx, "failed to parse Terraform address", slog.F("address", resource.Address))
 			}
 
