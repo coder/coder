@@ -827,7 +827,6 @@ func TestInvalidTerraformAddress(t *testing.T) {
 			Mode:            tfjson.ManagedResourceMode,
 			AttributeValues: map[string]interface{}{},
 		}},
-		// This is manually created to join the edges.
 	}}, `digraph {}`, logger)
 	require.Nil(t, err)
 	require.Len(t, state.Resources, 1)
