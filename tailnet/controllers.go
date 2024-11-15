@@ -1177,10 +1177,42 @@ func (c *Controller) Run(ctx context.Context) {
 				continue
 			}
 			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
+			err = c.precheckClientsAndControllers(tailnetClients)
+			if err != nil {
+				c.logger.Critical(c.ctx, "failed precheck", slog.Error(err))
+				_ = tailnetClients.Closer.Close()
+				continue
+			}
+			retrier.Reset()
 			c.runControllersOnce(tailnetClients)
 			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
+}
+
+// precheckClientsAndControllers checks that the set of clients we got is compatible with the
+// configured controllers. These checks will fail if the dialer is incompatible with the set of
+// controllers, or not configured correctly with respect to Tailnet API version.
+func (c *Controller) precheckClientsAndControllers(clients ControlProtocolClients) error {
+	if clients.Coordinator == nil && c.CoordCtrl != nil {
+		return xerrors.New("missing Coordinator client; have controller")
+	}
+	if clients.DERP == nil && c.DERPCtrl != nil {
+		return xerrors.New("missing DERPMap client; have controller")
+	}
+	if clients.WorkspaceUpdates == nil && c.WorkspaceUpdatesCtrl != nil {
+		return xerrors.New("missing WorkspaceUpdates client; have controller")
+	}
+
+	// Telemetry and ResumeToken support is considered optional, but the clients must be present
+	// so that we can call the functions and get an "unimplemented" error.
+	if clients.ResumeToken == nil && c.ResumeTokenCtrl != nil {
+		return xerrors.New("missing ResumeToken client; have controller")
+	}
+	if clients.Telemetry == nil && c.TelemetryCtrl != nil {
+		return xerrors.New("missing Telemetry client; have controller")
+	}
+	return nil
 }
 
 // runControllersOnce uses the provided clients to call into the controllers once. It is combined
@@ -1232,6 +1264,18 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 				// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 				// close the underlying connection. This will trigger a retry of the control plane in
 				// run().
+				closeClients()
+			}
+		}()
+	}
+	if c.WorkspaceUpdatesCtrl != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.workspaceUpdates(clients.WorkspaceUpdates)
+			if c.ctx.Err() == nil {
+				// Main context is still active, but our workspace updates stream exited, due to
+				// some error. Close down all the rest of the clients so we'll exit and retry.
 				closeClients()
 			}
 		}()
@@ -1305,6 +1349,30 @@ func (c *Controller) derpMap(client DERPClient) error {
 			c.logger.Error(c.ctx, "error receiving DERP Map", slog.Error(err))
 		}
 		return err
+	}
+}
+
+func (c *Controller) workspaceUpdates(client WorkspaceUpdatesClient) {
+	defer func() {
+		c.logger.Debug(c.ctx, "exiting workspaceUpdates control routine")
+		cErr := client.Close()
+		if cErr != nil {
+			c.logger.Debug(c.ctx, "error closing WorkspaceUpdates RPC", slog.Error(cErr))
+		}
+	}()
+	cw := c.WorkspaceUpdatesCtrl.New(client)
+	select {
+	case <-c.ctx.Done():
+		c.logger.Debug(c.ctx, "workspaceUpdates: context done")
+		return
+	case err := <-cw.Wait():
+		c.logger.Debug(c.ctx, "workspaceUpdates: wait done")
+		if err != nil &&
+			!xerrors.Is(err, io.EOF) &&
+			!xerrors.Is(err, context.Canceled) &&
+			!xerrors.Is(err, context.DeadlineExceeded) {
+			c.logger.Error(c.ctx, "workspace updates stream error", slog.Error(err))
+		}
 	}
 }
 
