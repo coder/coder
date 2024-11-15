@@ -395,11 +395,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			config := r.createConfig()
 
-			if err := validatePostgresFlags(vals); err != nil {
+			useIndividualFlags, err := validatePostgresFlags(vals)
+			if err != nil {
 				return xerrors.Errorf("validate postgres configuration: %w", err)
 			}
 
-			if vals.PostgresURL == "" && vals.PostgresHost != "" && vals.PostgresUsername != "" && vals.PostgresPassword != "" && vals.PostgresDatabase != "" {
+			if useIndividualFlags {
 				err = vals.PostgresURL.Set((&url.URL{
 					Scheme:   "postgres",
 					User:     url.UserPassword(vals.PostgresUsername.String(), vals.PostgresPassword.String()),
@@ -1268,15 +1269,23 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 }
 
 // validatePostgresFlags checks if the provided PostgreSQL connection flags are valid.
-// It returns an error if:
-// - Both postgres-url and individual flags are specified
-// - Individual flags are used but some required flags are missing
-func validatePostgresFlags(vals *codersdk.DeploymentValues) error {
+// and returns whether individual connection flags should be used.
+// Returns:
+// - useIndividualFlags: true if individual connection flags should be used
+// - error: non-nil if the configuration is invalid
+func validatePostgresFlags(vals *codersdk.DeploymentValues) (useIndividualFlags bool, err error) {
 	// Check for conflicting connection methods
-	if vals.PostgresURL != "" && (vals.PostgresHost != "" || vals.PostgresUsername != "" ||
-		vals.PostgresPassword != "" || vals.PostgresDatabase != "") {
-		return xerrors.New("cannot specify both --postgres-url and individual postgres connection flags " +
+	hasURL := vals.PostgresURL != ""
+	hasIndividualFlags := vals.PostgresHost != "" || vals.PostgresUsername != "" ||
+		vals.PostgresPassword != "" || vals.PostgresDatabase != ""
+
+	if hasURL && hasIndividualFlags {
+		return false, xerrors.New("cannot specify both --postgres-url and individual postgres connection flags " +
 			"(--postgres-host, --postgres-username, etc), please specify only one connection method")
+	}
+
+	if !hasIndividualFlags {
+		return false, nil
 	}
 
 	// Check for incomplete individual flag configuration
@@ -1296,7 +1305,7 @@ func validatePostgresFlags(vals *codersdk.DeploymentValues) error {
 		}
 
 		if len(missingFlags) > 0 {
-			return xerrors.Errorf("incomplete postgres connection details - when using individual flags, all of the following are required: "+
+			return false, xerrors.Errorf("incomplete postgres connection details - when using individual flags, all of the following are required: "+
 				"--postgres-host, --postgres-username, --postgres-password, --postgres-database\n"+
 				"Missing flags: %s\n"+
 				"Alternatively, use --postgres-url to specify the full connection URL",
@@ -1304,7 +1313,7 @@ func validatePostgresFlags(vals *codersdk.DeploymentValues) error {
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 // templateHelpers builds a set of functions which can be called in templates.
