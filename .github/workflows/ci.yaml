@@ -431,7 +431,6 @@ jobs:
             go run scripts/embedded-pg/main.go
             DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
           fi
-
       # This is used by the `required` job to determine if the test-go-pg job
       # failed or not on the given OS. Matrix jobs don't support `outputs`
       # well - the last job to run overwrites them. Instead, we write to
