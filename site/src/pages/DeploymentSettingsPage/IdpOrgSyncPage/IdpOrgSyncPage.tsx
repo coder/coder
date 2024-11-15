@@ -34,7 +34,7 @@ export const IdpOrgSyncPage: FC = () => {
 	);
 
 	const error = organizationIdpSyncSettingsQuery.error;
-
+	console.log({ organizationIdpSyncSettingsQuery });
 	return (
 		<>
 			<Helmet>

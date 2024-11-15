@@ -16,7 +16,6 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -34,7 +33,7 @@ import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
-// import { ExportPolicyButton } from "./ExportPolicyButton";
+import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
 
 interface IdpSyncPageViewProps {
@@ -62,11 +61,33 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	});
 	const getFieldHelpers = getFormHelpers<OrganizationSyncSettings>(form, error);
 	const [coderOrgs, setCoderOrgs] = useState<Option[]>([]);
-	const [isChecked, setIsChecked] = useState(
-		form.initialValues.organization_assign_default,
-	);
-	const organizationMappingCount = organizationSyncSettings?.mapping
-		? Object.entries(organizationSyncSettings.mapping).length
+	const [idpOrgName, setIdpOrgName] = useState("");
+	const [syncSettings, setSyncSettings] = useState<
+		OrganizationSyncSettings | undefined
+	>(organizationSyncSettings);
+	console.log({ organizationSyncSettings });
+	// const newMapping: Record<string, string[]> =
+	// 	organizationSyncSettings?.mapping !== undefined
+	// 		? Object.entries(organizationSyncSettings.mapping).reduce(
+	// 				(acc, [key, value]) => {
+	// 					acc[key] = value as string[];
+	// 					return acc;
+	// 				},
+	// 				{} as Record<string, string[]>,
+	// 			)
+	// 		: {};
+	// console.log({ newMapping });
+	// const [mapping, setMapping] = useState<Record<string, readonly string[]>>(
+	// 	organizationSyncSettings?.mapping || {},
+	// );
+	// const [isChecked, setIsChecked] = useState(
+	// 	form.initialValues.organization_assign_default,
+	// );
+	// const organizationMappingCount = organizationSyncSettings?.mapping
+	// 	? Object.entries(organizationSyncSettings.mapping).length
+	// 	: 0;
+	const organizationMappingCount = syncSettings?.mapping
+		? Object.entries(syncSettings.mapping).length
 		: 0;
 
 	if (error) {
@@ -82,6 +103,13 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		value: org.id,
 	}));
 
+	const getOrgNames = (orgIds: readonly string[]) => {
+		return orgIds.map(
+			(orgId) =>
+				organizations.find((org) => org.id === orgId)?.display_name || orgId,
+		);
+	};
+
 	return (
 		<>
 			<Stack spacing={2}>
@@ -89,16 +117,26 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					<Stack direction="row" alignItems="center">
 						<TextField
 							{...getFieldHelpers("field")}
+							value={syncSettings?.field}
 							autoFocus
 							fullWidth
 							label="Organization Sync Field"
 							className="w-72"
+							onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+								setSyncSettings({
+									...(syncSettings as OrganizationSyncSettings),
+									field: event.target.value,
+								});
+							}}
 						/>
 						<Switch
 							id="organization-assign-default"
-							checked={isChecked}
+							checked={syncSettings?.organization_assign_default}
 							onCheckedChange={async (checked) => {
-								setIsChecked(checked);
+								setSyncSettings({
+									...(syncSettings as OrganizationSyncSettings),
+									organization_assign_default: checked,
+								});
 								await form.setFieldValue(
 									"organization_assign_default",
 									checked,
@@ -115,15 +153,16 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						justifyContent="space-between"
 						css={styles.tableInfo}
 					>
-						{/* <ExportPolicyButton
-								syncSettings={groupSyncSettings}
-								organization={organization}
-								type="groups"
-							/> */}
+						<ExportPolicyButton syncSettings={syncSettings} />
 					</Stack>
 
 					<div className="flex flex-row py-10 gap-2 justify-between">
 						<TextField
+							id="idp-organization-name"
+							value={idpOrgName}
+							onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+								setIdpOrgName(event.target.value);
+							}}
 							autoFocus
 							fullWidth
 							label="Idp organization name"
@@ -144,8 +183,18 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						/>
 						<Button
 							className="mt-px"
-							onClick={(event) => {
+							onClick={() => {
 								console.log("add Idp organization");
+
+								setSyncSettings({
+									...(syncSettings as OrganizationSyncSettings),
+									mapping: {
+										...syncSettings?.mapping,
+										[idpOrgName]: coderOrgs.map((org) => org.value),
+									},
+								});
+								setIdpOrgName("");
+								setCoderOrgs([]);
 							}}
 						>
 							<Plus size={14} />
@@ -155,14 +204,14 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 					<Stack spacing={6}>
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
-							{organizationSyncSettings?.mapping &&
-								Object.entries(organizationSyncSettings.mapping)
+							{syncSettings?.mapping &&
+								Object.entries(syncSettings.mapping)
 									.sort()
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
 											key={idpOrg}
 											idpOrg={idpOrg}
-											coderOrgs={organizations}
+											coderOrgs={getOrgNames(organizations)}
 										/>
 									))}
 						</IdpMappingTable>
