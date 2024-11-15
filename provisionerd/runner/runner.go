@@ -1038,7 +1038,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
 				Timings:   applyComplete.Timings,
-				Modules:   planComplete.Modules,
+				// Modules are created on disk by `terraform init`, and that is only
+				// called by `plan`. `apply` does not modify them, so we can use the
+				// modules from the plan response.
+				Modules: planComplete.Modules,
 			},
 		},
 	}, nil
