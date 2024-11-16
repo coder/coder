@@ -1261,8 +1261,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = InsertWorkspaceResource(ctx, s.Database, jobID, transition, resource, telemetrySnapshot)
-				if err != nil {
+				if err := InsertWorkspaceResource(ctx, s.Database, jobID, transition, resource, telemetrySnapshot); err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
 				}
 			}
@@ -1279,8 +1278,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					slog.F("module_key", module.Key),
 					slog.F("transition", transition))
 
-				err = InsertWorkspaceModule(ctx, s.Database, jobID, transition, module, telemetrySnapshot)
-				if err != nil {
+				if err := InsertWorkspaceModule(ctx, s.Database, jobID, transition, module, telemetrySnapshot); err != nil {
 					return nil, xerrors.Errorf("insert module: %w", err)
 				}
 			}
