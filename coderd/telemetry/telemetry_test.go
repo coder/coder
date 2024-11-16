@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/testutil"
@@ -125,12 +126,15 @@ func TestTelemetry(t *testing.T) {
 	})
 	t.Run("HashedModule", func(t *testing.T) {
 		t.Parallel()
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
 		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
 			Source:  "registry.coder.com/terraform/aws",
 			Version: "1.0.0",
 		})
 		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
 			Source:  "internal-url.com/some-module",
 			Version: "1.0.0",
 		})
