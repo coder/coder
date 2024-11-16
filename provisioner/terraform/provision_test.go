@@ -991,3 +991,20 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
 }
+
+func TestProvision_MalformedModules(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := setupProvisioner(t, nil)
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, map[string]string{
+			"main.tf":          `module "hello" { source = "./module" }`,
+			"module/module.tf": `resource "null_`,
+		}),
+	})
+
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	log := readProvisionLog(t, sess)
+	require.Contains(t, log, "Invalid block definition")
+}
