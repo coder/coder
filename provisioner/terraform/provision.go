@@ -144,6 +144,8 @@ func (s *server) Plan(
 
 	modules, err := getModules(sess.WorkDirectory)
 	if err != nil {
+		// We allow getModules to fail, as the result is used only
+		// for telemetry purposes now.
 		s.logger.Error(ctx, "failed to get modules from disk", slog.Error(err))
 	}
 
