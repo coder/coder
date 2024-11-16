@@ -1489,8 +1489,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				}
 			}
 			for _, module := range jobType.WorkspaceBuild.Modules {
-				err = InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot)
-				if err != nil {
+				if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
 					return xerrors.Errorf("insert provisioner job module: %w", err)
 				}
 			}
@@ -1681,8 +1680,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				slog.F("module_source", module.Source),
 			)
 
-			err = InsertWorkspaceModule(ctx, s.Database, jobID, database.WorkspaceTransitionStart, module, telemetrySnapshot)
-			if err != nil {
+			if err := InsertWorkspaceModule(ctx, s.Database, jobID, database.WorkspaceTransitionStart, module, telemetrySnapshot); err != nil {
 				return nil, xerrors.Errorf("insert module: %w", err)
 			}
 		}
