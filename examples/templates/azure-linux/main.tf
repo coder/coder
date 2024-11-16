@@ -11,7 +11,7 @@ terraform {
 
 # See https://registry.coder.com/modules/azure-region
 module "azure_region" {
-  source  = "registry.coder.com/modules/azure-region/coder"
+  source = "registry.coder.com/modules/azure-region/coder"
 
   # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
   version = ">= 1.0.0"
