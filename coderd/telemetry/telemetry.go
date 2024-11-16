@@ -676,11 +676,14 @@ func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadat
 	}
 }
 
+func shouldSendRawModuleSource(source string) bool {
+	return strings.Contains(source, "registry.coder.com")
+}
+
 func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
-	isCoderModule := strings.Contains(module.Source, "registry.coder.com")
 	source := module.Source
 	version := module.Version
-	if !isCoderModule {
+	if !shouldSendRawModuleSource(source) {
 		source = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
 		version = fmt.Sprintf("%x", sha256.Sum256([]byte(version)))
 	}
