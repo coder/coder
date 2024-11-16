@@ -2666,6 +2666,20 @@ func (q *querier) GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceApp
 	return fetch(q.log, q.auth, q.db.GetWorkspaceByWorkspaceAppID)(ctx, workspaceAppID)
 }
 
+func (q *querier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceModulesByJobID(ctx, jobID)
+}
+
+func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
+}
+
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
@@ -3220,6 +3234,13 @@ func (q *querier) InsertWorkspaceBuildParameters(ctx context.Context, arg databa
 	}
 
 	return q.db.InsertWorkspaceBuildParameters(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceModule{}, err
+	}
+	return q.db.InsertWorkspaceModule(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {

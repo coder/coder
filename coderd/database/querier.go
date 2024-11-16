@@ -323,6 +323,8 @@ type sqlcQuerier interface {
 	GetWorkspaceByID(ctx context.Context, id uuid.UUID) (Workspace, error)
 	GetWorkspaceByOwnerIDAndName(ctx context.Context, arg GetWorkspaceByOwnerIDAndNameParams) (Workspace, error)
 	GetWorkspaceByWorkspaceAppID(ctx context.Context, workspaceAppID uuid.UUID) (Workspace, error)
+	GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error)
+	GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error)
 	GetWorkspaceProxies(ctx context.Context) ([]WorkspaceProxy, error)
 	// Finds a workspace proxy that has an access URL or app hostname that matches
 	// the provided hostname. This is to check if a hostname matches any workspace
@@ -404,6 +406,7 @@ type sqlcQuerier interface {
 	InsertWorkspaceAppStats(ctx context.Context, arg InsertWorkspaceAppStatsParams) error
 	InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error
 	InsertWorkspaceBuildParameters(ctx context.Context, arg InsertWorkspaceBuildParametersParams) error
+	InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error)
 	InsertWorkspaceProxy(ctx context.Context, arg InsertWorkspaceProxyParams) (WorkspaceProxy, error)
 	InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error)
 	InsertWorkspaceResourceMetadata(ctx context.Context, arg InsertWorkspaceResourceMetadataParams) ([]WorkspaceResourceMetadatum, error)

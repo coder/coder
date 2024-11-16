@@ -2907,6 +2907,21 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
 	}))
+	s.Run("InsertWorkspaceModule", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		check.Args(database.InsertWorkspaceModuleParams{
+			JobID:      j.ID,
+			Transition: database.WorkspaceTransitionStart,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetWorkspaceModulesByJobID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceModulesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {

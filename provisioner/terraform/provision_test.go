@@ -82,7 +82,21 @@ func makeTar(t *testing.T, files map[string]string) []byte {
 	t.Helper()
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
+
+	addedDirs := make(map[string]bool)
 	for name, content := range files {
+		// Add parent directories if they don't exist
+		dir := filepath.Dir(name)
+		if dir != "." && !addedDirs[dir] {
+			err := writer.WriteHeader(&tar.Header{
+				Name:     dir + "/", // Directory names must end with /
+				Mode:     0o755,
+				Typeflag: tar.TypeDir,
+			})
+			require.NoError(t, err)
+			addedDirs[dir] = true
+		}
+
 		err := writer.WriteHeader(&tar.Header{
 			Name: name,
 			Size: int64(len(content)),
@@ -745,6 +759,45 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name: "returns-modules",
+			Files: map[string]string{
+				"main.tf": `module "hello" {
+                    source = "./module"
+                  }`,
+				"module/module.tf": `
+				  resource "null_resource" "example" {}
+
+				  module "there" {
+					source = "./inner_module"
+				  }
+				`,
+				"module/inner_module/inner_module.tf": `
+				  resource "null_resource" "inner_example" {}
+				`,
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name:       "example",
+					Type:       "null_resource",
+					ModulePath: "module.hello",
+				}, {
+					Name:       "inner_example",
+					Type:       "null_resource",
+					ModulePath: "module.hello.module.there",
+				}},
+				Modules: []*proto.Module{{
+					Key:     "hello",
+					Version: "",
+					Source:  "./module",
+				}, {
+					Key:     "hello.there",
+					Version: "",
+					Source:  "./inner_module",
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -799,7 +852,7 @@ func TestProvision(t *testing.T) {
 			if testCase.Response != nil {
 				require.Equal(t, testCase.Response.Error, planComplete.Error)
 
-				// Remove randomly generated data.
+				// Remove randomly generated data and sort by name.
 				normalizeResources(planComplete.Resources)
 				resourcesGot, err := json.Marshal(planComplete.Resources)
 				require.NoError(t, err)
@@ -812,6 +865,12 @@ func TestProvision(t *testing.T) {
 				parametersWant, err := json.Marshal(testCase.Response.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
+
+				modulesGot, err := json.Marshal(planComplete.Modules)
+				require.NoError(t, err)
+				modulesWant, err := json.Marshal(testCase.Response.Modules)
+				require.NoError(t, err)
+				require.Equal(t, string(modulesWant), string(modulesGot))
 			}
 
 			if testCase.Apply {
@@ -852,6 +911,9 @@ func normalizeResources(resources []*proto.Resource) {
 			agent.Auth = &proto.Agent_Token{}
 		}
 	}
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
 }
 
 // nolint:paralleltest
@@ -928,4 +990,21 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+}
+
+func TestProvision_MalformedModules(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := setupProvisioner(t, nil)
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: makeTar(t, map[string]string{
+			"main.tf":          `module "hello" { source = "./module" }`,
+			"module/module.tf": `resource "null_`,
+		}),
+	})
+
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	log := readProvisionLog(t, sess)
+	require.Contains(t, log, "Invalid block definition")
 }

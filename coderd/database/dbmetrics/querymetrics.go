@@ -1568,6 +1568,20 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return workspace, err
 }
 
+func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesByJobID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesCreatedAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)
@@ -1993,6 +2007,13 @@ func (m queryMetricsStore) InsertWorkspaceBuildParameters(ctx context.Context, a
 	err := m.s.InsertWorkspaceBuildParameters(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceBuildParameters").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceModule(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceModule").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
