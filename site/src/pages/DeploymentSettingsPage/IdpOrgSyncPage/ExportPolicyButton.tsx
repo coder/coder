@@ -21,7 +21,7 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 			? JSON.stringify(syncSettings, null, 2)
 			: null;
 	}, [syncSettings]);
-	console.log({ syncSettings });
+
 	return (
 		<Button
 			startIcon={<DownloadOutlined />}

@@ -6,7 +6,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import TextField from "@mui/material/TextField";
 import type {
 	Organization,
 	OrganizationSyncSettings,
@@ -21,10 +20,10 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { Button } from "components/ui/button";
+import { Input } from "components/ui/input";
 import { Label } from "components/ui/label";
 import MultipleSelector, { type Option } from "components/ui/multiple-selector";
 import { Switch } from "components/ui/switch";
-// import { Input } from "components/ui/input";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight } from "lucide-react";
 import type React from "react";
@@ -32,7 +31,6 @@ import { useState } from "react";
 import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
 
@@ -59,33 +57,16 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		// validationSchema,
 		onSubmit,
 	});
-	const getFieldHelpers = getFormHelpers<OrganizationSyncSettings>(form, error);
 	const [coderOrgs, setCoderOrgs] = useState<Option[]>([]);
 	const [idpOrgName, setIdpOrgName] = useState("");
-	const [syncSettings, setSyncSettings] = useState<
-		OrganizationSyncSettings | undefined
-	>(organizationSyncSettings);
-	console.log({ organizationSyncSettings });
-	// const newMapping: Record<string, string[]> =
-	// 	organizationSyncSettings?.mapping !== undefined
-	// 		? Object.entries(organizationSyncSettings.mapping).reduce(
-	// 				(acc, [key, value]) => {
-	// 					acc[key] = value as string[];
-	// 					return acc;
-	// 				},
-	// 				{} as Record<string, string[]>,
-	// 			)
-	// 		: {};
-	// console.log({ newMapping });
-	// const [mapping, setMapping] = useState<Record<string, readonly string[]>>(
-	// 	organizationSyncSettings?.mapping || {},
-	// );
-	// const [isChecked, setIsChecked] = useState(
-	// 	form.initialValues.organization_assign_default,
-	// );
-	// const organizationMappingCount = organizationSyncSettings?.mapping
-	// 	? Object.entries(organizationSyncSettings.mapping).length
-	// 	: 0;
+	const [syncSettings, setSyncSettings] = useState(
+		organizationSyncSettings || {
+			field: "",
+			organization_assign_default: true,
+			mapping: {},
+		},
+	);
+
 	const organizationMappingCount = syncSettings?.mapping
 		? Object.entries(syncSettings.mapping).length
 		: 0;
@@ -109,90 +90,105 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				organizations.find((org) => org.id === orgId)?.display_name || orgId,
 		);
 	};
-
 	return (
 		<>
 			<Stack spacing={2}>
 				<form onSubmit={form.handleSubmit}>
-					<Stack direction="row" alignItems="center">
-						<TextField
-							{...getFieldHelpers("field")}
-							value={syncSettings?.field}
-							autoFocus
-							fullWidth
-							label="Organization Sync Field"
-							className="w-72"
-							onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-								setSyncSettings({
-									...(syncSettings as OrganizationSyncSettings),
-									field: event.target.value,
-								});
-							}}
-						/>
-						<Switch
-							id="organization-assign-default"
-							checked={syncSettings?.organization_assign_default}
-							onCheckedChange={async (checked) => {
-								setSyncSettings({
-									...(syncSettings as OrganizationSyncSettings),
-									organization_assign_default: checked,
-								});
-								await form.setFieldValue(
-									"organization_assign_default",
-									checked,
-								);
-							}}
-						/>
-						<Label htmlFor="organization-assign-default">
-							Assign Default Organization
-						</Label>
-					</Stack>
-					<Stack
+					<div className="flex flex-row">
+						<div className="grid items-center gap-1">
+							<Label className="text-sm" htmlFor="sync-field">
+								Organization sync field
+							</Label>
+							<div className="flex flex-row items-center gap-4">
+								<Input
+									id="sync-field"
+									value={syncSettings.field}
+									className="w-72"
+									onChange={async (
+										event: React.ChangeEvent<HTMLInputElement>,
+									) => {
+										setSyncSettings({
+											...(syncSettings as OrganizationSyncSettings),
+											field: event.target.value,
+										});
+										await form.setFieldValue("field", event.target.value);
+									}}
+								/>
+								<div className="flex flex-row items-center gap-3">
+									<Switch
+										id="organization-assign-default"
+										checked={syncSettings.organization_assign_default}
+										onCheckedChange={async (checked) => {
+											setSyncSettings({
+												...(syncSettings as OrganizationSyncSettings),
+												organization_assign_default: checked,
+											});
+											await form.setFieldValue(
+												"organization_assign_default",
+												checked,
+											);
+										}}
+									/>
+									<Label htmlFor="organization-assign-default">
+										Assign Default Organization
+									</Label>
+								</div>
+							</div>
+						</div>
+					</div>
+					{/* <Stack
 						direction="row"
 						alignItems="baseline"
 						justifyContent="space-between"
 						css={styles.tableInfo}
 					>
 						<ExportPolicyButton syncSettings={syncSettings} />
-					</Stack>
+					</Stack> */}
 
 					<div className="flex flex-row py-10 gap-2 justify-between">
-						<TextField
-							id="idp-organization-name"
-							value={idpOrgName}
-							onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-								setIdpOrgName(event.target.value);
-							}}
-							autoFocus
-							fullWidth
-							label="Idp organization name"
-							className="min-w-72 w-72"
-						/>
-						<MultipleSelector
-							className="min-w-96 max-w-3xl"
-							value={coderOrgs}
-							onChange={setCoderOrgs}
-							defaultOptions={OPTIONS}
-							hidePlaceholderWhenSelected
-							placeholder="Select Coder organizations"
-							emptyIndicator={
-								<p className="text-center text-lg leading-10 text-content-primary">
-									no results found.
-								</p>
-							}
-						/>
+						<div className="grid items-center gap-1">
+							<Label className="text-sm" htmlFor="idp-organization-name">
+								IdP organization name
+							</Label>
+							<Input
+								id="idp-organization-name"
+								value={idpOrgName}
+								className="min-w-72 w-72"
+								onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+									setIdpOrgName(event.target.value);
+								}}
+							/>
+						</div>
+						<div className="grid items-center gap-1 flex-1">
+							<Label className="text-sm" htmlFor="idp-organization-name">
+								Coder organization
+							</Label>
+							<MultipleSelector
+								className="min-w-96 max-w-3xl"
+								value={coderOrgs}
+								onChange={setCoderOrgs}
+								defaultOptions={OPTIONS}
+								hidePlaceholderWhenSelected
+								placeholder="Select organization"
+								emptyIndicator={
+									<p className="text-center text-lg leading-10 text-content-primary">
+										no results found.
+									</p>
+								}
+							/>
+						</div>
 						<Button
-							className="mt-px"
-							onClick={() => {
-								console.log("add Idp organization");
-
-								setSyncSettings({
+							className="mb-px self-end"
+							onClick={async () => {
+								const newSyncSettings = {
 									...(syncSettings as OrganizationSyncSettings),
 									mapping: {
 										...syncSettings?.mapping,
 										[idpOrgName]: coderOrgs.map((org) => org.value),
 									},
-								});
+								};
+								setSyncSettings(newSyncSettings);
+								await form.setFieldValue("mapping", newSyncSettings.mapping);
 								setIdpOrgName("");
 								setCoderOrgs([]);
 							}}
@@ -217,11 +213,10 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						</IdpMappingTable>
 						<Button
 							className="w-20"
-							type="submit"
-							// onClick={(event) => {
-							// 	event.preventDefault();
-							// 	form.handleSubmit();
-							// }}
+							onClick={(event) => {
+								event.preventDefault();
+								form.handleSubmit();
+							}}
 						>
 							Save
 						</Button>
