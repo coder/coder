@@ -1,5 +1,5 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import Button from "@mui/material/Button";
+import { Download } from "lucide-react";
+import { Button } from "components/ui/button";
 import type { OrganizationSyncSettings } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
@@ -17,14 +17,14 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 	const [isDownloading, setIsDownloading] = useState(false);
 
 	const policyJSON = useMemo(() => {
-		return syncSettings?.field && syncSettings.mapping
+		return syncSettings?.field && Object.keys(syncSettings.mapping).length > 0
 			? JSON.stringify(syncSettings, null, 2)
 			: null;
 	}, [syncSettings]);
 
 	return (
 		<Button
-			startIcon={<DownloadOutlined />}
+			variant={"outline"}
 			disabled={!policyJSON || isDownloading}
 			onClick={async () => {
 				if (policyJSON) {
@@ -43,6 +43,7 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 				}
 			}}
 		>
+			<Download size={14} />
 			Export Policy
 		</Button>
 	);
