@@ -25,13 +25,12 @@ import { Label } from "components/ui/label";
 import MultipleSelector, { type Option } from "components/ui/multiple-selector";
 import { Switch } from "components/ui/switch";
 import { useFormik } from "formik";
-import { Plus, SquareArrowOutUpRight } from "lucide-react";
+import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
-import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
 
 interface IdpSyncPageViewProps {
@@ -90,6 +89,21 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				organizations.find((org) => org.id === orgId)?.display_name || orgId,
 		);
 	};
+
+	const handleDelete = async (idpOrg: string) => {
+		const newMapping = Object.fromEntries(
+			Object.entries(syncSettings?.mapping || {}).filter(
+				([key]) => key !== idpOrg,
+			),
+		);
+		const newSyncSettings = {
+			...(syncSettings as OrganizationSyncSettings),
+			mapping: newMapping,
+		};
+		setSyncSettings(newSyncSettings);
+		await form.setFieldValue("mapping", newSyncSettings.mapping);
+	};
+
 	return (
 		<>
 			<Stack spacing={2}>
@@ -134,17 +148,11 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									</Label>
 								</div>
 							</div>
+							<p className="text-content-secondary text-2xs m-0">
+								If empty, organization sync is deactivated
+							</p>
 						</div>
 					</div>
-					{/* <Stack
-						direction="row"
-						alignItems="baseline"
-						justifyContent="space-between"
-						css={styles.tableInfo}
-					>
-						<ExportPolicyButton syncSettings={syncSettings} />
-					</Stack> */}
-
 					<div className="flex flex-row py-10 gap-2 justify-between">
 						<div className="grid items-center gap-1">
 							<Label className="text-sm" htmlFor="idp-organization-name">
@@ -208,6 +216,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											key={idpOrg}
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
+											onDelete={handleDelete}
 										/>
 									))}
 						</IdpMappingTable>
@@ -242,6 +251,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 					<TableRow>
 						<TableCell width="45%">IdP organization</TableCell>
 						<TableCell width="55%">Coder organization</TableCell>
+						<TableCell width="10%" />
 					</TableRow>
 				</TableHead>
 				<TableBody>
@@ -283,14 +293,28 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 interface OrganizationRowProps {
 	idpOrg: string;
 	coderOrgs: readonly string[];
+	onDelete: (idpOrg: string) => void;
 }
 
-const OrganizationRow: FC<OrganizationRowProps> = ({ idpOrg, coderOrgs }) => {
+const OrganizationRow: FC<OrganizationRowProps> = ({
+	idpOrg,
+	coderOrgs,
+	onDelete,
+}) => {
 	return (
 		<TableRow data-testid={`group-${idpOrg}`}>
 			<TableCell>{idpOrg}</TableCell>
 			<TableCell>
 				<IdpPillList roles={coderOrgs} />
+			</TableCell>
+			<TableCell>
+				<Button
+					variant="outline"
+					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					onClick={() => onDelete(idpOrg)}
+				>
+					<Trash />
+				</Button>
 			</TableCell>
 		</TableRow>
 	);
@@ -307,7 +331,7 @@ const TableLoader = () => {
 					<Skeleton variant="text" width="25%" />
 				</TableCell>
 				<TableCell>
-					<Skeleton variant="text" width="25%" />
+					<Skeleton variant="text" width="10%" />
 				</TableCell>
 			</TableRowSkeleton>
 		</TableLoaderSkeleton>
