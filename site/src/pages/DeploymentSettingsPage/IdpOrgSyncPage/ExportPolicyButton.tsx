@@ -1,8 +1,8 @@
-import { Download } from "lucide-react";
-import { Button } from "components/ui/button";
 import type { OrganizationSyncSettings } from "api/typesGenerated";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { Button } from "components/ui/button";
 import { saveAs } from "file-saver";
+import { Download } from "lucide-react";
 import { type FC, useMemo, useState } from "react";
 
 interface ExportPolicyButtonProps {
