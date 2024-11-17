@@ -899,7 +899,8 @@ jobs:
                   result_artifacts = list(Path("test-go-pg_result").glob("test-go-pg_result_*"))
                   results = {f.name: int(f.read_text()) for f in result_artifacts}
                   del results["test-go-pg_result_windows-2022"]
-                  if sum(results.values()) == 0:
+                  # We should have received 3 result artifacts: linux, macos, and windows
+                  if len(result_artifacts) == 3 and sum(results.values()) == 0:
                       print("test-go-pg on windows-2022 failed, but we are temporarily skipping it until it's fixed")
                       continue
 
