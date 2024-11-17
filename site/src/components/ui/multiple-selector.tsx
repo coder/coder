@@ -495,7 +495,7 @@ const MultipleSelector = React.forwardRef<
 									<button
 										type="button"
 										className={cn(
-											"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0",
+											"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer",
 											(disabled || option.fixed) && "hidden",
 										)}
 										onKeyDown={(e) => {
@@ -557,7 +557,7 @@ const MultipleSelector = React.forwardRef<
 								onChange?.(selected.filter((s) => s.fixed));
 							}}
 							className={cn(
-								"absolute right-0 h-6 w-6 p-0 bg-transparent border-none",
+								"absolute right-0 h-6 w-6 p-0 bg-transparent border-none cursor-pointer",
 								(hideClearAllButton ||
 									disabled ||
 									selected.length < 1 ||

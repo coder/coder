@@ -153,60 +153,61 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</p>
 						</div>
 					</div>
-					<div className="flex flex-row py-10 gap-2 justify-between">
-						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor="idp-organization-name">
-								IdP organization name
-							</Label>
-							<Input
-								id="idp-organization-name"
-								value={idpOrgName}
-								className="min-w-72 w-72"
-								onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
-									setIdpOrgName(event.target.value);
-								}}
-							/>
-						</div>
-						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor="idp-organization-name">
-								Coder organization
-							</Label>
-							<MultipleSelector
-								className="min-w-96 max-w-3xl"
-								value={coderOrgs}
-								onChange={setCoderOrgs}
-								defaultOptions={OPTIONS}
-								hidePlaceholderWhenSelected
-								placeholder="Select organization"
-								emptyIndicator={
-									<p className="text-center text-lg leading-10 text-content-primary">
-										no results found.
-									</p>
-								}
-							/>
-						</div>
-						<Button
-							className="mb-px self-end"
-							onClick={async () => {
-								const newSyncSettings = {
-									...(syncSettings as OrganizationSyncSettings),
-									mapping: {
-										...syncSettings?.mapping,
-										[idpOrgName]: coderOrgs.map((org) => org.value),
-									},
-								};
-								setSyncSettings(newSyncSettings);
-								await form.setFieldValue("mapping", newSyncSettings.mapping);
-								setIdpOrgName("");
-								setCoderOrgs([]);
-							}}
-						>
-							<Plus size={14} />
-							Add IdP organization
-						</Button>
-					</div>
 
-					<Stack spacing={6}>
+					<div className="flex flex-col gap-4">
+						<div className="flex flex-row pt-8 gap-2 justify-between">
+							<div className="grid items-center gap-1">
+								<Label className="text-sm" htmlFor="idp-organization-name">
+									IdP organization name
+								</Label>
+								<Input
+									id="idp-organization-name"
+									value={idpOrgName}
+									className="min-w-72 w-72"
+									onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+										setIdpOrgName(event.target.value);
+									}}
+								/>
+							</div>
+							<div className="grid items-center gap-1 flex-1">
+								<Label className="text-sm" htmlFor="idp-organization-name">
+									Coder organization
+								</Label>
+								<MultipleSelector
+									className="min-w-96 max-w-3xl"
+									value={coderOrgs}
+									onChange={setCoderOrgs}
+									defaultOptions={OPTIONS}
+									hidePlaceholderWhenSelected
+									placeholder="Select organization"
+									emptyIndicator={
+										<p className="text-center text-lg leading-10 text-content-primary">
+											no results found.
+										</p>
+									}
+								/>
+							</div>
+							<Button
+								className="mb-px self-end"
+								disabled={!idpOrgName || coderOrgs.length === 0}
+								onClick={async () => {
+									const newSyncSettings = {
+										...(syncSettings as OrganizationSyncSettings),
+										mapping: {
+											...syncSettings?.mapping,
+											[idpOrgName]: coderOrgs.map((org) => org.value),
+										},
+									};
+									setSyncSettings(newSyncSettings);
+									await form.setFieldValue("mapping", newSyncSettings.mapping);
+									setIdpOrgName("");
+									setCoderOrgs([]);
+								}}
+							>
+								<Plus size={14} />
+								Add IdP organization
+							</Button>
+						</div>
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{syncSettings?.mapping &&
 								Object.entries(syncSettings.mapping)
@@ -222,6 +223,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						</IdpMappingTable>
 						<Button
 							className="w-20"
+							disabled={form.isSubmitting || !form.dirty}
 							onClick={(event) => {
 								event.preventDefault();
 								form.handleSubmit();
@@ -229,7 +231,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						>
 							Save
 						</Button>
-					</Stack>
+					</div>
 				</form>
 			</Stack>
 		</>
