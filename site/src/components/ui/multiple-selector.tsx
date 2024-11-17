@@ -231,17 +231,20 @@ const MultipleSelector = React.forwardRef<
 			[selected],
 		);
 
-		const handleClickOutside = (event: MouseEvent | TouchEvent) => {
-			if (
-				dropdownRef.current &&
-				!dropdownRef.current.contains(event.target as Node) &&
-				inputRef.current &&
-				!inputRef.current.contains(event.target as Node)
-			) {
-				setOpen(false);
-				inputRef.current.blur();
-			}
-		};
+		const handleClickOutside = React.useCallback(
+			(event: MouseEvent | TouchEvent) => {
+				if (
+					dropdownRef.current &&
+					!dropdownRef.current.contains(event.target as Node) &&
+					inputRef.current &&
+					!inputRef.current.contains(event.target as Node)
+				) {
+					setOpen(false);
+					inputRef.current.blur();
+				}
+			},
+			[],
+		);
 
 		const handleUnselect = React.useCallback(
 			(option: Option) => {
@@ -287,7 +290,7 @@ const MultipleSelector = React.forwardRef<
 				document.removeEventListener("mousedown", handleClickOutside);
 				document.removeEventListener("touchend", handleClickOutside);
 			};
-		}, [open]);
+		}, [open, handleClickOutside]);
 
 		useEffect(() => {
 			if (value) {
@@ -304,7 +307,7 @@ const MultipleSelector = React.forwardRef<
 			if (JSON.stringify(newOption) !== JSON.stringify(options)) {
 				setOptions(newOption);
 			}
-		}, [arrayDefaultOptions, arrayOptions, groupBy, onSearch, options]);
+		}, [arrayOptions, groupBy, onSearch, options]);
 
 		useEffect(() => {
 			/** sync search */
@@ -328,7 +331,13 @@ const MultipleSelector = React.forwardRef<
 
 			void exec();
 			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus]);
+		}, [
+			debouncedSearchTerm,
+			groupBy,
+			open,
+			triggerSearchOnFocus,
+			onSearchSync,
+		]);
 
 		useEffect(() => {
 			/** async search */
@@ -353,8 +362,7 @@ const MultipleSelector = React.forwardRef<
 			};
 
 			void exec();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
-		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus]);
+		}, [debouncedSearchTerm, groupBy, open, triggerSearchOnFocus, onSearch]);
 
 		const CreatableItem = () => {
 			if (!creatable) return undefined;
@@ -455,6 +463,7 @@ const MultipleSelector = React.forwardRef<
 				} // When onSearch is provided, we don't want to filter the options. You can still override it.
 				filter={commandFilter()}
 			>
+				{/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
 				<div
 					className={cn(
 						"min-h-9 rounded-md border border-solid border-border text-sm ",
@@ -484,8 +493,9 @@ const MultipleSelector = React.forwardRef<
 								>
 									{option.label}
 									<button
+										type="button"
 										className={cn(
-											"ml-1 pr-0 py-1 rounded-full bg-transparent border-none outline-none ring-offset-background focus:ring-2 focus:ring-ring focus:ring-offset-2",
+											"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0",
 											(disabled || option.fixed) && "hidden",
 										)}
 										onKeyDown={(e) => {
@@ -588,7 +598,8 @@ const MultipleSelector = React.forwardRef<
 											heading={key}
 											className="h-full overflow-auto"
 										>
-											{/* biome-ignore lint/complexity/noUselessFragments: <explanation> */}
+											{/* biome-ignore lint/complexity/noUselessFragments: A parent element is
+											    needed for multiple dropdown items */}
 											<>
 												{dropdowns.map((option) => {
 													return (
