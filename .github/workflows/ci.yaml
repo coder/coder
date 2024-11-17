@@ -370,7 +370,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge'}}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -383,7 +383,6 @@ jobs:
         os:
           - ubuntu-latest
           - macos-latest
-          - windows-2022
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
@@ -430,20 +429,56 @@ jobs:
             go run scripts/embedded-pg/main.go
             DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
           fi
-      # This is used by the `required` job to determine if the test-go-pg job
-      # failed or not on the given OS. Matrix jobs don't support `outputs`
-      # well - the last job to run overwrites them. Instead, we write to
-      # artifacts.
-      - if: always()
-        run: echo "0" > "test-go-pg_result_${{ matrix.os }}"
-      - if: failure()
-        run: echo "1" > "test-go-pg_result_${{ matrix.os }}"
-      - name: Upload result artifact
-        if: always()
-        uses: actions/upload-artifact@v4
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
         with:
-          name: "test-go-pg_result_${{ matrix.os }}"
-          path: "test-go-pg_result_${{ matrix.os }}"
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
+  # NOTE: this could instead be defined as a matrix strategy, but we want to
+  # temporarily allow windows tests to fail. Using a matrix strategy here makes
+  # the check in the `required` job rather complicated.
+  test-go-pg-windows:
+    runs-on: ${{ github.repository_owner == 'coder' && 'windows-latest-16-cores' }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    # This timeout must be greater than the timeout set by `go test` in
+    # `make test-postgres` to ensure we receive a trace of running
+    # goroutines. Setting this to the timeout +5m should work quite well
+    # even if some of the preceding steps are slow.
+    timeout-minutes: 25
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      - name: Test with PostgreSQL Database
+        env:
+          POSTGRES_VERSION: "13"
+          TS_DEBUG_DISCO: "true"
+        shell: bash
+        run: |
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          go run scripts/embedded-pg/main.go
+          DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -867,54 +902,29 @@ jobs:
         uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
-      - name: Download test-go-pg Artifacts
-        uses: actions/download-artifact@v4
-        with:
-          path: test-go-pg_result
-          pattern: test-go-pg_result_*
-          merge-multiple: true
+
       - name: Ensure required checks
-        shell: python
         run: |
-          import json
-          import sys
-          import os
-          from pathlib import Path
+          echo "Checking required checks"
+          echo "- fmt: ${{ needs.fmt.result }}"
+          echo "- lint: ${{ needs.lint.result }}"
+          echo "- gen: ${{ needs.gen.result }}"
+          echo "- test-go: ${{ needs.test-go.result }}"
+          echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
+          echo "- test-go-race: ${{ needs.test-go-race.result }}"
+          echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
+          echo "- test-js: ${{ needs.test-js.result }}"
+          echo "- test-e2e: ${{ needs.test-e2e.result }}"
+          echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
+          echo
 
-          print("Checking required checks")
+          # We allow skipped jobs to pass, but not failed or cancelled jobs.
+          if [[ "${{ contains(needs.*.result, 'failure') }}" == "true" || "${{ contains(needs.*.result, 'cancelled') }}" == "true" ]]; then
+            echo "One of the required checks has failed or has been cancelled"
+            exit 1
+          fi
 
-          jobs = json.loads(os.environ["NEEDS"])
-          job_names = sorted(jobs.keys())
-          for job_name in job_names:
-              result = jobs[job_name]["result"]
-              print(f"- {job_name}: {result}")
-          print()
-
-          failed = False
-          for job_name in job_names:
-              result = jobs[job_name]["result"]
-
-              # Skip test-go-pg failures on windows
-              if job_name == "test-go-pg" and result == "failure":
-                  result_artifacts = list(Path("test-go-pg_result").glob("test-go-pg_result_*"))
-                  results = {f.name: int(f.read_text()) for f in result_artifacts}
-                  del results["test-go-pg_result_windows-2022"]
-                  # We should have received 3 result artifacts: linux, macos, and windows
-                  if len(result_artifacts) == 3 and sum(results.values()) == 0:
-                      print("test-go-pg on windows-2022 failed, but we are temporarily skipping it until it's fixed")
-                      continue
-
-              if result in ["failure", "cancelled"]:
-                  failed = True
-                  break
-
-          if failed:
-              print("One of the required checks has failed or has been cancelled")
-              sys.exit(1)
-
-          print("Required checks have passed")
-        env:
-          NEEDS: ${{ toJSON(needs) }}
+          echo "Required checks have passed"
 
   # Builds the dylibs and upload it as an artifact so it can be embedded in the main build
   build-dylib:
