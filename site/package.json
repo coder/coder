@@ -49,7 +49,7 @@
 		"@mui/material": "5.16.7",
 		"@mui/system": "5.16.7",
 		"@mui/utils": "5.16.6",
-		"@mui/x-tree-view": "7.18.0",
+		"@mui/x-tree-view": "7.22.1",
 		"@radix-ui/react-slot": "1.1.0",
 		"@tanstack/react-query-devtools": "4.35.3",
 		"@xterm/addon-canvas": "0.7.0",
