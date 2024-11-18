@@ -1,7 +1,6 @@
 package agentexec
 
 import (
-	"context"
 	"fmt"
 	"os"
 	"os/exec"
@@ -20,7 +19,7 @@ const (
 )
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
-func CLI(ctx context.Context, args []string, environ []string) error {
+func CLI(args []string, environ []string) error {
 	if runtime.GOOS != "linux" {
 		return xerrors.Errorf("agent-exec is only supported on Linux")
 	}
