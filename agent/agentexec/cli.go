@@ -24,6 +24,12 @@ func CLI(args []string, environ []string) error {
 		return xerrors.Errorf("agent-exec is only supported on Linux")
 	}
 
+	if len(args) < 2 {
+		return xerrors.Errorf("malformed command %q", args)
+	}
+
+	args = args[2:]
+
 	pid := os.Getpid()
 
 	oomScore, ok := envVal(environ, EnvProcOOMScore)

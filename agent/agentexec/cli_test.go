@@ -6,10 +6,12 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/require"
 	"golang.org/x/sys/unix"
@@ -23,13 +25,14 @@ func TestCLI(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		cmd, dir := cmd(t, ctx)
+		cmd, path := cmd(ctx, t)
 		cmd.Env = append(cmd.Env, "CODER_PROC_NICE_SCORE=10")
 		cmd.Env = append(cmd.Env, "CODER_PROC_OOM_SCORE=123")
 		err := cmd.Start()
 		require.NoError(t, err)
+		go cmd.Wait()
 
-		waitForSentinel(t, ctx, cmd, dir)
+		waitForSentinel(t, ctx, cmd, path)
 		requireOOMScore(t, cmd.Process.Pid, 123)
 		requireNiceScore(t, cmd.Process.Pid, 10)
 	})
@@ -52,27 +55,40 @@ func requireOOMScore(t *testing.T, pid int, expected int) {
 	require.Equal(t, strconv.Itoa(expected), score)
 }
 
-func waitForSentinel(t *testing.T, ctx context.Context, cmd *exec.Cmd, dir string) {
+func waitForSentinel(t *testing.T, ctx context.Context, cmd *exec.Cmd, path string) {
 	t.Helper()
 
-	require.Eventually(t, func() bool {
-		// Check if the process is still running.
+	ticker := time.NewTicker(testutil.IntervalFast)
+	defer ticker.Stop()
+
+	// RequireEventually doesn't work well with require.NoError or similar require functions.
+	for {
 		err := cmd.Process.Signal(syscall.Signal(0))
 		require.NoError(t, err)
 
-		_, err = os.Stat(dir)
-		return err == nil && ctx.Err() == nil
-	}, testutil.WaitLong, testutil.IntervalFast)
+		_, err = os.Stat(path)
+		if err == nil {
+			return
+		}
+
+		select {
+		case <-ticker.C:
+		case <-ctx.Done():
+			return
+		}
+	}
 }
 
-func cmd(t *testing.T, ctx context.Context, args ...string) (*exec.Cmd, string) {
-	dir := ""
+func cmd(ctx context.Context, t *testing.T, args ...string) (*exec.Cmd, string) {
+	file := ""
 	cmd := exec.Command(TestBin, args...)
 	if len(args) == 0 {
-		dir = t.TempDir()
+		dir := t.TempDir()
+		file = filepath.Join(dir, uniqueFile(t))
 		//nolint:gosec
-		cmd = exec.CommandContext(ctx, TestBin, "sh", "-c", fmt.Sprintf("touch %s && sleep 10m", dir))
+		cmd = exec.CommandContext(ctx, TestBin, "agent-exec", "sh", "-c", fmt.Sprintf("touch %s && sleep 10m", file))
 	}
+	cmd.Env = os.Environ()
 	var buf bytes.Buffer
 	cmd.Stdout = &buf
 	cmd.Stderr = &buf
@@ -86,5 +102,9 @@ func cmd(t *testing.T, ctx context.Context, args ...string) (*exec.Cmd, string) 
 			_ = cmd.Process.Kill()
 		}
 	})
-	return cmd, dir
+	return cmd, file
+}
+
+func uniqueFile(t *testing.T) string {
+	return fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), time.Now().UnixNano())
 }
