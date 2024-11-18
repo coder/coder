@@ -20,8 +20,8 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
+import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
@@ -152,9 +152,9 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		: (link?.authenticated ?? false);
 
 	let avatar = app.display_icon ? (
-		<Avatar src={app.display_icon} variant="square" fitImage size="sm" />
+		<ExternalImage src={app.display_icon} variant="square" fitImage size="sm" />
 	) : (
-		<Avatar>{name}</Avatar>
+		<ExternalImage>{name}</ExternalImage>
 	);
 
 	// If the link is authenticated and has a refresh token, show that it will automatically
