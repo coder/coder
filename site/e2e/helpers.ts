@@ -707,7 +707,7 @@ async function waitForPort(
 		if (available) {
 			return;
 		}
-		console.warn(`${host}:${port} is in use, checking again in 1s`)
+		console.warn(`${host}:${port} is in use, checking again in 1s`);
 		await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retrying
 	}
 	throw new Error(
