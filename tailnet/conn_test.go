@@ -129,23 +129,28 @@ func TestTailnet(t *testing.T) {
 		stitch(t, w2, w1)
 		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(ctx, w1IP))
-		conn := make(chan struct{}, 1)
+		done := make(chan struct{})
+		listening := make(chan struct{})
 		go func() {
+			defer close(done)
 			listener, err := w1.Listen("tcp", ":35565")
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			defer listener.Close()
+			close(listening)
 			nc, err := listener.Accept()
 			if !assert.NoError(t, err) {
 				return
 			}
 			_ = nc.Close()
-			conn <- struct{}{}
 		}()
 
+		testutil.RequireRecvCtx(ctx, t, listening)
 		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
-		<-conn
+		testutil.RequireRecvCtx(ctx, t, done)
 
 		nodes := make(chan *tailnet.Node, 1)
 		w2.SetNodeCallback(func(node *tailnet.Node) {
