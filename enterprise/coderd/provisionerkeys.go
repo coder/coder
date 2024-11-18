@@ -200,35 +200,42 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// @Summary Get provisioner key tags by ID
-// @ID get-provisioner-key-tags-by-id
-// @Security CoderSessionToken
+// @Summary Get provisioner key details
+// @ID get-provisioner-key
+// @Security CoderProvisionerDaemonKey
 // @Produce json
 // @Tags Enterprise
-// @Param organization path string true "Organization ID"
 // @Param provisionerkey path string true "Provisioner Key"
-// @Success 200 {object} codersdk.ProvisionerKeyTags
-// @Router /organizations/{organization}/provisionerkeys/{provisionerkey}/tags [get]
-func (*API) fetchProvisionerKeyTags(rw http.ResponseWriter, r *http.Request) {
-	var (
-		ctx = r.Context()
-		pk  = httpmw.ProvisionerKeyParam(r)
-	)
+// @Success 200 {object} codersdk.ProvisionerKey
+// @Router provisionerkeys/{provisionerkey} [get]
+func (*API) getProvisionerKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.ProvisionerKeyTags(pk.Tags))
+	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)
+	// extra check but this one should never happen as it is covered by the auth middleware
+	if !ok {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerKey(pk))
+}
+
+func convertProvisionerKey(dbKey database.ProvisionerKey) codersdk.ProvisionerKey {
+	return codersdk.ProvisionerKey{
+		ID:             dbKey.ID,
+		CreatedAt:      dbKey.CreatedAt,
+		OrganizationID: dbKey.OrganizationID,
+		Name:           dbKey.Name,
+		Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
+		// HashedSecret - never include the access token in the API response
+	}
 }
 
 func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.ProvisionerKey {
 	keys := make([]codersdk.ProvisionerKey, 0, len(dbKeys))
 	for _, dbKey := range dbKeys {
-		keys = append(keys, codersdk.ProvisionerKey{
-			ID:             dbKey.ID,
-			CreatedAt:      dbKey.CreatedAt,
-			OrganizationID: dbKey.OrganizationID,
-			Name:           dbKey.Name,
-			Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
-			// HashedSecret - never include the access token in the API response
-		})
+		keys = append(keys, convertProvisionerKey(dbKey))
 	}
 
 	slices.SortFunc(keys, func(key1, key2 codersdk.ProvisionerKey) int {

@@ -368,21 +368,23 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
-// FetchProvisionerTagsByKey returns the provisioner tags associated with the provisioner key.
-func (c *Client) FetchProvisionerTagsByKey(ctx context.Context, organizationID uuid.UUID, provisionerKey string) (ProvisionerKeyTags, error) {
+// GetProvisionerKey returns the provisioner key.
+func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerkeys/%s/tags", organizationID.String(), provisionerKey),
-		nil,
+		fmt.Sprintf("/api/v2/provisionerkeys/%s", pk), nil,
+		func(req *http.Request) {
+			req.Header.Add(ProvisionerDaemonKey, pk)
+		},
 	)
 	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
+		return ProvisionerKey{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer res.Body.Close()
 
 	if res.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(res)
+		return ProvisionerKey{}, ReadBodyAsError(res)
 	}
-	var resp ProvisionerKeyTags
+	var resp ProvisionerKey
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

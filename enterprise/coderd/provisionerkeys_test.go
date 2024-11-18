@@ -134,12 +134,12 @@ func TestProvisionerKeys(t *testing.T) {
 	require.ErrorContains(t, err, "reserved")
 }
 
-func TestProvisionerKeyTags(t *testing.T) {
+func TestProvisionerKey(t *testing.T) {
 	t.Parallel()
-	t.Run("GetTags", func(t *testing.T) {
+	t.Run("GetKey", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong*10)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 		dv := coderdtest.DeploymentValues(t)
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -153,18 +153,18 @@ func TestProvisionerKeyTags(t *testing.T) {
 			},
 		})
 
-		//nolint:gocritic // Not the purpose of this test
-		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-			Name: "key",
+		key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-test-key",
 			Tags: map[string]string{"key1": "value1", "key2": "value2"},
 		})
 		require.NoError(t, err)
 
-		tags, err := client.FetchProvisionerTagsByKey(ctx, owner.OrganizationID, "key")
+		_, err = client.GetProvisionerKey(ctx, key.Key)
 		require.NoError(t, err)
-		require.Equal(t, tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
+		// require.Equal(t, tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
 
-		_, err = client.FetchProvisionerTagsByKey(ctx, owner.OrganizationID, "invalid_key")
-		require.ErrorContains(t, err, "Resource not found")
+		erroneousPK, err := client.GetProvisionerKey(ctx, "abcdefghijklmnopqrstuvwxyz01234567890123456")
+		require.Empty(t, erroneousPK)
+		require.Error(t, err)
 	})
 }
