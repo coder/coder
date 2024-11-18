@@ -9846,6 +9846,49 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 	return i, err
 }
 
+const oIDCClaimFields = `-- name: OIDCClaimFields :many
+SELECT
+	DISTINCT jsonb_object_keys(claims->'merged_claims')
+FROM
+	user_links
+WHERE
+    -- Only return rows where the top level key exists
+	claims ? 'merged_claims' AND
+    -- 'null' is the default value for the id_token_claims field
+	-- jsonb 'null' is not the same as SQL NULL. Strip these out.
+	jsonb_typeof(claims->'merged_claims') != 'null' AND
+	login_type = 'oidc'
+	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
+		ELSE true
+	END
+`
+
+// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
+// This query is used to generate the list of available sync fields for idp sync settings.
+func (q *sqlQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, oIDCClaimFields, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var jsonb_object_keys string
+		if err := rows.Scan(&jsonb_object_keys); err != nil {
+			return nil, err
+		}
+		items = append(items, jsonb_object_keys)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateUserLink = `-- name: UpdateUserLink :one
 UPDATE
 	user_links

@@ -57,3 +57,24 @@ SET
 	claims = $6
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
+
+
+-- name: OIDCClaimFields :many
+-- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
+-- This query is used to generate the list of available sync fields for idp sync settings.
+SELECT
+	DISTINCT jsonb_object_keys(claims->'merged_claims')
+FROM
+	user_links
+WHERE
+    -- Only return rows where the top level key exists
+	claims ? 'merged_claims' AND
+    -- 'null' is the default value for the id_token_claims field
+	-- jsonb 'null' is not the same as SQL NULL. Strip these out.
+	jsonb_typeof(claims->'merged_claims') != 'null' AND
+	login_type = 'oidc'
+	AND CASE WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = @organization_id)
+		ELSE true
+	END
+;
