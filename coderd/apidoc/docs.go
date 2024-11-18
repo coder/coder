@@ -3126,47 +3126,6 @@ const docTemplate = `{
                 }
             }
         },
-        "/organizations/{organization}/provisionerkeys/{provisionerkey}/tags": {
-            "get": {
-                "security": [
-                    {
-                        "CoderSessionToken": []
-                    }
-                ],
-                "produces": [
-                    "application/json"
-                ],
-                "tags": [
-                    "Enterprise"
-                ],
-                "summary": "Get provisioner key tags by ID",
-                "operationId": "get-provisioner-key-tags-by-id",
-                "parameters": [
-                    {
-                        "type": "string",
-                        "description": "Organization ID",
-                        "name": "organization",
-                        "in": "path",
-                        "required": true
-                    },
-                    {
-                        "type": "string",
-                        "description": "Provisioner Key",
-                        "name": "provisionerkey",
-                        "in": "path",
-                        "required": true
-                    }
-                ],
-                "responses": {
-                    "200": {
-                        "description": "OK",
-                        "schema": {
-                            "$ref": "#/definitions/codersdk.ProvisionerKeyTags"
-                        }
-                    }
-                }
-            }
-        },
         "/organizations/{organization}/settings/idpsync/groups": {
             "get": {
                 "security": [
@@ -3630,6 +3589,40 @@ const docTemplate = `{
                         "description": "Created",
                         "schema": {
                             "$ref": "#/definitions/codersdk.TemplateVersion"
+                        }
+                    }
+                }
+            }
+        },
+        "/provisionerkeys/{provisionerkey}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Fetch provisioner key details",
+                "operationId": "fetch-provisioner-key-details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provisioner Key",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerKey"
                         }
                     }
                 }

@@ -377,7 +377,7 @@ func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerK
 		},
 	)
 	if err != nil {
-		return ProvisionerKey{}, xerrors.Errorf("make request: %w", err)
+		return ProvisionerKey{}, xerrors.Errorf("request to fetch provisioner key failed: %w", err)
 	}
 	defer res.Body.Close()
 

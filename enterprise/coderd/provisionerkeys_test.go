@@ -139,8 +139,8 @@ func TestProvisionerKey(t *testing.T) {
 	t.Run("GetKey", func(t *testing.T) {
 		t.Parallel()
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		t.Cleanup(cancel)
+		ctx := testutil.Context(t, testutil.WaitShort)
+
 		dv := coderdtest.DeploymentValues(t)
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -153,15 +153,17 @@ func TestProvisionerKey(t *testing.T) {
 			},
 		})
 
+		// nolint:gocritic
 		key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 			Name: "my-test-key",
 			Tags: map[string]string{"key1": "value1", "key2": "value2"},
 		})
 		require.NoError(t, err)
 
-		_, err = client.GetProvisionerKey(ctx, key.Key)
+		fetchedKey, err := client.GetProvisionerKey(ctx, key.Key)
 		require.NoError(t, err)
-		// require.Equal(t, tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
+		require.Equal(t, fetchedKey.Name, "my-test-key")
+		require.Equal(t, fetchedKey.Tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
 
 		erroneousPK, err := client.GetProvisionerKey(ctx, "abcdefghijklmnopqrstuvwxyz01234567890123456")
 		require.Empty(t, erroneousPK)

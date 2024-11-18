@@ -200,15 +200,15 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
-// @Summary Get provisioner key details
-// @ID get-provisioner-key
-// @Security CoderProvisionerDaemonKey
+// @Summary Fetch provisioner key details
+// @ID fetch-provisioner-key-details
+// @Security CoderSessionToken
 // @Produce json
 // @Tags Enterprise
 // @Param provisionerkey path string true "Provisioner Key"
 // @Success 200 {object} codersdk.ProvisionerKey
-// @Router provisionerkeys/{provisionerkey} [get]
-func (*API) getProvisionerKey(rw http.ResponseWriter, r *http.Request) {
+// @Router /provisionerkeys/{provisionerkey} [get]
+func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)

@@ -346,7 +346,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					Optional: false,
 				}),
 			)
-			r.Get("/{provisionerkey}", api.getProvisionerKey)
+			r.Get("/{provisionerkey}", api.fetchProvisionerKey)
 		})
 		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
 			r.Use(
