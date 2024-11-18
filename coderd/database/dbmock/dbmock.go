@@ -4360,7 +4360,7 @@ func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *g
 }
 
 // OIDCClaimFieldValues mocks base method.
-func (m *MockStore) OIDCClaimFieldValues(arg0 context.Context, arg1 uuid.UUID) ([]string, error) {
+func (m *MockStore) OIDCClaimFieldValues(arg0 context.Context, arg1 database.OIDCClaimFieldValuesParams) ([]string, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "OIDCClaimFieldValues", arg0, arg1)
 	ret0, _ := ret[0].([]string)
