@@ -699,7 +699,7 @@ export const createServer = async (
 async function waitForPort(
 	port: number,
 	host = "0.0.0.0",
-	timeout = 5000,
+	timeout = 30000,
 ): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {
@@ -707,7 +707,8 @@ async function waitForPort(
 		if (available) {
 			return;
 		}
-		await new Promise((resolve) => setTimeout(resolve, 100)); // Wait 1 second before retrying
+		console.warn(`${host}:${port} is in use, checking again in 1s`)
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retrying
 	}
 	throw new Error(
 		`Timeout: port ${port} is still in use after ${timeout / 1000} seconds.`,
