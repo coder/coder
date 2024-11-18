@@ -1,5 +1,4 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
+export default  {
 	corePlugins: {
 		preflight: false,
 	},
@@ -49,4 +48,4 @@ module.exports = {
 		},
 	},
 	plugins: [require("tailwindcss-animate")],
-};
+} satisfies import('tailwindcss').Config;
