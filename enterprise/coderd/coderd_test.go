@@ -17,7 +17,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -426,7 +425,7 @@ func TestMultiReplica_EmptyRelayAddress(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	_, _ = coderdenttest.New(t, &coderdenttest.Options{
 		EntitlementsUpdateInterval: 25 * time.Millisecond,
@@ -468,7 +467,7 @@ func TestMultiReplica_EmptyRelayAddress_DisabledDERP(t *testing.T) {
 
 	ctx := testutil.Context(t, testutil.WaitLong)
 	db, ps := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 
 	dv := coderdtest.DeploymentValues(t)
 	dv.DERP.Server.Enable = serpent.Bool(false)

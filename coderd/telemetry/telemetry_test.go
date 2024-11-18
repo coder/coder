@@ -15,8 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -186,7 +184,7 @@ func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts tel
 	require.NoError(t, err)
 	options := telemetry.Options{
 		Database:     db,
-		Logger:       slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:       testutil.Logger(t),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
 	}

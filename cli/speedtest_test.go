@@ -9,8 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -52,7 +50,7 @@ func TestSpeedtest(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	inv.Logger = slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug)
+	inv.Logger = testutil.Logger(t).Named("speedtest")
 	cmdDone := tGo(t, func() {
 		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err)
@@ -90,7 +88,7 @@ func TestSpeedtestJson(t *testing.T) {
 	ctx, cancel = context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
-	inv.Logger = slogtest.Make(t, nil).Named("speedtest").Leveled(slog.LevelDebug)
+	inv.Logger = testutil.Logger(t).Named("speedtest")
 	cmdDone := tGo(t, func() {
 		err := inv.WithContext(ctx).Run()
 		assert.NoError(t, err)

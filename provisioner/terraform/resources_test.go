@@ -17,6 +17,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
 
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
@@ -24,7 +25,7 @@ import (
 )
 
 func ctxAndLogger(t *testing.T) (context.Context, slog.Logger) {
-	return context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	return context.Background(), testutil.Logger(t)
 }
 
 func TestConvertResources(t *testing.T) {

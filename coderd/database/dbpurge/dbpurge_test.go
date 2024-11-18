@@ -47,7 +47,7 @@ func TestPurge(t *testing.T) {
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New(), clk)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), dbmem.New(), clk)
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }

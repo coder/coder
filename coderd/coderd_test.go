@@ -19,8 +19,6 @@ import (
 	"go.uber.org/goleak"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
@@ -62,7 +60,7 @@ func TestDERP(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitMedium)
 	client := coderdtest.New(t, nil)
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	derpPort, err := strconv.Atoi(client.URL.Port())
 	require.NoError(t, err)
@@ -217,7 +215,7 @@ func TestDERPForceWebSockets(t *testing.T) {
 	resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 	conn, err := wsclient.DialAgent(ctx, resources[0].Agents[0].ID,
 		&workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("client"),
+			Logger: testutil.Logger(t).Named("client"),
 		},
 	)
 	require.NoError(t, err)

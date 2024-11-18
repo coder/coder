@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -29,7 +27,7 @@ func TestTailnet(t *testing.T) {
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:    logger.Named("w1"),
@@ -41,7 +39,7 @@ func TestTailnet(t *testing.T) {
 	})
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -104,7 +102,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
@@ -167,7 +165,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("PingDirect", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -210,7 +208,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("PingDERPOnly", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -259,7 +257,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
@@ -288,7 +286,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 // preferred DERP server and new connections can be made from clients.
 func TestConn_UpdateDERP(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	derpMap1, _ := tailnettest.RunDERPAndSTUN(t)
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
@@ -421,7 +419,7 @@ parentLoop:
 
 func TestConn_BlockEndpoints(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 

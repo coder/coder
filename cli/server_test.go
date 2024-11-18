@@ -38,8 +38,6 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
@@ -1833,7 +1831,7 @@ func TestConnectToPostgres(t *testing.T) {
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	t.Cleanup(cancel)
 
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 
 	dbURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)

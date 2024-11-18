@@ -1152,7 +1152,7 @@ func createProvisionerClient(t *testing.T, done <-chan struct{}, server provisio
 		defer close(closed)
 		_ = provisionersdk.Serve(ctx, &server, &provisionersdk.ServeOptions{
 			Listener:      serverPipe,
-			Logger:        slogtest.Make(t, nil).Leveled(slog.LevelDebug).Named("test-provisioner"),
+			Logger:        testutil.Logger(t).Named("test-provisioner"),
 			WorkDirectory: tempDir,
 		})
 	}()

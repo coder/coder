@@ -7,7 +7,6 @@ import (
 
 	"github.com/google/uuid"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -172,7 +171,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 				var (
 					now   = dbtime.Now()
 					ctx   = testutil.Context(t, testutil.WaitShort)
-					log   = slogtest.Make(t, nil)
+					log   = testutil.Logger(t)
 					db, _ = dbtestutil.NewDB(t, dbtestutil.WithTimezone(tz))
 					org   = dbgen.Organization(t, db, database.Organization{})
 					user  = dbgen.User(t, db, database.User{

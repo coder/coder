@@ -13,16 +13,13 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-	"storj.io/drpc"
-
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/serpent"
@@ -2202,7 +2199,7 @@ type overrides struct {
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
 	t.Helper()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	defOrg, err := db.GetDefaultOrganization(context.Background())
