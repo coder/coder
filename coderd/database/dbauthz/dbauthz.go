@@ -4044,6 +4044,13 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceNextStartAt)(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxyByID(ctx, arg.ID)

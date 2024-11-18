@@ -9950,6 +9950,29 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+
+		workspace.NextStartAt = arg.NextStartAt
+		q.workspaces[index] = workspace
+
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()

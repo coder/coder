@@ -1887,6 +1887,13 @@ func (s *MethodTestSuite) TestWorkspace() {
 			ID: ws.ID,
 		}).Asserts(ws, policy.ActionUpdate).Returns()
 	}))
+	s.Run("UpdateWorkspaceNextStartAt", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		check.Args(database.UpdateWorkspaceNextStartAtParams{
+			ID:          ws.ID,
+			NextStartAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+		}).Asserts(ws, policy.ActionUpdate)
+	}))
 	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
 		ws1 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		ws2 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})

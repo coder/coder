@@ -2527,6 +2527,13 @@ func (m queryMetricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg da
 	return err
 }
 
+func (m queryMetricsStore) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceNextStartAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceNextStartAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.UpdateWorkspaceProxy(ctx, arg)

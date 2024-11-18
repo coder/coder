@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/schedule"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -302,6 +303,23 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 	})
 	if err != nil {
 		return xerrors.Errorf("calculate new autostop for workspace %q: %w", workspace.ID, err)
+	}
+
+	if workspace.AutostartSchedule.Valid {
+		templateScheduleOptions, err := s.Get(ctx, db, workspace.TemplateID)
+		if err != nil {
+			return xerrors.Errorf("get template schedule options: %w", err)
+		}
+
+		nextStartAt, _ := schedule.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateScheduleOptions)
+
+		err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+			ID:          workspace.ID,
+			NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt},
+		})
+		if err != nil {
+			return xerrors.Errorf("update workspace next start at: %w", err)
+		}
 	}
 
 	// If max deadline is before now()+2h, then set it to that.

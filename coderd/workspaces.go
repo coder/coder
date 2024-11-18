@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -554,6 +555,12 @@ func createWorkspace(
 		return
 	}
 
+	nextStartAt := sql.NullTime{}
+	if dbAutostartSchedule.Valid {
+		time, _ := schedule.NextAutostart(dbtime.Now(), dbAutostartSchedule.String, templateSchedule)
+		nextStartAt = sql.NullTime{Valid: true, Time: time}
+	}
+
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -618,6 +625,7 @@ func createWorkspace(
 			TemplateID:        template.ID,
 			Name:              req.Name,
 			AutostartSchedule: dbAutostartSchedule,
+			NextStartAt:       nextStartAt,
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
@@ -873,9 +881,16 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nextStartAt := sql.NullTime{}
+	if dbSched.Valid {
+		time, _ := schedule.NextAutostart(dbtime.Now(), dbSched.String, templateSchedule)
+		nextStartAt = sql.NullTime{Valid: true, Time: time}
+	}
+
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
+		NextStartAt:       nextStartAt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{

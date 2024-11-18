@@ -368,6 +368,7 @@ WHERE
 		'0001-01-01 00:00:00+00'::timestamptz, -- deleting_at
 		'never'::automatic_updates, -- automatic_updates
 		false, -- favorite
+		'0001-01-01 00:00:00+00'::timestamptz, -- next_start_at
 		'', -- owner_avatar_url
 		'', -- owner_username
 		'', -- organization_name
@@ -435,10 +436,11 @@ INSERT INTO
 		autostart_schedule,
 		ttl,
 		last_used_at,
-		automatic_updates
+		automatic_updates,
+		next_start_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
 
 -- name: UpdateWorkspaceDeletedByID :exec
 UPDATE
@@ -462,7 +464,16 @@ RETURNING *;
 UPDATE
 	workspaces
 SET
-	autostart_schedule = $2
+	autostart_schedule = $2,
+	next_start_at = $3
+WHERE
+	id = $1;
+
+-- name: UpdateWorkspaceNextStartAt :exec
+UPDATE
+	workspaces
+SET
+	next_start_at = $2
 WHERE
 	id = $1;
 
@@ -601,11 +612,16 @@ WHERE
 		--   * The provisioner job did not fail.
 		--   * The workspace build was a stop transition.
 		--   * The workspace has an autostart schedule.
+		--   * It is after the workspace's next start time.
 		(
 			users.status = 'active'::user_status AND
 			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
-			workspaces.autostart_schedule IS NOT NULL
+			workspaces.autostart_schedule IS NOT NULL AND
+			(
+				workspaces.next_start_at IS NULL OR
+				workspaces.next_start_at <= @now :: timestamp
+			)
 		) OR
 
 		-- A workspace may be eligible for dormant stop if the following are true:

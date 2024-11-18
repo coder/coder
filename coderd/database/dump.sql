@@ -1729,7 +1729,8 @@ CREATE TABLE workspaces (
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -1750,6 +1751,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.deleting_at,
     workspaces.automatic_updates,
     workspaces.favorite,
+    workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     organizations.name AS organization_name,

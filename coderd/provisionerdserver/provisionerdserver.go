@@ -1432,9 +1432,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return getWorkspaceError
 			}
 
+			templateScheduleStore := *s.TemplateScheduleStore.Load()
+
 			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
 				Database:                    db,
-				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),
+				TemplateScheduleStore:       templateScheduleStore,
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
 				Workspace:                   workspace.WorkspaceTable(),
@@ -1443,6 +1445,23 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 			if err != nil {
 				return xerrors.Errorf("calculate auto stop: %w", err)
+			}
+
+			if workspace.AutostartSchedule.Valid {
+				templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template schedule options: %w", err)
+				}
+
+				nextStartAt, _ := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
+
+				err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+					ID:          workspace.ID,
+					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt},
+				})
+				if err != nil {
+					return xerrors.Errorf("update workspace next start at: %w", err)
+				}
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{

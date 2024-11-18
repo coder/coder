@@ -5356,6 +5356,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspaceLastUsedAt(arg0, arg1 any) *gomo
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLastUsedAt), arg0, arg1)
 }
 
+// UpdateWorkspaceNextStartAt mocks base method.
+func (m *MockStore) UpdateWorkspaceNextStartAt(arg0 context.Context, arg1 database.UpdateWorkspaceNextStartAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspaceNextStartAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspaceNextStartAt indicates an expected call of UpdateWorkspaceNextStartAt.
+func (mr *MockStoreMockRecorder) UpdateWorkspaceNextStartAt(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceNextStartAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceNextStartAt), arg0, arg1)
+}
+
 // UpdateWorkspaceProxy mocks base method.
 func (m *MockStore) UpdateWorkspaceProxy(arg0 context.Context, arg1 database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
