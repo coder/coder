@@ -5761,9 +5761,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                    |
-| ------------------------ |
-| `UNSUPPORTED_WORKSPACES` |
+| Value                      |
+| -------------------------- |
+| `UNSUPPORTED_WORKSPACES`   |
+| `NO_MATCHING_PROVISIONERS` |
 
 ## codersdk.TimingStage
 

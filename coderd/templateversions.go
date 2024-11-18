@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -1342,7 +1344,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 
 	// Ensures the "owner" is properly applied.
-	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
+	// tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
 
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -1437,8 +1439,59 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
+	// Try to sniff template tags from the given file.
+	tempDir, err := os.MkdirTemp("", "tfparse-*")
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "create tempdir: " + err.Error(),
+		})
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+		}
+	}()
+
+	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "extract archive to tempdir: " + err.Error(),
+		})
+		return
+	}
+
+	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
+	if diags.HasErrors() {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "parse module: " + diags.Error(),
+		})
+		return
+	}
+
+	sniffedTags, err := parser.WorkspaceTagDefaults(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "evaluate default values of workspace tags: " + err.Error(),
+		})
+		return
+	}
+
+	// Tag order precedence:
+	// 1) User-specified tags in the request
+	// 2) Tags sniffed automatically from template file
+	// OLD
+	// tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
+	// NEW
+	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, sniffedTags)
+
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
+	var eligibleProvisioners []database.ProvisionerDaemon
+	var warnings []codersdk.TemplateVersionWarning
 	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
 
@@ -1461,6 +1514,18 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Detail:  xerrors.Errorf("marshal job metadata: %w", err).Error(),
 			})
 			return err
+		}
+
+		if eligibleProvisioners, err = tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: organization.ID,
+			WantTags:       tags,
+		}); err != nil {
+			api.Logger.Error(ctx, "failed to check eligible provisioner daemons for job", slog.Error(err))
+		}
+
+		// If there are no eligible provisioners at the time of insertion, add a warning.
+		if len(eligibleProvisioners) == 0 {
+			warnings = append(warnings, codersdk.TemplateVersionWarningNoMatchingProvisioners)
 		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -1555,7 +1620,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
 		ProvisionerJob: provisionerJob,
 		QueuePosition:  0,
-	}), nil))
+	}), warnings))
 }
 
 // templateVersionResources returns the workspace agent resources associated

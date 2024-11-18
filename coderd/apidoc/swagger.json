@@ -12455,8 +12455,11 @@
 		},
 		"codersdk.TemplateVersionWarning": {
 			"type": "string",
-			"enum": ["UNSUPPORTED_WORKSPACES"],
-			"x-enum-varnames": ["TemplateVersionWarningUnsupportedWorkspaces"]
+			"enum": ["UNSUPPORTED_WORKSPACES", "NO_MATCHING_PROVISIONERS"],
+			"x-enum-varnames": [
+				"TemplateVersionWarningUnsupportedWorkspaces",
+				"TemplateVersionWarningNoMatchingProvisioners"
+			]
 		},
 		"codersdk.TimingStage": {
 			"type": "string",
