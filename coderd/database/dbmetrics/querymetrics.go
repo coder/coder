@@ -2058,7 +2058,7 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
-func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, organizationID database.OIDCClaimFieldValuesParams) ([]string, error) {
 	start := time.Now()
 	r0, r1 := m.s.OIDCClaimFieldValues(ctx, organizationID)
 	m.queryLatencies.WithLabelValues("OIDCClaimFieldValues").Observe(time.Since(start).Seconds())

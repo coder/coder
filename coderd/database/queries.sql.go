@@ -9852,34 +9852,40 @@ SELECT
 	DISTINCT jsonb_array_elements_text(CASE
 		-- When the type is an array, filter out any non-string elements.
 		-- This is to keep the return type consistent.
-		WHEN jsonb_typeof(claims->'merged_claims'->'groups') = 'array' THEN
+		WHEN jsonb_typeof(claims->'merged_claims'->$1::text) = 'array' THEN
 			(
 				SELECT
 					jsonb_agg(element)
 				FROM
-					jsonb_array_elements(claims->'merged_claims'->@claim_field) AS element
+					jsonb_array_elements(claims->'merged_claims'->$1::text) AS element
 				WHERE
 					-- Filtering out non-string elements
 					jsonb_typeof(element) = 'string'
 			)
 		-- Some IDPs return a single string instead of an array of strings.
-		WHEN jsonb_typeof(claims->'merged_claims'->'groups') = 'string' THEN
-			jsonb_build_array(claims->'merged_claims'->@claim_field)
+		WHEN jsonb_typeof(claims->'merged_claims'->$1::text) = 'string' THEN
+			jsonb_build_array(claims->'merged_claims'->$1::text)
 	END)
 FROM
 	user_links
 WHERE
 	-- IDP sync only supports string and array (of string) types
-	jsonb_typeof(claims->'merged_claims'->@claim_field) = ANY(ARRAY['string', 'array'])
+	jsonb_typeof(claims->'merged_claims'->$1::text) = ANY(ARRAY['string', 'array'])
 	AND login_type = 'oidc'
-	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+			user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $2)
 		ELSE true
 	END
 `
 
-func (q *sqlQuerier) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
-	rows, err := q.db.QueryContext(ctx, oIDCClaimFieldValues, organizationID)
+type OIDCClaimFieldValuesParams struct {
+	ClaimField     string    `db:"claim_field" json:"claim_field"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, oIDCClaimFieldValues, arg.ClaimField, arg.OrganizationID)
 	if err != nil {
 		return nil, err
 	}

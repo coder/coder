@@ -3283,8 +3283,16 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
-func (q *querier) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
-	panic("not implemented")
+func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
+	resource := rbac.ResourceIdpsyncSettings
+	if args.OrganizationID != uuid.Nil {
+		resource = resource.InOrg(args.OrganizationID)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionRead, resource); err != nil {
+		return nil, err
+	}
+	return q.db.OIDCClaimFieldValues(ctx, args)
+
 }
 
 func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {

@@ -8409,8 +8409,49 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
-func (q *FakeQuerier) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
-	panic("not implemented")
+func (q *FakeQuerier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
+	orgMembers := q.getOrganizationMemberNoLock(args.OrganizationID)
+
+	var values []string
+	for _, link := range q.userLinks {
+		if args.OrganizationID != uuid.Nil {
+			inOrg := slices.ContainsFunc(orgMembers, func(organizationMember database.OrganizationMember) bool {
+				return organizationMember.UserID == link.UserID
+			})
+			if !inOrg {
+				continue
+			}
+		}
+
+		if link.LoginType != database.LoginTypeOIDC {
+			continue
+		}
+
+		if len(link.Claims.MergedClaims) == 0 {
+			continue
+		}
+
+		value, ok := link.Claims.MergedClaims[args.ClaimField]
+		if !ok {
+			continue
+		}
+		switch value.(type) {
+		case string:
+			values = append(values, value.(string))
+		case []string:
+			values = append(values, value.([]string)...)
+		case []any:
+			for _, v := range value.([]any) {
+				if sv, ok := v.(string); ok {
+					values = append(values, sv)
+				}
+			}
+		default:
+			continue
+		}
+	}
+
+	return slice.Unique(values), nil
 }
 
 func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUID) ([]string, error) {
@@ -8431,10 +8472,7 @@ func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUI
 			continue
 		}
 
-		for k := range link.Claims.IDTokenClaims {
-			fields = append(fields, k)
-		}
-		for k := range link.Claims.UserInfoClaims {
+		for k := range link.Claims.MergedClaims {
 			fields = append(fields, k)
 		}
 	}
