@@ -3,6 +3,7 @@ package testutil
 import (
 	"archive/tar"
 	"bytes"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -16,7 +17,21 @@ import (
 func CreateTar(t testing.TB, files map[string]string) []byte {
 	var buffer bytes.Buffer
 	writer := tar.NewWriter(&buffer)
+	// Keep track of directories previously added.
+	addedDirs := make(map[string]bool)
 	for path, content := range files {
+		// Add parent directories if they don't exist
+		dir := filepath.Dir(path)
+		if dir != "." && !addedDirs[dir] {
+			err := writer.WriteHeader(&tar.Header{
+				Name:     dir + "/", // Directory names must end with /
+				Mode:     0o755,
+				Typeflag: tar.TypeDir,
+			})
+			require.NoError(t, err)
+			addedDirs[dir] = true
+		}
+
 		err := writer.WriteHeader(&tar.Header{
 			Name: path,
 			Size: int64(len(content)),
