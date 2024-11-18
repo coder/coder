@@ -64,6 +64,16 @@ func TestUserLinks(t *testing.T) {
 					"number": float64(2),
 				},
 			},
+			MergedClaims: map[string]interface{}{
+				"sub": "123",
+				"groups": []interface{}{
+					"foo", "bar",
+				},
+				"number": float64(2),
+				"struct": map[string]interface{}{
+					"number": float64(2),
+				},
+			},
 		}
 
 		updated, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
