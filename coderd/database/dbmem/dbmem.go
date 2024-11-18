@@ -9801,6 +9801,7 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 			continue
 		}
 		workspace.AutostartSchedule = arg.AutostartSchedule
+		workspace.NextStartAt = arg.NextStartAt
 		q.workspaces[index] = workspace
 		return nil
 	}

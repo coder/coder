@@ -63,6 +63,7 @@ type Workspace struct {
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
+	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
 }
 
 func (w Workspace) FullName() string {

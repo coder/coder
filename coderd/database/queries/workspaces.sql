@@ -619,6 +619,10 @@ WHERE
 			workspace_builds.transition = 'stop'::workspace_transition AND
 			workspaces.autostart_schedule IS NOT NULL AND
 			(
+				-- next_start_at might be null when a coder instance has been updated
+				-- and we haven't yet had an opportunity to set next_start_at. When
+				-- this happens we leave it up to the Coder server to figure out if
+				-- the workspace is ready to autostart.
 				workspaces.next_start_at IS NULL OR
 				workspaces.next_start_at <= @now :: timestamp
 			)

@@ -1838,6 +1838,7 @@ export interface Workspace {
 	readonly automatic_updates: AutomaticUpdates;
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
+	readonly next_start_at?: string;
 }
 
 // From codersdk/workspaceagents.go

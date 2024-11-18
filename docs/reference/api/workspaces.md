@@ -217,6 +217,7 @@ of the template will be used.
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
@@ -435,6 +436,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
@@ -677,6 +679,7 @@ of the template will be used.
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
@@ -894,6 +897,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 				"workspace_owner_name": "string"
 			},
 			"name": "string",
+			"next_start_at": "2019-08-24T14:15:22Z",
 			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 			"organization_name": "string",
 			"outdated": true,
@@ -1113,6 +1117,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
@@ -1447,6 +1452,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
