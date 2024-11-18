@@ -633,6 +633,19 @@ func (s *MethodTestSuite) TestOrganization() {
 		id := uuid.New()
 		check.Args(id).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
 	}))
+	s.Run("Deployment/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.OIDCClaimFieldValuesParams{
+			ClaimField:     "claim-field",
+			OrganizationID: uuid.Nil,
+		}).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
+	}))
+	s.Run("Organization/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
+		id := uuid.New()
+		check.Args(database.OIDCClaimFieldValuesParams{
+			ClaimField:     "claim-field",
+			OrganizationID: id,
+		}).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
+	}))
 	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		a := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
