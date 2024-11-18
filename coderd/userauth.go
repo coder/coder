@@ -1326,6 +1326,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		UserClaims: database.UserLinkClaims{
 			IDTokenClaims:  idtokenClaims,
 			UserInfoClaims: userInfoClaims,
+			MergedClaims:   mergedClaims,
 		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
