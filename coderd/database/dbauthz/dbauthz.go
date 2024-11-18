@@ -3292,7 +3292,6 @@ func (q *querier) OIDCClaimFieldValues(ctx context.Context, args database.OIDCCl
 		return nil, err
 	}
 	return q.db.OIDCClaimFieldValues(ctx, args)
-
 }
 
 func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
