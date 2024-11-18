@@ -1,38 +1,19 @@
 data "google_compute_default_service_account" "default" {
   project = var.project_id
-  depends_on = [ google_project_service.api["compute.googleapis.com"] ]
 }
 
 locals {
-  node_pools = flatten([ for i, deployment in var.deployments : [
-    {
-      name = "${var.name}-${deployment.name}-coder"
-      zone = deployment.zone
-      size = deployment.coder_node_pool_size
-      cluster_i = i
-    },     
-    {
-      name = "${var.name}-${deployment.name}-workspaces"
-      zone = deployment.zone
-      size = deployment.workspaces_node_pool_size
-      cluster_i = i
-    },
-    {
-      name = "${var.name}-${deployment.name}-misc"
-      zone = deployment.zone
-      size = deployment.misc_node_pool_size
-      cluster_i = i
-    }
-  ] ])
+  abs_module_path         = abspath(path.module)
+  rel_kubeconfig_path     = "../../.coderv2/${var.name}-cluster.kubeconfig"
+  cluster_kubeconfig_path = abspath("${local.abs_module_path}/${local.rel_kubeconfig_path}")
 }
 
-resource "google_container_cluster" "cluster" {
-  count                     = length(var.deployments)
-  name                      = "${var.name}-${var.deployments[count.index].name}"
-  location                  = var.deployments[count.index].zone
+resource "google_container_cluster" "primary" {
+  name                      = var.name
+  location                  = var.zone
   project                   = var.project_id
   network                   = google_compute_network.vpc.name
-  subnetwork                = google_compute_subnetwork.subnet[count.index].name
+  subnetwork                = google_compute_subnetwork.subnet.name
   networking_mode           = "VPC_NATIVE"
   default_max_pods_per_node = 256
   ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
@@ -71,15 +52,14 @@ resource "google_container_cluster" "cluster" {
   }
 }
 
-resource "google_container_node_pool" "node_pool" {
-  count    = length(local.node_pools)
-  name     = local.node_pools[count.index].name
-  location = local.node_pools[count.index].zone
+resource "google_container_node_pool" "coder" {
+  name     = "${var.name}-coder"
+  location = var.zone
   project  = var.project_id
-  cluster  = google_container_cluster.cluster[local.node_pools[count.index].cluster_i].name
+  cluster  = google_container_cluster.primary.name
   autoscaling {
     min_node_count = 1
-    max_node_count = local.node_pools[count.index].size
+    max_node_count = var.nodepool_size_coder
   }
   node_config {
     oauth_scopes = [
@@ -105,5 +85,102 @@ resource "google_container_node_pool" "node_pool" {
   }
   lifecycle {
     ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
+  }
+}
+
+resource "google_container_node_pool" "workspaces" {
+  name     = "${var.name}-workspaces"
+  location = var.zone
+  project  = var.project_id
+  cluster  = google_container_cluster.primary.name
+  autoscaling {
+    min_node_count       = 0
+    total_max_node_count = var.nodepool_size_workspaces
+  }
+  management {
+    auto_upgrade = false
+  }
+  node_config {
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+      "https://www.googleapis.com/auth/trace.append",
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/service.management.readonly",
+      "https://www.googleapis.com/auth/servicecontrol",
+    ]
+    disk_size_gb    = var.node_disk_size_gb
+    machine_type    = var.nodepool_machine_type_workspaces
+    image_type      = var.node_image_type
+    preemptible     = var.node_preemptible
+    service_account = data.google_compute_default_service_account.default.email
+    tags            = ["gke-node", "${var.project_id}-gke"]
+    labels = {
+      env = var.project_id
+    }
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+  }
+  lifecycle {
+    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
+  }
+}
+
+resource "google_container_node_pool" "misc" {
+  name       = "${var.name}-misc"
+  location   = var.zone
+  project    = var.project_id
+  cluster    = google_container_cluster.primary.name
+  node_count = var.state == "stopped" ? 0 : var.nodepool_size_misc
+  management {
+    auto_upgrade = false
+  }
+  node_config {
+    oauth_scopes = [
+      "https://www.googleapis.com/auth/logging.write",
+      "https://www.googleapis.com/auth/monitoring",
+      "https://www.googleapis.com/auth/trace.append",
+      "https://www.googleapis.com/auth/devstorage.read_only",
+      "https://www.googleapis.com/auth/service.management.readonly",
+      "https://www.googleapis.com/auth/servicecontrol",
+    ]
+    disk_size_gb    = var.node_disk_size_gb
+    machine_type    = var.nodepool_machine_type_misc
+    image_type      = var.node_image_type
+    preemptible     = var.node_preemptible
+    service_account = data.google_compute_default_service_account.default.email
+    tags            = ["gke-node", "${var.project_id}-gke"]
+    labels = {
+      env = var.project_id
+    }
+    metadata = {
+      disable-legacy-endpoints = "true"
+    }
+  }
+  lifecycle {
+    ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]
+  }
+}
+
+resource "null_resource" "cluster_kubeconfig" {
+  depends_on = [google_container_cluster.primary]
+  triggers = {
+    path       = local.cluster_kubeconfig_path
+    name       = google_container_cluster.primary.name
+    project_id = var.project_id
+    zone       = var.zone
+  }
+  provisioner "local-exec" {
+    command = <<EOF
+      KUBECONFIG=${self.triggers.path} gcloud container clusters get-credentials ${self.triggers.name} --project=${self.triggers.project_id} --zone=${self.triggers.zone}
+    EOF
+  }
+
+  provisioner "local-exec" {
+    when    = destroy
+    command = <<EOF
+      rm -f ${self.triggers.path}
+    EOF
   }
 }
