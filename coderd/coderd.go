@@ -467,7 +467,7 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureOIDCConvert,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
 		}
 	}
 
@@ -478,7 +478,7 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
 		}
 	}
 
@@ -489,8 +489,28 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
 		}
+	}
+
+	if options.CoordinatorResumeTokenProvider == nil {
+		fetcher := &cryptokeys.DBFetcher{
+			DB: options.Database,
+		}
+
+		resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureTailnetResume,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
+		}
+		options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+			resumeKeycache,
+			options.Clock,
+			tailnet.DefaultResumeTokenExpiry,
+		)
 	}
 
 	// Start a background process that rotates keys. We intentionally start this after the caches
