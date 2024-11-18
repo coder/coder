@@ -3,8 +3,6 @@
 package terraform_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -77,39 +75,6 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	api := proto.NewDRPCProvisionerClient(client)
 
 	return ctx, api
-}
-
-func makeTar(t *testing.T, files map[string]string) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-
-	addedDirs := make(map[string]bool)
-	for name, content := range files {
-		// Add parent directories if they don't exist
-		dir := filepath.Dir(name)
-		if dir != "." && !addedDirs[dir] {
-			err := writer.WriteHeader(&tar.Header{
-				Name:     dir + "/", // Directory names must end with /
-				Mode:     0o755,
-				Typeflag: tar.TypeDir,
-			})
-			require.NoError(t, err)
-			addedDirs[dir] = true
-		}
-
-		err := writer.WriteHeader(&tar.Header{
-			Name: name,
-			Size: int64(len(content)),
-			Mode: 0o644,
-		})
-		require.NoError(t, err)
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
 }
 
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
@@ -998,7 +963,7 @@ func TestProvision_MalformedModules(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 			"main.tf":          `module "hello" { source = "./module" }`,
 			"module/module.tf": `resource "null_`,
 		}),
