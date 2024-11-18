@@ -1,8 +1,6 @@
 package provisionerd_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"fmt"
 	"io"
@@ -97,7 +95,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
@@ -150,7 +148,7 @@ func TestProvisionerd(t *testing.T) {
 			acq          = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"../../../etc/passwd": "content",
 				}),
 				Type: &proto.AcquiredJob_TemplateImport_{
@@ -194,7 +192,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_TemplateImport_{
@@ -243,7 +241,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt":                "content",
 					provisionersdk.ReadmeFile: "# A cool template 😎\n",
 				}),
@@ -325,7 +323,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_TemplateDryRun_{
@@ -396,7 +394,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -459,7 +457,7 @@ func TestProvisionerd(t *testing.T) {
 			acq         = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -549,7 +547,7 @@ func TestProvisionerd(t *testing.T) {
 			acq     = newAcquireOne(t, &proto.AcquiredJob{
 				JobId:       "test",
 				Provisioner: "someprovisioner",
-				TemplateSourceArchive: createTar(t, map[string]string{
+				TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 					"test.txt": "content",
 				}),
 				Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -645,7 +643,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -725,7 +723,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -819,7 +817,7 @@ func TestProvisionerd(t *testing.T) {
 					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -916,7 +914,7 @@ func TestProvisionerd(t *testing.T) {
 					job := &proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -1010,7 +1008,7 @@ func TestProvisionerd(t *testing.T) {
 					err := stream.Send(&proto.AcquiredJob{
 						JobId:       "test",
 						Provisioner: "someprovisioner",
-						TemplateSourceArchive: createTar(t, map[string]string{
+						TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
 							"test.txt": "content",
 						}),
 						Type: &proto.AcquiredJob_WorkspaceBuild_{
@@ -1076,26 +1074,6 @@ func TestProvisionerd(t *testing.T) {
 		assert.Equal(t, ops[len(ops)-1], "CompleteJob")
 		assert.Contains(t, ops[0:len(ops)-1], "Log: Cleaning Up | ")
 	})
-}
-
-// Creates an in-memory tar of the files provided.
-func createTar(t *testing.T, files map[string]string) []byte {
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for path, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: path,
-			Size: int64(len(content)),
-		})
-		require.NoError(t, err)
-
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
 }
 
 // Creates a provisionerd implementation with the provided dialer and provisioners.
