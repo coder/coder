@@ -61,7 +61,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -753,25 +752,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
-
-			fetcher := &cryptokeys.DBFetcher{
-				DB: options.Database,
-			}
-
-			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
-				logger,
-				fetcher,
-				codersdk.CryptoKeyFeatureTailnetResume,
-			)
-			if err != nil {
-				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
-			}
-
-			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
-				resumeKeycache,
-				quartz.NewReal(),
-				tailnet.DefaultResumeTokenExpiry,
-			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
