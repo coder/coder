@@ -1634,6 +1634,16 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE TABLE workspace_modules (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    source text NOT NULL,
+    version text NOT NULL,
+    key text NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -1700,7 +1710,8 @@ CREATE TABLE workspace_resources (
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module_path text
 );
 
 CREATE TABLE workspaces (
@@ -2095,6 +2106,8 @@ CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (r
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
+CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
@@ -2359,6 +2372,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_modules
+    ADD CONSTRAINT workspace_modules_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

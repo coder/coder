@@ -21,18 +21,6 @@ import (
 	agpl "github.com/coder/coder/v2/tailnet"
 )
 
-// TailnetAPIVersion is the version of the Tailnet API we use for wsproxy.
-//
-// # The current version of the Tailnet API includes additions
-//
-// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
-// 2.2 PostTelemetry on the Tailnet API
-// 2.3 RefreshResumeToken, WorkspaceUpdates
-//
-// Since resume tokens and telemetry are optional, and fail gracefully, and we don't use
-// WorkspaceUpdates in the wsproxy, we ask for version 2.0 for maximum compatibility
-const TailnetAPIVersion = "2.0"
-
 // Client is a HTTP client for a subset of Coder API routes that external
 // proxies need.
 type Client struct {
@@ -518,9 +506,6 @@ func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := coordinateURL.Query()
-	q.Add("version", TailnetAPIVersion)
-	coordinateURL.RawQuery = q.Encode()
 	coordinateHeaders := make(http.Header)
 	tokenHeader := codersdk.SessionTokenHeader
 	if c.SDKClient.SessionTokenHeader != "" {

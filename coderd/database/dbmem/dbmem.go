@@ -73,6 +73,7 @@ func New() database.Store {
 			workspaceAgents:           make([]database.WorkspaceAgent, 0),
 			provisionerJobLogs:        make([]database.ProvisionerJobLog, 0),
 			workspaceResources:        make([]database.WorkspaceResource, 0),
+			workspaceModules:          make([]database.WorkspaceModule, 0),
 			workspaceResourceMetadata: make([]database.WorkspaceResourceMetadatum, 0),
 			provisionerJobs:           make([]database.ProvisionerJob, 0),
 			templateVersions:          make([]database.TemplateVersionTable, 0),
@@ -232,6 +233,7 @@ type data struct {
 	workspaceBuildParameters        []database.WorkspaceBuildParameter
 	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
 	workspaceResources              []database.WorkspaceResource
+	workspaceModules                []database.WorkspaceModule
 	workspaces                      []database.WorkspaceTable
 	workspaceProxies                []database.WorkspaceProxy
 	customRoles                     []database.CustomRole
@@ -6671,6 +6673,32 @@ func (q *FakeQuerier) GetWorkspaceByWorkspaceAppID(_ context.Context, workspaceA
 	return database.Workspace{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetWorkspaceModulesByJobID(_ context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	modules := make([]database.WorkspaceModule, 0)
+	for _, module := range q.workspaceModules {
+		if module.JobID == jobID {
+			modules = append(modules, module)
+		}
+	}
+	return modules, nil
+}
+
+func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	modules := make([]database.WorkspaceModule, 0)
+	for _, module := range q.workspaceModules {
+		if module.CreatedAt.After(createdAt) {
+			modules = append(modules, module)
+		}
+	}
+	return modules, nil
+}
+
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8233,6 +8261,20 @@ func (q *FakeQuerier) InsertWorkspaceBuildParameters(_ context.Context, arg data
 	return nil
 }
 
+func (q *FakeQuerier) InsertWorkspaceModule(_ context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceModule{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspaceModule := database.WorkspaceModule(arg)
+	q.workspaceModules = append(q.workspaceModules, workspaceModule)
+	return workspaceModule, nil
+}
+
 func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8283,6 +8325,7 @@ func (q *FakeQuerier) InsertWorkspaceResource(_ context.Context, arg database.In
 		Hide:       arg.Hide,
 		Icon:       arg.Icon,
 		DailyCost:  arg.DailyCost,
+		ModulePath: arg.ModulePath,
 	}
 	q.workspaceResources = append(q.workspaceResources, resource)
 	return resource, nil

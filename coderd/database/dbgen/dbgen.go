@@ -657,9 +657,27 @@ func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceR
 			Valid:  takeFirst(orig.InstanceType.Valid, false),
 		},
 		DailyCost: takeFirst(orig.DailyCost, 0),
+		ModulePath: sql.NullString{
+			String: takeFirst(orig.ModulePath.String, ""),
+			Valid:  takeFirst(orig.ModulePath.Valid, true),
+		},
 	})
 	require.NoError(t, err, "insert resource")
 	return resource
+}
+
+func WorkspaceModule(t testing.TB, db database.Store, orig database.WorkspaceModule) database.WorkspaceModule {
+	module, err := db.InsertWorkspaceModule(genCtx, database.InsertWorkspaceModuleParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		JobID:      takeFirst(orig.JobID, uuid.New()),
+		Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+		Source:     takeFirst(orig.Source, "test-source"),
+		Version:    takeFirst(orig.Version, "v1.0.0"),
+		Key:        takeFirst(orig.Key, "test-key"),
+		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace module")
+	return module
 }
 
 func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {

@@ -1135,6 +1135,49 @@ func TestController_TelemetrySuccess(t *testing.T) {
 	require.Equal(t, []byte("test event"), testEvents[0].Id)
 }
 
+func TestController_WorkspaceUpdates(t *testing.T) {
+	t.Parallel()
+	theError := xerrors.New("a bad thing happened")
+	testCtx := testutil.Context(t, testutil.WaitShort)
+	ctx, cancel := context.WithCancel(testCtx)
+	logger := slogtest.Make(t, &slogtest.Options{
+		IgnoredErrorIs: append(slogtest.DefaultIgnoredErrorIs, theError),
+	}).Leveled(slog.LevelDebug)
+
+	fClient := newFakeWorkspaceUpdateClient(testCtx, t)
+	dialer := &fakeWorkspaceUpdatesDialer{
+		client: fClient,
+	}
+
+	uut := tailnet.NewController(logger.Named("ctrl"), dialer)
+	fCtrl := newFakeUpdatesController(ctx, t)
+	uut.WorkspaceUpdatesCtrl = fCtrl
+	uut.Run(ctx)
+
+	// it should dial and pass the client to the controller
+	call := testutil.RequireRecvCtx(testCtx, t, fCtrl.calls)
+	require.Equal(t, fClient, call.client)
+	fCW := newFakeCloserWaiter()
+	testutil.RequireSendCtx[tailnet.CloserWaiter](testCtx, t, call.resp, fCW)
+
+	// if the CloserWaiter exits...
+	testutil.RequireSendCtx(testCtx, t, fCW.errCh, theError)
+
+	// it should close, redial and reconnect
+	cCall := testutil.RequireRecvCtx(testCtx, t, fClient.close)
+	testutil.RequireSendCtx(testCtx, t, cCall, nil)
+
+	call = testutil.RequireRecvCtx(testCtx, t, fCtrl.calls)
+	require.Equal(t, fClient, call.client)
+	fCW = newFakeCloserWaiter()
+	testutil.RequireSendCtx[tailnet.CloserWaiter](testCtx, t, call.resp, fCW)
+
+	// canceling the context should close the client
+	cancel()
+	cCall = testutil.RequireRecvCtx(testCtx, t, fClient.close)
+	testutil.RequireSendCtx(testCtx, t, cCall, nil)
+}
+
 type fakeTailnetConn struct {
 	peersLostCh chan struct{}
 }
@@ -1716,4 +1759,98 @@ func TestTunnelAllWorkspaceUpdatesController_HandleErrors(t *testing.T) {
 			require.ErrorContains(t, err, tc.errorContains)
 		})
 	}
+}
+
+type fakeWorkspaceUpdatesController struct {
+	ctx   context.Context
+	t     testing.TB
+	calls chan *newWorkspaceUpdatesCall
+}
+
+type newWorkspaceUpdatesCall struct {
+	client tailnet.WorkspaceUpdatesClient
+	resp   chan<- tailnet.CloserWaiter
+}
+
+func (f fakeWorkspaceUpdatesController) New(client tailnet.WorkspaceUpdatesClient) tailnet.CloserWaiter {
+	resps := make(chan tailnet.CloserWaiter)
+	call := &newWorkspaceUpdatesCall{
+		client: client,
+		resp:   resps,
+	}
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting to send New call")
+		cw := newFakeCloserWaiter()
+		cw.errCh <- f.ctx.Err()
+		return cw
+	case f.calls <- call:
+		// OK
+	}
+	select {
+	case <-f.ctx.Done():
+		f.t.Error("timed out waiting to get New call response")
+		cw := newFakeCloserWaiter()
+		cw.errCh <- f.ctx.Err()
+		return cw
+	case resp := <-resps:
+		return resp
+	}
+}
+
+func newFakeUpdatesController(ctx context.Context, t *testing.T) *fakeWorkspaceUpdatesController {
+	return &fakeWorkspaceUpdatesController{
+		ctx:   ctx,
+		t:     t,
+		calls: make(chan *newWorkspaceUpdatesCall),
+	}
+}
+
+type fakeCloserWaiter struct {
+	closeCalls chan chan error
+	errCh      chan error
+}
+
+func (f *fakeCloserWaiter) Close(ctx context.Context) error {
+	errRes := make(chan error)
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case f.closeCalls <- errRes:
+		// OK
+	}
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case err := <-errRes:
+		return err
+	}
+}
+
+func (f *fakeCloserWaiter) Wait() <-chan error {
+	return f.errCh
+}
+
+func newFakeCloserWaiter() *fakeCloserWaiter {
+	return &fakeCloserWaiter{
+		closeCalls: make(chan chan error),
+		errCh:      make(chan error, 1),
+	}
+}
+
+type fakeWorkspaceUpdatesDialer struct {
+	client tailnet.WorkspaceUpdatesClient
+}
+
+func (f *fakeWorkspaceUpdatesDialer) Dial(_ context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
+	return tailnet.ControlProtocolClients{
+		WorkspaceUpdates: f.client,
+		Closer:           fakeCloser{},
+	}, nil
+}
+
+type fakeCloser struct{}
+
+func (fakeCloser) Close() error {
+	return nil
 }

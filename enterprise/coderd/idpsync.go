@@ -205,7 +205,11 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, settings)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
 }
 
 // @Summary Update organization IdP Sync settings
