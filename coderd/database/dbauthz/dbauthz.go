@@ -3283,6 +3283,10 @@ func (q *querier) ListWorkspaceAgentPortShares(ctx context.Context, workspaceID 
 	return q.db.ListWorkspaceAgentPortShares(ctx, workspaceID)
 }
 
+func (q *querier) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	panic("not implemented")
+}
+
 func (q *querier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
 	resource := rbac.ResourceIdpsyncSettings
 	if organizationID != uuid.Nil {

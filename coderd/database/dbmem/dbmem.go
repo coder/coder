@@ -8409,6 +8409,10 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+func (q *FakeQuerier) OIDCClaimFieldValues(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUID) ([]string, error) {
 	orgMembers := q.getOrganizationMemberNoLock(organizationID)
 
