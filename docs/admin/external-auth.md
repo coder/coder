@@ -215,4 +215,5 @@ CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_t
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
 
-[agent_startup]: https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script
+[agent_startup]:
+	https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script

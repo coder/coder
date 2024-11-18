@@ -10,20 +10,18 @@ March 17, 2024
 
 ---
 
-
-This guide describes the process of integrating [JFrog Xray][] to Coder
-Kubernetes-backed workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder-xray`].
+This guide describes the process of integrating [JFrog Xray][] to Coder Kubernetes-backed
+workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder-xray`].
 
 ## Prerequisites
 
 - A self-hosted JFrog Platform instance.
 - Kubernetes workspaces running on Coder.
 
-
 ## Deploy the **Coder - JFrog Xray** Integration
 
-1. Create a JFrog Platform [Access Token][] with a user that has the `read`
-   [permission][] for the repositories you want to scan.
+1. Create a JFrog Platform [Access Token][] with a user that has the `read` [permission][]
+   for the repositories you want to scan.
 
 1. Create a Coder [token][] with a user that has the [`owner`][roles] role.
 
@@ -31,13 +29,13 @@ Kubernetes-backed workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder
 
    ```bash
    kubectl create secret generic coder-token \
-	  --from-literal=coder-token='<token>'
-	```
+     --from-literal=coder-token='<token>'
+   ```
 
-	```bash
+   ```bash
    kubectl create secret generic jfrog-token \
-	  --from-literal=user='<user>' \
-	  --from-literal=token='<token>'
+     --from-literal=user='<user>' \
+     --from-literal=token='<token>'
    ```
 
 1. Deploy the **Coder - JFrog Xray** integration.
@@ -46,7 +44,7 @@ Kubernetes-backed workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder
    helm repo add coder-xray https://helm.coder.com/coder-xray
    ```
 
-	```bash
+   ```bash
    helm upgrade --install coder-xray coder-xray/coder-xray \
      --namespace coder-xray \
      --create-namespace \
@@ -61,9 +59,9 @@ Kubernetes-backed workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder
 
    **Note**: To authenticate with the Artifactory registry, you may need to
    create a [Docker config][docker-advanced-topics] and use it in the
-   `imagePullSecrets` field of the Kubernetes Pod. See the
-   [**Defining ImagePullSecrets for Coder workspaces**][image-pull-secret]
-   guide for more information.
+   `imagePullSecrets` field of the Kubernetes Pod. See the [**Defining
+   ImagePullSecrets for Coder workspaces**][image-pull-secret] guide for more
+   information.
 
    </blockquote>
 
@@ -75,12 +73,16 @@ workspace with vulnerabilities reported by JFrog Xray.
 <img alt="JFrog Xray Integration" src="../../images/guides/xray-integration/example.png" />
 
 <!-- References -->
+
 [JFrog Xray]: https://jfrog.com/xray/
 [JFrog Xray Integration]: https://github.com/coder/coder-xray
 [`coder-xray`]: https://github.com/coder/coder-xray
-[docker-advanced-topics]: https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics
+[docker-advanced-topics]:
+	https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics
 [image-pull-secret]: ../../tutorials/image-pull-secret.md
 [token]: ../../reference/cli/tokens_create.md#tokens-create
 [roles]: ../users#roles
-[permission]: https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions
-[access token]: https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens
+[permission]:
+	https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions
+[access token]:
+	https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens

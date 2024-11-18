@@ -10,8 +10,7 @@ August 05, 2024
 
 ---
 
-This guide describes the process of integrating [HashiCorp Vault][] into Coder
-workspaces.
+This guide describes the process of integrating [HashiCorp Vault][] into Coder workspaces.
 
 Coder makes it easy to integrate HashiCorp Vault with your workspaces by
 providing official Terraform modules to integrate Vault with Coder. This guide
@@ -45,6 +44,7 @@ vault kv get -namespace=YOUR_NAMESPACE -mount=MOUNT_NAME SECRET_NAME
 ```
 
 <!-- References -->
+
 [HashiCorp Vault]: https://www.vaultproject.io/
 [external authentication]: ../external-auth.md
 [`vault-github`]: https://registry.coder.com/modules/vault-github

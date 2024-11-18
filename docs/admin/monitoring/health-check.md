@@ -120,10 +120,11 @@ configured threshold to a higher value (this will not address the root cause).
 <blockquote class="admonition tip">
 
 You can enable
-  [detailed database metrics](../../reference/cli/server.md#--prometheus-collect-db-metrics)
-  in Coder's Prometheus endpoint.
-If you have [tracing enabled](../../reference/cli/server.md#--trace), these
-traces may also contain useful information regarding Coder's database activity.
+[detailed database metrics](../../reference/cli/server.md#--prometheus-collect-db-metrics)
+in Coder's Prometheus endpoint. If you have
+[tracing enabled](../../reference/cli/server.md#--trace), these traces may also
+contain useful information regarding Coder's database activity.
+
 </blockquote>
 
 ## DERP
@@ -153,6 +154,7 @@ still be able to reach their workspaces, connection performance may be degraded.
 
 **Note:** This may also be shown if you have
 [forced websocket connections for DERP](../../reference/cli/server.md#--derp-force-websockets).
+
 </blockquote>
 
 **Solution:** ensure that any proxies you use allow connection upgrade with the
@@ -307,6 +309,7 @@ is set to a value greater than 0.
 
 **Note:** This may be a transient issue if you are currently in the process of
 updating your deployment.
+
 </blockquote>
 
 ### EPD02
@@ -325,6 +328,7 @@ version of Coder.
 
 **Note:** This may be a transient issue if you are currently in the process of
 updating your deployment.
+
 </blockquote>
 
 ### EPD03
@@ -343,6 +347,7 @@ version of Coder.
 
 **Note:** This may be a transient issue if you are currently in the process of
 updating your deployment.
+
 </blockquote>
 
 ## EUNKNOWN

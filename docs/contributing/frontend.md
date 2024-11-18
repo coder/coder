@@ -26,6 +26,7 @@ In both cases, you can access the dashboard on `http://localhost:8080`. If using
 <blockquote class="admonition note">
 
 **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
+
 </blockquote>
 
 ## Tech Stack Overview

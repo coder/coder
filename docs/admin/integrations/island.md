@@ -15,10 +15,10 @@ similar to popular web browsers like Chrome and Edge. It includes built-in
 security features for corporate applications and data, aiming to bridge the gap
 between consumer-focused browsers and the security needs of the enterprise.
 
-Coder natively integrates with Island&rsquo;s feature set, which include data loss
-protection (DLP), application awareness, browser session recording, and single
-sign-on (SSO). This guide intends to document these feature categories and how
-they apply to your Coder deployment.
+Coder natively integrates with Island&rsquo;s feature set, which include data
+loss protection (DLP), application awareness, browser session recording, and
+single sign-on (SSO). This guide intends to document these feature categories
+and how they apply to your Coder deployment.
 
 ## General Configuration
 
@@ -60,10 +60,10 @@ ensuring that sensitive IP remains in your centralized environment.
 
 1. [Create a URL Object][policy-rule] with the following configuration.
 
-	 - **Include**
-	 - **URL type**: Wildcard
-	 - **URL address**: `coder.example.com/cli-auth`
-	 - **Casing**: Insensitive
+   - **Include**
+   - **URL type**: Wildcard
+   - **URL address**: `coder.example.com/cli-auth`
+   - **Casing**: Insensitive
 
 1. [Create a Data Sandbox Profile][data-sandbox].
 
@@ -80,8 +80,8 @@ ensuring that sensitive IP remains in your centralized environment.
 
 1. Create a Protection Profiles for both upload/download.
 
-    - [Upload documentation][upload-docs]
-    - [Download documentation][download-docs]
+   - [Upload documentation][upload-docs]
+   - [Download documentation][download-docs]
 
 1. [Create a Policy Rule][policy-rule] to apply the Protection Profiles.
 
@@ -110,13 +110,13 @@ sidestep such policies simply by using another browser.
 
 1. Create a conditional access policy for your configured identity provider.
 
-    <blockquote class="admonition">
-    The configured IdP must be the same for both Coder and Island
-    </blockquote>
+   <blockquote class="admonition">
+   The configured IdP must be the same for both Coder and Island
+   </blockquote>
 
-    - [Azure Active Directory/Entra ID][island-entra]
-    - [Okta][island-okta]
-    - [Google][island-google]
+   - [Azure Active Directory/Entra ID][island-entra]
+   - [Okta][island-okta]
+   - [Google][island-google]
 
 ## Browser Activity Logging
 
@@ -125,8 +125,8 @@ screenshots, mouse clicks, and keystrokes.
 
 ### Activity Logging Module
 
-1. [Create an Activity Logging Profile][logging-profile]. Supported browser events
-   include:
+1. [Create an Activity Logging Profile][logging-profile]. Supported browser
+   events include:
 
    - Web Navigation
    - File Download
@@ -147,28 +147,38 @@ screenshots, mouse clicks, and keystrokes.
 
 ## Identity-aware logins (SSO)
 
-Integrate Island&rsquo;s identity management system with Coder&rsquo;s authentication
-mechanisms to enable identity-aware logins.
+Integrate Island&rsquo;s identity management system with Coder&rsquo;s
+authentication mechanisms to enable identity-aware logins.
 
 ### Configure single sign-on (SSO) seamless authentication between Coder and Island
 
 Configure the same identity provider (IdP) for both your Island and Coder
-deployment. Upon initial login to the Island browser, the user&rsquo;s session token
-will automatically be passed to Coder and authenticate their Coder session.
-
-
+deployment. Upon initial login to the Island browser, the user&rsquo;s session
+token will automatically be passed to Coder and authenticate their Coder
+session.
 
 <!-- Reference links -->
-[island]: https://www.island.io/
-[app-group]: https://documentation.island.io/docs/create-and-configure-an-application-group-object
-[data-sandbox]: https://documentation.island.io/docs/create-and-configure-a-data-sandbox-profile
-[policy-rule]: https://documentation.island.io/docs/create-and-configure-a-policy-rule-general
-[url-object]: https://documentation.island.io/docs/create-and-configure-a-policy-rule-general
-[logging-profile]: https://documentation.island.io/docs/create-and-configure-an-activity-logging-profile
-[dlp-scanner]: https://documentation.island.io/docs/create-a-data-loss-prevention-scanner
-[upload-docs]: https://documentation.island.io/docs/create-and-configure-an-upload-protection-profile
-[download-docs]: https://documentation.island.io/v1/docs/en/create-and-configure-a-download-protection-profile
 
-[island-entra]: https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-azure-ad#create-and-apply-a-conditional-access-policy
-[island-okta]: https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-okta
-[island-google]: https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-google-enterprise
+[island]: https://www.island.io/
+[app-group]:
+	https://documentation.island.io/docs/create-and-configure-an-application-group-object
+[data-sandbox]:
+	https://documentation.island.io/docs/create-and-configure-a-data-sandbox-profile
+[policy-rule]:
+	https://documentation.island.io/docs/create-and-configure-a-policy-rule-general
+[url-object]:
+	https://documentation.island.io/docs/create-and-configure-a-policy-rule-general
+[logging-profile]:
+	https://documentation.island.io/docs/create-and-configure-an-activity-logging-profile
+[dlp-scanner]:
+	https://documentation.island.io/docs/create-a-data-loss-prevention-scanner
+[upload-docs]:
+	https://documentation.island.io/docs/create-and-configure-an-upload-protection-profile
+[download-docs]:
+	https://documentation.island.io/v1/docs/en/create-and-configure-a-download-protection-profile
+[island-entra]:
+	https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-azure-ad#create-and-apply-a-conditional-access-policy
+[island-okta]:
+	https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-okta
+[island-google]:
+	https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-google-enterprise
