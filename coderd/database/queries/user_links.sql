@@ -97,7 +97,7 @@ SELECT
 		-- Some IDPs return a single string instead of an array of strings.
 		WHEN jsonb_typeof(claims->'merged_claims'->'groups') = 'string' THEN
 			jsonb_build_array(claims->'merged_claims'->@claim_field)
-	END)::text
+	END)
 FROM
 	user_links
 WHERE
