@@ -77,25 +77,6 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	return ctx, api
 }
 
-// func testutil.CreateTar(t *testing.T, files map[string]string) []byte {
-// t.Helper()
-// var buffer bytes.Buffer
-// writer := tar.NewWriter(&buffer)
-// for name, content := range files {
-// err := writer.WriteHeader(&tar.Header{
-// Name: name,
-// Size: int64(len(content)),
-// Mode: 0o644,
-// })
-// require.NoError(t, err)
-// _, err = writer.Write([]byte(content))
-// require.NoError(t, err)
-// }
-// err := writer.Flush()
-// require.NoError(t, err)
-// return buffer.Bytes()
-// }
-
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
 	t.Helper()
 	sess, err := client.Session(ctx)
