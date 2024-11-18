@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/provisioner/terraform"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestInstall(t *testing.T) {
@@ -27,7 +27,7 @@ func TestInstall(t *testing.T) {
 	}
 	ctx := context.Background()
 	dir := t.TempDir()
-	log := slogtest.Make(t, nil)
+	log := testutil.Logger(t)
 
 	// Install spins off 8 installs with Version and waits for them all
 	// to complete. The locking mechanism within Install should

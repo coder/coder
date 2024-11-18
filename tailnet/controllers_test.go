@@ -40,7 +40,7 @@ var unimplementedError = drpcerr.WithCode(xerrors.New("Unimplemented"), drpcerr.
 func TestInMemoryCoordination(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	clientID := uuid.UUID{1}
 	agentID := uuid.UUID{2}
 	mCoord := tailnettest.NewMockCoordinator(gomock.NewController(t))
@@ -67,7 +67,7 @@ func TestInMemoryCoordination(t *testing.T) {
 func TestTunnelSrcCoordController_Mainline(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	clientID := uuid.UUID{1}
 	agentID := uuid.UUID{2}
 	mCoord := tailnettest.NewMockCoordinator(gomock.NewController(t))
@@ -124,7 +124,7 @@ func TestTunnelSrcCoordController_Mainline(t *testing.T) {
 func TestTunnelSrcCoordController_AddDestination(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fConn := &fakeCoordinatee{}
 	uut := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -193,7 +193,7 @@ func TestTunnelSrcCoordController_AddDestination(t *testing.T) {
 func TestTunnelSrcCoordController_RemoveDestination(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fConn := &fakeCoordinatee{}
 	uut := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -253,7 +253,7 @@ func TestTunnelSrcCoordController_RemoveDestination(t *testing.T) {
 func TestTunnelSrcCoordController_RemoveDestination_Error(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fConn := &fakeCoordinatee{}
 	uut := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -311,7 +311,7 @@ func TestTunnelSrcCoordController_RemoveDestination_Error(t *testing.T) {
 func TestTunnelSrcCoordController_Sync(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fConn := &fakeCoordinatee{}
 	uut := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -366,7 +366,7 @@ func TestTunnelSrcCoordController_Sync(t *testing.T) {
 func TestTunnelSrcCoordController_AddDestination_Error(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fConn := &fakeCoordinatee{}
 	uut := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -406,7 +406,7 @@ func TestTunnelSrcCoordController_AddDestination_Error(t *testing.T) {
 func TestAgentCoordinationController_SendsReadyForHandshake(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	clientID := uuid.UUID{1}
 	agentID := uuid.UUID{2}
 	mCoord := tailnettest.NewMockCoordinator(gomock.NewController(t))
@@ -584,7 +584,7 @@ func (f *fakeCoordinatee) SetNodeCallback(callback func(*tailnet.Node)) {
 func TestNewBasicDERPController_Mainline(t *testing.T) {
 	t.Parallel()
 	fs := make(chan *tailcfg.DERPMap)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
 	fc := fakeDERPClient{
 		ch: make(chan *tailcfg.DERPMap),
@@ -607,7 +607,7 @@ func TestNewBasicDERPController_Mainline(t *testing.T) {
 func TestNewBasicDERPController_RecvErr(t *testing.T) {
 	t.Parallel()
 	fs := make(chan *tailcfg.DERPMap)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := tailnet.NewBasicDERPController(logger, fakeSetter(fs))
 	expectedErr := xerrors.New("a bad thing happened")
 	fc := fakeDERPClient{
@@ -653,7 +653,7 @@ func (f fakeDERPClient) Recv() (*tailcfg.DERPMap, error) {
 func TestBasicTelemetryController_Success(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut := tailnet.NewBasicTelemetryController(logger)
 	ft := newFakeTelemetryClient()
@@ -678,7 +678,7 @@ func TestBasicTelemetryController_Success(t *testing.T) {
 func TestBasicTelemetryController_Unimplemented(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	ft := newFakeTelemetryClient()
 
@@ -735,7 +735,7 @@ func TestBasicTelemetryController_Unimplemented(t *testing.T) {
 func TestBasicTelemetryController_NotRecognised(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	ft := newFakeTelemetryClient()
 	uut := tailnet.NewBasicTelemetryController(logger)
 	uut.New(ft)
@@ -807,7 +807,7 @@ type fakeTelemetryCall struct {
 func TestBasicResumeTokenController_Mainline(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fr := newFakeResumeTokenClient(ctx)
 	mClock := quartz.NewMock(t)
 	trp := mClock.Trap().TimerReset("basicResumeTokenRefresher", "refresh")
@@ -865,7 +865,7 @@ func TestBasicResumeTokenController_Mainline(t *testing.T) {
 func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 	trp := mClock.Trap().TimerReset("basicResumeTokenRefresher", "refresh")
 	defer trp.Close()
@@ -937,7 +937,7 @@ func TestBasicResumeTokenController_NewWhileRefreshing(t *testing.T) {
 func TestBasicResumeTokenController_Unimplemented(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 
 	uut := tailnet.NewBasicResumeTokenController(logger, mClock)
@@ -1076,7 +1076,7 @@ func TestController_Disconnects(t *testing.T) {
 func TestController_TelemetrySuccess(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	agentID := uuid.UUID{0x55}
 	clientID := uuid.UUID{0x66}
 	fCoord := tailnettest.NewFakeCoordinator()
@@ -1493,7 +1493,7 @@ func setupConnectedAllWorkspaceUpdatesController(
 func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fDNS := newFakeDNSSetter(ctx, t)
 	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger, fDNS)
@@ -1544,7 +1544,7 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	fDNS := newFakeDNSSetter(ctx, t)
 	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger, fDNS)

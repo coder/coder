@@ -18,7 +18,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogjson"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -26,7 +25,7 @@ import (
 func TestStatsReporter(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fSource := newFakeNetworkStatsSource(ctx, t)
 	fCollector := newFakeCollector(t)
 	fDest := newFakeStatsDest()

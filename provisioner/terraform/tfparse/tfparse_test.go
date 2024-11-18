@@ -6,13 +6,13 @@ import (
 	"log"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
+
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/stretchr/testify/require"
 )
 
 func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
@@ -361,7 +361,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			tar := testutil.CreateTar(t, tc.files)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t)
 			tmpDir := t.TempDir()
 			tfparse.WriteArchive(tar, "application/x-tar", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
@@ -379,7 +379,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
 			zip := testutil.CreateZip(t, tc.files)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t)
 			tmpDir := t.TempDir()
 			tfparse.WriteArchive(zip, "application/zip", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))

@@ -99,7 +99,7 @@ func TestActiveUsers(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), slogtest.Make(t, nil), registry, tc.Database(t), time.Millisecond)
+			closeFunc, err := prometheusmetrics.ActiveUsers(context.Background(), testutil.Logger(t), registry, tc.Database(t), time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -165,7 +165,7 @@ func TestUsers(t *testing.T) {
 			registry := prometheus.NewRegistry()
 			mClock := quartz.NewMock(t)
 			db := tc.Database(t)
-			closeFunc, err := prometheusmetrics.Users(context.Background(), slogtest.Make(t, nil), mClock, registry, db, time.Millisecond)
+			closeFunc, err := prometheusmetrics.Users(context.Background(), testutil.Logger(t), mClock, registry, db, time.Millisecond)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -246,7 +246,7 @@ func TestWorkspaceLatestBuildTotals(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t).Leveled(slog.LevelWarn), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -320,7 +320,7 @@ func TestWorkspaceLatestBuildStatuses(t *testing.T) {
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
 			registry := prometheus.NewRegistry()
-			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), slogtest.Make(t, nil), registry, tc.Database(), testutil.IntervalFast)
+			closeFunc, err := prometheusmetrics.Workspaces(context.Background(), testutil.Logger(t), registry, tc.Database(), testutil.IntervalFast)
 			require.NoError(t, err)
 			t.Cleanup(closeFunc)
 
@@ -413,7 +413,7 @@ func TestAgents(t *testing.T) {
 	derpMapFn := func() *tailcfg.DERPMap {
 		return derpMap
 	}
-	coordinator := tailnet.NewCoordinator(slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+	coordinator := tailnet.NewCoordinator(testutil.Logger(t))
 	coordinatorPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordinatorPtr.Store(&coordinator)
 	agentInactiveDisconnectTimeout := 1 * time.Hour // don't need to focus on this value in tests
@@ -485,7 +485,7 @@ func TestAgentStats(t *testing.T) {
 	t.Cleanup(cancelFunc)
 
 	db, pubsub := dbtestutil.NewDB(t)
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t)
 
 	batcher, closeBatcher, err := workspacestats.NewBatcher(ctx,
 		// We had previously set the batch size to 1 here, but that caused
@@ -499,7 +499,7 @@ func TestAgentStats(t *testing.T) {
 	require.NoError(t, err, "create stats batcher failed")
 	t.Cleanup(closeBatcher)
 
-	tLogger := slogtest.Make(t, nil)
+	tLogger := testutil.Logger(t)
 	// Build sample workspaces with test agents and fake agent client
 	client, _, _ := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Database:                 db,

@@ -45,7 +45,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts.workDir = t.TempDir()
 	}
 	if opts.logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		opts.logger = &logger
 	}
 	client, server := drpc.MemTransportPipe()

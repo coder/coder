@@ -15,8 +15,6 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -30,7 +28,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{999: {RegionCode: "test"}}}
 
 	telemetryEvents := make(chan []*proto.TelemetryEvent, 64)
@@ -146,7 +144,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
@@ -322,7 +320,7 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   logger,
