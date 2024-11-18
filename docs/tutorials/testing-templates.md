@@ -95,7 +95,13 @@ jobs:
 
       - name: Create a test workspace
         run: |
-          coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} --yes
+          coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} test-${{ steps.name.outputs.version_name }} --yes
+
+      - name: Run some example commands
+        run: |
+          coder config-ssh --yes
+          # run some example commands
+          coder ssh test-${{ steps.name.outputs.version_name }} -- make build
 
       - name: Promote template version
         if: success()
