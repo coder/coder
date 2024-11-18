@@ -413,9 +413,8 @@ type sqlcQuerier interface {
 	ListProvisionerKeysByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListProvisionerKeysByOrganizationExcludeReserved(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKey, error)
 	ListWorkspaceAgentPortShares(ctx context.Context, workspaceID uuid.UUID) ([]WorkspaceAgentPortShare, error)
-	// OIDCClaimFields returns a list of distinct keys in both the id_token_claims and user_info_claims fields.
+	// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 	// This query is used to generate the list of available sync fields for idp sync settings.
-	// Merge with user_info claims.
 	OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error)
 	// Arguments are optional with uuid.Nil to ignore.
 	//  - Use just 'organization_id' to get all members of an org

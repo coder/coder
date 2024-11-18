@@ -40,6 +40,10 @@ func TestOIDCClaims(t *testing.T) {
 				"alice-id": "from-bob",
 			},
 			UserInfoClaims: nil,
+			MergedClaims: map[string]interface{}{
+				"sub":      "alice",
+				"alice-id": "from-bob",
+			},
 		},
 		// Always should be a no-op
 		Foo: "bar",
@@ -62,6 +66,20 @@ func TestOIDCClaims(t *testing.T) {
 			"bob-info": []string{},
 			"number":   42,
 		},
+		MergedClaims: map[string]interface{}{
+			"sub":      "bob",
+			"bob-info": []string{},
+			"number":   42,
+			"bob-id":   "from-bob",
+			"array": []string{
+				"a", "b", "c",
+			},
+			"map": map[string]interface{}{
+				"key": "value",
+				"foo": "bar",
+			},
+			"nil": nil,
+		},
 	}))
 	charlie := g.withLink(database.LoginTypeOIDC, toJSON(database.UserLinkClaims{
 		IDTokenClaims: map[string]interface{}{
@@ -70,6 +88,11 @@ func TestOIDCClaims(t *testing.T) {
 		},
 		UserInfoClaims: map[string]interface{}{
 			"sub":          "charlie",
+			"charlie-info": "charlie",
+		},
+		MergedClaims: map[string]interface{}{
+			"sub":          "charlie",
+			"charlie-id":   "charlie",
 			"charlie-info": "charlie",
 		},
 	}))
@@ -87,6 +110,10 @@ func TestOIDCClaims(t *testing.T) {
 				"not": "allowed",
 			},
 			UserInfoClaims: map[string]interface{}{
+				"do-not": "look",
+			},
+			MergedClaims: map[string]interface{}{
+				"not":    "allowed",
 				"do-not": "look",
 			},
 		})), // github should be omitted

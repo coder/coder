@@ -9848,32 +9848,15 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 
 const oIDCClaimFields = `-- name: OIDCClaimFields :many
 SELECT
-	DISTINCT jsonb_object_keys(claims->'id_token_claims')
+	DISTINCT jsonb_object_keys(claims->'merged_claims')
 FROM
 	user_links
 WHERE
     -- Only return rows where the top level key exists
-	claims ? 'id_token_claims' AND
+	claims ? 'merged_claims' AND
     -- 'null' is the default value for the id_token_claims field
 	-- jsonb 'null' is not the same as SQL NULL. Strip these out.
-	jsonb_typeof(claims->'id_token_claims') != 'null' AND
-	login_type = 'oidc'
-	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
-		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
-		ELSE true
-	END
-
-UNION
-
- -- This query is identical to the one above, except for 'user_info_claims'.
- -- There might be some way to do this more concisely at a cost of readability.
-SELECT
-	DISTINCT jsonb_object_keys(claims->'user_info_claims')
-FROM
-	user_links
-WHERE
-	claims ? 'user_info_claims' AND
-	jsonb_typeof(claims->'user_info_claims') != 'null' AND
+	jsonb_typeof(claims->'merged_claims') != 'null' AND
 	login_type = 'oidc'
 	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
 		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
@@ -9881,9 +9864,8 @@ WHERE
 	END
 `
 
-// OIDCClaimFields returns a list of distinct keys in both the id_token_claims and user_info_claims fields.
+// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 // This query is used to generate the list of available sync fields for idp sync settings.
-// Merge with user_info claims.
 func (q *sqlQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
 	rows, err := q.db.QueryContext(ctx, oIDCClaimFields, organizationID)
 	if err != nil {

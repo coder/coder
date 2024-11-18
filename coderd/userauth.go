@@ -1395,13 +1395,6 @@ func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
 	return c
 }
 
-// OauthDebugContext provides helpful information for admins to debug
-// OAuth login issues.
-type OauthDebugContext struct {
-	IDTokenClaims  map[string]interface{} `json:"id_token_claims"`
-	UserInfoClaims map[string]interface{} `json:"user_info_claims"`
-}
-
 type oauthLoginParams struct {
 	User      database.User
 	Link      database.UserLink
