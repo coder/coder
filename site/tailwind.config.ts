@@ -1,7 +1,10 @@
+import AnimatePlugin from "tailwindcss-animate";
+
 export default  {
 	corePlugins: {
 		preflight: false,
 	},
+	plugins: [AnimatePlugin],
 	darkMode: ["selector"],
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
 	important: ["#root", "#storybook-root"],
@@ -47,5 +50,4 @@ export default  {
 			},
 		},
 	},
-	plugins: [require("tailwindcss-animate")],
 } satisfies import('tailwindcss').Config;
