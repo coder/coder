@@ -800,7 +800,6 @@ export interface NotificationTemplate {
 
 // From codersdk/deployment.go
 export interface NotificationsConfig {
-	readonly enabled: boolean;
 	readonly max_send_attempts: number;
 	readonly retry_interval: number;
 	readonly sync_interval: number;

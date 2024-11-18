@@ -649,8 +649,6 @@ type HealthcheckConfig struct {
 }
 
 type NotificationsConfig struct {
-	Enabled serpent.Bool `json:"enabled" typescript:",notnull"`
-
 	// The upper limit of attempts to send a notification.
 	MaxSendAttempts serpent.Int64 `json:"max_send_attempts" typescript:",notnull"`
 	// The minimum time between retries.
@@ -688,11 +686,15 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
+func (n *NotificationsConfig) Enabled() bool {
+	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
 type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
 	// The intermediary SMTP host through which emails are sent (host:port).
-	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	Smarthost serpent.String `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
@@ -1030,7 +1032,6 @@ when required by your organization's security policy.`,
 		Description: "The intermediary SMTP host through which emails are sent.",
 		Flag:        "email-smarthost",
 		Env:         "CODER_EMAIL_SMARTHOST",
-		Default:     "localhost:587", // To pass validation.
 		Value:       &c.Notifications.SMTP.Smarthost,
 		Group:       &deploymentGroupEmail,
 		YAML:        "smarthost",
@@ -2613,16 +2614,6 @@ Write out the current server config as YAML to stdout.`,
 		emailTLSCertFile,
 		emailTLSCertKeyFile,
 		// Notifications Options
-		{
-			Name:        "Notifications: Enabled",
-			Description: "Enable or disable notifications.",
-			Flag:        "notifications-enabled",
-			Env:         "CODER_NOTIFICATIONS_ENABLED",
-			Default:     "true",
-			Value:       &c.Notifications.Enabled,
-			Group:       &deploymentGroupNotifications,
-			YAML:        "enabled",
-		},
 		{
 			Name:        "Notifications: Method",
 			Description: "Which delivery method to use (available options: 'smtp', 'webhook').",

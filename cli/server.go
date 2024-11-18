@@ -902,7 +902,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				notificationsManager *notifications.Manager
 			)
 
-			if notificationsCfg.Enabled {
+			if notificationsCfg.Enabled() {
 				metrics := notifications.NewMetrics(options.PrometheusRegistry)
 				helpers := templateHelpers(options)
 
@@ -927,6 +927,8 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				// Run report generator to distribute periodic reports.
 				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 				defer notificationReportGenerator.Close()
+			} else {
+				logger.Info(ctx, "notifications disabled as there are no notification methods configured")
 			}
 
 			// Since errCh only has one buffered slot, all routines

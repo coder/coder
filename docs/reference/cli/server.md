@@ -1231,10 +1231,9 @@ The sender's address to use.
 
 |             |                                     |
 | ----------- | ----------------------------------- |
-| Type        | <code>host:port</code>              |
+| Type        | <code>string</code>                 |
 | Environment | <code>$CODER_EMAIL_SMARTHOST</code> |
 | YAML        | <code>email.smarthost</code>        |
-| Default     | <code>localhost:587</code>          |
 
 The intermediary SMTP host through which emails are sent.
 
@@ -1359,17 +1358,6 @@ Certificate file to use.
 
 Certificate key file to use.
 
-### --notifications-enabled
-
-|             |                                           |
-| ----------- | ----------------------------------------- |
-| Type        | <code>bool</code>                         |
-| Environment | <code>$CODER_NOTIFICATIONS_ENABLED</code> |
-| YAML        | <code>notifications.enabled</code>        |
-| Default     | <code>true</code>                         |
-
-Enable or disable notifications.
-
 ### --notifications-method
 
 |             |                                          |
@@ -1406,7 +1394,7 @@ The sender's address to use.
 
 |             |                                                   |
 | ----------- | ------------------------------------------------- |
-| Type        | <code>host:port</code>                            |
+| Type        | <code>string</code>                               |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
 | YAML        | <code>notifications.email.smarthost</code>        |
 

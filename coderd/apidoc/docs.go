@@ -11383,9 +11383,6 @@ const docTemplate = `{
                         }
                     ]
                 },
-                "enabled": {
-                    "type": "boolean"
-                },
                 "fetch_interval": {
                     "description": "How often to query the database for queued notifications.",
                     "type": "integer"
@@ -11474,11 +11471,7 @@ const docTemplate = `{
                 },
                 "smarthost": {
                     "description": "The intermediary SMTP host through which emails are sent (host:port).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/serpent.HostPort"
-                        }
-                    ]
+                    "type": "string"
                 },
                 "tls": {
                     "description": "TLS details.",
