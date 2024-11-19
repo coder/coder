@@ -1,4 +1,4 @@
-# Testing and Publishing Coder Templates in CI/CD
+# Test and Publish Coder Templates Through CI/CD
 
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
@@ -19,28 +19,21 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 ## Prerequisites
 
-Before proceeding, ensure the following:
-
-- **Coder CLI** is installed and configured in your environment.
-- **Terraform CLI** is installed and available in your CI environment.
-- Access to your **Coder instance** with the appropriate
-  [permissions](../admin/users/groups-roles.md#roles).
+- Install and configure Coder CLI in your environment.
+- Install Terraform CLI in your CI environment.
+- Configure [user roles and permissions](../admin/users/groups-roles.md#roles) for your Coder instance.
 
 ## Example GitHub Action Workflow
 
-Below is an example workflow for testing and publishing a template using GitHub
-Actions. The workflow first validates the Terraform template, pushes the
-template to Coder without activating it, tests the template by creating a
-workspace, and then promotes the template version to active upon successful
-workspace creation.
+This example workflow tests and publishes a template using GitHub
+Actions.
 
-### Step-by-Step Process
+The workflow:
 
-1. **Validate the Terraform template.**
-2. **Push the template to Coder without activating it.**
-3. **Test the template by creating a workspace.**
-4. **Promote the template version to active upon successful workspace
-   creation.**
+1. Validates the Terraform template.
+1. Pushes the template to Coder without activating it.
+1. Tests the template by creating a workspace.
+1. Promotes the template version to active upon successful workspace creation.
 
 ### Workflow File
 

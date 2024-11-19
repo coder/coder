@@ -710,7 +710,7 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
-					"title": "Testing Templates",
+					"title": "Test Templates Through CI/CD",
 					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
 					"path": "./tutorials/testing-templates.md"
 				},
