@@ -308,11 +308,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				<FormSection title="" description="">
 					<FormFields>
 						{/* TODO (SasSwart):
-							Is this a scenario that can occur for free-tier users? They have a default organisation and no external provisioners as far as I know.
-							Nothing stops them from using a template with tags defined. Will those tags interfere with job selection on internal provisioners?
-						*/}
-						{/* TODO (SasSwart):
 							There are multiple error scenarios here. Do they each need specific copy, or is a general message fine?
+							* If a free tier user with no organisations or external provisioners uses a template which requires tags:
+								* can they provide tags to the internal provisioners to accept the job?
+								* If not, the alert copy below will be confusing, because they don't use the organisations feature and we mention it.
 							* Could there be no provisioners whatsoever, or do we always expect at least the internal provisioners to run?
 							* There may be provisioners, but none with the requisite tags.
 							* There may be provisioners with the requisite tags, but they may not have been seen by coderd for more an unacceptable duration
