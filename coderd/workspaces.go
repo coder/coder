@@ -1910,6 +1910,11 @@ func convertWorkspace(
 		deletingAt = &workspace.DeletingAt.Time
 	}
 
+	var nextStartAt *time.Time
+	if workspace.NextStartAt.Valid {
+		nextStartAt = &workspace.NextStartAt.Time
+	}
+
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
@@ -1960,6 +1965,7 @@ func convertWorkspace(
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
+		NextStartAt:      nextStartAt,
 	}, nil
 }
 

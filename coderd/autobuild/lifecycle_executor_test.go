@@ -132,6 +132,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 					cwr.AutomaticUpdates = tc.automaticUpdates
 				})
 			)
+
 			// Given: workspace is stopped
 			workspace = coderdtest.MustTransitionWorkspace(
 				t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
