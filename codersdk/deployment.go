@@ -2152,7 +2152,7 @@ when required by your organization's security policy.`,
 			Name: "Additional CSP Policy",
 			Description: "Coder configures a Content Security Policy (CSP) to protect against XSS attacks. " +
 				"This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. " +
-				"Format matches the CSP directive format, e.g. 'script-src https://example.com'.",
+				"Format matches the CSP directive format, e.g. --additional-csp-policy=\"script-src https://example.com\".",
 			Flag:  "additional-csp-policy",
 			Env:   "CODER_ADDITIONAL_CSP_POLICY",
 			YAML:  "additionalCSPPolicy",
