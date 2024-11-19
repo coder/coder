@@ -291,9 +291,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 			)
-			r.Route("/settings/idpsync/organization", func(r chi.Router) {
-				r.Get("/", api.organizationIDPSyncSettings)
-				r.Patch("/", api.patchOrganizationIDPSyncSettings)
+			r.Route("/settings/idpsync", func(r chi.Router) {
+				r.Route("/organization", func(r chi.Router) {
+					r.Get("/", api.organizationIDPSyncSettings)
+					r.Patch("/", api.patchOrganizationIDPSyncSettings)
+				})
+				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
 			})
 		})
 
@@ -303,6 +306,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
+				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
@@ -343,7 +347,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
-				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				api.RequireFeatureMW(codersdk.FeatureExternalProvisionerDaemons),
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)

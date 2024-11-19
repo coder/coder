@@ -1480,9 +1480,10 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+| Name           | In    | Type         | Required | Description                                                                        |
+| -------------- | ----- | ------------ | -------- | ---------------------------------------------------------------------------------- |
+| `organization` | path  | string(uuid) | true     | Organization ID                                                                    |
+| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
 
 ### Example responses
 
@@ -1774,6 +1775,43 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 | Status | Meaning                                                         | Description | Schema |
 | ------ | --------------------------------------------------------------- | ----------- | ------ |
 | 204    | [No Content](https://tools.ietf.org/html/rfc7231#section-6.3.5) | No Content  |        |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the available organization idp sync claim fields
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/available-fields \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/available-fields`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+["string"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+| ------ | ------------------------------------------------------- | ----------- | --------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-available-organization-idp-sync-claim-fields-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2270,6 +2308,43 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 | Status | Meaning                                                 | Description | Schema                                   |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the available idp sync claim fields
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /settings/idpsync/available-fields`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+["string"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+| ------ | ------------------------------------------------------- | ----------- | --------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-available-idp-sync-claim-fields-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

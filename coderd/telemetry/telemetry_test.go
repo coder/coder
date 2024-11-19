@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
@@ -14,12 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/testutil"
@@ -87,6 +87,8 @@ func TestTelemetry(t *testing.T) {
 		assert.NoError(t, err)
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
+
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -103,6 +105,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
+		require.Len(t, snapshot.WorkspaceModules, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
@@ -118,6 +121,31 @@ func TestTelemetry(t *testing.T) {
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
+	})
+	t.Run("HashedModule", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
+			Source:  "registry.coder.com/terraform/aws",
+			Version: "1.0.0",
+		})
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
+			Source:  "internal-url.com/some-module",
+			Version: "1.0.0",
+		})
+		_, snapshot := collectSnapshot(t, db, nil)
+		require.Len(t, snapshot.WorkspaceModules, 2)
+		modules := snapshot.WorkspaceModules
+		sort.Slice(modules, func(i, j int) bool {
+			return modules[i].Source < modules[j].Source
+		})
+		require.Equal(t, modules[0].Source, "921c61d6f3eef5118f3cae658d1518b378c5b02a4955a766c791440894d989c5")
+		require.Equal(t, modules[0].Version, "92521fc3cbd964bdc9f584a991b89fddaa5754ed1cc96d6d42445338669c1305")
+		require.Equal(t, modules[1].Source, "registry.coder.com/terraform/aws")
+		require.Equal(t, modules[1].Version, "1.0.0")
 	})
 }
 
@@ -156,7 +184,7 @@ func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts tel
 	require.NoError(t, err)
 	options := telemetry.Options{
 		Database:     db,
-		Logger:       slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:       testutil.Logger(t),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
 	}

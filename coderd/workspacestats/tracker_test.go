@@ -12,8 +12,6 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -31,7 +29,7 @@ func TestTracker(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t)
 
 	tickCh := make(chan time.Time)
 	flushCh := make(chan int, 1)

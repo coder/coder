@@ -19,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 //go:embed rbacobject.gotmpl
@@ -30,12 +31,17 @@ var codersdkTemplate string
 //go:embed typescript.tstmpl
 var typescriptTemplate string
 
+//go:embed countries.tstmpl
+var countriesTemplate string
+
 func usage() {
-	_, _ = fmt.Println("Usage: rbacgen <codersdk|rbac>")
-	_, _ = fmt.Println("Must choose a template target.")
+	_, _ = fmt.Println("Usage: typegen <type> [template]")
+	_, _ = fmt.Println("Types:")
+	_, _ = fmt.Println("  rbac <object|codersdk|typescript> - Generate RBAC related files")
+	_, _ = fmt.Println("  countries              - Generate countries TypeScript")
 }
 
-// main will generate a file that lists all rbac objects.
+// main will generate a file based on the type and template specified.
 // This is to provide an "AllResources" function that is always
 // in sync.
 func main() {
@@ -46,15 +52,43 @@ func main() {
 		os.Exit(1)
 	}
 
-	formatSource := format.Source
+	var (
+		out []byte
+		err error
+	)
+
 	// It did not make sense to have 2 different generators that do essentially
 	// the same thing, but different format for the BE and the sdk.
 	// So the argument switches the go template to use.
-	var source string
 	switch strings.ToLower(flag.Args()[0]) {
+	case "rbac":
+		if len(flag.Args()) < 2 {
+			usage()
+			os.Exit(1)
+		}
+		out, err = generateRBAC(flag.Args()[1])
+	case "countries":
+		out, err = generateCountries()
+	default:
+		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid type\n", flag.Args()[0])
+		usage()
+		os.Exit(2)
+	}
+
+	if err != nil {
+		log.Fatalf("Generate source: %s", err.Error())
+	}
+
+	_, _ = fmt.Fprint(os.Stdout, string(out))
+}
+
+func generateRBAC(tmpl string) ([]byte, error) {
+	formatSource := format.Source
+	var source string
+	switch strings.ToLower(tmpl) {
 	case "codersdk":
 		source = codersdkTemplate
-	case "rbac":
+	case "object":
 		source = rbacObjectTemplate
 	case "typescript":
 		source = typescriptTemplate
@@ -63,22 +97,29 @@ func main() {
 			return src, nil
 		}
 	default:
-		_, _ = fmt.Fprintf(os.Stderr, "%q is not a valid template target\n", flag.Args()[0])
-		usage()
-		os.Exit(2)
+		return nil, xerrors.Errorf("%q is not a valid RBAC template target", tmpl)
 	}
 
 	out, err := generateRbacObjects(source)
 	if err != nil {
-		log.Fatalf("Generate source: %s", err.Error())
+		return nil, err
 	}
+	return formatSource(out)
+}
 
-	formatted, err := formatSource(out)
+func generateCountries() ([]byte, error) {
+	tmpl, err := template.New("countries.tstmpl").Parse(countriesTemplate)
 	if err != nil {
-		log.Fatalf("Format template: %s", err.Error())
+		return nil, xerrors.Errorf("parse template: %w", err)
 	}
 
-	_, _ = fmt.Fprint(os.Stdout, string(formatted))
+	var out bytes.Buffer
+	err = tmpl.Execute(&out, codersdk.Countries)
+	if err != nil {
+		return nil, xerrors.Errorf("execute template: %w", err)
+	}
+
+	return out.Bytes(), nil
 }
 
 func pascalCaseName[T ~string](name T) string {

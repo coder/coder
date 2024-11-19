@@ -34,7 +34,7 @@ func TestTimingsFromProvision(t *testing.T) {
 		binaryPath: fakeBin,
 	})
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)

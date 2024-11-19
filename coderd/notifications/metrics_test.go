@@ -16,8 +16,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
@@ -41,7 +39,7 @@ func TestMetrics(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
@@ -215,7 +213,7 @@ func TestPendingUpdatesMetric(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
@@ -306,7 +304,7 @@ func TestInflightDispatchesMetric(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	reg := prometheus.NewRegistry()
 	metrics := notifications.NewMetrics(reg)
@@ -385,7 +383,7 @@ func TestCustomMethodMetricCollection(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	var (
 		reg             = prometheus.NewRegistry()

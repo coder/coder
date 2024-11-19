@@ -61,7 +61,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -295,7 +294,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Options: opts,
 		Middleware: serpent.Chain(
 			WriteConfigMW(vals),
-			PrintDeprecatedOptions(),
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -753,25 +751,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
-
-			fetcher := &cryptokeys.DBFetcher{
-				DB: options.Database,
-			}
-
-			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
-				logger,
-				fetcher,
-				codersdk.CryptoKeyFeatureTailnetResume,
-			)
-			if err != nil {
-				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
-			}
-
-			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
-				resumeKeycache,
-				quartz.NewReal(),
-				tailnet.DefaultResumeTokenExpiry,
-			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
@@ -1257,41 +1236,6 @@ func templateHelpers(options *coderd.Options) map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return options.AccessURL.String() },
 		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
-	}
-}
-
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
-func PrintDeprecatedOptions() serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			opts := inv.Command.Options
-			// Print deprecation warnings.
-			for _, opt := range opts {
-				if opt.UseInstead == nil {
-					continue
-				}
-
-				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
-					continue
-				}
-
-				warnStr := opt.Name + " is deprecated, please use "
-				for i, use := range opt.UseInstead {
-					warnStr += use.Name + " "
-					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
-					}
-				}
-				warnStr += "instead.\n"
-
-				cliui.Warn(inv.Stderr,
-					warnStr,
-				)
-			}
-
-			return next(inv)
-		}
 	}
 }
 

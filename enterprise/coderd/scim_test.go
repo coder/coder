@@ -6,11 +6,15 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/imulab/go-scim/pkg/v2/handlerutil"
+	"github.com/imulab/go-scim/pkg/v2/spec"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -22,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/coderd/scim"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -59,7 +64,8 @@ func setScimAuth(key []byte) func(*http.Request) {
 
 func setScimAuthBearer(key []byte) func(*http.Request) {
 	return func(r *http.Request) {
-		r.Header.Set("Authorization", "Bearer "+string(key))
+		// Do strange casing to ensure it's case-insensitive
+		r.Header.Set("Authorization", "beAreR "+string(key))
 	}
 }
 
@@ -111,7 +117,7 @@ func TestScim(t *testing.T) {
 			res, err := client.Request(ctx, "POST", "/scim/v2/Users", struct{}{})
 			require.NoError(t, err)
 			defer res.Body.Close()
-			assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+			assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 		})
 
 		t.Run("OK", func(t *testing.T) {
@@ -454,7 +460,7 @@ func TestScim(t *testing.T) {
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
-			assert.Equal(t, http.StatusInternalServerError, res.StatusCode)
+			assert.Equal(t, http.StatusUnauthorized, res.StatusCode)
 		})
 
 		t.Run("OK", func(t *testing.T) {
@@ -584,4 +590,22 @@ func TestScim(t *testing.T) {
 			require.Equal(t, codersdk.UserStatusActive, scimUser.Status, "user is still active")
 		})
 	})
+}
+
+func TestScimError(t *testing.T) {
+	t.Parallel()
+
+	// Demonstrates that we cannot use the standard errors
+	rw := httptest.NewRecorder()
+	_ = handlerutil.WriteError(rw, spec.ErrNotFound)
+	resp := rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+
+	// Our error wrapper works
+	rw = httptest.NewRecorder()
+	_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusNotFound, spec.ErrNotFound.Type, xerrors.New("not found")))
+	resp = rw.Result()
+	defer resp.Body.Close()
+	require.Equal(t, http.StatusNotFound, resp.StatusCode)
 }

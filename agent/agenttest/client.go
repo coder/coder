@@ -15,7 +15,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"storj.io/drpc"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 	"tailscale.com/tailcfg"
@@ -97,7 +96,9 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
+func (c *Client) ConnectRPC23(ctx context.Context) (
+	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
+) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
 		_ = conn.Close()
@@ -115,7 +116,7 @@ func (c *Client) ConnectRPC(ctx context.Context) (drpc.Conn, error) {
 	go func() {
 		_ = c.server.Serve(serveCtx, lis)
 	}()
-	return conn, nil
+	return agentproto.NewDRPCAgentClient(conn), proto.NewDRPCTailnetClient(conn), nil
 }
 
 func (c *Client) GetLifecycleStates() []codersdk.WorkspaceAgentLifecycle {

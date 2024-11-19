@@ -1,7 +1,10 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
+
+	"github.com/google/uuid"
 
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -205,7 +208,11 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, settings)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
 }
 
 // @Summary Update organization IdP Sync settings
@@ -254,4 +261,51 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 		Mapping:       settings.Mapping,
 		AssignDefault: settings.AssignDefault,
 	})
+}
+
+// @Summary Get the available organization idp sync claim fields
+// @ID get-the-available-organization-idp-sync-claim-fields
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} string
+// @Router /organizations/{organization}/settings/idpsync/available-fields [get]
+func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
+	org := httpmw.OrganizationParam(r)
+	api.idpSyncClaimFields(org.ID, rw, r)
+}
+
+// @Summary Get the available idp sync claim fields
+// @ID get-the-available-idp-sync-claim-fields
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} string
+// @Router /settings/idpsync/available-fields [get]
+func (api *API) deploymentIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
+	// nil uuid implies all organizations
+	api.idpSyncClaimFields(uuid.Nil, rw, r)
+}
+
+func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	fields, err := api.Database.OIDCClaimFields(ctx, orgID)
+	if httpapi.IsUnauthorizedError(err) {
+		// Give a helpful error. The user could read the org, so this does not
+		// leak anything.
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You do not have permission to view the available IDP fields",
+			Detail:  fmt.Sprintf("%s.read permission is required", rbac.ResourceIdpsyncSettings.Type),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, fields)
 }
