@@ -1329,6 +1329,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				wantBody, err := os.ReadFile(goldenFile)
 				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				wantBody = normalizeLineEndings(wantBody)
 				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 		})
@@ -1339,7 +1340,11 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 // Required for Windows compatibility.
 func normalizeLineEndings(content []byte) []byte {
 	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
-	return bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	// some tests generate escaped line endings, so we have to replace them too
+	content = bytes.ReplaceAll(content, []byte("\\r\\n"), []byte("\\n"))
+	content = bytes.ReplaceAll(content, []byte("\\r"), []byte("\\n"))
+	return content
 }
 
 func normalizeGoldenEmail(content []byte) []byte {
@@ -1362,7 +1367,6 @@ func normalizeGoldenEmail(content []byte) []byte {
 	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
 	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
 	content = bytes.ReplaceAll(content, boundary, []byte(constantBoundary))
-	content = normalizeLineEndings(content)
 
 	return content
 }
