@@ -16,6 +16,12 @@ networking:
     # HTTP bind address of the server. Unset to disable the HTTP endpoint.
     # (default: 127.0.0.1:3000, type: string)
     httpAddress: 127.0.0.1:3000
+    # Coder configures a Content Security Policy (CSP) to protect against XSS attacks.
+    # This setting allows you to add additional CSP directives, which can open the
+    # attack surface of the deployment. Format matches the CSP directive format, e.g.
+    # --additional-csp-policy="script-src https://example.com".
+    # (default: <unset>, type: string-array)
+    additionalCSPPolicy: []
     # The maximum lifetime duration users can specify when creating an API token.
     # (default: 876600h0m0s, type: duration)
     maxTokenLifetime: 876600h0m0s

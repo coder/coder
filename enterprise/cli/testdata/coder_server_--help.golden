@@ -295,6 +295,13 @@ backed by Tailscale and WireGuard.
           + 1`. Use special value 'disable' to turn off STUN completely.
 
 NETWORKING / HTTP OPTIONS: 
+      --additional-csp-policy string-array, $CODER_ADDITIONAL_CSP_POLICY
+          Coder configures a Content Security Policy (CSP) to protect against
+          XSS attacks. This setting allows you to add additional CSP directives,
+          which can open the attack surface of the deployment. Format matches
+          the CSP directive format, e.g. --additional-csp-policy="script-src
+          https://example.com".
+
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
