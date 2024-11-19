@@ -135,40 +135,62 @@ func TestProvisionerKeys(t *testing.T) {
 	require.ErrorContains(t, err, "reserved")
 }
 
-func TestProvisionerKey(t *testing.T) {
+func TestGetProvisionerKey(t *testing.T) {
 	t.Parallel()
-	t.Run("GetKey", func(t *testing.T) {
-		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+	tests := []struct {
+		name        string
+		useFakeKey  bool
+		fakeKey     string
+		success     bool
+		expectedErr string
+	}{
+		{
+			name:        "ok",
+			useFakeKey:  false,
+			success:     true,
+			expectedErr: "",
+		},
+	}
 
-		dv := coderdtest.DeploymentValues(t)
-		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				DeploymentValues: dv,
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{
-					codersdk.FeatureMultipleOrganizations:      1,
-					codersdk.FeatureExternalProvisionerDaemons: 1,
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dv := coderdtest.DeploymentValues(t)
+			client, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
 				},
-			},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations:      1,
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+			})
+
+			key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+				Name: "my-test-key",
+				Tags: map[string]string{"key1": "value1", "key2": "value2"},
+			})
+			require.NoError(t, err)
+
+			pk := key.Key
+			if tt.useFakeKey {
+				pk = tt.fakeKey
+			}
+
+			fetchedKey, err := client.GetProvisionerKey(ctx, pk)
+			if !tt.success {
+				require.ErrorContains(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, fetchedKey.Name, "my-test-key")
+				require.Equal(t, fetchedKey.Tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
+			}
 		})
-
-		// nolint:gocritic
-		key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
-			Name: "my-test-key",
-			Tags: map[string]string{"key1": "value1", "key2": "value2"},
-		})
-		require.NoError(t, err)
-
-		fetchedKey, err := client.GetProvisionerKey(ctx, key.Key)
-		require.NoError(t, err)
-		require.Equal(t, fetchedKey.Name, "my-test-key")
-		require.Equal(t, fetchedKey.Tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
-
-		erroneousPK, err := client.GetProvisionerKey(ctx, "abcdefghijklmnopqrstuvwxyz01234567890123456")
-		require.Empty(t, erroneousPK)
-		require.Error(t, err)
-	})
+	}
 }

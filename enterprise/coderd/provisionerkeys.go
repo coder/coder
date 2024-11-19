@@ -214,7 +214,9 @@ func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)
 	// extra check but this one should never happen as it is covered by the auth middleware
 	if !ok {
-		httpapi.Forbidden(rw)
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("unable to auth: please provide the %s header", codersdk.ProvisionerDaemonKey),
+		})
 		return
 	}
 
