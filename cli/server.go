@@ -1240,41 +1240,6 @@ func templateHelpers(options *coderd.Options) map[string]any {
 	}
 }
 
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
-func PrintDeprecatedOptions() serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			opts := inv.Command.Options
-			// Print deprecation warnings.
-			for _, opt := range opts {
-				if opt.UseInstead == nil {
-					continue
-				}
-
-				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
-					continue
-				}
-
-				warnStr := opt.Name + " is deprecated, please use "
-				for i, use := range opt.UseInstead {
-					warnStr += use.Name + " "
-					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
-					}
-				}
-				warnStr += "instead.\n"
-
-				cliui.Warn(inv.Stderr,
-					warnStr,
-				)
-			}
-
-			return next(inv)
-		}
-	}
-}
-
 // writeConfigMW will prevent the main command from running if the write-config
 // flag is set. Instead, it will marshal the command options to YAML and write
 // them to stdout.

@@ -22,6 +22,7 @@ func (r *RootCmd) update() *serpent.Command {
 		Long:        "Use --always-prompt to change the parameter values of the workspace.",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
+			PrintDeprecatedOptions(),
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {

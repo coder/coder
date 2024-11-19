@@ -26,6 +26,7 @@ func (r *RootCmd) restart() *serpent.Command {
 		Short:       "Restart a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
+			PrintDeprecatedOptions(),
 			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{cliui.SkipPromptOption()},

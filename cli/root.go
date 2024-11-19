@@ -1307,3 +1307,53 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 	}
 	return transport, nil
 }
+
+// printDeprecatedOptions loops through all command options, and prints
+// a warning for usage of deprecated options.
+func PrintDeprecatedOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			opts := inv.Command.Options
+			// Print deprecation warnings.
+			for _, opt := range opts {
+				if opt.UseInstead == nil {
+					continue
+				}
+
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
+					continue
+				}
+
+				warnStr := translateSource(opt.ValueSource, opt) + " is deprecated, please use "
+				for i, use := range opt.UseInstead {
+					warnStr += translateSource(opt.ValueSource, use) + " "
+					if i != len(opt.UseInstead)-1 {
+						warnStr += "and "
+					}
+				}
+				warnStr += "instead.\n"
+
+				cliui.Warn(inv.Stderr,
+					warnStr,
+				)
+			}
+
+			return next(inv)
+		}
+	}
+}
+
+// translateSource provides the name of the source of the option, depending on the
+// supplied target ValueSource.
+func translateSource(target serpent.ValueSource, opt serpent.Option) string {
+	switch target {
+	case serpent.ValueSourceFlag:
+		return fmt.Sprintf("`--%s`", opt.Flag)
+	case serpent.ValueSourceEnv:
+		return fmt.Sprintf("`%s`", opt.Env)
+	case serpent.ValueSourceYAML:
+		return fmt.Sprintf("`%s`", opt.YAML)
+	default:
+		return opt.Name
+	}
+}
