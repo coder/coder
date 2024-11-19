@@ -62,8 +62,9 @@ For an example, see how we push our development image and template
 
 ## Coder CLI
 
-You can also [install Coder](../../../install/cli.md) to automate pushing new
-template versions in CI/CD pipelines.
+You can [install Coder](../../../install/cli.md) CLI to automate pushing new
+template versions in CI/CD pipelines. For GitHub Actions, see our
+[setup-coder](https://github.com/coder/setup-coder) action.
 
 ```console
 # Install the Coder CLI
@@ -87,9 +88,6 @@ coder templates push --yes $CODER_TEMPLATE_NAME \
     --directory $CODER_TEMPLATE_DIR \
     --name=$CODER_TEMPLATE_VERSION # Version name is optional
 ```
-
-You can also use the [coder/setup-action](https://github.com/coder/setup-coder)
-GitHub Action to install the Coder CLI and push new template versions.
 
 ## Testing and Publishing Coder Templates in CI/CD
 

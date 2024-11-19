@@ -21,8 +21,21 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 - Install and configure Coder CLI in your environment.
 - Install Terraform CLI in your CI environment.
-- Configure [user roles and permissions](../admin/users/groups-roles.md#roles)
-  for your Coder instance.
+- Create a [headless user](../admin/users/headless-auth.md) with the
+  [user roles and permissions](../admin/users/groups-roles.md#roles) to manage
+  templates and run workspaces.
+
+## Creating the headless user
+
+```shell
+coder users create \
+  --username machine-user \
+  --email machine-user@example.com \
+  --login-type none
+
+coder tokens create --user machine-user --lifetime 8760h
+# Copy the token and store it in a secret in your CI environment with the name `CODER_SESSION_TOKEN`
+```
 
 ## Example GitHub Action Workflow
 
