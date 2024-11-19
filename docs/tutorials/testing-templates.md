@@ -86,15 +86,16 @@ jobs:
         run: |
           coder templates push $TEMPLATE_NAME --activate=false --name ${{ steps.name.outputs.version_name }} --message "${{ steps.message.outputs.pr_title }}" --yes
 
-      - name: Create a test workspace
+      - name: Create a test workspace and run some example commands
         run: |
           coder create -t $TEMPLATE_NAME --template-version ${{ steps.name.outputs.version_name }} test-${{ steps.name.outputs.version_name }} --yes
-
-      - name: Run some example commands
-        run: |
           coder config-ssh --yes
           # run some example commands
           coder ssh test-${{ steps.name.outputs.version_name }} -- make build
+
+      - name: Delete the test workspace
+        if: always()
+        run: coder delete test-${{ steps.name.outputs.version_name }} --yes
 
       - name: Promote template version
         if: success()
