@@ -475,6 +475,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			DeletingAt:        w.DeletingAt,
 			AutomaticUpdates:  w.AutomaticUpdates,
 			Favorite:          w.Favorite,
+			NextStartAt:       w.NextStartAt,
 
 			OwnerAvatarUrl: extended.OwnerAvatarUrl,
 			OwnerUsername:  extended.OwnerUsername,
