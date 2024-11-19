@@ -66,6 +66,6 @@
     "automatic_updates": "never",
     "allow_renames": false,
     "favorite": false,
-    "next_start_at": null
+    "next_start_at": "[timestamp]"
   }
 ]
