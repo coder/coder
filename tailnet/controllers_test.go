@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
@@ -1071,6 +1070,7 @@ func TestController_Disconnects(t *testing.T) {
 	close(call.Resps)
 
 	_ = testutil.RequireRecvCtx(testCtx, t, peersLost)
+	_ = testutil.RequireRecvCtx(testCtx, t, uut.Closed())
 }
 
 func TestController_TelemetrySuccess(t *testing.T) {
@@ -1210,24 +1210,28 @@ type pipeDialer struct {
 
 func (p *pipeDialer) Dial(_ context.Context, _ tailnet.ResumeTokenController) (tailnet.ControlProtocolClients, error) {
 	s, c := net.Pipe()
+	p.t.Cleanup(func() {
+		_ = s.Close()
+		_ = c.Close()
+	})
 	go func() {
 		err := p.svc.ServeConnV2(p.ctx, s, p.streamID)
 		p.logger.Debug(p.ctx, "piped tailnet service complete", slog.Error(err))
 	}()
 	client, err := tailnet.NewDRPCClient(c, p.logger)
-	if !assert.NoError(p.t, err) {
+	if err != nil {
 		_ = c.Close()
 		return tailnet.ControlProtocolClients{}, err
 	}
 	coord, err := client.Coordinate(context.Background())
-	if !assert.NoError(p.t, err) {
+	if err != nil {
 		_ = c.Close()
 		return tailnet.ControlProtocolClients{}, err
 	}
 
 	derps := &tailnet.DERPFromDRPCWrapper{}
 	derps.Client, err = client.StreamDERPMaps(context.Background(), &proto.StreamDERPMapsRequest{})
-	if !assert.NoError(p.t, err) {
+	if err != nil {
 		_ = c.Close()
 		return tailnet.ControlProtocolClients{}, err
 	}

@@ -1193,10 +1193,17 @@ func (c *Controller) Run(ctx context.Context) {
 		// Sadly retry doesn't support quartz.Clock yet so this is not
 		// influenced by the configured clock.
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(c.ctx); {
+			// Check the context again before dialing, since `retrier.Wait()` could return true
+			// if the delay is 0, even if the context was canceled. This ensures we don't redial
+			// after a graceful shutdown.
+			if c.ctx.Err() != nil {
+				return
+			}
+
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
-					continue
+				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+					return
 				}
 				errF := slog.Error(err)
 				var sdkErr *codersdk.Error
