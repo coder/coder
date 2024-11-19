@@ -325,6 +325,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 		}
 	})
 
+	// Add the PrintDeprecatedOptions middleware to all commands.
+	cmd.Walk(func(cmd *serpent.Command) {
+		if cmd.Middleware == nil {
+			cmd.Middleware = PrintDeprecatedOptions()
+		} else {
+			cmd.Middleware = serpent.Chain(cmd.Middleware, PrintDeprecatedOptions())
+		}
+	})
+
 	if r.agentURL == nil {
 		r.agentURL = new(url.URL)
 	}
@@ -1324,17 +1333,19 @@ func PrintDeprecatedOptions() serpent.MiddlewareFunc {
 					continue
 				}
 
-				warnStr := translateSource(opt.ValueSource, opt) + " is deprecated, please use "
+				var warnStr strings.Builder
+				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+				_, _ = warnStr.WriteString(" is deprecated, please use ")
 				for i, use := range opt.UseInstead {
-					warnStr += translateSource(opt.ValueSource, use) + " "
+					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
 					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
+						_, _ = warnStr.WriteString(" and ")
 					}
 				}
-				warnStr += "instead.\n"
+				_, _ = warnStr.WriteString(" instead.\n")
 
 				cliui.Warn(inv.Stderr,
-					warnStr,
+					warnStr.String(),
 				)
 			}
 
@@ -1352,8 +1363,18 @@ func translateSource(target serpent.ValueSource, opt serpent.Option) string {
 	case serpent.ValueSourceEnv:
 		return fmt.Sprintf("`%s`", opt.Env)
 	case serpent.ValueSourceYAML:
-		return fmt.Sprintf("`%s`", opt.YAML)
+		return fmt.Sprintf("`%s`", fullYamlName(opt))
 	default:
 		return opt.Name
 	}
+}
+
+func fullYamlName(opt serpent.Option) string {
+	var full strings.Builder
+	for _, name := range opt.Group.Ancestry() {
+		_, _ = full.WriteString(name.YAML)
+		_, _ = full.WriteString(".")
+	}
+	_, _ = full.WriteString(opt.YAML)
+	return full.String()
 }

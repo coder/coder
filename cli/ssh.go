@@ -77,7 +77,6 @@ func (r *RootCmd) ssh() *serpent.Command {
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
-			PrintDeprecatedOptions(),
 			initAppearance(client, &appearanceConfig),
 		),
 		Handler: func(inv *serpent.Invocation) (retErr error) {

@@ -58,7 +58,6 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 		Use:   "start",
 		Short: "Run a provisioner daemon",
 		Middleware: serpent.Chain(
-			agpl.PrintDeprecatedOptions(),
 			// disable checks and warnings because this command starts a daemon; it is
 			// not meant for humans typing commands.  Furthermore, the checks are
 			// incompatible with PSK auth that this command uses

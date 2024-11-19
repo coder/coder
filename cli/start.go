@@ -25,7 +25,6 @@ func (r *RootCmd) start() *serpent.Command {
 		Short:       "Start a workspace",
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
-			PrintDeprecatedOptions(),
 			r.InitClient(client),
 		),
 		Options: serpent.OptionSet{cliui.SkipPromptOption()},
