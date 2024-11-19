@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -700,6 +701,21 @@ const (
 	ModuleSourceTypeUnknown         ModuleSourceType = "unknown"
 )
 
+// Terraform supports a variety of module source types, like:
+//   - local paths (./ or ../)
+//   - absolute local paths (/)
+//   - git URLs (git:: or git@)
+//   - http URLs
+//   - s3 URLs
+//
+// and more!
+//
+// See https://developer.hashicorp.com/terraform/language/modules/sources for an overview.
+//
+// This function attempts to classify the source type of a module. It's imperfect,
+// as checks that terraform actually does are pretty complicated.
+// See e.g. https://github.com/hashicorp/go-getter/blob/842d6c379e5e70d23905b8f6b5a25a80290acb66/detect.go#L47
+// if you're interested in the complexity.
 func GetModuleSourceType(source string) ModuleSourceType {
 	source = strings.TrimSpace(source)
 	source = strings.ToLower(source)
@@ -708,6 +724,14 @@ func GetModuleSourceType(source string) ModuleSourceType {
 	}
 	if strings.HasPrefix(source, "/") {
 		return ModuleSourceTypeLocalAbs
+	}
+	// Match public registry modules in the format <NAMESPACE>/<NAME>/<PROVIDER>
+	// Sources can have a `//...` suffix, which signifies a subdirectory.
+	// The allowed characters are based on
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/modules#request-body-1
+	// because Hashicorp's documentation about module sources doesn't mention it.
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+(//.*)?$`, source); matched {
+		return ModuleSourceTypePublicRegistry
 	}
 	if strings.Contains(source, "github.com") {
 		return ModuleSourceTypeGitHub
@@ -738,9 +762,6 @@ func GetModuleSourceType(source string) ModuleSourceType {
 	}
 	if strings.Contains(source, "registry.coder.com") {
 		return ModuleSourceTypeCoderRegistry
-	}
-	if !strings.Contains(source, "://") && !strings.Contains(source, ".") && strings.Contains(source, "/") {
-		return ModuleSourceTypePublicRegistry
 	}
 	return ModuleSourceTypeUnknown
 }
