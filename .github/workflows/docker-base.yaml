@@ -66,6 +66,7 @@ jobs:
           context: base-build-context
           file: scripts/Dockerfile.base
           platforms: linux/amd64,linux/arm64,linux/arm/v7
+          provenance: true
           pull: true
           no-cache: true
           push: ${{ github.event_name != 'pull_request' }}

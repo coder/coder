@@ -5269,11 +5269,20 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = $1
+	-- This is the original search criteria:
+	organization_id = $1 :: uuid
+	AND
+	-- adding support for searching by tags:
+	($2 :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, $2::tagset))
 `
 
-func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, organizationID)
+type GetProvisionerDaemonsByOrganizationParams struct {
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+	WantTags       StringMap `db:"want_tags" json:"want_tags"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, arg GetProvisionerDaemonsByOrganizationParams) ([]ProvisionerDaemon, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByOrganization, arg.OrganizationID, arg.WantTags)
 	if err != nil {
 		return nil, err
 	}
@@ -5523,21 +5532,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = $3
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = $3
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY($4 :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = $5 :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ $5 :: jsonb
-			END
+			AND potential_job.provisioner = ANY($4 :: provisioner_type [ ])
+			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND provisioner_tagset_contains($5 :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -5546,11 +5551,11 @@ WHERE
 `
 
 type AcquireProvisionerJobParams struct {
-	StartedAt      sql.NullTime      `db:"started_at" json:"started_at"`
-	WorkerID       uuid.NullUUID     `db:"worker_id" json:"worker_id"`
-	OrganizationID uuid.UUID         `db:"organization_id" json:"organization_id"`
-	Types          []ProvisionerType `db:"types" json:"types"`
-	Tags           json.RawMessage   `db:"tags" json:"tags"`
+	StartedAt       sql.NullTime      `db:"started_at" json:"started_at"`
+	WorkerID        uuid.NullUUID     `db:"worker_id" json:"worker_id"`
+	OrganizationID  uuid.UUID         `db:"organization_id" json:"organization_id"`
+	Types           []ProvisionerType `db:"types" json:"types"`
+	ProvisionerTags json.RawMessage   `db:"provisioner_tags" json:"provisioner_tags"`
 }
 
 // Acquires the lock for a single job that isn't started, completed,
@@ -5565,7 +5570,7 @@ func (q *sqlQuerier) AcquireProvisionerJob(ctx context.Context, arg AcquireProvi
 		arg.WorkerID,
 		arg.OrganizationID,
 		pq.Array(arg.Types),
-		arg.Tags,
+		arg.ProvisionerTags,
 	)
 	var i ProvisionerJob
 	err := row.Scan(
@@ -9689,7 +9694,7 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
-	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.debug_context
+	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims
 FROM
 	user_links
 INNER JOIN
@@ -9712,14 +9717,14 @@ func (q *sqlQuerier) GetUserLinkByLinkedID(ctx context.Context, linkedID string)
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
 
 const getUserLinkByUserIDLoginType = `-- name: GetUserLinkByUserIDLoginType :one
 SELECT
-	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 FROM
 	user_links
 WHERE
@@ -9743,13 +9748,13 @@ func (q *sqlQuerier) GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUs
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
 
 const getUserLinksByUserID = `-- name: GetUserLinksByUserID :many
-SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context FROM user_links WHERE user_id = $1
+SELECT user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims FROM user_links WHERE user_id = $1
 `
 
 func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error) {
@@ -9770,7 +9775,7 @@ func (q *sqlQuerier) GetUserLinksByUserID(ctx context.Context, userID uuid.UUID)
 			&i.OAuthExpiry,
 			&i.OAuthAccessTokenKeyID,
 			&i.OAuthRefreshTokenKeyID,
-			&i.DebugContext,
+			&i.Claims,
 		); err != nil {
 			return nil, err
 		}
@@ -9796,22 +9801,22 @@ INSERT INTO
 		oauth_refresh_token,
 		oauth_refresh_token_key_id,
 		oauth_expiry,
-	    debug_context
+		claims
 	)
 VALUES
-	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	( $1, $2, $3, $4, $5, $6, $7, $8, $9 ) RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type InsertUserLinkParams struct {
-	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
-	LoginType              LoginType       `db:"login_type" json:"login_type"`
-	LinkedID               string          `db:"linked_id" json:"linked_id"`
-	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
-	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
+	LinkedID               string         `db:"linked_id" json:"linked_id"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	Claims                 UserLinkClaims `db:"claims" json:"claims"`
 }
 
 func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParams) (UserLink, error) {
@@ -9824,7 +9829,7 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
-		arg.DebugContext,
+		arg.Claims,
 	)
 	var i UserLink
 	err := row.Scan(
@@ -9836,9 +9841,52 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
+}
+
+const oIDCClaimFields = `-- name: OIDCClaimFields :many
+SELECT
+	DISTINCT jsonb_object_keys(claims->'merged_claims')
+FROM
+	user_links
+WHERE
+    -- Only return rows where the top level key exists
+	claims ? 'merged_claims' AND
+    -- 'null' is the default value for the id_token_claims field
+	-- jsonb 'null' is not the same as SQL NULL. Strip these out.
+	jsonb_typeof(claims->'merged_claims') != 'null' AND
+	login_type = 'oidc'
+	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
+		ELSE true
+	END
+`
+
+// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
+// This query is used to generate the list of available sync fields for idp sync settings.
+func (q *sqlQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, oIDCClaimFields, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var jsonb_object_keys string
+		if err := rows.Scan(&jsonb_object_keys); err != nil {
+			return nil, err
+		}
+		items = append(items, jsonb_object_keys)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const updateUserLink = `-- name: UpdateUserLink :one
@@ -9850,20 +9898,20 @@ SET
 	oauth_refresh_token = $3,
 	oauth_refresh_token_key_id = $4,
 	oauth_expiry = $5,
-	debug_context = $6
+	claims = $6
 WHERE
-	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id = $7 AND login_type = $8 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type UpdateUserLinkParams struct {
-	OAuthAccessToken       string          `db:"oauth_access_token" json:"oauth_access_token"`
-	OAuthAccessTokenKeyID  sql.NullString  `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
-	OAuthRefreshToken      string          `db:"oauth_refresh_token" json:"oauth_refresh_token"`
-	OAuthRefreshTokenKeyID sql.NullString  `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	OAuthExpiry            time.Time       `db:"oauth_expiry" json:"oauth_expiry"`
-	DebugContext           json.RawMessage `db:"debug_context" json:"debug_context"`
-	UserID                 uuid.UUID       `db:"user_id" json:"user_id"`
-	LoginType              LoginType       `db:"login_type" json:"login_type"`
+	OAuthAccessToken       string         `db:"oauth_access_token" json:"oauth_access_token"`
+	OAuthAccessTokenKeyID  sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
+	OAuthRefreshToken      string         `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+	OAuthExpiry            time.Time      `db:"oauth_expiry" json:"oauth_expiry"`
+	Claims                 UserLinkClaims `db:"claims" json:"claims"`
+	UserID                 uuid.UUID      `db:"user_id" json:"user_id"`
+	LoginType              LoginType      `db:"login_type" json:"login_type"`
 }
 
 func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParams) (UserLink, error) {
@@ -9873,7 +9921,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		arg.OAuthRefreshToken,
 		arg.OAuthRefreshTokenKeyID,
 		arg.OAuthExpiry,
-		arg.DebugContext,
+		arg.Claims,
 		arg.UserID,
 		arg.LoginType,
 	)
@@ -9887,7 +9935,7 @@ func (q *sqlQuerier) UpdateUserLink(ctx context.Context, arg UpdateUserLinkParam
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
@@ -9898,7 +9946,7 @@ UPDATE
 SET
 	linked_id = $1
 WHERE
-	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, debug_context
+	user_id = $2 AND login_type = $3 RETURNING user_id, login_type, linked_id, oauth_access_token, oauth_refresh_token, oauth_expiry, oauth_access_token_key_id, oauth_refresh_token_key_id, claims
 `
 
 type UpdateUserLinkedIDParams struct {
@@ -9919,7 +9967,7 @@ func (q *sqlQuerier) UpdateUserLinkedID(ctx context.Context, arg UpdateUserLinke
 		&i.OAuthExpiry,
 		&i.OAuthAccessTokenKeyID,
 		&i.OAuthRefreshTokenKeyID,
-		&i.DebugContext,
+		&i.Claims,
 	)
 	return i, err
 }
@@ -14110,9 +14158,124 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
+const getWorkspaceModulesByJobID = `-- name: GetWorkspaceModulesByJobID :many
+SELECT
+	id, job_id, transition, source, version, key, created_at
+FROM
+	workspace_modules
+WHERE
+	job_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceModulesByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceModule
+	for rows.Next() {
+		var i WorkspaceModule
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Transition,
+			&i.Source,
+			&i.Version,
+			&i.Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceModulesCreatedAfter = `-- name: GetWorkspaceModulesCreatedAfter :many
+SELECT id, job_id, transition, source, version, key, created_at FROM workspace_modules WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceModulesCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceModule
+	for rows.Next() {
+		var i WorkspaceModule
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Transition,
+			&i.Source,
+			&i.Version,
+			&i.Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceModule = `-- name: InsertWorkspaceModule :one
+INSERT INTO
+	workspace_modules (id, job_id, transition, source, version, key, created_at)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, job_id, transition, source, version, key, created_at
+`
+
+type InsertWorkspaceModuleParams struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Source     string              `db:"source" json:"source"`
+	Version    string              `db:"version" json:"version"`
+	Key        string              `db:"key" json:"key"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceModule,
+		arg.ID,
+		arg.JobID,
+		arg.Transition,
+		arg.Source,
+		arg.Version,
+		arg.Key,
+		arg.CreatedAt,
+	)
+	var i WorkspaceModule
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Transition,
+		&i.Source,
+		&i.Version,
+		&i.Key,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14133,6 +14296,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.ModulePath,
 	)
 	return i, err
 }
@@ -14212,7 +14376,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14239,6 +14403,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14255,7 +14420,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14282,6 +14447,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14297,7 +14463,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -14320,6 +14486,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14336,9 +14503,9 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -14352,6 +14519,7 @@ type InsertWorkspaceResourceParams struct {
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
+	ModulePath   sql.NullString      `db:"module_path" json:"module_path"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -14366,6 +14534,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Icon,
 		arg.InstanceType,
 		arg.DailyCost,
+		arg.ModulePath,
 	)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -14379,6 +14548,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.ModulePath,
 	)
 	return i, err
 }

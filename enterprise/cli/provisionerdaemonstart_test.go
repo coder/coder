@@ -236,7 +236,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		var daemons []codersdk.ProvisionerDaemon
 		var err error
 		require.Eventually(t, func() bool {
-			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
 			if err != nil {
 				return false
 			}
@@ -282,7 +282,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
-			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID)
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
 			if err != nil {
 				return false
 			}
@@ -376,7 +376,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
-			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID)
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
 			if err != nil {
 				return false
 			}

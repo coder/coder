@@ -80,7 +80,7 @@ jobs:
               - "cmd/**"
               - "coderd/**"
               - "enterprise/**"
-              - "examples/*"
+              - "examples/**"
               - "helm/**"
               - "provisioner/**"
               - "provisionerd/**"

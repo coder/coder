@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -314,11 +315,21 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
-		nil,
-	)
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemon, error) {
+	baseURL := fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String())
+
+	queryParams := url.Values{}
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
+	}
+
+	queryParams.Add("tags", string(tagsJSON))
+	if len(queryParams) > 0 {
+		baseURL = fmt.Sprintf("%s?%s", baseURL, queryParams.Encode())
+	}
+
+	res, err := c.Request(ctx, http.MethodGet, baseURL, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

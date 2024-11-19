@@ -38,7 +38,7 @@ func TestPubsub(t *testing.T) {
 	t.Run("Postgres", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
@@ -67,7 +67,7 @@ func TestPubsub(t *testing.T) {
 	t.Run("PostgresCloseCancel", func(t *testing.T) {
 		ctx, cancelFunc := context.WithCancel(context.Background())
 		defer cancelFunc()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
@@ -82,7 +82,7 @@ func TestPubsub(t *testing.T) {
 	t.Run("NotClosedOnCancelContext", func(t *testing.T) {
 		ctx, cancel := context.WithCancel(context.Background())
 		defer cancel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
@@ -117,7 +117,7 @@ func TestPubsub_ordering(t *testing.T) {
 
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	defer cancelFunc()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
@@ -300,7 +300,7 @@ func TestMeasureLatency(t *testing.T) {
 
 	newPubsub := func() (pubsub.Pubsub, func()) {
 		ctx, cancel := context.WithCancel(context.Background())
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		connectionURL, err := dbtestutil.Open(t)
 		require.NoError(t, err)
 		db, err := sql.Open("postgres", connectionURL)
@@ -318,7 +318,7 @@ func TestMeasureLatency(t *testing.T) {
 	t.Run("MeasureLatency", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ps, done := newPubsub()
 		defer done()
 
@@ -334,7 +334,7 @@ func TestMeasureLatency(t *testing.T) {
 	t.Run("MeasureLatencyRecvTimeout", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctrl := gomock.NewController(t)
 		ps := psmock.NewMockPubsub(ctrl)
 

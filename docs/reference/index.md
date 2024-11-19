@@ -94,7 +94,7 @@ activity.
   do
   if pgrep -f "my_training_script.py" > /dev/null
   then
-    curl -X POST "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
+    curl -X PUT "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
     -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
     -d '{
   	"deadline": "2019-08-24T14:15:22Z"

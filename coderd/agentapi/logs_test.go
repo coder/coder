@@ -13,7 +13,6 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestBatchCreateLogs(t *testing.T) {
@@ -50,7 +50,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				return agent, nil
 			},
 			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
@@ -154,7 +154,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				return agentWithLogs, nil
 			},
 			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
@@ -202,7 +202,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				return overflowedAgent, nil
 			},
 			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil
@@ -233,7 +233,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				return agent, nil
 			},
 			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			// Test that they are ignored when nil.
 			PublishWorkspaceUpdateFn:          nil,
 			PublishWorkspaceAgentLogsUpdateFn: nil,
@@ -295,7 +295,7 @@ func TestBatchCreateLogs(t *testing.T) {
 					return agent, nil
 				},
 				Database: dbM,
-				Log:      slogtest.Make(t, nil),
+				Log:      testutil.Logger(t),
 				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
@@ -339,7 +339,7 @@ func TestBatchCreateLogs(t *testing.T) {
 					return agent, nil
 				},
 				Database: dbM,
-				Log:      slogtest.Make(t, nil),
+				Log:      testutil.Logger(t),
 				PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 					publishWorkspaceUpdateCalled = true
 					return nil
@@ -386,7 +386,7 @@ func TestBatchCreateLogs(t *testing.T) {
 				return agent, nil
 			},
 			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: func(ctx context.Context, wa *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishWorkspaceUpdateCalled = true
 				return nil

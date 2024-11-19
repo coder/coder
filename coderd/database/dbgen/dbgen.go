@@ -531,11 +531,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt:      orig.StartedAt,
-			OrganizationID: job.OrganizationID,
-			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:           must(json.Marshal(orig.Tags)),
-			WorkerID:       uuid.NullUUID{},
+			StartedAt:       orig.StartedAt,
+			OrganizationID:  job.OrganizationID,
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(orig.Tags)),
+			WorkerID:        uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
@@ -657,9 +657,27 @@ func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceR
 			Valid:  takeFirst(orig.InstanceType.Valid, false),
 		},
 		DailyCost: takeFirst(orig.DailyCost, 0),
+		ModulePath: sql.NullString{
+			String: takeFirst(orig.ModulePath.String, ""),
+			Valid:  takeFirst(orig.ModulePath.Valid, true),
+		},
 	})
 	require.NoError(t, err, "insert resource")
 	return resource
+}
+
+func WorkspaceModule(t testing.TB, db database.Store, orig database.WorkspaceModule) database.WorkspaceModule {
+	module, err := db.InsertWorkspaceModule(genCtx, database.InsertWorkspaceModuleParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		JobID:      takeFirst(orig.JobID, uuid.New()),
+		Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+		Source:     takeFirst(orig.Source, "test-source"),
+		Version:    takeFirst(orig.Version, "v1.0.0"),
+		Key:        takeFirst(orig.Key, "test-key"),
+		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace module")
+	return module
 }
 
 func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
@@ -726,7 +744,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
-		DebugContext:           takeFirstSlice(orig.DebugContext, json.RawMessage("{}")),
+		Claims:                 orig.Claims,
 	})
 
 	require.NoError(t, err, "insert link")

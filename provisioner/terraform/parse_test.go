@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestParse(t *testing.T) {
@@ -380,7 +381,7 @@ func TestParse(t *testing.T) {
 			t.Parallel()
 
 			session := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, testCase.Files),
+				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
 			})
 
 			err := session.Send(&proto.Request{Type: &proto.Request_Parse{Parse: &proto.ParseRequest{}}})

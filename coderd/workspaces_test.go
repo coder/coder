@@ -19,8 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -2502,7 +2500,7 @@ func TestWorkspaceWatcher(t *testing.T) {
 	require.NoError(t, err)
 
 	// Wait events are easier to debug with timestamped logs.
-	logger := slogtest.Make(t, nil).Named(t.Name()).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t).Named(t.Name())
 	wait := func(event string, ready func(w codersdk.Workspace) bool) {
 		for {
 			select {

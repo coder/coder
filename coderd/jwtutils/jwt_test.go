@@ -11,8 +11,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -239,7 +237,7 @@ func TestJWS(t *testing.T) {
 				Feature:  database.CryptoKeyFeatureOIDCConvert,
 				StartsAt: time.Now(),
 			})
-			log     = slogtest.Make(t, nil)
+			log     = testutil.Logger(t)
 			fetcher = &cryptokeys.DBFetcher{DB: db}
 		)
 
@@ -329,7 +327,7 @@ func TestJWE(t *testing.T) {
 				Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 				StartsAt: time.Now(),
 			})
-			log = slogtest.Make(t, nil)
+			log = testutil.Logger(t)
 
 			fetcher = &cryptokeys.DBFetcher{DB: db}
 		)

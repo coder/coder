@@ -19,13 +19,15 @@ import (
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/nettype"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 //go:generate mockgen -destination ./coordinatormock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinator
 //go:generate mockgen -destination ./coordinateemock.go -package tailnettest github.com/coder/coder/v2/tailnet Coordinatee
+//go:generate mockgen -destination ./workspaceupdatesprovidermock.go -package tailnettest github.com/coder/coder/v2/tailnet WorkspaceUpdatesProvider
+//go:generate mockgen -destination ./subscriptionmock.go -package tailnettest github.com/coder/coder/v2/tailnet Subscription
 
 type derpAndSTUNCfg struct {
 	DisableSTUN    bool
@@ -48,7 +50,7 @@ func RunDERPAndSTUN(t *testing.T, opts ...DERPAndStunOption) (*tailcfg.DERPMap, 
 	for _, o := range opts {
 		o(cfg)
 	}
-	logf := tailnet.Logger(slogtest.Make(t, nil))
+	logf := tailnet.Logger(testutil.Logger(t))
 	d := derp.NewServer(key.NewNode(), logf)
 	server := httptest.NewUnstartedServer(derphttp.Handler(d))
 	server.Config.ErrorLog = tslogger.StdLogger(logf)
@@ -100,7 +102,7 @@ func RunDERPAndSTUN(t *testing.T, opts ...DERPAndStunOption) (*tailcfg.DERPMap, 
 // only allows WebSockets through it. Many proxies do not support
 // upgrading DERP, so this is a good fallback.
 func RunDERPOnlyWebSockets(t *testing.T) *tailcfg.DERPMap {
-	logf := tailnet.Logger(slogtest.Make(t, nil))
+	logf := tailnet.Logger(testutil.Logger(t))
 	d := derp.NewServer(key.NewNode(), logf)
 	handler := derphttp.Handler(d)
 	var closeFunc func()
