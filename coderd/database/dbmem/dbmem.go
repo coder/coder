@@ -6965,7 +6965,7 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 
 		if !workspace.DormantAt.Valid &&
 			template.TimeTilDormant > 0 &&
-			now.Sub(workspace.LastUsedAt) > time.Duration(template.TimeTilDormant) {
+			now.Sub(workspace.LastUsedAt) >= time.Duration(template.TimeTilDormant) {
 			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
 				ID:   workspace.ID,
 				Name: workspace.Name,
@@ -9955,7 +9955,7 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+func (q *FakeQuerier) UpdateWorkspaceNextStartAt(_ context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

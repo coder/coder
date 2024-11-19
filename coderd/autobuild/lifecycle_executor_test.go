@@ -1084,6 +1084,10 @@ func TestNotifications(t *testing.T) {
 				IncludeProvisionerDaemon: true,
 				NotificationsEnqueuer:    &notifyEnq,
 				TemplateScheduleStore: schedule.MockTemplateScheduleStore{
+					SetFn: func(ctx context.Context, db database.Store, template database.Template, options schedule.TemplateScheduleOptions) (database.Template, error) {
+						template.TimeTilDormant = int64(options.TimeTilDormant)
+						return schedule.NewAGPLTemplateScheduleStore().Set(ctx, db, template, options)
+					},
 					GetFn: func(_ context.Context, _ database.Store, _ uuid.UUID) (schedule.TemplateScheduleOptions, error) {
 						return schedule.TemplateScheduleOptions{
 							UserAutostartEnabled: false,
@@ -1100,7 +1104,10 @@ func TestNotifications(t *testing.T) {
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID)
+		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			timeTilDormantMillis := timeTilDormant.Milliseconds()
+			ctr.TimeTilDormantMillis = &timeTilDormantMillis
+		})
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)

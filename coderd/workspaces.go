@@ -557,8 +557,8 @@ func createWorkspace(
 
 	nextStartAt := sql.NullTime{}
 	if dbAutostartSchedule.Valid {
-		time, _ := schedule.NextAutostart(dbtime.Now(), dbAutostartSchedule.String, templateSchedule)
-		nextStartAt = sql.NullTime{Valid: true, Time: time}
+		next, _ := schedule.NextAutostart(dbtime.Now(), dbAutostartSchedule.String, templateSchedule)
+		nextStartAt = sql.NullTime{Valid: true, Time: next}
 	}
 
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
@@ -883,8 +883,8 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 
 	nextStartAt := sql.NullTime{}
 	if dbSched.Valid {
-		time, _ := schedule.NextAutostart(dbtime.Now(), dbSched.String, templateSchedule)
-		nextStartAt = sql.NullTime{Valid: true, Time: time}
+		next, _ := schedule.NextAutostart(dbtime.Now(), dbSched.String, templateSchedule)
+		nextStartAt = sql.NullTime{Valid: true, Time: next}
 	}
 
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{

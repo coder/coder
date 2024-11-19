@@ -18,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/schedule"
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
@@ -311,7 +310,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 			return xerrors.Errorf("get template schedule options: %w", err)
 		}
 
-		nextStartAt, _ := schedule.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateScheduleOptions)
+		nextStartAt, _ := agpl.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateScheduleOptions)
 
 		err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
 			ID:          workspace.ID,
