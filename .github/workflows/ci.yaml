@@ -437,7 +437,6 @@ jobs:
         if: success() || failure()
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
-              
 
   # NOTE: this could instead be defined as a matrix strategy, but we want to
   # only block merging if tests on postgres 13 fail. Using a matrix strategy
