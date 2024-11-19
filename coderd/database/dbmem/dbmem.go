@@ -8436,13 +8436,13 @@ func (q *FakeQuerier) OIDCClaimFieldValues(_ context.Context, args database.OIDC
 		if !ok {
 			continue
 		}
-		switch value.(type) {
+		switch value := value.(type) {
 		case string:
-			values = append(values, value.(string))
+			values = append(values, value)
 		case []string:
-			values = append(values, value.([]string)...)
+			values = append(values, value...)
 		case []any:
-			for _, v := range value.([]any) {
+			for _, v := range value {
 				if sv, ok := v.(string); ok {
 					values = append(values, sv)
 				}
