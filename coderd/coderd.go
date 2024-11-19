@@ -1514,6 +1514,8 @@ func (api *API) Close() error {
 	if api.derpCloseFunc != nil {
 		api.derpCloseFunc()
 	}
+	// The coordinator should be closed after the agent provider, and the DERP
+	// handler.
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()

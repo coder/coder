@@ -733,7 +733,7 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 			dv := coderdtest.DeploymentValues(t, func(dv *codersdk.DeploymentValues) {
 				dv.DERP.Config.BlockDirect = serpent.Bool(!direct)
 			})
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 
 			// Create two restartable test servers with the same database.
 			client1, user, s1 := newRestartableTestServer(t, &coderdenttest.Options{
