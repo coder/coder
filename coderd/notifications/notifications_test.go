@@ -1335,6 +1335,13 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 	}
 }
 
+// normalizeLineEndings ensures that all line endings are normalized to \n.
+// Required for Windows compatibility.
+func normalizeLineEndings(content []byte) []byte {
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	return bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+}
+
 func normalizeGoldenEmail(content []byte) []byte {
 	const (
 		constantDate      = "Fri, 11 Oct 2024 09:03:06 +0000"
@@ -1355,6 +1362,7 @@ func normalizeGoldenEmail(content []byte) []byte {
 	content = dateRegex.ReplaceAll(content, []byte("Date: "+constantDate))
 	content = messageIDRegex.ReplaceAll(content, []byte("Message-Id: "+constantMessageID))
 	content = bytes.ReplaceAll(content, boundary, []byte(constantBoundary))
+	content = normalizeLineEndings(content)
 
 	return content
 }
@@ -1363,6 +1371,7 @@ func normalizeGoldenWebhook(content []byte) []byte {
 	const constantUUID = "00000000-0000-0000-0000-000000000000"
 	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+	content = normalizeLineEndings(content)
 
 	return content
 }
