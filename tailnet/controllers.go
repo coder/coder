@@ -858,6 +858,7 @@ func (r *basicResumeTokenRefresher) refresh() {
 type tunnelAllWorkspaceUpdatesController struct {
 	coordCtrl     *TunnelSrcCoordController
 	dnsHostSetter DNSHostsSetter
+	ownerUsername string
 	logger        slog.Logger
 }
 
@@ -868,18 +869,30 @@ type workspace struct {
 }
 
 // addAllDNSNames adds names for all of its agents to the given map of names
-func (w workspace) addAllDNSNames(names map[dnsname.FQDN][]netip.Addr) error {
+func (w workspace) addAllDNSNames(names map[dnsname.FQDN][]netip.Addr, owner string) error {
 	for _, a := range w.agents {
 		// TODO: technically, DNS labels cannot start with numbers, but the rules are often not
 		//       strictly enforced.
-		// TODO: support <agent>.<workspace>.<username>.coder
 		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.coder.", a.name, w.name))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
+		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.coder.", a.name, w.name, owner))
+		if err != nil {
+			return err
+		}
+		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
 	}
-	// TODO: Possibly support <workspace>.coder. alias if there is only one agent
+	if len(w.agents) == 1 {
+		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.coder.", w.name))
+		if err != nil {
+			return err
+		}
+		for _, a := range w.agents {
+			names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
+		}
+	}
 	return nil
 }
 
@@ -895,6 +908,7 @@ func (t *tunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		logger:         t.logger,
 		coordCtrl:      t.coordCtrl,
 		dnsHostsSetter: t.dnsHostSetter,
+		ownerUsername:  t.ownerUsername,
 		recvLoopDone:   make(chan struct{}),
 		workspaces:     make(map[uuid.UUID]*workspace),
 	}
@@ -908,6 +922,7 @@ type tunnelUpdater struct {
 	client         WorkspaceUpdatesClient
 	coordCtrl      *TunnelSrcCoordController
 	dnsHostsSetter DNSHostsSetter
+	ownerUsername  string
 	recvLoopDone   chan struct{}
 
 	// don't need the mutex since only manipulated by the recvLoop
@@ -1088,7 +1103,7 @@ func (t *tunnelUpdater) allAgentIDs() []uuid.UUID {
 func (t *tunnelUpdater) allDNSNames() map[dnsname.FQDN][]netip.Addr {
 	names := make(map[dnsname.FQDN][]netip.Addr)
 	for _, w := range t.workspaces {
-		err := w.addAllDNSNames(names)
+		err := w.addAllDNSNames(names, t.ownerUsername)
 		if err != nil {
 			// This should never happen in production, because converting the FQDN only fails
 			// if names are too long, and we put strict length limits on agent, workspace, and user
@@ -1102,13 +1117,28 @@ func (t *tunnelUpdater) allDNSNames() map[dnsname.FQDN][]netip.Addr {
 	return names
 }
 
+type TunnelAllOption func(t *tunnelAllWorkspaceUpdatesController)
+
+// WithDNS configures the tunnelAllWorkspaceUpdatesController to set DNS names for all workspaces
+// and agents it learns about.
+func WithDNS(d DNSHostsSetter, ownerUsername string) TunnelAllOption {
+	return func(t *tunnelAllWorkspaceUpdatesController) {
+		t.dnsHostSetter = d
+		t.ownerUsername = ownerUsername
+	}
+}
+
 // NewTunnelAllWorkspaceUpdatesController creates a WorkspaceUpdatesController that creates tunnels
 // (via the TunnelSrcCoordController) to all agents received over the WorkspaceUpdates RPC. If a
 // DNSHostSetter is provided, it also programs DNS hosts based on the agent and workspace names.
 func NewTunnelAllWorkspaceUpdatesController(
-	logger slog.Logger, c *TunnelSrcCoordController, d DNSHostsSetter,
+	logger slog.Logger, c *TunnelSrcCoordController, opts ...TunnelAllOption,
 ) WorkspaceUpdatesController {
-	return &tunnelAllWorkspaceUpdatesController{logger: logger, coordCtrl: c, dnsHostSetter: d}
+	t := &tunnelAllWorkspaceUpdatesController{logger: logger, coordCtrl: c}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 // NewController creates a new Controller without running it
