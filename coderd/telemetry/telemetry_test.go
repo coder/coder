@@ -133,7 +133,7 @@ func TestTelemetry(t *testing.T) {
 		})
 		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
 			JobID:   pj.ID,
-			Source:  "internal-url.com/some-module",
+			Source:  "https://internal-url.com/some-module",
 			Version: "1.0.0",
 		})
 		_, snapshot := collectSnapshot(t, db, nil)
@@ -142,9 +142,9 @@ func TestTelemetry(t *testing.T) {
 		sort.Slice(modules, func(i, j int) bool {
 			return modules[i].Source < modules[j].Source
 		})
-		require.Equal(t, modules[0].Source, "921c61d6f3eef5118f3cae658d1518b378c5b02a4955a766c791440894d989c5")
+		require.Equal(t, modules[0].Source, "ed662ec0396db67e77119f14afcb9253574cc925b04a51d4374bcb1eae299f5d")
 		require.Equal(t, modules[0].Version, "92521fc3cbd964bdc9f584a991b89fddaa5754ed1cc96d6d42445338669c1305")
-		require.Equal(t, modules[0].SourceType, telemetry.ModuleSourceTypeUnknown)
+		require.Equal(t, modules[0].SourceType, telemetry.ModuleSourceTypeHTTP)
 		require.Equal(t, modules[1].Source, "registry.coder.com/terraform/aws")
 		require.Equal(t, modules[1].Version, "1.0.0")
 		require.Equal(t, modules[1].SourceType, telemetry.ModuleSourceTypeCoderRegistry)
