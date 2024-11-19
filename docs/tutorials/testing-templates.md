@@ -21,12 +21,12 @@ ensures your templates are validated, tested, and promoted seamlessly.
 
 - Install and configure Coder CLI in your environment.
 - Install Terraform CLI in your CI environment.
-- Configure [user roles and permissions](../admin/users/groups-roles.md#roles) for your Coder instance.
+- Configure [user roles and permissions](../admin/users/groups-roles.md#roles)
+  for your Coder instance.
 
 ## Example GitHub Action Workflow
 
-This example workflow tests and publishes a template using GitHub
-Actions.
+This example workflow tests and publishes a template using GitHub Actions.
 
 The workflow:
 
