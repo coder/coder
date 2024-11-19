@@ -837,7 +837,7 @@ Allow administrators to enable Terraform debug output.
 | Environment | <code>$CODER_ADDITIONAL_CSP_POLICY</code>        |
 | YAML        | <code>networking.http.additionalCSPPolicy</code> |
 
-Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. 'script-src https://example.com'.
+Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
 
 ### --dangerous-allow-path-app-sharing
 

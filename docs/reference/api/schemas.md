@@ -1757,6 +1757,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"scheme": "string",
 			"user": {}
 		},
+		"additional_csp_policy": ["string"],
 		"address": {
 			"host": "string",
 			"port": "string"
@@ -2181,6 +2182,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"scheme": "string",
 		"user": {}
 	},
+	"additional_csp_policy": ["string"],
 	"address": {
 		"host": "string",
 		"port": "string"
@@ -2515,6 +2517,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
 | `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |

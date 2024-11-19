@@ -139,6 +139,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
 			"scheme": "string",
 			"user": {}
 		},
+		"additional_csp_policy": ["string"],
 		"address": {
 			"host": "string",
 			"port": "string"

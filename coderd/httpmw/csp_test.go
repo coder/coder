@@ -34,6 +34,6 @@ func TestCSPConnect(t *testing.T) {
 		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), fmt.Sprintf("wss://%s", e), "Content-Security-Policy header should contain wss://%s", e)
 	}
 	for _, e := range expectedMedia {
-		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), fmt.Sprintf("%s", e), "Content-Security-Policy header should contain %s", e)
+		require.Containsf(t, rw.Header().Get("Content-Security-Policy"), e, "Content-Security-Policy header should contain %s", e)
 	}
 }
