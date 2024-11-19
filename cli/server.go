@@ -928,7 +928,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
 				defer notificationReportGenerator.Close()
 			} else {
-				logger.Info(ctx, "notifications disabled as there are no notification methods configured")
+				cliui.Info(inv.Stdout, "Notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details.")
 			}
 
 			// Since errCh only has one buffered slot, all routines
