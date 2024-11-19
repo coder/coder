@@ -14,6 +14,13 @@ import (
 	"github.com/coder/coder/v2/vpn"
 )
 
+const (
+	ErrDupReadFD  = -2
+	ErrDupWriteFD = -3
+	ErrOpenPipe   = -4
+	ErrNewTunnel  = -5
+)
+
 // OpenTunnel creates a new VPN tunnel by `dup`ing the provided 'PIPE'
 // file descriptors for reading, writing, and logging.
 //
@@ -23,20 +30,20 @@ func OpenTunnel(cReadFD, cWriteFD int32) int32 {
 
 	readFD, err := unix.Dup(int(cReadFD))
 	if err != nil {
-		return -1
+		return ErrDupReadFD
 	}
 
 	writeFD, err := unix.Dup(int(cWriteFD))
 	if err != nil {
 		unix.Close(readFD)
-		return -1
+		return ErrDupWriteFD
 	}
 
 	conn, err := vpn.NewBidirectionalPipe(uintptr(cReadFD), uintptr(cWriteFD))
 	if err != nil {
 		unix.Close(readFD)
 		unix.Close(writeFD)
-		return -1
+		return ErrOpenPipe
 	}
 
 	// Logs will be sent over the protocol
@@ -44,7 +51,7 @@ func OpenTunnel(cReadFD, cWriteFD int32) int32 {
 	if err != nil {
 		unix.Close(readFD)
 		unix.Close(writeFD)
-		return -1
+		return ErrNewTunnel
 	}
 
 	return 0
