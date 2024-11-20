@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -220,6 +221,57 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("WorkspaceTags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name     string
+			files    map[string]string
+			wantTags map[string]string
+		}{
+			{
+				name:     "empty",
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			// TODO(cian): add more test cases.
+		} {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				// Create an archive from the files provided in the test case.
+				tarFile := testutil.CreateTar(t, tt.files)
+
+				// Post the archive file
+				fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+				require.NoError(t, err)
+
+				// Create a template version from the archive
+				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+					Name:          tvName,
+					StorageMethod: codersdk.ProvisionerStorageMethodFile,
+					Provisioner:   codersdk.ProvisionerTypeTerraform,
+					FileID:        fi.ID,
+				})
+				require.NoError(t, err)
+
+				// Assert the expected provisioner job is created from the template version import
+				pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+				require.NoError(t, err)
+				require.EqualValues(t, tt.wantTags, pj.Tags)
+			})
+		}
 	})
 }
 
