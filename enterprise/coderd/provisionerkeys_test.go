@@ -151,6 +151,20 @@ func TestGetProvisionerKey(t *testing.T) {
 			success:     true,
 			expectedErr: "",
 		},
+		{
+			name:        "using unknown key",
+			useFakeKey:  true,
+			fakeKey:     "unknownKey",
+			success:     false,
+			expectedErr: "provisioner daemon key invalid",
+		},
+		{
+			name:        "no key provided",
+			useFakeKey:  true,
+			fakeKey:     "",
+			success:     false,
+			expectedErr: "provisioner daemon key required",
+		},
 	}
 
 	for _, tt := range tests {
