@@ -1522,6 +1522,12 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		// If there are no eligible provisioners at the time of insertion, add a warning.
 		if len(eligibleProvisioners) == 0 {
+			api.Logger.Warn(ctx, "no matching provisioners found for job",
+				slog.F("user_id", apiKey.UserID),
+				slog.F("job_id", jobID),
+				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
+				slog.F("tags", tags),
+			)
 			warnings = append(warnings, codersdk.TemplateVersionWarningNoMatchingProvisioners)
 		}
 
