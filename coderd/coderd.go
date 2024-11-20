@@ -1386,7 +1386,7 @@ func New(options *Options) *API {
 		v = strings.TrimSpace(v)
 		parts := strings.Split(v, " ")
 		if len(parts) < 2 {
-			cspParseErrors = errors.Join(cspParseErrors, fmt.Errorf("invalid CSP header %q, not enough parts to be valid", v))
+			cspParseErrors = errors.Join(cspParseErrors, xerrors.Errorf("invalid CSP header %q, not enough parts to be valid", v))
 			continue
 		}
 		additionalCSPHeaders[httpmw.CSPFetchDirective(strings.ToLower(parts[0]))] = parts[1:]
