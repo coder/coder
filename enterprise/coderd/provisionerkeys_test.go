@@ -135,13 +135,113 @@ func TestProvisionerKeys(t *testing.T) {
 	require.ErrorContains(t, err, "reserved")
 }
 
-func TestProvisionerKey(t *testing.T) {
+func TestGetProvisionerKey(t *testing.T) {
 	t.Parallel()
-	t.Run("GetKey", func(t *testing.T) {
+
+	tests := []struct {
+		name        string
+		useFakeKey  bool
+		fakeKey     string
+		success     bool
+		expectedErr string
+	}{
+		{
+			name:        "ok",
+			success:     true,
+			expectedErr: "",
+		},
+		{
+			name:        "using unknown key",
+			useFakeKey:  true,
+			fakeKey:     "unknownKey",
+			success:     false,
+			expectedErr: "provisioner daemon key invalid",
+		},
+		{
+			name:        "no key provided",
+			useFakeKey:  true,
+			fakeKey:     "",
+			success:     false,
+			expectedErr: "provisioner daemon key required",
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitShort)
+			dv := coderdtest.DeploymentValues(t)
+			client, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					DeploymentValues: dv,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureMultipleOrganizations:      1,
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+			})
+
+			//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+			key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+				Name: "my-test-key",
+				Tags: map[string]string{"key1": "value1", "key2": "value2"},
+			})
+			require.NoError(t, err)
+
+			pk := key.Key
+			if tt.useFakeKey {
+				pk = tt.fakeKey
+			}
+
+			fetchedKey, err := client.GetProvisionerKey(ctx, pk)
+			if !tt.success {
+				require.ErrorContains(t, err, tt.expectedErr)
+			} else {
+				require.NoError(t, err)
+				require.Equal(t, fetchedKey.Name, "my-test-key")
+				require.Equal(t, fetchedKey.Tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
+			}
+		})
+	}
+
+	t.Run("TestPSK", func(t *testing.T) {
+		t.Parallel()
+		const testPSK = "psk-testing-purpose"
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dv := coderdtest.DeploymentValues(t)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: testPSK,
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-test-key",
+			Tags: map[string]string{"key1": "value1", "key2": "value2"},
+		})
+		require.NoError(t, err)
+
+		fetchedKey, err := client.GetProvisionerKey(ctx, testPSK)
+		require.ErrorContains(t, err, "provisioner daemon key invalid")
+		require.Empty(t, fetchedKey)
+	})
+
+	t.Run("TestSessionToken", func(t *testing.T) {
 		t.Parallel()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
-
 		dv := coderdtest.DeploymentValues(t)
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			Options: &coderdtest.Options{
@@ -155,20 +255,15 @@ func TestProvisionerKey(t *testing.T) {
 			},
 		})
 
-		// nolint:gocritic
-		key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 			Name: "my-test-key",
 			Tags: map[string]string{"key1": "value1", "key2": "value2"},
 		})
 		require.NoError(t, err)
 
-		fetchedKey, err := client.GetProvisionerKey(ctx, key.Key)
-		require.NoError(t, err)
-		require.Equal(t, fetchedKey.Name, "my-test-key")
-		require.Equal(t, fetchedKey.Tags, codersdk.ProvisionerKeyTags{"key1": "value1", "key2": "value2"})
-
-		erroneousPK, err := client.GetProvisionerKey(ctx, "abcdefghijklmnopqrstuvwxyz01234567890123456")
-		require.Empty(t, erroneousPK)
-		require.Error(t, err)
+		fetchedKey, err := client.GetProvisionerKey(ctx, client.SessionToken())
+		require.ErrorContains(t, err, "provisioner daemon key invalid")
+		require.Empty(t, fetchedKey)
 	})
 }

@@ -118,7 +118,7 @@ Configure how emails are sent.
       --email-hello string, $CODER_EMAIL_HELLO (default: localhost)
           The hostname identifying the SMTP server.
 
-      --email-smarthost host:port, $CODER_EMAIL_SMARTHOST (default: localhost:587)
+      --email-smarthost string, $CODER_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
 
 EMAIL / EMAIL AUTHENTICATION OPTIONS: 
@@ -413,7 +413,7 @@ Configure how email notifications are sent.
           The hostname identifying the SMTP server.
           DEPRECATED: Use --email-hello instead.
 
-      --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST
+      --notifications-email-smarthost string, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
           DEPRECATED: Use --email-smarthost instead.
 
