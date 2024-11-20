@@ -4,6 +4,7 @@
 package agentexec
 
 import (
+	"flag"
 	"fmt"
 	"os"
 	"os/exec"
@@ -19,7 +20,14 @@ import (
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI(args []string, environ []string) error {
+	// We lock the OS thread here to avoid a race conditino where the nice priority
+	// we get is on a different thread from the one we set it on.
 	runtime.LockOSThread()
+
+	nice := flag.Int(niceArg, 0, "")
+	oom := flag.Int(oomArg, 0, "")
+
+	flag.Parse()
 
 	if runtime.GOOS != "linux" {
 		return xerrors.Errorf("agent-exec is only supported on Linux")
@@ -35,30 +43,30 @@ func CLI(args []string, environ []string) error {
 	pid := os.Getpid()
 
 	var err error
-	nice, ok := envValInt(environ, EnvProcNiceScore)
-	if !ok {
+	if nice == nil {
 		// If an explicit nice score isn't set, we use the default.
-		nice, err = defaultNiceScore()
+		n, err := defaultNiceScore()
 		if err != nil {
 			return xerrors.Errorf("get default nice score: %w", err)
 		}
+		nice = &n
 	}
 
-	oomscore, ok := envValInt(environ, EnvProcOOMScore)
-	if !ok {
+	if oom == nil {
 		// If an explicit oom score isn't set, we use the default.
-		oomscore, err = defaultOOMScore()
+		o, err := defaultOOMScore()
 		if err != nil {
 			return xerrors.Errorf("get default oom score: %w", err)
 		}
+		oom = &o
 	}
 
-	err = unix.Setpriority(unix.PRIO_PROCESS, 0, nice)
+	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
 	if err != nil {
 		return xerrors.Errorf("set nice score: %w", err)
 	}
 
-	err = writeOOMScoreAdj(pid, oomscore)
+	err = writeOOMScoreAdj(pid, *oom)
 	if err != nil {
 		return xerrors.Errorf("set oom score: %w", err)
 	}

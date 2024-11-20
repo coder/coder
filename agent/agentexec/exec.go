@@ -2,12 +2,12 @@ package agentexec
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"runtime"
 	"strconv"
-	"strings"
 
 	"golang.org/x/xerrors"
 )
@@ -25,8 +25,7 @@ const (
 // is returned. All instances of exec.Cmd should flow through this function to ensure
 // proper resource constraints are applied to the child process.
 func CommandContext(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
-	environ := os.Environ()
-	_, enabled := envVal(environ, EnvProcPrioMgmt)
+	_, enabled := os.LookupEnv(EnvProcPrioMgmt)
 	if runtime.GOOS != "linux" || !enabled {
 		return exec.CommandContext(ctx, cmd, args...), nil
 	}
@@ -41,14 +40,24 @@ func CommandContext(ctx context.Context, cmd string, args ...string) (*exec.Cmd,
 		return nil, xerrors.Errorf("eval symlinks: %w", err)
 	}
 
-	args = append([]string{"agent-exec", cmd}, args...)
-	return exec.CommandContext(ctx, bin, args...), nil
+	execArgs := []string{"agent-exec"}
+	if score, ok := envValInt(EnvProcOOMScore); ok {
+		execArgs = append(execArgs, oomScoreArg(score))
+	}
+
+	if score, ok := envValInt(EnvProcNiceScore); ok {
+		execArgs = append(execArgs, niceScoreArg(score))
+	}
+	execArgs = append(execArgs, "--", cmd)
+	execArgs = append(execArgs, args...)
+
+	return exec.CommandContext(ctx, bin, execArgs...), nil
 }
 
 // envValInt searches for a key in a list of environment variables and parses it to an int.
 // If the key is not found or cannot be parsed, returns 0 and false.
-func envValInt(env []string, key string) (int, bool) {
-	val, ok := envVal(env, key)
+func envValInt(key string) (int, bool) {
+	val, ok := os.LookupEnv(key)
 	if !ok {
 		return 0, false
 	}
@@ -60,14 +69,15 @@ func envValInt(env []string, key string) (int, bool) {
 	return i, true
 }
 
-// envVal searches for a key in a list of environment variables and returns its value.
-// If the key is not found, returns empty string and false.
-func envVal(env []string, key string) (string, bool) {
-	prefix := key + "="
-	for _, e := range env {
-		if strings.HasPrefix(e, prefix) {
-			return strings.TrimPrefix(e, prefix), true
-		}
-	}
-	return "", false
+const (
+	niceArg = "coder-nice"
+	oomArg  = "coder-oom"
+)
+
+func niceScoreArg(score int) string {
+	return fmt.Sprintf("--%s=%d", niceArg, score)
+}
+
+func oomScoreArg(score int) string {
+	return fmt.Sprintf("--%s=%d", oomArg, score)
 }

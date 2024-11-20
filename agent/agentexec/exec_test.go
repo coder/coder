@@ -61,7 +61,59 @@ func TestExec(t *testing.T) {
 			cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
 			require.NoError(t, err)
 			require.Equal(t, executable, cmd.Path)
-			require.Equal(t, []string{executable, "agent-exec", "sh", "-c", "sleep"}, cmd.Args)
+			require.Equal(t, []string{executable, "agent-exec", "--", "sh", "-c", "sleep"}, cmd.Args)
+		})
+
+		t.Run("Nice", func(t *testing.T) {
+			t.Setenv(agentexec.EnvProcPrioMgmt, "hello")
+			t.Setenv(agentexec.EnvProcNiceScore, "10")
+
+			if runtime.GOOS != "linux" {
+				t.Skip("skipping on linux")
+			}
+
+			executable, err := os.Executable()
+			require.NoError(t, err)
+
+			cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
+			require.NoError(t, err)
+			require.Equal(t, executable, cmd.Path)
+			require.Equal(t, []string{executable, "agent-exec", "--coder-nice=10", "--", "sh", "-c", "sleep"}, cmd.Args)
+		})
+
+		t.Run("OOM", func(t *testing.T) {
+			t.Setenv(agentexec.EnvProcPrioMgmt, "hello")
+			t.Setenv(agentexec.EnvProcOOMScore, "123")
+
+			if runtime.GOOS != "linux" {
+				t.Skip("skipping on linux")
+			}
+
+			executable, err := os.Executable()
+			require.NoError(t, err)
+
+			cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
+			require.NoError(t, err)
+			require.Equal(t, executable, cmd.Path)
+			require.Equal(t, []string{executable, "agent-exec", "--coder-oom=123", "--", "sh", "-c", "sleep"}, cmd.Args)
+		})
+
+		t.Run("Both", func(t *testing.T) {
+			t.Setenv(agentexec.EnvProcPrioMgmt, "hello")
+			t.Setenv(agentexec.EnvProcOOMScore, "432")
+			t.Setenv(agentexec.EnvProcNiceScore, "14")
+
+			if runtime.GOOS != "linux" {
+				t.Skip("skipping on linux")
+			}
+
+			executable, err := os.Executable()
+			require.NoError(t, err)
+
+			cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
+			require.NoError(t, err)
+			require.Equal(t, executable, cmd.Path)
+			require.Equal(t, []string{executable, "agent-exec", "--coder-oom=432", "--coder-nice=14", "--", "sh", "-c", "sleep"}, cmd.Args)
 		})
 	})
 }
