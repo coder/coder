@@ -321,23 +321,23 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Development containers on Coder",
-									"description": "Learn about using devcontainers in templates",
+									"title": "Development containers",
+									"description": "Learn about using dev containers in templates",
 									"path": "./admin/templates/managing-templates/devcontainers/index.md",
 									"children": [
 										{
-											"title": "Add a devcontainer template",
-											"description": "How to add a devcontainer template to Coder",
+											"title": "Add a dev container template",
+											"description": "How to add a dev container template to Coder",
 											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
 										},
 										{
-											"title": "Devcontainer security and caching",
-											"description": "Configure devcontainer authentication and caching",
+											"title": "Dev container security and caching",
+											"description": "Configure dev container authentication and caching",
 											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
 										},
 										{
-											"title": "Devcontainer releases and known issues",
-											"description": "Devcontainer releases and known issues",
+											"title": "Dev container releases and known issues",
+											"description": "Dev container releases and known issues",
 											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
 										}
 									]

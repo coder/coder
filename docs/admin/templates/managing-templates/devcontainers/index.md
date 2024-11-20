@@ -1,4 +1,4 @@
-# Development containers on Coder
+# Development containers
 
 A Development Container is an
 [open source specification](https://containers.dev/implementors/spec/) for

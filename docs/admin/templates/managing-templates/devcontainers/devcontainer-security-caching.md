@@ -1,4 +1,4 @@
-# Devcontainer security and caching
+# Dev container security and caching
 
 Ensure Envbuilder can only pull images and artifacts by configuring it with your
 existing HTTP proxies, firewalls, and artifact managers.
@@ -47,7 +47,7 @@ To support resuming from a cached image, use the
 in your template. The provider will:
 
 1. Clone the remote Git repository,
-1. Perform a 'dry-run' build of the dev container in the same manner as
+1. Perform a "dry-run" build of the dev container in the same manner as
    Envbuilder would,
 1. Check for the presence of a previously built image in the provided cache
    repository,
@@ -56,12 +56,12 @@ in your template. The provider will:
 The example templates listed above will use the provider if a remote cache
 repository is provided.
 
-If you are building your own Devcontainer template, you can consult the
+If you are building your own Dev container template, you can consult the
 [provider documentation](https://registry.terraform.io/providers/coder/envbuilder/latest/docs/resources/cached_image).
 You may also wish to consult a
 [documented example usage of the `envbuilder_cached_image` resource](https://github.com/coder/terraform-provider-envbuilder/blob/main/examples/resources/envbuilder_cached_image/envbuilder_cached_image_resource.tf).
 
 ## Next steps
 
-- [Devcontainer releases and known issues](./devcontainer-releases-known-issues.md)
+- [Dev container releases and known issues](./devcontainer-releases-known-issues.md)
 - [Dotfiles](../../../../user-guides/workspace-dotfiles.md)
