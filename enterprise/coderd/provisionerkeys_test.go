@@ -210,11 +210,11 @@ func TestGetProvisionerKey(t *testing.T) {
 
 	t.Run("TestPSK", func(t *testing.T) {
 		t.Parallel()
-
+		const testPSK = "psk-testing-purpose"
 		ctx := testutil.Context(t, testutil.WaitShort)
 		dv := coderdtest.DeploymentValues(t)
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
-			ProvisionerDaemonPSK: "psk-testing-purpose",
+			ProvisionerDaemonPSK: testPSK,
 			Options: &coderdtest.Options{
 				DeploymentValues: dv,
 			},
@@ -233,8 +233,8 @@ func TestGetProvisionerKey(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		fetchedKey, err := client.GetProvisionerKey(ctx, "psk-testing-purpose")
-		require.Error(t, err)
+		fetchedKey, err := client.GetProvisionerKey(ctx, testPSK)
+		require.ErrorContains(t, err, "provisioner daemon key invalid")
 		require.Empty(t, fetchedKey)
 	})
 
@@ -263,7 +263,7 @@ func TestGetProvisionerKey(t *testing.T) {
 		require.NoError(t, err)
 
 		fetchedKey, err := client.GetProvisionerKey(ctx, client.SessionToken())
-		require.Error(t, err)
+		require.ErrorContains(t, err, "provisioner daemon key invalid")
 		require.Empty(t, fetchedKey)
 	})
 }
