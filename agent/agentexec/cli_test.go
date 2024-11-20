@@ -32,16 +32,34 @@ func TestCLI(t *testing.T) {
 		require.NoError(t, err)
 		go cmd.Wait()
 
-		waitForSentinel(t, ctx, cmd, path)
+		waitForSentinel(ctx, t, cmd, path)
 		requireOOMScore(t, cmd.Process.Pid, 123)
 		requireNiceScore(t, cmd.Process.Pid, 10)
+	})
+
+	t.Run("Defaults", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		cmd, path := cmd(ctx, t)
+		err := cmd.Start()
+		require.NoError(t, err)
+		go cmd.Wait()
+
+		waitForSentinel(ctx, t, cmd, path)
+
+		expectedNice := expectedNiceScore(t)
+		expectedOOM := expectedOOMScore(t)
+		fmt.Println("expected nice", expectedNice, "expected oom", expectedOOM)
+		requireOOMScore(t, cmd.Process.Pid, expectedOOM)
+		requireNiceScore(t, cmd.Process.Pid, expectedNice)
 	})
 }
 
 func requireNiceScore(t *testing.T, pid int, score int) {
 	t.Helper()
 
-	nice, err := unix.Getpriority(0, pid)
+	nice, err := unix.Getpriority(unix.PRIO_PROCESS, pid)
 	require.NoError(t, err)
 	require.Equal(t, score, nice)
 }
@@ -55,7 +73,7 @@ func requireOOMScore(t *testing.T, pid int, expected int) {
 	require.Equal(t, strconv.Itoa(expected), score)
 }
 
-func waitForSentinel(t *testing.T, ctx context.Context, cmd *exec.Cmd, path string) {
+func waitForSentinel(ctx context.Context, t *testing.T, cmd *exec.Cmd, path string) {
 	t.Helper()
 
 	ticker := time.NewTicker(testutil.IntervalFast)
@@ -74,17 +92,20 @@ func waitForSentinel(t *testing.T, ctx context.Context, cmd *exec.Cmd, path stri
 		select {
 		case <-ticker.C:
 		case <-ctx.Done():
-			return
+			require.NoError(t, ctx.Err())
 		}
 	}
 }
 
 func cmd(ctx context.Context, t *testing.T, args ...string) (*exec.Cmd, string) {
 	file := ""
-	cmd := exec.Command(TestBin, args...)
+	//nolint:gosec
+	cmd := exec.Command(TestBin, append([]string{"agent-exec"}, args...)...)
 	if len(args) == 0 {
+		// Generate a unique path that we can touch to indicate that we've progressed past the
+		// syscall.Exec.
 		dir := t.TempDir()
-		file = filepath.Join(dir, uniqueFile(t))
+		file = filepath.Join(dir, "sentinel")
 		//nolint:gosec
 		cmd = exec.CommandContext(ctx, TestBin, "agent-exec", "sh", "-c", fmt.Sprintf("touch %s && sleep 10m", file))
 	}
@@ -98,13 +119,42 @@ func cmd(ctx context.Context, t *testing.T, args ...string) (*exec.Cmd, string) 
 			t.Logf("cmd %q output: %s", cmd.Args, buf.String())
 		}
 
-		if cmd.Process != nil {
-			_ = cmd.Process.Kill()
-		}
+		// if cmd.Process != nil {
+		// 	_ = cmd.Process.Kill()
+		// }
 	})
 	return cmd, file
 }
 
-func uniqueFile(t *testing.T) string {
-	return fmt.Sprintf("%s-%d", strings.ReplaceAll(t.Name(), "/", "_"), time.Now().UnixNano())
+func expectedOOMScore(t *testing.T) int {
+	t.Helper()
+
+	score, err := os.ReadFile(fmt.Sprintf("/proc/%d/oom_score_adj", os.Getpid()))
+	require.NoError(t, err)
+
+	scoreInt, err := strconv.Atoi(strings.TrimSpace(string(score)))
+	require.NoError(t, err)
+
+	if scoreInt < 0 {
+		return 0
+	}
+	if scoreInt >= 998 {
+		return 1000
+	}
+	return 998
+}
+
+func expectedNiceScore(t *testing.T) int {
+	t.Helper()
+
+	score, err := unix.Getpriority(unix.PRIO_PROCESS, os.Getpid())
+	require.NoError(t, err)
+
+	// Priority is niceness + 20.
+	score -= 20
+	score += 5
+	if score > 19 {
+		return 19
+	}
+	return score
 }
