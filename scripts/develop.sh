@@ -203,7 +203,7 @@ fatal() {
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
 	template_name="docker"
-	# Determine the name of the default org with some jq hax!
+	# Determine the name of the default org with some jq hacks!
 	first_org_name=$("${CODER_DEV_SHIM}" organizations show me -o json | jq -r '.[] | select(.is_default) | .name')
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
