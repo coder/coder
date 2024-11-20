@@ -792,7 +792,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
-			httpError(rw, http.StatusBadRequest, errors.New("invalid client_id"))
+			httpError(rw, http.StatusBadRequest, xerrors.New("invalid client_id"))
 			return
 		}
 
@@ -1036,7 +1036,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		claims, err := f.hookUserInfo(email)
 		if err != nil {
-			httpError(rw, http.StatusBadRequest, fmt.Errorf("user info hook returned error: %w", err))
+			httpError(rw, http.StatusBadRequest, xerrors.Errorf("user info hook returned error: %w", err))
 			return
 		}
 		_ = json.NewEncoder(rw).Encode(claims)
