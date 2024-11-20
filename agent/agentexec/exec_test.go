@@ -12,9 +12,10 @@ import (
 	"github.com/coder/coder/v2/agent/agentexec"
 )
 
+//nolint:paralleltest // we need to test environment variables
 func TestExec(t *testing.T) {
+	//nolint:paralleltest // we need to test environment variables
 	t.Run("NonLinux", func(t *testing.T) {
-
 		t.Setenv(agentexec.EnvProcPrioMgmt, "true")
 
 		if runtime.GOOS == "linux" {
@@ -23,12 +24,16 @@ func TestExec(t *testing.T) {
 
 		cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
 		require.NoError(t, err)
-		require.Equal(t, "sh", cmd.Path)
-		require.Equal(t, []string{"-c", "sleep"}, cmd.Args[1:])
+
+		path, err := exec.LookPath("sh")
+		require.NoError(t, err)
+		require.Equal(t, path, cmd.Path)
+		require.Equal(t, []string{"sh", "-c", "sleep"}, cmd.Args)
 	})
 
+	//nolint:paralleltest // we need to test environment variables
 	t.Run("Linux", func(t *testing.T) {
-
+		//nolint:paralleltest // we need to test environment variables
 		t.Run("Disabled", func(t *testing.T) {
 			if runtime.GOOS != "linux" {
 				t.Skip("skipping on linux")
@@ -42,6 +47,7 @@ func TestExec(t *testing.T) {
 			require.Equal(t, []string{"sh", "-c", "sleep"}, cmd.Args)
 		})
 
+		//nolint:paralleltest // we need to test environment variables
 		t.Run("Enabled", func(t *testing.T) {
 			t.Setenv(agentexec.EnvProcPrioMgmt, "hello")
 
