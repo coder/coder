@@ -5,6 +5,6 @@ package agentexec
 
 import "golang.org/x/xerrors"
 
-func CLI(args []string, environ []string) error {
+func CLI() error {
 	return xerrors.Errorf("agent-exec is only supported on Linux")
 }
