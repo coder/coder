@@ -53,7 +53,7 @@ func CLI(args []string, environ []string) error {
 		}
 	}
 
-	err = syscall.Setpriority(syscall.PRIO_PROCESS, 0, nice)
+	err = unix.Setpriority(unix.PRIO_PROCESS, 0, nice)
 	if err != nil {
 		return xerrors.Errorf("set nice score: %w", err)
 	}

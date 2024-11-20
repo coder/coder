@@ -1,3 +1,6 @@
+//go:build linux
+// +build linux
+
 package agentexec_test
 
 import (
@@ -7,7 +10,6 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"strconv"
 	"strings"
 	"syscall"
@@ -22,10 +24,6 @@ import (
 
 func TestCLI(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS != "linux" {
-		t.Skip("tests only valid on linux")
-	}
 
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
