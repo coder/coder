@@ -3638,6 +3638,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/provisionerkeys/{provisionerkey}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Fetch provisioner key details",
+                "operationId": "fetch-provisioner-key-details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provisioner Key",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerKey"
+                        }
+                    }
+                }
+            }
+        },
         "/regions": {
             "get": {
                 "security": [
