@@ -214,6 +214,8 @@ fatal() {
 		echo "Initializing docker template..."
 		temp_template_dir="$(mktemp -d)"
 		"${CODER_DEV_SHIM}" templates init --id "${template_name}" "${temp_template_dir}"
+		# Run terraform init so we get a terraform.lock.hcl
+		pushd "${temp_template_dir}" && terraform init && popd
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
