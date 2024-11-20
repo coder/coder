@@ -156,6 +156,13 @@ func (c *Config) RefreshToken(ctx context.Context, db database.Store, externalAu
 			externalAuthLink.OAuthRefreshToken = ""
 		}
 
+		// Unfortunately have to match exactly on the error message string.
+		// Improve the error message to account refresh tokens are deleted if
+		// invalid on our end.
+		if err.Error() == "oauth2: token expired and refresh token is not set" {
+			return externalAuthLink, InvalidTokenError("token expired, refreshing is either disabled or refreshing failed and will not be retried")
+		}
+
 		// TokenSource(...).Token() will always return the current token if the token is not expired.
 		// So this error is only returned if a refresh of the token failed.
 		return externalAuthLink, InvalidTokenError(fmt.Sprintf("refresh token: %s", err.Error()))
