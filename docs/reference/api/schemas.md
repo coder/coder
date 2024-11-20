@@ -1884,10 +1884,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 				"force_tls": true,
 				"from": "string",
 				"hello": "string",
-				"smarthost": {
-					"host": "string",
-					"port": "string"
-				},
+				"smarthost": "string",
 				"tls": {
 					"ca_file": "string",
 					"cert_file": "string",
@@ -2311,10 +2308,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"force_tls": true,
 			"from": "string",
 			"hello": "string",
-			"smarthost": {
-				"host": "string",
-				"port": "string"
-			},
+			"smarthost": "string",
 			"tls": {
 				"ca_file": "string",
 				"cert_file": "string",
@@ -3417,10 +3411,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"force_tls": true,
 		"from": "string",
 		"hello": "string",
-		"smarthost": {
-			"host": "string",
-			"port": "string"
-		},
+		"smarthost": "string",
 		"tls": {
 			"ca_file": "string",
 			"cert_file": "string",
@@ -3505,10 +3496,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"force_tls": true,
 	"from": "string",
 	"hello": "string",
-	"smarthost": {
-		"host": "string",
-		"port": "string"
-	},
+	"smarthost": "string",
 	"tls": {
 		"ca_file": "string",
 		"cert_file": "string",
@@ -3528,7 +3516,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `force_tls` | boolean                                                                        | false    |              | Force tls causes a TLS connection to be attempted.                    |
 | `from`      | string                                                                         | false    |              | The sender's address.                                                 |
 | `hello`     | string                                                                         | false    |              | The hostname identifying the SMTP server.                             |
-| `smarthost` | [serpent.HostPort](#serpenthostport)                                           | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
+| `smarthost` | string                                                                         | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
 | `tls`       | [codersdk.NotificationsEmailTLSConfig](#codersdknotificationsemailtlsconfig)   | false    |              | Tls details.                                                          |
 
 ## codersdk.NotificationsEmailTLSConfig

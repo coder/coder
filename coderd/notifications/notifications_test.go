@@ -154,7 +154,7 @@ func TestSMTPDispatch(t *testing.T) {
 	cfg := defaultNotificationsConfig(method)
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
 		From:      from,
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+		Smarthost: serpent.String(fmt.Sprintf("localhost:%d", mockSMTPSrv.PortNumber())),
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
@@ -1112,7 +1112,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				var hp serpent.HostPort
 				require.NoError(t, hp.Set(listen.Addr().String()))
-				smtpConfig.Smarthost = hp
+				smtpConfig.Smarthost = serpent.String(hp.String())
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
@@ -1523,7 +1523,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
 		From:      "danny@coder.com",
 		Hello:     "localhost",
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+		Smarthost: serpent.String(fmt.Sprintf("localhost:%d", mockSMTPSrv.PortNumber())),
 	}
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
