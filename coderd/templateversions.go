@@ -1519,10 +1519,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			WantTags:       tags,
 		}); err != nil {
 			api.Logger.Error(ctx, "failed to check eligible provisioner daemons for job", slog.Error(err))
-		}
-
-		// If there are no eligible provisioners at the time of insertion, add a warning.
-		if len(eligibleProvisioners) == 0 {
+		} else if len(eligibleProvisioners) == 0 {
+			// If there are no eligible provisioners at the time of insertion, add a warning.
+			// TODO(Cian): check provisioner last_seen?
 			api.Logger.Warn(ctx, "no matching provisioners found for job",
 				slog.F("user_id", apiKey.UserID),
 				slog.F("job_id", jobID),
