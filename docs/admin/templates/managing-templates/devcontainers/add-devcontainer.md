@@ -14,8 +14,12 @@ and builds a container from the `devcontainer.json` specified in the repo.
 ## Dashboard
 
 1. In the Coder dashboard, select **Templates** then **Create Template**.
-1. To use a [starter template](https://github.com/coder/coder/tree/main/examples/templates), select **Choose a starter template**.
-  - Select **From scratch** to create a new template and enter information and file contents manually.
+1. To use a
+   [starter template](https://github.com/coder/coder/tree/main/examples/templates),
+   select **Choose a starter template**.
+
+- Select **From scratch** to create a new template and enter information and
+  file contents manually.
 
 ## CLI
 
@@ -25,7 +29,8 @@ and builds a container from the `devcontainer.json` specified in the repo.
    coder template init --id devcontainer-kubernetes
    ```
 
-   A list of available templates is shown in the [templates_init](../../../../reference/cli/templates_init#--id) reference.
+   A list of available templates is shown in the
+   [templates_init](../../../../reference/cli/templates_init#--id) reference.
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
@@ -33,18 +38,21 @@ and builds a container from the `devcontainer.json` specified in the repo.
    cd $_ && coder templates push
    ```
 
-   You can also edit the files or make changes to the files before you push them to Coder.
+   You can also edit the files or make changes to the files before you push them
+   to Coder.
 
 ## Registry
 
-1. Go to the [Coder Registry](https://registry.coder.com/templates?tag=devcontainer) and select a dev container-compatible template.
+1. Go to the
+   [Coder Registry](https://registry.coder.com/templates?tag=devcontainer) and
+   select a dev container-compatible template.
 
 1. Copy the files to your local device, then edit them to fit your needs.
 
 1. Upload them to Coder through the CLI or dashboard:
 
    - CLI:
-  
+
      ```shell
      coder template push
      ```
@@ -53,24 +61,27 @@ and builds a container from the `devcontainer.json` specified in the repo.
 
      1. Create a `.zip` of the template files:
 
-         - On Mac or Windows, highlight the files and then right click. A "compress" option is available through the right-click context menu.
+        - On Mac or Windows, highlight the files and then right click. A
+          "compress" option is available through the right-click context menu.
 
-         - To zip the files through the command line:
+        - To zip the files through the command line:
 
-           ```shell
-           zip templates.zip Dockerfile main.tf
-           ```
+          ```shell
+          zip templates.zip Dockerfile main.tf
+          ```
 
      1. Select **Templates**.
      1. Select **Create Template**, then **Upload template**:
 
-       ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
-       
-     1. Drag the `.zip` file into the **Upload template** section and fill out the details, then select **Create template**.
+     ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
 
-       ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
-    
-     1. Once the upload completes, select **Templates** from the top to deploy it to a new workspace.
+     1. Drag the `.zip` file into the **Upload template** section and fill out
+        the details, then select **Create template**.
+
+     ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
+
+     1. Once the upload completes, select **Templates** from the top to deploy
+        it to a new workspace.
 
 </div>
 

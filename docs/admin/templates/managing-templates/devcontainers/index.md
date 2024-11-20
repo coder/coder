@@ -5,9 +5,13 @@ A Development Container is an
 defining containerized development environments which are also called
 development containers (dev containers).
 
-Use dev containers with Coder to give developers more autonomy and control over
-their environments while adding cloud-native security to standard ticket and
-approval workflows for increased self-service.
+Dev containers provide developers with increased autonomy and control over their
+Coder cloud development environments.
+
+By using dev containers, developers can customize their workspaces with tools
+pre-approved by platform teams in registries like JFrog Artifactory. This
+simplifies workflows, reduces the need for tickets and approvals, and promotes
+greater independence for developers.
 
 ## Prerequisites
 
