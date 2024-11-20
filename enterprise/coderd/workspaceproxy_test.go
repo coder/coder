@@ -7,6 +7,7 @@ import (
 	"net/http/httptest"
 	"net/http/httputil"
 	"net/url"
+	"runtime"
 	"testing"
 	"time"
 
@@ -168,10 +169,16 @@ func TestRegions(t *testing.T) {
 		require.Equal(t, proxy.Url, regions[1].PathAppURL)
 		require.Equal(t, proxy.WildcardHostname, regions[1].WildcardHostname)
 
+		waitTime := testutil.WaitShort / 10
+		// windows needs more time
+		if runtime.GOOS == "windows" {
+			waitTime = testutil.WaitShort / 5
+		}
+
 		// Unfortunately need to wait to assert createdAt/updatedAt
-		<-time.After(testutil.WaitShort / 10)
-		require.WithinDuration(t, approxCreateTime, proxy.CreatedAt, testutil.WaitShort/10)
-		require.WithinDuration(t, approxCreateTime, proxy.UpdatedAt, testutil.WaitShort/10)
+		<-time.After(waitTime)
+		require.WithinDuration(t, approxCreateTime, proxy.CreatedAt, waitTime)
+		require.WithinDuration(t, approxCreateTime, proxy.UpdatedAt, waitTime)
 	})
 
 	t.Run("RequireAuth", func(t *testing.T) {
