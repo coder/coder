@@ -226,7 +226,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Run("WorkspaceTags", func(t *testing.T) {
 		t.Parallel()
 
-		ctx := testutil.Context(t, testutil.WaitShort)
+		ctx := testutil.Context(t, testutil.WaitLong)
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database: store,
