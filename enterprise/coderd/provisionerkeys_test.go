@@ -147,7 +147,6 @@ func TestGetProvisionerKey(t *testing.T) {
 	}{
 		{
 			name:        "ok",
-			useFakeKey:  false,
 			success:     true,
 			expectedErr: "",
 		},
@@ -186,6 +185,7 @@ func TestGetProvisionerKey(t *testing.T) {
 				},
 			})
 
+			//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
 			key, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 				Name: "my-test-key",
 				Tags: map[string]string{"key1": "value1", "key2": "value2"},
@@ -207,4 +207,63 @@ func TestGetProvisionerKey(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("TestPSK", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dv := coderdtest.DeploymentValues(t)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "psk-testing-purpose",
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-test-key",
+			Tags: map[string]string{"key1": "value1", "key2": "value2"},
+		})
+		require.NoError(t, err)
+
+		fetchedKey, err := client.GetProvisionerKey(ctx, "psk-testing-purpose")
+		require.Error(t, err)
+		require.Empty(t, fetchedKey)
+	})
+
+	t.Run("TestSessionToken", func(t *testing.T) {
+		t.Parallel()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		dv := coderdtest.DeploymentValues(t)
+		client, owner := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				DeploymentValues: dv,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureMultipleOrganizations:      1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+		_, err := client.CreateProvisionerKey(ctx, owner.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "my-test-key",
+			Tags: map[string]string{"key1": "value1", "key2": "value2"},
+		})
+		require.NoError(t, err)
+
+		fetchedKey, err := client.GetProvisionerKey(ctx, client.SessionToken())
+		require.Error(t, err)
+		require.Empty(t, fetchedKey)
+	})
 }
