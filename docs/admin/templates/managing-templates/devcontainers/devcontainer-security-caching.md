@@ -32,7 +32,7 @@ of caching:
 - **Image caching**
   - Caches the entire image, skipping the build process completely (except for
     post-build
-    [lifecycle scripts](./add-devcontainer.md#devcontainer-lifecycle-scripts)).
+    [lifecycle scripts](./add-devcontainer.md#dev-container-lifecycle-scripts)).
 
 Refer to the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)

@@ -25,6 +25,8 @@ and builds a container from the `devcontainer.json` specified in the repo.
    coder template init --id devcontainer-kubernetes
    ```
 
+   A list of available templates is shown in the [templates_init](../../../../reference/cli/templates_init#--id) reference.
+
 1. `cd` into the directory and push the template to your Coder deployment:
 
    ```shell
@@ -62,11 +64,11 @@ and builds a container from the `devcontainer.json` specified in the repo.
      1. Select **Templates**.
      1. Select **Create Template**, then **Upload template**:
 
-       ![Upload template](../../../../images/admin/templates/upload-create-your-first-template.png)
+       ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
        
      1. Drag the `.zip` file into the **Upload template** section and fill out the details, then select **Create template**.
 
-       ![Upload the template files](../images/templates/upload-create-template-form.png)
+       ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
     
      1. Once the upload completes, select **Templates** from the top to deploy it to a new workspace.
 
