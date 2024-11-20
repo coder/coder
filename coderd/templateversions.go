@@ -1439,7 +1439,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	// Try to sniff template tags from the given file.
+	// Try to parse template tags from the given file.
 	tempDir, err := os.MkdirTemp("", "tfparse-*")
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1471,7 +1471,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
-	sniffedTags, err := parser.WorkspaceTagDefaults(ctx)
+	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking workspace tags",
@@ -1482,8 +1482,9 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	// Tag order precedence:
 	// 1) User-specified tags in the request
-	// 2) Tags sniffed automatically from template file
-	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, sniffedTags)
+	// 2) Tags parsed from coder_workspace_tags data source in template file
+	// 2 may clobber 1.
+	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, parsedTags)
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
