@@ -150,8 +150,6 @@ func TestRefreshToken(t *testing.T) {
 	t.Run("RefreshRetries", func(t *testing.T) {
 		t.Parallel()
 
-		// TODO: Make the test idp return this error proper. It always returns a
-		// status bad request
 		var refreshErr *oauth2.RetrieveError
 
 		ctrl := gomock.NewController(t)
