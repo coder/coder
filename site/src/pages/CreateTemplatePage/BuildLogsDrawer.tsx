@@ -12,6 +12,7 @@ import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
+import { useCompatibleProvisioners } from "modules/provisioners/useCompatibleProvisioners";
 
 type BuildLogsDrawerProps = {
 	error: unknown;
@@ -27,6 +28,31 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
+	const compatibleProvisioners = useCompatibleProvisioners(
+		templateVersion?.organization_id,
+		templateVersion?.job.tags
+	);
+	const compatibleProvisionersUnhealthy = compatibleProvisioners.reduce((allUnhealthy, provisioner) => {
+		if (!allUnhealthy) {
+			// If we've found one healthy provisioner, then we don't need to look at the rest
+			return allUnhealthy;
+		}
+		// Otherwise, all provisioners so far have been unhealthy, so we check the next one
+
+		// If a provisioner has no last_seen_at value, then it's considered unhealthy
+		if (!provisioner.last_seen_at) {
+			return allUnhealthy;
+		}
+
+		// If a provisioner has not been seen within the last 60 seconds, then it's considered unhealthy
+		const lastSeen = new Date(provisioner.last_seen_at);
+		const oneMinuteAgo = new Date(Date.now() - 60000);
+		const unhealthy = lastSeen < oneMinuteAgo;
+
+
+		return allUnhealthy && unhealthy;
+	}, true);
+
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
 
@@ -64,6 +90,18 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 						<span style={visuallyHidden}>Close build logs</span>
 					</IconButton>
 				</header>
+
+				{ !compatibleProvisioners && !logs ? (
+					// If there are no compatible provisioners, warn that this job may be stuck
+					<>No compatible provisioners</>
+				) : compatibleProvisionersUnhealthy && !logs ? (
+					// If there are compatible provisioners in the db, but they have not reported recent health checks,
+					// warn that the job might be stuck
+					<>Compatible provisioners are potentially unhealthy. Your job might be delayed</>
+				) : (
+					// If there are compatible provisioners and at least one was recently seen, no warning is necessary.
+					<></>
+				)}
 
 				{isMissingVariables ? (
 					<MissingVariablesBanner
