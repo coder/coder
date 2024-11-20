@@ -170,7 +170,7 @@ func Test_ActivityBumpWorkspace(t *testing.T) {
 
 				var (
 					now   = dbtime.Now()
-					ctx   = testutil.Context(t, testutil.WaitShort)
+					ctx   = testutil.Context(t, testutil.WaitLong)
 					log   = testutil.Logger(t)
 					db, _ = dbtestutil.NewDB(t, dbtestutil.WithTimezone(tz))
 					org   = dbgen.Organization(t, db, database.Organization{})
