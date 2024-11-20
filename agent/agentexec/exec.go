@@ -69,15 +69,18 @@ func envValInt(key string) (int, bool) {
 	return i, true
 }
 
+// The following are flags used by the agent-exec command. We use flags instead of
+// environment variables to avoid having to deal with a caller overriding the
+// environment variables.
 const (
-	niceArg = "coder-nice"
-	oomArg  = "coder-oom"
+	niceFlag = "coder-nice"
+	oomFlag  = "coder-oom"
 )
 
 func niceScoreArg(score int) string {
-	return fmt.Sprintf("--%s=%d", niceArg, score)
+	return fmt.Sprintf("--%s=%d", niceFlag, score)
 }
 
 func oomScoreArg(score int) string {
-	return fmt.Sprintf("--%s=%d", oomArg, score)
+	return fmt.Sprintf("--%s=%d", oomFlag, score)
 }
