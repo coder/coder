@@ -64,7 +64,7 @@ func TestRefreshToken(t *testing.T) {
 		_, err := config.RefreshToken(ctx, nil, link)
 		require.Error(t, err)
 		require.True(t, externalauth.IsInvalidTokenError(err))
-		require.Contains(t, err.Error(), "refreshing is disabled")
+		require.Contains(t, err.Error(), "refreshing is either disabled or refreshing failed")
 	})
 
 	// NoRefreshNoExpiry tests that an oauth token without an expiry is always valid.
