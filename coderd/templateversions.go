@@ -1483,9 +1483,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	// Tag order precedence:
 	// 1) User-specified tags in the request
 	// 2) Tags sniffed automatically from template file
-	// OLD
-	// tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
-	// NEW
 	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, sniffedTags)
 
 	var templateVersion database.TemplateVersion

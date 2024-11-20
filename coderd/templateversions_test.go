@@ -233,18 +233,105 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			Pubsub:   ps,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
-		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
 
 		for _, tt := range []struct {
-			name     string
-			files    map[string]string
-			wantTags map[string]string
+			name        string
+			files       map[string]string
+			reqTags     map[string]string
+			wantTags    map[string]string
+			expectError string
 		}{
 			{
 				name:     "empty",
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
-			// TODO(cian): add more test cases.
+			{
+				name: "main.tf with no tags",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with empty workspace tags",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {}
+					}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": "bar",
+						}
+					}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar"},
+			},
+			{
+				name: "main.tf with workspace tags and request tags",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": "bar",
+						}
+					}`,
+				},
+				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap"},
+			},
+			{
+				name: "main.tf with disallowed workspace tag value",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {
+						name = "foo"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": null_resource.test.name,
+						}
+					}`,
+				},
+				expectError: ` Unknown variable; There is no variable named "null_resource".`,
+			},
+			// We will allow coder_workspace_tags to set the scope on a template version import job
+			// BUT the user ID will be ultimately determined by the API key in the scope.
+			// TODO(Cian): Is this what we want? Or should we just ignore these provisioner
+			// tags entirely?
+			{
+				name: "main.tf with workspace tags that attempts to set user scope",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"scope": "user",
+							"owner": "12345678-1234-1234-1234-1234567890ab",
+						}
+					}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			{
+				name: "main.tf with workspace tags that attempt to clobber org ID",
+				files: map[string]string{
+					`main.tf`: `resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"scope": "organization",
+							"owner": "12345678-1234-1234-1234-1234567890ab",
+						}
+					}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
 		} {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
@@ -259,17 +346,23 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				// Create a template version from the archive
 				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
-					Name:          tvName,
-					StorageMethod: codersdk.ProvisionerStorageMethodFile,
-					Provisioner:   codersdk.ProvisionerTypeTerraform,
-					FileID:        fi.ID,
+					Name:            tvName,
+					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+					Provisioner:     codersdk.ProvisionerTypeTerraform,
+					FileID:          fi.ID,
+					ProvisionerTags: tt.reqTags,
 				})
-				require.NoError(t, err)
 
-				// Assert the expected provisioner job is created from the template version import
-				pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
-				require.NoError(t, err)
-				require.EqualValues(t, tt.wantTags, pj.Tags)
+				if tt.expectError == "" {
+					require.NoError(t, err)
+
+					// Assert the expected provisioner job is created from the template version import
+					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+					require.NoError(t, err)
+					require.EqualValues(t, tt.wantTags, pj.Tags)
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+				}
 			})
 		}
 	})
