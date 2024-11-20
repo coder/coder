@@ -6,6 +6,7 @@ import {
 import type { OrganizationSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { SquareArrowOutUpRight } from "lucide-react";
@@ -77,11 +78,12 @@ export const IdpOrgSyncPage: FC = () => {
 							onSubmit={async (data: OrganizationSyncSettings) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
+									displaySuccess("Organization sync settings updated.");
 								} catch (error) {
 									displayError(
 										getErrorMessage(
 											error,
-											"Failed to organization IdP sync settings",
+											"Failed to update organization IdP sync settings",
 										),
 									);
 								}
