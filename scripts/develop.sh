@@ -19,6 +19,7 @@ DEFAULT_PASSWORD="SomeSecurePassword!"
 password="${CODER_DEV_ADMIN_PASSWORD:-${DEFAULT_PASSWORD}}"
 use_proxy=0
 multi_org=0
+first_org="coder"
 
 args="$(getopt -o "" -l access-url:,use-proxy,agpl,debug,password:,multi-organization -- "$@")"
 eval set -- "$args"
@@ -216,8 +217,8 @@ fatal() {
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			echo "Pushing docker template to 'first-organization'..."
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org first-organization
+			echo "Pushing docker template to '${first_org}'..."
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org}"
 			if [ "${multi_org}" -gt "0" ]; then
 				echo "Pushing docker template to '${another_org}'..."
 				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"
