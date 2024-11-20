@@ -2674,6 +2674,18 @@ export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	},
 };
 
+export const MockOrganizationSyncSettings: TypesGen.OrganizationSyncSettings = {
+	field: "organization-test",
+	mapping: {
+		"idp-org-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+		],
+		"idp-org-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+	},
+	organization_assign_default: true,
+};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
