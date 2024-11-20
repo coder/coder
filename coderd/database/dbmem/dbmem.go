@@ -6955,8 +6955,7 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			build.Transition == database.WorkspaceTransitionStop &&
 			workspace.AutostartSchedule.Valid &&
 			(workspace.NextStartAt.Time.IsZero() ||
-				now.After(workspace.NextStartAt.Time) ||
-				now.Equal(workspace.NextStartAt.Time)) {
+				!now.Before(workspace.NextStartAt.Time)) {
 			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
 				ID:   workspace.ID,
 				Name: workspace.Name,
