@@ -26,7 +26,7 @@ func TestCLI(t *testing.T) {
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		cmd, path := cmd(ctx, t)
-		cmd.Env = append(cmd.Env, "CODER_PROC_NICE_SCORE=10")
+		cmd.Env = append(cmd.Env, "CODER_PROC_NICE_SCORE=12")
 		cmd.Env = append(cmd.Env, "CODER_PROC_OOM_SCORE=123")
 		err := cmd.Start()
 		require.NoError(t, err)
@@ -34,7 +34,7 @@ func TestCLI(t *testing.T) {
 
 		waitForSentinel(ctx, t, cmd, path)
 		requireOOMScore(t, cmd.Process.Pid, 123)
-		requireNiceScore(t, cmd.Process.Pid, 10)
+		requireNiceScore(t, cmd.Process.Pid, 12)
 	})
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -50,7 +50,6 @@ func TestCLI(t *testing.T) {
 
 		expectedNice := expectedNiceScore(t)
 		expectedOOM := expectedOOMScore(t)
-		fmt.Println("expected nice", expectedNice, "expected oom", expectedOOM)
 		requireOOMScore(t, cmd.Process.Pid, expectedOOM)
 		requireNiceScore(t, cmd.Process.Pid, expectedNice)
 	})
@@ -61,7 +60,8 @@ func requireNiceScore(t *testing.T, pid int, score int) {
 
 	nice, err := unix.Getpriority(unix.PRIO_PROCESS, pid)
 	require.NoError(t, err)
-	require.Equal(t, score, nice)
+	// See https://linux.die.net/man/2/setpriority#Notes
+	require.Equal(t, score, 20-nice)
 }
 
 func requireOOMScore(t *testing.T, pid int, expected int) {
@@ -108,6 +108,10 @@ func cmd(ctx context.Context, t *testing.T, args ...string) (*exec.Cmd, string) 
 		file = filepath.Join(dir, "sentinel")
 		//nolint:gosec
 		cmd = exec.CommandContext(ctx, TestBin, "agent-exec", "sh", "-c", fmt.Sprintf("touch %s && sleep 10m", file))
+		// We set this so we can also easily kill the sleep process the shell spawns.
+		cmd.SysProcAttr = &syscall.SysProcAttr{
+			Setpgid: true,
+		}
 	}
 	cmd.Env = os.Environ()
 	var buf bytes.Buffer
@@ -118,10 +122,10 @@ func cmd(ctx context.Context, t *testing.T, args ...string) (*exec.Cmd, string) 
 		if t.Failed() {
 			t.Logf("cmd %q output: %s", cmd.Args, buf.String())
 		}
-
-		// if cmd.Process != nil {
-		// 	_ = cmd.Process.Kill()
-		// }
+		if cmd.Process != nil {
+			// We use -cmd.Process.Pid to kill the whole process group.
+			_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGINT)
+		}
 	})
 	return cmd, file
 }
@@ -151,7 +155,7 @@ func expectedNiceScore(t *testing.T) int {
 	require.NoError(t, err)
 
 	// Priority is niceness + 20.
-	score -= 20
+	score = 20 - score
 	score += 5
 	if score > 19 {
 		return 19

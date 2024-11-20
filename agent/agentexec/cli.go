@@ -21,6 +21,8 @@ const (
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI(args []string, environ []string) error {
+	runtime.LockOSThread()
+
 	if runtime.GOOS != "linux" {
 		return xerrors.Errorf("agent-exec is only supported on Linux")
 	}
@@ -42,7 +44,6 @@ func CLI(args []string, environ []string) error {
 		if err != nil {
 			return xerrors.Errorf("get default nice score: %w", err)
 		}
-		fmt.Println("nice score", nice, "pid", pid)
 	}
 
 	oomscore, ok := envValInt(environ, EnvProcOOMScore)
@@ -54,7 +55,7 @@ func CLI(args []string, environ []string) error {
 		}
 	}
 
-	err = unix.Setpriority(unix.PRIO_PROCESS, pid, nice)
+	err = syscall.Setpriority(syscall.PRIO_PROCESS, 0, nice)
 	if err != nil {
 		return xerrors.Errorf("set nice score: %w", err)
 	}
@@ -82,8 +83,8 @@ func defaultNiceScore() (int, error) {
 	if err != nil {
 		return 0, xerrors.Errorf("get nice score: %w", err)
 	}
-	// Priority is niceness + 20.
-	score -= 20
+	// See https://linux.die.net/man/2/setpriority#Notes
+	score = 20 - score
 
 	score += 5
 	if score > 19 {
