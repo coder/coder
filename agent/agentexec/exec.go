@@ -10,6 +10,8 @@ import (
 	"strconv"
 
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/pty"
 )
 
 const (
@@ -25,19 +27,39 @@ const (
 // is returned. All instances of exec.Cmd should flow through this function to ensure
 // proper resource constraints are applied to the child process.
 func CommandContext(ctx context.Context, cmd string, args ...string) (*exec.Cmd, error) {
+	cmd, args, err := agentExecCmd(cmd, args...)
+	if err != nil {
+		return nil, xerrors.Errorf("agent exec cmd: %w", err)
+	}
+	return exec.CommandContext(ctx, cmd, args...), nil
+}
+
+// PTYCommandContext returns an pty.Cmd that calls "coder agent-exec" prior to exec'ing
+// the provided command if CODER_PROC_PRIO_MGMT is set, otherwise a normal pty.Cmd
+// is returned. All instances of pty.Cmd should flow through this function to ensure
+// proper resource constraints are applied to the child process.
+func PTYCommandContext(ctx context.Context, cmd string, args ...string) (*pty.Cmd, error) {
+	cmd, args, err := agentExecCmd(cmd, args...)
+	if err != nil {
+		return nil, xerrors.Errorf("agent exec cmd: %w", err)
+	}
+	return pty.CommandContext(ctx, cmd, args...), nil
+}
+
+func agentExecCmd(cmd string, args ...string) (string, []string, error) {
 	_, enabled := os.LookupEnv(EnvProcPrioMgmt)
 	if runtime.GOOS != "linux" || !enabled {
-		return exec.CommandContext(ctx, cmd, args...), nil
+		return cmd, args, nil
 	}
 
 	executable, err := os.Executable()
 	if err != nil {
-		return nil, xerrors.Errorf("get executable: %w", err)
+		return "", nil, xerrors.Errorf("get executable: %w", err)
 	}
 
 	bin, err := filepath.EvalSymlinks(executable)
 	if err != nil {
-		return nil, xerrors.Errorf("eval symlinks: %w", err)
+		return "", nil, xerrors.Errorf("eval symlinks: %w", err)
 	}
 
 	execArgs := []string{"agent-exec"}
@@ -51,7 +73,7 @@ func CommandContext(ctx context.Context, cmd string, args ...string) (*exec.Cmd,
 	execArgs = append(execArgs, "--", cmd)
 	execArgs = append(execArgs, args...)
 
-	return exec.CommandContext(ctx, bin, execArgs...), nil
+	return bin, execArgs, nil
 }
 
 // envValInt searches for a key in a list of environment variables and parses it to an int.
