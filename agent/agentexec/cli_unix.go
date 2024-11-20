@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
-	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -18,47 +17,57 @@ import (
 	"golang.org/x/xerrors"
 )
 
+// unset is set to an invalid value for nice and oom scores.
+const unset = -2000
+
 // CLI runs the agent-exec command. It should only be called by the cli package.
-func CLI(args []string, environ []string) error {
+func CLI() error {
 	// We lock the OS thread here to avoid a race conditino where the nice priority
 	// we get is on a different thread from the one we set it on.
 	runtime.LockOSThread()
 
-	nice := flag.Int(niceArg, 0, "")
-	oom := flag.Int(oomArg, 0, "")
+	var (
+		fs   = flag.NewFlagSet("agent-exec", flag.ExitOnError)
+		nice = fs.Int("coder-nice", unset, "")
+		oom  = fs.Int("coder-oom", unset, "")
+	)
 
-	flag.Parse()
+	if len(os.Args) < 3 {
+		return xerrors.Errorf("malformed command %+v", os.Args)
+	}
+
+	// Parse everything after "coder agent-exec".
+	err := fs.Parse(os.Args[2:])
+	if err != nil {
+		return xerrors.Errorf("parse flags: %w", err)
+	}
 
 	if runtime.GOOS != "linux" {
 		return xerrors.Errorf("agent-exec is only supported on Linux")
 	}
 
-	if len(args) < 2 {
-		return xerrors.Errorf("malformed command %q", args)
+	// Get everything after "coder agent-exec --"
+	args := execArgs(os.Args)
+	if len(args) == 0 {
+		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
-
-	// Slice off 'coder agent-exec'
-	args = args[2:]
 
 	pid := os.Getpid()
 
-	var err error
-	if nice == nil {
+	if *nice == unset {
 		// If an explicit nice score isn't set, we use the default.
-		n, err := defaultNiceScore()
+		*nice, err = defaultNiceScore()
 		if err != nil {
 			return xerrors.Errorf("get default nice score: %w", err)
 		}
-		nice = &n
 	}
 
-	if oom == nil {
+	if *oom == unset {
 		// If an explicit oom score isn't set, we use the default.
-		o, err := defaultOOMScore()
+		*oom, err = defaultOOMScore()
 		if err != nil {
 			return xerrors.Errorf("get default oom score: %w", err)
 		}
-		oom = &o
 	}
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
@@ -76,12 +85,7 @@ func CLI(args []string, environ []string) error {
 		return xerrors.Errorf("look path: %w", err)
 	}
 
-	// Remove environments variables specifically set for the agent-exec command.
-	env := slices.DeleteFunc(environ, func(env string) bool {
-		return strings.HasPrefix(env, EnvProcOOMScore) || strings.HasPrefix(env, EnvProcNiceScore)
-	})
-
-	return syscall.Exec(path, args, env)
+	return syscall.Exec(path, args, os.Environ())
 }
 
 func defaultNiceScore() (int, error) {
@@ -132,4 +136,14 @@ func oomScoreAdj(pid int) (int, error) {
 
 func writeOOMScoreAdj(pid int, score int) error {
 	return os.WriteFile(fmt.Sprintf("/proc/%d/oom_score_adj", pid), []byte(fmt.Sprintf("%d", score)), 0o600)
+}
+
+// execArgs returns the arguments to pass to syscall.Exec after the "--" delimiter.
+func execArgs(args []string) []string {
+	for i, arg := range args {
+		if arg == "--" {
+			return args[i+1:]
+		}
+	}
+	return nil
 }

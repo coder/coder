@@ -8,7 +8,7 @@ import (
 )
 
 func main() {
-	err := agentexec.CLI(os.Args, os.Environ())
+	err := agentexec.CLI()
 	if err != nil {
 		_, _ = fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
