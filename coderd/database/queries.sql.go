@@ -1212,11 +1212,6 @@ type RemoveRefreshTokenParams struct {
 // Removing the refresh token disables the refresh behavior for a given
 // auth token. If a refresh token is marked invalid, it is better to remove it
 // then continually attempt to refresh the token.
-//
-// Note: Ideally we cache the refresh error to raise to the user. In practice, the
-// error is always something generic like:
-//
-//	"The refresh token passed is incorrect or expired."
 func (q *sqlQuerier) RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error {
 	_, err := q.db.ExecContext(ctx, removeRefreshToken, arg.UpdatedAt, arg.ProviderID, arg.UserID)
 	return err

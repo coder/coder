@@ -1007,17 +1007,18 @@ func IsGithubDotComURL(str string) bool {
 //   - Returns 400 with Code "invalid_grant" and Description "The provided authorization grant is invalid, expired, revoked, does not match the redirection URI used in the authorization request, or was issued to another client."
 func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 	if existingToken.RefreshToken == "" {
-		return false // No refresh token, so we cannot refresh.
+		return false // No refresh token, so this cannot be refreshed
 	}
 
 	if existingToken.Valid() {
-		return false
+		return false // Valid tokens are not refreshed
 	}
 
 	var oauthErr *oauth2.RetrieveError
 	if xerrors.As(err, &oauthErr) {
 		switch oauthErr.ErrorCode {
 		// Known error codes that indicate a failed refresh.
+		// 'Spec' means the code is defined in the spec.
 		case "bad_refresh_token", // Github
 			"invalid_grant",          // Gitlab & Spec
 			"unauthorized_client",    // Gitea & Spec
@@ -1030,7 +1031,7 @@ func isFailedRefresh(existingToken *oauth2.Token, err error) bool {
 			// Status codes that indicate the request was processed, and rejected.
 			return true
 		case http.StatusInternalServerError, http.StatusTooManyRequests:
-			// Counter examples include http.StatusInternalServerError, http.StatusTooManyRequests.
+			// These do not indicate a failed refresh, but could be a temporary issue.
 			return false
 		}
 	}
