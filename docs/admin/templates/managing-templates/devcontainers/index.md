@@ -1,29 +1,53 @@
 # Development containers on Coder
 
-A development container (dev container or devcontainer) is an
+A Development Container is an
 [open source specification](https://containers.dev/implementors/spec/) for
-defining containerized development environments.
+defining containerized development environments which are also called
+development containers (dev containers).
 
-Leverage Coder with dev containers and apply cloud-native security practices to
-traditional ticket-ops and approval-ops workflows to help enable developers to
-self-service.
+Use dev containers with Coder to give developers more autonomy and control over
+their environments while adding cloud-native security to standard ticket and
+approval workflows for increased self-service.
+
+## Prerequisites
+
+A developer team should configure dev containers after an administrator
+constructs or chooses a base image and creates a template that includes a
+`devcontainer_builder` image.
 
 ## Benefits of devcontainers
 
-There are several benefits to adding a devcontainer-compatible template to
+There are several benefits to adding a dev container-compatible template to
 Coder:
 
-- Reliability and scalability
+- Reliability through standardization
+- Scalability for growing teams
 - Improved security
 - Performance efficiency
 - Cost Optimization
 
-### Reliability and scalability
+### Reliability through standardization
 
-Envbuilder is an open source project independently packaged and versioned from
-the centralized Coder open source project. This means that it can be used with
-Coder, but it is not required. It also means that Dev Container builds can scale
-independently of the Coder control plane and even run in CI/CD.
+Use dev containers to empower development teams to personalize their own
+environments while maintaining consistency and security through an approved and
+hardened base image. Standardized environments ensure uniform behavior across
+machines and team members, eliminating "it works on my machine" issues and
+creating a stable foundation for development and testing. Containerized setups
+reduce dependency conflicts and misconfigurations, enhancing build stability.
+
+### Scalability for growing teams
+
+Dev containers allow organizations to handle multiple projects and teams
+efficiently.
+
+You can leverage platforms like Kubernetes to allocate resources on demand,
+optimizing costs and ensuring fair distribution of quotas. Developer teams can
+use efficient custom images and independently configure the contents of their
+version-controlled dev containers.
+
+This approach allows organizations to scale seamlessly, reducing the maintenance
+burden on the administrators that support diverse projects while allowing
+development teams to maintain their own images and onboard new users quickly.
 
 ### Improved security
 
@@ -34,7 +58,12 @@ Additionally, Envbuilder can be configured to push the full image back to your
 registry for additional security scanning.
 
 This means that Coder admins can still require hardened base images and
-packages, while still allowing developer self service.
+packages, while still allowing developer self-service.
+
+Envbuilder runs inside a small container image but does not require a Docker
+daemon in order to build a dev container. This is useful in environments where
+you may not have access to a Docker socket for security reasons, but still need
+to work with a container.
 
 ### Performance efficiency
 
@@ -53,29 +82,33 @@ image caching ensures optimal start and stop times.
 
 ## When to use a dev container
 
-A development container
+Dev containers are a good fit for developer teams who are familiar with Docker
+and are already using containerized development environments. If you have a
+large number of projects with different toolchains, dependencies, or that depend
+on a particular Linux distribution, dev containers make it easier to quickly
+switch between projects.
 
-## Coder Envbuilder
-
-Envbuilder is an open source project by Coder that runs dev containers via Coder
-templates and your underlying infrastructure. It can run on Docker or
-Kubernetes.
-
-Envbuilder uses the Dev Container standard used in VS Code Local, Daytona,
-DevPod, and Codespaces. This format is already familiar to developers and can
-simplify migration. This allows developers to take control of their own
-environments, while still following cloud-native security best practices. See
-the
-[Security section](./devcontainer-security-caching.md#devcontainer-security-and-caching)
-for more information.
+They may also be a great fit for more restricted environments where you may not
+have access to a Docker daemon since it doesn't need one to work.
 
 ## Devcontainer Features
 
-[Devcontainer Features](https://containers.dev/implementors/features/) allow
+[Dev container Features](https://containers.dev/implementors/features/) allow
 owners of a project to specify self-contained units of code and runtime
 configuration that can be composed together on top of an existing base image.
 This is a good place to install project-specific tools, such as
 language-specific runtimes and compilers.
+
+## Coder Envbuilder
+
+Envbuilder is an open-source project maintained by Coder that runs dev
+containers via Coder templates and your underlying infrastructure. Envbuilder
+can run on Docker or Kubernetes.
+
+It is independently packaged and versioned from the centralized Coder
+open-source project. This means that Envbuilder can be used with Coder, but it
+is not required. It also means that dev container builds can scale independently
+of the Coder control plane and even run within a CI/CD pipeline.
 
 ## Next steps
 
