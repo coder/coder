@@ -131,7 +131,7 @@ func TestMetrics(t *testing.T) {
 				t.Logf("coderd_notifications_queued_seconds > 0: %v", metric.Histogram.GetSampleSum())
 			}
 
-			// this check is extremely flaky on windows. it fails more often than not, but not always
+			// This check is extremely flaky on windows. It fails more often than not, but not always.
 			if runtime.GOOS == "windows" {
 				return true
 			}
@@ -146,7 +146,7 @@ func TestMetrics(t *testing.T) {
 				t.Logf("coderd_notifications_dispatcher_send_seconds > 0: %v", metric.Histogram.GetSampleSum())
 			}
 
-			// this check is extremely flaky on windows. it fails more often than not, but not always
+			// This check is extremely flaky on windows. It fails more often than not, but not always.
 			if runtime.GOOS == "windows" {
 				return true
 			}
