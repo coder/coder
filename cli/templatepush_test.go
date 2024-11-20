@@ -442,10 +442,11 @@ func TestTemplatePush(t *testing.T) {
 			require.NoError(t, err)
 
 			// Run `coder templates push`
-			// TODO: assert warning about no available provisioners in output.
-			// This is returned from the API.
 			templateName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+			var stdout, stderr strings.Builder
 			inv, root := clitest.New(t, "templates", "push", templateName, "-d", tempDir, "--yes")
+			inv.Stdout = &stdout
+			inv.Stderr = &stderr
 			clitest.SetupConfig(t, templateAdmin, root)
 
 			// Don't forget to clean up!
@@ -471,6 +472,8 @@ func TestTemplatePush(t *testing.T) {
 
 			cancel()
 			<-done
+
+			require.Contains(t, stderr.String(), "No provisioners are available to handle the job!")
 		})
 
 		t.Run("ChangeTags", func(t *testing.T) {

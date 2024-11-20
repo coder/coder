@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
@@ -16,6 +17,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
@@ -414,6 +416,17 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	version, err := client.CreateTemplateVersion(inv.Context(), args.Organization.ID, req)
 	if err != nil {
 		return nil, err
+	}
+
+	if slice.Contains(version.Warnings, codersdk.TemplateVersionWarningNoMatchingProvisioners) {
+		var tagsJSON strings.Builder
+		_ = json.NewEncoder(&tagsJSON).Encode(version.Job.Tags)
+		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
+Please contact your deployment administrator for assistance.
+Details:
+	Provisioner Job ID : %s
+	Requested tags     : %s
+`, version.Job.ID, tagsJSON.String())
 	}
 
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
