@@ -33,6 +33,11 @@ terraform {
       source  = "hashicorp/tls"
       version = "~> 4.0"
     }
+
+    cloudflare = {
+      source  = "cloudflare/cloudflare"
+      version = "~> 4.0"
+    }
   }
 
   required_version = "~> 1.9.0"
@@ -42,22 +47,29 @@ provider "google" {
 }
 
 provider "kubernetes" {
-  host                   = "https://${google_container_cluster.cluster[0].endpoint}"
-  cluster_ca_certificate = base64decode(google_container_cluster.cluster[0].master_auth.0.cluster_ca_certificate)
+  alias = "primary"
+  host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
+  cluster_ca_certificate = base64decode(google_container_cluster.cluster["primary"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 
 provider "kubectl" {
-  host                   = "https://${google_container_cluster.cluster[0].endpoint}"
-  cluster_ca_certificate = base64decode(google_container_cluster.cluster[0].master_auth.0.cluster_ca_certificate)
+  alias = "primary"
+  host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
+  cluster_ca_certificate = base64decode(google_container_cluster.cluster["primary"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
   load_config_file       = false
 }
 
 provider "helm" {
+  alias = "primary"
   kubernetes {
-    host                   = "https://${google_container_cluster.cluster[0].endpoint}"
-    cluster_ca_certificate = base64decode(google_container_cluster.cluster[0].master_auth.0.cluster_ca_certificate)
+    host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
+    cluster_ca_certificate = base64decode(google_container_cluster.cluster["primary"].master_auth.0.cluster_ca_certificate)
     token                  = data.google_client_config.default.access_token
   }
+}
+
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
 }

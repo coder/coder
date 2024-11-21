@@ -4,35 +4,39 @@ data "google_compute_default_service_account" "default" {
 }
 
 locals {
-  node_pools = flatten([ for i, deployment in var.deployments : [
-    {
-      name = "${var.name}-${deployment.name}-coder"
-      zone = deployment.zone
-      size = deployment.coder_node_pool_size
-      cluster_i = i
-    },     
-    {
-      name = "${var.name}-${deployment.name}-workspaces"
-      zone = deployment.zone
-      size = deployment.workspaces_node_pool_size
-      cluster_i = i
-    },
-    {
-      name = "${var.name}-${deployment.name}-misc"
-      zone = deployment.zone
-      size = deployment.misc_node_pool_size
-      cluster_i = i
+  clusters = {
+    primary = {
+      region = "us-east1"
+      zone   = "us-east1-c"
+      cidr   = "10.200.0.0/24"
     }
-  ] ])
+  }
+  node_pools = {
+    primary_coder = {
+      name = "coder"
+      cluster = "primary"
+      size = 1
+    }
+    primary_workspaces = {
+      name = "workspaces"
+      cluster = "primary"
+      size = 1
+    }
+    primary_misc = {
+      name = "misc"
+      cluster = "primary"
+      size = 1
+    }
+  }
 }
 
 resource "google_container_cluster" "cluster" {
-  count                     = length(var.deployments)
-  name                      = "${var.name}-${var.deployments[count.index].name}"
-  location                  = var.deployments[count.index].zone
+  for_each                  = local.clusters
+  name                      = "${var.name}-${each.key}"
+  location                  = each.value.zone
   project                   = var.project_id
   network                   = google_compute_network.vpc.name
-  subnetwork                = google_compute_subnetwork.subnet[count.index].name
+  subnetwork                = google_compute_subnetwork.subnet[each.key].name
   networking_mode           = "VPC_NATIVE"
   default_max_pods_per_node = 256
   ip_allocation_policy { # Required with networking_mode=VPC_NATIVE
@@ -72,14 +76,14 @@ resource "google_container_cluster" "cluster" {
 }
 
 resource "google_container_node_pool" "node_pool" {
-  count    = length(local.node_pools)
-  name     = local.node_pools[count.index].name
-  location = local.node_pools[count.index].zone
+  for_each = local.node_pools
+  name     = each.value.name
+  location = local.clusters[each.value.cluster].zone
   project  = var.project_id
-  cluster  = google_container_cluster.cluster[local.node_pools[count.index].cluster_i].name
+  cluster  = google_container_cluster.cluster[each.value.cluster].name
   autoscaling {
     min_node_count = 1
-    max_node_count = local.node_pools[count.index].size
+    max_node_count = each.value.size
   }
   node_config {
     oauth_scopes = [

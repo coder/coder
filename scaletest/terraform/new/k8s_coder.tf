@@ -1,9 +1,12 @@
 data "google_client_config" "default" {}
 
 locals {
-  coder_url                 = "https://${var.name}-${var.deployments[0].name}-scaletest.${var.cloudflare_domain}"
+  coder_subdomain           = "${var.name}-primary-scaletest"
+  coder_url                 = "https://${local.coder_subdomain}.${var.cloudflare_domain}"
   coder_admin_email         = "admin@coder.com"
+  coder_admin_full_name     = "Coder Admin"
   coder_admin_user          = "coder"
+  coder_admin_password      = "SomeSecurePassword!"
   coder_helm_repo           = "https://helm.coder.com/v2"
   coder_helm_chart          = "coder"
   coder_namespace           = "coder-${var.name}"
@@ -14,6 +17,8 @@ locals {
 }
 
 resource "kubernetes_namespace" "coder_namespace" {
+  provider = kubernetes.primary
+
   metadata {
     name = local.coder_namespace
   }
@@ -41,6 +46,8 @@ resource "kubernetes_secret" "coder-db" {
 }
 
 resource "kubernetes_secret" "provisionerd_psk" {
+  provider = kubernetes.primary
+
   type = "Opaque"
   metadata {
     name      = "coder-provisioner-psk"
@@ -56,6 +63,7 @@ resource "kubernetes_secret" "provisionerd_psk" {
 
 # OIDC secret needs to be manually provisioned for now.
 data "kubernetes_secret" "coder_oidc" {
+  provider = kubernetes.primary
   metadata {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
     name      = "coder-oidc"
@@ -63,6 +71,8 @@ data "kubernetes_secret" "coder_oidc" {
 }
 
 resource "kubectl_manifest" "coder_certificate" {
+  provider = kubectl.primary
+
   depends_on = [ helm_release.cert-manager ]
   yaml_body = <<YAML
 apiVersion: cert-manager.io/v1
@@ -81,6 +91,8 @@ YAML
 }
 
 data "kubernetes_secret" "coder_tls" {
+  provider = kubernetes.primary
+
   metadata {
     namespace = kubernetes_namespace.coder_namespace.metadata.0.name
     name      = "${var.name}-tls"
@@ -89,6 +101,8 @@ data "kubernetes_secret" "coder_tls" {
 }
 
 resource "helm_release" "coder-chart" {
+  provider = helm.primary
+
   repository = local.coder_helm_repo
   chart      = local.coder_helm_chart
   name       = local.coder_release_name
@@ -103,7 +117,7 @@ coder:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.node_pool[0].name}"]
+            values: ["${google_container_node_pool.node_pool["primary_coder"].name}"]
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
@@ -196,7 +210,7 @@ coder:
   service:
     enable: true
     sessionAffinity: None
-    loadBalancerIP: "${google_compute_address.coder[0].address}"
+    loadBalancerIP: "${google_compute_address.coder["primary"].address}"
   volumeMounts:
   - mountPath: "/tmp"
     name: cache
@@ -224,7 +238,7 @@ coder:
         - matchExpressions:
           - key: "cloud.google.com/gke-nodepool"
             operator: "In"
-            values: ["${google_container_node_pool.node_pool[0].name}"]
+            values: ["${google_container_node_pool.node_pool["primary_coder"].name}"]
     podAntiAffinity:
       preferredDuringSchedulingIgnoredDuringExecution:
       - weight: 1
@@ -278,3 +292,57 @@ coder:
 EOF
   ]
 }
+
+data "http" "coder_healthy" {
+  url = "http://${local.coder_subdomain}.${var.cloudflare_domain}"
+  // Wait up to 5 minutes for DNS to propogate
+  retry {
+    attempts = 30
+    min_delay_ms = 10000
+  }
+
+  lifecycle {
+    postcondition {
+        condition = self.status_code == 200
+        error_message = "${self.url} returned an unhealthy status code"
+    }
+  }
+
+  depends_on = [ helm_release.coder-chart, cloudflare_record.coder ]
+}
+
+resource "terraform_data" "proxy_tokens" {
+  count = 1
+  provisioner "local-exec" {
+    interpreter = [ "/bin/bash", "-c" ]
+    command = <<EOF
+curl 'http://${local.coder_subdomain}.${var.cloudflare_domain}/api/v2/users/first' \
+  --data-raw $'{"email":"${local.coder_admin_email}","password":"${local.coder_admin_password}","username":"${local.coder_admin_user}","name":"${local.coder_admin_full_name}","trial":false}' \
+  --insecure --silent --output /dev/null
+
+token=$(curl 'http://${local.coder_subdomain}.${var.cloudflare_domain}/api/v2/users/login' \
+  --data-raw $'{"email":"${local.coder_admin_email}","password":"${local.coder_admin_password}"}' \
+  --insecure --silent | jq -r .session_token)
+
+curl 'http://${local.coder_subdomain}.${var.cloudflare_domain}/api/v2/licenses' \
+  -H "Coder-Session-Token: $${token}" \
+  --data-raw '{"license":"${var.coder_license}"}' \
+  --insecure --silent --output /dev/null
+
+europe_token=$(curl 'http://${local.coder_subdomain}.${var.cloudflare_domain}/api/v2/workspaceproxies' \
+  -H "Coder-Session-Token: $${token}" \
+  --data-raw '{"name":"europe"}' \
+  --insecure --silent | jq -r .proxy_token)
+
+asia_token=$(curl 'http://${local.coder_subdomain}.${var.cloudflare_domain}/api/v2/workspaceproxies' \
+  -H "Coder-Session-Token: $${token}" \
+  --data-raw '{"name":"asia"}' \
+  --insecure --silent | jq -r .proxy_token)
+
+echo "{\"europe\": \"$${europe_token}\", \"asia\": \"$${asia_token}\"}"
+EOF
+  }
+
+  depends_on = [ data.http.coder_healthy ]
+}
+
