@@ -308,7 +308,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 				},
 			},
 		})
-		// nolint:gocritic // test
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
 		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
 			Name: "dont-TEST-me",
 			Tags: map[string]string{
