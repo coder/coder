@@ -31,7 +31,7 @@ import { useState } from "react";
 import type { FC } from "react";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
-import { IdpPillList } from "./IdpPillList";
+import { PillList } from "./PillList";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -313,7 +313,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 		<TableRow data-testid={`group-${idpOrg}`}>
 			<TableCell>{idpOrg}</TableCell>
 			<TableCell>
-				<IdpPillList roles={coderOrgs} />
+				<PillList organizations={coderOrgs} />
 			</TableCell>
 			<TableCell>
 				<Button
@@ -345,19 +345,5 @@ const TableLoader = () => {
 		</TableLoaderSkeleton>
 	);
 };
-
-const styles = {
-	fieldText: {
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		whiteSpace: "nowrap",
-		paddingBottom: ".02rem",
-	},
-	fieldLabel: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	tableInfo: () => ({
-		marginBottom: 16,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
 
 export default IdpSyncPageView;
