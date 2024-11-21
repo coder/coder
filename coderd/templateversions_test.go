@@ -231,7 +231,6 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		// TODO(Cian): I'd also like to assert that the correct raw tag values are stored in the database,
 		//             but in order to do this, we need to actually run the job! This isn't straightforward right now.
 
-		ctx := testutil.Context(t, testutil.WaitLong)
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{
 			Database: store,
@@ -434,6 +433,8 @@ data "coder_workspace_tags" "tags" {
 			tt := tt
 			t.Run(tt.name, func(t *testing.T) {
 				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
 				// Create an archive from the files provided in the test case.
 				tarFile := testutil.CreateTar(t, tt.files)
 
@@ -453,7 +454,6 @@ data "coder_workspace_tags" "tags" {
 
 				if tt.expectError == "" {
 					require.NoError(t, err)
-
 					// Assert the expected provisioner job is created from the template version import
 					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
 					require.NoError(t, err)
@@ -461,7 +461,6 @@ data "coder_workspace_tags" "tags" {
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
-
 			})
 		}
 	})

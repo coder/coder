@@ -1343,9 +1343,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	// Ensures the "owner" is properly applied.
-	// tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
-
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot specify both an example_id and a file_id.",
@@ -1480,6 +1477,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		return
 	}
 
+	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
 	// Tag order precedence:
 	// 1) User-specified tags in the request
 	// 2) Tags parsed from coder_workspace_tags data source in template file
