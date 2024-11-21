@@ -225,6 +225,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 	t.Run("WorkspaceTags", func(t *testing.T) {
 		t.Parallel()
+		// This test ensures that when creating a template version from an archive continaining a coder_workspace_tags
+		// data source, we automatically assign some "reasonable" provisioner tag values to the resulting template
+		// import job.
+		// TODO(Cian): I'd also like to assert that the correct raw tag values are stored in the database,
+		//             but in order to do this, we need to actually run the job! This isn't straightforward right now.
 
 		ctx := testutil.Context(t, testutil.WaitLong)
 		store, ps := dbtestutil.NewDB(t)
@@ -249,58 +254,136 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			{
 				name: "main.tf with no tags",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}`,
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
 			{
 				name: "main.tf with empty workspace tags",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {}
-					}`,
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {}
+}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
 			{
 				name: "main.tf with workspace tags",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"foo": "bar",
-						}
-					}`,
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+	}
+}`,
 				},
-				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2"},
 			},
 			{
 				name: "main.tf with workspace tags and request tags",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"foo": "bar",
-						}
-					}`,
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+	}
+}`,
 				},
 				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
-				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
 			},
 			{
 				name: "main.tf with disallowed workspace tag value",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {
-						name = "foo"
-					}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"foo": null_resource.test.name,
-						}
-					}`,
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {
+	name = "foo"
+}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+		"test": null_resource.test.name,
+	}
+}`,
 				},
-				expectError: ` Unknown variable; There is no variable named "null_resource".`,
+				expectError: `Unknown variable; There is no variable named "null_resource".`,
+			},
+			{
+				name: "main.tf with disallowed function in tag value",
+				files: map[string]string{
+					`main.tf`: `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {
+	name = "foo"
+}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+		"test": try(null_resource.test.name, "whatever"),
+	}
+}`,
+				},
+				expectError: `Function calls not allowed; Functions may not be called here.`,
 			},
 			// We will allow coder_workspace_tags to set the scope on a template version import job
 			// BUT the user ID will be ultimately determined by the API key in the scope.
@@ -309,28 +392,43 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			{
 				name: "main.tf with workspace tags that attempts to set user scope",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"scope": "user",
-							"owner": "12345678-1234-1234-1234-1234567890ab",
-						}
-					}`,
+					`main.tf`: `
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"scope": "user",
+		"owner": "12345678-1234-1234-1234-1234567890ab",
+	}
+}`,
 				},
 				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
 			},
 			{
 				name: "main.tf with workspace tags that attempt to clobber org ID",
 				files: map[string]string{
-					`main.tf`: `resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"scope": "organization",
-							"owner": "12345678-1234-1234-1234-1234567890ab",
-						}
-					}`,
+					`main.tf`: `
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"scope": "organization",
+		"owner": "12345678-1234-1234-1234-1234567890ab",
+	}
+}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags that set scope=user",
+				files: map[string]string{
+					`main.tf`: `
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"scope": "user",
+	}
+}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
 			},
 		} {
 			tt := tt
@@ -363,6 +461,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
+
 			})
 		}
 	})
