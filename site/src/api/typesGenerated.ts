@@ -2253,8 +2253,8 @@ export type TemplateRole = "" | "admin" | "use"
 export const TemplateRoles: TemplateRole[] = ["", "admin", "use"]
 
 // From codersdk/templateversions.go
-export type TemplateVersionWarning = "NO_MATCHING_PROVISIONERS" | "UNSUPPORTED_WORKSPACES"
-export const TemplateVersionWarnings: TemplateVersionWarning[] = ["NO_MATCHING_PROVISIONERS", "UNSUPPORTED_WORKSPACES"]
+export type TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
+export const TemplateVersionWarnings: TemplateVersionWarning[] = ["UNSUPPORTED_WORKSPACES"]
 
 // From codersdk/workspacebuilds.go
 export type TimingStage = "apply" | "connect" | "cron" | "graph" | "init" | "plan" | "start" | "stop"

@@ -13721,12 +13721,10 @@ const docTemplate = `{
         "codersdk.TemplateVersionWarning": {
             "type": "string",
             "enum": [
-                "UNSUPPORTED_WORKSPACES",
-                "NO_MATCHING_PROVISIONERS"
+                "UNSUPPORTED_WORKSPACES"
             ],
             "x-enum-varnames": [
-                "TemplateVersionWarningUnsupportedWorkspaces",
-                "TemplateVersionWarningNoMatchingProvisioners"
+                "TemplateVersionWarningUnsupportedWorkspaces"
             ]
         },
         "codersdk.TimingStage": {
