@@ -635,7 +635,7 @@ WHERE
 		(
 			workspaces.dormant_at IS NULL AND
 			templates.time_til_dormant > 0 AND
-			(@now :: timestamptz) - workspaces.last_used_at >= (INTERVAL '1 millisecond' * (templates.time_til_dormant / 1000000))
+			(@now :: timestamptz) - workspaces.last_used_at > (INTERVAL '1 millisecond' * (templates.time_til_dormant / 1000000))
 		) OR
 
 		-- A workspace may be eligible for deletion if the following are true:
