@@ -429,11 +429,23 @@ func TestTemplatePush(t *testing.T) {
 
 			// Create a tar file with some pre-defined content
 			tarFile := testutil.CreateTar(t, map[string]string{
-				"main.tf": `data "coder_workspace_tags" "tags" {
-						tags = {
-						"foo": "bar"
-						}
-					}`,
+				"main.tf": `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+	}
+}`,
 			})
 
 			// Write the tar file to disk.
@@ -458,7 +470,11 @@ func TestTemplatePush(t *testing.T) {
 			}()
 
 			// Assert that a provisioner job was created with the desired tags.
-			wantTags := database.StringMap(provisionersdk.MutateTags(uuid.Nil, map[string]string{"foo": "bar"}))
+			wantTags := database.StringMap(provisionersdk.MutateTags(uuid.Nil, map[string]string{
+				"foo": "bar",
+				"a":   "1",
+				"b":   "2",
+			}))
 			require.Eventually(t, func() bool {
 				jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
 				if !assert.NoError(t, err) {
@@ -472,8 +488,6 @@ func TestTemplatePush(t *testing.T) {
 
 			cancel()
 			<-done
-
-			require.Contains(t, stderr.String(), "No provisioners are available to handle the job!")
 		})
 
 		t.Run("ChangeTags", func(t *testing.T) {

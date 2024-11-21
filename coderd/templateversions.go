@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -1486,7 +1487,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
-	var eligibleProvisioners []database.ProvisionerDaemon
 	var warnings []codersdk.TemplateVersionWarning
 	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
@@ -1512,21 +1512,25 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			return err
 		}
 
-		if eligibleProvisioners, err = tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
-			OrganizationID: organization.ID,
-			WantTags:       tags,
-		}); err != nil {
+		// Check for eligible provisioners. This allows us to log a message warning deployment administrators
+		// of users submitting jobs for which no provisioners are available.
+		allProvisioners, activeProvisioners, err := checkProvisioners(ctx, tx, organization.ID, tags, api.DeploymentValues.Provisioner.DaemonPollInterval.Value())
+		if err != nil {
 			api.Logger.Error(ctx, "failed to check eligible provisioner daemons for job", slog.Error(err))
-		} else if len(eligibleProvisioners) == 0 {
-			// If there are no eligible provisioners at the time of insertion, add a warning.
-			// TODO(Cian): check provisioner last_seen?
+		} else if activeProvisioners == 0 {
 			api.Logger.Warn(ctx, "no matching provisioners found for job",
 				slog.F("user_id", apiKey.UserID),
 				slog.F("job_id", jobID),
 				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
 				slog.F("tags", tags),
 			)
-			warnings = append(warnings, codersdk.TemplateVersionWarningNoMatchingProvisioners)
+		} else if allProvisioners == 0 {
+			api.Logger.Warn(ctx, "no active provisioners found for job",
+				slog.F("user_id", apiKey.UserID),
+				slog.F("job_id", jobID),
+				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
+				slog.F("tags", tags),
+			)
 		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -1807,4 +1811,30 @@ func (api *API) publishTemplateUpdate(ctx context.Context, templateID uuid.UUID)
 		api.Logger.Warn(ctx, "failed to publish template update",
 			slog.F("template_id", templateID), slog.Error(err))
 	}
+}
+
+func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUID, wantTags map[string]string, pollInterval time.Duration) (found, active int, err error) {
+	// Check for eligible provisioners. This allows us to return a warning to the user if they
+	// submit a job for which no provisioner is available.
+	eligibleProvisioners, err := store.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: orgID,
+		WantTags:       wantTags,
+	})
+	if err != nil {
+		// Log the error but do not return any warnings. This is purely advisory and we should not block.
+		return -1, -1, xerrors.Errorf("get provisioner daemons by organization: %w", err)
+	}
+
+	onePollAgo := time.Now().Add(-pollInterval)
+	for _, provisioner := range eligibleProvisioners {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		found++
+		if provisioner.LastSeenAt.Time.Before(onePollAgo) {
+			continue
+		}
+		active++
+	}
+	return found, active, nil
 }

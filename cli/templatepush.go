@@ -2,6 +2,7 @@ package cli
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -17,7 +18,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
-	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/pretty"
@@ -417,12 +417,28 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	if err != nil {
 		return nil, err
 	}
+	var tagsJSON strings.Builder
+	_ = json.NewEncoder(&tagsJSON).Encode(version.Job.Tags)
+	foundProvisioners, activeProvisioners, err := checkProvisioners(inv.Context(), client, args.Organization.ID, version.Job.Tags)
+	if err != nil {
+		var apiErr *codersdk.Error
+		// Unfortunately this is an enterprise endpoint, so check for that first.
+		if errors.As(err, &apiErr) && apiErr.StatusCode() != http.StatusNotFound {
+			cliui.Warnf(inv.Stderr, "Unable to check for available provisioners: %s", err.Error())
+		}
+	}
 
-	if slice.Contains(version.Warnings, codersdk.TemplateVersionWarningNoMatchingProvisioners) {
-		var tagsJSON strings.Builder
-		_ = json.NewEncoder(&tagsJSON).Encode(version.Job.Tags)
+	if foundProvisioners == 0 {
 		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
 Please contact your deployment administrator for assistance.
+Details:
+	Provisioner Job ID : %s
+	Requested tags     : %s
+`, version.Job.ID, tagsJSON.String())
+	} else if activeProvisioners == 0 {
+		cliui.Warnf(inv.Stderr, `All available provisioner daemons have been silent for a while.
+Your build will proceed once they become available.
+If this persists, please contact your deployment administrator for assistance.
 Details:
 	Provisioner Job ID : %s
 	Requested tags     : %s
@@ -509,4 +525,27 @@ func prettyDirectoryPath(dir string) string {
 		prettyDir = "~" + prettyDir
 	}
 	return prettyDir
+}
+
+func checkProvisioners(ctx context.Context, client *codersdk.Client, orgID uuid.UUID, wantTags map[string]string) (found, active int, err error) {
+	// Check for eligible provisioners. This allows us to return a warning to the user if they
+	// submit a job for which no provisioner is available.
+	provisioners, err := client.OrganizationProvisionerDaemons(ctx, orgID, wantTags)
+	if err != nil {
+		return -1, -1, xerrors.Errorf("get organization provisioner daemons: %w", err)
+	}
+
+	oneMinuteAgo := time.Now().Add(-time.Minute)
+	for _, provisioner := range provisioners {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		found++
+		if provisioner.LastSeenAt.Time.Before(oneMinuteAgo) {
+			continue
+		}
+		active++
+	}
+
+	return found, active, nil
 }

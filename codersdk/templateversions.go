@@ -14,8 +14,7 @@ import (
 type TemplateVersionWarning string
 
 const (
-	TemplateVersionWarningUnsupportedWorkspaces  TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
-	TemplateVersionWarningNoMatchingProvisioners TemplateVersionWarning = "NO_MATCHING_PROVISIONERS"
+	TemplateVersionWarningUnsupportedWorkspaces TemplateVersionWarning = "UNSUPPORTED_WORKSPACES"
 )
 
 // TemplateVersion represents a single version of a template.
