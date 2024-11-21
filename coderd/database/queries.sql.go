@@ -1194,6 +1194,29 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 	return i, err
 }
 
+const removeRefreshToken = `-- name: RemoveRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	oauth_refresh_token = '',
+	updated_at = $1
+WHERE provider_id = $2 AND user_id = $3
+`
+
+type RemoveRefreshTokenParams struct {
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+// Removing the refresh token disables the refresh behavior for a given
+// auth token. If a refresh token is marked invalid, it is better to remove it
+// then continually attempt to refresh the token.
+func (q *sqlQuerier) RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, removeRefreshToken, arg.UpdatedAt, arg.ProviderID, arg.UserID)
+	return err
+}
+
 const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
 UPDATE external_auth_links SET
     updated_at = $3,

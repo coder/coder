@@ -423,6 +423,10 @@ type sqlcQuerier interface {
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
+	// Removing the refresh token disables the refresh behavior for a given
+	// auth token. If a refresh token is marked invalid, it is better to remove it
+	// then continually attempt to refresh the token.
+	RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
