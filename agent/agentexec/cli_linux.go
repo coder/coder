@@ -25,6 +25,8 @@ func CLI() error {
 	// We lock the OS thread here to avoid a race conditino where the nice priority
 	// we get is on a different thread from the one we set it on.
 	runtime.LockOSThread()
+	// Nop on success but we do it anyway in case of an error.
+	defer runtime.UnlockOSThread()
 
 	var (
 		fs   = flag.NewFlagSet("agent-exec", flag.ExitOnError)
@@ -42,17 +44,11 @@ func CLI() error {
 		return xerrors.Errorf("parse flags: %w", err)
 	}
 
-	if runtime.GOOS != "linux" {
-		return xerrors.Errorf("agent-exec is only supported on Linux")
-	}
-
 	// Get everything after "coder agent-exec --"
 	args := execArgs(os.Args)
 	if len(args) == 0 {
 		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
-
-	pid := os.Getpid()
 
 	if *nice == unset {
 		// If an explicit nice score isn't set, we use the default.
@@ -75,7 +71,7 @@ func CLI() error {
 		return xerrors.Errorf("set nice score: %w", err)
 	}
 
-	err = writeOOMScoreAdj(pid, *oom)
+	err = writeOOMScoreAdj(*oom)
 	if err != nil {
 		return xerrors.Errorf("set oom score: %w", err)
 	}
@@ -104,7 +100,7 @@ func defaultNiceScore() (int, error) {
 }
 
 func defaultOOMScore() (int, error) {
-	score, err := oomScoreAdj(os.Getpid())
+	score, err := oomScoreAdj()
 	if err != nil {
 		return 0, xerrors.Errorf("get oom score: %w", err)
 	}
@@ -126,16 +122,16 @@ func defaultOOMScore() (int, error) {
 	return 998, nil
 }
 
-func oomScoreAdj(pid int) (int, error) {
-	scoreStr, err := os.ReadFile(fmt.Sprintf("/proc/%d/oom_score_adj", pid))
+func oomScoreAdj() (int, error) {
+	scoreStr, err := os.ReadFile("/proc/self/oom_score_adj")
 	if err != nil {
 		return 0, xerrors.Errorf("read oom_score_adj: %w", err)
 	}
 	return strconv.Atoi(strings.TrimSpace(string(scoreStr)))
 }
 
-func writeOOMScoreAdj(pid int, score int) error {
-	return os.WriteFile(fmt.Sprintf("/proc/%d/oom_score_adj", pid), []byte(fmt.Sprintf("%d", score)), 0o600)
+func writeOOMScoreAdj(score int) error {
+	return os.WriteFile("/proc/self/oom_score_adj", []byte(fmt.Sprintf("%d", score)), 0o600)
 }
 
 // execArgs returns the arguments to pass to syscall.Exec after the "--" delimiter.
