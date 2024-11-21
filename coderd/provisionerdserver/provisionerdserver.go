@@ -1457,7 +1457,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 				err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
 					ID:          workspace.ID,
-					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt},
+					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
 				})
 				if err != nil {
 					return xerrors.Errorf("update workspace next start at: %w", err)
