@@ -1,7 +1,7 @@
 # Development containers
 
 A Development Container is an
-[open source specification](https://containers.dev/implementors/spec/) for
+[open-source specification](https://containers.dev/implementors/spec/) for
 defining containerized development environments which are also called
 development containers (dev containers).
 
@@ -15,9 +15,9 @@ greater independence for developers.
 
 ## Prerequisites
 
-A developer team should configure dev containers after an administrator
-constructs or chooses a base image and creates a template that includes a
-`devcontainer_builder` image.
+An administrator should construct or choose a base image and create a template
+that includes a `devcontainer_builder` image before a developer team configures
+dev containers.
 
 ## Benefits of devcontainers
 
@@ -34,10 +34,12 @@ Coder:
 
 Use dev containers to empower development teams to personalize their own
 environments while maintaining consistency and security through an approved and
-hardened base image. Standardized environments ensure uniform behavior across
-machines and team members, eliminating "it works on my machine" issues and
-creating a stable foundation for development and testing. Containerized setups
-reduce dependency conflicts and misconfigurations, enhancing build stability.
+hardened base image.
+
+Standardized environments ensure uniform behavior across machines and team
+members, eliminating "it works on my machine" issues and creating a stable
+foundation for development and testing. Containerized setups reduce dependency
+conflicts and misconfigurations, enhancing build stability.
 
 ### Scalability for growing teams
 
@@ -61,8 +63,8 @@ your secure registry powered by JFrog Artifactory or Sonatype Nexus.
 Additionally, Envbuilder can be configured to push the full image back to your
 registry for additional security scanning.
 
-This means that Coder admins can still require hardened base images and
-packages, while still allowing developer self-service.
+This means that Coder admins can require hardened base images and packages,
+while still allowing developer self-service.
 
 Envbuilder runs inside a small container image but does not require a Docker
 daemon in order to build a dev container. This is useful in environments where
@@ -116,4 +118,4 @@ of the Coder control plane and even run within a CI/CD pipeline.
 
 ## Next steps
 
-- [Add a devcontainer template](./add-devcontainer.md)
+- [Add a dev container template](./add-devcontainer.md)

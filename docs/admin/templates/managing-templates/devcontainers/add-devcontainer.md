@@ -18,8 +18,8 @@ and builds a container from the `devcontainer.json` specified in the repo.
    [starter template](https://github.com/coder/coder/tree/main/examples/templates),
    select **Choose a starter template**.
 
-- Select **From scratch** to create a new template and enter information and
-  file contents manually.
+   - Select **From scratch** to create a new template and enter information and
+     file contents manually.
 
 ## CLI
 

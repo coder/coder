@@ -30,6 +30,7 @@ of caching:
     from scratch.
 
 - **Image caching**
+
   - Caches the entire image, skipping the build process completely (except for
     post-build
     [lifecycle scripts](./add-devcontainer.md#dev-container-lifecycle-scripts)).
