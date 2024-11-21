@@ -603,6 +603,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												<AlertDetail>{templateVersion.job.error}</AlertDetail>
 											</Alert>
 										</div>
+									) : !compatibleProvisioners ? (
+											<Alert
+												severity="warning"
+												css={{
+													borderRadius: 0,
+													border: 0,
+													borderBottom: `1px solid ${theme.palette.divider}`,
+													borderLeft: `2px solid ${theme.palette.error.main}`,
+												}}
+											>
+												<AlertTitle>Build stuck</AlertTitle>
+												<AlertDetail>No Compatible Provisioner Daemons have been configured</AlertDetail>
+											</Alert>
 									) : compatibleProvisionersUnhealthy && (
 										<div>
 											<Alert
@@ -615,7 +628,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												}}
 											>
 												<AlertTitle>Build may be delayed</AlertTitle>
-												<AlertDetail>No Compatible Provisioner Daemons have been recently seen</AlertDetail>
+												<AlertDetail>Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build</AlertDetail>
 											</Alert>
 										</div>
 									)}

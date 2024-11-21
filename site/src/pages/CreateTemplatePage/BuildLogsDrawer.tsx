@@ -13,6 +13,8 @@ import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/Worksp
 import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
 import { provisionersUnhealthy, useCompatibleProvisioners } from "modules/provisioners/useCompatibleProvisioners";
+import { Alert, AlertTitle } from "@mui/material";
+import { AlertDetail } from "components/Alert/Alert";
 
 type BuildLogsDrawerProps = {
 	error: unknown;
@@ -74,11 +76,33 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 
 				{ !compatibleProvisioners && !logs ? (
 					// If there are no compatible provisioners, warn that this job may be stuck
-					<>No compatible provisioners</>
+					<Alert
+						severity="warning"
+						css={{
+							borderRadius: 0,
+							border: 0,
+							// borderBottom: `1px solid ${theme.palette.divider}`,
+							// borderLeft: `2px solid ${theme.palette.error.main}`,
+						}}
+					>
+						<AlertTitle>Build stuck</AlertTitle>
+						<AlertDetail>No Compatible Provisioner Daemons have been configured</AlertDetail>
+					</Alert>
 				) : compatibleProvisionersUnhealthy && !logs && (
 					// If there are compatible provisioners in the db, but they have not reported recent health checks,
 					// warn that the job might be stuck
-					<>Compatible provisioners are potentially unhealthy. Your job might be delayed</>
+					<Alert
+						severity="warning"
+						css={{
+							borderRadius: 0,
+							border: 0,
+							// borderBottom: `1px solid ${theme.palette.divider}`,
+							// borderLeft: `2px solid ${theme.palette.error.main}`,
+						}}
+					>
+						<AlertTitle>Build may be delayed</AlertTitle>
+						<AlertDetail>Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build</AlertDetail>
+					</Alert>
 				)}
 
 				{isMissingVariables ? (
