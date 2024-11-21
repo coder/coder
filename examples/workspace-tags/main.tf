@@ -54,7 +54,7 @@ data "coder_parameter" "project_name" {
   name         = "project_name"
   display_name = "Project name"
   description  = "Specify the project name."
-
+  default = "SUPERSECRET"
   mutable = false
 }
 
