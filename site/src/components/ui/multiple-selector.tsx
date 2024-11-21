@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { X } from "lucide-react";
+import { X, ChevronDown } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
@@ -466,9 +466,9 @@ const MultipleSelector = React.forwardRef<
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
 				<div
 					className={cn(
-						"min-h-9 rounded-md border border-solid border-border text-sm ",
+						"min-h-9 rounded-md border border-solid border-border text-sm pr-3",
 						{
-							"px-3 py-1": selected.length !== 0,
+							"pl-3 py-1": selected.length !== 0,
 							"cursor-text": !disabled && selected.length !== 0,
 						},
 						className,
@@ -478,7 +478,7 @@ const MultipleSelector = React.forwardRef<
 						inputRef?.current?.focus();
 					}}
 				>
-					<div className="relative flex flex-wrap gap-1">
+					<div className="relative flex flex-wrap gap-1 items-center">
 						{selected.map((option) => {
 							return (
 								<Badge
@@ -557,7 +557,7 @@ const MultipleSelector = React.forwardRef<
 								onChange?.(selected.filter((s) => s.fixed));
 							}}
 							className={cn(
-								"absolute right-0 h-6 w-6 p-0 bg-transparent border-none cursor-pointer",
+								"absolute right-6 mt-1 bg-transparent border-none cursor-pointer text-content-secondary",
 								(hideClearAllButton ||
 									disabled ||
 									selected.length < 1 ||
@@ -565,8 +565,9 @@ const MultipleSelector = React.forwardRef<
 									"hidden",
 							)}
 						>
-							<X />
+							<X size={18} />
 						</button>
+						<ChevronDown className="h-6 w-6 cursor-pointer text-content-secondary" />
 					</div>
 				</div>
 				<div className="relative">
