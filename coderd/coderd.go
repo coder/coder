@@ -1379,7 +1379,7 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", swaggerDisabled)
 	}
 
-	additionalCSPHeaders := make(map[httpmw.CSPFetchDirective][]string)
+	additionalCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(api.DeploymentValues.AdditionalCSPPolicy))
 	var cspParseErrors error
 	for _, v := range api.DeploymentValues.AdditionalCSPPolicy {
 		// Format is "<directive> <value> <value> ..."
