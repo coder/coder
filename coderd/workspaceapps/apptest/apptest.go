@@ -472,6 +472,53 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		})
 	})
 
+	t.Run("CORS", func(t *testing.T) {
+		t.Parallel()
+
+		t.Run("AuthenticatedPassthruProtected", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			appDetails := setupProxyTest(t, nil)
+
+			// Given: an unauthenticated client
+			client := appDetails.AppClient(t)
+			client.SetSessionToken("")
+
+			// When: a request is made to an authenticated app with passthru CORS behavior
+			resp, err := requestWithRetries(ctx, t, client, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.AuthenticatedCORSPassthru).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+
+			// Then: the request is redirected to the primary access URL because even though CORS is passthru,
+			// the request must still be authenticated first
+			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
+			gotLocation, err := resp.Location()
+			require.NoError(t, err)
+			require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
+			require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
+		})
+
+		t.Run("AuthenticatedPassthruOK", func(t *testing.T) {
+			t.Parallel()
+
+			ctx := testutil.Context(t, testutil.WaitLong)
+
+			appDetails := setupProxyTest(t, nil)
+
+			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			userAppClient := appDetails.AppClient(t)
+			userAppClient.SetSessionToken(userClient.SessionToken())
+
+			// Given: an authenticated app with passthru CORS behavior
+			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.AuthenticatedCORSPassthru).String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+	})
+
 	t.Run("WorkspaceApplicationAuth", func(t *testing.T) {
 		t.Parallel()
 
@@ -1399,10 +1446,14 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			agnt = workspaceBuild.Resources[0].Agents[0]
 			found := map[string]codersdk.WorkspaceAppSharingLevel{}
 			expected := map[string]codersdk.WorkspaceAppSharingLevel{
-				proxyTestAppNameFake:          codersdk.WorkspaceAppSharingLevelOwner,
-				proxyTestAppNameOwner:         codersdk.WorkspaceAppSharingLevelOwner,
-				proxyTestAppNameAuthenticated: codersdk.WorkspaceAppSharingLevelAuthenticated,
-				proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
+				proxyTestAppNameFake:                      codersdk.WorkspaceAppSharingLevelOwner,
+				proxyTestAppNameOwner:                     codersdk.WorkspaceAppSharingLevelOwner,
+				proxyTestAppNameAuthenticated:             codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNamePublic:                    codersdk.WorkspaceAppSharingLevelPublic,
+				proxyTestAppNameAuthenticatedCORSPassthru: codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNamePublicCORSPassthru:        codersdk.WorkspaceAppSharingLevelPublic,
+				proxyTestAppNameAuthenticatedCORSDefault:  codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNamePublicCORSDefault:         codersdk.WorkspaceAppSharingLevelPublic,
 			}
 			for _, app := range agnt.Apps {
 				found[app.DisplayName] = app.SharingLevel
@@ -1559,6 +1610,12 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 				// Unauthenticated user should not have any access.
 				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+
+				// Unauthenticated user should not have any access, regardless of CORS behavior (using passthru).
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticatedCORSPassthru, clientWithNoAuth, false, true)
+
+				// Unauthenticated user should not have any access, regardless of CORS behavior (using default).
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticatedCORSDefault, clientWithNoAuth, false, true)
 			})
 
 			t.Run("LevelPublic", func(t *testing.T) {
@@ -1576,6 +1633,12 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 				// Unauthenticated user should be able to access the workspace.
 				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublic, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
+
+				// Unauthenticated user should have access, regardless of CORS behavior (using passthru).
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublicCORSPassthru, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
+
+				// Unauthenticated user should have access, regardless of CORS behavior (using default).
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNamePublicCORSDefault, clientWithNoAuth, allowedUnlessSharingDisabled, !allowedUnlessSharingDisabled)
 			})
 		}
 
@@ -1776,6 +1839,95 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		}
 		require.Equal(t, []string{"Origin", "X-Foobar"}, deduped)
 		require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
+	})
+
+	// See above test for original implementation.
+	t.Run("CORSHeadersConditionalStrip", func(t *testing.T) {
+		t.Parallel()
+
+		// Set a bunch of headers which may or may not be stripped, depending on the CORS behavior.
+		// See coderd/workspaceapps/proxy.go (proxyWorkspaceApp).
+		headers := http.Header{
+			"X-Foobar":                         []string{"baz"},
+			"Access-Control-Allow-Origin":      []string{"http://localhost"},
+			"access-control-allow-origin":      []string{"http://localhost"},
+			"Access-Control-Allow-Credentials": []string{"true"},
+			"Access-Control-Allow-Methods":     []string{"PUT"},
+			"Access-Control-Allow-Headers":     []string{"X-Foobar"},
+			"Vary": []string{
+				"Origin",
+				"origin",
+				"Access-Control-Request-Headers",
+				"access-Control-request-Headers",
+				"Access-Control-Request-Methods",
+				"ACCESS-CONTROL-REQUEST-METHODS",
+				"X-Foobar",
+			},
+		}
+
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			headers: headers,
+		})
+
+		tests := []struct {
+			name        string
+			app         App
+			shouldStrip bool
+		}{
+			{
+				// Uses an app which does not set CORS behavior, which *should* be equivalent to default.
+				name:        "NormalStrip",
+				app:         appDetails.Apps.Owner,
+				shouldStrip: true,
+			},
+			{
+				// Explicitly uses the default CORS behavior.
+				name:        "DefaultStrip",
+				app:         appDetails.Apps.PublicCORSDefault,
+				shouldStrip: true,
+			},
+			{
+				// Explicitly does not strip CORS headers.
+				name:        "PassthruNoStrip",
+				app:         appDetails.Apps.PublicCORSPassthru,
+				shouldStrip: false,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// Given: a particular app
+				appURL := appDetails.SubdomainAppURL(tc.app)
+
+				// When: querying the app
+				resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, appURL.String(), nil)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+
+				// Then: the CORS headers should be conditionally stripped or not, depending on the CORS behavior.
+				if tc.shouldStrip {
+					require.Empty(t, resp.Header.Values("Access-Control-Allow-Origin"))
+					require.Empty(t, resp.Header.Values("Access-Control-Allow-Credentials"))
+					require.Empty(t, resp.Header.Values("Access-Control-Allow-Methods"))
+					require.Empty(t, resp.Header.Values("Access-Control-Allow-Headers"))
+				} else {
+					for k, v := range headers {
+						// We dedupe the values because some headers have been set multiple times.
+						headerVal := dedupe(resp.Header.Values(k))
+						assert.ElementsMatchf(t, headerVal, v, "header %q does not contain %q", k, v)
+					}
+				}
+
+				// This header is not a CORS-related header, so it should always be set.
+				require.Equal(t, []string{"baz"}, resp.Header.Values("X-Foobar"))
+			})
+		}
 	})
 
 	t.Run("ReportStats", func(t *testing.T) {
@@ -1998,4 +2150,17 @@ func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
 		}
 	}
 	return nil
+}
+
+func dedupe[T comparable](elements []T) []T {
+	found := map[T]bool{}
+	result := []T{}
+
+	for _, v := range elements {
+		if !found[v] {
+			found[v] = true
+			result = append(result, v)
+		}
+	}
+	return result
 }

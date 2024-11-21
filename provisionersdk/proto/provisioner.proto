@@ -137,6 +137,11 @@ enum AppSharingLevel {
     PUBLIC = 2;
 }
 
+enum AppCORSBehavior {
+    SIMPLE = 0;
+    PASSTHRU = 1;
+}
+
 message DisplayApps {
     bool vscode = 1;
     bool vscode_insiders = 2;
@@ -175,6 +180,7 @@ message App {
     bool subdomain = 6;
     Healthcheck healthcheck = 7;
     AppSharingLevel sharing_level = 8;
+    AppCORSBehavior cors_behavior = 12;
     bool external = 9;
     int64 order = 10;
     bool hidden = 11;

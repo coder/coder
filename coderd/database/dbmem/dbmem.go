@@ -8174,6 +8174,7 @@ func (q *FakeQuerier) InsertWorkspaceApp(_ context.Context, arg database.InsertW
 		Health:               arg.Health,
 		Hidden:               arg.Hidden,
 		DisplayOrder:         arg.DisplayOrder,
+		CorsBehavior:         arg.CorsBehavior,
 	}
 	q.workspaceApps = append(q.workspaceApps, workspaceApp)
 	return workspaceApp, nil

@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/cors"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -31,13 +32,17 @@ import (
 )
 
 const (
-	proxyTestAgentName            = "agent-name"
-	proxyTestAppNameFake          = "test-app-fake"
-	proxyTestAppNameOwner         = "test-app-owner"
-	proxyTestAppNameAuthenticated = "test-app-authenticated"
-	proxyTestAppNamePublic        = "test-app-public"
-	proxyTestAppQuery             = "query=true"
-	proxyTestAppBody              = "hello world from apps test"
+	proxyTestAgentName                        = "agent-name"
+	proxyTestAppNameFake                      = "test-app-fake"
+	proxyTestAppNameOwner                     = "test-app-owner"
+	proxyTestAppNameAuthenticated             = "test-app-authenticated"
+	proxyTestAppNamePublic                    = "test-app-public"
+	proxyTestAppNameAuthenticatedCORSPassthru = "test-app-authenticated-cors-passthru"
+	proxyTestAppNamePublicCORSPassthru        = "test-app-public-cors-passthru"
+	proxyTestAppNameAuthenticatedCORSDefault  = "test-app-authenticated-cors-default"
+	proxyTestAppNamePublicCORSDefault         = "test-app-public-cors-default"
+	proxyTestAppQuery                         = "query=true"
+	proxyTestAppBody                          = "hello world from apps test"
 
 	proxyTestSubdomainRaw = "*.test.coder.com"
 	proxyTestSubdomain    = "test.coder.com"
@@ -93,6 +98,10 @@ type App struct {
 	// Prefix should have ---.
 	Prefix string
 	Query  string
+	Path   string
+
+	// Control the behavior of CORS handling.
+	CORSBehavior cors.AppCORSBehavior
 }
 
 // Details are the full test details returned from setupProxyTestWithFactory.
@@ -109,12 +118,16 @@ type Details struct {
 	AppPort   uint16
 
 	Apps struct {
-		Fake          App
-		Owner         App
-		Authenticated App
-		Public        App
-		Port          App
-		PortHTTPS     App
+		Fake                      App
+		Owner                     App
+		Authenticated             App
+		Public                    App
+		Port                      App
+		PortHTTPS                 App
+		PublicCORSPassthru        App
+		AuthenticatedCORSPassthru App
+		PublicCORSDefault         App
+		AuthenticatedCORSDefault  App
 	}
 }
 
@@ -252,6 +265,36 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
 	}
+	details.Apps.PublicCORSPassthru = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublicCORSPassthru,
+		CORSBehavior:  cors.AppCORSBehaviorPassthru,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.AuthenticatedCORSPassthru = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSPassthru,
+		CORSBehavior:  cors.AppCORSBehaviorPassthru,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.PublicCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublicCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.AuthenticatedCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
 
 	return details
 }
@@ -358,6 +401,36 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Slug:         proxyTestAppNamePublic,
 			DisplayName:  proxyTestAppNamePublic,
 			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSPassthru,
+			DisplayName:  proxyTestAppNamePublicCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+			CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSPassthru,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSPassthru,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
+			Url:          appURL,
+			Subdomain:    true,
+			CorsBehavior: proto.AppCORSBehavior_PASSTHRU,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSDefault,
+			DisplayName:  proxyTestAppNamePublicCORSDefault,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSDefault,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSDefault,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 			Url:          appURL,
 			Subdomain:    true,
 		},

@@ -22,6 +22,12 @@ export enum AppSharingLevel {
 	UNRECOGNIZED = -1,
 }
 
+export enum AppCORSBehavior {
+	SIMPLE = 0,
+	PASSTHRU = 1,
+	UNRECOGNIZED = -1,
+}
+
 /** WorkspaceTransition is the desired outcome of a build */
 export enum WorkspaceTransition {
 	START = 0,
@@ -193,6 +199,7 @@ export interface App {
 	subdomain: boolean;
 	healthcheck: Healthcheck | undefined;
 	sharingLevel: AppSharingLevel;
+	corsBehavior: AppCORSBehavior;
 	external: boolean;
 	order: number;
 	hidden: boolean;
@@ -745,6 +752,9 @@ export const App = {
 		}
 		if (message.sharingLevel !== 0) {
 			writer.uint32(64).int32(message.sharingLevel);
+		}
+		if (message.corsBehavior !== 0) {
+			writer.uint32(96).int32(message.corsBehavior);
 		}
 		if (message.external === true) {
 			writer.uint32(72).bool(message.external);

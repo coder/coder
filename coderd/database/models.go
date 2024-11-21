@@ -74,6 +74,64 @@ func AllAPIKeyScopeValues() []APIKeyScope {
 	}
 }
 
+type AppCORSBehavior string
+
+const (
+	AppCorsBehaviorSimple   AppCORSBehavior = "simple"
+	AppCorsBehaviorPassthru AppCORSBehavior = "passthru"
+)
+
+func (e *AppCORSBehavior) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = AppCORSBehavior(s)
+	case string:
+		*e = AppCORSBehavior(s)
+	default:
+		return fmt.Errorf("unsupported scan type for AppCORSBehavior: %T", src)
+	}
+	return nil
+}
+
+type NullAppCORSBehavior struct {
+	AppCORSBehavior AppCORSBehavior `json:"app_cors_behavior"`
+	Valid           bool            `json:"valid"` // Valid is true if AppCORSBehavior is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullAppCORSBehavior) Scan(value interface{}) error {
+	if value == nil {
+		ns.AppCORSBehavior, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.AppCORSBehavior.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullAppCORSBehavior) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.AppCORSBehavior), nil
+}
+
+func (e AppCORSBehavior) Valid() bool {
+	switch e {
+	case AppCorsBehaviorSimple,
+		AppCorsBehaviorPassthru:
+		return true
+	}
+	return false
+}
+
+func AllAppCORSBehaviorValues() []AppCORSBehavior {
+	return []AppCORSBehavior{
+		AppCorsBehaviorSimple,
+		AppCorsBehaviorPassthru,
+	}
+}
+
 type AppSharingLevel string
 
 const (
@@ -3082,7 +3140,8 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool `db:"hidden" json:"hidden"`
+	Hidden       bool            `db:"hidden" json:"hidden"`
+	CorsBehavior AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // A record of workspace app usage statistics
