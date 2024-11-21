@@ -30,7 +30,7 @@ and builds a container from the `devcontainer.json` specified in the repo.
    ```
 
    A list of available templates is shown in the
-   [templates_init](../../../../reference/cli/templates_init#--id) reference.
+   [templates_init](../../../../reference/cli/templates.md) reference.
 
 1. `cd` into the directory and push the template to your Coder deployment:
 
