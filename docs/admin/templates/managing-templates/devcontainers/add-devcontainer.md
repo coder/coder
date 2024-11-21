@@ -127,8 +127,8 @@ their development environments:
 
 - [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
   - Docker provisions a development container.
-- [Kubernetes dev ontainers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
-  - Provisions a development container on the Kubernetes.
+- [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
+  - Provisions a development container on the Kubernetes cluster.
 - [Google Compute Engine dev container](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer)
   - Runs a development container inside a single GCP instance. It also mounts
     the Docker socket from the VM inside the container to enable Docker inside
