@@ -1,3 +1,4 @@
+
 resource "google_compute_network" "vpc" {
   project                 = var.project_id
   name                    = var.name
@@ -8,19 +9,19 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  count         = length(var.deployments)
-  name          = "${var.name}-${var.deployments[count.index].name}"
+  for_each      = local.clusters
+  name          = "${var.name}-${each.key}"
   project       = var.project_id
-  region        = var.deployments[count.index].region
+  region        = each.value.region
   network       = google_compute_network.vpc.name
-  ip_cidr_range = var.deployments[count.index].subnet_cidr
+  ip_cidr_range = each.value.cidr
 }
 
 resource "google_compute_address" "coder" {
-  count        = length(var.deployments)
+  for_each     = local.clusters
   project      = var.project_id
-  region       = var.deployments[count.index].region
-  name         = "${var.name}-${var.deployments[count.index].name}-coder"
+  region       = each.value.region
+  name         = "${var.name}-${each.key}-coder"
   address_type = "EXTERNAL"
   network_tier = "PREMIUM"
 }

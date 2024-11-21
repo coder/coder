@@ -7,17 +7,17 @@ variable "project_id" {
   description = "The project in which to provision resources"
 }
 
-variable "deployments" {
-  type = list(object({
-    name = string
-    region = string
-    zone   = string
-    subnet_cidr = string
-    coder_node_pool_size = number
-    workspaces_node_pool_size = number
-    misc_node_pool_size = number
-  }))
-}
+# variable "deployments" {
+#   type = list(object({
+#     name = string
+#     region = string
+#     zone   = string
+#     subnet_cidr = string
+#     coder_node_pool_size = number
+#     workspaces_node_pool_size = number
+#     misc_node_pool_size = number
+#   }))
+# }
 
 variable "k8s_version" {
   description = "Kubernetes version to provision."
@@ -74,6 +74,10 @@ variable "cloudflare_domain" {
   description = "Cloudflare coder domain."
 }
 
+variable "cloudflare_zone_id" {
+  description = "Cloudflare zone ID."
+}
+
 // Coder
 variable "coder_chart_version" {
   description = "Version of the Coder Helm chart to install. Defaults to latest."
@@ -93,6 +97,12 @@ variable "coder_image_repo" {
 variable "coder_replicas" {
   description = "Number of Coder replicas to provision."
   default     = 1
+}
+
+variable "coder_license" {
+  description = "Coder license key."
+  # sensitive   = true
+  
 }
 
 variable "coder_cpu_request" {

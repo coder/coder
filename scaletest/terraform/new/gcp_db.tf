@@ -1,7 +1,7 @@
 resource "google_sql_database_instance" "db" {
   name                = "${var.name}-coder"
   project             = var.project_id
-  region              = var.deployments[0].region
+  region              = local.clusters.primary.region
   database_version    = var.cloudsql_version
   deletion_protection = false
 
@@ -13,7 +13,7 @@ resource "google_sql_database_instance" "db" {
     availability_type = "ZONAL"
 
     location_preference {
-      zone = var.deployments[0].zone
+      zone = local.clusters.primary.zone
     }
 
     database_flags {
