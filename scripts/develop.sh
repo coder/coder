@@ -162,8 +162,10 @@ fatal() {
 	# Check if credentials are already set up to avoid setting up again.
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
-	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
+	if ! "${CODER_DEV_SHIM}" whoami >/dev/null 2>&1; then
 		# Try to create the initial admin user.
+		echo "Login required; use admin@coder.com and password '${password}'" >&2
+
 		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
