@@ -305,28 +305,6 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					</FormSection>
 				)}
 
-				<FormSection title="" description="">
-					<FormFields>
-						{/* TODO (SasSwart):
-							There are multiple error scenarios here. Do they each need specific copy, or is a general message fine?
-							* If a free tier user with no organisations or external provisioners uses a template which requires tags:
-								* can they provide tags to the internal provisioners to accept the job?
-								* If not, the alert copy below will be confusing, because they don't use the organisations feature and we mention it.
-							* Could there be no provisioners whatsoever, or do we always expect at least the internal provisioners to run?
-							* There may be provisioners, but none with the requisite tags.
-							* There may be provisioners with the requisite tags, but they may not have been seen by coderd for more an unacceptable duration
-								and therefore be considered stale.
-							* There may be provisioners with the requisite tags that have been recently seen and are actively processing jobs, but what if the queue for jobs is long?
-								Should we warn about expected delays?
-						 */}
-						 {/* TODO (SasSwart): Considering the above, do we want to keep the alert simple here, but provide a link to the provisioner list page and show alerts there? */}
-						 {/* TODO (SasSwart): Do we need a stuck jobs page which lists the jobs queue with an alert for why each may be stuck? */}
-						<Alert variant="outlined" severity="error">
-							This organization does not have any provisioners compatible with this workspace. Before you create a template, you'll need to configure a provisioner.
-						</Alert>
-					</FormFields>
-				</FormSection>
-
 				<FormFooter
 					onCancel={onCancel}
 					isLoading={creatingWorkspace}

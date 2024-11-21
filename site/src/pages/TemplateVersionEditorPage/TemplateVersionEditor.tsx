@@ -60,6 +60,7 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
+import { provisionersUnhealthy, useCompatibleProvisioners } from "modules/provisioners/useCompatibleProvisioners";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -126,6 +127,12 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
+
+	const compatibleProvisioners = useCompatibleProvisioners(
+		templateVersion?.organization_id,
+		templateVersion?.job.tags
+	);
+	const compatibleProvisionersUnhealthy = provisionersUnhealthy(compatibleProvisioners);
 
 	const triggerPreview = useCallback(async () => {
 		await onPreview(fileTree);
@@ -581,7 +588,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									{templateVersion.job.error && (
+									{templateVersion.job.error ? (
 										<div>
 											<Alert
 												severity="error"
@@ -594,6 +601,21 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 											>
 												<AlertTitle>Error during the build</AlertTitle>
 												<AlertDetail>{templateVersion.job.error}</AlertDetail>
+											</Alert>
+										</div>
+									) : compatibleProvisionersUnhealthy && (
+										<div>
+											<Alert
+												severity="warning"
+												css={{
+													borderRadius: 0,
+													border: 0,
+													borderBottom: `1px solid ${theme.palette.divider}`,
+													borderLeft: `2px solid ${theme.palette.error.main}`,
+												}}
+											>
+												<AlertTitle>Build may be delayed</AlertTitle>
+												<AlertDetail>No Compatible Provisioner Daemons have been recently seen</AlertDetail>
 											</Alert>
 										</div>
 									)}
