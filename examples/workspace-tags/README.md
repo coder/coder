@@ -17,9 +17,9 @@ By using `coder_workspace_tags` and `coder_parameter`s, template administrators 
 
 # Notes
 
-* You will need to have an [external provisioner](https://coder.com/docs/admin/provisioners#external-provisioners) with the correct tagset running in order to import this template.
-* When specifying values for the `coder_workspace_tags` data source, you are restricted to using a subset of Terraform's capabilities.
-* You must specify default values for all data sources and variables referenced by the `coder_workspace_tags` data source.
+- You will need to have an [external provisioner](https://coder.com/docs/admin/provisioners#external-provisioners) with the correct tagset running in order to import this template.
+- When specifying values for the `coder_workspace_tags` data source, you are restricted to using a subset of Terraform's capabilities.
+- You must specify default values for all data sources and variables referenced by the `coder_workspace_tags` data source.
 
 See [Workspace Tags](https://coder.com/docs/templates/workspace-tags) for more information.
 
