@@ -1,13 +1,10 @@
 # Add a dev container template to Coder
 
 A Coder administrator adds a dev container-compatible template to Coder
-(Envbuilder).
-
-When a developer creates their workspace, they enter their repository URL as a
-[parameter](../../extending-templates/parameters.md). Envbuilder clones the repo
+(Envbuilder). This allows the template to prompt for the developer for their dev container repository's URL as a [parameter](../../extending-templates/parameters.md) when they create their workspace. Envbuilder clones the repo
 and builds a container from the `devcontainer.json` specified in the repo.
 
-//tabs UI | CLI | Registry (/starter-templates?tag=devcontainer)
+You can create template files through the Coder dashboard, CLI, or you can choose a template from the [Coder registry](https://registry.coder.com/templates?tag=devcontainer):
 
 <div class="tabs">
 
@@ -19,7 +16,7 @@ and builds a container from the `devcontainer.json` specified in the repo.
    select **Choose a starter template**.
 
    - Select **From scratch** to create a new template and enter information and
-     file contents manually.
+   file contents manually.
 
 ## CLI
 
@@ -44,7 +41,7 @@ and builds a container from the `devcontainer.json` specified in the repo.
 ## Registry
 
 1. Go to the
-   [Coder Registry](https://registry.coder.com/templates?tag=devcontainer) and
+   [Coder registry](https://registry.coder.com/templates?tag=devcontainer) and
    select a dev container-compatible template.
 
 1. Copy the files to your local device, then edit them to fit your needs.
@@ -53,48 +50,40 @@ and builds a container from the `devcontainer.json` specified in the repo.
 
    - CLI:
 
-     ```shell
-     coder template push
-     ```
+   ```shell
+   coder template push
+   ```
 
    - Dashboard:
 
-     1. Create a `.zip` of the template files:
+   1. Create a `.zip` of the template files:
 
-        - On Mac or Windows, highlight the files and then right click. A
-          "compress" option is available through the right-click context menu.
+      - On Mac or Windows, highlight the files and then right click. A
+         "compress" option is available through the right-click context menu.
 
-        - To zip the files through the command line:
+      - To zip the files through the command line:
 
-          ```shell
-          zip templates.zip Dockerfile main.tf
-          ```
+         ```shell
+         zip templates.zip Dockerfile main.tf
+         ```
 
-     1. Select **Templates**.
-     1. Select **Create Template**, then **Upload template**:
+   1. Select **Templates**.
+   1. Select **Create Template**, then **Upload template**:
 
-     ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
+      ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
 
-     1. Drag the `.zip` file into the **Upload template** section and fill out
-        the details, then select **Create template**.
+   1. Drag the `.zip` file into the **Upload template** section and fill out
+      the details, then select **Create template**.
 
-     ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
-
-     1. Once the upload completes, select **Templates** from the top to deploy
-        it to a new workspace.
+      ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
 
 </div>
 
-Admin:
+To set variables such as the namespace, go to the template in your Coder dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
-1. Use a [dev container template](https://registry.coder.com/templates)
-1. Create a template with the template files from the registry (git clone,
-   upload files, or copy paste)
-1. In template settings > variables > set necessary variables such as the
-   namespace
-1. Create a workspace from the template
-1. Choose a **Repository** URL
-   - The repo must have a `.devcontainer` directory with `devcontainer.json`
+![Choose Settings from the template's menu](../../../../images/templates/template-menu-settings.png)
+
+## Envbuilder Terraform provider
 
 When using the
 [Envbuilder Terraform provider](https://github.com/coder/terraform-provider-envbuilder),
