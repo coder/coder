@@ -488,6 +488,8 @@ data "coder_workspace_tags" "tags" {
 
 			cancel()
 			<-done
+
+			require.Contains(t, stderr.String(), "No provisioners are available to handle the job!")
 		})
 
 		t.Run("ChangeTags", func(t *testing.T) {
