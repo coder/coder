@@ -9,6 +9,8 @@ import type {
 	AgentScriptTiming,
 	ProvisionerTiming,
 } from "api/typesGenerated";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
 import { type FC, useState } from "react";
 import { type TimeRange, calcDuration, mergeTimeRanges } from "./Chart/utils";
 import { ResourcesChart, isCoderResource } from "./ResourcesChart";
@@ -19,8 +21,6 @@ import {
 	agentStages,
 	provisioningStages,
 } from "./StagesChart";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
 
 type TimingView =
 	| { name: "default" }
@@ -50,7 +50,7 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	const uniqScriptTimings = uniqBy(
 		sortBy(agentScriptTimings, (t) => new Date(t.started_at).getTime() * -1),
 		(t) => t.display_name,
-	)
+	);
 	const timings = [
 		...provisionerTimings,
 		...uniqScriptTimings,
