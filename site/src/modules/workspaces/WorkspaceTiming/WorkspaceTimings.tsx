@@ -19,6 +19,8 @@ import {
 	agentStages,
 	provisioningStages,
 } from "./StagesChart";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
 
 type TimingView =
 	| { name: "default" }
@@ -42,11 +44,20 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	defaultIsOpen = false,
 }) => {
 	const [view, setView] = useState<TimingView>({ name: "default" });
+	// This is a workaround to deal with the BE returning multiple timings for a
+	// single agent script when it should return only one. Reference:
+	// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
+	const uniqScriptTimings = uniqBy(
+		sortBy(agentScriptTimings, (t) => new Date(t.started_at).getTime() * -1),
+		(t) => t.display_name,
+	)
 	const timings = [
 		...provisionerTimings,
-		...agentScriptTimings,
+		...uniqScriptTimings,
 		...agentConnectionTimings,
-	];
+	].sort((a, b) => {
+		return new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
+	});
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const isLoading = timings.length === 0;
 
