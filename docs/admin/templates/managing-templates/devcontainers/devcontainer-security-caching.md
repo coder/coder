@@ -1,19 +1,12 @@
 # Dev container security and caching
 
-Ensure Envbuilder can only pull images and artifacts by configuring it with your
+Ensure Envbuilder can only pull pre-approved images and artifacts by configuring it with your
 existing HTTP proxies, firewalls, and artifact managers.
 
 ### Configure registry authentication
 
 You may need to authenticate to your container registry, such as Artifactory, or
 Git provider such as GitLab, to use Envbuilder. See the
-[Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/container-registry-auth.md)
-for more information.
-
-## Authentication
-
-You may need to authenticate to your container registry, such as Artifactory, or
-git provider such as GitLab, to use Envbuilder. See the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/container-registry-auth.md)
 for more information.
 
@@ -39,7 +32,7 @@ Refer to the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
 for more information.
 
-Note that caching requires push access to a registry, and may require approval.
+Note that caching requires push access to a registry, and may require approval from relevant infrastructure team(s).
 
 ### Image caching
 
