@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,13 +9,6 @@ import (
 func Test_parsePortForwards(t *testing.T) {
 	t.Parallel()
 
-	portForwardSpecToString := func(v []portForwardSpec) (out []string) {
-		for _, p := range v {
-			require.Equal(t, p.listenNetwork, p.dialNetwork)
-			out = append(out, fmt.Sprintf("%s:%s", strings.Replace(p.listenAddress, "127.0.0.1:", "", 1), strings.Replace(p.dialAddress, "127.0.0.1:", "", 1)))
-		}
-		return out
-	}
 	type args struct {
 		tcpSpecs []string
 		udpSpecs []string
@@ -25,7 +16,7 @@ func Test_parsePortForwards(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []string
+		want    []portForwardSpec
 		wantErr bool
 	}{
 		{
@@ -34,17 +25,37 @@ func Test_parsePortForwards(t *testing.T) {
 				tcpSpecs: []string{
 					"8000,8080:8081,9000-9002,9003-9004:9005-9006",
 					"10000",
+					"4444-4444",
 				},
 			},
-			want: []string{
-				"8000:8000",
-				"8080:8081",
-				"9000:9000",
-				"9001:9001",
-				"9002:9002",
-				"9003:9005",
-				"9004:9006",
-				"10000:10000",
+			want: []portForwardSpec{
+				{"tcp", "127.0.0.1:8000", "tcp", "127.0.0.1:8000"},
+				{"tcp", "127.0.0.1:8080", "tcp", "127.0.0.1:8081"},
+				{"tcp", "127.0.0.1:9000", "tcp", "127.0.0.1:9000"},
+				{"tcp", "127.0.0.1:9001", "tcp", "127.0.0.1:9001"},
+				{"tcp", "127.0.0.1:9002", "tcp", "127.0.0.1:9002"},
+				{"tcp", "127.0.0.1:9003", "tcp", "127.0.0.1:9005"},
+				{"tcp", "127.0.0.1:9004", "tcp", "127.0.0.1:9006"},
+				{"tcp", "127.0.0.1:10000", "tcp", "127.0.0.1:10000"},
+				{"tcp", "127.0.0.1:4444", "tcp", "127.0.0.1:4444"},
+			},
+		},
+		{
+			name: "TCP IPv4 local",
+			args: args{
+				tcpSpecs: []string{"127.0.0.1:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"tcp", "127.0.0.1:8080", "tcp", "127.0.0.1:8081"},
+			},
+		},
+		{
+			name: "TCP IPv6 local",
+			args: args{
+				tcpSpecs: []string{"[::1]:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"tcp", "[::1]:8080", "tcp", "127.0.0.1:8081"},
 			},
 		},
 		{
@@ -52,10 +63,28 @@ func Test_parsePortForwards(t *testing.T) {
 			args: args{
 				udpSpecs: []string{"8000,8080-8081"},
 			},
-			want: []string{
-				"8000:8000",
-				"8080:8080",
-				"8081:8081",
+			want: []portForwardSpec{
+				{"udp", "127.0.0.1:8000", "udp", "127.0.0.1:8000"},
+				{"udp", "127.0.0.1:8080", "udp", "127.0.0.1:8080"},
+				{"udp", "127.0.0.1:8081", "udp", "127.0.0.1:8081"},
+			},
+		},
+		{
+			name: "UDP IPv4 local",
+			args: args{
+				udpSpecs: []string{"127.0.0.1:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"udp", "127.0.0.1:8080", "udp", "127.0.0.1:8081"},
+			},
+		},
+		{
+			name: "UDP IPv6 local",
+			args: args{
+				udpSpecs: []string{"[::1]:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"udp", "[::1]:8080", "udp", "127.0.0.1:8081"},
 			},
 		},
 		{
@@ -83,8 +112,7 @@ func Test_parsePortForwards(t *testing.T) {
 				t.Fatalf("parsePortForwards() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			gotStrings := portForwardSpecToString(got)
-			require.Equal(t, tt.want, gotStrings)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

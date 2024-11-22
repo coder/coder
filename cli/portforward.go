@@ -7,6 +7,7 @@ import (
 	"net/netip"
 	"os"
 	"os/signal"
+	"regexp"
 	"strconv"
 	"strings"
 	"sync"
@@ -263,7 +264,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 
 	for _, specEntry := range tcpSpecs {
 		for _, spec := range strings.Split(specEntry, ",") {
-			ports, err := parseSrcDestPorts(spec)
+			ports, err := parseSrcDestPorts(strings.TrimSpace(spec))
 			if err != nil {
 				return nil, xerrors.Errorf("failed to parse TCP port-forward specification %q: %w", spec, err)
 			}
@@ -281,7 +282,7 @@ func parsePortForwards(tcpSpecs, udpSpecs []string) ([]portForwardSpec, error) {
 
 	for _, specEntry := range udpSpecs {
 		for _, spec := range strings.Split(specEntry, ",") {
-			ports, err := parseSrcDestPorts(spec)
+			ports, err := parseSrcDestPorts(strings.TrimSpace(spec))
 			if err != nil {
 				return nil, xerrors.Errorf("failed to parse UDP port-forward specification %q: %w", spec, err)
 			}
@@ -326,63 +327,53 @@ type parsedSrcDestPort struct {
 	local, remote netip.AddrPort
 }
 
+// specRegexp matches port specs. It handles all the following formats:
+//
+// 8000
+// 8888:9999
+// 1-5:6-10
+// 8000-8005
+// 127.0.0.1:4000:4000
+// [::1]:8080:8081
+// 127.0.0.1:4000-4005
+// [::1]:4000-4001:5000-5001
+//
+// Important capturing groups:
+//
+// 2: local IP address (including [] for IPv6)
+// 3: local port, or start of local port range
+// 5: end of local port range
+// 7: remote port, or start of remote port range
+// 9: end or remote port range
+var specRegexp = regexp.MustCompile(`^((\[[0-9a-fA-F:]+]|\d+\.\d+\.\d+\.\d+):)?(\d+)(-(\d+))?(:(\d+)(-(\d+))?)?$`)
+
 func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	var (
 		err        error
-		parts      = strings.Split(in, ":")
 		localAddr  = netip.AddrFrom4([4]byte{127, 0, 0, 1})
 		remoteAddr = netip.AddrFrom4([4]byte{127, 0, 0, 1})
 	)
-
-	switch len(parts) {
-	case 1:
-		// Duplicate the single part
-		parts = append(parts, parts[0])
-	case 2:
-		// Check to see if the first part is an IP address.
-		_localAddr, err := netip.ParseAddr(parts[0])
-		if err != nil {
-			break
-		}
-		// The first part is the local address, so duplicate the port.
-		localAddr = _localAddr
-		parts = []string{parts[1], parts[1]}
-
-	case 3:
-		_localAddr, err := netip.ParseAddr(parts[0])
-		if err != nil {
-			return nil, xerrors.Errorf("invalid port specification %q; invalid ip %q: %w", in, parts[0], err)
-		}
-		localAddr = _localAddr
-		parts = parts[1:]
-
-	default:
+	groups := specRegexp.FindStringSubmatch(in)
+	if len(groups) == 0 {
 		return nil, xerrors.Errorf("invalid port specification %q", in)
 	}
-
-	if !strings.Contains(parts[0], "-") {
-		localPort, err := parsePort(parts[0])
+	if groups[2] != "" {
+		localAddr, err = netip.ParseAddr(strings.Trim(groups[2], "[]"))
 		if err != nil {
-			return nil, xerrors.Errorf("parse local port from %q: %w", in, err)
+			return nil, xerrors.Errorf("invalid IP address %q", groups[2])
 		}
-		remotePort, err := parsePort(parts[1])
-		if err != nil {
-			return nil, xerrors.Errorf("parse remote port from %q: %w", in, err)
-		}
-
-		return []parsedSrcDestPort{{
-			local:  netip.AddrPortFrom(localAddr, localPort),
-			remote: netip.AddrPortFrom(remoteAddr, remotePort),
-		}}, nil
 	}
 
-	local, err := parsePortRange(parts[0])
+	local, err := parsePortRange(groups[3], groups[5])
 	if err != nil {
 		return nil, xerrors.Errorf("parse local port range from %q: %w", in, err)
 	}
-	remote, err := parsePortRange(parts[1])
-	if err != nil {
-		return nil, xerrors.Errorf("parse remote port range from %q: %w", in, err)
+	remote := local
+	if groups[7] != "" {
+		remote, err = parsePortRange(groups[7], groups[9])
+		if err != nil {
+			return nil, xerrors.Errorf("parse remote port range from %q: %w", in, err)
+		}
 	}
 	if len(local) != len(remote) {
 		return nil, xerrors.Errorf("port ranges must be the same length, got %d ports forwarded to %d ports", len(local), len(remote))
@@ -397,18 +388,17 @@ func parseSrcDestPorts(in string) ([]parsedSrcDestPort, error) {
 	return out, nil
 }
 
-func parsePortRange(in string) ([]uint16, error) {
-	parts := strings.Split(in, "-")
-	if len(parts) != 2 {
-		return nil, xerrors.Errorf("invalid port range specification %q", in)
-	}
-	start, err := parsePort(parts[0])
+func parsePortRange(s, e string) ([]uint16, error) {
+	start, err := parsePort(s)
 	if err != nil {
-		return nil, xerrors.Errorf("parse range start port from %q: %w", in, err)
+		return nil, xerrors.Errorf("parse range start port from %q: %w", s, err)
 	}
-	end, err := parsePort(parts[1])
-	if err != nil {
-		return nil, xerrors.Errorf("parse range end port from %q: %w", in, err)
+	end := start
+	if len(e) != 0 {
+		end, err = parsePort(e)
+		if err != nil {
+			return nil, xerrors.Errorf("parse range end port from %q: %w", e, err)
+		}
 	}
 	if end < start {
 		return nil, xerrors.Errorf("range end port %v is less than start port %v", end, start)
