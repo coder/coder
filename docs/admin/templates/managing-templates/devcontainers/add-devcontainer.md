@@ -101,20 +101,11 @@ their development environments:
 
 ```json
 …
-"customizations": {
-    // Configure properties specific to VS Code.
-        "vscode": {
-            "settings": {
-                "editor.tabSize": 4,
-                "editor.detectIndentation": false
-                "editor.insertSpaces": true
-                "files.trimTrailingWhitespace": true
-            },
-  "extensions": [
-                "github.vscode-pull-request-github",
-  ]
-        }
-},
+{
+  "features": {
+      "ghcr.io/devcontainers/features/common-utils:2": {}
+  }
+}
 …
 ```
 

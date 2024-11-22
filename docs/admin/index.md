@@ -20,10 +20,10 @@ For any information not strictly contained in these sections, check out our
 - **Image**
 
   - A [base image](./templates/managing-templates/image-management.md) contains
-    the operating system (OS), OS-level packages, and utilities that the Coder
-    workspace is built on. It can be an
-    [example image](https://github.com/coder/images), custom image, or one from
-    [Docker Hub](https://hub.docker.com/search). It is defined in each template.
+    OS-level packages, and utilities that the Coder workspace is built on. It
+    can be an [example image](https://github.com/coder/images), custom image, or
+    one from [Docker Hub](https://hub.docker.com/search). It is defined in each
+    template.
   - Managed by: Externally to Coder.
 
 - **Template**
@@ -46,17 +46,15 @@ For any information not strictly contained in these sections, check out our
     that a developer works in. Developers on a team each work from their own
     workspace and can use
     [multiple IDEs](../user-guides/workspace-access/index.md).
-  - Managed by:
+  - Managed by: Developers
 
 - **Development containers**
 
-```suggestion
   - A [development container](../managing-templates/devcontainers.md) is an
     open-source specification for defining development environments. It is
-    generally stored in VCS alongside associated source code. It can
-    reference an existing base image, or a custom Dockerfile that will be built
-    on-demand.
-  - Managed by: developers
+    generally stored in VCS alongside associated source code. It can reference
+    an existing base image, or a custom Dockerfile that will be built on-demand.
+  - Managed by: Developers
 
 - **Dotfiles / personalization**
 

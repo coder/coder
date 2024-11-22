@@ -1,7 +1,7 @@
 # Dev container security and caching
 
-Ensure Envbuilder can only pull pre-approved images and artifacts by configuring it with your
-existing HTTP proxies, firewalls, and artifact managers.
+Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
+it with your existing HTTP proxies, firewalls, and artifact managers.
 
 ### Configure registry authentication
 
@@ -32,7 +32,8 @@ Refer to the
 [Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
 for more information.
 
-Note that caching requires push access to a registry, and may require approval from relevant infrastructure team(s).
+Note that caching requires push access to a registry, and may require approval
+from relevant infrastructure team(s).
 
 ### Image caching
 
