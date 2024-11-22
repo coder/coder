@@ -11,6 +11,9 @@ import (
 
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
@@ -144,5 +147,76 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("ProvisionerKey", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		// nolint:gocritic // test
+		key, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+
+		routeCtx := chi.NewRouteContext()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeCtx))
+		res := httptest.NewRecorder()
+
+		r.Header.Set(codersdk.ProvisionerDaemonKey, key.Key)
+
+		httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+			DB:       db,
+			Optional: false,
+		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})).ServeHTTP(res, r)
+
+		require.Equal(t, http.StatusOK, res.Result().StatusCode)
+	})
+
+	t.Run("ProvisionerKey_NotFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		defer cancel()
+		client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		// nolint:gocritic // test
+		_, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+		})
+		require.NoError(t, err)
+
+		routeCtx := chi.NewRouteContext()
+		r := httptest.NewRequest(http.MethodGet, "/", nil)
+		r = r.WithContext(context.WithValue(r.Context(), chi.RouteCtxKey, routeCtx))
+		res := httptest.NewRecorder()
+
+		r.Header.Set(codersdk.ProvisionerDaemonKey, "5Hl2Qw9kX3nM7vB4jR8pY6tA1cF0eD5uI2oL9gN3mZ4")
+
+		httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+			DB:       db,
+			Optional: false,
+		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			w.WriteHeader(http.StatusOK)
+		})).ServeHTTP(res, r)
+
+		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
+		require.Contains(t, res.Body.String(), "provisioner daemon key invalid")
+	})
 
 }
