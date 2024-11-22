@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
@@ -1101,6 +1102,80 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		// Validate that we are using the promoted version.
 		ws = coderdtest.MustWorkspace(t, client, ws.ID)
 		require.Equal(t, version2.ID, ws.LatestBuild.TemplateVersionID)
+	})
+
+	t.Run("NextStartAtIsValid", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			// ctx = testutil.Context(t, testutil.WaitMedium)
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+		)
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+
+		// First create a template that only supports Monday-Friday
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.BitmapToWeekdays(0b00011111)}
+		})
+		require.Equal(t, version1.ID, template.ActiveVersionID)
+
+		// Then create a workspace with a schedule Sunday-Saturday
+		sched, err := cron.Weekly("CRON_TZ=UTC 0 9 * * 0-6")
+		require.NoError(t, err)
+		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// For each day of the week
+		for range 7 {
+			next := sched.Next(ws.LatestBuild.CreatedAt)
+
+			go func() {
+				tickCh <- next
+			}()
+
+			stats := <-statsCh
+
+			// Our cron schedule specifies Sunday-Saturday but the template only allows
+			// Monday-Friday so we expect there to be no transitions on the weekend.
+			if next.Weekday() == time.Saturday || next.Weekday() == time.Sunday {
+				assert.Len(t, stats.Errors, 0)
+				assert.Len(t, stats.Transitions, 0)
+
+				ws = coderdtest.MustWorkspace(t, client, ws.ID)
+			} else {
+				assert.Len(t, stats.Errors, 0)
+				assert.Len(t, stats.Transitions, 1)
+				assert.Contains(t, stats.Transitions, ws.ID)
+				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+
+				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+			}
+
+			// Verify that the workspaces next_start_at is a valid autostart day
+			require.NotNil(t, ws.NextStartAt)
+			require.NotEqual(t, time.Saturday, ws.NextStartAt.Weekday())
+			require.NotEqual(t, time.Sunday, ws.NextStartAt.Weekday())
+		}
 	})
 }
 

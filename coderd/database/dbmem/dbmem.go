@@ -6954,6 +6954,10 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 			job.JobStatus != database.ProvisionerJobStatusFailed &&
 			build.Transition == database.WorkspaceTransitionStop &&
 			workspace.AutostartSchedule.Valid &&
+			// We do not know if workspace with a zero next start is eligible
+			// for autostart, so we accept this false-positive. This can occur
+			// when a coder version is upgraded and next_start_at has yet to
+			// be set.
 			(workspace.NextStartAt.Time.IsZero() ||
 				!now.Before(workspace.NextStartAt.Time)) {
 			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{

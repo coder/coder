@@ -15620,7 +15620,7 @@ WHERE
 				-- this happens we leave it up to the Coder server to figure out if
 				-- the workspace is ready to autostart.
 				workspaces.next_start_at IS NULL OR
-				workspaces.next_start_at <= $1 :: timestamp
+				workspaces.next_start_at <= $1 :: timestamptz
 			)
 		) OR
 

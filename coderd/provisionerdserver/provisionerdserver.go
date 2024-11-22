@@ -1453,14 +1453,15 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					return xerrors.Errorf("get template schedule options: %w", err)
 				}
 
-				nextStartAt, _ := schedule.NextAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
-
-				err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
-					ID:          workspace.ID,
-					NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
-				})
-				if err != nil {
-					return xerrors.Errorf("update workspace next start at: %w", err)
+				nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
+				if err == nil {
+					err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+						ID:          workspace.ID,
+						NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
+					})
+					if err != nil {
+						return xerrors.Errorf("update workspace next start at: %w", err)
+					}
 				}
 			}
 
