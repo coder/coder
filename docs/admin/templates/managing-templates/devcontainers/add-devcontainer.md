@@ -87,7 +87,7 @@ choose a template from the
 To set variables such as the namespace, go to the template in your Coder
 dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
-![Choose Settings from the template's menu](../../../../images/templates/template-menu-settings.png)
+<Image height="255px" src="../../../../images/templates/template-menu-settings.png" alt="Choose Settings from the template's menu" align="center" />
 
 ## Envbuilder Terraform provider
 
