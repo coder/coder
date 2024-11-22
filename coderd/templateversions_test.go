@@ -254,15 +254,15 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with no tags",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
@@ -270,18 +270,18 @@ resource "null_resource" "test" {}`,
 				name: "main.tf with empty workspace tags",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {}
-}`,
+					variable "a" {
+						type = string
+						default = "1"
+					}
+					data "coder_parameter" "b" {
+						type = string
+						default = "2"
+					}
+					resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {}
+					}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
@@ -289,22 +289,22 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with workspace tags",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"foo": "bar",
-		"a": var.a,
-		"b": data.coder_parameter.b.value,
-	}
-}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2"},
 			},
@@ -312,22 +312,22 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with workspace tags and request tags",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"foo": "bar",
-		"a": var.a,
-		"b": data.coder_parameter.b.value,
-	}
-}`,
+					variable "a" {
+						type = string
+						default = "1"
+					}
+					data "coder_parameter" "b" {
+						type = string
+						default = "2"
+					}
+					resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": "bar",
+							"a": var.a,
+							"b": data.coder_parameter.b.value,
+						}
+					}`,
 				},
 				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
 				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
@@ -336,25 +336,25 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with disallowed workspace tag value",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {
-	name = "foo"
-}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"foo": "bar",
-		"a": var.a,
-		"b": data.coder_parameter.b.value,
-		"test": null_resource.test.name,
-	}
-}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {
+							name = "foo"
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+								"test": null_resource.test.name,
+							}
+						}`,
 				},
 				expectError: `Unknown variable; There is no variable named "null_resource".`,
 			},
@@ -362,25 +362,25 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with disallowed function in tag value",
 				files: map[string]string{
 					`main.tf`: `
-variable "a" {
-	type = string
-	default = "1"
-}
-data "coder_parameter" "b" {
-	type = string
-	default = "2"
-}
-resource "null_resource" "test" {
-	name = "foo"
-}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"foo": "bar",
-		"a": var.a,
-		"b": data.coder_parameter.b.value,
-		"test": try(null_resource.test.name, "whatever"),
-	}
-}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {
+							name = "foo"
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+								"test": try(null_resource.test.name, "whatever"),
+							}
+						}`,
 				},
 				expectError: `Function calls not allowed; Functions may not be called here.`,
 			},
@@ -392,13 +392,13 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with workspace tags that attempts to set user scope",
 				files: map[string]string{
 					`main.tf`: `
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"scope": "user",
-		"owner": "12345678-1234-1234-1234-1234567890ab",
-	}
-}`,
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
 				},
 				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
 			},
@@ -406,13 +406,13 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with workspace tags that attempt to clobber org ID",
 				files: map[string]string{
 					`main.tf`: `
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"scope": "organization",
-		"owner": "12345678-1234-1234-1234-1234567890ab",
-	}
-}`,
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "organization",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
@@ -420,12 +420,12 @@ data "coder_workspace_tags" "tags" {
 				name: "main.tf with workspace tags that set scope=user",
 				files: map[string]string{
 					`main.tf`: `
-resource "null_resource" "test" {}
-data "coder_workspace_tags" "tags" {
-	tags = {
-		"scope": "user",
-	}
-}`,
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+							}
+						}`,
 				},
 				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
 			},
