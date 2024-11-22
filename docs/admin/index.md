@@ -50,8 +50,9 @@ For any information not strictly contained in these sections, check out our
 
 - **Development containers**
 
-  - A [development container](../managing-templates/devcontainers.md) is an
-    open-source specification for defining development environments. It is
+  - A
+    [development container](./templates/managing-templates/devcontainers/index.md)
+    is an open-source specification for defining development environments. It is
     generally stored in VCS alongside associated source code. It can reference
     an existing base image, or a custom Dockerfile that will be built on-demand.
   - Managed by: Developers
