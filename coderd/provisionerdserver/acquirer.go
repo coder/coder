@@ -130,8 +130,8 @@ func (a *Acquirer) AcquireJob(
 					UUID:  worker,
 					Valid: true,
 				},
-				Types: pt,
-				Tags:  dbTags,
+				Types:           pt,
+				ProvisionerTags: dbTags,
 			})
 			if xerrors.Is(err, sql.ErrNoRows) {
 				logger.Debug(ctx, "no job available")

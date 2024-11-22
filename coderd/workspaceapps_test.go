@@ -10,8 +10,6 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
@@ -189,7 +187,7 @@ func TestWorkspaceApplicationAuth(t *testing.T) {
 			t.Parallel()
 
 			ctx := testutil.Context(t, testutil.WaitMedium)
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			accessURL, err := url.Parse(c.accessURL)
 			require.NoError(t, err)
 

@@ -18,11 +18,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd"
 	"github.com/coder/coder/v2/enterprise/wsproxy"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type ProxyOptions struct {
@@ -144,7 +144,7 @@ func NewWorkspaceProxyReplica(t *testing.T, coderdAPI *coderd.API, owner *coders
 		statsCollectorOptions.Flush = options.FlushStats
 	}
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug).With(slog.F("server_url", serverURL.String()))
+	logger := testutil.Logger(t).With(slog.F("server_url", serverURL.String()))
 
 	wssrv, err := wsproxy.New(ctx, &wsproxy.Options{
 		Logger:            logger,

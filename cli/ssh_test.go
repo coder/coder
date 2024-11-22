@@ -30,9 +30,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -57,7 +54,7 @@ func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*p
 	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, nil)
-	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+	client.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
@@ -257,7 +254,7 @@ func TestSSH(t *testing.T) {
 
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
-		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		client.SetLogger(testutil.Logger(t).Named("client"))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
@@ -760,7 +757,7 @@ func TestSSH(t *testing.T) {
 
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
-		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		client.SetLogger(testutil.Logger(t).Named("client"))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
@@ -1367,7 +1364,7 @@ func TestSSH(t *testing.T) {
 					DeploymentValues: dv,
 					StatsBatcher:     batcher,
 				})
-				admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+				admin.SetLogger(testutil.Logger(t).Named("client"))
 				first := coderdtest.CreateFirstUser(t, admin)
 				client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
 				r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{

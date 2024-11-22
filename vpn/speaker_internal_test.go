@@ -38,7 +38,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	require.NoError(t, err)
 	err = mp.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
 	go func() {
@@ -427,7 +427,7 @@ func setupSpeakers(t *testing.T) (
 	t.Cleanup(func() { _ = mp.Close() })
 	t.Cleanup(func() { _ = tp.Close() })
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	var mgr *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]

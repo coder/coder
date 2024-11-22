@@ -165,6 +165,19 @@ func TestUserOIDC(t *testing.T) {
 			user, err := userClient.User(ctx, codersdk.Me)
 			require.NoError(t, err)
 
+			// Then: the available sync fields should be "email" and "organization"
+			fields, err := runner.AdminClient.GetAvailableIDPSyncFields(ctx)
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{
+				"aud", "exp", "iss", // Always included from jwt
+				"email", "organization",
+			}, fields)
+
+			// This should be the same as above
+			orgFields, err := runner.AdminClient.GetOrganizationAvailableIDPSyncFields(ctx, orgOne.ID.String())
+			require.NoError(t, err)
+			require.ElementsMatch(t, fields, orgFields)
+
 			// When: they are manually added to the fourth organization, a new sync
 			// should remove them.
 			_, err = runner.AdminClient.PostOrganizationMember(ctx, orgThree.ID, "alice")

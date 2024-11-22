@@ -194,8 +194,8 @@ func (b WorkspaceBuildBuilder) Do() WorkspaceResponse {
 					UUID:  uuid.New(),
 					Valid: true,
 				},
-				Types: []database.ProvisionerType{database.ProvisionerTypeEcho},
-				Tags:  []byte(`{"scope": "organization"}`),
+				Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+				ProvisionerTags: []byte(`{"scope": "organization"}`),
 			})
 			require.NoError(b.t, err, "acquire starting job")
 			if j.ID == job.ID {

@@ -78,8 +78,6 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 	}
 	rpty.id = hex.EncodeToString(buf)
 
-	go rpty.lifecycle(ctx, logger)
-
 	settings := []string{
 		// Disable the startup message that appears for five seconds.
 		"startup_message off",
@@ -123,6 +121,8 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 		rpty.state.setState(StateDone, xerrors.Errorf("create config file: %w", err))
 		return rpty
 	}
+
+	go rpty.lifecycle(ctx, logger)
 
 	return rpty
 }

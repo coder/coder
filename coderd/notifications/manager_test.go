@@ -13,15 +13,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/dispatch"
 	"github.com/coder/coder/v2/coderd/notifications/types"
@@ -36,7 +34,7 @@ func TestBufferedUpdates(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	interceptor := &syncInterceptor{Store: store}
 	santa := &santaHandler{}
@@ -108,7 +106,7 @@ func TestBuildPayload(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: a set of helpers to be injected into the templates
 	const label = "Click here!"
@@ -166,7 +164,7 @@ func TestStopBeforeRun(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsSystemRestricted(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: a standard manager
 	mgr, err := notifications.NewManager(defaultNotificationsConfig(database.NotificationMethodSmtp), store, defaultHelpers(), createMetrics(), logger.Named("notifications-manager"))

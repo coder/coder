@@ -1,21 +1,18 @@
 package tfparse_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"io"
 	"log"
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
-	"github.com/coder/coder/v2/archive"
+
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/stretchr/testify/require"
 )
 
 func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
@@ -363,8 +360,8 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 		t.Run(tc.name+"/tar", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			tar := createTar(t, tc.files)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			tar := testutil.CreateTar(t, tc.files)
+			logger := testutil.Logger(t)
 			tmpDir := t.TempDir()
 			tfparse.WriteArchive(tar, "application/x-tar", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
@@ -381,8 +378,8 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 		t.Run(tc.name+"/zip", func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			zip := createZip(t, tc.files)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			zip := testutil.CreateZip(t, tc.files)
+			logger := testutil.Logger(t)
 			tmpDir := t.TempDir()
 			tfparse.WriteArchive(zip, "application/zip", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
@@ -397,36 +394,6 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			}
 		})
 	}
-}
-
-func createTar(t testing.TB, files map[string]string) []byte {
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for path, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: path,
-			Size: int64(len(content)),
-			Uid:  65534, // nobody
-			Gid:  65534, // nogroup
-			Mode: 0o666, // -rw-rw-rw-
-		})
-		require.NoError(t, err)
-
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
-}
-
-func createZip(t testing.TB, files map[string]string) []byte {
-	ta := createTar(t, files)
-	tr := tar.NewReader(bytes.NewReader(ta))
-	za, err := archive.CreateZipFromTar(tr, int64(len(ta)))
-	require.NoError(t, err)
-	return za
 }
 
 // Last run results:
@@ -460,8 +427,8 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 			}
 		}`,
 	}
-	tarFile := createTar(b, files)
-	zipFile := createZip(b, files)
+	tarFile := testutil.CreateTar(b, files)
+	zipFile := testutil.CreateZip(b, files)
 	logger := discardLogger(b)
 	b.ResetTimer()
 	b.Run("Tar", func(b *testing.B) {

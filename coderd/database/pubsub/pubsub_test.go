@@ -23,7 +23,7 @@ func TestPGPubsub_Metrics(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
 	db, err := sql.Open("postgres", connectionURL)

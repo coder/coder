@@ -15,7 +15,6 @@ import (
 	"go.uber.org/goleak"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -38,7 +37,7 @@ func TestDetectorNoJobs(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -61,7 +60,7 @@ func TestDetectorNoHungJobs(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -108,7 +107,7 @@ func TestDetectorHungWorkspaceBuild(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -230,7 +229,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideState(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -353,7 +352,7 @@ func TestDetectorHungWorkspaceBuildNoOverrideStateIfNoExistingBuild(t *testing.T
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -446,7 +445,7 @@ func TestDetectorHungOtherJobTypes(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -550,7 +549,7 @@ func TestDetectorHungCanceledJob(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 	)
@@ -652,7 +651,7 @@ func TestDetectorPushesLogs(t *testing.T) {
 			var (
 				ctx        = testutil.Context(t, testutil.WaitLong)
 				db, pubsub = dbtestutil.NewDB(t)
-				log        = slogtest.Make(t, nil)
+				log        = testutil.Logger(t)
 				tickCh     = make(chan time.Time)
 				statsCh    = make(chan unhanger.Stats)
 			)
@@ -770,7 +769,7 @@ func TestDetectorMaxJobsPerRun(t *testing.T) {
 	var (
 		ctx        = testutil.Context(t, testutil.WaitLong)
 		db, pubsub = dbtestutil.NewDB(t)
-		log        = slogtest.Make(t, nil)
+		log        = testutil.Logger(t)
 		tickCh     = make(chan time.Time)
 		statsCh    = make(chan unhanger.Stats)
 		org        = dbgen.Organization(t, db, database.Organization{})

@@ -216,17 +216,6 @@ func (c *Client) DialAgent(dialCtx context.Context, agentID uuid.UUID, options *
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := coordinateURL.Query()
-	// TODO (ethanndickson) - the current version includes 2 additions we don't currently use:
-	//
-	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
-	// 2.2 PostTelemetry on the Tailnet API
-	//
-	// So, asking for API 2.2 just makes us incompatible back level servers, for no real benefit.
-	// As a temporary measure, we'll specifically ask for API version 2.0 until we implement sending
-	// telemetry.
-	q.Add("version", "2.0")
-	coordinateURL.RawQuery = q.Encode()
 
 	dialer := NewWebsocketDialer(options.Logger, coordinateURL, &websocket.DialOptions{
 		HTTPClient: c.client.HTTPClient,

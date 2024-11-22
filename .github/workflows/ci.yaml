@@ -806,10 +806,91 @@ jobs:
 
           echo "Required checks have passed"
 
+  # Builds the dylibs and upload it as an artifact so it can be embedded in the main build
+  build-dylib:
+    needs: changes
+    # We always build the dylibs on Go changes to verify we're not merging unbuildable code,
+    # but they need only be signed and uploaded on coder/coder main.
+    if: needs.changes.outputs.docs-only == 'false' || github.ref == 'refs/heads/main'
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 0
+
+      - name: Setup build tools
+        run: |
+          brew install bash gnu-getopt make
+          echo "$(brew --prefix bash)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix gnu-getopt)/bin" >> $GITHUB_PATH
+          echo "$(brew --prefix make)/libexec/gnubin" >> $GITHUB_PATH
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Install rcodesign
+        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          wget -O /tmp/rcodesign.tar.gz https://github.com/indygreg/apple-platform-rs/releases/download/apple-codesign%2F0.22.0/apple-codesign-0.22.0-macos-universal.tar.gz
+          sudo tar -xzf /tmp/rcodesign.tar.gz \
+            -C /usr/local/bin \
+            --strip-components=1 \
+            apple-codesign-0.22.0-macos-universal/rcodesign
+          rm /tmp/rcodesign.tar.gz
+
+      - name: Setup Apple Developer certificate and API key
+        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        run: |
+          set -euo pipefail
+          touch /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          chmod 600 /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+          echo "$AC_CERTIFICATE_P12_BASE64" | base64 -d > /tmp/apple_cert.p12
+          echo "$AC_CERTIFICATE_PASSWORD" > /tmp/apple_cert_password.txt
+          echo "$AC_APIKEY_P8_BASE64" | base64 -d > /tmp/apple_apikey.p8
+        env:
+          AC_CERTIFICATE_P12_BASE64: ${{ secrets.AC_CERTIFICATE_P12_BASE64 }}
+          AC_CERTIFICATE_PASSWORD: ${{ secrets.AC_CERTIFICATE_PASSWORD }}
+          AC_APIKEY_P8_BASE64: ${{ secrets.AC_APIKEY_P8_BASE64 }}
+
+      - name: Build dylibs
+        run: |
+          set -euxo pipefail
+          go mod download
+
+          make gen/mark-fresh
+          make build/coder-dylib
+        env:
+          CODER_SIGN_DARWIN: ${{ github.ref == 'refs/heads/main' && '1' || '0' }}
+          AC_CERTIFICATE_FILE: /tmp/apple_cert.p12
+          AC_CERTIFICATE_PASSWORD_FILE: /tmp/apple_cert_password.txt
+
+      - name: Upload build artifacts
+        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        uses: actions/upload-artifact@b4b15b8c7c6ac21ea08fcf65892d2ee8f75cf882 # v4.4.3
+        with:
+          name: dylibs
+          path: |
+            ./build/*.h
+            ./build/*.dylib
+          retention-days: 7
+
+      - name: Delete Apple Developer certificate and API key
+        if: ${{ github.repository_owner == 'coder' && github.ref == 'refs/heads/main' }}
+        run: rm -f /tmp/{apple_cert.p12,apple_cert_password.txt,apple_apikey.p8}
+
   build:
     # This builds and publishes ghcr.io/coder/coder-preview:main for each commit
     # to main branch.
-    needs: changes
+    needs:
+      - changes
+      - build-dylib
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     permissions:
@@ -847,6 +928,18 @@ jobs:
 
       - name: Install zstd
         run: sudo apt-get install -y zstd
+
+      - name: Download dylibs
+        uses: actions/download-artifact@fa0a91b85d4f404e444e00e005971372dc801d16 # v4.1.8
+        with:
+          name: dylibs
+          path: ./build
+
+      - name: Insert dylibs
+        run: |
+          mv ./build/*amd64.dylib ./site/out/bin/coder-vpn-darwin-amd64.dylib
+          mv ./build/*arm64.dylib ./site/out/bin/coder-vpn-darwin-arm64.dylib
+          mv ./build/*arm64.h     ./site/out/bin/coder-vpn-darwin-dylib.h
 
       - name: Build
         run: |

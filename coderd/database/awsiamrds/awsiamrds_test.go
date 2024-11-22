@@ -7,8 +7,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/coderd/database/awsiamrds"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
@@ -27,14 +25,14 @@ func TestDriver(t *testing.T) {
 		t.Skip()
 	}
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
 
 	sqlDriver, err := awsiamrds.Register(ctx, "postgres")
 	require.NoError(t, err)
 
-	db, err := cli.ConnectToPostgres(ctx, slogtest.Make(t, nil), sqlDriver, url)
+	db, err := cli.ConnectToPostgres(ctx, testutil.Logger(t), sqlDriver, url)
 	require.NoError(t, err)
 	defer func() {
 		_ = db.Close()

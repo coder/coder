@@ -368,6 +368,26 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+// GetProvisionerKey returns the provisioner key.
+func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/provisionerkeys/%s", pk), nil,
+		func(req *http.Request) {
+			req.Header.Add(ProvisionerDaemonKey, pk)
+		},
+	)
+	if err != nil {
+		return ProvisionerKey{}, xerrors.Errorf("request to fetch provisioner key failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ProvisionerKey{}, ReadBodyAsError(res)
+	}
+	var resp ProvisionerKey
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // ListProvisionerKeyDaemons lists all provisioner keys with their associated daemons for an organization.
 func (c *Client) ListProvisionerKeyDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerKeyDaemons, error) {
 	res, err := c.Request(ctx, http.MethodGet,

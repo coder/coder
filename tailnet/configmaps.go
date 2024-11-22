@@ -277,32 +277,12 @@ func (c *configMaps) setAddresses(ips []netip.Prefix) {
 	c.Broadcast()
 }
 
-func (c *configMaps) addHosts(hosts map[dnsname.FQDN][]netip.Addr) {
-	c.L.Lock()
-	defer c.L.Unlock()
-	for name, addrs := range hosts {
-		c.hosts[name] = slices.Clone(addrs)
-	}
-	c.netmapDirty = true
-	c.Broadcast()
-}
-
 func (c *configMaps) setHosts(hosts map[dnsname.FQDN][]netip.Addr) {
 	c.L.Lock()
 	defer c.L.Unlock()
 	c.hosts = make(map[dnsname.FQDN][]netip.Addr)
 	for name, addrs := range hosts {
 		c.hosts[name] = slices.Clone(addrs)
-	}
-	c.netmapDirty = true
-	c.Broadcast()
-}
-
-func (c *configMaps) removeHosts(names []dnsname.FQDN) {
-	c.L.Lock()
-	defer c.L.Unlock()
-	for _, name := range names {
-		delete(c.hosts, name)
 	}
 	c.netmapDirty = true
 	c.Broadcast()

@@ -214,6 +214,9 @@ func (p AgentIDNamePair) Value() (driver.Value, error) {
 type UserLinkClaims struct {
 	IDTokenClaims  map[string]interface{} `json:"id_token_claims"`
 	UserInfoClaims map[string]interface{} `json:"user_info_claims"`
+	// MergeClaims are computed in Golang. It is the result of merging
+	// the IDTokenClaims and UserInfoClaims. UserInfoClaims take precedence.
+	MergedClaims map[string]interface{} `json:"merged_claims"`
 }
 
 func (a *UserLinkClaims) Scan(src interface{}) error {

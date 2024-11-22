@@ -1326,6 +1326,7 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		UserClaims: database.UserLinkClaims{
 			IDTokenClaims:  idtokenClaims,
 			UserInfoClaims: userInfoClaims,
+			MergedClaims:   mergedClaims,
 		},
 	}).SetInitAuditRequest(func(params *audit.RequestParams) (*audit.Request[database.User], func()) {
 		return audit.InitRequest[database.User](rw, params)
@@ -1392,13 +1393,6 @@ func mergeClaims(a, b map[string]interface{}) map[string]interface{} {
 		c[k] = v
 	}
 	return c
-}
-
-// OauthDebugContext provides helpful information for admins to debug
-// OAuth login issues.
-type OauthDebugContext struct {
-	IDTokenClaims  map[string]interface{} `json:"id_token_claims"`
-	UserInfoClaims map[string]interface{} `json:"user_info_claims"`
 }
 
 type oauthLoginParams struct {

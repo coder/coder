@@ -68,7 +68,7 @@ replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145
 replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
 
 require (
-	cdr.dev/slog v1.6.2-0.20240126064726-20367d4aede6
+	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.5.2
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
@@ -112,7 +112,7 @@ require (
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-logr/logr v1.4.2
 	github.com/go-ping/ping v1.1.0
-	github.com/go-playground/validator/v10 v10.22.0
+	github.com/go-playground/validator/v10 v10.23.0
 	github.com/gofrs/flock v0.12.0
 	github.com/gohugoio/hugo v0.138.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
@@ -344,9 +344,10 @@ require (
 	github.com/hashicorp/go-cleanhttp v0.5.2 // indirect
 	github.com/hashicorp/go-cty v1.4.1-0.20200414143053-d3edf31b6320 // indirect
 	github.com/hashicorp/go-hclog v1.6.3 // indirect
+	github.com/hashicorp/go-terraform-address v0.0.0-20240523040243-ccea9d309e0c
 	github.com/hashicorp/go-uuid v1.0.3 // indirect
 	github.com/hashicorp/hcl v1.0.1-vault-5 // indirect
-	github.com/hashicorp/hcl/v2 v2.22.0
+	github.com/hashicorp/hcl/v2 v2.23.0
 	github.com/hashicorp/logutils v1.0.0 // indirect
 	github.com/hashicorp/terraform-plugin-go v0.23.0 // indirect
 	github.com/hashicorp/terraform-plugin-log v0.9.0 // indirect
