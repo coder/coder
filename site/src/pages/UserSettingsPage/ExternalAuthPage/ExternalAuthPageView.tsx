@@ -20,9 +20,8 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar, ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
-import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,
@@ -153,7 +152,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		: (link?.authenticated ?? false);
 
 	let avatar = app.display_icon ? (
-		<ExternalImage src={app.display_icon} />
+		<ExternalAvatar src={app.display_icon} variant="square" fitImage />
 	) : (
 		<Avatar>{name}</Avatar>
 	);
