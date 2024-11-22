@@ -152,7 +152,12 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		: (link?.authenticated ?? false);
 
 	let avatar = app.display_icon ? (
-		<ExternalAvatar src={app.display_icon} variant="square" fitImage />
+		<ExternalAvatar
+			src={app.display_icon}
+			size="sm"
+			variant="square"
+			fitImage
+		/>
 	) : (
 		<Avatar>{name}</Avatar>
 	);
