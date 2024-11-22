@@ -134,10 +134,11 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 				r.Header.Set(codersdk.ProvisionerDaemonPSK, test.provisionerPSK)
 			}
 
-			httpmw.ExtractProvisionerDaemonAuthenticated(test.opts)(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpmw.ExtractProvisionerDaemonAuthenticated(test.opts)(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 				w.WriteHeader(http.StatusOK)
 			})).ServeHTTP(res, r)
 
+			//nolint:bodyclose
 			require.Equal(t, test.expectedStatusCode, res.Result().StatusCode)
 			if test.expectedResponseMessage != "" {
 				require.Contains(t, res.Body.String(), test.expectedResponseMessage)
@@ -215,5 +216,4 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 	// 	require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 	// 	require.Contains(t, res.Body.String(), "provisioner daemon key invalid")
 	// })
-
 }
