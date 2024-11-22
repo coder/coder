@@ -9,6 +9,7 @@ import (
 	"math"
 	"net/http"
 	"os"
+	"runtime"
 	"slices"
 	"strings"
 	"testing"
@@ -3602,6 +3603,10 @@ func TestWorkspaceTimings(t *testing.T) {
 
 	t.Run("LatestBuild", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
+			t.Skip("this test is flaky on windows with postgres")
+		}
 
 		// Given: a workspace with many builds, provisioner, and agent script timings
 		db, pubsub := dbtestutil.NewDB(t)

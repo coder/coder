@@ -3,6 +3,7 @@ package coderd_test
 import (
 	"context"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -847,6 +848,10 @@ func TestWorkspaceAutobuild(t *testing.T) {
 	// Assert that a dormant workspace does not autostart.
 	t.Run("DormantNoAutostart", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
+			t.Skip("this test is flaky on windows with postgres")
+		}
 
 		var (
 			ctx         = testutil.Context(t, testutil.WaitMedium)

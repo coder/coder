@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"net/netip"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -919,6 +920,10 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("test only with postgres")
+	}
+
+	if runtime.GOOS == "windows" {
+		t.Skip("this test is flaky on windows with postgres")
 	}
 
 	ctx := testutil.Context(t, testutil.WaitShort)

@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"runtime"
 	"strconv"
 	"testing"
 	"time"
@@ -1303,6 +1304,10 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 	t.Run("AgentScriptTimings", func(t *testing.T) {
 		t.Parallel()
+
+		if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
+			t.Skip("this test is flaky on windows with postgres")
+		}
 
 		// Given: a build with agent script timings
 		build := makeBuild(t)

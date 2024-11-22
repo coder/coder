@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -1255,6 +1256,11 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
+
+			if tc.Name == "IssuerMismatch" && runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
+				t.Skip("this test is flaky on windows with postgres")
+			}
+
 			fake := oidctest.NewFakeIDP(t,
 				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")

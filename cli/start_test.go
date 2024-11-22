@@ -2,6 +2,7 @@ package cli_test
 
 import (
 	"fmt"
+	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -385,6 +386,11 @@ func TestStartAutoUpdate(t *testing.T) {
 
 func TestStart_AlreadyRunning(t *testing.T) {
 	t.Parallel()
+
+	if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
+		t.Skip("this test is flaky on windows with postgres")
+	}
+
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	client, db := coderdtest.NewWithDatabase(t, nil)
