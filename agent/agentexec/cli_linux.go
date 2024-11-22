@@ -22,7 +22,7 @@ const unset = -2000
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
-	// We lock the OS thread here to avoid a race conditino where the nice priority
+	// We lock the OS thread here to avoid a race condition where the nice priority
 	// we get is on a different thread from the one we set it on.
 	runtime.LockOSThread()
 	// Nop on success but we do it anyway in case of an error.
@@ -85,7 +85,7 @@ func CLI() error {
 }
 
 func defaultNiceScore() (int, error) {
-	score, err := unix.Getpriority(unix.PRIO_PROCESS, os.Getpid())
+	score, err := unix.Getpriority(unix.PRIO_PROCESS, 0)
 	if err != nil {
 		return 0, xerrors.Errorf("get nice score: %w", err)
 	}
