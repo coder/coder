@@ -56,7 +56,7 @@ choose a template from the
    - CLI:
 
    ```shell
-   coder template push
+   coder templates push <template-name> -d <path to folder containing main.tf>
    ```
 
    - Dashboard:
