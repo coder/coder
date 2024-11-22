@@ -1438,7 +1438,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 	}
 
 	// Try to parse template tags from the given file.
-	tempDir, err := os.MkdirTemp("", "tfparse-*")
+	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error checking workspace tags",
