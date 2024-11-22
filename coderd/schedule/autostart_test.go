@@ -4,14 +4,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/coder/v2/coderd/schedule"
 )
 
 func TestNextAllowedAutostart(t *testing.T) {
 	t.Parallel()
 
 	t.Run("WhenScheduleOutOfSync", func(t *testing.T) {
+		t.Parallel()
+
 		// 1st January 2024 is a Monday
 		at := time.Date(2024, time.January, 1, 10, 0, 0, 0, time.UTC)
 		//  Monday-Friday 9:00AM UTC

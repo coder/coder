@@ -1108,7 +1108,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		t.Parallel()
 
 		var (
-			// ctx = testutil.Context(t, testutil.WaitMedium)
 			tickCh  = make(chan time.Time)
 			statsCh = make(chan autobuild.Stats)
 		)
