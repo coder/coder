@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -608,6 +609,7 @@ const createTemplateVersionTar = async (
 			metadata: [],
 			name: "dev",
 			type: "echo",
+			modulePath: "",
 			...resource,
 		} as Resource;
 	};
@@ -636,6 +638,7 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
+			modules: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -685,6 +688,8 @@ export class Awaiter {
 export const createServer = async (
 	port: number,
 ): Promise<ReturnType<typeof express>> => {
+	await waitForPort(port); // Wait until the port is available
+
 	const e = express();
 	// We need to specify the local IP address as the web server
 	// tends to fail with IPv6 related error:
@@ -692,6 +697,44 @@ export const createServer = async (
 	await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
 	return e;
 };
+
+async function waitForPort(
+	port: number,
+	host = "0.0.0.0",
+	timeout = 30000,
+): Promise<void> {
+	const start = Date.now();
+	while (Date.now() - start < timeout) {
+		const available = await isPortAvailable(port, host);
+		if (available) {
+			return;
+		}
+		console.warn(`${host}:${port} is in use, checking again in 1s`);
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+	}
+	throw new Error(
+		`Timeout: port ${port} is still in use after ${timeout / 1000} seconds.`,
+	);
+}
+
+function isPortAvailable(port: number, host = "0.0.0.0"): Promise<boolean> {
+	return new Promise((resolve) => {
+		const probe = net
+			.createServer()
+			.once("error", (err: NodeJS.ErrnoException) => {
+				if (err.code === "EADDRINUSE") {
+					resolve(false); // port is in use
+				} else {
+					resolve(false); // some other error occurred
+				}
+			})
+			.once("listening", () => {
+				probe.close();
+				resolve(true); // port is available
+			})
+			.listen(port, host);
+	});
+}
 
 export const findSessionToken = async (page: Page): Promise<string> => {
 	const cookies = await page.context().cookies();

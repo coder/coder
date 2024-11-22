@@ -70,7 +70,7 @@ func TestBuildWorkspaceLink(t *testing.T) {
 func TestCloserStack_Mainline(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}
@@ -90,7 +90,7 @@ func TestCloserStack_Mainline(t *testing.T) {
 func TestCloserStack_Empty(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 
 	closed := make(chan struct{})
@@ -106,7 +106,7 @@ func TestCloserStack_Context(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := newCloserStack(ctx, logger, quartz.NewMock(t))
 	closes := new([]*fakeCloser)
 	fc0 := &fakeCloser{closes: closes}

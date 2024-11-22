@@ -464,7 +464,7 @@ func TestWorkspaceAgentTailnet(t *testing.T) {
 
 		return workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-				Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+				Logger: testutil.Logger(t).Named("client"),
 			})
 	}()
 	require.NoError(t, err)
@@ -561,7 +561,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	t.Run("OK", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		clock := quartz.NewMock(t)
 		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 		mgr := jwtutils.StaticKey{
@@ -633,7 +633,7 @@ func TestWorkspaceAgentClientCoordinate_ResumeToken(t *testing.T) {
 	t.Run("BadJWT", func(t *testing.T) {
 		t.Parallel()
 
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		clock := quartz.NewMock(t)
 		resumeTokenSigningKey, err := tailnet.GenerateResumeTokenSigningKey()
 		mgr := jwtutils.StaticKey{
@@ -797,7 +797,7 @@ func TestWorkspaceAgentTailnetDirectDisabled(t *testing.T) {
 
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+			Logger: testutil.Logger(t).Named("client"),
 		})
 	require.NoError(t, err)
 	defer conn.Close()
@@ -1747,7 +1747,7 @@ func TestWorkspaceAgent_Startup(t *testing.T) {
 func TestWorkspaceAgent_UpdatedDERP(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	dv := coderdtest.DeploymentValues(t)
 	err := dv.DERP.Config.BlockDirect.Set("true")
@@ -1936,7 +1936,7 @@ func TestOwnedWorkspacesCoordinate(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitLong)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	firstClient, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
 		Coordinator: tailnet.NewCoordinator(logger),
 	})

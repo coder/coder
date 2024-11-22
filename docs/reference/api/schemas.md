@@ -1757,6 +1757,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"scheme": "string",
 			"user": {}
 		},
+		"additional_csp_policy": ["string"],
 		"address": {
 			"host": "string",
 			"port": "string"
@@ -1884,10 +1885,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 				"force_tls": true,
 				"from": "string",
 				"hello": "string",
-				"smarthost": {
-					"host": "string",
-					"port": "string"
-				},
+				"smarthost": "string",
 				"tls": {
 					"ca_file": "string",
 					"cert_file": "string",
@@ -2184,6 +2182,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"scheme": "string",
 		"user": {}
 	},
+	"additional_csp_policy": ["string"],
 	"address": {
 		"host": "string",
 		"port": "string"
@@ -2311,10 +2310,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"force_tls": true,
 			"from": "string",
 			"hello": "string",
-			"smarthost": {
-				"host": "string",
-				"port": "string"
-			},
+			"smarthost": "string",
 			"tls": {
 				"ca_file": "string",
 				"cert_file": "string",
@@ -2521,6 +2517,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
 | `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
@@ -3417,10 +3414,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"force_tls": true,
 		"from": "string",
 		"hello": "string",
-		"smarthost": {
-			"host": "string",
-			"port": "string"
-		},
+		"smarthost": "string",
 		"tls": {
 			"ca_file": "string",
 			"cert_file": "string",
@@ -3505,10 +3499,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"force_tls": true,
 	"from": "string",
 	"hello": "string",
-	"smarthost": {
-		"host": "string",
-		"port": "string"
-	},
+	"smarthost": "string",
 	"tls": {
 		"ca_file": "string",
 		"cert_file": "string",
@@ -3528,7 +3519,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `force_tls` | boolean                                                                        | false    |              | Force tls causes a TLS connection to be attempted.                    |
 | `from`      | string                                                                         | false    |              | The sender's address.                                                 |
 | `hello`     | string                                                                         | false    |              | The hostname identifying the SMTP server.                             |
-| `smarthost` | [serpent.HostPort](#serpenthostport)                                           | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
+| `smarthost` | string                                                                         | false    |              | The intermediary SMTP host through which emails are sent (host:port). |
 | `tls`       | [codersdk.NotificationsEmailTLSConfig](#codersdknotificationsemailtlsconfig)   | false    |              | Tls details.                                                          |
 
 ## codersdk.NotificationsEmailTLSConfig

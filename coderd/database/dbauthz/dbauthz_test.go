@@ -626,6 +626,26 @@ func (s *MethodTestSuite) TestLicense() {
 }
 
 func (s *MethodTestSuite) TestOrganization() {
+	s.Run("Deployment/OIDCClaimFields", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.Nil).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
+	}))
+	s.Run("Organization/OIDCClaimFields", s.Subtest(func(db database.Store, check *expects) {
+		id := uuid.New()
+		check.Args(id).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
+	}))
+	s.Run("Deployment/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.OIDCClaimFieldValuesParams{
+			ClaimField:     "claim-field",
+			OrganizationID: uuid.Nil,
+		}).Asserts(rbac.ResourceIdpsyncSettings, policy.ActionRead).Returns([]string{})
+	}))
+	s.Run("Organization/OIDCClaimFieldValues", s.Subtest(func(db database.Store, check *expects) {
+		id := uuid.New()
+		check.Args(database.OIDCClaimFieldValuesParams{
+			ClaimField:     "claim-field",
+			OrganizationID: id,
+		}).Asserts(rbac.ResourceIdpsyncSettings.InOrg(id), policy.ActionRead).Returns([]string{})
+	}))
 	s.Run("ByOrganization/GetGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		a := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
@@ -1261,6 +1281,14 @@ func (s *MethodTestSuite) TestUser() {
 			ProviderID: uuid.NewString(),
 			UserID:     u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal)
+	}))
+	s.Run("RemoveRefreshToken", s.Subtest(func(db database.Store, check *expects) {
+		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
+		check.Args(database.RemoveRefreshTokenParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+			UpdatedAt:  link.UpdatedAt,
+		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
@@ -2906,6 +2934,21 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			},
 		}
 		check.Args(build.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(rows)
+	}))
+	s.Run("InsertWorkspaceModule", s.Subtest(func(db database.Store, check *expects) {
+		j := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			Type: database.ProvisionerJobTypeWorkspaceBuild,
+		})
+		check.Args(database.InsertWorkspaceModuleParams{
+			JobID:      j.ID,
+			Transition: database.WorkspaceTransitionStart,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("GetWorkspaceModulesByJobID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspaceModulesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 }
 

@@ -19,10 +19,10 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/testutil"
 )
 
 // WillUsePostgres returns true if a call to NewDB() will return a real, postgres-backed Store and Pubsub.
@@ -90,7 +90,7 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
-	o := options{logger: slogtest.Make(t, nil).Named("pubsub").Leveled(slog.LevelDebug)}
+	o := options{logger: testutil.Logger(t).Named("pubsub")}
 	for _, opt := range opts {
 		opt(&o)
 	}

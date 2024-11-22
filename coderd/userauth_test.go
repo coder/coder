@@ -1404,7 +1404,7 @@ func TestUserOIDC(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitMedium)
-			logger = slogtest.Make(t, nil)
+			logger = testutil.Logger(t)
 		)
 
 		auditor := audit.NewMock()

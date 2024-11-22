@@ -25,12 +25,24 @@ var permanentErrorStatuses = []int{
 }
 
 type WebsocketDialer struct {
-	logger            slog.Logger
-	dialOptions       *websocket.DialOptions
-	url               *url.URL
+	logger      slog.Logger
+	dialOptions *websocket.DialOptions
+	url         *url.URL
+	// workspaceUpdatesReq != nil means that the dialer should call the WorkspaceUpdates RPC and
+	// return the corresponding client
+	workspaceUpdatesReq *proto.WorkspaceUpdatesRequest
+
 	resumeTokenFailed bool
 	connected         chan error
 	isFirst           bool
+}
+
+type WebsocketDialerOption func(*WebsocketDialer)
+
+func WithWorkspaceUpdates(req *proto.WorkspaceUpdatesRequest) WebsocketDialerOption {
+	return func(w *WebsocketDialer) {
+		w.workspaceUpdatesReq = req
+	}
 }
 
 func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenController,
@@ -41,14 +53,27 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 
 	u := new(url.URL)
 	*u = *w.url
+	q := u.Query()
 	if r != nil && !w.resumeTokenFailed {
 		if token, ok := r.Token(); ok {
-			q := u.Query()
 			q.Set("resume_token", token)
-			u.RawQuery = q.Encode()
 			w.logger.Debug(ctx, "using resume token on dial")
 		}
 	}
+	// The current version includes additions
+	//
+	// 2.1 GetAnnouncementBanners on the Agent API (version locked to Tailnet API)
+	// 2.2 PostTelemetry on the Tailnet API
+	// 2.3 RefreshResumeToken, WorkspaceUpdates
+	//
+	// Resume tokens and telemetry are optional, and fail gracefully.  So we use version 2.0 for
+	// maximum compatibility if we don't need WorkspaceUpdates. If we do, we use 2.3.
+	if w.workspaceUpdatesReq != nil {
+		q.Add("version", "2.3")
+	} else {
+		q.Add("version", "2.0")
+	}
+	u.RawQuery = q.Encode()
 
 	// nolint:bodyclose
 	ws, res, err := websocket.Dial(ctx, u.String(), w.dialOptions)
@@ -115,12 +140,23 @@ func (w *WebsocketDialer) Dial(ctx context.Context, r tailnet.ResumeTokenControl
 		return tailnet.ControlProtocolClients{}, err
 	}
 
+	var updates tailnet.WorkspaceUpdatesClient
+	if w.workspaceUpdatesReq != nil {
+		updates, err = client.WorkspaceUpdates(context.Background(), w.workspaceUpdatesReq)
+		if err != nil {
+			w.logger.Debug(ctx, "failed to create WorkspaceUpdates stream", slog.Error(err))
+			_ = ws.Close(websocket.StatusInternalError, "")
+			return tailnet.ControlProtocolClients{}, err
+		}
+	}
+
 	return tailnet.ControlProtocolClients{
-		Closer:      client.DRPCConn(),
-		Coordinator: coord,
-		DERP:        derps,
-		ResumeToken: client,
-		Telemetry:   client,
+		Closer:           client.DRPCConn(),
+		Coordinator:      coord,
+		DERP:             derps,
+		ResumeToken:      client,
+		Telemetry:        client,
+		WorkspaceUpdates: updates,
 	}, nil
 }
 
@@ -128,12 +164,19 @@ func (w *WebsocketDialer) Connected() <-chan error {
 	return w.connected
 }
 
-func NewWebsocketDialer(logger slog.Logger, u *url.URL, opts *websocket.DialOptions) *WebsocketDialer {
-	return &WebsocketDialer{
+func NewWebsocketDialer(
+	logger slog.Logger, u *url.URL, websocketOptions *websocket.DialOptions,
+	dialerOptions ...WebsocketDialerOption,
+) *WebsocketDialer {
+	w := &WebsocketDialer{
 		logger:      logger,
-		dialOptions: opts,
+		dialOptions: websocketOptions,
 		url:         u,
 		connected:   make(chan error, 1),
 		isFirst:     true,
 	}
+	for _, o := range dialerOptions {
+		o(w)
+	}
+	return w
 }

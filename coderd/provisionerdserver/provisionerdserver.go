@@ -1261,9 +1261,25 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					slog.F("resource_type", resource.Type),
 					slog.F("transition", transition))
 
-				err = InsertWorkspaceResource(ctx, s.Database, jobID, transition, resource, telemetrySnapshot)
-				if err != nil {
+				if err := InsertWorkspaceResource(ctx, s.Database, jobID, transition, resource, telemetrySnapshot); err != nil {
 					return nil, xerrors.Errorf("insert resource: %w", err)
+				}
+			}
+		}
+		for transition, modules := range map[database.WorkspaceTransition][]*sdkproto.Module{
+			database.WorkspaceTransitionStart: jobType.TemplateImport.StartModules,
+			database.WorkspaceTransitionStop:  jobType.TemplateImport.StopModules,
+		} {
+			for _, module := range modules {
+				s.Logger.Info(ctx, "inserting template import job module",
+					slog.F("job_id", job.ID.String()),
+					slog.F("module_source", module.Source),
+					slog.F("module_version", module.Version),
+					slog.F("module_key", module.Key),
+					slog.F("transition", transition))
+
+				if err := InsertWorkspaceModule(ctx, s.Database, jobID, transition, module, telemetrySnapshot); err != nil {
+					return nil, xerrors.Errorf("insert module: %w", err)
 				}
 			}
 		}
@@ -1472,6 +1488,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					return xerrors.Errorf("insert provisioner job: %w", err)
 				}
 			}
+			for _, module := range jobType.WorkspaceBuild.Modules {
+				if err := InsertWorkspaceModule(ctx, db, job.ID, workspaceBuild.Transition, module, telemetrySnapshot); err != nil {
+					return xerrors.Errorf("insert provisioner job module: %w", err)
+				}
+			}
 
 			// On start, we want to ensure that workspace agents timeout statuses
 			// are propagated. This method is simple and does not protect against
@@ -1653,6 +1674,16 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return nil, xerrors.Errorf("insert resource: %w", err)
 			}
 		}
+		for _, module := range jobType.TemplateDryRun.Modules {
+			s.Logger.Info(ctx, "inserting template dry-run job module",
+				slog.F("job_id", job.ID.String()),
+				slog.F("module_source", module.Source),
+			)
+
+			if err := InsertWorkspaceModule(ctx, s.Database, jobID, database.WorkspaceTransitionStart, module, telemetrySnapshot); err != nil {
+				return nil, xerrors.Errorf("insert module: %w", err)
+			}
+		}
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
@@ -1734,6 +1765,23 @@ func (s *server) startTrace(ctx context.Context, name string, opts ...trace.Span
 	))...)
 }
 
+func InsertWorkspaceModule(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoModule *sdkproto.Module, snapshot *telemetry.Snapshot) error {
+	module, err := db.InsertWorkspaceModule(ctx, database.InsertWorkspaceModuleParams{
+		ID:         uuid.New(),
+		CreatedAt:  dbtime.Now(),
+		JobID:      jobID,
+		Transition: transition,
+		Source:     protoModule.Source,
+		Version:    protoModule.Version,
+		Key:        protoModule.Key,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert provisioner job module %q: %w", protoModule.Source, err)
+	}
+	snapshot.WorkspaceModules = append(snapshot.WorkspaceModules, telemetry.ConvertWorkspaceModule(module))
+	return nil
+}
+
 func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.UUID, transition database.WorkspaceTransition, protoResource *sdkproto.Resource, snapshot *telemetry.Snapshot) error {
 	resource, err := db.InsertWorkspaceResource(ctx, database.InsertWorkspaceResourceParams{
 		ID:         uuid.New(),
@@ -1748,6 +1796,11 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 		InstanceType: sql.NullString{
 			String: protoResource.InstanceType,
 			Valid:  protoResource.InstanceType != "",
+		},
+		ModulePath: sql.NullString{
+			String: protoResource.ModulePath,
+			// empty string is root module
+			Valid: true,
 		},
 	})
 	if err != nil {

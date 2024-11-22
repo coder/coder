@@ -60,7 +60,7 @@ test("Submit the workspace settings page successfully", async () => {
 		{ exact: false },
 	);
 	await user.clear(parameter2);
-	await user.type(parameter2, "1");
+	await user.type(parameter2, "3");
 	await user.click(
 		within(form).getByRole("button", { name: "Submit and restart" }),
 	);
@@ -70,7 +70,7 @@ test("Submit the workspace settings page successfully", async () => {
 			transition: "start",
 			rich_parameter_values: [
 				{ name: MockTemplateVersionParameter1.name, value: "new-value" },
-				{ name: MockTemplateVersionParameter2.name, value: "1" },
+				{ name: MockTemplateVersionParameter2.name, value: "3" },
 			],
 		});
 	});

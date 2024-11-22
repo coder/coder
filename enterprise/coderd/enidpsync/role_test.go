@@ -7,13 +7,13 @@ import (
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestEnterpriseParseRoleClaims(t *testing.T) {
@@ -31,7 +31,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		t.Parallel()
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitlements.New(), idpsync.DeploymentSyncSettings{})
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitlements.New(), idpsync.DeploymentSyncSettings{})
 
 		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
 		require.Nil(t, err)
@@ -44,7 +44,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		// Since it is not entitled, it should not be enabled
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitlements.New(), idpsync.DeploymentSyncSettings{
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitlements.New(), idpsync.DeploymentSyncSettings{
 			SiteRoleField: "roles",
 		})
 
@@ -58,7 +58,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		t.Parallel()
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitled, idpsync.DeploymentSyncSettings{})
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitled, idpsync.DeploymentSyncSettings{})
 
 		params, err := s.ParseRoleClaims(context.Background(), jwt.MapClaims{})
 		require.Nil(t, err)
@@ -70,7 +70,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		t.Parallel()
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitled, idpsync.DeploymentSyncSettings{
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitled, idpsync.DeploymentSyncSettings{
 			SiteRoleField:    "roles",
 			SiteRoleMapping:  map[string][]string{},
 			SiteDefaultRoles: []string{rbac.RoleTemplateAdmin().Name},
@@ -92,7 +92,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		t.Parallel()
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitled, idpsync.DeploymentSyncSettings{
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitled, idpsync.DeploymentSyncSettings{
 			SiteRoleField: "roles",
 			SiteRoleMapping: map[string][]string{
 				"foo": {rbac.RoleAuditor().Name, rbac.RoleUserAdmin().Name},
@@ -121,7 +121,7 @@ func TestEnterpriseParseRoleClaims(t *testing.T) {
 		t.Parallel()
 
 		mgr := runtimeconfig.NewManager()
-		s := enidpsync.NewSync(slogtest.Make(t, nil), mgr, entitled, idpsync.DeploymentSyncSettings{
+		s := enidpsync.NewSync(testutil.Logger(t), mgr, entitled, idpsync.DeploymentSyncSettings{
 			SiteRoleField: "roles",
 			SiteRoleMapping: map[string][]string{
 				"foo": {rbac.RoleOwner().Name, rbac.RoleAuditor().Name},

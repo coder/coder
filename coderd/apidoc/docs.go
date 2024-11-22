@@ -3132,6 +3132,44 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/settings/idpsync/available-fields": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the available organization idp sync claim fields",
+                "operationId": "get-the-available-organization-idp-sync-claim-fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/settings/idpsync/groups": {
             "get": {
                 "security": [
@@ -3600,6 +3638,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/provisionerkeys/{provisionerkey}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Fetch provisioner key details",
+                "operationId": "fetch-provisioner-key-details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provisioner Key",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerKey"
+                        }
+                    }
+                }
+            }
+        },
         "/regions": {
             "get": {
                 "security": [
@@ -3795,6 +3867,44 @@ const docTemplate = `{
                         "description": "OK",
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/available-fields": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the available idp sync claim fields",
+                "operationId": "get-the-available-idp-sync-claim-fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
                         }
                     }
                 }
@@ -10427,6 +10537,12 @@ const docTemplate = `{
                 "access_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "additional_csp_policy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
@@ -11477,11 +11593,7 @@ const docTemplate = `{
                 },
                 "smarthost": {
                     "description": "The intermediary SMTP host through which emails are sent (host:port).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/serpent.HostPort"
-                        }
-                    ]
+                    "type": "string"
                 },
                 "tls": {
                     "description": "TLS details.",

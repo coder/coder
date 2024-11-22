@@ -11,11 +11,10 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
 	"golang.org/x/xerrors"
 	"tailscale.com/tailcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -29,7 +28,7 @@ func TestClientService_ServeClient_V2(t *testing.T) {
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	derpMap := &tailcfg.DERPMap{Regions: map[int]*tailcfg.DERPRegion{999: {RegionCode: "test"}}}
 
 	telemetryEvents := make(chan []*proto.TelemetryEvent, 64)
@@ -145,7 +144,7 @@ func TestClientService_ServeClient_V1(t *testing.T) {
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                  logger,
 		CoordPtr:                &coordPtr,
@@ -236,8 +235,8 @@ func TestClientUserCoordinateeAuth(t *testing.T) {
 	agentID2 := uuid.UUID{0x02}
 	clientID := uuid.UUID{0x03}
 
-	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
-	updatesProvider := &fakeUpdatesProvider{ch: updatesCh}
+	ctrl := gomock.NewController(t)
+	updatesProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
 
 	fCoord, client := createUpdateService(t, ctx, clientID, updatesProvider)
 
@@ -271,8 +270,10 @@ func TestWorkspaceUpdates(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	ctrl := gomock.NewController(t)
+	updatesProvider := tailnettest.NewMockWorkspaceUpdatesProvider(ctrl)
+	mSub := tailnettest.NewMockSubscription(ctrl)
 	updatesCh := make(chan *proto.WorkspaceUpdate, 1)
-	updatesProvider := &fakeUpdatesProvider{ch: updatesCh}
 
 	clientID := uuid.UUID{0x03}
 	wsID := uuid.UUID{0x04}
@@ -293,6 +294,11 @@ func TestWorkspaceUpdates(t *testing.T) {
 		DeletedAgents:     []*proto.Agent{},
 	}
 	updatesCh <- expected
+	updatesProvider.EXPECT().Subscribe(gomock.Any(), clientID).
+		Times(1).
+		Return(mSub, nil)
+	mSub.EXPECT().Updates().MinTimes(1).Return(updatesCh)
+	mSub.EXPECT().Close().Times(1).Return(nil)
 
 	updatesStream, err := client.WorkspaceUpdates(ctx, &proto.WorkspaceUpdatesRequest{
 		WorkspaceOwnerId: tailnet.UUIDToByteSlice(clientID),
@@ -314,7 +320,7 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	var coord tailnet.Coordinator = fCoord
 	coordPtr := atomic.Pointer[tailnet.Coordinator]{}
 	coordPtr.Store(&coord)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut, err := tailnet.NewClientService(tailnet.ClientServiceOptions{
 		Logger:                   logger,
@@ -353,34 +359,6 @@ func createUpdateService(t *testing.T, ctx context.Context, clientID uuid.UUID, 
 	})
 	return fCoord, client
 }
-
-type fakeUpdatesProvider struct {
-	ch chan *proto.WorkspaceUpdate
-}
-
-func (*fakeUpdatesProvider) Close() error {
-	return nil
-}
-
-func (f *fakeUpdatesProvider) Subscribe(context.Context, uuid.UUID) (tailnet.Subscription, error) {
-	return &fakeSubscription{ch: f.ch}, nil
-}
-
-type fakeSubscription struct {
-	ch chan *proto.WorkspaceUpdate
-}
-
-func (*fakeSubscription) Close() error {
-	return nil
-}
-
-func (f *fakeSubscription) Updates() <-chan *proto.WorkspaceUpdate {
-	return f.ch
-}
-
-var _ tailnet.Subscription = (*fakeSubscription)(nil)
-
-var _ tailnet.WorkspaceUpdatesProvider = (*fakeUpdatesProvider)(nil)
 
 type fakeTunnelAuth struct{}
 

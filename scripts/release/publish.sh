@@ -180,10 +180,13 @@ if [[ "$stable" == 1 ]]; then
 fi
 
 target_commitish=main # This is the default.
-release_branch_refname=$(git branch --remotes --contains "${new_tag}" --format '%(refname)' '*/release/*')
-if [[ -n "${release_branch_refname}" ]]; then
-	# refs/remotes/origin/release/2.9 -> release/2.9
-	target_commitish="release/${release_branch_refname#*release/}"
+# Skip during dry-runs
+if [[ "$dry_run" == 0 ]]; then
+	release_branch_refname=$(git branch --remotes --contains "${new_tag}" --format '%(refname)' '*/release/*')
+	if [[ -n "${release_branch_refname}" ]]; then
+		# refs/remotes/origin/release/2.9 -> release/2.9
+		target_commitish="release/${release_branch_refname#*release/}"
+	fi
 fi
 
 # We pipe `true` into `gh` so that it never tries to be interactive.

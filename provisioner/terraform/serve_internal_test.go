@@ -12,8 +12,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/testutil"
-
-	"cdr.dev/slog/sloggers/slogtest"
 )
 
 // nolint:paralleltest
@@ -56,7 +54,7 @@ func Test_absoluteBinaryPath(t *testing.T) {
 				t.Skip("Dummy terraform executable on Windows requires sh which isn't very practical.")
 			}
 
-			log := slogtest.Make(t, nil)
+			log := testutil.Logger(t)
 			// Create a temp dir with the binary
 			tempDir := t.TempDir()
 			terraformBinaryOutput := fmt.Sprintf(`#!/bin/sh

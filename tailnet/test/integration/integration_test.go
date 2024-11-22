@@ -26,8 +26,6 @@ import (
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/nettype"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/test/integration"
 	"github.com/coder/coder/v2/testutil"
@@ -158,7 +156,7 @@ func TestIntegration(t *testing.T) {
 			// isolated NetNS.
 			t.Parallel()
 
-			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			log := testutil.Logger(t)
 			networking := topo.SetupNetworking(t, log)
 
 			// Useful for debugging network namespaces by avoiding cleanup.
@@ -228,7 +226,7 @@ func handleTestSubprocess(t *testing.T) {
 	}
 
 	t.Run(testName, func(t *testing.T) {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		switch *role {
 		case "server":
 			logger = logger.Named("server")

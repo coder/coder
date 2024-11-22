@@ -391,6 +391,7 @@ type DeploymentValues struct {
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -686,11 +687,15 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
+func (n *NotificationsConfig) Enabled() bool {
+	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
 type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
 	// The intermediary SMTP host through which emails are sent (host:port).
-	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	Smarthost serpent.String `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
@@ -1028,7 +1033,6 @@ when required by your organization's security policy.`,
 		Description: "The intermediary SMTP host through which emails are sent.",
 		Flag:        "email-smarthost",
 		Env:         "CODER_EMAIL_SMARTHOST",
-		Default:     "localhost:587", // To pass validation.
 		Value:       &c.Notifications.SMTP.Smarthost,
 		Group:       &deploymentGroupEmail,
 		YAML:        "smarthost",
@@ -2144,6 +2148,18 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
 		},
+		{
+			Name: "Additional CSP Policy",
+			Description: "Coder configures a Content Security Policy (CSP) to protect against XSS attacks. " +
+				"This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. " +
+				"Format matches the CSP directive format, e.g. --additional-csp-policy=\"script-src https://example.com\".",
+			Flag:  "additional-csp-policy",
+			Env:   "CODER_ADDITIONAL_CSP_POLICY",
+			YAML:  "additionalCSPPolicy",
+			Value: &c.AdditionalCSPPolicy,
+			Group: &deploymentGroupNetworkingHTTP,
+		},
+
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORS requests",

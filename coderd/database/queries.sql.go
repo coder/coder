@@ -1194,6 +1194,29 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 	return i, err
 }
 
+const removeRefreshToken = `-- name: RemoveRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	oauth_refresh_token = '',
+	updated_at = $1
+WHERE provider_id = $2 AND user_id = $3
+`
+
+type RemoveRefreshTokenParams struct {
+	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID string    `db:"provider_id" json:"provider_id"`
+	UserID     uuid.UUID `db:"user_id" json:"user_id"`
+}
+
+// Removing the refresh token disables the refresh behavior for a given
+// auth token. If a refresh token is marked invalid, it is better to remove it
+// then continually attempt to refresh the token.
+func (q *sqlQuerier) RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, removeRefreshToken, arg.UpdatedAt, arg.ProviderID, arg.UserID)
+	return err
+}
+
 const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
 UPDATE external_auth_links SET
     updated_at = $3,
@@ -9846,6 +9869,110 @@ func (q *sqlQuerier) InsertUserLink(ctx context.Context, arg InsertUserLinkParam
 	return i, err
 }
 
+const oIDCClaimFieldValues = `-- name: OIDCClaimFieldValues :many
+SELECT
+	-- DISTINCT to remove duplicates
+	DISTINCT jsonb_array_elements_text(CASE
+		-- When the type is an array, filter out any non-string elements.
+		-- This is to keep the return type consistent.
+		WHEN jsonb_typeof(claims->'merged_claims'->$1::text) = 'array' THEN
+			(
+				SELECT
+					jsonb_agg(element)
+				FROM
+					jsonb_array_elements(claims->'merged_claims'->$1::text) AS element
+				WHERE
+					-- Filtering out non-string elements
+					jsonb_typeof(element) = 'string'
+			)
+		-- Some IDPs return a single string instead of an array of strings.
+		WHEN jsonb_typeof(claims->'merged_claims'->$1::text) = 'string' THEN
+			jsonb_build_array(claims->'merged_claims'->$1::text)
+	END)
+FROM
+	user_links
+WHERE
+	-- IDP sync only supports string and array (of string) types
+	jsonb_typeof(claims->'merged_claims'->$1::text) = ANY(ARRAY['string', 'array'])
+	AND login_type = 'oidc'
+	AND CASE
+		WHEN $2 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+			user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $2)
+		ELSE true
+	END
+`
+
+type OIDCClaimFieldValuesParams struct {
+	ClaimField     string    `db:"claim_field" json:"claim_field"`
+	OrganizationID uuid.UUID `db:"organization_id" json:"organization_id"`
+}
+
+func (q *sqlQuerier) OIDCClaimFieldValues(ctx context.Context, arg OIDCClaimFieldValuesParams) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, oIDCClaimFieldValues, arg.ClaimField, arg.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var jsonb_array_elements_text string
+		if err := rows.Scan(&jsonb_array_elements_text); err != nil {
+			return nil, err
+		}
+		items = append(items, jsonb_array_elements_text)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const oIDCClaimFields = `-- name: OIDCClaimFields :many
+SELECT
+	DISTINCT jsonb_object_keys(claims->'merged_claims')
+FROM
+	user_links
+WHERE
+    -- Only return rows where the top level key exists
+	claims ? 'merged_claims' AND
+    -- 'null' is the default value for the id_token_claims field
+	-- jsonb 'null' is not the same as SQL NULL. Strip these out.
+	jsonb_typeof(claims->'merged_claims') != 'null' AND
+	login_type = 'oidc'
+	AND CASE WHEN $1 :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = $1)
+		ELSE true
+	END
+`
+
+// OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
+// This query is used to generate the list of available sync fields for idp sync settings.
+func (q *sqlQuerier) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	rows, err := q.db.QueryContext(ctx, oIDCClaimFields, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []string
+	for rows.Next() {
+		var jsonb_object_keys string
+		if err := rows.Scan(&jsonb_object_keys); err != nil {
+			return nil, err
+		}
+		items = append(items, jsonb_object_keys)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateUserLink = `-- name: UpdateUserLink :one
 UPDATE
 	user_links
@@ -14115,9 +14242,124 @@ func (q *sqlQuerier) UpdateWorkspaceBuildProvisionerStateByID(ctx context.Contex
 	return err
 }
 
+const getWorkspaceModulesByJobID = `-- name: GetWorkspaceModulesByJobID :many
+SELECT
+	id, job_id, transition, source, version, key, created_at
+FROM
+	workspace_modules
+WHERE
+	job_id = $1
+`
+
+func (q *sqlQuerier) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]WorkspaceModule, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceModulesByJobID, jobID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceModule
+	for rows.Next() {
+		var i WorkspaceModule
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Transition,
+			&i.Source,
+			&i.Version,
+			&i.Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspaceModulesCreatedAfter = `-- name: GetWorkspaceModulesCreatedAfter :many
+SELECT id, job_id, transition, source, version, key, created_at FROM workspace_modules WHERE created_at > $1
+`
+
+func (q *sqlQuerier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceModule, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspaceModulesCreatedAfter, createdAt)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceModule
+	for rows.Next() {
+		var i WorkspaceModule
+		if err := rows.Scan(
+			&i.ID,
+			&i.JobID,
+			&i.Transition,
+			&i.Source,
+			&i.Version,
+			&i.Key,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceModule = `-- name: InsertWorkspaceModule :one
+INSERT INTO
+	workspace_modules (id, job_id, transition, source, version, key, created_at)
+VALUES
+	($1, $2, $3, $4, $5, $6, $7) RETURNING id, job_id, transition, source, version, key, created_at
+`
+
+type InsertWorkspaceModuleParams struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Source     string              `db:"source" json:"source"`
+	Version    string              `db:"version" json:"version"`
+	Key        string              `db:"key" json:"key"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorkspaceModuleParams) (WorkspaceModule, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceModule,
+		arg.ID,
+		arg.JobID,
+		arg.Transition,
+		arg.Source,
+		arg.Version,
+		arg.Key,
+		arg.CreatedAt,
+	)
+	var i WorkspaceModule
+	err := row.Scan(
+		&i.ID,
+		&i.JobID,
+		&i.Transition,
+		&i.Source,
+		&i.Version,
+		&i.Key,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14138,6 +14380,7 @@ func (q *sqlQuerier) GetWorkspaceResourceByID(ctx context.Context, id uuid.UUID)
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.ModulePath,
 	)
 	return i, err
 }
@@ -14217,7 +14460,7 @@ func (q *sqlQuerier) GetWorkspaceResourceMetadataCreatedAfter(ctx context.Contex
 
 const getWorkspaceResourcesByJobID = `-- name: GetWorkspaceResourcesByJobID :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14244,6 +14487,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14260,7 +14504,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobID(ctx context.Context, jobID uui
 
 const getWorkspaceResourcesByJobIDs = `-- name: GetWorkspaceResourcesByJobIDs :many
 SELECT
-	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 FROM
 	workspace_resources
 WHERE
@@ -14287,6 +14531,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14302,7 +14547,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesByJobIDs(ctx context.Context, ids []uu
 }
 
 const getWorkspaceResourcesCreatedAfter = `-- name: GetWorkspaceResourcesCreatedAfter :many
-SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost FROM workspace_resources WHERE created_at > $1
+SELECT id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path FROM workspace_resources WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, createdAt time.Time) ([]WorkspaceResource, error) {
@@ -14325,6 +14570,7 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 			&i.Icon,
 			&i.InstanceType,
 			&i.DailyCost,
+			&i.ModulePath,
 		); err != nil {
 			return nil, err
 		}
@@ -14341,9 +14587,9 @@ func (q *sqlQuerier) GetWorkspaceResourcesCreatedAfter(ctx context.Context, crea
 
 const insertWorkspaceResource = `-- name: InsertWorkspaceResource :one
 INSERT INTO
-	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost)
+	workspace_resources (id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path
 `
 
 type InsertWorkspaceResourceParams struct {
@@ -14357,6 +14603,7 @@ type InsertWorkspaceResourceParams struct {
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
+	ModulePath   sql.NullString      `db:"module_path" json:"module_path"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWorkspaceResourceParams) (WorkspaceResource, error) {
@@ -14371,6 +14618,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		arg.Icon,
 		arg.InstanceType,
 		arg.DailyCost,
+		arg.ModulePath,
 	)
 	var i WorkspaceResource
 	err := row.Scan(
@@ -14384,6 +14632,7 @@ func (q *sqlQuerier) InsertWorkspaceResource(ctx context.Context, arg InsertWork
 		&i.Icon,
 		&i.InstanceType,
 		&i.DailyCost,
+		&i.ModulePath,
 	)
 	return i, err
 }

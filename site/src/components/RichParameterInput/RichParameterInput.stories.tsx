@@ -99,6 +99,38 @@ export const NumberType: Story = {
 	},
 };
 
+export const NumberTypeWithIncreasingMonotonicity: Story = {
+	args: {
+		value: 4,
+		id: "number_parameter",
+		parameter: createTemplateVersionParameter({
+			name: "number_parameter",
+			type: "number",
+			description: "Numeric parameter",
+			default_value: "",
+			validation_min: 0,
+			validation_max: 10,
+			validation_monotonic: "increasing",
+		}),
+	},
+};
+
+export const NumberTypeWithDecreasingMonotonicity: Story = {
+	args: {
+		value: 4,
+		id: "number_parameter",
+		parameter: createTemplateVersionParameter({
+			name: "number_parameter",
+			type: "number",
+			description: "Numeric parameter",
+			default_value: "",
+			validation_min: 0,
+			validation_max: 10,
+			validation_monotonic: "decreasing",
+		}),
+	},
+};
+
 export const BooleanType: Story = {
 	args: {
 		value: "false",

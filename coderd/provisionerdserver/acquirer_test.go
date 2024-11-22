@@ -17,8 +17,6 @@ import (
 	"go.uber.org/goleak"
 	"golang.org/x/exp/slices"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -40,7 +38,7 @@ func TestAcquirer_Store(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	_ = provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), db, ps)
 }
 
@@ -50,7 +48,7 @@ func TestAcquirer_Single(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
 	orgID := uuid.New()
@@ -77,7 +75,7 @@ func TestAcquirer_MultipleSameDomain(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
 	acquirees := make([]*testAcquiree, 0, 10)
@@ -123,7 +121,7 @@ func TestAcquirer_WaitsOnNoJobs(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
 	orgID := uuid.New()
@@ -175,7 +173,7 @@ func TestAcquirer_RetriesPending(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := provisionerdserver.NewAcquirer(ctx, logger.Named("acquirer"), fs, ps)
 
 	orgID := uuid.New()
@@ -219,7 +217,7 @@ func TestAcquirer_DifferentDomains(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	orgID := uuid.New()
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
@@ -266,7 +264,7 @@ func TestAcquirer_BackupPoll(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	uut := provisionerdserver.NewAcquirer(
 		ctx, logger.Named("acquirer"), fs, ps,
 		provisionerdserver.TestingBackupPollDuration(testutil.IntervalMedium),
@@ -297,7 +295,7 @@ func TestAcquirer_UnblockOnCancel(t *testing.T) {
 	ps := pubsub.NewInMemory()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	pt := []database.ProvisionerType{database.ProvisionerTypeEcho}
 	orgID := uuid.New()
@@ -476,7 +474,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			ctx := testutil.Context(t, testutil.WaitShort)
 			// NOTE: explicitly not using fake store for this test.
 			db, ps := dbtestutil.NewDB(t)
-			log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			log := testutil.Logger(t)
 			org, err := db.InsertOrganization(ctx, database.InsertOrganizationParams{
 				ID:          uuid.New(),
 				Name:        "test org",
