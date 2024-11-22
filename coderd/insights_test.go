@@ -2364,7 +2364,6 @@ func TestTotalUsersInsight(t *testing.T) {
 		t.Cleanup(cancel)
 
 		// Given: a deployment with many users
-
 		dbgen.User(t, db, database.User{
 			Email:     "user1@coder.com",
 			Username:  "user1",
@@ -2407,7 +2406,7 @@ func TestTotalUsersInsight(t *testing.T) {
 
 		// Third day
 		require.Equal(t, res[2].Date, daysAgo(0).Format(time.DateOnly))
-		require.Equal(t, res[2].Total, uint64(4))
+		require.Equal(t, res[2].Total, uint64(5))
 	})
 
 	t.Run("DatesWithNoUserRegistration", func(t *testing.T) {
@@ -2450,7 +2449,7 @@ func TestTotalUsersInsight(t *testing.T) {
 
 		// Third day
 		require.Equal(t, res[2].Date, daysAgo(0).Format(time.DateOnly))
-		require.Equal(t, res[2].Total, uint64(2))
+		require.Equal(t, res[2].Total, uint64(3))
 	})
 }
 
