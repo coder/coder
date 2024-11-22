@@ -1,10 +1,15 @@
 # Add a dev container template to Coder
 
 A Coder administrator adds a dev container-compatible template to Coder
-(Envbuilder). This allows the template to prompt for the developer for their dev container repository's URL as a [parameter](../../extending-templates/parameters.md) when they create their workspace. Envbuilder clones the repo
-and builds a container from the `devcontainer.json` specified in the repo.
+(Envbuilder). This allows the template to prompt for the developer for their dev
+container repository's URL as a
+[parameter](../../extending-templates/parameters.md) when they create their
+workspace. Envbuilder clones the repo and builds a container from the
+`devcontainer.json` specified in the repo.
 
-You can create template files through the Coder dashboard, CLI, or you can choose a template from the [Coder registry](https://registry.coder.com/templates?tag=devcontainer):
+You can create template files through the Coder dashboard, CLI, or you can
+choose a template from the
+[Coder registry](https://registry.coder.com/templates?tag=devcontainer):
 
 <div class="tabs">
 
@@ -16,7 +21,7 @@ You can create template files through the Coder dashboard, CLI, or you can choos
    select **Choose a starter template**.
 
    - Select **From scratch** to create a new template and enter information and
-   file contents manually.
+     file contents manually.
 
 ## CLI
 
@@ -59,27 +64,28 @@ You can create template files through the Coder dashboard, CLI, or you can choos
    1. Create a `.zip` of the template files:
 
       - On Mac or Windows, highlight the files and then right click. A
-         "compress" option is available through the right-click context menu.
+        "compress" option is available through the right-click context menu.
 
       - To zip the files through the command line:
 
-         ```shell
-         zip templates.zip Dockerfile main.tf
-         ```
+        ```shell
+        zip templates.zip Dockerfile main.tf
+        ```
 
    1. Select **Templates**.
    1. Select **Create Template**, then **Upload template**:
 
       ![Upload template](../../../../images/templates/upload-create-your-first-template.png)
 
-   1. Drag the `.zip` file into the **Upload template** section and fill out
-      the details, then select **Create template**.
+   1. Drag the `.zip` file into the **Upload template** section and fill out the
+      details, then select **Create template**.
 
       ![Upload the template files](../../../../images/templates/upload-create-template-form.png)
 
 </div>
 
-To set variables such as the namespace, go to the template in your Coder dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
+To set variables such as the namespace, go to the template in your Coder
+dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 
 ![Choose Settings from the template's menu](../../../../images/templates/template-menu-settings.png)
 
