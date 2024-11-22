@@ -417,7 +417,11 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 		return nil, err
 	}
 	var tagsJSON strings.Builder
-	_ = json.NewEncoder(&tagsJSON).Encode(version.Job.Tags)
+	if err := json.NewEncoder(&tagsJSON).Encode(version.Job.Tags); err != nil {
+		// Fall back to the less-pretty string representation.
+		tagsJSON.Reset()
+		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", version.Job.Tags))
+	}
 	if version.MatchedProvisioners.Count == 0 {
 		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
 Please contact your deployment administrator for assistance.
@@ -433,7 +437,7 @@ Details:
 	Provisioner Job ID : %s
 	Requested tags     : %s
 	Most Recently Seen : %s
-`, version.Job.ID, tagsJSON.String(), version.MatchedProvisioners.MostRecentlySeen.Time)
+`, version.Job.ID, strings.TrimSpace(tagsJSON.String()), version.MatchedProvisioners.MostRecentlySeen.Time)
 	}
 
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
