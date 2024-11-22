@@ -1,5 +1,7 @@
 DROP VIEW workspaces_expanded;
 
+DROP INDEX workspace_next_start_at_idx;
+
 ALTER TABLE ONLY workspaces DROP COLUMN IF EXISTS next_start_at;
 
 CREATE VIEW

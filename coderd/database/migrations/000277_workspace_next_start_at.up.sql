@@ -1,5 +1,7 @@
 ALTER TABLE ONLY workspaces ADD COLUMN IF NOT EXISTS next_start_at TIMESTAMPTZ DEFAULT NULL;
 
+CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted=false);
+
 -- Recreate view
 DROP VIEW workspaces_expanded;
 
