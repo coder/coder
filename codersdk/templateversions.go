@@ -31,7 +31,8 @@ type TemplateVersion struct {
 	CreatedBy      MinimalUser    `json:"created_by"`
 	Archived       bool           `json:"archived"`
 
-	Warnings []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
+	MatchedProvisioners MatchedProvisioners      `json:"matched_provisioners,omitempty"`
 }
 
 type TemplateVersionExternalAuth struct {

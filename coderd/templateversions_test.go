@@ -461,6 +461,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
+
+				// Also assert that we get the expected information back from the API endpoint
+				require.Zero(t, tv.MatchedProvisioners.Count)
+				require.Zero(t, tv.MatchedProvisioners.Available)
+				require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 			})
 		}
 	})
