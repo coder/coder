@@ -140,7 +140,8 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		templateNameLabel = template.Name
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      templateNameLabel,
 			"initiator": initiator.Username,

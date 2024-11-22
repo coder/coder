@@ -1056,7 +1056,8 @@ func (api *API) putWorkspaceDormant(rw http.ResponseWriter, r *http.Request) {
 		if initiatorErr == nil && tmplErr == nil {
 			dormantTime := dbtime.Now().Add(time.Duration(tmpl.TimeTilDormant))
 			_, err = api.NotificationsEnqueuer.Enqueue(
-				ctx,
+				// nolint:gocritic // Need notifier actor to enqueue notifications
+				dbauthz.AsNotifier(ctx),
 				newWorkspace.OwnerID,
 				notifications.TemplateWorkspaceDormant,
 				map[string]string{

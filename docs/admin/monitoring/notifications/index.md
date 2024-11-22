@@ -74,7 +74,8 @@ flags.
 Notifications can currently be delivered by either SMTP or webhook. Each message
 can only be delivered to one method, and this method is configured globally with
 [`CODER_NOTIFICATIONS_METHOD`](../../../reference/cli/server.md#--notifications-method)
-(default: `smtp`).
+(default: `smtp`). When there are no delivery methods configured, notifications
+will be disabled.
 
 Premium customers can configure which method to use for each of the supported
 [Events](#workspace-events); see the
@@ -89,11 +90,11 @@ existing one.
 
 **Server Settings:**
 
-| Required | CLI                 | Env                     | Type        | Description                               | Default       |
-| :------: | ------------------- | ----------------------- | ----------- | ----------------------------------------- | ------------- |
-|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string`    | The sender's address to use.              |               |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `host:port` | The SMTP relay to send messages through.  | localhost:587 |
-|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string`    | The hostname identifying the SMTP server. | localhost     |
+| Required | CLI                 | Env                     | Type     | Description                               | Default   |
+| :------: | ------------------- | ----------------------- | -------- | ----------------------------------------- | --------- |
+|    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |
+|    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
 
 **Authentication Settings:**
 

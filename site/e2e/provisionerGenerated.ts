@@ -215,6 +215,7 @@ export interface Resource {
 	icon: string;
 	instanceType: string;
 	dailyCost: number;
+	modulePath: string;
 }
 
 export interface Resource_Metadata {
@@ -222,6 +223,12 @@ export interface Resource_Metadata {
 	value: string;
 	sensitive: boolean;
 	isNull: boolean;
+}
+
+export interface Module {
+	source: string;
+	version: string;
+	key: string;
 }
 
 /** Metadata is information about a workspace used in the execution of a build */
@@ -243,6 +250,7 @@ export interface Metadata {
 	workspaceOwnerSshPublicKey: string;
 	workspaceOwnerSshPrivateKey: string;
 	workspaceBuildId: string;
+	workspaceOwnerLoginType: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -285,6 +293,7 @@ export interface PlanComplete {
 	parameters: RichParameter[];
 	externalAuthProviders: ExternalAuthProviderResource[];
 	timings: Timing[];
+	modules: Module[];
 }
 
 /**
@@ -797,6 +806,9 @@ export const Resource = {
 		if (message.dailyCost !== 0) {
 			writer.uint32(64).int32(message.dailyCost);
 		}
+		if (message.modulePath !== "") {
+			writer.uint32(74).string(message.modulePath);
+		}
 		return writer;
 	},
 };
@@ -817,6 +829,24 @@ export const Resource_Metadata = {
 		}
 		if (message.isNull === true) {
 			writer.uint32(32).bool(message.isNull);
+		}
+		return writer;
+	},
+};
+
+export const Module = {
+	encode(
+		message: Module,
+		writer: _m0.Writer = _m0.Writer.create(),
+	): _m0.Writer {
+		if (message.source !== "") {
+			writer.uint32(10).string(message.source);
+		}
+		if (message.version !== "") {
+			writer.uint32(18).string(message.version);
+		}
+		if (message.key !== "") {
+			writer.uint32(26).string(message.key);
 		}
 		return writer;
 	},
@@ -877,6 +907,9 @@ export const Metadata = {
 		}
 		if (message.workspaceBuildId !== "") {
 			writer.uint32(138).string(message.workspaceBuildId);
+		}
+		if (message.workspaceOwnerLoginType !== "") {
+			writer.uint32(146).string(message.workspaceOwnerLoginType);
 		}
 		return writer;
 	},
@@ -991,6 +1024,9 @@ export const PlanComplete = {
 		}
 		for (const v of message.timings) {
 			Timing.encode(v!, writer.uint32(50).fork()).ldelim();
+		}
+		for (const v of message.modules) {
+			Module.encode(v!, writer.uint32(58).fork()).ldelim();
 		}
 		return writer;
 	},

@@ -13,6 +13,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -119,8 +120,10 @@ func TestAgentScript(t *testing.T) {
 
 		// Kill the command, wait for the command to yield.
 		err := cmd.Cancel()
-		if err != nil {
-			t.Fatalf("unable to cancel the command, see logs:\n%s", output.String())
+		if errors.Is(err, os.ErrProcessDone) {
+			t.Log("script has already finished execution")
+		} else if err != nil {
+			t.Fatalf("unable to cancel the command: %v, see logs:\n%s", err, output.String())
 		}
 		wg.Wait()
 

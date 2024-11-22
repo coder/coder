@@ -10,7 +10,11 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = @organization_id;
+	-- This is the original search criteria:
+	organization_id = @organization_id :: uuid
+	AND
+	-- adding support for searching by tags:
+	(@want_tags :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, @want_tags::tagset));
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago

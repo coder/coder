@@ -581,6 +581,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				RichParameters:             startProvision.Parameters,
 				ExternalAuthProvidersNames: externalAuthProviderNames,
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
+				StartModules:               startProvision.Modules,
+				StopModules:                stopProvision.Modules,
 			},
 		},
 	}, nil
@@ -640,6 +642,7 @@ type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
+	Modules               []*sdkproto.Module
 }
 
 // Performs a dry-run provision when importing a template.
@@ -731,6 +734,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
 				ExternalAuthProviders: c.ExternalAuthProviders,
+				Modules:               c.Modules,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -793,6 +797,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
 				Resources: provision.Resources,
+				Modules:   provision.Modules,
 			},
 		},
 	}, nil
@@ -1033,6 +1038,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
 				Timings:   applyComplete.Timings,
+				// Modules are created on disk by `terraform init`, and that is only
+				// called by `plan`. `apply` does not modify them, so we can use the
+				// modules from the plan response.
+				Modules: planComplete.Modules,
 			},
 		},
 	}, nil

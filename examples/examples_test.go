@@ -51,6 +51,5 @@ func TestSubdirs(t *testing.T) {
 		entryPaths[header.Typeflag] = append(entryPaths[header.Typeflag], header.Name)
 	}
 
-	require.Subset(t, entryPaths[tar.TypeDir], []string{"build"})
-	require.Subset(t, entryPaths[tar.TypeReg], []string{"README.md", "main.tf", "build/Dockerfile"})
+	require.Subset(t, entryPaths[tar.TypeReg], []string{"README.md", "main.tf"})
 }

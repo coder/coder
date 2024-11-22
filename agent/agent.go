@@ -3,12 +3,10 @@ package agent
 import (
 	"bytes"
 	"context"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
 	"io"
-	"net"
 	"net/http"
 	"net/netip"
 	"os"
@@ -31,7 +29,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-	"storj.io/drpc"
 	"tailscale.com/net/speedtest"
 	"tailscale.com/tailcfg"
 	"tailscale.com/types/netlogtype"
@@ -94,7 +91,9 @@ type Options struct {
 }
 
 type Client interface {
-	ConnectRPC(ctx context.Context) (drpc.Conn, error)
+	ConnectRPC23(ctx context.Context) (
+		proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
+	)
 	RewriteDERPMap(derpMap *tailcfg.DERPMap)
 }
 
@@ -215,8 +214,8 @@ type agent struct {
 	portCacheDuration time.Duration
 	subsystems        []codersdk.AgentSubsystem
 
-	reconnectingPTYs       sync.Map
 	reconnectingPTYTimeout time.Duration
+	reconnectingPTYServer  *reconnectingpty.Server
 
 	// we track 2 contexts and associated cancel functions: "graceful" which is Done when it is time
 	// to start gracefully shutting down and "hard" which is Done when it is time to close
@@ -250,8 +249,6 @@ type agent struct {
 	network       *tailnet.Conn
 	statsReporter *statsReporter
 	logSender     *agentsdk.LogSender
-
-	connCountReconnectingPTY atomic.Int64
 
 	prometheusRegistry *prometheus.Registry
 	// metrics are prometheus registered metrics that will be collected and
@@ -296,6 +293,13 @@ func (a *agent) init() {
 	// Register runner metrics. If the prom registry is nil, the metrics
 	// will not report anywhere.
 	a.scriptRunner.RegisterMetrics(a.prometheusRegistry)
+
+	a.reconnectingPTYServer = reconnectingpty.NewServer(
+		a.logger.Named("reconnecting-pty"),
+		a.sshServer,
+		a.metrics.connectionsTotal, a.metrics.reconnectingPTYErrors,
+		a.reconnectingPTYTimeout,
+	)
 	go a.runLoop()
 }
 
@@ -410,7 +414,7 @@ func (t *trySingleflight) Do(key string, fn func()) {
 	fn()
 }
 
-func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
+func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 	tickerDone := make(chan struct{})
 	collectDone := make(chan struct{})
 	ctx, cancel := context.WithCancel(ctx)
@@ -572,7 +576,6 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 		reportTimeout   = 30 * time.Second
 		reportError     = make(chan error, 1)
 		reportInFlight  = false
-		aAPI            = proto.NewDRPCAgentClient(conn)
 	)
 
 	for {
@@ -627,8 +630,7 @@ func (a *agent) reportMetadata(ctx context.Context, conn drpc.Conn) error {
 
 // reportLifecycle reports the current lifecycle state once. All state
 // changes are reported in order.
-func (a *agent) reportLifecycle(ctx context.Context, conn drpc.Conn) error {
-	aAPI := proto.NewDRPCAgentClient(conn)
+func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 	for {
 		select {
 		case <-a.lifecycleUpdate:
@@ -710,8 +712,7 @@ func (a *agent) setLifecycle(state codersdk.WorkspaceAgentLifecycle) {
 // fetchServiceBannerLoop fetches the service banner on an interval.  It will
 // not be fetched immediately; the expectation is that it is primed elsewhere
 // (and must be done before the session actually starts).
-func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) error {
-	aAPI := proto.NewDRPCAgentClient(conn)
+func (a *agent) fetchServiceBannerLoop(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 	ticker := time.NewTicker(a.announcementBannersRefreshInterval)
 	defer ticker.Stop()
 	for {
@@ -737,7 +738,7 @@ func (a *agent) fetchServiceBannerLoop(ctx context.Context, conn drpc.Conn) erro
 }
 
 func (a *agent) run() (retErr error) {
-	// This allows the agent to refresh it's token if necessary.
+	// This allows the agent to refresh its token if necessary.
 	// For instance identity this is required, since the instance
 	// may not have re-provisioned, but a new agent ID was created.
 	sessionToken, err := a.exchangeToken(a.hardCtx)
@@ -747,12 +748,12 @@ func (a *agent) run() (retErr error) {
 	a.sessionToken.Store(&sessionToken)
 
 	// ConnectRPC returns the dRPC connection we use for the Agent and Tailnet v2+ APIs
-	conn, err := a.client.ConnectRPC(a.hardCtx)
+	aAPI, tAPI, err := a.client.ConnectRPC23(a.hardCtx)
 	if err != nil {
 		return err
 	}
 	defer func() {
-		cErr := conn.Close()
+		cErr := aAPI.DRPCConn().Close()
 		if cErr != nil {
 			a.logger.Debug(a.hardCtx, "error closing drpc connection", slog.Error(err))
 		}
@@ -761,11 +762,10 @@ func (a *agent) run() (retErr error) {
 	// A lot of routines need the agent API / tailnet API connection.  We run them in their own
 	// goroutines in parallel, but errors in any routine will cause them all to exit so we can
 	// redial the coder server and retry.
-	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, conn)
+	connMan := newAPIConnRoutineManager(a.gracefulCtx, a.hardCtx, a.logger, aAPI, tAPI)
 
-	connMan.start("init notification banners", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, conn drpc.Conn) error {
-			aAPI := proto.NewDRPCAgentClient(conn)
+	connMan.startAgentAPI("init notification banners", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 			bannersProto, err := aAPI.GetAnnouncementBanners(ctx, &proto.GetAnnouncementBannersRequest{})
 			if err != nil {
 				return xerrors.Errorf("fetch service banner: %w", err)
@@ -781,9 +781,9 @@ func (a *agent) run() (retErr error) {
 
 	// sending logs gets gracefulShutdownBehaviorRemain because we want to send logs generated by
 	// shutdown scripts.
-	connMan.start("send logs", gracefulShutdownBehaviorRemain,
-		func(ctx context.Context, conn drpc.Conn) error {
-			err := a.logSender.SendLoop(ctx, proto.NewDRPCAgentClient(conn))
+	connMan.startAgentAPI("send logs", gracefulShutdownBehaviorRemain,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
+			err := a.logSender.SendLoop(ctx, aAPI)
 			if xerrors.Is(err, agentsdk.LogLimitExceededError) {
 				// we don't want this error to tear down the API connection and propagate to the
 				// other routines that use the API.  The LogSender has already dropped a warning
@@ -795,10 +795,10 @@ func (a *agent) run() (retErr error) {
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain
-	connMan.start("report lifecycle", gracefulShutdownBehaviorRemain, a.reportLifecycle)
+	connMan.startAgentAPI("report lifecycle", gracefulShutdownBehaviorRemain, a.reportLifecycle)
 
 	// metadata reporting can cease as soon as we start gracefully shutting down
-	connMan.start("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
+	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
 	// channels to sync goroutines below
 	//  handle manifest
@@ -819,55 +819,55 @@ func (a *agent) run() (retErr error) {
 	networkOK := newCheckpoint(a.logger)
 	manifestOK := newCheckpoint(a.logger)
 
-	connMan.start("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
+	connMan.startAgentAPI("handle manifest", gracefulShutdownBehaviorStop, a.handleManifest(manifestOK))
 
-	connMan.start("app health reporter", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, conn drpc.Conn) error {
+	connMan.startAgentAPI("app health reporter", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 			if err := manifestOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no manifest: %w", err)
 			}
 			manifest := a.manifest.Load()
 			NewWorkspaceAppHealthReporter(
-				a.logger, manifest.Apps, agentsdk.AppHealthPoster(proto.NewDRPCAgentClient(conn)),
+				a.logger, manifest.Apps, agentsdk.AppHealthPoster(aAPI),
 			)(ctx)
 			return nil
 		})
 
-	connMan.start("create or update network", gracefulShutdownBehaviorStop,
+	connMan.startAgentAPI("create or update network", gracefulShutdownBehaviorStop,
 		a.createOrUpdateNetwork(manifestOK, networkOK))
 
-	connMan.start("coordination", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, conn drpc.Conn) error {
+	connMan.startTailnetAPI("coordination", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, tAPI tailnetproto.DRPCTailnetClient23) error {
 			if err := networkOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no network: %w", err)
 			}
-			return a.runCoordinator(ctx, conn, a.network)
+			return a.runCoordinator(ctx, tAPI, a.network)
 		},
 	)
 
-	connMan.start("derp map subscriber", gracefulShutdownBehaviorStop,
-		func(ctx context.Context, conn drpc.Conn) error {
+	connMan.startTailnetAPI("derp map subscriber", gracefulShutdownBehaviorStop,
+		func(ctx context.Context, tAPI tailnetproto.DRPCTailnetClient23) error {
 			if err := networkOK.wait(ctx); err != nil {
 				return xerrors.Errorf("no network: %w", err)
 			}
-			return a.runDERPMapSubscriber(ctx, conn, a.network)
+			return a.runDERPMapSubscriber(ctx, tAPI, a.network)
 		})
 
-	connMan.start("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
+	connMan.startAgentAPI("fetch service banner loop", gracefulShutdownBehaviorStop, a.fetchServiceBannerLoop)
 
-	connMan.start("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, conn drpc.Conn) error {
+	connMan.startAgentAPI("stats report loop", gracefulShutdownBehaviorStop, func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 		if err := networkOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no network: %w", err)
 		}
-		return a.statsReporter.reportLoop(ctx, proto.NewDRPCAgentClient(conn))
+		return a.statsReporter.reportLoop(ctx, aAPI)
 	})
 
 	return connMan.wait()
 }
 
 // handleManifest returns a function that fetches and processes the manifest
-func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, conn drpc.Conn) error {
-	return func(ctx context.Context, conn drpc.Conn) error {
+func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
+	return func(ctx context.Context, aAPI proto.DRPCAgentClient23) error {
 		var (
 			sentResult = false
 			err        error
@@ -877,7 +877,6 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 				manifestOK.complete(err)
 			}
 		}()
-		aAPI := proto.NewDRPCAgentClient(conn)
 		mp, err := aAPI.GetManifest(ctx, &proto.GetManifestRequest{})
 		if err != nil {
 			return xerrors.Errorf("fetch metadata: %w", err)
@@ -977,8 +976,8 @@ func (a *agent) handleManifest(manifestOK *checkpoint) func(ctx context.Context,
 
 // createOrUpdateNetwork waits for the manifest to be set using manifestOK, then creates or updates
 // the tailnet using the information in the manifest
-func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, drpc.Conn) error {
-	return func(ctx context.Context, _ drpc.Conn) (retErr error) {
+func (a *agent) createOrUpdateNetwork(manifestOK, networkOK *checkpoint) func(context.Context, proto.DRPCAgentClient23) error {
+	return func(ctx context.Context, _ proto.DRPCAgentClient23) (retErr error) {
 		if err := manifestOK.wait(ctx); err != nil {
 			return xerrors.Errorf("no manifest: %w", err)
 		}
@@ -1185,55 +1184,12 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 		}
 	}()
 	if err = a.trackGoroutine(func() {
-		logger := a.logger.Named("reconnecting-pty")
-		var wg sync.WaitGroup
-		for {
-			conn, err := reconnectingPTYListener.Accept()
-			if err != nil {
-				if !a.isClosed() {
-					logger.Debug(ctx, "accept pty failed", slog.Error(err))
-				}
-				break
-			}
-			clog := logger.With(
-				slog.F("remote", conn.RemoteAddr().String()),
-				slog.F("local", conn.LocalAddr().String()))
-			clog.Info(ctx, "accepted conn")
-			wg.Add(1)
-			closed := make(chan struct{})
-			go func() {
-				select {
-				case <-closed:
-				case <-a.hardCtx.Done():
-					_ = conn.Close()
-				}
-				wg.Done()
-			}()
-			go func() {
-				defer close(closed)
-				// This cannot use a JSON decoder, since that can
-				// buffer additional data that is required for the PTY.
-				rawLen := make([]byte, 2)
-				_, err = conn.Read(rawLen)
-				if err != nil {
-					return
-				}
-				length := binary.LittleEndian.Uint16(rawLen)
-				data := make([]byte, length)
-				_, err = conn.Read(data)
-				if err != nil {
-					return
-				}
-				var msg workspacesdk.AgentReconnectingPTYInit
-				err = json.Unmarshal(data, &msg)
-				if err != nil {
-					logger.Warn(ctx, "failed to unmarshal init", slog.F("raw", data))
-					return
-				}
-				_ = a.handleReconnectingPTY(ctx, clog, msg, conn)
-			}()
+		rPTYServeErr := a.reconnectingPTYServer.Serve(a.gracefulCtx, a.hardCtx, reconnectingPTYListener)
+		if rPTYServeErr != nil &&
+			a.gracefulCtx.Err() == nil &&
+			!strings.Contains(rPTYServeErr.Error(), "use of closed network connection") {
+			a.logger.Error(ctx, "error serving reconnecting PTY", slog.Error(err))
 		}
-		wg.Wait()
 	}); err != nil {
 		return nil, err
 	}
@@ -1312,9 +1268,9 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 			_ = server.Close()
 		}()
 
-		err := server.Serve(apiListener)
-		if err != nil && !xerrors.Is(err, http.ErrServerClosed) && !strings.Contains(err.Error(), "use of closed network connection") {
-			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(err))
+		apiServErr := server.Serve(apiListener)
+		if apiServErr != nil && !xerrors.Is(apiServErr, http.ErrServerClosed) && !strings.Contains(apiServErr.Error(), "use of closed network connection") {
+			a.logger.Critical(ctx, "serve HTTP API server", slog.Error(apiServErr))
 		}
 	}); err != nil {
 		return nil, err
@@ -1325,9 +1281,8 @@ func (a *agent) createTailnet(ctx context.Context, agentID uuid.UUID, derpMap *t
 
 // runCoordinator runs a coordinator and returns whether a reconnect
 // should occur.
-func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+func (a *agent) runCoordinator(ctx context.Context, tClient tailnetproto.DRPCTailnetClient23, network *tailnet.Conn) error {
 	defer a.logger.Debug(ctx, "disconnected from coordination RPC")
-	tClient := tailnetproto.NewDRPCTailnetClient(conn)
 	// we run the RPC on the hardCtx so that we have a chance to send the disconnect message if we
 	// gracefully shut down.
 	coordinate, err := tClient.Coordinate(a.hardCtx)
@@ -1373,11 +1328,10 @@ func (a *agent) runCoordinator(ctx context.Context, conn drpc.Conn, network *tai
 }
 
 // runDERPMapSubscriber runs a coordinator and returns if a reconnect should occur.
-func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, network *tailnet.Conn) error {
+func (a *agent) runDERPMapSubscriber(ctx context.Context, tClient tailnetproto.DRPCTailnetClient23, network *tailnet.Conn) error {
 	defer a.logger.Debug(ctx, "disconnected from derp map RPC")
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
-	tClient := tailnetproto.NewDRPCTailnetClient(conn)
 	stream, err := tClient.StreamDERPMaps(ctx, &tailnetproto.StreamDERPMapsRequest{})
 	if err != nil {
 		return xerrors.Errorf("stream DERP Maps: %w", err)
@@ -1398,87 +1352,6 @@ func (a *agent) runDERPMapSubscriber(ctx context.Context, conn drpc.Conn, networ
 		a.client.RewriteDERPMap(dm)
 		network.SetDERPMap(dm)
 	}
-}
-
-func (a *agent) handleReconnectingPTY(ctx context.Context, logger slog.Logger, msg workspacesdk.AgentReconnectingPTYInit, conn net.Conn) (retErr error) {
-	defer conn.Close()
-	a.metrics.connectionsTotal.Add(1)
-
-	a.connCountReconnectingPTY.Add(1)
-	defer a.connCountReconnectingPTY.Add(-1)
-
-	connectionID := uuid.NewString()
-	connLogger := logger.With(slog.F("message_id", msg.ID), slog.F("connection_id", connectionID))
-	connLogger.Debug(ctx, "starting handler")
-
-	defer func() {
-		if err := retErr; err != nil {
-			a.closeMutex.Lock()
-			closed := a.isClosed()
-			a.closeMutex.Unlock()
-
-			// If the agent is closed, we don't want to
-			// log this as an error since it's expected.
-			if closed {
-				connLogger.Info(ctx, "reconnecting pty failed with attach error (agent closed)", slog.Error(err))
-			} else {
-				connLogger.Error(ctx, "reconnecting pty failed with attach error", slog.Error(err))
-			}
-		}
-		connLogger.Info(ctx, "reconnecting pty connection closed")
-	}()
-
-	var rpty reconnectingpty.ReconnectingPTY
-	sendConnected := make(chan reconnectingpty.ReconnectingPTY, 1)
-	// On store, reserve this ID to prevent multiple concurrent new connections.
-	waitReady, ok := a.reconnectingPTYs.LoadOrStore(msg.ID, sendConnected)
-	if ok {
-		close(sendConnected) // Unused.
-		connLogger.Debug(ctx, "connecting to existing reconnecting pty")
-		c, ok := waitReady.(chan reconnectingpty.ReconnectingPTY)
-		if !ok {
-			return xerrors.Errorf("found invalid type in reconnecting pty map: %T", waitReady)
-		}
-		rpty, ok = <-c
-		if !ok || rpty == nil {
-			return xerrors.Errorf("reconnecting pty closed before connection")
-		}
-		c <- rpty // Put it back for the next reconnect.
-	} else {
-		connLogger.Debug(ctx, "creating new reconnecting pty")
-
-		connected := false
-		defer func() {
-			if !connected && retErr != nil {
-				a.reconnectingPTYs.Delete(msg.ID)
-				close(sendConnected)
-			}
-		}()
-
-		// Empty command will default to the users shell!
-		cmd, err := a.sshServer.CreateCommand(ctx, msg.Command, nil)
-		if err != nil {
-			a.metrics.reconnectingPTYErrors.WithLabelValues("create_command").Add(1)
-			return xerrors.Errorf("create command: %w", err)
-		}
-
-		rpty = reconnectingpty.New(ctx, cmd, &reconnectingpty.Options{
-			Timeout: a.reconnectingPTYTimeout,
-			Metrics: a.metrics.reconnectingPTYErrors,
-		}, logger.With(slog.F("message_id", msg.ID)))
-
-		if err = a.trackGoroutine(func() {
-			rpty.Wait()
-			a.reconnectingPTYs.Delete(msg.ID)
-		}); err != nil {
-			rpty.Close(err)
-			return xerrors.Errorf("start routine: %w", err)
-		}
-
-		connected = true
-		sendConnected <- rpty
-	}
-	return rpty.Attach(ctx, connectionID, conn, msg.Height, msg.Width, connLogger)
 }
 
 // Collect collects additional stats from the agent
@@ -1502,7 +1375,7 @@ func (a *agent) Collect(ctx context.Context, networkStats map[netlogtype.Connect
 	stats.SessionCountVscode = sshStats.VSCode
 	stats.SessionCountJetbrains = sshStats.JetBrains
 
-	stats.SessionCountReconnectingPty = a.connCountReconnectingPTY.Load()
+	stats.SessionCountReconnectingPty = a.reconnectingPTYServer.ConnCount()
 
 	// Compute the median connection latency!
 	a.logger.Debug(ctx, "starting peer latency measurement for stats")
@@ -1981,13 +1854,17 @@ const (
 
 type apiConnRoutineManager struct {
 	logger    slog.Logger
-	conn      drpc.Conn
+	aAPI      proto.DRPCAgentClient23
+	tAPI      tailnetproto.DRPCTailnetClient23
 	eg        *errgroup.Group
 	stopCtx   context.Context
 	remainCtx context.Context
 }
 
-func newAPIConnRoutineManager(gracefulCtx, hardCtx context.Context, logger slog.Logger, conn drpc.Conn) *apiConnRoutineManager {
+func newAPIConnRoutineManager(
+	gracefulCtx, hardCtx context.Context, logger slog.Logger,
+	aAPI proto.DRPCAgentClient23, tAPI tailnetproto.DRPCTailnetClient23,
+) *apiConnRoutineManager {
 	// routines that remain in operation during graceful shutdown use the remainCtx.  They'll still
 	// exit if the errgroup hits an error, which usually means a problem with the conn.
 	eg, remainCtx := errgroup.WithContext(hardCtx)
@@ -2007,17 +1884,23 @@ func newAPIConnRoutineManager(gracefulCtx, hardCtx context.Context, logger slog.
 	stopCtx := eitherContext(remainCtx, gracefulCtx)
 	return &apiConnRoutineManager{
 		logger:    logger,
-		conn:      conn,
+		aAPI:      aAPI,
+		tAPI:      tAPI,
 		eg:        eg,
 		stopCtx:   stopCtx,
 		remainCtx: remainCtx,
 	}
 }
 
-func (a *apiConnRoutineManager) start(name string, b gracefulShutdownBehavior, f func(context.Context, drpc.Conn) error) {
+// startAgentAPI starts a routine that uses the Agent API. c.f. startTailnetAPI which is the same
+// but for Tailnet.
+func (a *apiConnRoutineManager) startAgentAPI(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, proto.DRPCAgentClient23) error,
+) {
 	logger := a.logger.With(slog.F("name", name))
 	var ctx context.Context
-	switch b {
+	switch behavior {
 	case gracefulShutdownBehaviorStop:
 		ctx = a.stopCtx
 	case gracefulShutdownBehaviorRemain:
@@ -2026,8 +1909,45 @@ func (a *apiConnRoutineManager) start(name string, b gracefulShutdownBehavior, f
 		panic("unknown behavior")
 	}
 	a.eg.Go(func() error {
-		logger.Debug(ctx, "starting routine")
-		err := f(ctx, a.conn)
+		logger.Debug(ctx, "starting agent routine")
+		err := f(ctx, a.aAPI)
+		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
+			logger.Debug(ctx, "swallowing context canceled")
+			// Don't propagate context canceled errors to the error group, because we don't want the
+			// graceful context being canceled to halt the work of routines with
+			// gracefulShutdownBehaviorRemain.  Note that we check both that the error is
+			// context.Canceled and that *our* context is currently canceled, because when Coderd
+			// unilaterally closes the API connection (for example if the build is outdated), it can
+			// sometimes show up as context.Canceled in our RPC calls.
+			return nil
+		}
+		logger.Debug(ctx, "routine exited", slog.Error(err))
+		if err != nil {
+			return xerrors.Errorf("error in routine %s: %w", name, err)
+		}
+		return nil
+	})
+}
+
+// startTailnetAPI starts a routine that uses the Tailnet API. c.f. startAgentAPI which is the same
+// but for the Agent API.
+func (a *apiConnRoutineManager) startTailnetAPI(
+	name string, behavior gracefulShutdownBehavior,
+	f func(context.Context, tailnetproto.DRPCTailnetClient23) error,
+) {
+	logger := a.logger.With(slog.F("name", name))
+	var ctx context.Context
+	switch behavior {
+	case gracefulShutdownBehaviorStop:
+		ctx = a.stopCtx
+	case gracefulShutdownBehaviorRemain:
+		ctx = a.remainCtx
+	default:
+		panic("unknown behavior")
+	}
+	a.eg.Go(func() error {
+		logger.Debug(ctx, "starting tailnet routine")
+		err := f(ctx, a.tAPI)
 		if xerrors.Is(err, context.Canceled) && ctx.Err() != nil {
 			logger.Debug(ctx, "swallowing context canceled")
 			// Don't propagate context canceled errors to the error group, because we don't want the

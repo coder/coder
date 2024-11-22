@@ -11,7 +11,7 @@ capabilities, allowing Coder to efficiently deploy, scale, and manage workspaces
 across a distributed infrastructure. This ensures high availability, fault
 tolerance, and scalability for Coder deployments. Coder is deployed on this
 cluster using the
-[Helm chart](../../install/kubernetes.md#install-coder-with-helm).
+[Helm chart](../../install/kubernetes.md#4-install-coder-with-helm).
 
 ## Methodology
 
@@ -113,7 +113,7 @@ on the workload size to ensure deployment stability.
 #### CPU and memory usage
 
 Enabling
-[agent stats collection](../../reference/cli/index.md#--prometheus-collect-agent-stats)
+[agent stats collection](../../reference/cli/server.md#--prometheus-collect-agent-stats)
 (optional) may increase memory consumption.
 
 Enabling direct connections between users and workspace agents (apps or SSH

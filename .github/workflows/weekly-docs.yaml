@@ -16,6 +16,8 @@ permissions:
 jobs:
   check-docs:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write # required to post PR review comments by the action
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
@@ -33,6 +35,7 @@ jobs:
           reporter: github-pr-review
           config_file: ".github/.linkspector.yml"
           fail_on_error: "true"
+          filter_mode: "nofilter"
 
       - name: Send Slack notification
         if: failure() && github.event_name == 'schedule'

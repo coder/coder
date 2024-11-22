@@ -8,8 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -28,7 +26,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -113,7 +111,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -169,7 +167,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -222,7 +220,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -271,7 +269,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -302,7 +300,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -351,7 +349,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 30
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -449,7 +447,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 7
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -472,7 +470,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 5
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -518,7 +516,7 @@ func Test_rotateKeys(t *testing.T) {
 			db, _       = dbtestutil.NewDB(t)
 			clock       = quartz.NewMock(t)
 			keyDuration = time.Hour * 24 * 3
-			logger      = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger      = testutil.Logger(t)
 			ctx         = testutil.Context(t, testutil.WaitShort)
 		)
 

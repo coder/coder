@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -457,6 +458,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		return nil
 	})
 	eg.Go(func() error {
+		workspaceModules, err := r.options.Database.GetWorkspaceModulesCreatedAfter(ctx, createdAfter)
+		if err != nil {
+			return xerrors.Errorf("get workspace modules: %w", err)
+		}
+		snapshot.WorkspaceModules = make([]WorkspaceModule, 0, len(workspaceModules))
+		for _, module := range workspaceModules {
+			snapshot.WorkspaceModules = append(snapshot.WorkspaceModules, ConvertWorkspaceModule(module))
+		}
+		return nil
+	})
+	eg.Go(func() error {
 		licenses, err := r.options.Database.GetUnexpiredLicenses(ctx)
 		if err != nil {
 			return xerrors.Errorf("get licenses: %w", err)
@@ -642,7 +654,7 @@ func ConvertWorkspaceApp(app database.WorkspaceApp) WorkspaceApp {
 
 // ConvertWorkspaceResource anonymizes a workspace resource.
 func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceResource {
-	return WorkspaceResource{
+	r := WorkspaceResource{
 		ID:           resource.ID,
 		JobID:        resource.JobID,
 		CreatedAt:    resource.CreatedAt,
@@ -650,6 +662,10 @@ func ConvertWorkspaceResource(resource database.WorkspaceResource) WorkspaceReso
 		Type:         resource.Type,
 		InstanceType: resource.InstanceType.String,
 	}
+	if resource.ModulePath.Valid {
+		r.ModulePath = &resource.ModulePath.String
+	}
+	return r
 }
 
 // ConvertWorkspaceResourceMetadata anonymizes workspace metadata.
@@ -658,6 +674,116 @@ func ConvertWorkspaceResourceMetadata(metadata database.WorkspaceResourceMetadat
 		ResourceID: metadata.WorkspaceResourceID,
 		Key:        metadata.Key,
 		Sensitive:  metadata.Sensitive,
+	}
+}
+
+func shouldSendRawModuleSource(source string) bool {
+	return strings.Contains(source, "registry.coder.com")
+}
+
+// ModuleSourceType is the type of source for a module.
+// For reference, see https://developer.hashicorp.com/terraform/language/modules/sources
+type ModuleSourceType string
+
+const (
+	ModuleSourceTypeLocal           ModuleSourceType = "local"
+	ModuleSourceTypeLocalAbs        ModuleSourceType = "local_absolute"
+	ModuleSourceTypePublicRegistry  ModuleSourceType = "public_registry"
+	ModuleSourceTypePrivateRegistry ModuleSourceType = "private_registry"
+	ModuleSourceTypeCoderRegistry   ModuleSourceType = "coder_registry"
+	ModuleSourceTypeGitHub          ModuleSourceType = "github"
+	ModuleSourceTypeBitbucket       ModuleSourceType = "bitbucket"
+	ModuleSourceTypeGit             ModuleSourceType = "git"
+	ModuleSourceTypeMercurial       ModuleSourceType = "mercurial"
+	ModuleSourceTypeHTTP            ModuleSourceType = "http"
+	ModuleSourceTypeS3              ModuleSourceType = "s3"
+	ModuleSourceTypeGCS             ModuleSourceType = "gcs"
+	ModuleSourceTypeUnknown         ModuleSourceType = "unknown"
+)
+
+// Terraform supports a variety of module source types, like:
+//   - local paths (./ or ../)
+//   - absolute local paths (/)
+//   - git URLs (git:: or git@)
+//   - http URLs
+//   - s3 URLs
+//
+// and more!
+//
+// See https://developer.hashicorp.com/terraform/language/modules/sources for an overview.
+//
+// This function attempts to classify the source type of a module. It's imperfect,
+// as checks that terraform actually does are pretty complicated.
+// See e.g. https://github.com/hashicorp/go-getter/blob/842d6c379e5e70d23905b8f6b5a25a80290acb66/detect.go#L47
+// if you're interested in the complexity.
+func GetModuleSourceType(source string) ModuleSourceType {
+	source = strings.TrimSpace(source)
+	source = strings.ToLower(source)
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
+		return ModuleSourceTypeLocal
+	}
+	if strings.HasPrefix(source, "/") {
+		return ModuleSourceTypeLocalAbs
+	}
+	// Match public registry modules in the format <NAMESPACE>/<NAME>/<PROVIDER>
+	// Sources can have a `//...` suffix, which signifies a subdirectory.
+	// The allowed characters are based on
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/modules#request-body-1
+	// because Hashicorp's documentation about module sources doesn't mention it.
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+(//.*)?$`, source); matched {
+		return ModuleSourceTypePublicRegistry
+	}
+	if strings.Contains(source, "github.com") {
+		return ModuleSourceTypeGitHub
+	}
+	if strings.Contains(source, "bitbucket.org") {
+		return ModuleSourceTypeBitbucket
+	}
+	if strings.HasPrefix(source, "git::") || strings.HasPrefix(source, "git@") {
+		return ModuleSourceTypeGit
+	}
+	if strings.HasPrefix(source, "hg::") {
+		return ModuleSourceTypeMercurial
+	}
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		return ModuleSourceTypeHTTP
+	}
+	if strings.HasPrefix(source, "s3::") {
+		return ModuleSourceTypeS3
+	}
+	if strings.HasPrefix(source, "gcs::") {
+		return ModuleSourceTypeGCS
+	}
+	if strings.Contains(source, "registry.terraform.io") {
+		return ModuleSourceTypePublicRegistry
+	}
+	if strings.Contains(source, "app.terraform.io") || strings.Contains(source, "localterraform.com") {
+		return ModuleSourceTypePrivateRegistry
+	}
+	if strings.Contains(source, "registry.coder.com") {
+		return ModuleSourceTypeCoderRegistry
+	}
+	return ModuleSourceTypeUnknown
+}
+
+func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
+	source := module.Source
+	version := module.Version
+	sourceType := GetModuleSourceType(source)
+	if !shouldSendRawModuleSource(source) {
+		source = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
+		version = fmt.Sprintf("%x", sha256.Sum256([]byte(version)))
+	}
+
+	return WorkspaceModule{
+		ID:         module.ID,
+		JobID:      module.JobID,
+		Transition: module.Transition,
+		Source:     source,
+		Version:    version,
+		SourceType: sourceType,
+		Key:        module.Key,
+		CreatedAt:  module.CreatedAt,
 	}
 }
 
@@ -810,6 +936,7 @@ type Snapshot struct {
 	WorkspaceProxies          []WorkspaceProxy            `json:"workspace_proxies"`
 	WorkspaceResourceMetadata []WorkspaceResourceMetadata `json:"workspace_resource_metadata"`
 	WorkspaceResources        []WorkspaceResource         `json:"workspace_resources"`
+	WorkspaceModules          []WorkspaceModule           `json:"workspace_modules"`
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
 }
@@ -878,12 +1005,28 @@ type WorkspaceResource struct {
 	Transition   database.WorkspaceTransition `json:"transition"`
 	Type         string                       `json:"type"`
 	InstanceType string                       `json:"instance_type"`
+	// ModulePath is nullable because it was added a long time after the
+	// original workspace resource telemetry was added. All new resources
+	// will have a module path, but deployments with older resources still
+	// in the database will not.
+	ModulePath *string `json:"module_path"`
 }
 
 type WorkspaceResourceMetadata struct {
 	ResourceID uuid.UUID `json:"resource_id"`
 	Key        string    `json:"key"`
 	Sensitive  bool      `json:"sensitive"`
+}
+
+type WorkspaceModule struct {
+	ID         uuid.UUID                    `json:"id"`
+	CreatedAt  time.Time                    `json:"created_at"`
+	JobID      uuid.UUID                    `json:"job_id"`
+	Transition database.WorkspaceTransition `json:"transition"`
+	Key        string                       `json:"key"`
+	Version    string                       `json:"version"`
+	Source     string                       `json:"source"`
+	SourceType ModuleSourceType             `json:"source_type"`
 }
 
 type WorkspaceAgent struct {

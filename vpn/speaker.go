@@ -60,13 +60,6 @@ const (
 	SpeakerRoleTunnel  SpeakerRole = "tunnel"
 )
 
-const (
-	CurrentMajor = 1
-	CurrentMinor = 0
-)
-
-var CurrentVersion = apiversion.New(CurrentMajor, CurrentMinor)
-
 // speaker is an implementation of the CoderVPN protocol. It handles unary RPCs and their responses,
 // as well as the low-level serialization & deserialization to the ReadWriteCloser (rwc).
 //

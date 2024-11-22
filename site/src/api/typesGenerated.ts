@@ -523,6 +523,7 @@ export interface DeploymentValues {
 	readonly cli_upgrade_message?: string;
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
+	readonly additional_csp_policy?: string[];
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;

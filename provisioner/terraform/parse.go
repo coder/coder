@@ -21,17 +21,17 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 	defer span.End()
 
 	// Load the module and print any parse errors.
-	module, diags := tfconfig.LoadModule(sess.WorkDirectory)
+	parser, diags := tfparse.New(sess.WorkDirectory, tfparse.WithLogger(s.logger.Named("tfparse")))
 	if diags.HasErrors() {
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
-	workspaceTags, err := tfparse.WorkspaceTags(ctx, s.logger, module)
+	workspaceTags, err := parser.WorkspaceTags(ctx)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)
 	}
 
-	templateVariables, err := tfparse.LoadTerraformVariables(module)
+	templateVariables, err := parser.TemplateVariables()
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load template variables: %v", err)
 	}

@@ -7,7 +7,7 @@ preventing attackers with database access from using them to impersonate users.
 ## How it works
 
 Coder allows administrators to specify
-[external token encryption keys](../../reference/cli/server.md#external-token-encryption-keys).
+[external token encryption keys](../../reference/cli/server.md#--external-token-encryption-keys).
 If configured, Coder will use these keys to encrypt external user tokens before
 storing them in the database. The encryption algorithm used is AES-256-GCM with
 a 32-byte key length.
@@ -22,6 +22,7 @@ The following database fields are currently encrypted:
 - `user_links.oauth_refresh_token`
 - `external_auth_links.oauth_access_token`
 - `external_auth_links.oauth_refresh_token`
+- `crypto_keys.secret`
 
 Additional database fields may be encrypted in the future.
 

@@ -35,7 +35,6 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -73,7 +72,7 @@ func TestBasicNotificationRoundtrip(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	method := database.NotificationMethodSmtp
 
 	// GIVEN: a manager with standard config but a faked dispatch handler
@@ -137,7 +136,7 @@ func TestSMTPDispatch(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// start mock SMTP server
 	mockSMTPSrv := smtpmock.New(smtpmock.ConfigurationAttr{
@@ -155,7 +154,7 @@ func TestSMTPDispatch(t *testing.T) {
 	cfg := defaultNotificationsConfig(method)
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
 		From:      from,
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+		Smarthost: serpent.String(fmt.Sprintf("localhost:%d", mockSMTPSrv.PortNumber())),
 		Hello:     "localhost",
 	}
 	handler := newDispatchInterceptor(dispatch.NewSMTPHandler(cfg.SMTP, logger.Named("smtp")))
@@ -199,7 +198,7 @@ func TestWebhookDispatch(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	sent := make(chan dispatch.WebhookPayload, 1)
 	// Mock server to simulate webhook endpoint.
@@ -279,7 +278,7 @@ func TestBackpressure(t *testing.T) {
 	}
 
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitShort))
 
@@ -409,7 +408,7 @@ func TestRetries(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: a mock HTTP server which will receive webhooksand a map to track the dispatch attempts
 
@@ -503,7 +502,7 @@ func TestExpiredLeaseIsRequeued(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: a manager which has its updates intercepted and paused until measurements can be taken
 
@@ -602,7 +601,7 @@ func TestInvalidConfig(t *testing.T) {
 	t.Parallel()
 
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: invalid config with dispatch period <= lease period
 	const (
@@ -628,7 +627,7 @@ func TestNotifierPaused(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// Prepare the test.
 	handler := &fakeHandler{}
@@ -1113,7 +1112,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				var hp serpent.HostPort
 				require.NoError(t, hp.Set(listen.Addr().String()))
-				smtpConfig.Smarthost = hp
+				smtpConfig.Smarthost = serpent.String(hp.String())
 
 				// Start mock SMTP server in the background.
 				var wg sync.WaitGroup
@@ -1330,10 +1329,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				wantBody, err := os.ReadFile(goldenFile)
 				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				wantBody = normalizeLineEndings(wantBody)
 				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 		})
 	}
+}
+
+// normalizeLineEndings ensures that all line endings are normalized to \n.
+// Required for Windows compatibility.
+func normalizeLineEndings(content []byte) []byte {
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	// some tests generate escaped line endings, so we have to replace them too
+	content = bytes.ReplaceAll(content, []byte("\\r\\n"), []byte("\\n"))
+	content = bytes.ReplaceAll(content, []byte("\\r"), []byte("\\n"))
+	return content
 }
 
 func normalizeGoldenEmail(content []byte) []byte {
@@ -1364,6 +1375,7 @@ func normalizeGoldenWebhook(content []byte) []byte {
 	const constantUUID = "00000000-0000-0000-0000-000000000000"
 	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+	content = normalizeLineEndings(content)
 
 	return content
 }
@@ -1380,7 +1392,7 @@ func TestDisabledBeforeEnqueue(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// GIVEN: an enqueuer & a sample user
 	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
@@ -1416,7 +1428,7 @@ func TestDisabledAfterEnqueue(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)
@@ -1473,7 +1485,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	received := make(chan uuid.UUID, 1)
 
@@ -1524,7 +1536,7 @@ func TestCustomNotificationMethod(t *testing.T) {
 	cfg.SMTP = codersdk.NotificationsEmailConfig{
 		From:      "danny@coder.com",
 		Hello:     "localhost",
-		Smarthost: serpent.HostPort{Host: "localhost", Port: fmt.Sprintf("%d", mockSMTPSrv.PortNumber())},
+		Smarthost: serpent.String(fmt.Sprintf("localhost:%d", mockSMTPSrv.PortNumber())),
 	}
 	cfg.Webhook = codersdk.NotificationsWebhookConfig{
 		Endpoint: *serpent.URLOf(endpoint),
@@ -1614,7 +1626,7 @@ func TestNotificationDuplicates(t *testing.T) {
 	// nolint:gocritic // Unit test.
 	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
 	store, _ := dbtestutil.NewDB(t)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	method := database.NotificationMethodSmtp
 	cfg := defaultNotificationsConfig(method)

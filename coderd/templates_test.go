@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -21,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1341,7 +1340,7 @@ func TestTemplateMetrics(t *testing.T) {
 
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, nil).Named("tailnet"),
+			Logger: testutil.Logger(t).Named("tailnet"),
 		})
 	require.NoError(t, err)
 	defer func() {
@@ -1404,7 +1403,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: an initiator
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1421,8 +1420,8 @@ func TestTemplateNotifications(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: the delete notification is not sent to the initiator.
-			deleteNotifications := make([]*testutil.Notification, 0)
-			for _, n := range notifyEnq.Sent {
+			deleteNotifications := make([]*notificationstest.FakeNotification, 0)
+			for _, n := range notifyEnq.Sent() {
 				if n.TemplateID == notifications.TemplateTemplateDeleted {
 					deleteNotifications = append(deleteNotifications, n)
 				}
@@ -1435,7 +1434,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: multiple users with different roles
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1465,8 +1464,8 @@ func TestTemplateNotifications(t *testing.T) {
 			// Then: only owners and template admins should receive the
 			// notification.
 			shouldBeNotified := []uuid.UUID{owner.ID, tmplAdmin.ID}
-			var deleteTemplateNotifications []*testutil.Notification
-			for _, n := range notifyEnq.Sent {
+			var deleteTemplateNotifications []*notificationstest.FakeNotification
+			for _, n := range notifyEnq.Sent() {
 				if n.TemplateID == notifications.TemplateTemplateDeleted {
 					deleteTemplateNotifications = append(deleteTemplateNotifications, n)
 				}
