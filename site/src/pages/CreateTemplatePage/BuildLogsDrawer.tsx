@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import Close from "@mui/icons-material/Close";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
@@ -86,7 +86,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							title="Something went wrong"
 							detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
 						/>
-					) : (!compatibleProvisioners || compatibleProvisioners.length == 0) ? (
+					) : (!compatibleProvisioners || compatibleProvisioners.length === 0) ? (
 						<ProvisionerAlert
 							severity="warning"
 							title="Template Creation Stuck"

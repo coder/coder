@@ -1,6 +1,9 @@
-import { Alert, AlertColor, AlertTitle } from "@mui/material";
+import { Theme } from "@mui/material";
+import Alert from "@mui/material/Alert";
+import AlertTitle from "@mui/material/AlertTitle";
+import type { AlertColor } from "@mui/material/Alert";
 import { AlertDetail } from "components/Alert/Alert";
-import { type FC } from "react";
+import type { FC } from "react";
 
 type ProvisionerAlertProps = {
 	title: string,
@@ -16,7 +19,7 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 	return (
 		<Alert
 			severity={severity}
-			css={(theme) => ({
+			css={(theme: Theme) => ({
 				borderRadius: 0,
 				border: 0,
 				borderBottom: `1px solid ${theme.palette.divider}`,

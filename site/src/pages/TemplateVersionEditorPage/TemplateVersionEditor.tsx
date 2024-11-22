@@ -612,7 +612,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												title="Something went wrong"
 												detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
 											/>
-										) : !compatibleProvisioners || compatibleProvisioners.length == 0 ? (
+										) : !compatibleProvisioners || compatibleProvisioners.length === 0 ? (
 											<ProvisionerAlert
 												severity="warning"
 												title="Build Stuck"
