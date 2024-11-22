@@ -2110,6 +2110,8 @@ CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING b
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 
+CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
