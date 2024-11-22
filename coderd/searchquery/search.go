@@ -70,6 +70,7 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 		RbacRole:       parser.Strings(values, []string{}, "role"),
 		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
 		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAt:      parser.Time3339Nano(values, time.Time{}, "created_at"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

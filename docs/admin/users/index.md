@@ -185,8 +185,9 @@ to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
 - To find admin users, use the filter `role:admin`.
-- To find users have not been active since July 2023:
+- To find users who have not been active since July 2023:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
+- To find users created at January 18, 2023: `created_at:"2023-01-18T00:00:00Z"`
 
 The following filters are supported:
 
@@ -195,6 +196,7 @@ The following filters are supported:
 - `role` - Represents the role of the user. You can refer to the
   [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
   for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a used has used the
+- `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
+- `created_at` - The time a user was created. Uses the RFC3339Nano format.

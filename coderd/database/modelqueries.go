@@ -390,6 +390,7 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
+		arg.CreatedAt,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

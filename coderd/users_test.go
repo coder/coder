@@ -1467,6 +1467,7 @@ func TestUsersFilter(t *testing.T) {
 
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
+	createdAt := firstUser.CreatedAt
 
 	// Noon on Jan 18 is the "now" for this test for last_seen timestamps.
 	// All these values are equal
@@ -1653,6 +1654,16 @@ func TestUsersFilter(t *testing.T) {
 				start := time.Date(2023, 1, 8, 0, 0, 0, 0, time.UTC)
 				end := time.Date(2023, 1, 14, 23, 59, 59, 0, time.UTC)
 				return u.LastSeenAt.Before(end) && u.LastSeenAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAt",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: fmt.Sprintf(`created_at:%q`, createdAt.Format(time.RFC3339)),
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				target := time.Date(2023, 1, 18, 12, 0, 0, 0, time.UTC)
+				return u.CreatedAt.Equal(target)
 			},
 		},
 	}

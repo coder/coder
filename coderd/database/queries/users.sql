@@ -199,6 +199,12 @@ WHERE
 			last_seen_at >= @last_seen_after
 		ELSE true
 	END
+	-- Filter by created_at
+	AND CASE
+		WHEN @created_at :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			DATE(created_at) = DATE(@created_at)
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
