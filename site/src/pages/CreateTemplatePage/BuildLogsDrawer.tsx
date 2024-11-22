@@ -1,4 +1,4 @@
-import type { Interpolation, Theme } from "@emotion/react";
+import { type Interpolation, type Theme } from "@emotion/react";
 import Close from "@mui/icons-material/Close";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
 import Button from "@mui/material/Button";
@@ -12,9 +12,10 @@ import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
-import { provisionersUnhealthy, useCompatibleProvisioners } from "modules/provisioners/useCompatibleProvisioners";
-import { Alert, AlertTitle } from "@mui/material";
-import { AlertDetail } from "components/Alert/Alert";
+import { provisionersUnhealthy } from "modules/provisioners/useCompatibleProvisioners";
+import { useQuery } from "react-query";
+import { provisionerDaemons } from "api/queries/organizations";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 
 type BuildLogsDrawerProps = {
 	error: unknown;
@@ -30,11 +31,15 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
-	const compatibleProvisioners = useCompatibleProvisioners(
-		templateVersion?.organization_id,
-		templateVersion?.job.tags
+	const org = templateVersion?.organization_id
+	const {
+		data: compatibleProvisioners,
+		isLoading: provisionerDaemonsLoading,
+		isError: couldntGetProvisioners,
+	}  = useQuery(
+		org ? provisionerDaemons(org, templateVersion?.job.tags) : { enabled: false}
 	);
-	const compatibleProvisionersUnhealthy = provisionersUnhealthy(compatibleProvisioners);
+	const compatibleProvisionersUnhealthy = !compatibleProvisioners || provisionersUnhealthy(compatibleProvisioners);
 
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
@@ -74,35 +79,26 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{ !compatibleProvisioners && !logs ? (
-					// If there are no compatible provisioners, warn that this job may be stuck
-					<Alert
-						severity="warning"
-						css={{
-							borderRadius: 0,
-							border: 0,
-							// borderBottom: `1px solid ${theme.palette.divider}`,
-							// borderLeft: `2px solid ${theme.palette.error.main}`,
-						}}
-					>
-						<AlertTitle>Build stuck</AlertTitle>
-						<AlertDetail>No Compatible Provisioner Daemons have been configured</AlertDetail>
-					</Alert>
-				) : compatibleProvisionersUnhealthy && !logs && (
-					// If there are compatible provisioners in the db, but they have not reported recent health checks,
-					// warn that the job might be stuck
-					<Alert
-						severity="warning"
-						css={{
-							borderRadius: 0,
-							border: 0,
-							// borderBottom: `1px solid ${theme.palette.divider}`,
-							// borderLeft: `2px solid ${theme.palette.error.main}`,
-						}}
-					>
-						<AlertTitle>Build may be delayed</AlertTitle>
-						<AlertDetail>Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build</AlertDetail>
-					</Alert>
+				{  !logs && !provisionerDaemonsLoading && (
+					couldntGetProvisioners ? (
+						<ProvisionerAlert
+							severity="warning"
+							title="Something went wrong"
+							detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
+						/>
+					) : (!compatibleProvisioners || compatibleProvisioners.length == 0) ? (
+						<ProvisionerAlert
+							severity="warning"
+							title="Template Creation Stuck"
+							detail="This organization does not have any provisioners to process this template. Configure a provisioner."
+						/>
+					) : compatibleProvisionersUnhealthy && (
+						<ProvisionerAlert
+							severity="warning"
+							title="Template Creation Delayed"
+							detail="Provisioners are currently unresponsive. This may delay your template creation. Please contact your administrator for support."
+						/>
+					)
 				)}
 
 				{isMissingVariables ? (

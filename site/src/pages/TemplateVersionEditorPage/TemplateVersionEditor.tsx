@@ -60,7 +60,10 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { provisionersUnhealthy, useCompatibleProvisioners } from "modules/provisioners/useCompatibleProvisioners";
+import { provisionersUnhealthy } from "modules/provisioners/useCompatibleProvisioners";
+import { useQuery } from "react-query";
+import { provisionerDaemons } from "api/queries/organizations";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -128,11 +131,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
 
-	const compatibleProvisioners = useCompatibleProvisioners(
-		templateVersion?.organization_id,
-		templateVersion?.job.tags
+	const org = templateVersion?.organization_id
+	const {
+		data: compatibleProvisioners,
+		isLoading: provisionerDaemonsLoading,
+		isError: couldntGetProvisioners,
+	}  = useQuery(
+		org ? provisionerDaemons(org, templateVersion?.job.tags) : { enabled: false}
 	);
-	const compatibleProvisionersUnhealthy = provisionersUnhealthy(compatibleProvisioners);
+	const compatibleProvisionersUnhealthy = !compatibleProvisioners || provisionersUnhealthy(compatibleProvisioners);
 
 	const triggerPreview = useCallback(async () => {
 		await onPreview(fileTree);
@@ -198,6 +205,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
+
+	const gotBuildLogs = buildLogs && buildLogs.length > 0;
 
 	return (
 		<>
@@ -588,49 +597,34 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									{templateVersion.job.error ? (
-										<div>
-											<Alert
-												severity="error"
-												css={{
-													borderRadius: 0,
-													border: 0,
-													borderBottom: `1px solid ${theme.palette.divider}`,
-													borderLeft: `2px solid ${theme.palette.error.main}`,
-												}}
-											>
-												<AlertTitle>Error during the build</AlertTitle>
-												<AlertDetail>{templateVersion.job.error}</AlertDetail>
-											</Alert>
-										</div>
-									) : !compatibleProvisioners ? (
-											<Alert
+									{templateVersion.job.error && (
+										<ProvisionerAlert
+											severity="error"
+											title="Error during the build"
+											detail={templateVersion.job.error}
+										/>
+									)}
+
+									{!templateVersion.job.error && !gotBuildLogs && !provisionerDaemonsLoading && (
+										couldntGetProvisioners ? (
+											<ProvisionerAlert
 												severity="warning"
-												css={{
-													borderRadius: 0,
-													border: 0,
-													borderBottom: `1px solid ${theme.palette.divider}`,
-													borderLeft: `2px solid ${theme.palette.error.main}`,
-												}}
-											>
-												<AlertTitle>Build stuck</AlertTitle>
-												<AlertDetail>No Compatible Provisioner Daemons have been configured</AlertDetail>
-											</Alert>
-									) : compatibleProvisionersUnhealthy && (
-										<div>
-											<Alert
+												title="Something went wrong"
+												detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
+											/>
+										) : !compatibleProvisioners || compatibleProvisioners.length == 0 ? (
+											<ProvisionerAlert
 												severity="warning"
-												css={{
-													borderRadius: 0,
-													border: 0,
-													borderBottom: `1px solid ${theme.palette.divider}`,
-													borderLeft: `2px solid ${theme.palette.error.main}`,
-												}}
-											>
-												<AlertTitle>Build may be delayed</AlertTitle>
-												<AlertDetail>Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build</AlertDetail>
-											</Alert>
-										</div>
+												title="Build Stuck"
+												detail="No Compatible Provisioner Daemons have been configured"
+											/>
+										) : compatibleProvisionersUnhealthy && (
+											<ProvisionerAlert
+												severity="warning"
+												title="Build may be delayed"
+												detail="Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build"
+											/>
+										)
 									)}
 
 									{buildLogs && buildLogs.length > 0 ? (
