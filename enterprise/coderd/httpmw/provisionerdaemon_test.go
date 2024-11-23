@@ -177,10 +177,11 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 		httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
 			DB:       db,
 			Optional: false,
-		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})).ServeHTTP(res, r)
 
+		//nolint:bodyclose
 		require.Equal(t, http.StatusOK, res.Result().StatusCode)
 	})
 
@@ -212,10 +213,11 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 		httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
 			DB:       db,
 			Optional: false,
-		})(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		})(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
 			w.WriteHeader(http.StatusOK)
 		})).ServeHTTP(res, r)
 
+		//nolint:bodyclose
 		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
 		require.Contains(t, res.Body.String(), "provisioner daemon key invalid")
 	})
