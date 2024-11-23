@@ -1,7 +1,7 @@
 "use client";
 
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { X, ChevronDown } from "lucide-react";
+import { ChevronDown, X } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
