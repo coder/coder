@@ -45,6 +45,7 @@ Below are some common specific use-cases when deploying a Coder provisioner.
 If you need to set deployment- or pod-level labels and annotations, set `coder.{annotations,labels}` or `coder.{podAnnotations,podLabels}`.
 
 Example:
+
 ```yaml
 coder:
   # ...
@@ -89,6 +90,7 @@ extraTemplates:
 ### Deploying multiple provisioners in the same namespace
 
 To deploy multiple provisioners in the same namespace, set the following values explicitly to avoid conflicts:
+
 - `nameOverride`: controls the name of the provisioner deployment
 - `serviceAccount.name`: controls the name of the service account.
 
@@ -120,6 +122,7 @@ If you wish to deploy a second provisioner that references an existing service a
 - Set `coder.serviceAccount.nameOverride` to the name of an existing service account.
 
 See below for a concrete example:
+
 ```yaml
 coder:
   # ...
@@ -140,6 +143,7 @@ Each test case runs `helm template` against the corresponding `test_case.yaml`, 
 If `expectedError` is not empty for that specific test case, no corresponding `.golden` file is required.
 
 To add a new test case:
+
 - Create an appropriately named `.yaml` file in `testdata/` along with a corresponding `.golden` file, if required.
 - Add the test case to the array in `chart_test.go`, setting `name` to the name of the files you added previously (without the extension). If appropriate, set `expectedError`.
 - Run the tests and ensure that no regressions in existing test cases occur: `go test ./tests`.
