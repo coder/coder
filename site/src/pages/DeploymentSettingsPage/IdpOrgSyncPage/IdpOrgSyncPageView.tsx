@@ -79,7 +79,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	}
 
 	const OPTIONS: Option[] = organizations.map((org) => ({
-		label: org.name,
+		label: org.display_name,
 		value: org.id,
 	}));
 
