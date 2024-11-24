@@ -54,7 +54,7 @@ export const IdpOrgSyncPage: FC = () => {
 							claims.
 							<a
 								href={docs("/admin/users/idp-sync")}
-								className="flex flex-row items-center gap-1 no-underline"
+								className="flex flex-row text-content-link items-center gap-1 no-underline hover:underline visited:text-content-link"
 							>
 								View docs
 								<SquareArrowOutUpRight size={14} />
