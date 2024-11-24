@@ -29,9 +29,8 @@ import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";
 import { useState } from "react";
 import type { FC } from "react";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
-import { PillList } from "./PillList";
+import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -281,7 +280,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 													className="no-underline"
 												>
 													<SquareArrowOutUpRight size={14} />
-													How to setup IdP organization sync
+													How to set up IdP organization sync
 												</a>
 											</Button>
 										}
@@ -313,7 +312,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 		<TableRow data-testid={`group-${idpOrg}`}>
 			<TableCell>{idpOrg}</TableCell>
 			<TableCell>
-				<PillList organizations={coderOrgs} />
+				<OrganizationPills organizations={coderOrgs} />
 			</TableCell>
 			<TableCell>
 				<Button

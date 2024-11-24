@@ -8,7 +8,7 @@ import {
 import type { FC } from "react";
 import { cn } from "utils/cn";
 
-interface PillListProps {
+interface OrganizationPillsProps {
 	organizations: readonly string[];
 }
 
@@ -16,7 +16,9 @@ interface PillListProps {
 const UUID =
 	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
-export const PillList: FC<PillListProps> = ({ organizations }) => {
+export const OrganizationPills: FC<OrganizationPillsProps> = ({
+	organizations,
+}) => {
 	return (
 		<div className="flex flex-row gap-2">
 			{organizations.length > 0 ? (
@@ -33,7 +35,7 @@ export const PillList: FC<PillListProps> = ({ organizations }) => {
 			)}
 
 			{organizations.length > 1 && (
-				<OverflowPill organizations={organizations.slice(1)} />
+				<OverflowPillList organizations={organizations.slice(1)} />
 			)}
 		</div>
 	);
@@ -43,7 +45,7 @@ interface OverflowPillProps {
 	organizations: string[];
 }
 
-const OverflowPill: FC<OverflowPillProps> = ({ organizations }) => {
+const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 	const theme = useTheme();
 
 	return (
@@ -81,17 +83,20 @@ const OverflowPill: FC<OverflowPillProps> = ({ organizations }) => {
 					horizontal: "center",
 				}}
 			>
-				{organizations.map((organization) => (
-					<Pill
-						key={organization}
-						className={cn("border-none w-fit", {
-							"bg-surface-error": UUID.test(organization),
-							"bg-surface-secondary": !UUID.test(organization),
-						})}
-					>
-						{organization}
-					</Pill>
-				))}
+				<ul className="list-none my-0 pl-0">
+					{organizations.map((organization) => (
+						<li key={organization} className="mb-2 last:mb-0">
+							<Pill
+								className={cn("border-none w-fit", {
+									"bg-surface-error": UUID.test(organization),
+									"bg-surface-secondary": !UUID.test(organization),
+								})}
+							>
+								{organization}
+							</Pill>
+						</li>
+					))}
+				</ul>
 			</PopoverContent>
 		</Popover>
 	);
