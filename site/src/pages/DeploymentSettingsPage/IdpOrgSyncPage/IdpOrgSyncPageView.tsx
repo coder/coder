@@ -66,7 +66,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		},
 	);
 
-	const organizationMappingCount = syncSettings?.mapping
+	const organizationMappingCount = syncSettings.mapping
 		? Object.entries(syncSettings.mapping).length
 		: 0;
 
@@ -87,7 +87,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 	const handleDelete = async (idpOrg: string) => {
 		const newMapping = Object.fromEntries(
-			Object.entries(syncSettings?.mapping || {}).filter(
+			Object.entries(syncSettings.mapping || {}).filter(
 				([key]) => key !== idpOrg,
 			),
 		);
@@ -194,7 +194,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 										const newSyncSettings = {
 											...(syncSettings as OrganizationSyncSettings),
 											mapping: {
-												...syncSettings?.mapping,
+												...syncSettings.mapping,
 												[idpOrgName]: coderOrgs.map((org) => org.value),
 											},
 										};
@@ -213,7 +213,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</div>
 						</div>
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
-							{syncSettings?.mapping &&
+							{syncSettings.mapping &&
 								Object.entries(syncSettings.mapping)
 									.sort()
 									.map(([idpOrg, organizations]) => (

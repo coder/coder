@@ -19,30 +19,32 @@ const UUID =
 export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	organizations,
 }) => {
+	const orgs = organizations.map((org) => {
+		return { name: org, isUUID: UUID.test(org) };
+	});
+
 	return (
 		<div className="flex flex-row gap-2">
-			{organizations.length > 0 ? (
+			{orgs.length > 0 ? (
 				<Pill
 					className={cn("border-none w-fit", {
-						"bg-surface-error": UUID.test(organizations[0]),
-						"bg-surface-secondary": !UUID.test(organizations[0]),
+						"bg-surface-error": orgs[0].isUUID,
+						"bg-surface-secondary": !orgs[0].isUUID,
 					})}
 				>
-					{organizations[0]}
+					{orgs[0].name}
 				</Pill>
 			) : (
 				<p>None</p>
 			)}
 
-			{organizations.length > 1 && (
-				<OverflowPillList organizations={organizations.slice(1)} />
-			)}
+			{orgs.length > 1 && <OverflowPillList organizations={orgs.slice(1)} />}
 		</div>
 	);
 };
 
 interface OverflowPillProps {
-	organizations: string[];
+	organizations: { name: string; isUUID: boolean }[];
 }
 
 const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
@@ -85,14 +87,14 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 			>
 				<ul className="list-none my-0 pl-0">
 					{organizations.map((organization) => (
-						<li key={organization} className="mb-2 last:mb-0">
+						<li key={organization.name} className="mb-2 last:mb-0">
 							<Pill
 								className={cn("border-none w-fit", {
-									"bg-surface-error": UUID.test(organization),
-									"bg-surface-secondary": !UUID.test(organization),
+									"bg-surface-error": organization.isUUID,
+									"bg-surface-secondary": !organization.isUUID,
 								})}
 							>
-								{organization}
+								{organization.name}
 							</Pill>
 						</li>
 					))}
