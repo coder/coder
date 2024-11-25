@@ -14,7 +14,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
@@ -70,10 +69,6 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(syncSettings.mapping).length
 		: 0;
 
-	if (error) {
-		return <ErrorAlert error={error} />;
-	}
-
 	if (!organizationSyncSettings) {
 		return <Loader />;
 	}
@@ -100,7 +95,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	};
 
 	return (
-		<Stack spacing={2}>
+		<div className="flex flex-col gap-2">
+			{Boolean(error) && <ErrorAlert error={error} />}
 			<form onSubmit={form.handleSubmit}>
 				<fieldset disabled={form.isSubmitting}>
 					<div className="flex flex-row">
@@ -238,7 +234,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					</div>
 				</fieldset>
 			</form>
-		</Stack>
+		</div>
 	);
 };
 

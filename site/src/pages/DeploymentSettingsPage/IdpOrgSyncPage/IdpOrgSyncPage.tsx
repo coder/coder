@@ -12,7 +12,7 @@ import { Paywall } from "components/Paywall/Paywall";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
@@ -34,6 +34,17 @@ export const IdpOrgSyncPage: FC = () => {
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
 	);
+
+	useEffect(() => {
+		if (patchOrganizationSyncSettingsMutation.error) {
+			displayError(
+				getErrorMessage(
+					patchOrganizationSyncSettingsMutation.error,
+					"Error updating organization idp sync settings.",
+				),
+			);
+		}
+	}, [patchOrganizationSyncSettingsMutation.error]);
 
 	if (isLoading) {
 		return <Loader />;
