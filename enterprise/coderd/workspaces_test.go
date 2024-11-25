@@ -1111,83 +1111,12 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		var (
 			tickCh  = make(chan time.Time)
 			statsCh = make(chan autobuild.Stats)
-		)
-
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client, user := coderdenttest.New(t, &coderdenttest.Options{
-			Options: &coderdtest.Options{
-				AutobuildTicker:          tickCh,
-				IncludeProvisionerDaemon: true,
-				AutobuildStats:           statsCh,
-				Logger:                   &logger,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
-			},
-			LicenseOptions: &coderdenttest.LicenseOptions{
-				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
-			},
-		})
-
-		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
-
-		// First create a template that only supports Monday-Friday
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserAutostart = ptr.Ref(true)
-			ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.BitmapToWeekdays(0b00011111)}
-		})
-		require.Equal(t, version1.ID, template.ActiveVersionID)
-
-		// Then create a workspace with a schedule Sunday-Saturday
-		sched, err := cron.Weekly("CRON_TZ=UTC 0 9 * * 0-6")
-		require.NoError(t, err)
-		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
-			cwr.AutostartSchedule = ptr.Ref(sched.String())
-		})
-
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-
-		// For each day of the week
-		for range 7 {
-			next = sched.Next(next)
-
-			tickCh <- next
-			stats := <-statsCh
-			ws = coderdtest.MustWorkspace(t, client, ws.ID)
-
-			// Our cron schedule specifies Sunday-Saturday but the template only allows
-			// Monday-Friday so we expect there to be no transitions on the weekend.
-			if next.Weekday() == time.Saturday || next.Weekday() == time.Sunday {
-				assert.Len(t, stats.Errors, 0)
-				assert.Len(t, stats.Transitions, 0)
-
-				ws = coderdtest.MustWorkspace(t, client, ws.ID)
-			} else {
-				assert.Len(t, stats.Errors, 0)
-				assert.Len(t, stats.Transitions, 1)
-				assert.Contains(t, stats.Transitions, ws.ID)
-				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
-
-				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
-				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
-			}
-
-			// Verify that the workspaces next_start_at is a valid autostart day
-			require.NotNil(t, ws.NextStartAt)
-			require.Greater(t, ws.NextStartAt, next)
-			require.NotEqual(t, time.Saturday, ws.NextStartAt.Weekday())
-			require.NotEqual(t, time.Sunday, ws.NextStartAt.Weekday())
-		}
-	})
-
-	t.Run("NextStartAtIsUpdatedWhenTemplateAutostartRequirementsChange", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			tickCh  = make(chan time.Time)
-			statsCh = make(chan autobuild.Stats)
 			clock   = quartz.NewMock(t)
 		)
+
+		// Set the clock to 8AM Monday, 1st January, 2024 to keep
+		// this test deterministic.
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -1223,31 +1152,111 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+		next := ws.LatestBuild.CreatedAt
 
-		// Create a monday schedule
-		monday, err := cron.Weekly("CRON_TZ=UTC 0 9 * * 1")
+		// For each day of the week (Monday-Sunday)
+		// We iterate through each day of the week to ensure the behaviour of each
+		// day of the week is as expected.
+		for range 7 {
+			next = sched.Next(next)
+
+			clock.Set(next)
+			tickCh <- next
+			stats := <-statsCh
+			ws = coderdtest.MustWorkspace(t, client, ws.ID)
+
+			// Our cron schedule specifies Sunday-Saturday but the template only allows
+			// Monday-Friday so we expect there to be no transitions on the weekend.
+			if next.Weekday() == time.Saturday || next.Weekday() == time.Sunday {
+				assert.Len(t, stats.Errors, 0)
+				assert.Len(t, stats.Transitions, 0)
+
+				ws = coderdtest.MustWorkspace(t, client, ws.ID)
+			} else {
+				assert.Len(t, stats.Errors, 0)
+				assert.Len(t, stats.Transitions, 1)
+				assert.Contains(t, stats.Transitions, ws.ID)
+				assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+				ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+			}
+
+			// Ensure that there is a valid next start at and that is is after
+			// the preivous start.
+			require.NotNil(t, ws.NextStartAt)
+			require.Greater(t, *ws.NextStartAt, next)
+
+			// Our autostart requirement disallows sundays and saturdays so
+			// the next start at should never land on these days.
+			require.NotEqual(t, time.Saturday, ws.NextStartAt.Weekday())
+			require.NotEqual(t, time.Sunday, ws.NextStartAt.Weekday())
+		}
+	})
+
+	t.Run("NextStartAtIsUpdatedWhenTemplateAutostartRequirementsChange", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			tickCh  = make(chan time.Time)
+			statsCh = make(chan autobuild.Stats)
+			clock   = quartz.NewMock(t)
+		)
+
+		// Set the clock to 8AM Monday, 1st January, 2024 to keep
+		// this test deterministic.
+		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				AutobuildTicker:          tickCh,
+				IncludeProvisionerDaemon: true,
+				AutobuildStats:           statsCh,
+				Logger:                   &logger,
+				Clock:                    clock,
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger),
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+			},
+		})
+
+		version1 := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version1.ID)
+
+		// First create a template that only supports Monday-Friday
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
+			ctr.AllowUserAutostart = ptr.Ref(true)
+			ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.BitmapToWeekdays(0b00011111)}
+		})
+		require.Equal(t, version1.ID, template.ActiveVersionID)
+
+		// Then create a workspace with a schedule Monday-Friday
+		sched, err := cron.Weekly("CRON_TZ=UTC 0 9 * * 1-5")
 		require.NoError(t, err)
-
-		next := monday.Next(ws.LatestBuild.CreatedAt)
-
-		tickCh <- next
-		stats := <-statsCh
-		ws = coderdtest.MustWorkspace(t, client, ws.ID)
-
-		assert.Len(t, stats.Errors, 0)
-		assert.Len(t, stats.Transitions, 1)
-		assert.Contains(t, stats.Transitions, ws.ID)
-		assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[ws.ID])
+		ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
 
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
 		ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		t.Logf("next          = %s", next)
-		t.Logf("next_start_at = %s", ws.NextStartAt)
-
-		// Verify that the workspaces next_start_at is a valid autostart day
+		// Our next start at should be Monday
 		require.NotNil(t, ws.NextStartAt)
-		require.NotEqual(t, next, ws.NextStartAt)
+		require.Equal(t, time.Monday, ws.NextStartAt.Weekday())
+
+		// Now update the template to only allow Tuesday-Friday
+		coderdtest.UpdateTemplateMeta(t, client, template.ID, codersdk.UpdateTemplateMeta{
+			AutostartRequirement: &codersdk.TemplateAutostartRequirement{
+				DaysOfWeek: codersdk.BitmapToWeekdays(0b00011110),
+			},
+		})
+
+		// Verify that our next start at has been updated to Tuesday
+		ws = coderdtest.MustWorkspace(t, client, ws.ID)
+		require.NotNil(t, ws.NextStartAt)
+		require.Equal(t, time.Tuesday, ws.NextStartAt.Weekday())
 	})
 }
 
