@@ -30,7 +30,6 @@ import (
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -726,10 +725,11 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		}
 	}
 
-	cmd, err := agentexec.PTYCommandContext(ctx, name, args...)
-	if err != nil {
-		return nil, xerrors.Errorf("pty command context: %w", err)
-	}
+	// cmd, err := agentexec.PTYCommandContext(ctx, name, args...)
+	// if err != nil {
+	// 	return nil, xerrors.Errorf("pty command context: %w", err)
+	// }
+	cmd := pty.CommandContext(ctx, name, args...)
 	cmd.Dir = s.config.WorkingDirectory()
 
 	// If the metadata directory doesn't exist, we run the command
