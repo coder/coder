@@ -29,15 +29,15 @@ func Test_parsePortForwards(t *testing.T) {
 				},
 			},
 			want: []portForwardSpec{
-				{"tcp", "127.0.0.1:8000", "tcp", "127.0.0.1:8000"},
-				{"tcp", "127.0.0.1:8080", "tcp", "127.0.0.1:8081"},
-				{"tcp", "127.0.0.1:9000", "tcp", "127.0.0.1:9000"},
-				{"tcp", "127.0.0.1:9001", "tcp", "127.0.0.1:9001"},
-				{"tcp", "127.0.0.1:9002", "tcp", "127.0.0.1:9002"},
-				{"tcp", "127.0.0.1:9003", "tcp", "127.0.0.1:9005"},
-				{"tcp", "127.0.0.1:9004", "tcp", "127.0.0.1:9006"},
-				{"tcp", "127.0.0.1:10000", "tcp", "127.0.0.1:10000"},
-				{"tcp", "127.0.0.1:4444", "tcp", "127.0.0.1:4444"},
+				{"tcp", noAddr, 8000, 8000},
+				{"tcp", noAddr, 8080, 8081},
+				{"tcp", noAddr, 9000, 9000},
+				{"tcp", noAddr, 9001, 9001},
+				{"tcp", noAddr, 9002, 9002},
+				{"tcp", noAddr, 9003, 9005},
+				{"tcp", noAddr, 9004, 9006},
+				{"tcp", noAddr, 10000, 10000},
+				{"tcp", noAddr, 4444, 4444},
 			},
 		},
 		{
@@ -46,7 +46,7 @@ func Test_parsePortForwards(t *testing.T) {
 				tcpSpecs: []string{"127.0.0.1:8080:8081"},
 			},
 			want: []portForwardSpec{
-				{"tcp", "127.0.0.1:8080", "tcp", "127.0.0.1:8081"},
+				{"tcp", ipv4Loopback, 8080, 8081},
 			},
 		},
 		{
@@ -55,7 +55,7 @@ func Test_parsePortForwards(t *testing.T) {
 				tcpSpecs: []string{"[::1]:8080:8081"},
 			},
 			want: []portForwardSpec{
-				{"tcp", "[::1]:8080", "tcp", "127.0.0.1:8081"},
+				{"tcp", ipv6Loopback, 8080, 8081},
 			},
 		},
 		{
@@ -64,9 +64,9 @@ func Test_parsePortForwards(t *testing.T) {
 				udpSpecs: []string{"8000,8080-8081"},
 			},
 			want: []portForwardSpec{
-				{"udp", "127.0.0.1:8000", "udp", "127.0.0.1:8000"},
-				{"udp", "127.0.0.1:8080", "udp", "127.0.0.1:8080"},
-				{"udp", "127.0.0.1:8081", "udp", "127.0.0.1:8081"},
+				{"udp", noAddr, 8000, 8000},
+				{"udp", noAddr, 8080, 8080},
+				{"udp", noAddr, 8081, 8081},
 			},
 		},
 		{
@@ -75,7 +75,7 @@ func Test_parsePortForwards(t *testing.T) {
 				udpSpecs: []string{"127.0.0.1:8080:8081"},
 			},
 			want: []portForwardSpec{
-				{"udp", "127.0.0.1:8080", "udp", "127.0.0.1:8081"},
+				{"udp", ipv4Loopback, 8080, 8081},
 			},
 		},
 		{
@@ -84,7 +84,7 @@ func Test_parsePortForwards(t *testing.T) {
 				udpSpecs: []string{"[::1]:8080:8081"},
 			},
 			want: []portForwardSpec{
-				{"udp", "[::1]:8080", "udp", "127.0.0.1:8081"},
+				{"udp", ipv6Loopback, 8080, 8081},
 			},
 		},
 		{
