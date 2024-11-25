@@ -1757,6 +1757,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"scheme": "string",
 			"user": {}
 		},
+		"additional_csp_policy": ["string"],
 		"address": {
 			"host": "string",
 			"port": "string"
@@ -2181,6 +2182,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"scheme": "string",
 		"user": {}
 	},
+	"additional_csp_policy": ["string"],
 	"address": {
 		"host": "string",
 		"port": "string"
@@ -2515,6 +2517,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                                 | Type                                                                                                 | Required | Restrictions | Description                                                        |
 | ------------------------------------ | ---------------------------------------------------------------------------------------------------- | -------- | ------------ | ------------------------------------------------------------------ |
 | `access_url`                         | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
+| `additional_csp_policy`              | array of string                                                                                      | false    |              |                                                                    |
 | `address`                            | [serpent.HostPort](#serpenthostport)                                                                 | false    |              | Address Use HTTPAddress or TLS.Address instead.                    |
 | `agent_fallback_troubleshooting_url` | [serpent.URL](#serpenturl)                                                                           | false    |              |                                                                    |
 | `agent_stat_refresh_interval`        | integer                                                                                              | false    |              |                                                                    |
@@ -3295,6 +3298,24 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name            | Type   | Required | Restrictions | Description |
 | --------------- | ------ | -------- | ------------ | ----------- |
 | `session_token` | string | true     |              |             |
+
+## codersdk.MatchedProvisioners
+
+```json
+{
+	"available": 0,
+	"count": 0,
+	"most_recently_seen": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name                 | Type    | Required | Restrictions | Description                                                                                                                                                         |
+| -------------------- | ------- | -------- | ------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `available`          | integer | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped. |
+| `count`              | integer | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.              |
+| `most_recently_seen` | string  | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                          |
 
 ## codersdk.MinimalOrganization
 
@@ -5570,6 +5591,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		},
 		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 	},
+	"matched_provisioners": {
+		"available": 0,
+		"count": 0,
+		"most_recently_seen": "2019-08-24T14:15:22Z"
+	},
 	"message": "string",
 	"name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -5582,20 +5608,21 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name              | Type                                                                        | Required | Restrictions | Description |
-| ----------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `archived`        | boolean                                                                     | false    |              |             |
-| `created_at`      | string                                                                      | false    |              |             |
-| `created_by`      | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
-| `id`              | string                                                                      | false    |              |             |
-| `job`             | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
-| `message`         | string                                                                      | false    |              |             |
-| `name`            | string                                                                      | false    |              |             |
-| `organization_id` | string                                                                      | false    |              |             |
-| `readme`          | string                                                                      | false    |              |             |
-| `template_id`     | string                                                                      | false    |              |             |
-| `updated_at`      | string                                                                      | false    |              |             |
-| `warnings`        | array of [codersdk.TemplateVersionWarning](#codersdktemplateversionwarning) | false    |              |             |
+| Name                   | Type                                                                        | Required | Restrictions | Description |
+| ---------------------- | --------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `archived`             | boolean                                                                     | false    |              |             |
+| `created_at`           | string                                                                      | false    |              |             |
+| `created_by`           | [codersdk.MinimalUser](#codersdkminimaluser)                                | false    |              |             |
+| `id`                   | string                                                                      | false    |              |             |
+| `job`                  | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                          | false    |              |             |
+| `matched_provisioners` | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)                | false    |              |             |
+| `message`              | string                                                                      | false    |              |             |
+| `name`                 | string                                                                      | false    |              |             |
+| `organization_id`      | string                                                                      | false    |              |             |
+| `readme`               | string                                                                      | false    |              |             |
+| `template_id`          | string                                                                      | false    |              |             |
+| `updated_at`           | string                                                                      | false    |              |             |
+| `warnings`             | array of [codersdk.TemplateVersionWarning](#codersdktemplateversionwarning) | false    |              |             |
 
 ## codersdk.TemplateVersionExternalAuth
 

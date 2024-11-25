@@ -113,7 +113,7 @@ coder:
     annotations: {}
     # coder.serviceAccount.name -- The service account name
     name: coder
-    # coder.serviceAccount.name -- Whether to create the service account or use existing service account
+    # coder.serviceAccount.disableCreate -- Whether to create the service account or use existing service account.
     disableCreate: false
 
   # coder.securityContext -- Fields related to the container's security

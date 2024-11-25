@@ -51,6 +51,22 @@ type ProvisionerDaemon struct {
 	Tags           map[string]string `json:"tags"`
 }
 
+// MatchedProvisioners represents the number of provisioner daemons
+// available to take a job at a specific point in time.
+type MatchedProvisioners struct {
+	// Count is the number of provisioner daemons that matched the given
+	// tags. If the count is 0, it means no provisioner daemons matched the
+	// requested tags.
+	Count int `json:"count"`
+	// Available is the number of provisioner daemons that are available to
+	// take jobs. This may be less than the count if some provisioners are
+	// busy or have been stopped.
+	Available int `json:"available"`
+	// MostRecentlySeen is the most recently seen time of the set of matched
+	// provisioners. If no provisioners matched, this field will be null.
+	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time"`
+}
+
 // ProvisionerJobStatus represents the at-time state of a job.
 type ProvisionerJobStatus string
 

@@ -9,6 +9,8 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/uuid"
@@ -32,6 +34,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 )
@@ -74,7 +77,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), warnings))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, warnings))
 }
 
 // @Summary Patch template version by ID
@@ -170,7 +173,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
 }
 
 // @Summary Cancel template version by ID
@@ -811,7 +814,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				return err
 			}
 
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), nil))
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), codersdk.MatchedProvisioners{}, nil))
 		}
 
 		return nil
@@ -866,7 +869,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -931,7 +934,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1017,7 +1020,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
 }
 
 // @Summary Archive template unused versions by template id
@@ -1341,9 +1344,6 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
-	// Ensures the "owner" is properly applied.
-	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags)
-
 	if req.ExampleID != "" && req.FileID != uuid.Nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message: "You cannot specify both an example_id and a file_id.",
@@ -1437,8 +1437,58 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		}
 	}
 
+	// Try to parse template tags from the given file.
+	tempDir, err := os.MkdirTemp(api.Options.CacheDir, "tfparse-*")
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "create tempdir: " + err.Error(),
+		})
+		return
+	}
+	defer func() {
+		if err := os.RemoveAll(tempDir); err != nil {
+			api.Logger.Error(ctx, "failed to remove temporary tfparse dir", slog.Error(err))
+		}
+	}()
+
+	if err := tfparse.WriteArchive(file.Data, file.Mimetype, tempDir); err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "extract archive to tempdir: " + err.Error(),
+		})
+		return
+	}
+
+	parser, diags := tfparse.New(tempDir, tfparse.WithLogger(api.Logger.Named("tfparse")))
+	if diags.HasErrors() {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "parse module: " + diags.Error(),
+		})
+		return
+	}
+
+	parsedTags, err := parser.WorkspaceTagDefaults(ctx)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error checking workspace tags",
+			Detail:  "evaluate default values of workspace tags: " + err.Error(),
+		})
+		return
+	}
+
+	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
+	// Tag order precedence:
+	// 1) User-specified tags in the request
+	// 2) Tags parsed from coder_workspace_tags data source in template file
+	// 2 may clobber 1.
+	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, parsedTags)
+
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
+	var warnings []codersdk.TemplateVersionWarning
+	var matchedProvisioners codersdk.MatchedProvisioners
 	err = api.Database.InTx(func(tx database.Store) error {
 		jobID := uuid.New()
 
@@ -1461,6 +1511,27 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 				Detail:  xerrors.Errorf("marshal job metadata: %w", err).Error(),
 			})
 			return err
+		}
+
+		// Check for eligible provisioners. This allows us to log a message warning deployment administrators
+		// of users submitting jobs for which no provisioners are available.
+		matchedProvisioners, err = checkProvisioners(ctx, tx, organization.ID, tags, api.DeploymentValues.Provisioner.DaemonPollInterval.Value())
+		if err != nil {
+			api.Logger.Error(ctx, "failed to check eligible provisioner daemons for job", slog.Error(err))
+		} else if matchedProvisioners.Count == 0 {
+			api.Logger.Warn(ctx, "no matching provisioners found for job",
+				slog.F("user_id", apiKey.UserID),
+				slog.F("job_id", jobID),
+				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
+				slog.F("tags", tags),
+			)
+		} else if matchedProvisioners.Available == 0 {
+			api.Logger.Warn(ctx, "no active provisioners found for job",
+				slog.F("user_id", apiKey.UserID),
+				slog.F("job_id", jobID),
+				slog.F("job_type", database.ProvisionerJobTypeTemplateVersionImport),
+				slog.F("tags", tags),
+			)
 		}
 
 		provisionerJob, err = tx.InsertProvisionerJob(ctx, database.InsertProvisionerJobParams{
@@ -1552,10 +1623,14 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
 
-	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(templateVersion, convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
-		ProvisionerJob: provisionerJob,
-		QueuePosition:  0,
-	}), nil))
+	httpapi.Write(ctx, rw, http.StatusCreated, convertTemplateVersion(
+		templateVersion,
+		convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: provisionerJob,
+			QueuePosition:  0,
+		}),
+		matchedProvisioners,
+		warnings))
 }
 
 // templateVersionResources returns the workspace agent resources associated
@@ -1622,7 +1697,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, matchedProvisioners codersdk.MatchedProvisioners, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
 		ID:             version.ID,
 		TemplateID:     &version.TemplateID.UUID,
@@ -1638,8 +1713,9 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 			Username:  version.CreatedByUsername,
 			AvatarURL: version.CreatedByAvatarURL,
 		},
-		Archived: version.Archived,
-		Warnings: warnings,
+		Archived:            version.Archived,
+		Warnings:            warnings,
+		MatchedProvisioners: matchedProvisioners,
 	}
 }
 
@@ -1741,4 +1817,35 @@ func (api *API) publishTemplateUpdate(ctx context.Context, templateID uuid.UUID)
 		api.Logger.Warn(ctx, "failed to publish template update",
 			slog.F("template_id", templateID), slog.Error(err))
 	}
+}
+
+func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUID, wantTags map[string]string, pollInterval time.Duration) (codersdk.MatchedProvisioners, error) {
+	// Check for eligible provisioners. This allows us to return a warning to the user if they
+	// submit a job for which no provisioner is available.
+	eligibleProvisioners, err := store.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: orgID,
+		WantTags:       wantTags,
+	})
+	if err != nil {
+		// Log the error but do not return any warnings. This is purely advisory and we should not block.
+		return codersdk.MatchedProvisioners{}, xerrors.Errorf("provisioner daemons by organization: %w", err)
+	}
+
+	threePollsAgo := time.Now().Add(-3 * pollInterval)
+	mostRecentlySeen := codersdk.NullTime{}
+	var matched codersdk.MatchedProvisioners
+	for _, provisioner := range eligibleProvisioners {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		matched.Count++
+		if provisioner.LastSeenAt.Time.After(threePollsAgo) {
+			matched.Available++
+		}
+		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {
+			matched.MostRecentlySeen.Valid = true
+			matched.MostRecentlySeen.Time = provisioner.LastSeenAt.Time
+		}
+	}
+	return matched, nil
 }
