@@ -40,7 +40,32 @@ Review the
 [full template example](https://github.com/coder/coder/tree/main/examples/workspace-tags)
 using `coder_workspace_tags` and `coder_parameter`s.
 
+## How it Works
+
+In order to correctly import a template that defines tags in
+`coder_workspace_tags`, Coder needs to know the tags to assign the template
+import job ahead of time. To work around this chicken-and-egg problem, Coder
+performs static analysis of the Terraform to determine a reasonable set of tags
+to assign to the template import job. This happens _before_ the job is started.
+
+When the template is imported, Coder will then store the _raw_ Terraform
+expressions for the values of the workspace tags for that template version. The
+next time a workspace is created from that template, Coder retrieves the stored
+raw values from the database and evaluates them using provided template
+variables and parameters. This is illustrated in the table below:
+
+| Value Type | Template Import                                    | Workspace Creation      |
+| ---------- | -------------------------------------------------- | ----------------------- |
+| Static     | `{"region": "us"}`                                 | `{"region": "us"}`      |
+| Variable   | `{"az": var.az}`                                   | `{"region": "us-east"}` |
+| Parameter  | `{"cluster": data.coder_parameter.cluster.value }` | `{"cluster": "dev"}`    |
+
 ## Constraints
+
+### Default Values
+
+All template variables and `coder_parameter` data sources **must** provide a
+default value. Failure to do so will result in an error.
 
 ### Tagged provisioners
 
@@ -70,7 +95,7 @@ the workspace owner to change a provisioner group (due to different tags). In
 most cases, `coder_parameter`s backing `coder_workspace_tags` should be marked
 as immutable and set only once, during workspace creation.
 
-We recommend using only the following as inputs for `coder_workspace_tags`:
+You may only specify the following as inputs for `coder_workspace_tags`:
 
 |                    | Example                                       |
 | :----------------- | :-------------------------------------------- |
@@ -78,7 +103,7 @@ We recommend using only the following as inputs for `coder_workspace_tags`:
 | Template variables | `var.az`                                      |
 | Coder parameters   | `data.coder_parameter.runtime_selector.value` |
 
-Passing template tags in from other data sources may have undesired effects.
+Passing template tags in from other data sources or resources is not permitted.
 
 ### HCL syntax
 
@@ -99,3 +124,9 @@ variables, and references to other resources.
 - Boolean logic: `production_tag = !data.coder_parameter.staging_env.value`
 - Condition:
   `cache = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"`
+
+**Not supported**
+
+- Function calls: `try(var.foo, "default")`
+- Resources: `compute_instance.dev.name`
+- Data sources other than `coder_parameter`: `data.local_file.hostname.content`
