@@ -463,8 +463,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
-	nextTransition, allowed := schedule.NextAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
-	if !allowed {
+	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
+	if err != nil {
 		return false
 	}
 

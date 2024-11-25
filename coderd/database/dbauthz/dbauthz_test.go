@@ -1902,6 +1902,12 @@ func (s *MethodTestSuite) TestWorkspace() {
 			NextStartAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
 		}).Asserts(ws, policy.ActionUpdate)
 	}))
+	s.Run("BatchUpdateWorkspaceNextStartAt", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.BatchUpdateWorkspaceNextStartAtParams{
+			IDs:          []uuid.UUID{uuid.New()},
+			NextStartAts: []time.Time{dbtime.Now()},
+		}).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate)
+	}))
 	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
 		ws1 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
 		ws2 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -2777,6 +2783,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateAverageBuildTimeParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspacesByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspacesEligibleForTransition", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()

@@ -14650,6 +14650,33 @@ func (q *sqlQuerier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg Bat
 	return err
 }
 
+const batchUpdateWorkspaceNextStartAt = `-- name: BatchUpdateWorkspaceNextStartAt :exec
+UPDATE
+	workspaces
+SET
+	next_start_at = CASE
+		WHEN batch.next_start_at = '0001-01-01 00:00:00+00'::timestamptz THEN NULL
+		ELSE batch.next_start_at
+	END
+FROM (
+	SELECT
+		unnest($1::uuid[]) AS id,
+		unnest($2::timestamptz[]) AS next_start_at
+) AS batch
+WHERE
+	workspaces.id = batch.id
+`
+
+type BatchUpdateWorkspaceNextStartAtParams struct {
+	IDs          []uuid.UUID `db:"ids" json:"ids"`
+	NextStartAts []time.Time `db:"next_start_ats" json:"next_start_ats"`
+}
+
+func (q *sqlQuerier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg BatchUpdateWorkspaceNextStartAtParams) error {
+	_, err := q.db.ExecContext(ctx, batchUpdateWorkspaceNextStartAt, pq.Array(arg.IDs), pq.Array(arg.NextStartAts))
+	return err
+}
+
 const favoriteWorkspace = `-- name: FavoriteWorkspace :exec
 UPDATE workspaces SET favorite = true WHERE id = $1
 `
@@ -15548,6 +15575,50 @@ func (q *sqlQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerI
 			&i.JobStatus,
 			&i.Transition,
 			pq.Array(&i.Agents),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getWorkspacesByTemplateID = `-- name: GetWorkspacesByTemplateID :many
+SELECT id, created_at, updated_at, owner_id, organization_id, template_id, deleted, name, autostart_schedule, ttl, last_used_at, dormant_at, deleting_at, automatic_updates, favorite, next_start_at FROM workspaces WHERE template_id = $1 AND deleted = false
+`
+
+func (q *sqlQuerier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error) {
+	rows, err := q.db.QueryContext(ctx, getWorkspacesByTemplateID, templateID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceTable
+	for rows.Next() {
+		var i WorkspaceTable
+		if err := rows.Scan(
+			&i.ID,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.OwnerID,
+			&i.OrganizationID,
+			&i.TemplateID,
+			&i.Deleted,
+			&i.Name,
+			&i.AutostartSchedule,
+			&i.Ttl,
+			&i.LastUsedAt,
+			&i.DormantAt,
+			&i.DeletingAt,
+			&i.AutomaticUpdates,
+			&i.Favorite,
+			&i.NextStartAt,
 		); err != nil {
 			return nil, err
 		}

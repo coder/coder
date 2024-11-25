@@ -205,6 +205,43 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 		return database.Template{}, err
 	}
 
+	if opts.AutostartRequirement.DaysOfWeek != tpl.AutostartAllowedDays() {
+		templateSchedule, err := s.Get(ctx, db, tpl.ID)
+		if err != nil {
+			return database.Template{}, xerrors.Errorf("get template schedule: %w", err)
+		}
+
+		//nolint:gocritic // We need to be able to read information about all workspaces.
+		workspaces, err := db.GetWorkspacesByTemplateID(dbauthz.AsSystemRestricted(ctx), tpl.ID)
+		if err != nil {
+			return database.Template{}, xerrors.Errorf("get workspaces by template id: %w", err)
+		}
+
+		workspaceIDs := []uuid.UUID{}
+		nextStartAts := []time.Time{}
+
+		for _, workspace := range workspaces {
+			nextStartAt := time.Time{}
+			if workspace.AutostartSchedule.Valid {
+				next, err := agpl.NextAllowedAutostart(s.now(), workspace.AutostartSchedule.String, templateSchedule)
+				if err == nil {
+					nextStartAt = next.UTC()
+				}
+			}
+
+			workspaceIDs = append(workspaceIDs, workspace.ID)
+			nextStartAts = append(nextStartAts, nextStartAt)
+		}
+
+		//nolint:gocritic // We need to be able to update information about all workspaces.
+		if err := db.BatchUpdateWorkspaceNextStartAt(dbauthz.AsSystemRestricted(ctx), database.BatchUpdateWorkspaceNextStartAtParams{
+			IDs:          workspaceIDs,
+			NextStartAts: nextStartAts,
+		}); err != nil {
+			return database.Template{}, xerrors.Errorf("update workspace next start at: %w", err)
+		}
+	}
+
 	for _, ws := range markedForDeletion {
 		dormantTime := dbtime.Now().Add(opts.TimeTilDormantAutoDelete)
 		_, err = s.enqueuer.Enqueue(

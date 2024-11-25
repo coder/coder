@@ -126,6 +126,13 @@ func (m queryMetricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, a
 	return r0
 }
 
+func (m queryMetricsStore) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg database.BatchUpdateWorkspaceNextStartAtParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceNextStartAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceNextStartAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -1670,6 +1677,13 @@ func (m queryMetricsStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, 
 	start := time.Now()
 	r0, r1 := m.s.GetWorkspacesAndAgentsByOwnerID(ctx, ownerID)
 	m.queryLatencies.WithLabelValues("GetWorkspacesAndAgentsByOwnerID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetWorkspacesByTemplateID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

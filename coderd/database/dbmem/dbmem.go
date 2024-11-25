@@ -1432,6 +1432,35 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 	return nil
 }
 
+func (q *FakeQuerier) BatchUpdateWorkspaceNextStartAt(_ context.Context, arg database.BatchUpdateWorkspaceNextStartAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, workspace := range q.workspaces {
+		for j, workspaceID := range arg.IDs {
+			if workspace.ID != workspaceID {
+				continue
+			}
+
+			nextStartAt := arg.NextStartAts[j]
+			if nextStartAt.IsZero() {
+				q.workspaces[i].NextStartAt = sql.NullTime{}
+			} else {
+				q.workspaces[i].NextStartAt = sql.NullTime{Valid: true, Time: nextStartAt}
+			}
+
+			break
+		}
+	}
+
+	return nil
+}
+
 func (*FakeQuerier) BulkMarkNotificationMessagesFailed(_ context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -6907,6 +6936,20 @@ func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
 	// No auth filter.
 	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
+}
+
+func (q *FakeQuerier) GetWorkspacesByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := []database.WorkspaceTable{}
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID == templateID {
+			workspaces = append(workspaces, workspace)
+		}
+	}
+
+	return workspaces, nil
 }
 
 func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {

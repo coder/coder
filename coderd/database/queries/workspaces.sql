@@ -477,6 +477,22 @@ SET
 WHERE
 	id = $1;
 
+-- name: BatchUpdateWorkspaceNextStartAt :exec
+UPDATE
+	workspaces
+SET
+	next_start_at = CASE
+		WHEN batch.next_start_at = '0001-01-01 00:00:00+00'::timestamptz THEN NULL
+		ELSE batch.next_start_at
+	END
+FROM (
+	SELECT
+		unnest(sqlc.arg(ids)::uuid[]) AS id,
+		unnest(sqlc.arg(next_start_ats)::timestamptz[]) AS next_start_at
+) AS batch
+WHERE
+	workspaces.id = batch.id;
+
 -- name: UpdateWorkspaceTTL :exec
 UPDATE
 	workspaces
@@ -781,3 +797,6 @@ WHERE
 	-- Authorize Filter clause will be injected below in GetAuthorizedWorkspacesAndAgentsByOwnerID
 	-- @authorize_filter
 GROUP BY workspaces.id, workspaces.name, latest_build.job_status, latest_build.job_id, latest_build.transition;
+
+-- name: GetWorkspacesByTemplateID :many
+SELECT * FROM workspaces WHERE template_id = $1 AND deleted = false;

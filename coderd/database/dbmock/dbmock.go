@@ -145,6 +145,20 @@ func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceLastUsedAt(arg0, arg1 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceLastUsedAt), arg0, arg1)
 }
 
+// BatchUpdateWorkspaceNextStartAt mocks base method.
+func (m *MockStore) BatchUpdateWorkspaceNextStartAt(arg0 context.Context, arg1 database.BatchUpdateWorkspaceNextStartAtParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "BatchUpdateWorkspaceNextStartAt", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// BatchUpdateWorkspaceNextStartAt indicates an expected call of BatchUpdateWorkspaceNextStartAt.
+func (mr *MockStoreMockRecorder) BatchUpdateWorkspaceNextStartAt(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BatchUpdateWorkspaceNextStartAt", reflect.TypeOf((*MockStore)(nil).BatchUpdateWorkspaceNextStartAt), arg0, arg1)
+}
+
 // BulkMarkNotificationMessagesFailed mocks base method.
 func (m *MockStore) BulkMarkNotificationMessagesFailed(arg0 context.Context, arg1 database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	m.ctrl.T.Helper()
@@ -3530,6 +3544,21 @@ func (m *MockStore) GetWorkspacesAndAgentsByOwnerID(arg0 context.Context, arg1 u
 func (mr *MockStoreMockRecorder) GetWorkspacesAndAgentsByOwnerID(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesAndAgentsByOwnerID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesAndAgentsByOwnerID), arg0, arg1)
+}
+
+// GetWorkspacesByTemplateID mocks base method.
+func (m *MockStore) GetWorkspacesByTemplateID(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceTable, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspacesByTemplateID", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceTable)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspacesByTemplateID indicates an expected call of GetWorkspacesByTemplateID.
+func (mr *MockStoreMockRecorder) GetWorkspacesByTemplateID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspacesByTemplateID", reflect.TypeOf((*MockStore)(nil).GetWorkspacesByTemplateID), arg0, arg1)
 }
 
 // GetWorkspacesEligibleForTransition mocks base method.

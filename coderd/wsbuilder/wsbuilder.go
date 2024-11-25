@@ -236,6 +236,7 @@ func (b *Builder) Build(
 	if err != nil {
 		return nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
+
 	return workspaceBuild, provisionerJob, nil
 }
 
