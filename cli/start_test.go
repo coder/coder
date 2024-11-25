@@ -385,7 +385,6 @@ func TestStartAutoUpdate(t *testing.T) {
 
 func TestStart_AlreadyRunning(t *testing.T) {
 	t.Parallel()
-
 	ctx := testutil.Context(t, testutil.WaitShort)
 
 	client, db := coderdtest.NewWithDatabase(t, nil)

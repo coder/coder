@@ -1255,7 +1255,6 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-
 			fake := oidctest.NewFakeIDP(t,
 				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")
