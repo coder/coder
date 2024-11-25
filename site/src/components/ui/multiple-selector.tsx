@@ -442,6 +442,8 @@ const MultipleSelector = React.forwardRef<
 			return undefined;
 		}, [creatable, commandProps?.filter]);
 
+		const fixedOptions = selected.filter((s) => s.fixed);
+
 		return (
 			<Command
 				ref={dropdownRef}
@@ -554,16 +556,15 @@ const MultipleSelector = React.forwardRef<
 							<button
 								type="button"
 								onClick={() => {
-									setSelected(selected.filter((s) => s.fixed));
-									onChange?.(selected.filter((s) => s.fixed));
+									setSelected(fixedOptions);
+									onChange?.(fixedOptions);
 								}}
 								className={cn(
 									"bg-transparent mt-1 border-none cursor-pointer text-content-secondary hover:text-content-primary",
 									(hideClearAllButton ||
 										disabled ||
 										selected.length < 1 ||
-										selected.filter((s) => s.fixed).length ===
-											selected.length) &&
+										fixedOptions.length === selected.length) &&
 										"hidden",
 								)}
 							>
