@@ -1155,7 +1155,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 		next := ws.LatestBuild.CreatedAt
 
 		// For each day of the week (Monday-Sunday)
-		// We iterate through each day of the week to ensure the behaviour of each
+		// We iterate through each day of the week to ensure the behavior of each
 		// day of the week is as expected.
 		for range 7 {
 			next = sched.Next(next)
