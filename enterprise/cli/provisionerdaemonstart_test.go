@@ -339,6 +339,28 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})
 
+	t.Run("NoProvisionerKeyFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", "ThisKeyDoesNotExist", "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "unable to get provisioner key details")
+	})
+
 	t.Run("NoPSK", func(t *testing.T) {
 		t.Parallel()
 
