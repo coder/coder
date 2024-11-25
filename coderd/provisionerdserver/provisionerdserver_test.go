@@ -2189,7 +2189,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	clock                       quartz.Clock
+	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
