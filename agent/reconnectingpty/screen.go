@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -334,7 +333,7 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	run := func() (bool, error) {
 		var stdout bytes.Buffer
 		//nolint:gosec
-		cmd := exec.CommandContext(ctx, "screen",
+		cmd, err := agentexec.CommandContext(ctx, "screen",
 			// -x targets an attached session.
 			"-x", rpty.id,
 			// -c is the flag for the config file.
@@ -342,13 +341,13 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			// -X runs a command in the matching session.
 			"-X", command,
 		)
-		// if err != nil {
-		// 	return false, xerrors.Errorf("command context: %w", err)
-		// }
+		if err != nil {
+			return false, xerrors.Errorf("command context: %w", err)
+		}
 		cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
 		cmd.Dir = rpty.command.Dir
 		cmd.Stdout = &stdout
-		err := cmd.Run()
+		err = cmd.Run()
 		if err == nil {
 			return true, nil
 		}
