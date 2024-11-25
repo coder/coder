@@ -16,12 +16,22 @@ choose a template from the
 ## Dashboard
 
 1. In the Coder dashboard, select **Templates** then **Create Template**.
-1. To use a
-   [starter template](https://github.com/coder/coder/tree/main/examples/templates),
-   select **Choose a starter template**.
+1. Use a
+   [starter template](https://github.com/coder/coder/tree/main/examples/templates)
+   or create a new template:
 
-   - Select **From scratch** to create a new template and enter information and
-     file contents manually.
+   - Starter template:
+
+     1. Select **Choose a starter template**.
+     1. Choose a template from the list or select **Devcontainer** from the
+        sidebar to display only dev container-compatible templates.
+     1. Select **Use template**, enter the details, then select **Create
+        template**.
+
+   - To create a new template, select **From scratch** and enter the templates
+     details, then select **Create template**.
+
+1. Edit the template files to fit your deployment.
 
 ## CLI
 
@@ -37,7 +47,7 @@ choose a template from the
 1. `cd` into the directory and push the template to your Coder deployment:
 
    ```shell
-   cd $_ && coder templates push
+   cd devcontainer-kubernetes && coder templates push
    ```
 
    You can also edit the files or make changes to the files before you push them
@@ -45,9 +55,8 @@ choose a template from the
 
 ## Registry
 
-1. Go to the
-   [Coder registry](https://registry.coder.com/templates?tag=devcontainer) and
-   select a dev container-compatible template.
+1. Go to the [Coder registry](https://registry.coder.com/templates) and select a
+   dev container-compatible template.
 
 1. Copy the files to your local device, then edit them to fit your needs.
 
@@ -107,6 +116,7 @@ their development environments:
   }
 }
 # …
+```
 
 ## Example templates
 
@@ -140,4 +150,7 @@ Lifecycle scripts are managed by project developers.
 ## Next steps
 
 - [Dev container security and caching](./devcontainer-security-caching.md)
+
+```
+
 ```
