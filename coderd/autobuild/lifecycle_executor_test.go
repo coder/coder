@@ -3,7 +3,6 @@ package autobuild_test
 import (
 	"context"
 	"os"
-	"runtime"
 	"testing"
 	"time"
 
@@ -19,7 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -292,10 +290,6 @@ func TestExecutorAutostartNotEnabled(t *testing.T) {
 
 func TestExecutorAutostartUserSuspended(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
-		t.Skip("this test is flaky on windows with postgres")
-	}
 
 	var (
 		ctx     = testutil.Context(t, testutil.WaitShort)
@@ -592,10 +586,6 @@ func TestExecutorWorkspaceAutostopBeforeDeadline(t *testing.T) {
 
 func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	t.Parallel()
-
-	if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
-		t.Skip("this test is flaky on windows with postgres")
-	}
 
 	var (
 		ctx     = testutil.Context(t, testutil.WaitShort)

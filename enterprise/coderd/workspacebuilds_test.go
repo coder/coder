@@ -2,13 +2,11 @@ package coderd_test
 
 import (
 	"net/http"
-	"runtime"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
@@ -20,10 +18,6 @@ func TestWorkspaceBuild(t *testing.T) {
 	t.Parallel()
 	t.Run("TemplateRequiresActiveVersion", func(t *testing.T) {
 		t.Parallel()
-
-		if runtime.GOOS == "windows" && dbtestutil.WillUsePostgres() {
-			t.Skip("this test is flaky on windows with postgres")
-		}
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		ownerClient, owner := coderdenttest.New(t, &coderdenttest.Options{
