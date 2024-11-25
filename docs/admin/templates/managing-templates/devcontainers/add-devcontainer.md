@@ -9,7 +9,7 @@ workspace. Envbuilder clones the repo and builds a container from the
 
 You can create template files through the Coder dashboard, CLI, or you can
 choose a template from the
-[Coder registry](https://registry.coder.com/templates?tag=devcontainer):
+[Coder registry](https://registry.coder.com/templates):
 
 <div class="tabs">
 
@@ -92,7 +92,7 @@ dashboard and select **Settings** from the **⋮** (vertical ellipsis) menu:
 ## Envbuilder Terraform provider
 
 When using the
-[Envbuilder Terraform provider](https://github.com/coder/terraform-provider-envbuilder),
+[Envbuilder Terraform provider](https://registry.terraform.io/providers/coder/envbuilder/latest/docs),
 a previously built and cached image can be reused directly, allowing dev
 containers to start instantaneously.
 
