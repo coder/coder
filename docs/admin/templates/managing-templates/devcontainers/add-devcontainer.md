@@ -100,14 +100,13 @@ Developers can edit the `devcontainer.json` in their workspace to customize
 their development environments:
 
 ```json
-…
+# …
 {
   "features": {
       "ghcr.io/devcontainers/features/common-utils:2": {}
   }
 }
-…
-```
+# …
 
 ## Example templates
 
