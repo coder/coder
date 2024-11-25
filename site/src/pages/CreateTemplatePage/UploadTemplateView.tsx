@@ -1,9 +1,11 @@
+import { getErrorMessage } from "api/errors";
 import { uploadFile } from "api/queries/files";
 import {
 	JobError,
 	templateVersionLogs,
 	templateVersionVariables,
 } from "api/queries/templates";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
@@ -51,7 +53,14 @@ export const UploadTemplateView: FC<CreateTemplatePageViewProps> = ({
 			jobError={isJobError ? error.job.error : undefined}
 			logs={templateVersionLogsQuery.data}
 			upload={{
-				onUpload: uploadFileMutation.mutateAsync,
+				onUpload: async (file: File) => {
+					try {
+						await uploadFileMutation.mutateAsync(file);
+					} catch (error) {
+						displayError(getErrorMessage(error, "Failed to upload file"));
+						uploadFileMutation.reset();
+					}
+				},
 				isUploading: uploadFileMutation.isLoading,
 				onRemove: uploadFileMutation.reset,
 				file: uploadFileMutation.variables,

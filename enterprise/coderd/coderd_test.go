@@ -852,30 +852,26 @@ func TestConn_CoordinatorRollingRestart(t *testing.T) {
 }
 
 func tcpEchoServer(t *testing.T) string {
-	var listenerWg sync.WaitGroup
 	tcpListener, err := net.Listen("tcp", "127.0.0.1:0")
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = tcpListener.Close()
-		listenerWg.Wait()
 	})
-	listenerWg.Add(1)
 	go func() {
-		defer listenerWg.Done()
 		for {
 			conn, err := tcpListener.Accept()
 			if err != nil {
 				return
 			}
-			listenerWg.Add(1)
+			t.Cleanup(func() {
+				_ = conn.Close()
+			})
 			go func() {
-				defer listenerWg.Done()
 				defer conn.Close()
 				_, _ = io.Copy(conn, conn)
 			}()
 		}
 	}()
-
 	return tcpListener.Addr().String()
 }
 

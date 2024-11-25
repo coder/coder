@@ -10537,6 +10537,12 @@ const docTemplate = `{
                 "access_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "additional_csp_policy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [

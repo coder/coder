@@ -32,6 +32,8 @@ func TestOIDCClaims(t *testing.T) {
 	db, _ := dbtestutil.NewDB(t)
 	g := userGenerator{t: t, db: db}
 
+	const claimField = "claim-list"
+
 	// https://en.wikipedia.org/wiki/Alice_and_Bob#Cast_of_characters
 	alice := g.withLink(database.LoginTypeOIDC, toJSON(extraKeys{
 		UserLinkClaims: database.UserLinkClaims{
@@ -43,6 +45,9 @@ func TestOIDCClaims(t *testing.T) {
 			MergedClaims: map[string]interface{}{
 				"sub":      "alice",
 				"alice-id": "from-bob",
+				claimField: []string{
+					"one", "two", "three",
+				},
 			},
 		},
 		// Always should be a no-op
@@ -79,6 +84,9 @@ func TestOIDCClaims(t *testing.T) {
 				"foo": "bar",
 			},
 			"nil": nil,
+			claimField: []any{
+				"three", 5, []string{"test"}, "four",
+			},
 		},
 	}))
 	charlie := g.withLink(database.LoginTypeOIDC, toJSON(database.UserLinkClaims{
@@ -94,6 +102,7 @@ func TestOIDCClaims(t *testing.T) {
 			"sub":          "charlie",
 			"charlie-id":   "charlie",
 			"charlie-info": "charlie",
+			claimField:     "charlie",
 		},
 	}))
 
@@ -113,8 +122,9 @@ func TestOIDCClaims(t *testing.T) {
 				"do-not": "look",
 			},
 			MergedClaims: map[string]interface{}{
-				"not":    "allowed",
-				"do-not": "look",
+				"not":      "allowed",
+				"do-not":   "look",
+				claimField: 42,
 			},
 		})), // github should be omitted
 
@@ -140,12 +150,32 @@ func TestOIDCClaims(t *testing.T) {
 
 	// Verify the OIDC claim fields
 	always := []string{"array", "map", "nil", "number"}
-	expectA := append([]string{"sub", "alice-id", "bob-id", "bob-info"}, always...)
-	expectB := append([]string{"sub", "bob-id", "bob-info", "charlie-id", "charlie-info"}, always...)
+	expectA := append([]string{"sub", "alice-id", "bob-id", "bob-info", "claim-list"}, always...)
+	expectB := append([]string{"sub", "bob-id", "bob-info", "charlie-id", "charlie-info", "claim-list"}, always...)
 	requireClaims(t, db, orgA.Org.ID, expectA)
 	requireClaims(t, db, orgB.Org.ID, expectB)
 	requireClaims(t, db, orgC.Org.ID, []string{})
 	requireClaims(t, db, uuid.Nil, slice.Unique(append(expectA, expectB...)))
+
+	// Verify the claim field values
+	expectAValues := []string{"one", "two", "three", "four"}
+	expectBValues := []string{"three", "four", "charlie"}
+	requireClaimValues(t, db, orgA.Org.ID, claimField, expectAValues)
+	requireClaimValues(t, db, orgB.Org.ID, claimField, expectBValues)
+	requireClaimValues(t, db, orgC.Org.ID, claimField, []string{})
+}
+
+func requireClaimValues(t *testing.T, db database.Store, orgID uuid.UUID, field string, want []string) {
+	t.Helper()
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	got, err := db.OIDCClaimFieldValues(ctx, database.OIDCClaimFieldValuesParams{
+		ClaimField:     field,
+		OrganizationID: orgID,
+	})
+	require.NoError(t, err)
+
+	require.ElementsMatch(t, want, got)
 }
 
 func requireClaims(t *testing.T, db database.Store, orgID uuid.UUID, want []string) {
