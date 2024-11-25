@@ -92,6 +92,16 @@ func TestPortForward(t *testing.T) {
 			},
 			localAddress: []string{"10.10.10.99:9999", "10.10.10.10:1010"},
 		},
+		{
+			name:    "TCP-IPv6",
+			network: "tcp", flag: []string{"--tcp=[fe80::99]:9999:%v", "--tcp=[fe80::10]:1010:%v"},
+			setupRemote: func(t *testing.T) net.Listener {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener")
+				return l
+			},
+			localAddress: []string{"[fe80::99]:9999", "[fe80::10]:1010"},
+		},
 	}
 
 	// Setup agent once to be shared between test-cases (avoid expensive
