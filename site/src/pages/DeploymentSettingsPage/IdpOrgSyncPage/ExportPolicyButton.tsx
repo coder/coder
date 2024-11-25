@@ -3,7 +3,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Button } from "components/ui/button";
 import { saveAs } from "file-saver";
 import { Download } from "lucide-react";
-import { type FC, useMemo, useState } from "react";
+import { type FC, useState } from "react";
 
 interface ExportPolicyButtonProps {
 	syncSettings: OrganizationSyncSettings | undefined;
@@ -16,21 +16,18 @@ export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);
 
-	const policyJSON = useMemo(() => {
-		return syncSettings?.field && Object.keys(syncSettings.mapping).length > 0
-			? JSON.stringify(syncSettings, null, 2)
-			: null;
-	}, [syncSettings]);
+	const canCreatePolicyJson =
+		syncSettings?.field && Object.keys(syncSettings?.mapping).length > 0;
 
 	return (
 		<Button
 			variant={"outline"}
-			disabled={!policyJSON || isDownloading}
+			disabled={!canCreatePolicyJson || isDownloading}
 			onClick={async () => {
-				if (policyJSON) {
+				if (canCreatePolicyJson) {
 					try {
 						setIsDownloading(true);
-						const file = new Blob([policyJSON], {
+						const file = new Blob([JSON.stringify(syncSettings, null, 2)], {
 							type: "application/json",
 						});
 						download(file, "organizations_policy.json");
