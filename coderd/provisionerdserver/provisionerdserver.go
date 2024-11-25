@@ -58,9 +58,9 @@ const (
 	// will update its last seen at timestamp in the database.
 	DefaultHeartbeatInterval = time.Minute
 
-	// StaleHeartbeats is the number of heartbeats a provisioner can miss before
-	// being reported as 'stale'.
-	StaleHeartbeats = 2
+	// StaleInterval is the amount of time after the last heartbeat for which
+	// the provisioner will be reported as 'stale'.
+	StaleInterval = 90 * time.Second
 )
 
 type Options struct {
