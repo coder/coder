@@ -94,3 +94,6 @@ testdata/
 # Everything in site/ is formatted by Biome. For the rest of the repo though, we
 # need broader language support.
 site/
+
+# Prettier messes up markdown alignment in the documentation
+**/docs/*.md
