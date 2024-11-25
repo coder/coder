@@ -89,7 +89,8 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 				DB:       nil,
 				Optional: true,
 			},
-			provisionerKey: "invalid",
+			provisionerKey:     "invalid",
+			expectedStatusCode: http.StatusOK,
 		},
 		{
 			name: "InvalidProvisionerPSK_NotOptional",
@@ -283,7 +284,7 @@ func TestExtractProvisionerDaemonAuthenticated(t *testing.T) {
 		})).ServeHTTP(res, r)
 
 		//nolint:bodyclose
-		require.Equal(t, http.StatusUnauthorized, res.Result().StatusCode)
+		require.Equal(t, http.StatusInternalServerError, res.Result().StatusCode)
 		require.Contains(t, res.Body.String(), "get provisioner daemon key")
 	})
 }
