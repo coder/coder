@@ -426,7 +426,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
 Please contact your deployment administrator for assistance.
 Details:
-	Provisioner Job ID : %s
+	Provisioner job ID : %s
 	Requested tags     : %s
 `, version.Job.ID, tagsJSON.String())
 	} else if version.MatchedProvisioners.Available == 0 {
@@ -434,9 +434,9 @@ Details:
 Your build will proceed once they become available.
 If this persists, please contact your deployment administrator for assistance.
 Details:
-	Provisioner Job ID : %s
+	Provisioner job ID : %s
 	Requested tags     : %s
-	Most Recently Seen : %s
+	Most recently seen : %s
 `, version.Job.ID, strings.TrimSpace(tagsJSON.String()), version.MatchedProvisioners.MostRecentlySeen.Time)
 	}
 
