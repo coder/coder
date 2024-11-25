@@ -150,7 +150,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					</div>
 
 					<div className="flex flex-col gap-4">
-						<div className="flex flex-row pt-8 gap-2 justify-between">
+						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
 								<Label className="text-sm" htmlFor="idp-organization-name">
 									IdP organization name
@@ -185,26 +185,32 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}
 								/>
 							</div>
-							<Button
-								className="mb-px self-end"
-								disabled={!idpOrgName || coderOrgs.length === 0}
-								onClick={async () => {
-									const newSyncSettings = {
-										...(syncSettings as OrganizationSyncSettings),
-										mapping: {
-											...syncSettings?.mapping,
-											[idpOrgName]: coderOrgs.map((org) => org.value),
-										},
-									};
-									setSyncSettings(newSyncSettings);
-									await form.setFieldValue("mapping", newSyncSettings.mapping);
-									setIdpOrgName("");
-									setCoderOrgs([]);
-								}}
-							>
-								<Plus size={14} />
-								Add IdP organization
-							</Button>
+							<div className="grid items-center gap-1">
+								<div>&nbsp;</div>
+								<Button
+									className="mb-px"
+									disabled={!idpOrgName || coderOrgs.length === 0}
+									onClick={async () => {
+										const newSyncSettings = {
+											...(syncSettings as OrganizationSyncSettings),
+											mapping: {
+												...syncSettings?.mapping,
+												[idpOrgName]: coderOrgs.map((org) => org.value),
+											},
+										};
+										setSyncSettings(newSyncSettings);
+										await form.setFieldValue(
+											"mapping",
+											newSyncSettings.mapping,
+										);
+										setIdpOrgName("");
+										setCoderOrgs([]);
+									}}
+								>
+									<Plus size={14} />
+									Add IdP organization
+								</Button>
+							</div>
 						</div>
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{syncSettings?.mapping &&
