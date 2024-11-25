@@ -476,96 +476,101 @@ const MultipleSelector = React.forwardRef<
 						inputRef?.current?.focus();
 					}}
 				>
-					<div className="relative flex flex-wrap gap-1 items-center">
-						{selected.map((option) => {
-							return (
-								<Badge
-									key={option.value}
-									className={cn(
-										"data-[disabled]:bg-muted-foreground data-[disabled]:text-muted data-[disabled]:hover:bg-muted-foreground",
-										"data-[fixed]:bg-muted-foreground data-[fixed]:text-muted data-[fixed]:hover:bg-surface-secondary",
-										badgeClassName,
-									)}
-									data-fixed={option.fixed}
-									data-disabled={disabled || undefined}
-								>
-									{option.label}
-									<button
-										type="button"
+					<div className="flex justify-between items-center">
+						<div className="relative flex flex-wrap gap-1">
+							{selected.map((option) => {
+								return (
+									<Badge
+										key={option.value}
 										className={cn(
-											"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer",
-											(disabled || option.fixed) && "hidden",
+											"data-[disabled]:bg-muted-foreground data-[disabled]:text-muted data-[disabled]:hover:bg-muted-foreground",
+											"data-[fixed]:bg-muted-foreground data-[fixed]:text-muted data-[fixed]:hover:bg-surface-secondary",
+											badgeClassName,
 										)}
-										onKeyDown={(e) => {
-											if (e.key === "Enter") {
-												handleUnselect(option);
-											}
-										}}
-										onMouseDown={(e) => {
-											e.preventDefault();
-											e.stopPropagation();
-										}}
-										onClick={() => handleUnselect(option)}
+										data-fixed={option.fixed}
+										data-disabled={disabled || undefined}
 									>
-										<X className="h-4 w-4 text-content-secondary hover:text-content-primary align-text-bottom" />
-									</button>
-								</Badge>
-							);
-						})}
-						{/* Avoid having the "Search" Icon */}
-						<CommandPrimitive.Input
-							{...inputProps}
-							ref={inputRef}
-							value={inputValue}
-							disabled={disabled}
-							onValueChange={(value) => {
-								setInputValue(value);
-								inputProps?.onValueChange?.(value);
-							}}
-							onBlur={(event) => {
-								if (!onScrollbar) {
-									setOpen(false);
+										{option.label}
+										<button
+											type="button"
+											className={cn(
+												"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer",
+												(disabled || option.fixed) && "hidden",
+											)}
+											onKeyDown={(e) => {
+												if (e.key === "Enter") {
+													handleUnselect(option);
+												}
+											}}
+											onMouseDown={(e) => {
+												e.preventDefault();
+												e.stopPropagation();
+											}}
+											onClick={() => handleUnselect(option)}
+										>
+											<X className="h-4 w-4 text-content-secondary hover:text-content-primary align-text-bottom" />
+										</button>
+									</Badge>
+								);
+							})}
+							{/* Avoid having the "Search" Icon */}
+							<CommandPrimitive.Input
+								{...inputProps}
+								ref={inputRef}
+								value={inputValue}
+								disabled={disabled}
+								onValueChange={(value) => {
+									setInputValue(value);
+									inputProps?.onValueChange?.(value);
+								}}
+								onBlur={(event) => {
+									if (!onScrollbar) {
+										setOpen(false);
+									}
+									inputProps?.onBlur?.(event);
+								}}
+								onFocus={(event) => {
+									setOpen(true);
+									triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
+									inputProps?.onFocus?.(event);
+								}}
+								placeholder={
+									hidePlaceholderWhenSelected && selected.length !== 0
+										? ""
+										: placeholder
 								}
-								inputProps?.onBlur?.(event);
-							}}
-							onFocus={(event) => {
-								setOpen(true);
-								triggerSearchOnFocus && onSearch?.(debouncedSearchTerm);
-								inputProps?.onFocus?.(event);
-							}}
-							placeholder={
-								hidePlaceholderWhenSelected && selected.length !== 0
-									? ""
-									: placeholder
-							}
-							className={cn(
-								"flex-1 border-none outline-none bg-transparent placeholder:text-content-secondary",
-								{
-									"w-full": hidePlaceholderWhenSelected,
-									"px-3 py-2.5": selected.length === 0,
-									"ml-1": selected.length !== 0,
-								},
-								inputProps?.className,
-							)}
-						/>
-						<button
-							type="button"
-							onClick={() => {
-								setSelected(selected.filter((s) => s.fixed));
-								onChange?.(selected.filter((s) => s.fixed));
-							}}
-							className={cn(
-								"absolute right-6 mt-1 bg-transparent border-none cursor-pointer text-content-secondary",
-								(hideClearAllButton ||
-									disabled ||
-									selected.length < 1 ||
-									selected.filter((s) => s.fixed).length === selected.length) &&
-									"hidden",
-							)}
-						>
-							<X size={18} />
-						</button>
-						<ChevronDown className="h-6 w-6 cursor-pointer text-content-secondary" />
+								className={cn(
+									"flex-1 border-none outline-none bg-transparent placeholder:text-content-secondary",
+									{
+										"w-full": hidePlaceholderWhenSelected,
+										"px-3 py-2.5": selected.length === 0,
+										"ml-1": selected.length !== 0,
+									},
+									inputProps?.className,
+								)}
+							/>
+						</div>
+						<div className="flex items-center justify-between">
+							<button
+								type="button"
+								onClick={() => {
+									setSelected(selected.filter((s) => s.fixed));
+									onChange?.(selected.filter((s) => s.fixed));
+								}}
+								className={cn(
+									"bg-transparent mt-1 border-none cursor-pointer text-content-secondary hover:text-content-primary",
+									(hideClearAllButton ||
+										disabled ||
+										selected.length < 1 ||
+										selected.filter((s) => s.fixed).length ===
+											selected.length) &&
+										"hidden",
+								)}
+							>
+								<X className="h-5 w-5" />
+							</button>
+							<ChevronDown className="h-6 w-6 cursor-pointer text-content-secondary hover:text-content-primary" />
+						</div>
 					</div>
 				</div>
 				<div className="relative">

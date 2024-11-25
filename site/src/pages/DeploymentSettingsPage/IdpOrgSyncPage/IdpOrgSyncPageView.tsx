@@ -169,7 +169,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									Coder organization
 								</Label>
 								<MultipleSelector
-									className="min-w-96 max-w-3xl"
+									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
 									defaultOptions={organizations.map((org) => ({
@@ -179,7 +179,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									hidePlaceholderWhenSelected
 									placeholder="Select organization"
 									emptyIndicator={
-										<p className="text-center text-md leading-10 text-content-primary">
+										<p className="text-center text-md text-content-primary">
 											All organizations selected
 										</p>
 									}
