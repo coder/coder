@@ -578,10 +578,10 @@ const MultipleSelector = React.forwardRef<
 					{open && (
 						<CommandList
 							className="absolute top-1 z-10 w-full rounded-md border border-solid border-border bg-popover text-popover-foreground shadow-md outline-none animate-in"
-							onMouseLeave={() => {
+							onPointerLeave={() => {
 								setOnScrollbar(false);
 							}}
-							onMouseEnter={() => {
+							onPointerEnter={() => {
 								setOnScrollbar(true);
 							}}
 							onMouseUp={() => {
