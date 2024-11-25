@@ -105,19 +105,18 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 			}
 
 			displayedTags := make(map[string]string, len(tags))
-			for key, val := range tags {
-				displayedTags[key] = val
-			}
-
 			if provisionerKey != "" {
 				pkDetails, err := client.GetProvisionerKey(ctx, provisionerKey)
 				if err != nil {
 					return xerrors.New("unable to get provisioner key details")
 				}
 
-				displayedTags = make(map[string]string, len(pkDetails.Tags))
 				for k, v := range pkDetails.Tags {
 					displayedTags[k] = v
+				}
+			} else {
+				for key, val := range tags {
+					displayedTags[key] = val
 				}
 			}
 
