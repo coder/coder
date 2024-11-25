@@ -104,14 +104,20 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				return err
 			}
 
+			displayedTags := make(map[string]string, len(tags))
+			for key, val := range tags {
+				displayedTags[key] = val
+			}
+
 			if provisionerKey != "" {
 				pkDetails, err := client.GetProvisionerKey(ctx, provisionerKey)
 				if err != nil {
-					return xerrors.Errorf("unable to get provisioner key details: %w", err)
+					return xerrors.New("unable to get provisioner key details")
 				}
 
+				displayedTags = make(map[string]string, len(pkDetails.Tags))
 				for k, v := range pkDetails.Tags {
-					tags[k] = v
+					displayedTags[k] = v
 				}
 			}
 
@@ -142,7 +148,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				defer closeLogger()
 			}
 
-			if len(tags) == 0 {
+			if len(displayedTags) == 0 {
 				logger.Info(ctx, "note: untagged provisioners can only pick up jobs from untagged templates")
 			}
 
@@ -213,7 +219,7 @@ func (r *RootCmd) provisionerDaemonStart() *serpent.Command {
 				defer closeFunc()
 			}
 
-			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", tags), slog.F("name", name))
+			logger.Info(ctx, "starting provisioner daemon", slog.F("tags", displayedTags), slog.F("name", name))
 
 			connector := provisionerd.LocalProvisioners{
 				string(database.ProvisionerTypeTerraform): proto.NewDRPCProvisionerClient(terraformClient),
