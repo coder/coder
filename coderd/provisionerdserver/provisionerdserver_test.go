@@ -22,6 +22,7 @@ import (
 	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -1211,14 +1212,13 @@ func TestCompleteJob(t *testing.T) {
 
 				// Simulate the given time starting from now.
 				require.False(t, c.now.IsZero())
-				start := time.Now()
+				clock := quartz.NewMock(t)
+				clock.Set(c.now)
 				tss := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 				uqhss := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 				auditor := audit.NewMock()
 				srv, db, ps, pd := setup(t, false, &overrides{
-					timeNowFn: func() time.Time {
-						return c.now.Add(time.Since(start))
-					},
+					clock:                       clock,
 					templateScheduleStore:       tss,
 					userQuietHoursScheduleStore: uqhss,
 					auditor:                     auditor,
@@ -2189,7 +2189,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	timeNowFn                   func() time.Time
+	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
@@ -2209,7 +2209,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
-	var timeNowFn func() time.Time
+	clock := quartz.NewReal()
 	pollDur := time.Duration(0)
 	if ov == nil {
 		ov = &overrides{}
@@ -2246,8 +2246,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			require.True(t, swapped)
 		}
 	}
-	if ov.timeNowFn != nil {
-		timeNowFn = ov.timeNowFn
+	if ov.clock != nil {
+		clock = ov.clock
 	}
 	auditPtr := &atomic.Pointer[audit.Auditor]{}
 	var auditor audit.Auditor = audit.NewMock()
@@ -2296,7 +2296,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		deploymentValues,
 		provisionerdserver.Options{
 			ExternalAuthConfigs:   externalAuthConfigs,
-			TimeNowFn:             timeNowFn,
+			Clock:                 clock,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,
