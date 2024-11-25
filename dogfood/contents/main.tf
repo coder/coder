@@ -102,6 +102,12 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_workspace_tags" "tags" {
+  tags = {
+    "cluster" : "dogfood-v2"
+    "env" : "gke"
+  }
+}
 
 module "slackme" {
   source           = "registry.coder.com/modules/slackme/coder"
