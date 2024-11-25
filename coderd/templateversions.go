@@ -1831,7 +1831,7 @@ func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUI
 		return codersdk.MatchedProvisioners{}, xerrors.Errorf("provisioner daemons by organization: %w", err)
 	}
 
-	threePollsAgo := time.Now().Add(-3 * pollInterval)
+	staleInterval := time.Now().Add(provisionerdserver.StaleHeartbeats * pollInterval)
 	mostRecentlySeen := codersdk.NullTime{}
 	var matched codersdk.MatchedProvisioners
 	for _, provisioner := range eligibleProvisioners {
@@ -1839,7 +1839,7 @@ func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUI
 			continue
 		}
 		matched.Count++
-		if provisioner.LastSeenAt.Time.After(threePollsAgo) {
+		if provisioner.LastSeenAt.Time.After(staleInterval) {
 			matched.Available++
 		}
 		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {

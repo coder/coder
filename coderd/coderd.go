@@ -628,7 +628,8 @@ func New(options *Options) *API {
 					CurrentVersion:         buildinfo.Version(),
 					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
-					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
+					StaleInterval:          options.DeploymentValues.Provisioner.DaemonPollInterval.Value() * provisionerdserver.StaleHeartbeats,
+					// TimeNow set to default, see healthcheck/provisioner.go
 				},
 			})
 		}
