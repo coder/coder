@@ -43,14 +43,6 @@ module.exports = {
 					DEFAULT: "hsl(var(--border-default))",
 					error: "hsl(var(--border-error))",
 				},
-				popover: {
-					DEFAULT: "hsl(var(--popover))",
-					foreground: "hsl(var(--popover-foreground))",
-				},
-				muted: {
-					DEFAULT: "hsl(var(--muted))",
-					foreground: "hsl(var(--muted-foreground))",
-				},
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
 				chart: {

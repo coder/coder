@@ -474,8 +474,8 @@ const MultipleSelector = React.forwardRef<
 									<Badge
 										key={option.value}
 										className={cn(
-											"data-[disabled]:bg-muted-foreground data-[disabled]:text-muted data-[disabled]:hover:bg-muted-foreground",
-											"data-[fixed]:bg-muted-foreground data-[fixed]:text-muted data-[fixed]:hover:bg-surface-secondary",
+											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiary data-[disabled]:hover:bg-content-disabled",
+											"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
 											badgeClassName,
 										)}
 										data-fixed={option.fixed}
@@ -566,7 +566,7 @@ const MultipleSelector = React.forwardRef<
 				<div className="relative">
 					{open && (
 						<CommandList
-							className="absolute top-1 z-10 w-full rounded-md border border-solid border-border bg-popover text-popover-foreground shadow-md outline-none animate-in"
+							className="absolute top-1 z-10 w-full rounded-md border border-solid border-border bg-surface-primary text-content-primary shadow-md outline-none animate-in"
 							onPointerLeave={() => {
 								setOnScrollbar(false);
 							}}
@@ -618,7 +618,7 @@ const MultipleSelector = React.forwardRef<
 															className={cn(
 																"cursor-pointer",
 																option.disable &&
-																	"cursor-default text-muted-foreground",
+																	"cursor-default text-content-disabled",
 															)}
 														>
 															{option.label}
