@@ -8,6 +8,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -16,9 +17,12 @@ import (
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -405,6 +409,88 @@ func TestTemplatePush(t *testing.T) {
 
 	t.Run("ProvisionerTags", func(t *testing.T) {
 		t.Parallel()
+
+		t.Run("WorkspaceTagsTerraform", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitShort)
+
+			// Start an instance **without** a built-in provisioner.
+			// We're not actually testing that the Terraform applies.
+			// What we test is that a provisioner job is created with the expected
+			// tags based on the __content__ of the Terraform.
+			store, ps := dbtestutil.NewDB(t)
+			client := coderdtest.New(t, &coderdtest.Options{
+				Database: store,
+				Pubsub:   ps,
+			})
+
+			owner := coderdtest.CreateFirstUser(t, client)
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+			// Create a tar file with some pre-defined content
+			tarFile := testutil.CreateTar(t, map[string]string{
+				"main.tf": `
+variable "a" {
+	type = string
+	default = "1"
+}
+data "coder_parameter" "b" {
+	type = string
+	default = "2"
+}
+resource "null_resource" "test" {}
+data "coder_workspace_tags" "tags" {
+	tags = {
+		"foo": "bar",
+		"a": var.a,
+		"b": data.coder_parameter.b.value,
+	}
+}`,
+			})
+
+			// Write the tar file to disk.
+			tempDir := t.TempDir()
+			err := tfparse.WriteArchive(tarFile, "application/x-tar", tempDir)
+			require.NoError(t, err)
+
+			// Run `coder templates push`
+			templateName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+			var stdout, stderr strings.Builder
+			inv, root := clitest.New(t, "templates", "push", templateName, "-d", tempDir, "--yes")
+			inv.Stdout = &stdout
+			inv.Stderr = &stderr
+			clitest.SetupConfig(t, templateAdmin, root)
+
+			// Don't forget to clean up!
+			cancelCtx, cancel := context.WithCancel(ctx)
+			t.Cleanup(cancel)
+			done := make(chan error)
+			go func() {
+				done <- inv.WithContext(cancelCtx).Run()
+			}()
+
+			// Assert that a provisioner job was created with the desired tags.
+			wantTags := database.StringMap(provisionersdk.MutateTags(uuid.Nil, map[string]string{
+				"foo": "bar",
+				"a":   "1",
+				"b":   "2",
+			}))
+			require.Eventually(t, func() bool {
+				jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
+				if !assert.NoError(t, err) {
+					return false
+				}
+				if len(jobs) == 0 {
+					return false
+				}
+				return assert.EqualValues(t, wantTags, jobs[0].Tags)
+			}, testutil.WaitShort, testutil.IntervalSlow)
+
+			cancel()
+			<-done
+
+			require.Contains(t, stderr.String(), "No provisioners are available to handle the job!")
+		})
 
 		t.Run("ChangeTags", func(t *testing.T) {
 			t.Parallel()

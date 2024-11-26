@@ -759,6 +759,13 @@ export interface LoginWithPasswordResponse {
 	readonly session_token: string;
 }
 
+// From codersdk/provisionerdaemons.go
+export interface MatchedProvisioners {
+	readonly count: number;
+	readonly available: number;
+	readonly most_recently_seen?: string;
+}
+
 // From codersdk/organizations.go
 export interface MinimalOrganization {
 	readonly id: string;
@@ -1464,6 +1471,7 @@ export interface TemplateVersion {
 	readonly created_by: MinimalUser;
 	readonly archived: boolean;
 	readonly warnings?: Readonly<Array<TemplateVersionWarning>>;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/templateversions.go
