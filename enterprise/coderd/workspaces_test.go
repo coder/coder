@@ -1520,7 +1520,7 @@ func TestWorkspaceLock(t *testing.T) {
 			client, user = coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
-					TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{},
+					TemplateScheduleStore:    &schedule.EnterpriseTemplateScheduleStore{Clock: quartz.NewReal()},
 				},
 				LicenseOptions: &coderdenttest.LicenseOptions{
 					Features: license.Features{
@@ -1581,7 +1581,7 @@ func TestResolveAutostart(t *testing.T) {
 
 	ownerClient, db, owner := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
 		Options: &coderdtest.Options{
-			TemplateScheduleStore: &schedule.EnterpriseTemplateScheduleStore{},
+			TemplateScheduleStore: &schedule.EnterpriseTemplateScheduleStore{Clock: quartz.NewReal()},
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{
