@@ -55,6 +55,7 @@
 		"@radix-ui/react-slider": "1.2.1",
 		"@radix-ui/react-slot": "1.1.0",
 		"@radix-ui/react-switch": "1.1.1",
+		"@radix-ui/react-visually-hidden": "1.1.0",
 		"@tanstack/react-query-devtools": "4.35.3",
 		"@xterm/addon-canvas": "0.7.0",
 		"@xterm/addon-fit": "0.10.0",
@@ -181,7 +182,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

@@ -30,6 +30,7 @@ import { useState } from "react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { OrganizationPills } from "./OrganizationPills";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -301,6 +302,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					onClick={() => onDelete(idpOrg)}
 				>
 					<Trash />
+					<VisuallyHidden.Root>Delete IdP mapping</VisuallyHidden.Root>
 				</Button>
 			</TableCell>
 		</TableRow>
