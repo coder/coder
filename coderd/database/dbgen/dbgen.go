@@ -220,7 +220,8 @@ func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, script databas
 }
 
 func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
-	for i := 0; i < 2500; i++ {
+	// retry a few times in case of a unique constraint violation
+	for i := 0; i < 10; i++ {
 		timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
 			StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
 			EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
