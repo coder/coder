@@ -15,7 +15,7 @@ and [API](../reference/api/index.md) docs.
 For any information not strictly contained in these sections, check out our
 [Tutorials](../tutorials/index.md) and [FAQs](../tutorials/faqs.md).
 
-## What is an image, template, devcontainer, or workspace
+## What is an image, template, dev container, or workspace
 
 **Image**
 
