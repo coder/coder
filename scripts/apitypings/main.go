@@ -64,10 +64,12 @@ func main() {
 
 func TsMutations(ts *gots.Typescript) {
 	ts.ApplyMutations(
+		// Enum list generator
+		config.EnumLists,
 		// Export all top level types
-		config.ExportTypes(),
+		config.ExportTypes,
 		// Readonly interface fields
-		config.ReadOnly(),
+		config.ReadOnly,
 	)
 }
 
