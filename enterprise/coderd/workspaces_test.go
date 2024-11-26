@@ -1381,9 +1381,9 @@ func TestExecutorAutostartBlocked(t *testing.T) {
 	// Given: workspace is stopped
 	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-	// When: the autobuild executor ticks way into the future
+	// When: the autobuild executor ticks into the future
 	go func() {
-		tickCh <- workspace.LatestBuild.CreatedAt.Add(24 * time.Hour)
+		tickCh <- workspace.LatestBuild.CreatedAt.Add(2 * time.Hour)
 		close(tickCh)
 	}()
 
