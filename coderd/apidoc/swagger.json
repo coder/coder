@@ -3208,7 +3208,7 @@
 			"get": {
 				"security": [
 					{
-						"CoderSessionToken": []
+						"CoderProvisionerKey": []
 					}
 				],
 				"produces": ["application/json"],
