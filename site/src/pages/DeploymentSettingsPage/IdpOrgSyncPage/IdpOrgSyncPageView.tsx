@@ -92,6 +92,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		};
 		setSyncSettings(newSyncSettings);
 		await form.setFieldValue("mapping", newSyncSettings.mapping);
+		form.handleSubmit();
 	};
 
 	return (
@@ -105,20 +106,31 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								Organization sync field
 							</Label>
 							<div className="flex flex-row items-center gap-4">
-								<Input
-									id="sync-field"
-									value={syncSettings.field}
-									className="w-72"
-									onChange={async (
-										event: React.ChangeEvent<HTMLInputElement>,
-									) => {
-										setSyncSettings({
-											...(syncSettings as OrganizationSyncSettings),
-											field: event.target.value,
-										});
-										await form.setFieldValue("field", event.target.value);
-									}}
-								/>
+								<div className="flex flex-row gap-2 w-72">
+									<Input
+										id="sync-field"
+										value={syncSettings.field}
+										onChange={async (
+											event: React.ChangeEvent<HTMLInputElement>,
+										) => {
+											setSyncSettings({
+												...(syncSettings as OrganizationSyncSettings),
+												field: event.target.value,
+											});
+											await form.setFieldValue("field", event.target.value);
+										}}
+									/>
+									<Button
+										className="w-20"
+										disabled={form.isSubmitting || !form.dirty}
+										onClick={(event) => {
+											event.preventDefault();
+											form.handleSubmit();
+										}}
+									>
+										Save
+									</Button>
+								</div>
 								<div className="flex flex-row items-center gap-3">
 									<Switch
 										id="organization-assign-default"
@@ -132,6 +144,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 												"organization_assign_default",
 												checked,
 											);
+											form.handleSubmit();
 										}}
 									/>
 									<Label htmlFor="organization-assign-default">
@@ -199,6 +212,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											"mapping",
 											newSyncSettings.mapping,
 										);
+										form.handleSubmit();
 										setIdpOrgName("");
 										setCoderOrgs([]);
 									}}
@@ -221,16 +235,6 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 										/>
 									))}
 						</IdpMappingTable>
-						<Button
-							className="w-20"
-							disabled={form.isSubmitting || !form.dirty}
-							onClick={(event) => {
-								event.preventDefault();
-								form.handleSubmit();
-							}}
-						>
-							Save
-						</Button>
 					</div>
 				</fieldset>
 			</form>
