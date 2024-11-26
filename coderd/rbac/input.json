@@ -1,5 +1,5 @@
 {
-	"action": "read",
+	"action": "never-match-action",
 	"object": {
 		"id": "9046b041-58ed-47a3-9c3a-de302577875a",
 		"owner": "00000000-0000-0000-0000-000000000000",
