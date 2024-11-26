@@ -2015,7 +2015,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				External:             app.External,
 				Subdomain:            app.Subdomain,
 				SharingLevel:         sharingLevel,
-				CorsBehavior:         corsBehavior,
+				CORSBehavior:         corsBehavior,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

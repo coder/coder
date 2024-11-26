@@ -372,7 +372,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 					appSharingLevel = database.AppSharingLevelOwner
 				}
 				appURL = app.Url.String
-				appCORSBehavior = app.CorsBehavior
+				appCORSBehavior = app.CORSBehavior
 				break
 			}
 		}

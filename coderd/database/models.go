@@ -3141,7 +3141,7 @@ type WorkspaceApp struct {
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
 	Hidden       bool            `db:"hidden" json:"hidden"`
-	CorsBehavior AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
+	CORSBehavior AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // A record of workspace app usage statistics
