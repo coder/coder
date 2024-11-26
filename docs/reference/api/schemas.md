@@ -5791,22 +5791,6 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | -------------------- | ------- | -------- | ------------ | ----------- |
 | `max_token_lifetime` | integer | false    |              |             |
 
-## codersdk.TotalUserByDate
-
-```json
-{
-	"date": "string",
-	"total": 0
-}
-```
-
-### Properties
-
-| Name    | Type    | Required | Restrictions | Description |
-| ------- | ------- | -------- | ------------ | ----------- |
-| `date`  | string  | false    |              |             |
-| `total` | integer | false    |              |             |
-
 ## codersdk.TraceConfig
 
 ```json

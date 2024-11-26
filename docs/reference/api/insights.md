@@ -138,57 +138,6 @@ curl -X GET http://coder-server:8080/api/v2/insights/templates?start_time=2019-0
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get insights about total users
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/total-users?start_time=2019-08-24T14%3A15%3A22Z&end_time=2019-08-24T14%3A15%3A22Z \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /insights/total-users`
-
-### Parameters
-
-| Name         | In    | Type              | Required | Description |
-| ------------ | ----- | ----------------- | -------- | ----------- |
-| `start_time` | query | string(date-time) | true     | Start time  |
-| `end_time`   | query | string(date-time) | true     | End time    |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-	{
-		"date": "string",
-		"total": 0
-	}
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                  |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.TotalUserByDate](schemas.md#codersdktotaluserbydate) |
-
-<h3 id="get-insights-about-total-users-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name           | Type    | Required | Restrictions | Description |
-| -------------- | ------- | -------- | ------------ | ----------- |
-| `[array item]` | array   | false    |              |             |
-| `» date`       | string  | false    |              |             |
-| `» total`      | integer | false    |              |             |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Get insights about user activity
 
 ### Code samples

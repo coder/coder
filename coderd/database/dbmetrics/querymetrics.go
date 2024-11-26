@@ -462,13 +462,6 @@ func (m queryMetricsStore) GetAPIKeysLastUsedAfter(ctx context.Context, lastUsed
 	return apiKeys, err
 }
 
-func (m queryMetricsStore) GetAccumulatedUsersInsights(ctx context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
-	start := time.Now()
-	r0, r1 := m.s.GetAccumulatedUsersInsights(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetAccumulatedUsersInsights").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) GetActiveUserCount(ctx context.Context) (int64, error) {
 	start := time.Now()
 	count, err := m.s.GetActiveUserCount(ctx)

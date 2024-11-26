@@ -2322,41 +2322,6 @@ func (q *FakeQuerier) GetAPIKeysLastUsedAfter(_ context.Context, after time.Time
 	return apiKeys, nil
 }
 
-func (q *FakeQuerier) GetAccumulatedUsersInsights(_ context.Context, arg database.GetAccumulatedUsersInsightsParams) ([]database.GetAccumulatedUsersInsightsRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	newUsersByDate := make(map[time.Time]int64)
-	for _, user := range q.users {
-		if user.CreatedAt.Before(arg.StartTime) || user.CreatedAt.After(arg.EndTime) {
-			continue
-		}
-		date := user.CreatedAt.Truncate(24 * time.Hour)
-		newUsersByDate[date]++
-	}
-
-	dateSeries := make([]time.Time, 0)
-	for date := arg.StartTime.Truncate(24 * time.Hour); date.Before(arg.EndTime); date = date.AddDate(0, 0, 1) {
-		dateSeries = append(dateSeries, date)
-	}
-
-	accumulatedByDate := make(map[time.Time]int64)
-	var accumulatedCount int64
-	for _, date := range dateSeries {
-		accumulatedCount += newUsersByDate[date]
-		accumulatedByDate[date] = accumulatedCount
-	}
-
-	var rows []database.GetAccumulatedUsersInsightsRow
-	for _, date := range dateSeries {
-		rows = append(rows, database.GetAccumulatedUsersInsightsRow{
-			Date:  date,
-			Total: accumulatedByDate[date],
-		})
-	}
-	return rows, nil
-}
-
 func (q *FakeQuerier) GetActiveUserCount(_ context.Context) (int64, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
