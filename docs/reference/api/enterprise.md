@@ -2025,6 +2025,49 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Fetch provisioner key details
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
+  -H 'Accept: application/json'
+```
+
+`GET /provisionerkeys/{provisionerkey}`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description     |
+| ---------------- | ---- | ------ | -------- | --------------- |
+| `provisionerkey` | path | string | true     | Provisioner Key |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get active replicas
 
 ### Code samples

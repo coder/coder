@@ -343,6 +343,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		r.Route("/provisionerkeys", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+					DB:       api.Database,
+					Optional: false,
+				}),
+			)
+			r.Get("/{provisionerkey}", api.fetchProvisionerKey)
+		})
 		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,

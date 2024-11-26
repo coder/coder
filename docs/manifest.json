@@ -710,6 +710,11 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
+					"title": "Test Templates Through CI/CD",
+					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
+					"path": "./tutorials/testing-templates.md"
+				},
+				{
 					"title": "Use Apache as a Reverse Proxy",
 					"description": "Learn how to use Apache as a reverse proxy",
 					"path": "./tutorials/reverse-proxy-apache.md"

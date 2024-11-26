@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"fmt"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -11,13 +9,6 @@ import (
 func Test_parsePortForwards(t *testing.T) {
 	t.Parallel()
 
-	portForwardSpecToString := func(v []portForwardSpec) (out []string) {
-		for _, p := range v {
-			require.Equal(t, p.listenNetwork, p.dialNetwork)
-			out = append(out, fmt.Sprintf("%s:%s", strings.Replace(p.listenAddress, "127.0.0.1:", "", 1), strings.Replace(p.dialAddress, "127.0.0.1:", "", 1)))
-		}
-		return out
-	}
 	type args struct {
 		tcpSpecs []string
 		udpSpecs []string
@@ -25,7 +16,7 @@ func Test_parsePortForwards(t *testing.T) {
 	tests := []struct {
 		name    string
 		args    args
-		want    []string
+		want    []portForwardSpec
 		wantErr bool
 	}{
 		{
@@ -34,17 +25,37 @@ func Test_parsePortForwards(t *testing.T) {
 				tcpSpecs: []string{
 					"8000,8080:8081,9000-9002,9003-9004:9005-9006",
 					"10000",
+					"4444-4444",
 				},
 			},
-			want: []string{
-				"8000:8000",
-				"8080:8081",
-				"9000:9000",
-				"9001:9001",
-				"9002:9002",
-				"9003:9005",
-				"9004:9006",
-				"10000:10000",
+			want: []portForwardSpec{
+				{"tcp", noAddr, 8000, 8000},
+				{"tcp", noAddr, 8080, 8081},
+				{"tcp", noAddr, 9000, 9000},
+				{"tcp", noAddr, 9001, 9001},
+				{"tcp", noAddr, 9002, 9002},
+				{"tcp", noAddr, 9003, 9005},
+				{"tcp", noAddr, 9004, 9006},
+				{"tcp", noAddr, 10000, 10000},
+				{"tcp", noAddr, 4444, 4444},
+			},
+		},
+		{
+			name: "TCP IPv4 local",
+			args: args{
+				tcpSpecs: []string{"127.0.0.1:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"tcp", ipv4Loopback, 8080, 8081},
+			},
+		},
+		{
+			name: "TCP IPv6 local",
+			args: args{
+				tcpSpecs: []string{"[::1]:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"tcp", ipv6Loopback, 8080, 8081},
 			},
 		},
 		{
@@ -52,10 +63,28 @@ func Test_parsePortForwards(t *testing.T) {
 			args: args{
 				udpSpecs: []string{"8000,8080-8081"},
 			},
-			want: []string{
-				"8000:8000",
-				"8080:8080",
-				"8081:8081",
+			want: []portForwardSpec{
+				{"udp", noAddr, 8000, 8000},
+				{"udp", noAddr, 8080, 8080},
+				{"udp", noAddr, 8081, 8081},
+			},
+		},
+		{
+			name: "UDP IPv4 local",
+			args: args{
+				udpSpecs: []string{"127.0.0.1:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"udp", ipv4Loopback, 8080, 8081},
+			},
+		},
+		{
+			name: "UDP IPv6 local",
+			args: args{
+				udpSpecs: []string{"[::1]:8080:8081"},
+			},
+			want: []portForwardSpec{
+				{"udp", ipv6Loopback, 8080, 8081},
 			},
 		},
 		{
@@ -83,8 +112,7 @@ func Test_parsePortForwards(t *testing.T) {
 				t.Fatalf("parsePortForwards() error = %v, wantErr %v", err, tt.wantErr)
 				return
 			}
-			gotStrings := portForwardSpecToString(got)
-			require.Equal(t, tt.want, gotStrings)
+			require.Equal(t, tt.want, got)
 		})
 	}
 }

@@ -112,6 +112,9 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 											);
 										}}
 										parameter={parameter}
+										parameterAutofill={autofillParams?.find(
+											({ name }) => name === parameter.name,
+										)}
 									/>
 								) : null,
 							)}
