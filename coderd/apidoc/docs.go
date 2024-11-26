@@ -10240,7 +10240,6 @@ const docTemplate = `{
                 },
                 "transition": {
                     "enum": [
-                        "create",
                         "start",
                         "stop",
                         "delete"
