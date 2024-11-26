@@ -21,7 +21,7 @@ import {
 import { Button } from "components/ui/Button";
 import { Input } from "components/ui/Input";
 import { Label } from "components/ui/Label";
-import { type Option, MultipleSelector } from "components/ui/MultipleSelector";
+import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
 import { Switch } from "components/ui/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
@@ -82,7 +82,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			...form.values,
 			mapping: newMapping,
 		};
-		await form.setFieldValue("mapping", newSyncSettings.mapping);
+		void form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
 	};
 
@@ -106,7 +106,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 										id={SYNC_FIELD_ID}
 										value={form.values.field}
 										onChange={async (event) => {
-											await form.setFieldValue("field", event.target.value);
+											void form.setFieldValue("field", event.target.value);
 										}}
 									/>
 									<Button
@@ -125,7 +125,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
 										checked={form.values.organization_assign_default}
 										onCheckedChange={async (checked) => {
-											await form.setFieldValue(
+											void form.setFieldValue(
 												"organization_assign_default",
 												checked,
 											);
@@ -192,10 +192,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 												[idpOrgName]: coderOrgs.map((org) => org.value),
 											},
 										};
-										await form.setFieldValue(
-											"mapping",
-											newSyncSettings.mapping,
-										);
+										void form.setFieldValue("mapping", newSyncSettings.mapping);
 										form.handleSubmit();
 										setIdpOrgName("");
 										setCoderOrgs([]);
