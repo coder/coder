@@ -1,10 +1,10 @@
 // This component is based on multiple-selector from
 // https://shadcnui-expansions.typeart.cc/docs/multiple-selector
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
+import { useDebouncedValue } from "hooks/debounce";
 import { ChevronDown, X } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
-import { useDebouncedValue } from "hooks/debounce";
 
 import { Badge } from "components/ui/badge";
 import {
@@ -69,7 +69,7 @@ interface MultipleSelectorProps {
 	 * First item selected is a default behavior by cmdk. That is why the default is true.
 	 * This is a workaround solution by add a dummy item.
 	 *
-	 * @reference: https://github.com/pacocoursey/cmdk/issues/171
+	 * @see {@link https://github.com/pacocoursey/cmdk/issues/171}
 	 */
 	selectFirstItem?: boolean;
 	/** Allow user to create option when there is no option matched. */
