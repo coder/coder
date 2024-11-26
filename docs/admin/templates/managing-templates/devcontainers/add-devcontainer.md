@@ -120,12 +120,12 @@ their development environments:
 
 ## Example templates
 
-| Template | Description |
-| -------- | ----------- |
-| [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker) | Docker provisions a development container. |
-| [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes) | Provisions a development container on the Kubernetes cluster. |
+| Template                                                                                                            | Description                                                                                                                                                         |
+| ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)            | Docker provisions a development container.                                                                                                                          |
+| [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
 | [Google Compute Engine dev container](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
-| [AWS EC2 dev container](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer) | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
+| [AWS EC2 dev container](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 
 Your template can prompt the user for a repo URL with
 [parameters](../../extending-templates/parameters.md):
