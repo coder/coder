@@ -3642,7 +3642,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "CoderProvisionerKey": []
                     }
                 ],
                 "produces": [
