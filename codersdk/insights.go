@@ -282,32 +282,3 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 	var result TemplateInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
-
-type TotalUsersInsightRequest struct {
-	StartTime time.Time `json:"start_time" format:"date-time"`
-	EndTime   time.Time `json:"end_time" format:"date-time"`
-}
-type TotalUserByDate struct {
-	Date  string `json:"date"`
-	Total uint64 `json:"total"`
-}
-type TotalUsersInsightResponse []TotalUserByDate
-
-func (c *Client) TotalUsersInsight(ctx context.Context, req TotalUsersInsightRequest) (TotalUsersInsightResponse, error) {
-	qp := url.Values{}
-	qp.Add("start_time", req.StartTime.Format(insightsTimeLayout))
-	qp.Add("end_time", req.EndTime.Format(insightsTimeLayout))
-
-	reqURL := fmt.Sprintf("/api/v2/insights/total-users?%s", qp.Encode())
-	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
-	if err != nil {
-		return nil, xerrors.Errorf("make request: %w", err)
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		return nil, ReadBodyAsError(resp)
-	}
-	var result TotalUsersInsightResponse
-	return result, json.NewDecoder(resp.Body).Decode(&result)
-}

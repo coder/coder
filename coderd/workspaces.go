@@ -517,6 +517,8 @@ func createWorkspace(
 	// Update audit log's organization
 	auditReq.UpdateOrganizationID(template.OrganizationID)
 
+	// TODO (SasSwart): api.Authorize below is already done above. This seems redundant.
+	// 		Should we remove this?
 	// Do this upfront to save work. If this fails, the rest of the work
 	// would be wasted.
 	if !api.Authorize(r, policy.ActionCreate,
