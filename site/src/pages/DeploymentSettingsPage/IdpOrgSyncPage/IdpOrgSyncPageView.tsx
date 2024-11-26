@@ -87,13 +87,17 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			),
 		);
 		const newSyncSettings = {
-			...(syncSettings as OrganizationSyncSettings),
+			...syncSettings,
 			mapping: newMapping,
 		};
 		setSyncSettings(newSyncSettings);
 		await form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
 	};
+
+	const SYNC_FIELD_ID = "sync-field";
+	const ORGANIZATION_ASSIGN_DEFAULT_ID = "organization-assign-default";
+	const IDP_ORGANIZATION_NAME_ID = "idp-organization-name";
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -102,19 +106,17 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				<fieldset disabled={form.isSubmitting}>
 					<div className="flex flex-row">
 						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor="sync-field">
+							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
 								Organization sync field
 							</Label>
 							<div className="flex flex-row items-center gap-4">
 								<div className="flex flex-row gap-2 w-72">
 									<Input
-										id="sync-field"
+										id={SYNC_FIELD_ID}
 										value={syncSettings.field}
-										onChange={async (
-											event: React.ChangeEvent<HTMLInputElement>,
-										) => {
+										onChange={async (event) => {
 											setSyncSettings({
-												...(syncSettings as OrganizationSyncSettings),
+												...syncSettings,
 												field: event.target.value,
 											});
 											await form.setFieldValue("field", event.target.value);
@@ -133,11 +135,11 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</div>
 								<div className="flex flex-row items-center gap-3">
 									<Switch
-										id="organization-assign-default"
+										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
 										checked={syncSettings.organization_assign_default}
 										onCheckedChange={async (checked) => {
 											setSyncSettings({
-												...(syncSettings as OrganizationSyncSettings),
+												...syncSettings,
 												organization_assign_default: checked,
 											});
 											await form.setFieldValue(
@@ -147,7 +149,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											form.handleSubmit();
 										}}
 									/>
-									<Label htmlFor="organization-assign-default">
+									<Label htmlFor={ORGANIZATION_ASSIGN_DEFAULT_ID}>
 										Assign Default Organization
 									</Label>
 								</div>
@@ -161,20 +163,20 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
-								<Label className="text-sm" htmlFor="idp-organization-name">
+								<Label className="text-sm" htmlFor={IDP_ORGANIZATION_NAME_ID}>
 									IdP organization name
 								</Label>
 								<Input
-									id="idp-organization-name"
+									id={IDP_ORGANIZATION_NAME_ID}
 									value={idpOrgName}
 									className="min-w-72 w-72"
-									onChange={(event: React.ChangeEvent<HTMLInputElement>) => {
+									onChange={(event) => {
 										setIdpOrgName(event.target.value);
 									}}
 								/>
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor="idp-organization-name">
+								<Label className="text-sm" htmlFor=":r1d:">
 									Coder organization
 								</Label>
 								<MultipleSelector
@@ -201,7 +203,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
 										const newSyncSettings = {
-											...(syncSettings as OrganizationSyncSettings),
+											...syncSettings,
 											mapping: {
 												...syncSettings.mapping,
 												[idpOrgName]: coderOrgs.map((org) => org.value),
