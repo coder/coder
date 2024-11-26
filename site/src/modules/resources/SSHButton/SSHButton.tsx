@@ -52,7 +52,7 @@ export const SSHButton: FC<SSHButtonProps> = ({
 					<div>
 						<HelpTooltipText>
 							<strong css={styles.codeExampleLabel}>
-								Configure SSH hosts on machine:
+								1. Configure SSH hosts on machine:
 							</strong>
 						</HelpTooltipText>
 						<CodeExample secret={false} code="coder config-ssh" />
@@ -61,7 +61,7 @@ export const SSHButton: FC<SSHButtonProps> = ({
 					<div>
 						<HelpTooltipText>
 							<strong css={styles.codeExampleLabel}>
-								Connect to the agent:
+								2. Connect to the agent:
 							</strong>
 						</HelpTooltipText>
 						<CodeExample
