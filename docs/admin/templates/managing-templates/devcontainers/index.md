@@ -9,9 +9,10 @@ Dev containers provide developers with increased autonomy and control over their
 Coder cloud development environments.
 
 By using dev containers, developers can customize their workspaces with tools
-pre-approved by platform teams in registries like [JFrog Artifactory](../../../integrations/jfrog-artifactory.md). This
-simplifies workflows, reduces the need for tickets and approvals, and promotes
-greater independence for developers.
+pre-approved by platform teams in registries like
+[JFrog Artifactory](../../../integrations/jfrog-artifactory.md). This simplifies
+workflows, reduces the need for tickets and approvals, and promotes greater
+independence for developers.
 
 ## Prerequisites
 
@@ -107,9 +108,9 @@ language-specific runtimes and compilers.
 
 ## Coder Envbuilder
 
-[Envbuilder](https://github.com/coder/envbuilder/) is an open-source project maintained by Coder that runs dev
-containers via Coder templates and your underlying infrastructure. Envbuilder
-can run on Docker or Kubernetes.
+[Envbuilder](https://github.com/coder/envbuilder/) is an open-source project
+maintained by Coder that runs dev containers via Coder templates and your
+underlying infrastructure. Envbuilder can run on Docker or Kubernetes.
 
 It is independently packaged and versioned from the centralized Coder
 open-source project. This means that Envbuilder can be used with Coder, but it
