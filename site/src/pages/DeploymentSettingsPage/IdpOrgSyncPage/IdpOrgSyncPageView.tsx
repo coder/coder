@@ -46,27 +46,19 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 }) => {
 	const form = useFormik<OrganizationSyncSettings>({
 		initialValues: {
-			field: organizationSyncSettings?.field || "",
+			field: organizationSyncSettings?.field ?? "",
 			organization_assign_default:
-				organizationSyncSettings?.organization_assign_default || true,
-			mapping: organizationSyncSettings?.mapping || {},
+				organizationSyncSettings?.organization_assign_default ?? true,
+			mapping: organizationSyncSettings?.mapping ?? {},
 		},
 		// validationSchema,
 		onSubmit,
-		enableReinitialize: true,
+		enableReinitialize: Boolean(organizationSyncSettings),
 	});
 	const [coderOrgs, setCoderOrgs] = useState<Option[]>([]);
 	const [idpOrgName, setIdpOrgName] = useState("");
-	const [syncSettings, setSyncSettings] = useState(
-		organizationSyncSettings || {
-			field: "",
-			organization_assign_default: true,
-			mapping: {},
-		},
-	);
-
-	const organizationMappingCount = syncSettings.mapping
-		? Object.entries(syncSettings.mapping).length
+	const organizationMappingCount = form.values.mapping
+		? Object.entries(form.values.mapping).length
 		: 0;
 
 	if (!organizationSyncSettings) {
@@ -82,15 +74,14 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 	const handleDelete = async (idpOrg: string) => {
 		const newMapping = Object.fromEntries(
-			Object.entries(syncSettings.mapping || {}).filter(
+			Object.entries(form.values.mapping || {}).filter(
 				([key]) => key !== idpOrg,
 			),
 		);
 		const newSyncSettings = {
-			...syncSettings,
+			...form.values,
 			mapping: newMapping,
 		};
-		setSyncSettings(newSyncSettings);
 		await form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
 	};
@@ -113,12 +104,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								<div className="flex flex-row gap-2 w-72">
 									<Input
 										id={SYNC_FIELD_ID}
-										value={syncSettings.field}
+										value={form.values.field}
 										onChange={async (event) => {
-											setSyncSettings({
-												...syncSettings,
-												field: event.target.value,
-											});
 											await form.setFieldValue("field", event.target.value);
 										}}
 									/>
@@ -136,12 +123,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								<div className="flex flex-row items-center gap-3">
 									<Switch
 										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
-										checked={syncSettings.organization_assign_default}
+										checked={form.values.organization_assign_default}
 										onCheckedChange={async (checked) => {
-											setSyncSettings({
-												...syncSettings,
-												organization_assign_default: checked,
-											});
 											await form.setFieldValue(
 												"organization_assign_default",
 												checked,
@@ -203,13 +186,12 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
 										const newSyncSettings = {
-											...syncSettings,
+											...form.values,
 											mapping: {
-												...syncSettings.mapping,
+												...form.values.mapping,
 												[idpOrgName]: coderOrgs.map((org) => org.value),
 											},
 										};
-										setSyncSettings(newSyncSettings);
 										await form.setFieldValue(
 											"mapping",
 											newSyncSettings.mapping,
@@ -225,8 +207,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</div>
 						</div>
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
-							{syncSettings.mapping &&
-								Object.entries(syncSettings.mapping)
+							{form.values.mapping &&
+								Object.entries(form.values.mapping)
 									.sort()
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
