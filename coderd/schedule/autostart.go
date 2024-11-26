@@ -34,10 +34,13 @@ func NextAutostart(at time.Time, wsSchedule string, templateSchedule TemplateSch
 }
 
 func NextAllowedAutostart(at time.Time, wsSchedule string, templateSchedule TemplateScheduleOptions) (time.Time, error) {
-	const daysInWeek = 7
+	next := at
 
-	for range daysInWeek {
-		next, valid := NextAutostart(at, wsSchedule, templateSchedule)
+	// Our cron schedules work on a weekly basis, so to ensure we've exhausted all
+	// possible autostart times we need to check up to 7 days worth of autostarts.
+	for next.Sub(at) < 7*24*time.Hour {
+		var valid bool
+		next, valid = NextAutostart(at, wsSchedule, templateSchedule)
 		if valid {
 			return next, nil
 		}
