@@ -40,11 +40,10 @@ func NextAllowedAutostart(at time.Time, wsSchedule string, templateSchedule Temp
 	// possible autostart times we need to check up to 7 days worth of autostarts.
 	for next.Sub(at) < 7*24*time.Hour {
 		var valid bool
-		next, valid = NextAutostart(at, wsSchedule, templateSchedule)
+		next, valid = NextAutostart(next, wsSchedule, templateSchedule)
 		if valid {
 			return next, nil
 		}
-		at = next
 	}
 
 	return time.Time{}, ErrNoAllowedAutostart
