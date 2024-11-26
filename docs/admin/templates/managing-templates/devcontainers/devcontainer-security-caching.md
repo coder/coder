@@ -28,12 +28,14 @@ of caching:
     post-build
     [lifecycle scripts](./add-devcontainer.md#dev-container-lifecycle-scripts)).
 
-Refer to the
-[Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
-for more information.
-
 Note that caching requires push access to a registry, and may require approval
 from relevant infrastructure team(s).
+
+Refer to the
+[Envbuilder documentation](https://github.com/coder/envbuilder/blob/main/docs/caching.md)
+for more information about Envbuilder and caching.
+
+Visit the [speed up templates](../../../../tutorials/best-practices/speed-up-templates.md) best practice documentation for more ways that you can speed up build times.
 
 ### Image caching
 
