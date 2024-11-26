@@ -9114,7 +9114,7 @@
 					"format": "uuid"
 				},
 				"transition": {
-					"enum": ["create", "start", "stop", "delete"],
+					"enum": ["start", "stop", "delete"],
 					"allOf": [
 						{
 							"$ref": "#/definitions/codersdk.WorkspaceTransition"
