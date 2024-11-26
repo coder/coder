@@ -18,11 +18,11 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { Button } from "components/ui/button";
-import { Input } from "components/ui/input";
-import { Label } from "components/ui/label";
-import MultipleSelector, { type Option } from "components/ui/multiple-selector";
-import { Switch } from "components/ui/switch";
+import { Button } from "components/ui/Button";
+import { Input } from "components/ui/Input";
+import { Label } from "components/ui/Label";
+import { type Option, MultipleSelector } from "components/ui/MultipleSelector";
+import { Switch } from "components/ui/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";

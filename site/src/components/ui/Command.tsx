@@ -3,7 +3,7 @@ import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import { type FC, forwardRef } from "react";
 
-import { Dialog, DialogContent } from "components/ui/dialog";
+import { Dialog, DialogContent } from "components/ui/Dialog";
 import { cn } from "utils/cn";
 
 export const Command = forwardRef<
@@ -19,7 +19,6 @@ export const Command = forwardRef<
 		{...props}
 	/>
 ));
-Command.displayName = CommandPrimitive.displayName;
 
 export const CommandDialog: FC<DialogProps> = ({
 	children,
@@ -53,8 +52,6 @@ export const CommandInput = forwardRef<
 	</div>
 ));
 
-CommandInput.displayName = CommandPrimitive.Input.displayName;
-
 export const CommandList = forwardRef<
 	React.ElementRef<typeof CommandPrimitive.List>,
 	React.ComponentPropsWithoutRef<typeof CommandPrimitive.List>
@@ -66,8 +63,6 @@ export const CommandList = forwardRef<
 	/>
 ));
 
-CommandList.displayName = CommandPrimitive.List.displayName;
-
 export const CommandEmpty = forwardRef<
 	React.ElementRef<typeof CommandPrimitive.Empty>,
 	React.ComponentPropsWithoutRef<typeof CommandPrimitive.Empty>
@@ -78,8 +73,6 @@ export const CommandEmpty = forwardRef<
 		{...props}
 	/>
 ));
-
-CommandEmpty.displayName = CommandPrimitive.Empty.displayName;
 
 export const CommandGroup = forwardRef<
 	React.ElementRef<typeof CommandPrimitive.Group>,
@@ -95,8 +88,6 @@ export const CommandGroup = forwardRef<
 	/>
 ));
 
-CommandGroup.displayName = CommandPrimitive.Group.displayName;
-
 export const CommandSeparator = forwardRef<
 	React.ElementRef<typeof CommandPrimitive.Separator>,
 	React.ComponentPropsWithoutRef<typeof CommandPrimitive.Separator>
@@ -107,7 +98,6 @@ export const CommandSeparator = forwardRef<
 		{...props}
 	/>
 ));
-CommandSeparator.displayName = CommandPrimitive.Separator.displayName;
 
 export const CommandItem = forwardRef<
 	React.ElementRef<typeof CommandPrimitive.Item>,
@@ -123,8 +113,6 @@ export const CommandItem = forwardRef<
 	/>
 ));
 
-CommandItem.displayName = CommandPrimitive.Item.displayName;
-
 export const CommandShortcut = ({
 	className,
 	...props
@@ -139,4 +127,3 @@ export const CommandShortcut = ({
 		/>
 	);
 };
-CommandShortcut.displayName = "CommandShortcut";

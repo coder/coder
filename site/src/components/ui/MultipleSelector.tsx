@@ -6,13 +6,13 @@ import { ChevronDown, X } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
-import { Badge } from "components/ui/badge";
+import { Badge } from "components/ui/Badge";
 import {
 	Command,
 	CommandGroup,
 	CommandItem,
 	CommandList,
-} from "components/ui/command";
+} from "components/ui/Command";
 import { cn } from "utils/cn";
 
 export interface Option {
@@ -160,9 +160,7 @@ const CommandEmpty = forwardRef<
 	);
 });
 
-CommandEmpty.displayName = "CommandEmpty";
-
-const MultipleSelector = React.forwardRef<
+export const MultipleSelector = React.forwardRef<
 	MultipleSelectorRef,
 	MultipleSelectorProps
 >(
@@ -637,6 +635,3 @@ const MultipleSelector = React.forwardRef<
 		);
 	},
 );
-
-MultipleSelector.displayName = "MultipleSelector";
-export default MultipleSelector;

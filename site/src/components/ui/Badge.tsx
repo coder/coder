@@ -32,4 +32,3 @@ export const Badge: FC<BadgeProps> = ({ className, variant, ...props }) => {
 		<div className={cn(badgeVariants({ variant }), className)} {...props} />
 	);
 };
-Badge.displayName = "Badge";
