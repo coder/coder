@@ -38,6 +38,8 @@ import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
+import DOMPurify from 'dompurify';
+
 
 type FilePath = string;
 type UrlPath = string;
@@ -194,8 +196,9 @@ const getNavigation = (manifest: Manifest): Nav => {
 	return navigation;
 };
 
-const removeHtmlComments = (string: string) => {
-	return string.replace(/<!--[\s\S]*?-->/g, "");
+const removeHtmlComments = (input: string) => {
+		if (!input) return '';
+		return DOMPurify.sanitize(input, { ALLOW_COMMENTS: false });
 };
 
 export const getStaticPaths: GetStaticPaths = () => {

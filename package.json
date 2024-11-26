@@ -13,6 +13,7 @@
 		"prettier": "3.3.3"
 	},
 	"dependencies": {
+		"dompurify": "^3.2.1",
 		"url-parse": "^1.5.10"
 	}
 }
