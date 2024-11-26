@@ -23,7 +23,7 @@ func main() {
 
 	generateDirectories := []string{
 		"github.com/coder/coder/v2/codersdk",
-		//"github.com/coder/coder/codersdk/health",
+		"github.com/coder/coder/v2/codersdk/health",
 	}
 	for _, dir := range generateDirectories {
 		err = gen.Include(dir, true)
@@ -34,7 +34,7 @@ func main() {
 
 	referencePackages := []string{
 		"github.com/coder/serpent",
-		//"./coderd/healthcheck/health",
+		"github.com/coder/coder/v2/coderd/healthcheck/health",
 	}
 	for _, pkg := range referencePackages {
 		err = gen.Include(pkg, false)

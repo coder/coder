@@ -2,6 +2,7 @@
 
 // From codersdk/genericmap.go
 export interface Buzz {
+    readonly foo: Foo;
     readonly bazz: string;
 }
 
