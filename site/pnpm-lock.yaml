@@ -228,6 +228,9 @@ importers:
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
+      url-parse:
+        specifier: 1.5.10
+        version: 1.5.10
       uuid:
         specifier: 9.0.1
         version: 9.0.1

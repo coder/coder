@@ -9,6 +9,10 @@
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
+		"@types/url-parse": "^1.4.11",
 		"prettier": "3.3.3"
+	},
+	"dependencies": {
+		"url-parse": "^1.5.10"
 	}
 }

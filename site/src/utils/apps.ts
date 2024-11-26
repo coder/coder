@@ -1,4 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
+import URLParse from 'url-parse';
 
 export const createAppLinkHref = (
 	protocol: string,
@@ -16,20 +17,25 @@ export const createAppLinkHref = (
 
 	// The backend redirects if the trailing slash isn't included, so we add it
 	// here to avoid extra roundtrips.
-	let href = `${preferredPathBase}/@${username}/${workspace.name}.${
+	let path = `${preferredPathBase}/@${username}/${workspace.name}.${
 		agent.name
 	}/apps/${encodeURIComponent(appSlug)}/`;
 	if (app.command) {
 		// Terminal links are relative. The terminal page knows how
 		// to select the correct workspace proxy for the websocket
 		// connection.
-		href = `/@${username}/${workspace.name}.${
+		path = `/@${username}/${workspace.name}.${
 			agent.name
 		}/terminal?command=${encodeURIComponent(app.command)}`;
 	}
 
 	if (appsHost && app.subdomain && app.subdomain_name) {
-		href = `${protocol}//${appsHost}/`.replace("*", app.subdomain_name);
+		const url = new URLParse('');
+		url.set('protocol', protocol);
+		url.set('hostname', appsHost.replace('*', app.subdomain_name));
+		url.set('pathname', '/');
+
+		path = url.toString();
 	}
-	return href;
+	return path;
 };
