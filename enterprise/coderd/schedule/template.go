@@ -21,6 +21,7 @@ import (
 	agpl "github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/quartz"
 )
 
 // EnterpriseTemplateScheduleStore provides an agpl.TemplateScheduleStore that
@@ -31,7 +32,7 @@ type EnterpriseTemplateScheduleStore struct {
 	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
 
 	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
-	TimeNowFn func() time.Time
+	Clock quartz.Clock
 
 	enqueuer notifications.Enqueuer
 	logger   slog.Logger
@@ -42,16 +43,17 @@ var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger) *EnterpriseTemplateScheduleStore {
 	return &EnterpriseTemplateScheduleStore{
 		UserQuietHoursScheduleStore: userQuietHoursStore,
+		Clock:                       quartz.NewReal(),
 		enqueuer:                    enqueuer,
 		logger:                      logger,
 	}
 }
 
 func (s *EnterpriseTemplateScheduleStore) now() time.Time {
-	if s.TimeNowFn != nil {
-		return s.TimeNowFn()
+	if s.Clock == nil {
+		s.Clock = quartz.NewReal()
 	}
-	return dbtime.Now()
+	return dbtime.Time(s.Clock.Now())
 }
 
 // Get implements agpl.TemplateScheduleStore.
@@ -164,7 +166,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 
 		var dormantAt time.Time
 		if opts.UpdateWorkspaceDormantAt {
-			dormantAt = dbtime.Now()
+			dormantAt = s.now()
 		}
 
 		// If we updated the time_til_dormant_autodelete we need to update all the workspaces deleting_at
@@ -243,7 +245,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 	}
 
 	for _, ws := range markedForDeletion {
-		dormantTime := dbtime.Now().Add(opts.TimeTilDormantAutoDelete)
+		dormantTime := s.now().Add(opts.TimeTilDormantAutoDelete)
 		_, err = s.enqueuer.Enqueue(
 			// nolint:gocritic // Need actor to enqueue notification
 			dbauthz.AsNotifier(ctx),
@@ -347,7 +349,7 @@ func (s *EnterpriseTemplateScheduleStore) updateWorkspaceBuild(ctx context.Conte
 			return xerrors.Errorf("get template schedule options: %w", err)
 		}
 
-		nextStartAt, _ := agpl.NextAutostart(dbtime.Now(), workspace.AutostartSchedule.String, templateScheduleOptions)
+		nextStartAt, _ := agpl.NextAutostart(s.now(), workspace.AutostartSchedule.String, templateScheduleOptions)
 
 		err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
 			ID:          workspace.ID,
