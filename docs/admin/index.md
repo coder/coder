@@ -20,7 +20,7 @@ For any information not strictly contained in these sections, check out our
 **Image**
 
 - A [base image](./templates/managing-templates/image-management.md) contains
-  OS-level packages, and utilities that the Coder workspace is built on. It can
+  OS-level packages and utilities that the Coder workspace is built on. It can
   be an [example image](https://github.com/coder/images), custom image in your
   registry, or one from [Docker Hub](https://hub.docker.com/search). It is
   defined in each template.
