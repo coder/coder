@@ -40,19 +40,20 @@ type EnterpriseTemplateScheduleStore struct {
 
 var _ agpl.TemplateScheduleStore = &EnterpriseTemplateScheduleStore{}
 
-func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger) *EnterpriseTemplateScheduleStore {
+func NewEnterpriseTemplateScheduleStore(userQuietHoursStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore], enqueuer notifications.Enqueuer, logger slog.Logger, clock quartz.Clock) *EnterpriseTemplateScheduleStore {
+	if clock == nil {
+		clock = quartz.NewReal()
+	}
+
 	return &EnterpriseTemplateScheduleStore{
 		UserQuietHoursScheduleStore: userQuietHoursStore,
-		Clock:                       quartz.NewReal(),
+		Clock:                       clock,
 		enqueuer:                    enqueuer,
 		logger:                      logger,
 	}
 }
 
 func (s *EnterpriseTemplateScheduleStore) now() time.Time {
-	if s.Clock == nil {
-		s.Clock = quartz.NewReal()
-	}
 	return dbtime.Time(s.Clock.Now())
 }
 
