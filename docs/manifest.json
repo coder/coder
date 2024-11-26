@@ -321,8 +321,8 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Development containers",
-									"description": "Learn about using dev containers in templates",
+									"title": "Dev containers",
+									"description": "Learn about using development containers in templates",
 									"path": "./admin/templates/managing-templates/devcontainers/index.md",
 									"children": [
 										{
