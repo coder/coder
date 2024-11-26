@@ -300,7 +300,7 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 }
 
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
-	var authorizedSecurityTags = []string{
+	authorizedSecurityTags := []string{
 		"CoderSessionToken",
 		"ProvisionerKey",
 	}
