@@ -300,6 +300,11 @@ func assertPathParametersDefined(t *testing.T, comment SwaggerComment) {
 }
 
 func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
+	var authorizedSecurityTags = []string{
+		"CoderSessionToken",
+		"ProvisionerKey",
+	}
+
 	if comment.router == "/updatecheck" ||
 		comment.router == "/buildinfo" ||
 		comment.router == "/" ||
@@ -308,7 +313,7 @@ func assertSecurityDefined(t *testing.T, comment SwaggerComment) {
 		comment.router == "/users/otp/change-password" {
 		return // endpoints do not require authorization
 	}
-	assert.Equal(t, "CoderSessionToken", comment.security, "@Security must be equal CoderSessionToken")
+	assert.Containsf(t, authorizedSecurityTags, comment.security, "@Security must be in %v", authorizedSecurityTags)
 }
 
 func assertAccept(t *testing.T, comment SwaggerComment) {
