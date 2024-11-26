@@ -49,9 +49,11 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 			},
 		},
 		{
-			Name:              "organization-sync",
-			Aliases:           []string{"organizationsync", "org-sync", "orgsync"},
-			Short:             "Organization sync settings to sync organization memberships from an IdP.",
+			Name:    "organization-sync",
+			Aliases: []string{"organizationsync", "org-sync", "orgsync"},
+			Short:   "Organization sync settings to sync organization memberships from an IdP. This applies to all organizations.",
+			Long: "Organization sync settings works across all organizations. The sync will automatically add members to" +
+				"organizations based on the IdP claims. Deployment administrators can configure this sync.",
 			DisableOrgContext: true,
 			Patch: func(ctx context.Context, cli *codersdk.Client, _ uuid.UUID, input json.RawMessage) (any, error) {
 				var req codersdk.OrganizationSyncSettings
@@ -85,6 +87,7 @@ type organizationSetting struct {
 	Name    string
 	Aliases []string
 	Short   string
+	Long    string
 	// DisableOrgContext is kinda a kludge. It tells the command constructor
 	// to not require an organization context. This is used for the organization
 	// sync settings which are not tied to a specific organization.
@@ -122,6 +125,7 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 			Use:     set.Name,
 			Aliases: set.Aliases,
 			Short:   set.Short,
+			Long:    set.Long,
 			Options: []serpent.Option{},
 			Middleware: serpent.Chain(
 				serpent.RequireNArgs(0),

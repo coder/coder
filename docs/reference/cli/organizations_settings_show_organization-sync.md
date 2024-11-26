@@ -2,7 +2,7 @@
 
 # organizations settings show organization-sync
 
-Organization sync settings to sync organization memberships from an IdP.
+Organization sync settings to sync organization memberships from an IdP. This applies to all organizations.
 
 Aliases:
 
