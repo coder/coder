@@ -60,6 +60,8 @@ github.com/coder/gots v0.0.0-20241126213537-91cc19e817e5 h1:zBru83IE+s2sc3p11gm/
 github.com/coder/gots v0.0.0-20241126213537-91cc19e817e5/go.mod h1:zH5CGux/eew1rvjjoKKQloiiQMTu2qdx7xIgmPzCRbg=
 github.com/coder/gots v0.0.0-20241126221454-18fbabbd18c5 h1:f/mc6/A4owCKhJAjSGtWk/kvY6UVKmkE5feWzLeDWHc=
 github.com/coder/gots v0.0.0-20241126221454-18fbabbd18c5/go.mod h1:zH5CGux/eew1rvjjoKKQloiiQMTu2qdx7xIgmPzCRbg=
+github.com/coder/gots v0.0.0-20241126222907-985a03a876f0 h1:0jxONsMRoXchCdCcfcXlaVm1ciLkF6LLBDa7OgF4HJw=
+github.com/coder/gots v0.0.0-20241126222907-985a03a876f0/go.mod h1:zH5CGux/eew1rvjjoKKQloiiQMTu2qdx7xIgmPzCRbg=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0 h1:3A0ES21Ke+FxEM8CXx9n47SZOKOpgSE1bbJzlE4qPVs=
 github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0/go.mod h1:5UuS2Ts+nTToAMeOjNlnHFkPahrtDkmpydBen/3wgZc=
 github.com/coder/serpent v0.8.0 h1:6OR+k6fekhSeEDmwwzBgnSjaa7FfGGrMlc3GoAEH9dg=
