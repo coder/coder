@@ -1,5 +1,5 @@
 import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
-import URLParse from "url-parse";
+import { URL } from "url";
 
 export const portForwardURL = (
 	host: string,
@@ -13,9 +13,9 @@ export const portForwardURL = (
 	const suffix = protocol === "https" ? "s" : "";
 
 	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
-	const url = new URLParse("");
-	url.set("protocol", location.protocol);
-	url.set("hostname", host.replace("*", subdomain));
+	const url = new URL("");
+	url.protocol = location.protocol;
+	url.hostname = host.replace("*", subdomain);
 
 	return url.toString();
 };

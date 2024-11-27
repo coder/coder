@@ -7,48 +7,18 @@ settings:
 importers:
 
   .:
-    dependencies:
-      url-parse:
-        specifier: ^1.5.10
-        version: 1.5.10
     devDependencies:
-      '@types/url-parse':
-        specifier: ^1.4.11
-        version: 1.4.11
       prettier:
         specifier: 3.3.3
         version: 3.3.3
 
 packages:
 
-  '@types/url-parse@1.4.11':
-    resolution: {integrity: sha512-FKvKIqRaykZtd4n47LbK/W/5fhQQ1X7cxxzG9A48h0BGN+S04NH7ervcCjM8tyR0lyGru83FAHSmw2ObgKoESg==}
-
   prettier@3.3.3:
     resolution: {integrity: sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==}
     engines: {node: '>=14'}
     hasBin: true
 
-  querystringify@2.2.0:
-    resolution: {integrity: sha512-FIqgj2EUvTa7R50u0rGsyTftzjYmv/a3hO345bZNrqabNqjtgiDMgmo4mkUjd+nzU5oF3dClKqFIPUKybUyqoQ==}
-
-  requires-port@1.0.0:
-    resolution: {integrity: sha512-KigOCHcocU3XODJxsu8i/j8T9tzT4adHiecwORRQ0ZZFcp7ahwXuRU1m+yuO90C5ZUyGeGfocHDI14M3L3yDAQ==}
-
-  url-parse@1.5.10:
-    resolution: {integrity: sha512-WypcfiRhfeUP9vvF0j6rw0J3hrWrw6iZv3+22h6iRMJ/8z1Tj6XfLP4DsUix5MhMPnXpiHDoKyoZ/bdCkwBCiQ==}
-
 snapshots:
 
-  '@types/url-parse@1.4.11': {}
-
   prettier@3.3.3: {}
-
-  querystringify@2.2.0: {}
-
-  requires-port@1.0.0: {}
-
-  url-parse@1.5.10:
-    dependencies:
-      querystringify: 2.2.0
-      requires-port: 1.0.0
