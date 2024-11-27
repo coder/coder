@@ -2773,6 +2773,7 @@ type TemplateVersion struct {
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
+	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2826,8 +2827,9 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message  string `db:"message" json:"message"`
-	Archived bool   `db:"archived" json:"archived"`
+	Message         string         `db:"message" json:"message"`
+	Archived        bool           `db:"archived" json:"archived"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 type TemplateVersionVariable struct {
