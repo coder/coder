@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log"
 
-	"github.com/coder/gots"
-	"github.com/coder/gots/config"
+	"github.com/coder/guts"
+	"github.com/coder/guts/config"
 
 	// Must import the packages we are trying to convert
 	// And include the ones we are referencing
@@ -16,7 +16,7 @@ import (
 )
 
 func main() {
-	gen, err := gots.NewGolangParser()
+	gen, err := guts.NewGolangParser()
 	if err != nil {
 		log.Fatalf("new convert: %v", err)
 	}
@@ -62,7 +62,7 @@ func main() {
 	fmt.Println(output)
 }
 
-func TsMutations(ts *gots.Typescript) {
+func TsMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
 		// Enum list generator
 		config.EnumLists,
@@ -74,7 +74,7 @@ func TsMutations(ts *gots.Typescript) {
 }
 
 // TypeMappings is all the custom types for codersdk
-func TypeMappings(gen *gots.GoParser) error {
+func TypeMappings(gen *guts.GoParser) error {
 	gen.IncludeCustomDeclaration(config.StandardMappings())
 
 	err := gen.IncludeCustom(map[string]string{

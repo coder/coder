@@ -2,10 +2,7 @@ module github.com/coder/coder/scripts/apitypings
 
 go 1.23.0
 
-toolchain go1.23.3
-
 require (
-	github.com/coder/gots v0.0.0-20241126222907-985a03a876f0
 	github.com/stretchr/testify v1.10.0
 )
 
