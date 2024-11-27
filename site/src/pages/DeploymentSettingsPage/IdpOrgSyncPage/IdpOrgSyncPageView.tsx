@@ -6,6 +6,7 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
+import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import type {
 	Organization,
 	OrganizationSyncSettings,
@@ -30,7 +31,6 @@ import { useState } from "react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { OrganizationPills } from "./OrganizationPills";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
