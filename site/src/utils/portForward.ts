@@ -1,4 +1,3 @@
-import { URL } from "node:url";
 import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 
 export const portForwardURL = (
