@@ -691,7 +691,7 @@ class ApiMethods {
 		const params = new URLSearchParams();
 
 		if (tags) {
-			params.append('tags', encodeURIComponent(JSON.stringify(tags)));
+			params.append('tags', JSON.stringify(tags));
 		}
 
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(

@@ -16,7 +16,7 @@ import {
 	MockWorkspaceResourceSensitive,
 	MockWorkspaceVolumeResource,
 } from "testHelpers/entities";
-import { withDashboardProvider, withProvisioners } from "testHelpers/storybook";
+import { withDashboardProvider } from "testHelpers/storybook";
 import { TemplateVersionEditor } from "./TemplateVersionEditor";
 
 const meta: Meta<typeof TemplateVersionEditor> = {
@@ -71,17 +71,6 @@ export const EmptyLogs: Story = {
 	},
 };
 
-export const CouldntGetProvisioners: Story = {
-	args: {
-		defaultTab: "logs",
-		buildLogs: [],
-		templateVersion: {
-			...MockTemplateVersion,
-			job: MockRunningProvisionerJob,
-		},
-	},
-};
-
 export const NoProvisioners: Story = {
 	args: {
 		defaultTab: "logs",
@@ -89,37 +78,27 @@ export const NoProvisioners: Story = {
 		templateVersion: {
 			...MockTemplateVersion,
 			job: MockRunningProvisionerJob,
-			organization_id: "org-id",
+			matched_provisioners: {
+				count: 0,
+				available: 0
+			}
 		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockRunningProvisionerJob.tags,
-		provisioners: [],
-	}
 };
 
-export const UnhealthyProvisioners: Story = {
+export const UnavailableProvisioners: Story = {
 	args: {
 		defaultTab: "logs",
 		buildLogs: [],
 		templateVersion: {
 			...MockTemplateVersion,
 			job: MockRunningProvisionerJob,
-			organization_id: "org-id"
+			matched_provisioners: {
+				count: 1,
+				available: 0
+			}
 		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockRunningProvisionerJob.tags,
-		provisioners: [
-			{
-				last_seen_at: new Date(new Date().getTime() - 5 * 60 * 1000).toISOString()
-			},
-		],
-	}
 };
 
 export const HealthyProvisioners: Story = {
@@ -129,19 +108,12 @@ export const HealthyProvisioners: Story = {
 		templateVersion: {
 			...MockTemplateVersion,
 			job: MockRunningProvisionerJob,
-			organization_id: "org-id"
+			matched_provisioners: {
+				count: 1,
+				available: 1
+			}
 		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockRunningProvisionerJob.tags,
-		provisioners: [
-			{
-				last_seen_at: new Date(),
-			},
-		],
-	}
 };
 
 export const Logs: Story = {

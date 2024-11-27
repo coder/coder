@@ -5,7 +5,7 @@ import {
 	MockTemplateVersion,
 	MockWorkspaceBuildLogs,
 } from "testHelpers/entities";
-import { withProvisioners, withWebSocket } from "testHelpers/storybook";
+import { withWebSocket } from "testHelpers/storybook";
 import { BuildLogsDrawer } from "./BuildLogsDrawer";
 
 const meta: Meta<typeof BuildLogsDrawer> = {
@@ -36,46 +36,39 @@ export const MissingVariables: Story = {
 
 export const NoProvisioners: Story = {
 	args: {
-		templateVersion: {...MockTemplateVersion, organization_id: "org-id"},
+		templateVersion: {
+			...MockTemplateVersion,
+			matched_provisioners: {
+				count: 0,
+				available: 0,
+			}
+		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockTemplateVersion.job.tags,
-		provisioners: [],
-	}
 };
 
 export const ProvisionersUnhealthy: Story = {
 	args: {
-		templateVersion: {...MockTemplateVersion, organization_id: "org-id"},
+		templateVersion: {
+			...MockTemplateVersion,
+			matched_provisioners: {
+				count: 1,
+				available: 0,
+			}
+		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockTemplateVersion.job.tags,
-		provisioners: [
-			{
-				last_seen_at: new Date(new Date().getTime() - 5 * 60 * 1000).toISOString()
-			},
-		],
-	}
 };
 
 export const ProvisionersHealthy: Story = {
 	args: {
-		templateVersion: {...MockTemplateVersion, organization_id: "org-id"},
+		templateVersion: {
+			...MockTemplateVersion,
+			organization_id: "org-id",
+			matched_provisioners: {
+				count: 1,
+				available: 1,
+			}
+		},
 	},
-	decorators: [withProvisioners],
-	parameters: {
-		organization_id: "org-id",
-		tags: MockTemplateVersion.job.tags,
-		provisioners: [
-			{
-				last_seen_at: new Date()
-			},
-		],
-	}
 };
 
 

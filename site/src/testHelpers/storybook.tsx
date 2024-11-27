@@ -124,7 +124,7 @@ export const withAuthProvider = (Story: FC, { parameters }: StoryContext) => {
 
 export const withProvisioners = (Story: FC, { parameters }: StoryContext) => {
 	if (!parameters.organization_id) {
-		throw new Error("You forgot to add `parameters.` to your story");
+		throw new Error("You forgot to add `parameters.organization_id` to your story");
 	}
 	if (!parameters.provisioners) {
 		throw new Error("You forgot to add `parameters.provisioners` to your story");

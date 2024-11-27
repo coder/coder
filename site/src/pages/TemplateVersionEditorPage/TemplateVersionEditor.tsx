@@ -60,10 +60,7 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { provisionersUnhealthy } from "modules/provisioners/useCompatibleProvisioners";
-import { useQuery } from "react-query";
-import { provisionerDaemons } from "api/queries/organizations";
-import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerAlert, ProvisionerJobAlert } from "modules/provisioners/ProvisionerAlert";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -130,16 +127,9 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
+	const matchingProvisioners = templateVersion.matched_provisioners?.count
+	const availableProvisioners = templateVersion.matched_provisioners?.available
 
-	const org = templateVersion?.organization_id
-	const {
-		data: compatibleProvisioners,
-		isLoading: provisionerDaemonsLoading,
-		isError: couldntGetProvisioners,
-	}  = useQuery(
-		org ? provisionerDaemons(org, templateVersion?.job.tags) : { enabled: false}
-	);
-	const compatibleProvisionersUnhealthy = !compatibleProvisioners || provisionersUnhealthy(compatibleProvisioners);
 
 	const triggerPreview = useCallback(async () => {
 		await onPreview(fileTree);
@@ -598,33 +588,20 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									ref={logsContentRef}
 								>
 									{templateVersion.job.error && (
-										<ProvisionerAlert
+										<ProvisionerJobAlert
 											severity="error"
 											title="Error during the build"
 											detail={templateVersion.job.error}
+											tags={templateVersion.job.tags}
 										/>
 									)}
 
-									{!templateVersion.job.error && !gotBuildLogs && !provisionerDaemonsLoading && (
-										couldntGetProvisioners ? (
-											<ProvisionerAlert
-												severity="warning"
-												title="Something went wrong"
-												detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
-											/>
-										) : !compatibleProvisioners || compatibleProvisioners.length === 0 ? (
-											<ProvisionerAlert
-												severity="warning"
-												title="Build Stuck"
-												detail="No Compatible Provisioner Daemons have been configured"
-											/>
-										) : compatibleProvisionersUnhealthy && (
-											<ProvisionerAlert
-												severity="warning"
-												title="Build may be delayed"
-												detail="Compatible Provisioner Daemons have been silent for a while. This may result in a delayed build"
-											/>
-										)
+									{!gotBuildLogs && (
+										<ProvisionerAlert
+											matchingProvisioners={matchingProvisioners}
+											availableProvisioners={availableProvisioners}
+											tags={templateVersion.job.tags}
+										/>
 									)}
 
 									{buildLogs && buildLogs.length > 0 ? (

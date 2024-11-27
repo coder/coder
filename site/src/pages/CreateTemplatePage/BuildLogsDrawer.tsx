@@ -12,9 +12,6 @@ import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
-import { provisionersUnhealthy } from "modules/provisioners/useCompatibleProvisioners";
-import { useQuery } from "react-query";
-import { provisionerDaemons } from "api/queries/organizations";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 
 type BuildLogsDrawerProps = {
@@ -31,15 +28,8 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
-	const org = templateVersion?.organization_id
-	const {
-		data: compatibleProvisioners,
-		isLoading: provisionerDaemonsLoading,
-		isError: couldntGetProvisioners,
-	}  = useQuery(
-		org ? provisionerDaemons(org, templateVersion?.job.tags) : { enabled: false}
-	);
-	const compatibleProvisionersUnhealthy = !compatibleProvisioners || provisionersUnhealthy(compatibleProvisioners);
+	const matchingProvisioners = templateVersion?.matched_provisioners?.count
+	const availableProvisioners = templateVersion?.matched_provisioners?.available
 
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
@@ -79,26 +69,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{  !logs && !provisionerDaemonsLoading && (
-					couldntGetProvisioners ? (
-						<ProvisionerAlert
-							severity="warning"
-							title="Something went wrong"
-							detail="Could not determine provisioner status. Your template build may fail. If your template does not build, please contact your administrator"
-						/>
-					) : (!compatibleProvisioners || compatibleProvisioners.length === 0) ? (
-						<ProvisionerAlert
-							severity="warning"
-							title="Template Creation Stuck"
-							detail="This organization does not have any provisioners to process this template. Configure a provisioner."
-						/>
-					) : compatibleProvisionersUnhealthy && (
-						<ProvisionerAlert
-							severity="warning"
-							title="Template Creation Delayed"
-							detail="Provisioners are currently unresponsive. This may delay your template creation. Please contact your administrator for support."
-						/>
-					)
+				{  !logs && (
+					<ProvisionerAlert
+						matchingProvisioners={matchingProvisioners}
+						availableProvisioners={availableProvisioners}
+						tags={templateVersion?.job.tags ?? {}}
+					/>
 				)}
 
 				{isMissingVariables ? (
