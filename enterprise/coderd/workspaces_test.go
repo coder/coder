@@ -1692,12 +1692,7 @@ func TestNextStartAtIsNullifiedOnScheduleChange(t *testing.T) {
 	var (
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
-		clock   = quartz.NewMock(t)
 	)
-
-	// Set the clock to 8AM Monday, 1st January, 2024 to keep
-	// this test deterministic.
-	clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
 
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
@@ -1706,7 +1701,7 @@ func TestNextStartAtIsNullifiedOnScheduleChange(t *testing.T) {
 			IncludeProvisionerDaemon: true,
 			AutobuildStats:           statsCh,
 			Logger:                   &logger,
-			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, clock),
+			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
 		},
 		LicenseOptions: &coderdenttest.LicenseOptions{
 			Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
