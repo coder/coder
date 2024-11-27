@@ -1582,6 +1582,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			Readme:         "",
 			JobID:          provisionerJob.ID,
 			CreatedBy:      apiKey.UserID,
+			SourceExampleID: sql.NullString{
+				String: req.ExampleID,
+				Valid:  req.ExampleID != "",
+			},
 		})
 		if err != nil {
 			if database.IsUniqueViolation(err, database.UniqueTemplateVersionsTemplateIDNameKey) {

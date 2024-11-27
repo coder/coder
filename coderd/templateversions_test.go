@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -134,7 +135,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -160,11 +161,17 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), version.ID)
+		require.NoError(t, err)
+		require.False(t, tvDB.SourceExampleID.Valid)
 	})
 
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -204,6 +211,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "my-example", tv.Name)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), tv.ID)
+		require.NoError(t, err)
+		require.Equal(t, ls[0].ID, tvDB.SourceExampleID.String)
 
 		// ensure the template tar was uploaded correctly
 		fl, ct, err := client.Download(ctx, tv.Job.FileID)
