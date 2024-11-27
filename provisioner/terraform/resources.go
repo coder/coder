@@ -435,12 +435,11 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 
 			var corsBehavior proto.AppCORSBehavior
 			switch strings.ToLower(attrs.CORSBehavior) {
-			case "simple":
-				corsBehavior = proto.AppCORSBehavior_SIMPLE
 			case "passthru":
 				corsBehavior = proto.AppCORSBehavior_PASSTHRU
 			default:
-				return nil, xerrors.Errorf("invalid app CORS behavior %q", attrs.CORSBehavior)
+				corsBehavior = proto.AppCORSBehavior_SIMPLE
+				logger.Debug(ctx, "CORS behavior not set, defaulting to 'simple'")
 			}
 
 			for _, agents := range resourceAgents {

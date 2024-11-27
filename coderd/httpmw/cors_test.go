@@ -105,8 +105,7 @@ func TestWorkspaceAppCors(t *testing.T) {
 					r.Header.Set("Access-Control-Request-Method", method)
 				}
 
-				// TODO: signed token provider
-				handler := httpmw.WorkspaceAppCors(nil, regex, test.app)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+				handler := httpmw.WorkspaceAppCors(regex, test.app)(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 					rw.WriteHeader(http.StatusNoContent)
 				}))
 

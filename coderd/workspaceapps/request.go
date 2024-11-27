@@ -299,7 +299,7 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	)
 	//nolint:nestif
 	if portUintErr == nil {
-		// TODO: handle this branch
+		// TODO: handle CORS passthru for port sharing use-case.
 		appCORSBehavior = database.AppCorsBehaviorSimple
 
 		protocol := "http"
