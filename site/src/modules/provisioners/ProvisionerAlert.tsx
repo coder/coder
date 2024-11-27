@@ -1,8 +1,8 @@
-import Alert, { AlertColor } from "@mui/material/Alert";
+import Alert, { type AlertColor } from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
 import { Stack } from "components/Stack/Stack";
 import { AlertDetail } from "components/Alert/Alert";
-import { type FC } from "react";
+import type { FC } from "react";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 
 interface ProvisionerAlertProps {
@@ -16,7 +16,8 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 	availableProvisioners,
 	tags
 }) => {
-	let title, detail: string;
+	let title: string;
+	let detail: string;
 	switch (true) {
 		case (matchingProvisioners === 0):
 			title="Provisioning Cannot Proceed"
