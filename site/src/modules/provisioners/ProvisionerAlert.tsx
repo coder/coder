@@ -48,6 +48,7 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 						.filter(([key]) => key !== "owner")
 						.map(([key, value]) => (
 							<ProvisionerTag
+								key={key}
 								tagName={key}
 								tagValue={value}
 							/>
@@ -58,14 +59,14 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 	);
 };
 
-interface ProvisionerJobErrorProps {
+interface ProvisionerJobAlertProps {
 	title: string
 	detail: string
 	severity: AlertColor
 	tags: Record<string, string>
 }
 
-export const ProvisionerJobAlert : FC<ProvisionerJobErrorProps> = ({
+export const ProvisionerJobAlert : FC<ProvisionerJobAlertProps> = ({
 	title,
 	detail,
 	severity,
@@ -89,6 +90,7 @@ export const ProvisionerJobAlert : FC<ProvisionerJobErrorProps> = ({
 						.filter(([key]) => key !== "owner")
 						.map(([key, value]) => (
 							<ProvisionerTag
+								key={key}
 								tagName={key}
 								tagValue={value}
 							/>
