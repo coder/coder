@@ -27,7 +27,7 @@ import {
 } from "@chakra-ui/react";
 import fm from "front-matter";
 import { readFileSync } from "fs";
-import _, { min } from "lodash";
+import _ from "lodash";
 import { GetStaticPaths, GetStaticProps, NextPage } from "next";
 import Head from "next/head";
 import NextLink from "next/link";
@@ -195,10 +195,6 @@ const getNavigation = (manifest: Manifest): Nav => {
 	return navigation;
 };
 
-const removeHtmlComments = (string: string) => {
-	return sanitizeHtml(string);
-};
-
 export const getStaticPaths: GetStaticPaths = () => {
 	const manifest = getManifest();
 	const routes = mapRoutes(manifest);
@@ -222,7 +218,7 @@ export const getStaticProps: GetStaticProps = (context) => {
 	const route = routes[urlPath];
 	const { body } = fm(readContentFile(route.path));
 	// Serialize MDX to support custom components
-	const content = removeHtmlComments(body);
+	const content = sanitizeHtml(body);
 	const navigation = getNavigation(manifest);
 	const version = manifest.versions[0];
 
