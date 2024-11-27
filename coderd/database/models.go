@@ -2742,6 +2742,7 @@ type Template struct {
 	Deprecated                    string          `db:"deprecated" json:"deprecated"`
 	ActivityBump                  int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel           AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	CORSBehavior                  AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 	CreatedByAvatarURL            string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername             string          `db:"created_by_username" json:"created_by_username"`
 	OrganizationName              string          `db:"organization_name" json:"organization_name"`
@@ -2787,6 +2788,7 @@ type TemplateTable struct {
 	Deprecated          string          `db:"deprecated" json:"deprecated"`
 	ActivityBump        int64           `db:"activity_bump" json:"activity_bump"`
 	MaxPortSharingLevel AppSharingLevel `db:"max_port_sharing_level" json:"max_port_sharing_level"`
+	CORSBehavior        AppCORSBehavior `db:"cors_behavior" json:"cors_behavior"`
 }
 
 // Records aggregated usage statistics for templates/users. All usage is rounded up to the nearest minute.

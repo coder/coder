@@ -299,9 +299,6 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 	)
 	//nolint:nestif
 	if portUintErr == nil {
-		// TODO: handle CORS passthru for port sharing use-case.
-		appCORSBehavior = database.AppCorsBehaviorSimple
-
 		protocol := "http"
 		if strings.HasSuffix(r.AppSlugOrPort, "s") {
 			protocol = "https"
@@ -358,6 +355,12 @@ func (r Request) getDatabase(ctx context.Context, db database.Store) (*databaseR
 		} else {
 			appSharingLevel = ps.ShareLevel
 		}
+
+		tmpl, err := db.GetTemplateByID(ctx, workspace.TemplateID)
+		if err != nil {
+			return nil, xerrors.Errorf("get template %q: %w", workspace.TemplateID, err)
+		}
+		appCORSBehavior = tmpl.CORSBehavior
 	} else {
 		for _, app := range apps {
 			if app.Slug == r.AppSlugOrPort {

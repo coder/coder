@@ -61,6 +61,7 @@ type Template struct {
 	// template version.
 	RequireActiveVersion bool                         `json:"require_active_version"`
 	MaxPortShareLevel    WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior         AppCORSBehavior              `json:"cors_behavior"`
 }
 
 // WeekdaysToBitmap converts a list of weekdays to a bitmap in accordance with
@@ -250,6 +251,7 @@ type UpdateTemplateMeta struct {
 	// of the template.
 	DisableEveryoneGroupAccess bool                          `json:"disable_everyone_group_access"`
 	MaxPortShareLevel          *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+	CORSBehavior               *AppCORSBehavior              `json:"cors_behavior"`
 }
 
 type TemplateExample struct {

@@ -1293,7 +1293,8 @@ CREATE TABLE templates (
     require_active_version boolean DEFAULT false NOT NULL,
     deprecated text DEFAULT ''::text NOT NULL,
     activity_bump bigint DEFAULT '3600000000000'::bigint NOT NULL,
-    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL
+    max_port_sharing_level app_sharing_level DEFAULT 'owner'::app_sharing_level NOT NULL,
+    cors_behavior app_cors_behavior DEFAULT 'simple'::app_cors_behavior NOT NULL
 );
 
 COMMENT ON COLUMN templates.default_ttl IS 'The default duration for autostop for workspaces created from this template.';
@@ -1343,6 +1344,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
+    templates.cors_behavior,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(organizations.name, ''::text) AS organization_name,

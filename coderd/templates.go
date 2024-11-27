@@ -316,7 +316,8 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
-		maxPortShareLevel                    = database.AppSharingLevelOwner // default
+		maxPortShareLevel                    = database.AppSharingLevelOwner  // default
+		corsBehavior                         = database.AppCorsBehaviorSimple // default
 	)
 	if defaultTTL < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -343,6 +344,14 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			validErrs = append(validErrs, codersdk.ValidationError{Field: "max_port_share_level", Detail: err.Error()})
 		} else {
 			maxPortShareLevel = database.AppSharingLevel(*createTemplate.MaxPortShareLevel)
+		}
+	}
+	if createTemplate.CORSBehavior != nil {
+		val := codersdk.AppCORSBehavior(*createTemplate.CORSBehavior)
+		if err := val.Validate(); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
+		} else {
+			corsBehavior = database.AppCORSBehavior(val)
 		}
 	}
 
@@ -403,6 +412,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 			Icon:                         createTemplate.Icon,
 			AllowUserCancelWorkspaceJobs: allowUserCancelWorkspaceJobs,
 			MaxPortSharingLevel:          maxPortShareLevel,
+			CORSBehavior:                 corsBehavior,
 		})
 		if err != nil {
 			return xerrors.Errorf("insert template: %s", err)
@@ -633,6 +643,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		validErrs                            []codersdk.ValidationError
 		autostopRequirementDaysOfWeekParsed  uint8
 		autostartRequirementDaysOfWeekParsed uint8
+		corsBehavior                         database.AppCORSBehavior
 	)
 	if req.DefaultTTLMillis < 0 {
 		validErrs = append(validErrs, codersdk.ValidationError{Field: "default_ttl_ms", Detail: "Must be a positive integer."})
@@ -705,6 +716,15 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
+	if req.CORSBehavior != nil {
+		val := codersdk.AppCORSBehavior(*req.CORSBehavior)
+		if err := val.Validate(); err != nil {
+			validErrs = append(validErrs, codersdk.ValidationError{Field: "cors_behavior", Detail: err.Error()})
+		} else {
+			corsBehavior = database.AppCORSBehavior(val)
+		}
+	}
+
 	if len(validErrs) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
 			Message:     "Invalid request to update template metadata!",
@@ -732,7 +752,8 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			req.TimeTilDormantAutoDeleteMillis == time.Duration(template.TimeTilDormantAutoDelete).Milliseconds() &&
 			req.RequireActiveVersion == template.RequireActiveVersion &&
 			(deprecationMessage == template.Deprecated) &&
-			maxPortShareLevel == template.MaxPortSharingLevel {
+			maxPortShareLevel == template.MaxPortSharingLevel &&
+			corsBehavior == template.CORSBehavior {
 			return nil
 		}
 
@@ -773,6 +794,7 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 			AllowUserCancelWorkspaceJobs: req.AllowUserCancelWorkspaceJobs,
 			GroupACL:                     groupACL,
 			MaxPortSharingLevel:          maxPortShareLevel,
+			CORSBehavior:                 corsBehavior,
 		})
 		if err != nil {
 			return xerrors.Errorf("update template metadata: %w", err)
@@ -1055,6 +1077,7 @@ func (api *API) convertTemplate(
 		Deprecated:           templateAccessControl.IsDeprecated(),
 		DeprecationMessage:   templateAccessControl.Deprecated,
 		MaxPortShareLevel:    maxPortShareLevel,
+		CORSBehavior:         codersdk.AppCORSBehavior(template.CORSBehavior),
 	}
 }
 

@@ -110,6 +110,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"require_active_version":            ActionTrack,
 		"deprecated":                        ActionTrack,
 		"max_port_sharing_level":            ActionTrack,
+		"cors_behavior":                     ActionTrack,
 		"activity_bump":                     ActionTrack,
 	},
 	&database.TemplateVersion{}: {

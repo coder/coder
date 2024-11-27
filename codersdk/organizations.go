@@ -189,6 +189,9 @@ type CreateTemplateRequest struct {
 	// MaxPortShareLevel allows optionally specifying the maximum port share level
 	// for workspaces created from the template.
 	MaxPortShareLevel *WorkspaceAgentPortShareLevel `json:"max_port_share_level"`
+
+	// CORSBehavior allows optionally specifying the CORS behavior for all shared ports.
+	CORSBehavior *AppCORSBehavior `json:"cors_behavior"`
 }
 
 // CreateWorkspaceRequest provides options for creating a new workspace.
