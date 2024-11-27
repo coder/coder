@@ -424,8 +424,8 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			// Use the passed in app middlewares and CORS middleware with the token
-			mws := chi.Middlewares(append(middlewares, s.injectCORSBehavior(token), httpmw.WorkspaceAppCors(s.HostnameRegex, app)))
+			// Proxy the request (possibly with the CORS middleware).
+			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token, app)))
 			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
@@ -433,15 +433,33 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 	}
 }
 
-func (s *Server) injectCORSBehavior(token *SignedToken) func(http.Handler) http.Handler {
+// determineCORSBehavior examines the given token and conditionally applies
+// CORS middleware if the token specifies that behavior.
+func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
+		// Create the CORS middleware handler upfront.
+		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
+
 		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			var behavior cors.AppCORSBehavior
 			if token != nil {
 				behavior = token.CORSBehavior
 			}
 
-			next.ServeHTTP(rw, r.WithContext(cors.WithBehavior(r.Context(), behavior)))
+			// Add behavior to context regardless of which handler we use,
+			// since we will use this later on to determine if we should strip
+			// CORS headers in the response.
+			r = r.WithContext(cors.WithBehavior(r.Context(), behavior))
+
+			switch behavior {
+			case cors.AppCORSBehaviorPassthru:
+				// Bypass the CORS middleware.
+				next.ServeHTTP(rw, r)
+				return
+			default:
+				// Apply the CORS middleware.
+				corsHandler.ServeHTTP(rw, r)
+			}
 		})
 	}
 }
