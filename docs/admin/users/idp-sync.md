@@ -304,13 +304,66 @@ Visit the Coder UI to confirm these changes:
 
 ## Organization Sync (Premium)
 
-> Note: In a future Coder release, this can be managed via the Coder UI instead
-> of server flags.
-
 If your OpenID Connect provider supports groups/role claims, you can configure
 Coder to synchronize claims in your auth provider to organizations within Coder.
 
-First, confirm that your OIDC provider is sending clainms by logging in with
+Viewing and editing the organization settings requires deployment admin permissions (UserAdmin or Owner).
+
+Organization sync works across all organizations. On user login, the sync will add and remove the user from organizations based on their IdP claims. After the sync, the user's state should match that of the IdP.
+
+You can initiate an organization sync through the CLI or through the Coder dashboard:
+
+<div class=”tabs”
+
+## CLI
+
+Use the Coder CLI to show and adjust the settings.
+
+These deployment-wide settings are stored in the database. After you change the settings, a user's memberships will update when they log out and log back in.
+
+1. Show the current settings:
+
+   ```console
+   coder organization settings show org-sync
+   {
+      "field": "organizations",
+      "mapping": {
+         "product": ["868e9b76-dc6e-46ab-be74-a891e9bd784b", "cbdcf774-9412-4118-8cd9-b3f502c84dfb"]
+      },
+      "organization_assign_default": true
+   }
+   ```
+
+1. Update with the JSON payload. In this example, `settings.json` contains the payload:
+
+   ```console
+   coder organization settings set org-sync < settings.json
+   {
+      "field": "organizations",
+      "mapping": {
+         "product": [
+            "868e5b23-dc6e-46ab-be74-a891e9bd784b",
+            "cbdcf774-4123-4118-8cd9-b3f502c84dfb"
+         ],
+         "sales": [
+            "d79144d9-b30a-555a-9af8-7dac83b2q4ec",
+         ]
+      },
+      "organization_assign_default": true
+   }
+   ```
+
+Analyzing the JSON payload:
+
+| Field | Explanation |
+|:--|:--|
+| field | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.|
+| mapping | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you. |
+| organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
+
+## Dashboard
+
+First, confirm that your OIDC provider is sending claims by logging in with
 OIDC and visiting the following URL with an `Owner` account:
 
 ```text
@@ -356,6 +409,8 @@ disable that with:
 ```env
 CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT=false
 ```
+
+</div>
 
 ## Troubleshooting group/role/organization sync
 
