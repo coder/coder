@@ -1,4 +1,4 @@
-import { URL } from "url";
+import { URL } from "node:url";
 import type * as TypesGen from "api/typesGenerated";
 
 export const createAppLinkHref = (
