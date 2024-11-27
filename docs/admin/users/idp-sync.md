@@ -307,11 +307,15 @@ Visit the Coder UI to confirm these changes:
 If your OpenID Connect provider supports groups/role claims, you can configure
 Coder to synchronize claims in your auth provider to organizations within Coder.
 
-Viewing and editing the organization settings requires deployment admin permissions (UserAdmin or Owner).
+Viewing and editing the organization settings requires deployment admin
+permissions (UserAdmin or Owner).
 
-Organization sync works across all organizations. On user login, the sync will add and remove the user from organizations based on their IdP claims. After the sync, the user's state should match that of the IdP.
+Organization sync works across all organizations. On user login, the sync will
+add and remove the user from organizations based on their IdP claims. After the
+sync, the user's state should match that of the IdP.
 
-You can initiate an organization sync through the CLI or through the Coder dashboard:
+You can initiate an organization sync through the CLI or through the Coder
+dashboard:
 
 <div class=”tabs”
 
@@ -319,7 +323,8 @@ You can initiate an organization sync through the CLI or through the Coder dashb
 
 Use the Coder CLI to show and adjust the settings.
 
-These deployment-wide settings are stored in the database. After you change the settings, a user's memberships will update when they log out and log back in.
+These deployment-wide settings are stored in the database. After you change the
+settings, a user's memberships will update when they log out and log back in.
 
 1. Show the current settings:
 
@@ -334,7 +339,8 @@ These deployment-wide settings are stored in the database. After you change the 
    }
    ```
 
-1. Update with the JSON payload. In this example, `settings.json` contains the payload:
+1. Update with the JSON payload. In this example, `settings.json` contains the
+   payload:
 
    ```console
    coder organization settings set org-sync < settings.json
@@ -355,60 +361,60 @@ These deployment-wide settings are stored in the database. After you change the 
 
 Analyzing the JSON payload:
 
-| Field | Explanation |
-|:--|:--|
-| field | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.|
-| mapping | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you. |
+| Field                       | Explanation                                                                                                                                                                                                                                                                             |
+| :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
+| mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
 | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
 
 ## Dashboard
 
-First, confirm that your OIDC provider is sending claims by logging in with
-OIDC and visiting the following URL with an `Owner` account:
+1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
+   the following URL with an `Owner` account:
 
-```text
-https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
-```
+   ```text
+   https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
+   ```
 
-You should see a field in either `id_token_claims`, `user_info_claims` or both
-followed by a list of the user's OIDC groups in the response. This is the
-[claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims) sent by
-the OIDC provider. See
-[Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
+   You should see a field in either `id_token_claims`, `user_info_claims` or
+   both followed by a list of the user's OIDC groups in the response. This is
+   the [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims)
+   sent by the OIDC provider. See
+   [Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
 
-> Depending on the OIDC provider, this claim may be named differently. Common
-> ones include `groups`, `memberOf`, and `roles`.
+   Depending on the OIDC provider, this claim may be called something else.
+   Common names include `groups`, `memberOf`, and `roles`.
 
-Next configure the Coder server to read groups from the claim name with the OIDC
-organization field server flag:
+1. Configure the Coder server to read groups from the claim name with the OIDC
+   organization field server flag:
 
-```sh
-# as an environment variable
-CODER_OIDC_ORGANIZATION_FIELD=groups
-```
+   ```sh
+   # as an environment variable
+   CODER_OIDC_ORGANIZATION_FIELD=groups
+   ```
 
-Next, fetch the corresponding organization IDs using the following endpoint:
+1. Fetch the corresponding organization IDs using the following endpoint:
 
-```text
-https://[coder.example.com]/api/v2/organizations
-```
+   ```text
+   https://[coder.example.com]/api/v2/organizations
+   ```
 
-Set the following in your Coder server [configuration](../setup/index.md).
+1. Set the following in your Coder server [configuration](../setup/index.md).
 
-```env
-CODER_OIDC_ORGANIZATION_MAPPING='{"data-scientists":["d8d9daef-e273-49ff-a832-11fe2b2d4ab1", "70be0908-61b5-4fb5-aba4-4dfb3a6c5787"]}'
-```
+   ```env
+   CODER_OIDC_ORGANIZATION_MAPPING='{"data-scientists":["d8d9daef-e273-49ff-a832-11fe2b2d4ab1",  "70be0908-61b5-4fb5-aba4-4dfb3a6c5787"]}'
+   ```
 
-> One claim value from your identity provider can be mapped to many
-> organizations in Coder (e.g. the example above maps to 2 organizations in
-> Coder.)
+   > One claim value from your identity provider can be mapped to many
+   > organizations in Coder. The example above maps to two organizations in
+   > Coder.
 
-By default, all users are assigned to the default (first) organization. You can
-disable that with:
+1. By default, all users are assigned to the default (first) organization. You
+   can disable that with:
 
-```env
-CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT=false
-```
+   ```env
+   CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT=false
+   ```
 
 </div>
 
