@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/jwtutils"
-	"github.com/coder/coder/v2/coderd/workspaceapps/cors"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -27,7 +26,7 @@ type SignedToken struct {
 	WorkspaceID  uuid.UUID            `json:"workspace_id"`
 	AgentID      uuid.UUID            `json:"agent_id"`
 	AppURL       string               `json:"app_url"`
-	CORSBehavior cors.AppCORSBehavior `json:"cors_behavior"`
+	CORSBehavior codersdk.AppCORSBehavior `json:"cors_behavior"`
 }
 
 // MatchesRequest returns true if the token matches the request. Any token that

@@ -22,7 +22,6 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
-	"github.com/coder/coder/v2/coderd/workspaceapps/cors"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -102,7 +101,7 @@ type App struct {
 	Path   string
 
 	// Control the behavior of CORS handling.
-	CORSBehavior cors.AppCORSBehavior
+	CORSBehavior codersdk.AppCORSBehavior
 }
 
 // Details are the full test details returned from setupProxyTestWithFactory.
@@ -271,7 +270,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		WorkspaceName: workspace.Name,
 		AgentName:     agnt.Name,
 		AppSlugOrPort: proxyTestAppNamePublicCORSPassthru,
-		CORSBehavior:  cors.AppCORSBehaviorPassthru,
+		CORSBehavior:  codersdk.AppCORSBehaviorPassthru,
 		Query:         proxyTestAppQuery,
 	}
 	details.Apps.AuthenticatedCORSPassthru = App{
@@ -279,7 +278,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		WorkspaceName: workspace.Name,
 		AgentName:     agnt.Name,
 		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSPassthru,
-		CORSBehavior:  cors.AppCORSBehaviorPassthru,
+		CORSBehavior:  codersdk.AppCORSBehaviorPassthru,
 		Query:         proxyTestAppQuery,
 	}
 	details.Apps.PublicCORSDefault = App{
