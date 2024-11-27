@@ -69,26 +69,18 @@ func CLI() error {
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
 	if err != nil {
-<<<<<<< Updated upstream
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for niceness.
-		printfStdErr("failed to adjust niceness to %q: %v", *nice, err)
-=======
-		return xerrors.Errorf("set nice score for cmd %v: %w", args, err)
->>>>>>> Stashed changes
+		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
 	}
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
-<<<<<<< Updated upstream
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for oom_score_adj.
-		printfStdErr("failed to adjust oom score to %q: %v", *nice, err)
-=======
-		return xerrors.Errorf("set oom score for cmd %v: %w", args, err)
->>>>>>> Stashed changes
+		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, args, err)
 	}
 
 	path, err := exec.LookPath(args[0])
