@@ -6,7 +6,7 @@ export default {
 	},
 	plugins: [AnimatePlugin],
 	darkMode: ["selector"],
-	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
+	content: ["./index.html", "./src/**/*.{ts,tsx}"],
 	important: "#root, #storybook-root",
 	theme: {
 		extend: {
