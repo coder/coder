@@ -195,18 +195,18 @@ const getNavigation = (manifest: Manifest): Nav => {
 };
 
 const removeHtmlComments = (input: string) => {
-	if (!input) return '';
-  
+	if (!input) return "";
+
 	let lastResult = input;
-	let currentResult = '';
-	
+	let currentResult = "";
+
 	// Keep replacing until no more changes occur
 	do {
-	  currentResult = lastResult.replace(/<!--[\s\S]*?-->/g, '');
-	  if (currentResult === lastResult) {
-		break;
-	  }
-	  lastResult = currentResult;
+		currentResult = lastResult.replace(/<!--[\s\S]*?-->/g, "");
+		if (currentResult === lastResult) {
+			break;
+		}
+		lastResult = currentResult;
 	} while (true);
 	return currentResult;
 };
