@@ -1,5 +1,5 @@
 import type * as TypesGen from "api/typesGenerated";
-import URLParse from 'url-parse';
+import URLParse from "url-parse";
 
 export const createAppLinkHref = (
 	protocol: string,
@@ -30,10 +30,10 @@ export const createAppLinkHref = (
 	}
 
 	if (appsHost && app.subdomain && app.subdomain_name) {
-		const url = new URLParse('');
-		url.set('protocol', protocol);
-		url.set('hostname', appsHost.replace('*', app.subdomain_name));
-		url.set('pathname', '/');
+		const url = new URLParse("");
+		url.set("protocol", protocol);
+		url.set("hostname", appsHost.replace("*", app.subdomain_name));
+		url.set("pathname", "/");
 
 		href = url.toString();
 	}
