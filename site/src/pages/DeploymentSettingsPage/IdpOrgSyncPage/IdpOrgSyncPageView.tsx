@@ -23,7 +23,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { Label } from "components/ui/Label";
 import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
-import { Switch } from "components/ui/Switch";
+import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";
