@@ -20,7 +20,7 @@ export const DefaultOff: Story = {
 	args: {
 		checked: false,
 		disabled: false,
-	}
+	},
 };
 
 export const DisabledOn: Story = {
@@ -36,4 +36,3 @@ export const DisabledOff: Story = {
 		disabled: true,
 	},
 };
-

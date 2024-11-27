@@ -16,14 +16,14 @@ import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
+import { Switch } from "components/Switch/Switch";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { Label } from "components/Label/Label";
 import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
-import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";
