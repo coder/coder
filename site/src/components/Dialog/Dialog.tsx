@@ -1,3 +1,7 @@
+/**
+ * Copied from shadc/ui on 11/13/2024
+ * @see {@link https://ui.shadcn.com/docs/components/dialog}
+ */
 import * as DialogPrimitive from "@radix-ui/react-dialog";
 import { X } from "lucide-react";
 import { forwardRef } from "react";
