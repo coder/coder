@@ -38,9 +38,7 @@ import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import { minify } from 'html-minifier';
-
-
+import { minify } from "html-minifier";
 
 type FilePath = string;
 type UrlPath = string;
@@ -198,10 +196,10 @@ const getNavigation = (manifest: Manifest): Nav => {
 };
 
 const removeHtmlComments = (input: string) => {
-		if (!input) return '';
-		return minify(input, {
-			removeComments: true,
-		});
+	if (!input) return "";
+	return minify(input, {
+		removeComments: true,
+	});
 };
 
 export const getStaticPaths: GetStaticPaths = () => {
