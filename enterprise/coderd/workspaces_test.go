@@ -1685,6 +1685,10 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 func TestNextStartAtIsNullifiedOnScheduleChange(t *testing.T) {
 	t.Parallel()
 
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test uses triggers so does not work with dbmem.go")
+	}
+
 	var (
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
