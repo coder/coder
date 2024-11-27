@@ -27,7 +27,7 @@ import {
 } from "@chakra-ui/react";
 import fm from "front-matter";
 import { readFileSync } from "fs";
-import _ from "lodash";
+import _, { min } from "lodash";
 import { GetStaticPaths, GetStaticProps, NextPage } from "next";
 import Head from "next/head";
 import NextLink from "next/link";
@@ -38,7 +38,8 @@ import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import DOMPurify from 'dompurify';
+import { minify } from 'html-minifier';
+
 
 
 type FilePath = string;
@@ -198,7 +199,9 @@ const getNavigation = (manifest: Manifest): Nav => {
 
 const removeHtmlComments = (input: string) => {
 		if (!input) return '';
-		return DOMPurify.sanitize(input, { ALLOW_COMMENTS: false });
+		return minify(input, {
+			removeComments: true,
+		});
 };
 
 export const getStaticPaths: GetStaticPaths = () => {

@@ -8,9 +8,6 @@ importers:
 
   .:
     dependencies:
-      dompurify:
-        specifier: ^3.2.1
-        version: 3.2.1
       url-parse:
         specifier: ^1.5.10
         version: 1.5.10
@@ -24,14 +21,8 @@ importers:
 
 packages:
 
-  '@types/trusted-types@2.0.7':
-    resolution: {integrity: sha512-ScaPdn1dQczgbl0QFTeTOmVHFULt394XJgOQNoyVhZ6r2vLnMLJfBPd53SB52T/3G36VI1/g2MZaX0cwDuXsfw==}
-
   '@types/url-parse@1.4.11':
     resolution: {integrity: sha512-FKvKIqRaykZtd4n47LbK/W/5fhQQ1X7cxxzG9A48h0BGN+S04NH7ervcCjM8tyR0lyGru83FAHSmw2ObgKoESg==}
-
-  dompurify@3.2.1:
-    resolution: {integrity: sha512-NBHEsc0/kzRYQd+AY6HR6B/IgsqzBABrqJbpCDQII/OK6h7B7LXzweZTDsqSW2LkTRpoxf18YUP+YjGySk6B3w==}
 
   prettier@3.3.3:
     resolution: {integrity: sha512-i2tDNA0O5IrMO757lfrdQZCc2jPNDVntV0m/+4whiDfWaTKfMNgR7Qz0NAeGz/nRqF4m5/6CLzbP4/liHt12Ew==}
@@ -49,14 +40,7 @@ packages:
 
 snapshots:
 
-  '@types/trusted-types@2.0.7':
-    optional: true
-
   '@types/url-parse@1.4.11': {}
-
-  dompurify@3.2.1:
-    optionalDependencies:
-      '@types/trusted-types': 2.0.7
 
   prettier@3.3.3: {}
 
