@@ -19,7 +19,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { Button } from "components/ui/Button";
+import { Button } from "components/Button/Button";
 import { Input } from "components/ui/Input";
 import { Label } from "components/ui/Label";
 import { MultipleSelector, type Option } from "components/ui/MultipleSelector";

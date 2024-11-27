@@ -1,3 +1,7 @@
+/**
+ * Copied from shadc/ui on 11/06/2024
+ * @see {@link https://ui.shadcn.com/docs/components/button}
+ */
 import { Slot } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
 import { type FC, forwardRef } from "react";

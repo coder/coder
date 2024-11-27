@@ -1,12 +1,14 @@
-// This component is based on multiple-selector from
-// https://shadcnui-expansions.typeart.cc/docs/multiple-selector
+/**
+ * This component is based on multiple-selector
+ * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
+ */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
 import { useDebouncedValue } from "hooks/debounce";
 import { ChevronDown, X } from "lucide-react";
 import * as React from "react";
 import { forwardRef, useEffect } from "react";
 
-import { Badge } from "components/ui/Badge";
+import { Badge } from "components/Badge/Badge";
 import {
 	Command,
 	CommandGroup,
