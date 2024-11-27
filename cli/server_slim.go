@@ -2,9 +2,7 @@
 
 package cli
 
-import (
-	"github.com/coder/serpent"
-)
+import "github.com/coder/serpent"
 
 func (r *RootCmd) Server(_ func()) *serpent.Command {
 	root := &serpent.Command{
