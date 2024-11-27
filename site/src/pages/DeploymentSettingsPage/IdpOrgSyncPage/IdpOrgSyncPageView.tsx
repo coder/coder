@@ -12,6 +12,7 @@ import type {
 	OrganizationSyncSettings,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
@@ -19,8 +20,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { Button } from "components/Button/Button";
-import { Input } from "components/ui/Input";
+import { Input } from "components/Input/Input";
 import { Label } from "components/ui/Label";
 import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
 import { Switch } from "components/ui/Switch";

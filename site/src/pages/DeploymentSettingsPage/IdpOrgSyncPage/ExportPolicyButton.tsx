@@ -1,6 +1,6 @@
 import type { OrganizationSyncSettings } from "api/typesGenerated";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Button } from "components/Button/Button";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
 import { Download } from "lucide-react";
 import { type FC, useState } from "react";

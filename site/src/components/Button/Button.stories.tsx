@@ -6,47 +6,47 @@ const meta: Meta<typeof Button> = {
 	title: "components/Button",
 	component: Button,
 	args: {
-		children: "Button",
+		children: (
+			<>
+				<Trash />
+				Button
+			</>
+		),
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof Button>;
 
-export const Default: Story = {args: {
-	children: <><Trash />Button</>,
-}};
+export const Default: Story = {};
 
-export const Outline: Story = {args: {
-	variant: "outline",
-	children: <><Trash />Button</>,
-}};
+export const Outline: Story = {
+	args: {
+		variant: "outline",
+	},
+};
 
 export const Subtle: Story = {
 	args: {
 		variant: "subtle",
-		children: <><Trash />Button</>,
 	},
 };
 
 export const Warning: Story = {
 	args: {
 		variant: "warning",
-		children: <><Trash />Button</>,
 	},
 };
 
 export const DefaultDisabled: Story = {
 	args: {
 		disabled: true,
-		children: <><Trash />Button</>,
 	},
 };
 
 export const OutlineDisabled: Story = {
 	args: {
 		variant: "outline",
-		children: <><Trash />Button</>,
 		disabled: true,
 	},
 };
@@ -54,7 +54,6 @@ export const OutlineDisabled: Story = {
 export const SubtleDisabled: Story = {
 	args: {
 		variant: "subtle",
-		children: <><Trash />Button</>,
 		disabled: true,
 	},
 };
@@ -79,4 +78,3 @@ export const IconButtonSubtle: Story = {
 		children: <Trash />,
 	},
 };
-
