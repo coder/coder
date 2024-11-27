@@ -69,18 +69,26 @@ func CLI() error {
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
 	if err != nil {
+<<<<<<< Updated upstream
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for niceness.
 		printfStdErr("failed to adjust niceness to %q: %v", *nice, err)
+=======
+		return xerrors.Errorf("set nice score for cmd %v: %w", args, err)
+>>>>>>> Stashed changes
 	}
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
+<<<<<<< Updated upstream
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for oom_score_adj.
 		printfStdErr("failed to adjust oom score to %q: %v", *nice, err)
+=======
+		return xerrors.Errorf("set oom score for cmd %v: %w", args, err)
+>>>>>>> Stashed changes
 	}
 
 	path, err := exec.LookPath(args[0])
@@ -138,7 +146,7 @@ func oomScoreAdj() (int, error) {
 }
 
 func writeOOMScoreAdj(score int) error {
-	return os.WriteFile("/proc/self/oom_score_adj", []byte(fmt.Sprintf("%d", score)), 0o600)
+	return os.WriteFile(fmt.Sprintf("/proc/%d/oom_score_adj", os.Getpid()), []byte(fmt.Sprintf("%d", score)), 0o600)
 }
 
 // execArgs returns the arguments to pass to syscall.Exec after the "--" delimiter.
