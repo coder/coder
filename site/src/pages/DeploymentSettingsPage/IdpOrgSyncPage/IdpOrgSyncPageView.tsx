@@ -21,7 +21,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { Label } from "components/ui/Label";
+import { Label } from "components/Label/Label";
 import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";

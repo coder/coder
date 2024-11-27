@@ -1,3 +1,7 @@
+/**
+ * Copied from shadc/ui on 11/13/2024
+ * @see {@link https://ui.shadcn.com/docs/components/label}
+ */
 import * as LabelPrimitive from "@radix-ui/react-label";
 import { type VariantProps, cva } from "class-variance-authority";
 import { forwardRef } from "react";
