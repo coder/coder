@@ -7699,16 +7699,17 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 
 	//nolint:gosimple
 	version := database.TemplateVersionTable{
-		ID:             arg.ID,
-		TemplateID:     arg.TemplateID,
-		OrganizationID: arg.OrganizationID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		Name:           arg.Name,
-		Message:        arg.Message,
-		Readme:         arg.Readme,
-		JobID:          arg.JobID,
-		CreatedBy:      arg.CreatedBy,
+		ID:              arg.ID,
+		TemplateID:      arg.TemplateID,
+		OrganizationID:  arg.OrganizationID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Name:            arg.Name,
+		Message:         arg.Message,
+		Readme:          arg.Readme,
+		JobID:           arg.JobID,
+		CreatedBy:       arg.CreatedBy,
+		SourceExampleID: arg.SourceExampleID,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
