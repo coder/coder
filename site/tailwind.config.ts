@@ -1,13 +1,13 @@
 import AnimatePlugin from "tailwindcss-animate";
 
-export default  {
+export default {
 	corePlugins: {
 		preflight: false,
 	},
 	plugins: [AnimatePlugin],
 	darkMode: ["selector"],
 	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
-	important: ["#root", "#storybook-root"],
+	important: "#root, #storybook-root",
 	theme: {
 		extend: {
 			fontSize: {
@@ -50,4 +50,4 @@ export default  {
 			},
 		},
 	},
-} satisfies import('tailwindcss').Config;
+} satisfies import("tailwindcss").Config;
