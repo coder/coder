@@ -317,7 +317,7 @@ sync, the user's state should match that of the IdP.
 You can initiate an organization sync through the CLI or through the Coder
 dashboard:
 
-<div class=”tabs”
+<div class=”tabs”>
 
 ## CLI
 
