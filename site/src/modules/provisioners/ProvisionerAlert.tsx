@@ -1,31 +1,33 @@
-import Alert, { type AlertColor } from "@mui/material/Alert";
 import AlertTitle from "@mui/material/AlertTitle";
-import { Stack } from "components/Stack/Stack";
+import { Alert, type AlertColor } from "components/Alert/Alert";
 import { AlertDetail } from "components/Alert/Alert";
-import type { FC } from "react";
+import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
+import type { FC } from "react";
 
 interface ProvisionerAlertProps {
-	matchingProvisioners: number | undefined,
-	availableProvisioners: number | undefined,
-	tags: Record<string, string>
+	matchingProvisioners: number | undefined;
+	availableProvisioners: number | undefined;
+	tags: Record<string, string>;
 }
 
-export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
+export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	matchingProvisioners,
 	availableProvisioners,
-	tags
+	tags,
 }) => {
 	let title: string;
 	let detail: string;
 	switch (true) {
-		case (matchingProvisioners === 0):
-			title="Provisioning Cannot Proceed"
-			detail="There are no provisioners that accept the required tags. Please contact your administrator. Once a compatible provisioner becomes available, provisioning will continue."
+		case matchingProvisioners === 0:
+			title = "Provisioning Cannot Proceed";
+			detail =
+				"There are no provisioners that accept the required tags. Please contact your administrator. Once a compatible provisioner becomes available, provisioning will continue.";
 			break;
-		case (availableProvisioners === 0):
-			title="Provisioning Delayed"
-			detail="Provisioners that accept the required tags are currently anavailable. This may delay your build. Please contact your administrator if your build does not complete."
+		case availableProvisioners === 0:
+			title = "Provisioning Delayed";
+			detail =
+				"Provisioners that accept the required tags are currently anavailable. This may delay your build. Please contact your administrator if your build does not complete.";
 			break;
 		default:
 			return null;
@@ -48,11 +50,7 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 					{Object.entries(tags)
 						.filter(([key]) => key !== "owner")
 						.map(([key, value]) => (
-							<ProvisionerTag
-								key={key}
-								tagName={key}
-								tagValue={value}
-							/>
+							<ProvisionerTag key={key} tagName={key} tagValue={value} />
 						))}
 				</Stack>
 			</AlertDetail>
@@ -61,13 +59,13 @@ export const ProvisionerAlert : FC<ProvisionerAlertProps> = ({
 };
 
 interface ProvisionerJobAlertProps {
-	title: string
-	detail: string
-	severity: AlertColor
-	tags: Record<string, string>
+	title: string;
+	detail: string;
+	severity: AlertColor;
+	tags: Record<string, string>;
 }
 
-export const ProvisionerJobAlert : FC<ProvisionerJobAlertProps> = ({
+export const ProvisionerJobAlert: FC<ProvisionerJobAlertProps> = ({
 	title,
 	detail,
 	severity,
@@ -90,11 +88,7 @@ export const ProvisionerJobAlert : FC<ProvisionerJobAlertProps> = ({
 					{Object.entries(tags)
 						.filter(([key]) => key !== "owner")
 						.map(([key, value]) => (
-							<ProvisionerTag
-								key={key}
-								tagName={key}
-								tagValue={value}
-							/>
+							<ProvisionerTag key={key} tagName={key} tagValue={value} />
 						))}
 				</Stack>
 			</AlertDetail>

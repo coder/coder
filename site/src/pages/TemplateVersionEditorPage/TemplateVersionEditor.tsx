@@ -4,7 +4,6 @@ import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
@@ -17,7 +16,7 @@ import type {
 	VariableValue,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert } from "components/Alert/Alert";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -29,6 +28,10 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import {
+	ProvisionerAlert,
+	ProvisionerJobAlert,
+} from "modules/provisioners/ProvisionerAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -60,7 +63,6 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
-import { ProvisionerAlert, ProvisionerJobAlert } from "modules/provisioners/ProvisionerAlert";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -127,9 +129,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
-	const matchingProvisioners = templateVersion.matched_provisioners?.count
-	const availableProvisioners = templateVersion.matched_provisioners?.available
-
+	const matchingProvisioners = templateVersion.matched_provisioners?.count;
+	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
 	const triggerPreview = useCallback(async () => {
 		await onPreview(fileTree);

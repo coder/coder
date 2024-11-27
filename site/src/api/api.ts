@@ -686,16 +686,16 @@ class ApiMethods {
 	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
-		tags?: Record<string, string>
+		tags?: Record<string, string>,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
 		const params = new URLSearchParams();
 
 		if (tags) {
-			params.append('tags', JSON.stringify(tags));
+			params.append("tags", JSON.stringify(tags));
 		}
 
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons?${params.toString()}`
+			`/api/v2/organizations/${organization}/provisionerdaemons?${params.toString()}`,
 		);
 		return response.data;
 	};

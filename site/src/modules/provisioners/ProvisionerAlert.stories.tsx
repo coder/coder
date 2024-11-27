@@ -24,32 +24,32 @@ export const HealthyProvisioners: Story = {
 	args: {
 		matchingProvisioners: 1,
 		availableProvisioners: 1,
-	}
+	},
 };
 
 export const UndefinedMatchingProvisioners: Story = {
 	args: {
 		matchingProvisioners: undefined,
-		availableProvisioners: undefined
-	}
+		availableProvisioners: undefined,
+	},
 };
 
 export const UndefinedAvailableProvisioners: Story = {
 	args: {
 		matchingProvisioners: 1,
-		availableProvisioners: undefined
-	}
+		availableProvisioners: undefined,
+	},
 };
 
 export const NoMatchingProvisioners: Story = {
 	args: {
 		matchingProvisioners: 0,
-	}
+	},
 };
 
 export const NoAvailableProvisioners: Story = {
 	args: {
 		matchingProvisioners: 1,
 		availableProvisioners: 0,
-	}
+	},
 };

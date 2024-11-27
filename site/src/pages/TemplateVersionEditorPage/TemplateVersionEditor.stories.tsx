@@ -80,8 +80,8 @@ export const NoProvisioners: Story = {
 			job: MockRunningProvisionerJob,
 			matched_provisioners: {
 				count: 0,
-				available: 0
-			}
+				available: 0,
+			},
 		},
 	},
 };
@@ -95,8 +95,8 @@ export const UnavailableProvisioners: Story = {
 			job: MockRunningProvisionerJob,
 			matched_provisioners: {
 				count: 1,
-				available: 0
-			}
+				available: 0,
+			},
 		},
 	},
 };
@@ -110,8 +110,8 @@ export const HealthyProvisioners: Story = {
 			job: MockRunningProvisionerJob,
 			matched_provisioners: {
 				count: 1,
-				available: 1
-			}
+				available: 1,
+			},
 		},
 	},
 };

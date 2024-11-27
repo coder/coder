@@ -41,7 +41,7 @@ export const NoProvisioners: Story = {
 			matched_provisioners: {
 				count: 0,
 				available: 0,
-			}
+			},
 		},
 	},
 };
@@ -53,7 +53,7 @@ export const ProvisionersUnhealthy: Story = {
 			matched_provisioners: {
 				count: 1,
 				available: 0,
-			}
+			},
 		},
 	},
 };
@@ -66,11 +66,10 @@ export const ProvisionersHealthy: Story = {
 			matched_provisioners: {
 				count: 1,
 				available: 1,
-			}
+			},
 		},
 	},
 };
-
 
 export const Logs: Story = {
 	args: {

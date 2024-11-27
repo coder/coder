@@ -8,11 +8,11 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
 import { navHeight } from "theme/constants";
-import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 
 type BuildLogsDrawerProps = {
 	error: unknown;
@@ -28,8 +28,9 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
-	const matchingProvisioners = templateVersion?.matched_provisioners?.count
-	const availableProvisioners = templateVersion?.matched_provisioners?.available
+	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
+	const availableProvisioners =
+		templateVersion?.matched_provisioners?.available;
 
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
@@ -69,7 +70,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{  !logs && (
+				{!logs && (
 					<ProvisionerAlert
 						matchingProvisioners={matchingProvisioners}
 						availableProvisioners={availableProvisioners}
