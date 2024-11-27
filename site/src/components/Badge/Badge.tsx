@@ -1,3 +1,7 @@
+/**
+ * Copied from shadc/ui on 11/13/2024
+ * @see {@link https://ui.shadcn.com/docs/components/badge}
+ */
 import { type VariantProps, cva } from "class-variance-authority";
 import type { FC } from "react";
 
@@ -10,11 +14,6 @@ export const badgeVariants = cva(
 			variant: {
 				default:
 					"border-transparent bg-surface-secondary text-content-secondary shadow hover:bg-surface-tertiary",
-				secondary:
-					"border-transparent bg-surface-secondary text-content-secondary hover:bg-surface-tertiary",
-				destructive:
-					"border-transparent bg-surface-error text-content-danger shadow hover:bg-surface-error/80",
-				outline: "text-content-primary",
 			},
 		},
 		defaultVariants: {
