@@ -15,6 +15,43 @@ variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
+# See https://registry.coder.com/modules/gcp-region
+module "gcp_region" {
+  source = "registry.coder.com/modules/gcp-region/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  regions = ["us", "europe"]
+  default = "us-central1-a"
+}
+
+provider "google" {
+  zone    = module.gcp_region.value
+  project = var.project_id
+}
+
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+data "google_compute_default_service_account" "default" {}
+
+resource "google_compute_disk" "root" {
+  name  = "coder-${data.coder_workspace.me.id}-root"
+  type  = "pd-ssd"
+  zone  = module.gcp_region.value
+  image = "projects/windows-cloud/global/images/windows-server-2022-dc-core-v20220215"
+  lifecycle {
+    ignore_changes = [name, image]
+  }
+}
+
+resource "coder_agent" "main" {
+  auth = "google-instance-identity"
+  arch = "amd64"
+  os   = "windows"
+}
+
 # See https://registry.coder.com/modules/code-server
 module "code-server" {
   count  = data.coder_workspace.me.start_count
@@ -45,32 +82,6 @@ module "jetbrains_gateway" {
   agent_id   = coder_agent.main.id
   agent_name = "main"
   order      = 2
-}
-
-provider "google" {
-  zone    = module.gcp_region.value
-  project = var.project_id
-}
-
-data "coder_workspace" "me" {}
-data "coder_workspace_owner" "me" {}
-
-data "google_compute_default_service_account" "default" {}
-
-resource "google_compute_disk" "root" {
-  name  = "coder-${data.coder_workspace.me.id}-root"
-  type  = "pd-ssd"
-  zone  = module.gcp_region.value
-  image = "projects/windows-cloud/global/images/windows-server-2022-dc-core-v20220215"
-  lifecycle {
-    ignore_changes = [name, image]
-  }
-}
-
-resource "coder_agent" "main" {
-  auth = "google-instance-identity"
-  arch = "amd64"
-  os   = "windows"
 }
 
 resource "google_compute_instance" "dev" {
