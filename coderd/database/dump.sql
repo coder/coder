@@ -380,6 +380,20 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION nullify_workspace_next_start_at() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	IF (NEW.autostart_schedule <> OLD.autostart_schedule) AND (NEW.next_start_at = OLD.next_start_at) THEN
+		UPDATE workspaces
+		SET next_start_at = NULL
+		WHERE id = NEW.id;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -2195,6 +2209,8 @@ CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_p
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
+
+CREATE TRIGGER trigger_update_workspaces_schedule AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_workspace_next_start_at();
 
 CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links FOR EACH ROW EXECUTE FUNCTION insert_user_links_fail_if_user_deleted();
 

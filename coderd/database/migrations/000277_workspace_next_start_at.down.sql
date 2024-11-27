@@ -1,5 +1,8 @@
 DROP VIEW workspaces_expanded;
 
+DROP TRIGGER IF EXISTS trigger_update_workspaces_schedule ON workspaces;
+DROP FUNCTION IF EXISTS nullify_workspace_next_start_at;
+
 DROP INDEX workspace_next_start_at_idx;
 
 ALTER TABLE ONLY workspaces DROP COLUMN IF EXISTS next_start_at;

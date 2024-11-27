@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -18,8 +19,10 @@ import (
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -1138,7 +1141,6 @@ func TestWorkspaceAutobuild(t *testing.T) {
 
 		// First create a template that only supports Monday-Friday
 		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version1.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserAutostart = ptr.Ref(true)
 			ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.BitmapToWeekdays(0b00011111)}
 		})
 		require.Equal(t, version1.ID, template.ActiveVersionID)
@@ -1678,6 +1680,91 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(member) fetch workspaces")
 	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
+}
+
+func TestNextStartAtIsNullifiedOnScheduleChange(t *testing.T) {
+	t.Parallel()
+
+	var (
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		clock   = quartz.NewMock(t)
+	)
+
+	// Set the clock to 8AM Monday, 1st January, 2024 to keep
+	// this test deterministic.
+	clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+
+	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	client, db, user := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+		Options: &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+			Logger:                   &logger,
+			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, clock),
+		},
+		LicenseOptions: &coderdenttest.LicenseOptions{
+			Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
+		},
+	})
+
+	version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+	// Create a template that allows autostart Monday-Sunday
+	template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
+		ctr.AutostartRequirement = &codersdk.TemplateAutostartRequirement{DaysOfWeek: codersdk.AllDaysOfWeek}
+	})
+	require.Equal(t, version.ID, template.ActiveVersionID)
+
+	// Create a workspace with a schedule Sunday-Saturday
+	sched, err := cron.Weekly("CRON_TZ=UTC 0 9 * * 0-6")
+	require.NoError(t, err)
+	ws := coderdtest.CreateWorkspace(t, client, template.ID, func(cwr *codersdk.CreateWorkspaceRequest) {
+		cwr.AutostartSchedule = ptr.Ref(sched.String())
+	})
+
+	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, ws.LatestBuild.ID)
+	ws = coderdtest.MustTransitionWorkspace(t, client, ws.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Check we have a 'NextStartAt'
+	require.NotNil(t, ws.NextStartAt)
+
+	// Create a new slightly different cron schedule that could
+	// potentially make NextStartAt invalid.
+	sched, err = cron.Weekly("CRON_TZ=UTC 0 9 * * 1-6")
+	require.NoError(t, err)
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// We want to test the database nullifies the NextStartAt so we
+	// make a raw DB call here. We pass in NextStartAt here so we
+	// can test the database will nullify it and not us.
+	//nolint: gocritic // We need system context to modify this.
+	err = db.UpdateWorkspaceAutostart(dbauthz.AsSystemRestricted(ctx), database.UpdateWorkspaceAutostartParams{
+		ID:                ws.ID,
+		AutostartSchedule: sql.NullString{Valid: true, String: sched.String()},
+		NextStartAt:       sql.NullTime{Valid: true, Time: *ws.NextStartAt},
+	})
+	require.NoError(t, err)
+
+	ws = coderdtest.MustWorkspace(t, client, ws.ID)
+
+	// Check 'NextStartAt' has been nullified
+	require.Nil(t, ws.NextStartAt)
+
+	// Now we let the lifecycle executor run. This should spot that the
+	// NextStartAt is null and update it for us.
+	next := dbtime.Now()
+	tickCh <- next
+	stats := <-statsCh
+	assert.Len(t, stats.Errors, 0)
+	assert.Len(t, stats.Transitions, 0)
+
+	// Ensure NextStartAt has been set, and is the expected value
+	ws = coderdtest.MustWorkspace(t, client, ws.ID)
+	require.NotNil(t, ws.NextStartAt)
+	require.Equal(t, sched.Next(next), ws.NextStartAt.UTC())
 }
 
 func must[T any](value T, err error) T {

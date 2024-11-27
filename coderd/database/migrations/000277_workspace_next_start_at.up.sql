@@ -2,6 +2,25 @@ ALTER TABLE ONLY workspaces ADD COLUMN IF NOT EXISTS next_start_at TIMESTAMPTZ D
 
 CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted=false);
 
+CREATE FUNCTION nullify_workspace_next_start_at() RETURNS trigger
+	LANGUAGE plpgsql
+AS $$
+DECLARE
+BEGIN
+	IF (NEW.autostart_schedule <> OLD.autostart_schedule) AND (NEW.next_start_at = OLD.next_start_at) THEN
+		UPDATE workspaces
+		SET next_start_at = NULL
+		WHERE id = NEW.id;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE TRIGGER trigger_update_workspaces_schedule
+	AFTER UPDATE ON workspaces
+	FOR EACH ROW
+EXECUTE PROCEDURE nullify_workspace_next_start_at();
+
 -- Recreate view
 DROP VIEW workspaces_expanded;
 

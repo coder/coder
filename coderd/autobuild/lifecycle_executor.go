@@ -205,6 +205,27 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
+					// If next start at is not valid we need to re-compute it.
+					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
+						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
+						if err != nil {
+							return xerrors.Errorf("compute next allowed autostart: %w", err)
+						}
+
+						e.log.Debug(e.ctx, "computed next allowed", slog.F("currentTick", currentTick), slog.F("next", next), slog.F("UTC", next.UTC()))
+
+						nextStartAt := sql.NullTime{Valid: true, Time: next.UTC()}
+						if err = tx.UpdateWorkspaceNextStartAt(e.ctx, database.UpdateWorkspaceNextStartAtParams{
+							ID:          wsID,
+							NextStartAt: nextStartAt,
+						}); err != nil {
+							return xerrors.Errorf("update workspace next start at: %w", err)
+						}
+
+						// Save re-fetching the workspace
+						ws.NextStartAt = nextStartAt
+					}
+
 					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
