@@ -343,6 +343,9 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",
+    "CODER_PROC_PRIO_MGMT=1",
+    "CODER_PROC_OOM_SCORE=10",
+    "CODER_PROC_NICE_SCORE=1",
   ]
   host {
     host = "host.docker.internal"
