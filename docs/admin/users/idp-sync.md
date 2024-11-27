@@ -317,9 +317,9 @@ sync, the user's state should match that of the IdP.
 You can initiate an organization sync through the CLI or through the Coder
 dashboard:
 
-<div class=”tabs”>
+<div class="tabs">
 
-## CLI
+### CLI
 
 Use the Coder CLI to show and adjust the settings.
 
@@ -359,15 +359,15 @@ settings, a user's memberships will update when they log out and log back in.
    }
    ```
 
-Analyzing the JSON payload:
+   Analyzing the JSON payload:
 
-| Field                       | Explanation                                                                                                                                                                                                                                                                             |
-| :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
-| mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
-| organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
+   | Field                       | Explanation                                                                                                                                                                                                                                                                             |
+   | :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   | field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
+   | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
+   | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
 
-## Dashboard
+### Dashboard
 
 1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
    the following URL with an `Owner` account:
