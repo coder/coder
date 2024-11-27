@@ -23,7 +23,8 @@ const unset = -2000
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
 	// We lock the OS thread here to avoid a race condition where the nice priority
-	// we get is on a different thread from the one we set it on.
+	// we set gets applied to a different thread than the one we exec the provided
+	// command on.
 	runtime.LockOSThread()
 	// Nop on success but we do it anyway in case of an error.
 	defer runtime.UnlockOSThread()
@@ -68,12 +69,18 @@ func CLI() error {
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
 	if err != nil {
-		return xerrors.Errorf("set nice score: %w", err)
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for niceness.
+		printfStdErr("failed to adjust niceness to %q: %v", *nice, err)
 	}
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
-		return xerrors.Errorf("set oom score: %w", err)
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for oom_score_adj.
+		printfStdErr("failed to adjust oom score to %q: %v", *nice, err)
 	}
 
 	path, err := exec.LookPath(args[0])
@@ -142,4 +149,8 @@ func execArgs(args []string) []string {
 		}
 	}
 	return nil
+}
+
+func printfStdErr(format string, a ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, "coder-agent: %s\n", fmt.Sprintf(format, a...))
 }
