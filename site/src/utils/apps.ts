@@ -30,8 +30,8 @@ export const createAppLinkHref = (
 	}
 
 	if (appsHost && app.subdomain && app.subdomain_name) {
-		const url = new URL("");
-		url.protocol = protocol;
+		const baseUrl = `${protocol}//${appsHost}`;
+		const url = new URL(baseUrl);
 		url.hostname = appsHost.replace("*", app.subdomain_name);
 		url.pathname = "/";
 

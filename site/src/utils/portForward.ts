@@ -13,8 +13,9 @@ export const portForwardURL = (
 	const suffix = protocol === "https" ? "s" : "";
 
 	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
-	const url = new URL("");
-	url.protocol = location.protocol;
+
+	const baseUrl = `${location.protocol}//${host}`;
+	const url = new URL(baseUrl);
 	url.hostname = host.replace("*", subdomain);
 
 	return url.toString();
