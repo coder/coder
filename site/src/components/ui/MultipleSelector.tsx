@@ -81,7 +81,7 @@ interface MultipleSelectorProps {
 		React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
 		"value" | "placeholder" | "disabled"
 	>;
-	/** hide the clear all button. */
+	/** hide or show the button that clears all the selected options. */
 	hideClearAllButton?: boolean;
 }
 
@@ -92,7 +92,7 @@ export interface MultipleSelectorRef {
 	reset: () => void;
 }
 
-function transToGroupOption(options: Option[], groupBy?: string) {
+function transitionToGroupOption(options: Option[], groupBy?: string) {
 	if (options.length === 0) {
 		return {};
 	}
@@ -114,7 +114,7 @@ function transToGroupOption(options: Option[], groupBy?: string) {
 }
 
 function removePickedOption(groupOption: GroupOption, picked: Option[]) {
-	const cloneOption = JSON.parse(JSON.stringify(groupOption)) as GroupOption;
+	const cloneOption = structuredClone(groupOption);
 
 	for (const [key, value] of Object.entries(cloneOption)) {
 		cloneOption[key] = value.filter(
@@ -125,19 +125,14 @@ function removePickedOption(groupOption: GroupOption, picked: Option[]) {
 }
 
 function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
-	for (const [, value] of Object.entries(groupOption)) {
-		if (
-			value.some((option) => targetOption.find((p) => p.value === option.value))
-		) {
-			return true;
-		}
-	}
-	return false;
+	return Object.values(groupOption).some((value) =>
+		value.some((option) => targetOption.some((o) => o.value === option.value)),
+	);
 }
 
 /**
- * The `CommandEmpty` of shadcn/ui will cause the cmdk empty not rendering correctly.
- * So we create one and copy the `Empty` implementation from `cmdk`.
+ * The `CommandEmpty` of shadcn/ui will cause the cmdk-empty to not render correctly.
+ * Here a new CommandEmpty is created using the `Empty` implementation from `cmdk`.
  *
  * @reference: https://github.com/hsuanyi-chou/shadcn-ui-expansions/issues/34#issuecomment-1949561607
  **/
@@ -190,7 +185,7 @@ export const MultipleSelector = React.forwardRef<
 			inputProps,
 			hideClearAllButton = false,
 		}: MultipleSelectorProps,
-		ref: React.Ref<MultipleSelectorRef>,
+		ref,
 	) => {
 		const inputRef = React.useRef<HTMLInputElement>(null);
 		const [open, setOpen] = React.useState(false);
@@ -200,7 +195,7 @@ export const MultipleSelector = React.forwardRef<
 
 		const [selected, setSelected] = React.useState<Option[]>(value || []);
 		const [options, setOptions] = React.useState<GroupOption>(
-			transToGroupOption(arrayDefaultOptions, groupBy),
+			transitionToGroupOption(arrayDefaultOptions, groupBy),
 		);
 		const [inputValue, setInputValue] = React.useState("");
 		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
@@ -214,21 +209,6 @@ export const MultipleSelector = React.forwardRef<
 				reset: () => setSelected([]),
 			}),
 			[selected],
-		);
-
-		const handleClickOutside = React.useCallback(
-			(event: MouseEvent | TouchEvent) => {
-				if (
-					dropdownRef.current &&
-					!dropdownRef.current.contains(event.target as Node) &&
-					inputRef.current &&
-					!inputRef.current.contains(event.target as Node)
-				) {
-					setOpen(false);
-					inputRef.current.blur();
-				}
-			},
-			[],
 		);
 
 		const handleUnselect = React.useCallback(
@@ -263,19 +243,32 @@ export const MultipleSelector = React.forwardRef<
 		);
 
 		useEffect(() => {
+			const handleClickOutside = (event: MouseEvent | TouchEvent) => {
+				if (
+					dropdownRef.current &&
+					!dropdownRef.current.contains(event.target as Node) &&
+					inputRef.current &&
+					!inputRef.current.contains(event.target as Node)
+				) {
+					setOpen(false);
+					inputRef.current.blur();
+				}
+			};
+
+			if (!open) {
+				return;
+			}
+
 			if (open) {
 				document.addEventListener("mousedown", handleClickOutside);
 				document.addEventListener("touchend", handleClickOutside);
-			} else {
-				document.removeEventListener("mousedown", handleClickOutside);
-				document.removeEventListener("touchend", handleClickOutside);
 			}
 
 			return () => {
 				document.removeEventListener("mousedown", handleClickOutside);
 				document.removeEventListener("touchend", handleClickOutside);
 			};
-		}, [open, handleClickOutside]);
+		}, [open]);
 
 		useEffect(() => {
 			if (value) {
@@ -288,7 +281,7 @@ export const MultipleSelector = React.forwardRef<
 			if (!arrayOptions || onSearch) {
 				return;
 			}
-			const newOption = transToGroupOption(arrayOptions || [], groupBy);
+			const newOption = transitionToGroupOption(arrayOptions || [], groupBy);
 			if (JSON.stringify(newOption) !== JSON.stringify(options)) {
 				setOptions(newOption);
 			}
@@ -299,7 +292,7 @@ export const MultipleSelector = React.forwardRef<
 
 			const doSearchSync = () => {
 				const res = onSearchSync?.(debouncedSearchTerm);
-				setOptions(transToGroupOption(res || [], groupBy));
+				setOptions(transitionToGroupOption(res || [], groupBy));
 			};
 
 			const exec = async () => {
@@ -330,7 +323,7 @@ export const MultipleSelector = React.forwardRef<
 			const doSearch = async () => {
 				setIsLoading(true);
 				const res = await onSearch?.(debouncedSearchTerm);
-				setOptions(transToGroupOption(res || [], groupBy));
+				setOptions(transitionToGroupOption(res || [], groupBy));
 				setIsLoading(false);
 			};
 
@@ -415,7 +408,7 @@ export const MultipleSelector = React.forwardRef<
 		);
 
 		/** Avoid Creatable Selector freezing or lagging when paste a long string. */
-		const commandFilter = React.useCallback(() => {
+		const commandFilter = () => {
 			if (commandProps?.filter) {
 				return commandProps.filter;
 			}
@@ -427,7 +420,7 @@ export const MultipleSelector = React.forwardRef<
 			}
 			// Using default filter in `cmdk`. We don't have to provide it.
 			return undefined;
-		}, [creatable, commandProps?.filter]);
+		};
 
 		const fixedOptions = selected.filter((s) => s.fixed);
 
