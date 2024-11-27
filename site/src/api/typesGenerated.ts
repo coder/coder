@@ -2137,6 +2137,10 @@ export const APIKeyScopes: APIKeyScope[] = ["all", "application_connect"]
 export type AgentSubsystem = "envbox" | "envbuilder" | "exectrace"
 export const AgentSubsystems: AgentSubsystem[] = ["envbox", "envbuilder", "exectrace"]
 
+// From codersdk/cors_behavior.go
+export type AppCORSBehavior = "passthru" | "simple"
+export const AppCORSBehaviors: AppCORSBehavior[] = ["passthru", "simple"]
+
 // From codersdk/audit.go
 export type AuditAction = "create" | "delete" | "login" | "logout" | "register" | "request_password_reset" | "start" | "stop" | "write"
 export const AuditActions: AuditAction[] = ["create", "delete", "login", "logout", "register", "request_password_reset", "start", "stop", "write"]

@@ -22,10 +22,10 @@ type SignedToken struct {
 	// Request details.
 	Request `json:"request"`
 
-	UserID       uuid.UUID            `json:"user_id"`
-	WorkspaceID  uuid.UUID            `json:"workspace_id"`
-	AgentID      uuid.UUID            `json:"agent_id"`
-	AppURL       string               `json:"app_url"`
+	UserID       uuid.UUID                `json:"user_id"`
+	WorkspaceID  uuid.UUID                `json:"workspace_id"`
+	AgentID      uuid.UUID                `json:"agent_id"`
+	AppURL       string                   `json:"app_url"`
 	CORSBehavior codersdk.AppCORSBehavior `json:"cors_behavior"`
 }
 
