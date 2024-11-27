@@ -959,9 +959,9 @@ func (m queryMetricsStore) GetProvisionerDaemons(ctx context.Context) ([]databas
 	return daemons, err
 }
 
-func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, organizationID uuid.UUID) ([]database.ProvisionerDaemon, error) {
+func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsByOrganizationParams) ([]database.ProvisionerDaemon, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, organizationID)
+	r0, r1 := m.s.GetProvisionerDaemonsByOrganization(ctx, arg)
 	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsByOrganization").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
@@ -1568,6 +1568,20 @@ func (m queryMetricsStore) GetWorkspaceByWorkspaceAppID(ctx context.Context, wor
 	return workspace, err
 }
 
+func (m queryMetricsStore) GetWorkspaceModulesByJobID(ctx context.Context, jobID uuid.UUID) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesByJobID(ctx, jobID)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesByJobID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
+	m.queryLatencies.WithLabelValues("GetWorkspaceModulesCreatedAfter").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)
@@ -1995,6 +2009,13 @@ func (m queryMetricsStore) InsertWorkspaceBuildParameters(ctx context.Context, a
 	return err
 }
 
+func (m queryMetricsStore) InsertWorkspaceModule(ctx context.Context, arg database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceModule(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceModule").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.InsertWorkspaceProxy(ctx, arg)
@@ -2037,6 +2058,20 @@ func (m queryMetricsStore) ListWorkspaceAgentPortShares(ctx context.Context, wor
 	return r0, r1
 }
 
+func (m queryMetricsStore) OIDCClaimFieldValues(ctx context.Context, organizationID database.OIDCClaimFieldValuesParams) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.OIDCClaimFieldValues(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("OIDCClaimFieldValues").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) OIDCClaimFields(ctx context.Context, organizationID uuid.UUID) ([]string, error) {
+	start := time.Now()
+	r0, r1 := m.s.OIDCClaimFields(ctx, organizationID)
+	m.queryLatencies.WithLabelValues("OIDCClaimFields").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) OrganizationMembers(ctx context.Context, arg database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.OrganizationMembers(ctx, arg)
@@ -2056,6 +2091,13 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	proxy, err := m.s.RegisterWorkspaceProxy(ctx, arg)
 	m.queryLatencies.WithLabelValues("RegisterWorkspaceProxy").Observe(time.Since(start).Seconds())
 	return proxy, err
+}
+
+func (m queryMetricsStore) RemoveRefreshToken(ctx context.Context, arg database.RemoveRefreshTokenParams) error {
+	start := time.Now()
+	r0 := m.s.RemoveRefreshToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("RemoveRefreshToken").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {

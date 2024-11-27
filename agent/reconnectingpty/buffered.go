@@ -14,6 +14,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -58,7 +59,11 @@ func newBuffered(ctx context.Context, cmd *pty.Cmd, options *Options, logger slo
 
 	// Add TERM then start the command with a pty.  pty.Cmd duplicates Path as the
 	// first argument so remove it.
-	cmdWithEnv := pty.CommandContext(ctx, cmd.Path, cmd.Args[1:]...)
+	cmdWithEnv, err := agentexec.PTYCommandContext(ctx, cmd.Path, cmd.Args[1:]...)
+	if err != nil {
+		rpty.state.setState(StateDone, xerrors.Errorf("pty command context: %w", err))
+		return rpty
+	}
 	cmdWithEnv.Env = append(rpty.command.Env, "TERM=xterm-256color")
 	cmdWithEnv.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmdWithEnv)

@@ -13,8 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -24,7 +22,7 @@ func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()
 	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		cfg, err := configureServerTLS(context.Background(), logger, "tls12", "none", nil, nil, "", nil, false)
 		require.NoError(t, err)
 
@@ -251,7 +249,7 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
 			_ = flags.Bool("tls-redirect-http-to-https", true, "")
 			err := flags.Parse(tc.flags)

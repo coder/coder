@@ -110,7 +110,6 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 		Options: opts,
 		Middleware: serpent.Chain(
 			cli.WriteConfigMW(cfg),
-			cli.PrintDeprecatedOptions(),
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {

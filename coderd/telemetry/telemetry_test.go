@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"sort"
 	"testing"
 	"time"
 
@@ -14,12 +15,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/testutil"
@@ -87,6 +87,8 @@ func TestTelemetry(t *testing.T) {
 		assert.NoError(t, err)
 		_, _ = dbgen.WorkspaceProxy(t, db, database.WorkspaceProxy{})
 
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
+
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
@@ -103,6 +105,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceResources, 1)
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
+		require.Len(t, snapshot.WorkspaceModules, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
@@ -118,6 +121,110 @@ func TestTelemetry(t *testing.T) {
 		_, snapshot := collectSnapshot(t, db, nil)
 		require.Len(t, snapshot.Users, 1)
 		require.Equal(t, snapshot.Users[0].EmailHashed, "bb44bf07cf9a2db0554bba63a03d822c927deae77df101874496df5a6a3e896d@coder.com")
+	})
+	t.Run("HashedModule", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		pj := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{})
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
+			Source:  "registry.coder.com/terraform/aws",
+			Version: "1.0.0",
+		})
+		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{
+			JobID:   pj.ID,
+			Source:  "https://internal-url.com/some-module",
+			Version: "1.0.0",
+		})
+		_, snapshot := collectSnapshot(t, db, nil)
+		require.Len(t, snapshot.WorkspaceModules, 2)
+		modules := snapshot.WorkspaceModules
+		sort.Slice(modules, func(i, j int) bool {
+			return modules[i].Source < modules[j].Source
+		})
+		require.Equal(t, modules[0].Source, "ed662ec0396db67e77119f14afcb9253574cc925b04a51d4374bcb1eae299f5d")
+		require.Equal(t, modules[0].Version, "92521fc3cbd964bdc9f584a991b89fddaa5754ed1cc96d6d42445338669c1305")
+		require.Equal(t, modules[0].SourceType, telemetry.ModuleSourceTypeHTTP)
+		require.Equal(t, modules[1].Source, "registry.coder.com/terraform/aws")
+		require.Equal(t, modules[1].Version, "1.0.0")
+		require.Equal(t, modules[1].SourceType, telemetry.ModuleSourceTypeCoderRegistry)
+	})
+	t.Run("ModuleSourceType", func(t *testing.T) {
+		t.Parallel()
+		cases := []struct {
+			source string
+			want   telemetry.ModuleSourceType
+		}{
+			// Local relative paths
+			{source: "./modules/terraform-aws-vpc", want: telemetry.ModuleSourceTypeLocal},
+			{source: "../shared/modules/vpc", want: telemetry.ModuleSourceTypeLocal},
+			{source: "  ./my-module  ", want: telemetry.ModuleSourceTypeLocal}, // with whitespace
+
+			// Local absolute paths
+			{source: "/opt/terraform/modules/vpc", want: telemetry.ModuleSourceTypeLocalAbs},
+			{source: "/Users/dev/modules/app", want: telemetry.ModuleSourceTypeLocalAbs},
+			{source: "/etc/terraform/modules/network", want: telemetry.ModuleSourceTypeLocalAbs},
+
+			// Public registry
+			{source: "hashicorp/consul/aws", want: telemetry.ModuleSourceTypePublicRegistry},
+			{source: "registry.terraform.io/hashicorp/aws", want: telemetry.ModuleSourceTypePublicRegistry},
+			{source: "terraform-aws-modules/vpc/aws", want: telemetry.ModuleSourceTypePublicRegistry},
+			{source: "hashicorp/consul/aws//modules/consul-cluster", want: telemetry.ModuleSourceTypePublicRegistry},
+			{source: "hashicorp/co-nsul/aw_s//modules/consul-cluster", want: telemetry.ModuleSourceTypePublicRegistry},
+
+			// Private registry
+			{source: "app.terraform.io/company/vpc/aws", want: telemetry.ModuleSourceTypePrivateRegistry},
+			{source: "localterraform.com/org/module", want: telemetry.ModuleSourceTypePrivateRegistry},
+			{source: "APP.TERRAFORM.IO/test/module", want: telemetry.ModuleSourceTypePrivateRegistry}, // case insensitive
+
+			// Coder registry
+			{source: "registry.coder.com/terraform/aws", want: telemetry.ModuleSourceTypeCoderRegistry},
+			{source: "registry.coder.com/modules/base", want: telemetry.ModuleSourceTypeCoderRegistry},
+			{source: "REGISTRY.CODER.COM/test/module", want: telemetry.ModuleSourceTypeCoderRegistry}, // case insensitive
+
+			// GitHub
+			{source: "github.com/hashicorp/terraform-aws-vpc", want: telemetry.ModuleSourceTypeGitHub},
+			{source: "git::https://github.com/org/repo.git", want: telemetry.ModuleSourceTypeGitHub},
+			{source: "git::https://github.com/org/repo//modules/vpc", want: telemetry.ModuleSourceTypeGitHub},
+
+			// Bitbucket
+			{source: "bitbucket.org/hashicorp/terraform-aws-vpc", want: telemetry.ModuleSourceTypeBitbucket},
+			{source: "git::https://bitbucket.org/org/repo.git", want: telemetry.ModuleSourceTypeBitbucket},
+			{source: "https://bitbucket.org/org/repo//modules/vpc", want: telemetry.ModuleSourceTypeBitbucket},
+
+			// Generic Git
+			{source: "git::ssh://git.internal.com/repo.git", want: telemetry.ModuleSourceTypeGit},
+			{source: "git@gitlab.com:org/repo.git", want: telemetry.ModuleSourceTypeGit},
+			{source: "git::https://git.internal.com/repo.git?ref=v1.0.0", want: telemetry.ModuleSourceTypeGit},
+
+			// Mercurial
+			{source: "hg::https://example.com/vpc.hg", want: telemetry.ModuleSourceTypeMercurial},
+			{source: "hg::http://example.com/vpc.hg", want: telemetry.ModuleSourceTypeMercurial},
+			{source: "hg::ssh://example.com/vpc.hg", want: telemetry.ModuleSourceTypeMercurial},
+
+			// HTTP
+			{source: "https://example.com/vpc-module.zip", want: telemetry.ModuleSourceTypeHTTP},
+			{source: "http://example.com/modules/vpc", want: telemetry.ModuleSourceTypeHTTP},
+			{source: "https://internal.network/terraform/modules", want: telemetry.ModuleSourceTypeHTTP},
+
+			// S3
+			{source: "s3::https://s3-eu-west-1.amazonaws.com/bucket/vpc", want: telemetry.ModuleSourceTypeS3},
+			{source: "s3::https://bucket.s3.amazonaws.com/vpc", want: telemetry.ModuleSourceTypeS3},
+			{source: "s3::http://bucket.s3.amazonaws.com/vpc?version=1", want: telemetry.ModuleSourceTypeS3},
+
+			// GCS
+			{source: "gcs::https://www.googleapis.com/storage/v1/bucket/vpc", want: telemetry.ModuleSourceTypeGCS},
+			{source: "gcs::https://storage.googleapis.com/bucket/vpc", want: telemetry.ModuleSourceTypeGCS},
+			{source: "gcs::https://bucket.storage.googleapis.com/vpc", want: telemetry.ModuleSourceTypeGCS},
+
+			// Unknown
+			{source: "custom://example.com/vpc", want: telemetry.ModuleSourceTypeUnknown},
+			{source: "something-random", want: telemetry.ModuleSourceTypeUnknown},
+			{source: "", want: telemetry.ModuleSourceTypeUnknown},
+		}
+		for _, c := range cases {
+			require.Equal(t, c.want, telemetry.GetModuleSourceType(c.source))
+		}
 	})
 }
 
@@ -156,7 +263,7 @@ func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts tel
 	require.NoError(t, err)
 	options := telemetry.Options{
 		Database:     db,
-		Logger:       slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		Logger:       testutil.Logger(t),
 		URL:          serverURL,
 		DeploymentID: uuid.NewString(),
 	}

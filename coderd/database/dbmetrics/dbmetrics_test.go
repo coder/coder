@@ -10,11 +10,11 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/promhelp"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmetrics"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestInTxMetrics(t *testing.T) {
@@ -31,7 +31,7 @@ func TestInTxMetrics(t *testing.T) {
 
 		db := dbmem.New()
 		reg := prometheus.NewRegistry()
-		db = dbmetrics.NewQueryMetrics(db, slogtest.Make(t, nil), reg)
+		db = dbmetrics.NewQueryMetrics(db, testutil.Logger(t), reg)
 
 		err := db.InTx(func(s database.Store) error {
 			return nil
@@ -49,7 +49,7 @@ func TestInTxMetrics(t *testing.T) {
 
 		db := dbmem.New()
 		reg := prometheus.NewRegistry()
-		db = dbmetrics.NewDBMetrics(db, slogtest.Make(t, nil), reg)
+		db = dbmetrics.NewDBMetrics(db, testutil.Logger(t), reg)
 
 		err := db.InTx(func(s database.Store) error {
 			return nil

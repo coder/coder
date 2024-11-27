@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"golang.org/x/exp/maps"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/dns"
 	"tailscale.com/tailcfg"
@@ -22,8 +21,6 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -32,7 +29,7 @@ import (
 func TestConfigMaps_setAddresses_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -90,7 +87,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 func TestConfigMaps_setAddresses_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -121,7 +118,7 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 func TestConfigMaps_updatePeers_new(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -191,7 +188,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -235,7 +232,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -306,7 +303,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -377,7 +374,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -435,7 +432,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 func TestConfigMaps_updatePeers_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -494,7 +491,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -562,7 +559,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -647,7 +644,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -732,7 +729,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -818,7 +815,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -862,7 +859,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -905,7 +902,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -946,7 +943,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -1015,7 +1012,7 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -1123,7 +1120,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 		t.Run(k.String(), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t)
 			fEng := newFakeEngineConfigurable()
 			nodePrivateKey := key.NewNode()
 			nodeID := tailcfg.NodeID(5)
@@ -1164,7 +1161,7 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -1177,8 +1174,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	addr3 := CoderServicePrefix.AddrFromUUID(uuid.New())
 	addr4 := CoderServicePrefix.AddrFromUUID(uuid.New())
 
-	// WHEN: we add two hosts
-	uut.addHosts(map[dnsname.FQDN][]netip.Addr{
+	// WHEN: we set two hosts
+	uut.setHosts(map[dnsname.FQDN][]netip.Addr{
 		"agent.myws.me.coder.": {
 			addr1,
 		},
@@ -1202,36 +1199,6 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 			"dev.main.me.coder.": {
 				addr2,
 				addr3,
-			},
-		},
-		OnlyIPv6: true,
-	})
-
-	// WHEN: we add a new host
-	newHost := map[dnsname.FQDN][]netip.Addr{
-		"agent2.myws.me.coder.": {
-			addr4,
-		},
-	}
-	uut.addHosts(newHost)
-
-	// THEN: the engine is reconfigured with both the old and new hosts
-	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
-	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
-	require.Equal(t, req.dnsCfg, &dns.Config{
-		Routes: map[dnsname.FQDN][]*dnstype.Resolver{
-			CoderDNSSuffix: nil,
-		},
-		Hosts: map[dnsname.FQDN][]netip.Addr{
-			"agent.myws.me.coder.": {
-				addr1,
-			},
-			"dev.main.me.coder.": {
-				addr2,
-				addr3,
-			},
-			"agent2.myws.me.coder.": {
-				addr4,
 			},
 		},
 		OnlyIPv6: true,
@@ -1265,8 +1232,8 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 		OnlyIPv6: true,
 	})
 
-	// WHEN: we remove all the hosts, and a bad host
-	uut.removeHosts(append(maps.Keys(req.dnsCfg.Hosts), "badhostname"))
+	// WHEN: we remove all the hosts
+	uut.setHosts(map[dnsname.FQDN][]netip.Addr{})
 	_ = testutil.RequireRecvCtx(ctx, t, fEng.setNetworkMap)
 	req = testutil.RequireRecvCtx(ctx, t, fEng.reconfig)
 

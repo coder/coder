@@ -78,6 +78,18 @@ var testCases = []testCase{
 		name:          "extra_templates",
 		expectedError: "",
 	},
+	{
+		name:          "sa_disabled",
+		expectedError: "",
+	},
+	{
+		name:          "name_override",
+		expectedError: "",
+	},
+	{
+		name:          "name_override_existing_sa",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

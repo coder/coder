@@ -220,16 +220,29 @@ func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, script databas
 }
 
 func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.WorkspaceAgentScriptTiming) database.WorkspaceAgentScriptTiming {
-	timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
-		StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
-		EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
-		Stage:     takeFirst(orig.Stage, database.WorkspaceAgentScriptTimingStageStart),
-		ScriptID:  takeFirst(orig.ScriptID, uuid.New()),
-		ExitCode:  takeFirst(orig.ExitCode, 0),
-		Status:    takeFirst(orig.Status, database.WorkspaceAgentScriptTimingStatusOk),
-	})
-	require.NoError(t, err, "insert workspace agent script")
-	return timing
+	// retry a few times in case of a unique constraint violation
+	for i := 0; i < 10; i++ {
+		timing, err := db.InsertWorkspaceAgentScriptTimings(genCtx, database.InsertWorkspaceAgentScriptTimingsParams{
+			StartedAt: takeFirst(orig.StartedAt, dbtime.Now()),
+			EndedAt:   takeFirst(orig.EndedAt, dbtime.Now()),
+			Stage:     takeFirst(orig.Stage, database.WorkspaceAgentScriptTimingStageStart),
+			ScriptID:  takeFirst(orig.ScriptID, uuid.New()),
+			ExitCode:  takeFirst(orig.ExitCode, 0),
+			Status:    takeFirst(orig.Status, database.WorkspaceAgentScriptTimingStatusOk),
+		})
+		if err == nil {
+			return timing
+		}
+		// Some tests run WorkspaceAgentScriptTiming in a loop and run into
+		// a unique violation - 2 rows get the same started_at value.
+		if (database.IsUniqueViolation(err, database.UniqueWorkspaceAgentScriptTimingsScriptIDStartedAtKey) && orig.StartedAt == time.Time{}) {
+			// Wait 1 millisecond so dbtime.Now() changes
+			time.Sleep(time.Millisecond * 1)
+			continue
+		}
+		require.NoError(t, err, "insert workspace agent script")
+	}
+	panic("failed to insert workspace agent script timing")
 }
 
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
@@ -531,11 +544,11 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 	if !orig.StartedAt.Time.IsZero() {
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
-			StartedAt:      orig.StartedAt,
-			OrganizationID: job.OrganizationID,
-			Types:          []database.ProvisionerType{database.ProvisionerTypeEcho},
-			Tags:           must(json.Marshal(orig.Tags)),
-			WorkerID:       uuid.NullUUID{},
+			StartedAt:       orig.StartedAt,
+			OrganizationID:  job.OrganizationID,
+			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
+			ProvisionerTags: must(json.Marshal(orig.Tags)),
+			WorkerID:        uuid.NullUUID{},
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
@@ -657,9 +670,27 @@ func WorkspaceResource(t testing.TB, db database.Store, orig database.WorkspaceR
 			Valid:  takeFirst(orig.InstanceType.Valid, false),
 		},
 		DailyCost: takeFirst(orig.DailyCost, 0),
+		ModulePath: sql.NullString{
+			String: takeFirst(orig.ModulePath.String, ""),
+			Valid:  takeFirst(orig.ModulePath.Valid, true),
+		},
 	})
 	require.NoError(t, err, "insert resource")
 	return resource
+}
+
+func WorkspaceModule(t testing.TB, db database.Store, orig database.WorkspaceModule) database.WorkspaceModule {
+	module, err := db.InsertWorkspaceModule(genCtx, database.InsertWorkspaceModuleParams{
+		ID:         takeFirst(orig.ID, uuid.New()),
+		JobID:      takeFirst(orig.JobID, uuid.New()),
+		Transition: takeFirst(orig.Transition, database.WorkspaceTransitionStart),
+		Source:     takeFirst(orig.Source, "test-source"),
+		Version:    takeFirst(orig.Version, "v1.0.0"),
+		Key:        takeFirst(orig.Key, "test-key"),
+		CreatedAt:  takeFirst(orig.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace module")
+	return module
 }
 
 func WorkspaceResourceMetadatums(t testing.TB, db database.Store, seed database.WorkspaceResourceMetadatum) []database.WorkspaceResourceMetadatum {
@@ -726,7 +757,7 @@ func UserLink(t testing.TB, db database.Store, orig database.UserLink) database.
 		OAuthRefreshToken:      takeFirst(orig.OAuthRefreshToken, uuid.NewString()),
 		OAuthRefreshTokenKeyID: takeFirst(orig.OAuthRefreshTokenKeyID, sql.NullString{}),
 		OAuthExpiry:            takeFirst(orig.OAuthExpiry, dbtime.Now().Add(time.Hour*24)),
-		DebugContext:           takeFirstSlice(orig.DebugContext, json.RawMessage("{}")),
+		Claims:                 orig.Claims,
 	})
 
 	require.NoError(t, err, "insert link")

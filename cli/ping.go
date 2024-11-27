@@ -103,11 +103,6 @@ func (r *RootCmd) ping() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = inv.Stderr
-			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
-			spin.Start()
-
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 
@@ -118,9 +113,14 @@ func (r *RootCmd) ping() *serpent.Command {
 				workspaceName,
 			)
 			if err != nil {
-				spin.Stop()
 				return err
 			}
+
+			// Start spinner after any build logs have finished streaming
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = inv.Stderr
+			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
+			spin.Start()
 
 			opts := &workspacesdk.DialAgentOptions{}
 

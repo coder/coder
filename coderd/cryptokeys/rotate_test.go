@@ -6,9 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -26,7 +23,7 @@ func TestRotator(t *testing.T) {
 		var (
 			db, _  = dbtestutil.NewDB(t)
 			clock  = quartz.NewMock(t)
-			logger = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
 		)
 
@@ -50,7 +47,7 @@ func TestRotator(t *testing.T) {
 		var (
 			db, _  = dbtestutil.NewDB(t)
 			clock  = quartz.NewMock(t)
-			logger = slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger = testutil.Logger(t)
 			ctx    = testutil.Context(t, testutil.WaitShort)
 		)
 

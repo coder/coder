@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -20,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
 )
 
@@ -78,8 +78,6 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 	}
 	rpty.id = hex.EncodeToString(buf)
 
-	go rpty.lifecycle(ctx, logger)
-
 	settings := []string{
 		// Disable the startup message that appears for five seconds.
 		"startup_message off",
@@ -123,6 +121,8 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 		rpty.state.setState(StateDone, xerrors.Errorf("create config file: %w", err))
 		return rpty
 	}
+
+	go rpty.lifecycle(ctx, logger)
 
 	return rpty
 }
@@ -210,7 +210,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	logger.Debug(ctx, "spawning screen client", slog.F("screen_id", rpty.id))
 
 	// Wrap the command with screen and tie it to the connection's context.
-	cmd := pty.CommandContext(ctx, "screen", append([]string{
+	cmd, err := agentexec.PTYCommandContext(ctx, "screen", append([]string{
 		// -S is for setting the session's name.
 		"-S", rpty.id,
 		// -U tells screen to use UTF-8 encoding.
@@ -223,6 +223,9 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 		rpty.command.Path,
 		// pty.Cmd duplicates Path as the first argument so remove it.
 	}, rpty.command.Args[1:]...)...)
+	if err != nil {
+		return nil, nil, xerrors.Errorf("pty command context: %w", err)
+	}
 	cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
 	cmd.Dir = rpty.command.Dir
 	ptty, process, err := pty.Start(cmd, pty.WithPTYOption(
@@ -327,10 +330,10 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	defer cancel()
 
 	var lastErr error
-	run := func() bool {
+	run := func() (bool, error) {
 		var stdout bytes.Buffer
 		//nolint:gosec
-		cmd := exec.CommandContext(ctx, "screen",
+		cmd, err := agentexec.CommandContext(ctx, "screen",
 			// -x targets an attached session.
 			"-x", rpty.id,
 			// -c is the flag for the config file.
@@ -338,18 +341,21 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			// -X runs a command in the matching session.
 			"-X", command,
 		)
+		if err != nil {
+			return false, xerrors.Errorf("command context: %w", err)
+		}
 		cmd.Env = append(rpty.command.Env, "TERM=xterm-256color")
 		cmd.Dir = rpty.command.Dir
 		cmd.Stdout = &stdout
-		err := cmd.Run()
+		err = cmd.Run()
 		if err == nil {
-			return true
+			return true, nil
 		}
 
 		stdoutStr := stdout.String()
 		for _, se := range successErrors {
 			if strings.Contains(stdoutStr, se) {
-				return true
+				return true, nil
 			}
 		}
 
@@ -359,11 +365,15 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			lastErr = xerrors.Errorf("`screen -x %s -X %s`: %w: %s", rpty.id, command, err, stdoutStr)
 		}
 
-		return false
+		return false, nil
 	}
 
 	// Run immediately.
-	if done := run(); done {
+	done, err := run()
+	if err != nil {
+		return err
+	}
+	if done {
 		return nil
 	}
 
@@ -379,7 +389,11 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			}
 			return errors.Join(ctx.Err(), lastErr)
 		case <-ticker.C:
-			if done := run(); done {
+			done, err := run()
+			if err != nil {
+				return err
+			}
+			if done {
 				return nil
 			}
 		}

@@ -10,8 +10,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -147,7 +145,7 @@ func Test_msgQueue_Full(t *testing.T) {
 func TestPubSub_DoesntBlockNotify(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut := newWithoutListener(logger, nil)
 	fListener := newFakePqListener()
@@ -183,7 +181,7 @@ func TestPubSub_DoesntBlockNotify(t *testing.T) {
 func TestPubSub_DoesntRaceListenUnlisten(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut := newWithoutListener(logger, nil)
 	fListener := newFakePqListener()

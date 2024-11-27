@@ -5,6 +5,7 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
@@ -23,7 +24,6 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { countries } from "./countries";
 
 export const Language = {
 	emailLabel: "Email",

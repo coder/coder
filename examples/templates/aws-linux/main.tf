@@ -164,12 +164,7 @@ resource "coder_agent" "dev" {
   startup_script = <<-EOT
     set -e
 
-    # Install the latest code-server.
-    # Append "--version x.x.x" to install a specific version of code-server.
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
-
-    # Start code-server in the background.
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
   EOT
 
   metadata {
@@ -195,21 +190,36 @@ resource "coder_agent" "dev" {
   }
 }
 
-resource "coder_app" "code-server" {
-  count        = data.coder_workspace.me.start_count
-  agent_id     = coder_agent.dev[0].id
-  slug         = "code-server"
-  display_name = "code-server"
-  url          = "http://localhost:13337/?folder=/home/coder"
-  icon         = "/icon/code.svg"
-  subdomain    = false
-  share        = "owner"
+# See https://registry.coder.com/modules/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id = coder_agent.dev[0].id
+  order    = 1
+}
+
+# See https://registry.coder.com/modules/jetbrains-gateway
+module "jetbrains_gateway" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+
+  # JetBrains IDEs to make available for the user to select
+  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  default        = "IU"
+
+  # Default folder to open when starting a JetBrains IDE
+  folder = "/home/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id   = coder_agent.dev[0].id
+  agent_name = "dev"
+  order      = 2
 }
 
 locals {
