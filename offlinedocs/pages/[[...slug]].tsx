@@ -38,7 +38,7 @@ import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
-import sanitizeHtml from 'sanitize-html';
+import sanitizeHtml from "sanitize-html";
 
 type FilePath = string;
 type UrlPath = string;
