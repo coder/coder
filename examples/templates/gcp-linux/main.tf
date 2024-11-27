@@ -15,10 +15,15 @@ variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
+# See https://registry.coder.com/modules/gcp-region
 module "gcp_region" {
   source  = "registry.coder.com/modules/gcp-region/coder"
-  version = "1.0.12"
+  
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
   regions = ["us", "europe"]
+  default = "us-central1-a"
 }
 
 provider "google" {
