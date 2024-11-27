@@ -1400,7 +1400,7 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 	],
 	"state": [0],
 	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"transition": "create"
+	"transition": "start"
 }
 ```
 
@@ -1421,7 +1421,6 @@ AuthorizationObject can represent a "set" of objects, such as: all workspaces in
 | Property     | Value    |
 | ------------ | -------- |
 | `log_level`  | `debug`  |
-| `transition` | `create` |
 | `transition` | `start`  |
 | `transition` | `stop`   |
 | `transition` | `delete` |

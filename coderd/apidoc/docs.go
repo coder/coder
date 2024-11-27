@@ -3642,7 +3642,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "CoderProvisionerKey": []
                     }
                 ],
                 "produces": [
@@ -10240,7 +10240,6 @@ const docTemplate = `{
                 },
                 "transition": {
                     "enum": [
-                        "create",
                         "start",
                         "stop",
                         "delete"
