@@ -16,6 +16,8 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -133,7 +135,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -159,11 +161,17 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), version.ID)
+		require.NoError(t, err)
+		require.False(t, tvDB.SourceExampleID.Valid)
 	})
 
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -204,6 +212,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "my-example", tv.Name)
 
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), tv.ID)
+		require.NoError(t, err)
+		require.Equal(t, ls[0].ID, tvDB.SourceExampleID.String)
+
 		// ensure the template tar was uploaded correctly
 		fl, ct, err := client.Download(ctx, tv.Job.FileID)
 		require.NoError(t, err)
@@ -220,6 +234,253 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 			Provisioner:   codersdk.ProvisionerTypeEcho,
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("WorkspaceTags", func(t *testing.T) {
+		t.Parallel()
+		// This test ensures that when creating a template version from an archive continaining a coder_workspace_tags
+		// data source, we automatically assign some "reasonable" provisioner tag values to the resulting template
+		// import job.
+		// TODO(Cian): I'd also like to assert that the correct raw tag values are stored in the database,
+		//             but in order to do this, we need to actually run the job! This isn't straightforward right now.
+
+		store, ps := dbtestutil.NewDB(t)
+		client := coderdtest.New(t, &coderdtest.Options{
+			Database: store,
+			Pubsub:   ps,
+		})
+		owner := coderdtest.CreateFirstUser(t, client)
+		templateAdmin, templateAdminUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+
+		for _, tt := range []struct {
+			name        string
+			files       map[string]string
+			reqTags     map[string]string
+			wantTags    map[string]string
+			expectError string
+		}{
+			{
+				name:     "empty",
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with no tags",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with empty workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+					variable "a" {
+						type = string
+						default = "1"
+					}
+					data "coder_parameter" "b" {
+						type = string
+						default = "2"
+					}
+					resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {}
+					}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "a": "1", "b": "2"},
+			},
+			{
+				name: "main.tf with workspace tags and request tags",
+				files: map[string]string{
+					`main.tf`: `
+					variable "a" {
+						type = string
+						default = "1"
+					}
+					data "coder_parameter" "b" {
+						type = string
+						default = "2"
+					}
+					resource "null_resource" "test" {}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": "bar",
+							"a": var.a,
+							"b": data.coder_parameter.b.value,
+						}
+					}`,
+				},
+				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
+			},
+			{
+				name: "main.tf with disallowed workspace tag value",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {
+							name = "foo"
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+								"test": null_resource.test.name,
+							}
+						}`,
+				},
+				expectError: `Unknown variable; There is no variable named "null_resource".`,
+			},
+			{
+				name: "main.tf with disallowed function in tag value",
+				files: map[string]string{
+					`main.tf`: `
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						resource "null_resource" "test" {
+							name = "foo"
+						}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+								"test": try(null_resource.test.name, "whatever"),
+							}
+						}`,
+				},
+				expectError: `Function calls not allowed; Functions may not be called here.`,
+			},
+			// We will allow coder_workspace_tags to set the scope on a template version import job
+			// BUT the user ID will be ultimately determined by the API key in the scope.
+			// TODO(Cian): Is this what we want? Or should we just ignore these provisioner
+			// tags entirely?
+			{
+				name: "main.tf with workspace tags that attempts to set user scope",
+				files: map[string]string{
+					`main.tf`: `
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			{
+				name: "main.tf with workspace tags that attempt to clobber org ID",
+				files: map[string]string{
+					`main.tf`: `
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "organization",
+								"owner": "12345678-1234-1234-1234-1234567890ab",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with workspace tags that set scope=user",
+				files: map[string]string{
+					`main.tf`: `
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"scope": "user",
+							}
+						}`,
+				},
+				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+		} {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				// Create an archive from the files provided in the test case.
+				tarFile := testutil.CreateTar(t, tt.files)
+
+				// Post the archive file
+				fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarFile))
+				require.NoError(t, err)
+
+				// Create a template version from the archive
+				tvName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
+				tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+					Name:            tvName,
+					StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+					Provisioner:     codersdk.ProvisionerTypeTerraform,
+					FileID:          fi.ID,
+					ProvisionerTags: tt.reqTags,
+				})
+
+				if tt.expectError == "" {
+					require.NoError(t, err)
+					// Assert the expected provisioner job is created from the template version import
+					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
+					require.NoError(t, err)
+					require.EqualValues(t, tt.wantTags, pj.Tags)
+				} else {
+					require.ErrorContains(t, err, tt.expectError)
+				}
+
+				// Also assert that we get the expected information back from the API endpoint
+				require.Zero(t, tv.MatchedProvisioners.Count)
+				require.Zero(t, tv.MatchedProvisioners.Available)
+				require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
+			})
+		}
 	})
 }
 

@@ -79,8 +79,12 @@ PACKAGE_OS_ARCHES := linux_amd64 linux_armv7 linux_arm64
 # All architectures we build Docker images for (Linux only).
 DOCKER_ARCHES := amd64 arm64 armv7
 
+# All ${OS}_${ARCH} combos we build the desktop dylib for.
+DYLIB_ARCHES := darwin_amd64 darwin_arm64
+
 # Computed variables based on the above.
 CODER_SLIM_BINARIES      := $(addprefix build/coder-slim_$(VERSION)_,$(OS_ARCHES))
+CODER_DYLIBS             := $(foreach os_arch, $(DYLIB_ARCHES), build/coder-vpn_$(VERSION)_$(os_arch).dylib)
 CODER_FAT_BINARIES       := $(addprefix build/coder_$(VERSION)_,$(OS_ARCHES))
 CODER_ALL_BINARIES       := $(CODER_SLIM_BINARIES) $(CODER_FAT_BINARIES)
 CODER_TAR_GZ_ARCHIVES    := $(foreach os_arch, $(ARCHIVE_TAR_GZ), build/coder_$(VERSION)_$(os_arch).tar.gz)
@@ -237,6 +241,25 @@ $(CODER_ALL_BINARIES): go.mod go.sum \
 
 		cp "$@" "./site/out/bin/coder-$$os-$$arch$$dot_ext"
 	fi
+
+# This task builds Coder Desktop dylibs
+$(CODER_DYLIBS): go.mod go.sum $(GO_SRC_FILES)
+	@if [ "$(shell uname)" = "Darwin" ]; then
+		$(get-mode-os-arch-ext)
+		./scripts/build_go.sh \
+			--os "$$os" \
+			--arch "$$arch" \
+			--version "$(VERSION)" \
+			--output "$@" \
+			--dylib
+
+	else
+		echo "ERROR: Can't build dylib on non-Darwin OS" 1>&2
+		exit 1
+	fi
+
+# This task builds both dylibs
+build/coder-dylib: $(CODER_DYLIBS)
 
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
@@ -482,6 +505,13 @@ DB_GEN_FILES := \
 	coderd/database/dbauthz/dbauthz.go \
 	coderd/database/dbmock/dbmock.go
 
+TAILNETTEST_MOCKS := \
+	tailnet/tailnettest/coordinatormock.go \
+	tailnet/tailnettest/coordinateemock.go \
+	tailnet/tailnettest/workspaceupdatesprovidermock.go \
+	tailnet/tailnettest/subscriptionmock.go
+
+
 # all gen targets should be added here and to gen/mark-fresh
 gen: \
 	tailnet/proto/tailnet.pb.go \
@@ -506,8 +536,7 @@ gen: \
 	site/e2e/provisionerGenerated.ts \
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
-	tailnet/tailnettest/coordinatormock.go \
-	tailnet/tailnettest/coordinateemock.go \
+	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
@@ -536,8 +565,7 @@ gen/mark-fresh:
 		site/e2e/provisionerGenerated.ts \
 		site/src/theme/icons.json \
 		examples/examples.gen.json \
-		tailnet/tailnettest/coordinatormock.go \
-		tailnet/tailnettest/coordinateemock.go \
+		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
 		"
 
@@ -570,7 +598,7 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
 
-tailnet/tailnettest/coordinatormock.go tailnet/tailnettest/coordinateemock.go: tailnet/coordinator.go
+$(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/
 
 tailnet/proto/tailnet.pb.go: tailnet/proto/tailnet.proto

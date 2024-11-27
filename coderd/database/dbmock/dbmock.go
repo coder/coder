@@ -3307,6 +3307,36 @@ func (mr *MockStoreMockRecorder) GetWorkspaceByWorkspaceAppID(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceByWorkspaceAppID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceByWorkspaceAppID), arg0, arg1)
 }
 
+// GetWorkspaceModulesByJobID mocks base method.
+func (m *MockStore) GetWorkspaceModulesByJobID(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceModule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceModulesByJobID", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceModule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceModulesByJobID indicates an expected call of GetWorkspaceModulesByJobID.
+func (mr *MockStoreMockRecorder) GetWorkspaceModulesByJobID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceModulesByJobID", reflect.TypeOf((*MockStore)(nil).GetWorkspaceModulesByJobID), arg0, arg1)
+}
+
+// GetWorkspaceModulesCreatedAfter mocks base method.
+func (m *MockStore) GetWorkspaceModulesCreatedAfter(arg0 context.Context, arg1 time.Time) ([]database.WorkspaceModule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetWorkspaceModulesCreatedAfter", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceModule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetWorkspaceModulesCreatedAfter indicates an expected call of GetWorkspaceModulesCreatedAfter.
+func (mr *MockStoreMockRecorder) GetWorkspaceModulesCreatedAfter(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceModulesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceModulesCreatedAfter), arg0, arg1)
+}
+
 // GetWorkspaceProxies mocks base method.
 func (m *MockStore) GetWorkspaceProxies(arg0 context.Context) ([]database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
@@ -4224,6 +4254,21 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceBuildParameters(arg0, arg1 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceBuildParameters", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceBuildParameters), arg0, arg1)
 }
 
+// InsertWorkspaceModule mocks base method.
+func (m *MockStore) InsertWorkspaceModule(arg0 context.Context, arg1 database.InsertWorkspaceModuleParams) (database.WorkspaceModule, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceModule", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceModule)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceModule indicates an expected call of InsertWorkspaceModule.
+func (mr *MockStoreMockRecorder) InsertWorkspaceModule(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceModule", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceModule), arg0, arg1)
+}
+
 // InsertWorkspaceProxy mocks base method.
 func (m *MockStore) InsertWorkspaceProxy(arg0 context.Context, arg1 database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
@@ -4314,6 +4359,36 @@ func (mr *MockStoreMockRecorder) ListWorkspaceAgentPortShares(arg0, arg1 any) *g
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListWorkspaceAgentPortShares", reflect.TypeOf((*MockStore)(nil).ListWorkspaceAgentPortShares), arg0, arg1)
 }
 
+// OIDCClaimFieldValues mocks base method.
+func (m *MockStore) OIDCClaimFieldValues(arg0 context.Context, arg1 database.OIDCClaimFieldValuesParams) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OIDCClaimFieldValues", arg0, arg1)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OIDCClaimFieldValues indicates an expected call of OIDCClaimFieldValues.
+func (mr *MockStoreMockRecorder) OIDCClaimFieldValues(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OIDCClaimFieldValues", reflect.TypeOf((*MockStore)(nil).OIDCClaimFieldValues), arg0, arg1)
+}
+
+// OIDCClaimFields mocks base method.
+func (m *MockStore) OIDCClaimFields(arg0 context.Context, arg1 uuid.UUID) ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "OIDCClaimFields", arg0, arg1)
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// OIDCClaimFields indicates an expected call of OIDCClaimFields.
+func (mr *MockStoreMockRecorder) OIDCClaimFields(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "OIDCClaimFields", reflect.TypeOf((*MockStore)(nil).OIDCClaimFields), arg0, arg1)
+}
+
 // OrganizationMembers mocks base method.
 func (m *MockStore) OrganizationMembers(arg0 context.Context, arg1 database.OrganizationMembersParams) ([]database.OrganizationMembersRow, error) {
 	m.ctrl.T.Helper()
@@ -4386,6 +4461,20 @@ func (m *MockStore) RegisterWorkspaceProxy(arg0 context.Context, arg1 database.R
 func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), arg0, arg1)
+}
+
+// RemoveRefreshToken mocks base method.
+func (m *MockStore) RemoveRefreshToken(arg0 context.Context, arg1 database.RemoveRefreshTokenParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "RemoveRefreshToken", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// RemoveRefreshToken indicates an expected call of RemoveRefreshToken.
+func (mr *MockStoreMockRecorder) RemoveRefreshToken(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRefreshToken", reflect.TypeOf((*MockStore)(nil).RemoveRefreshToken), arg0, arg1)
 }
 
 // RemoveUserFromAllGroups mocks base method.

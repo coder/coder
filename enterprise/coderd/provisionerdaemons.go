@@ -403,6 +403,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		provisionerdserver.Options{
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 			OIDCConfig:          api.OIDCConfig,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 	)

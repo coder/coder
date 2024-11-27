@@ -35,7 +35,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 	t.Parallel()
 
 	ctx := context.Background()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	defer s.Close()
@@ -76,7 +76,7 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 	}
 
 	ctx := context.Background()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
@@ -158,7 +158,7 @@ func TestNewServer_Signal(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 		require.NoError(t, err)
 		defer s.Close()
@@ -223,7 +223,7 @@ func TestNewServer_Signal(t *testing.T) {
 		t.Parallel()
 
 		ctx := context.Background()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
 		require.NoError(t, err)
 		defer s.Close()

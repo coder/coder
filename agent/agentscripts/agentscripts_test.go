@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -35,7 +34,7 @@ func TestExecuteBasic(t *testing.T) {
 		return fLogger
 	})
 	defer runner.Close()
-	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "echo hello",
@@ -61,7 +60,7 @@ func TestEnv(t *testing.T) {
 			cmd.exe /c echo %CODER_SCRIPT_BIN_DIR%
 		`
 	}
-	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: id,
 		Script:      script,
@@ -102,7 +101,7 @@ func TestTimeout(t *testing.T) {
 	t.Parallel()
 	runner := setup(t, nil)
 	defer runner.Close()
-	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		LogSourceID: uuid.New(),
 		Script:      "sleep infinity",
@@ -121,7 +120,7 @@ func TestScriptReportsTiming(t *testing.T) {
 		return fLogger
 	})
 
-	aAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	aAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 	err := runner.Init([]codersdk.WorkspaceAgentScript{{
 		DisplayName: "say-hello",
 		LogSourceID: uuid.New(),
@@ -160,7 +159,7 @@ func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscript
 		}
 	}
 	fs := afero.NewMemMapFs()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {

@@ -440,7 +440,7 @@ func TestSMTP(t *testing.T) {
 
 			var hp serpent.HostPort
 			require.NoError(t, hp.Set(listen.Addr().String()))
-			tc.cfg.Smarthost = hp
+			tc.cfg.Smarthost = serpent.String(hp.String())
 
 			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
 

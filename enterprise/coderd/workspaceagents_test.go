@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/codersdk"
@@ -138,7 +137,7 @@ func setupWorkspaceAgent(t *testing.T, client *codersdk.Client, user codersdk.Cr
 	agentClient.SetSessionToken(authToken)
 	agnt := agent.New(agent.Options{
 		Client: agentClient,
-		Logger: slogtest.Make(t, nil).Named("agent"),
+		Logger: testutil.Logger(t).Named("agent"),
 	})
 	t.Cleanup(func() {
 		_ = agnt.Close()

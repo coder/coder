@@ -47,14 +47,14 @@ func TestPurge(t *testing.T) {
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New(), clk)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), dbmem.New(), clk)
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	now := dbtime.Now()

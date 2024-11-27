@@ -14,7 +14,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
@@ -398,7 +397,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 			ProvisionerDaemonPSK: provPSK,
 		})
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 

@@ -2773,6 +2773,7 @@ type TemplateVersion struct {
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
+	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2826,8 +2827,9 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message  string `db:"message" json:"message"`
-	Archived bool   `db:"archived" json:"archived"`
+	Message         string         `db:"message" json:"message"`
+	Archived        bool           `db:"archived" json:"archived"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 type TemplateVersionVariable struct {
@@ -3152,6 +3154,16 @@ type WorkspaceBuildTable struct {
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
+type WorkspaceModule struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Source     string              `db:"source" json:"source"`
+	Version    string              `db:"version" json:"version"`
+	Key        string              `db:"key" json:"key"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
 type WorkspaceProxy struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
@@ -3186,6 +3198,7 @@ type WorkspaceResource struct {
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
+	ModulePath   sql.NullString      `db:"module_path" json:"module_path"`
 }
 
 type WorkspaceResourceMetadatum struct {

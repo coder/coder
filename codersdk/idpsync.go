@@ -137,3 +137,31 @@ func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req Organ
 	var resp OrganizationSyncSettings
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+func (c *Client) GetAvailableIDPSyncFields(ctx context.Context) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, "/api/v2/settings/idpsync/available-fields", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []string
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) GetOrganizationAvailableIDPSyncFields(ctx context.Context, orgID string) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/available-fields", orgID), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []string
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

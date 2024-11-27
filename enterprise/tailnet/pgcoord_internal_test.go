@@ -44,7 +44,7 @@ func TestHeartbeats_Cleanup(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	mStore.EXPECT().CleanTailnetCoordinators(gomock.Any()).Times(2).Return(nil)
 	mStore.EXPECT().CleanTailnetLostPeers(gomock.Any()).Times(2).Return(nil)
@@ -77,7 +77,7 @@ func TestHeartbeats_recvBeat_resetSkew(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 	trap := mClock.Trap().Until("heartbeats", "resetExpiryTimerWithLock")
 	defer trap.Close()
@@ -133,7 +133,7 @@ func TestHeartbeats_LostCoordinator_MarkLost(t *testing.T) {
 
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	uut := &heartbeats{
 		ctx:    ctx,

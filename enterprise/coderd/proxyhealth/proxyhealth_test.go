@@ -10,7 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -57,7 +56,7 @@ func TestProxyHealth_Unregistered(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 	})
 	require.NoError(t, err, "failed to create proxy health")
 
@@ -96,7 +95,7 @@ func TestProxyHealth_Unhealthy(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   srvBadReport.Client(),
 	})
 	require.NoError(t, err, "failed to create proxy health")
@@ -131,7 +130,7 @@ func TestProxyHealth_Reachable(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   srv.Client(),
 	})
 	require.NoError(t, err, "failed to create proxy health")
@@ -167,7 +166,7 @@ func TestProxyHealth_Unreachable(t *testing.T) {
 	ph, err := proxyhealth.New(&proxyhealth.Options{
 		Interval: 0,
 		DB:       db,
-		Logger:   slogtest.Make(t, nil),
+		Logger:   testutil.Logger(t),
 		Client:   cli,
 	})
 	require.NoError(t, err, "failed to create proxy health")

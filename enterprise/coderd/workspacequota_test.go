@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync"
 	"testing"
 	"time"
@@ -565,6 +566,10 @@ func TestWorkspaceSerialization(t *testing.T) {
 	})
 
 	t.Run("ActivityBump", func(t *testing.T) {
+		if runtime.GOOS == "windows" {
+			t.Skip("Even though this test is expected to 'likely always fail', it doesn't fail on Windows")
+		}
+
 		t.Log("Expected to fail. As long as quota & deadline are on the same " +
 			" table and affect the same row, this will likely always fail.")
 		//  +---------------------+----------------------------------+

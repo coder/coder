@@ -21,8 +21,6 @@ import (
 	"tailscale.com/wgengine/router"
 	"tailscale.com/wgengine/wgcfg"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -31,7 +29,7 @@ import (
 func TestConfigMaps_setAddresses_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -89,7 +87,7 @@ func TestConfigMaps_setAddresses_different(t *testing.T) {
 func TestConfigMaps_setAddresses_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -120,7 +118,7 @@ func TestConfigMaps_setAddresses_same(t *testing.T) {
 func TestConfigMaps_updatePeers_new(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -190,7 +188,7 @@ func TestConfigMaps_updatePeers_new(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -234,7 +232,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_neverConfigures(t *testing.
 func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -305,7 +303,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_outOfOrder(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -376,7 +374,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake(t *testing.T) {
 func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -434,7 +432,7 @@ func TestConfigMaps_updatePeers_new_waitForHandshake_timeout(t *testing.T) {
 func TestConfigMaps_updatePeers_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -493,7 +491,7 @@ func TestConfigMaps_updatePeers_same(t *testing.T) {
 func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -561,7 +559,7 @@ func TestConfigMaps_updatePeers_disconnect(t *testing.T) {
 func TestConfigMaps_updatePeers_lost(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -646,7 +644,7 @@ func TestConfigMaps_updatePeers_lost(t *testing.T) {
 func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -731,7 +729,7 @@ func TestConfigMaps_updatePeers_lost_and_found(t *testing.T) {
 func TestConfigMaps_setAllPeersLost(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -817,7 +815,7 @@ func TestConfigMaps_setAllPeersLost(t *testing.T) {
 func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -861,7 +859,7 @@ func TestConfigMaps_setBlockEndpoints_different(t *testing.T) {
 func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -904,7 +902,7 @@ func TestConfigMaps_setBlockEndpoints_same(t *testing.T) {
 func TestConfigMaps_setDERPMap_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -945,7 +943,7 @@ func TestConfigMaps_setDERPMap_different(t *testing.T) {
 func TestConfigMaps_setDERPMap_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -1014,7 +1012,7 @@ func TestConfigMaps_setDERPMap_same(t *testing.T) {
 func TestConfigMaps_fillPeerDiagnostics(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)
@@ -1122,7 +1120,7 @@ func TestConfigMaps_updatePeers_nonexist(t *testing.T) {
 		t.Run(k.String(), func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+			logger := testutil.Logger(t)
 			fEng := newFakeEngineConfigurable()
 			nodePrivateKey := key.NewNode()
 			nodeID := tailcfg.NodeID(5)
@@ -1163,7 +1161,7 @@ func TestConfigMaps_addRemoveHosts(t *testing.T) {
 	t.Parallel()
 
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fEng := newFakeEngineConfigurable()
 	nodePrivateKey := key.NewNode()
 	nodeID := tailcfg.NodeID(5)

@@ -1778,6 +1778,43 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization}/prov
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get the available organization idp sync claim fields
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/available-fields \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/available-fields`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+["string"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+| ------ | ------------------------------------------------------- | ----------- | --------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-available-organization-idp-sync-claim-fields-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group IdP Sync settings by organization
 
 ### Code samples
@@ -1985,6 +2022,49 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 | Status | Meaning                                                 | Description | Schema                                                           |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Fetch provisioner key details
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/provisionerkeys/{provisionerkey} \
+  -H 'Accept: application/json'
+```
+
+`GET /provisionerkeys/{provisionerkey}`
+
+### Parameters
+
+| Name             | In   | Type   | Required | Description     |
+| ---------------- | ---- | ------ | -------- | --------------- |
+| `provisionerkey` | path | string | true     | Provisioner Key |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"created_at": "2019-08-24T14:15:22Z",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"name": "string",
+	"organization": "452c1a86-a0af-475b-b03f-724878b0f387",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -2271,6 +2351,43 @@ curl -X PATCH http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 | Status | Meaning                                                 | Description | Schema                                   |
 | ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the available idp sync claim fields
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /settings/idpsync/available-fields`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+| -------------- | ---- | ------------ | -------- | --------------- |
+| `organization` | path | string(uuid) | true     | Organization ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+["string"]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+| ------ | ------------------------------------------------------- | ----------- | --------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-available-idp-sync-claim-fields-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

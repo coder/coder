@@ -28,7 +28,7 @@ func TestMain(m *testing.M) {
 
 func TestRollup_Close(t *testing.T) {
 	t.Parallel()
-	rolluper := dbrollup.New(slogtest.Make(t, nil), dbmem.New(), dbrollup.WithInterval(250*time.Millisecond))
+	rolluper := dbrollup.New(testutil.Logger(t), dbmem.New(), dbrollup.WithInterval(250*time.Millisecond))
 	err := rolluper.Close()
 	require.NoError(t, err)
 }
@@ -57,7 +57,7 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 	}
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	var (
 		org   = dbgen.Organization(t, db, database.Organization{})

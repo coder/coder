@@ -200,17 +200,44 @@ func (api *API) deleteProvisionerKey(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusNoContent, nil)
 }
 
+// @Summary Fetch provisioner key details
+// @ID fetch-provisioner-key-details
+// @Security CoderProvisionerKey
+// @Produce json
+// @Tags Enterprise
+// @Param provisionerkey path string true "Provisioner Key"
+// @Success 200 {object} codersdk.ProvisionerKey
+// @Router /provisionerkeys/{provisionerkey} [get]
+func (*API) fetchProvisionerKey(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	pk, ok := httpmw.ProvisionerKeyAuthOptional(r)
+	// extra check but this one should never happen as it is covered by the auth middleware
+	if !ok {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("unable to auth: please provide the %s header", codersdk.ProvisionerDaemonKey),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerKey(pk))
+}
+
+func convertProvisionerKey(dbKey database.ProvisionerKey) codersdk.ProvisionerKey {
+	return codersdk.ProvisionerKey{
+		ID:             dbKey.ID,
+		CreatedAt:      dbKey.CreatedAt,
+		OrganizationID: dbKey.OrganizationID,
+		Name:           dbKey.Name,
+		Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
+		// HashedSecret - never include the access token in the API response
+	}
+}
+
 func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.ProvisionerKey {
 	keys := make([]codersdk.ProvisionerKey, 0, len(dbKeys))
 	for _, dbKey := range dbKeys {
-		keys = append(keys, codersdk.ProvisionerKey{
-			ID:             dbKey.ID,
-			CreatedAt:      dbKey.CreatedAt,
-			OrganizationID: dbKey.OrganizationID,
-			Name:           dbKey.Name,
-			Tags:           codersdk.ProvisionerKeyTags(dbKey.Tags),
-			// HashedSecret - never include the access token in the API response
-		})
+		keys = append(keys, convertProvisionerKey(dbKey))
 	}
 
 	slices.SortFunc(keys, func(key1, key2 codersdk.ProvisionerKey) int {

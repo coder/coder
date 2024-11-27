@@ -25,6 +25,9 @@ type ExtractProvisionerAuthConfig struct {
 	PSK      string
 }
 
+// ExtractProvisionerDaemonAuthenticated authenticates a request as a provisioner daemon.
+// If the request is not authenticated, the next handler is called unless Optional is true.
+// This function currently is tested inside the enterprise package.
 func ExtractProvisionerDaemonAuthenticated(opts ExtractProvisionerAuthConfig) func(next http.Handler) http.Handler {
 	return func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

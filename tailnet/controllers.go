@@ -858,6 +858,7 @@ func (r *basicResumeTokenRefresher) refresh() {
 type tunnelAllWorkspaceUpdatesController struct {
 	coordCtrl     *TunnelSrcCoordController
 	dnsHostSetter DNSHostsSetter
+	ownerUsername string
 	logger        slog.Logger
 }
 
@@ -868,18 +869,30 @@ type workspace struct {
 }
 
 // addAllDNSNames adds names for all of its agents to the given map of names
-func (w workspace) addAllDNSNames(names map[dnsname.FQDN][]netip.Addr) error {
+func (w workspace) addAllDNSNames(names map[dnsname.FQDN][]netip.Addr, owner string) error {
 	for _, a := range w.agents {
 		// TODO: technically, DNS labels cannot start with numbers, but the rules are often not
 		//       strictly enforced.
-		// TODO: support <agent>.<workspace>.<username>.coder
 		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.%s.me.coder.", a.name, w.name))
 		if err != nil {
 			return err
 		}
 		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
+		fqdn, err = dnsname.ToFQDN(fmt.Sprintf("%s.%s.%s.coder.", a.name, w.name, owner))
+		if err != nil {
+			return err
+		}
+		names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
 	}
-	// TODO: Possibly support <workspace>.coder. alias if there is only one agent
+	if len(w.agents) == 1 {
+		fqdn, err := dnsname.ToFQDN(fmt.Sprintf("%s.coder.", w.name))
+		if err != nil {
+			return err
+		}
+		for _, a := range w.agents {
+			names[fqdn] = []netip.Addr{CoderServicePrefix.AddrFromUUID(a.id)}
+		}
+	}
 	return nil
 }
 
@@ -895,6 +908,7 @@ func (t *tunnelAllWorkspaceUpdatesController) New(client WorkspaceUpdatesClient)
 		logger:         t.logger,
 		coordCtrl:      t.coordCtrl,
 		dnsHostsSetter: t.dnsHostSetter,
+		ownerUsername:  t.ownerUsername,
 		recvLoopDone:   make(chan struct{}),
 		workspaces:     make(map[uuid.UUID]*workspace),
 	}
@@ -908,6 +922,7 @@ type tunnelUpdater struct {
 	client         WorkspaceUpdatesClient
 	coordCtrl      *TunnelSrcCoordController
 	dnsHostsSetter DNSHostsSetter
+	ownerUsername  string
 	recvLoopDone   chan struct{}
 
 	// don't need the mutex since only manipulated by the recvLoop
@@ -1088,7 +1103,7 @@ func (t *tunnelUpdater) allAgentIDs() []uuid.UUID {
 func (t *tunnelUpdater) allDNSNames() map[dnsname.FQDN][]netip.Addr {
 	names := make(map[dnsname.FQDN][]netip.Addr)
 	for _, w := range t.workspaces {
-		err := w.addAllDNSNames(names)
+		err := w.addAllDNSNames(names, t.ownerUsername)
 		if err != nil {
 			// This should never happen in production, because converting the FQDN only fails
 			// if names are too long, and we put strict length limits on agent, workspace, and user
@@ -1102,13 +1117,28 @@ func (t *tunnelUpdater) allDNSNames() map[dnsname.FQDN][]netip.Addr {
 	return names
 }
 
+type TunnelAllOption func(t *tunnelAllWorkspaceUpdatesController)
+
+// WithDNS configures the tunnelAllWorkspaceUpdatesController to set DNS names for all workspaces
+// and agents it learns about.
+func WithDNS(d DNSHostsSetter, ownerUsername string) TunnelAllOption {
+	return func(t *tunnelAllWorkspaceUpdatesController) {
+		t.dnsHostSetter = d
+		t.ownerUsername = ownerUsername
+	}
+}
+
 // NewTunnelAllWorkspaceUpdatesController creates a WorkspaceUpdatesController that creates tunnels
 // (via the TunnelSrcCoordController) to all agents received over the WorkspaceUpdates RPC. If a
 // DNSHostSetter is provided, it also programs DNS hosts based on the agent and workspace names.
 func NewTunnelAllWorkspaceUpdatesController(
-	logger slog.Logger, c *TunnelSrcCoordController, d DNSHostsSetter,
+	logger slog.Logger, c *TunnelSrcCoordController, opts ...TunnelAllOption,
 ) WorkspaceUpdatesController {
-	return &tunnelAllWorkspaceUpdatesController{logger: logger, coordCtrl: c, dnsHostSetter: d}
+	t := &tunnelAllWorkspaceUpdatesController{logger: logger, coordCtrl: c}
+	for _, opt := range opts {
+		opt(t)
+	}
+	return t
 }
 
 // NewController creates a new Controller without running it
@@ -1163,10 +1193,17 @@ func (c *Controller) Run(ctx context.Context) {
 		// Sadly retry doesn't support quartz.Clock yet so this is not
 		// influenced by the configured clock.
 		for retrier := retry.New(50*time.Millisecond, 10*time.Second); retrier.Wait(c.ctx); {
+			// Check the context again before dialing, since `retrier.Wait()` could return true
+			// if the delay is 0, even if the context was canceled. This ensures we don't redial
+			// after a graceful shutdown.
+			if c.ctx.Err() != nil {
+				return
+			}
+
 			tailnetClients, err := c.Dialer.Dial(c.ctx, c.ResumeTokenCtrl)
 			if err != nil {
-				if xerrors.Is(err, context.Canceled) {
-					continue
+				if xerrors.Is(err, context.Canceled) || xerrors.Is(err, context.DeadlineExceeded) {
+					return
 				}
 				errF := slog.Error(err)
 				var sdkErr *codersdk.Error
@@ -1177,10 +1214,42 @@ func (c *Controller) Run(ctx context.Context) {
 				continue
 			}
 			c.logger.Info(c.ctx, "obtained tailnet API v2+ client")
+			err = c.precheckClientsAndControllers(tailnetClients)
+			if err != nil {
+				c.logger.Critical(c.ctx, "failed precheck", slog.Error(err))
+				_ = tailnetClients.Closer.Close()
+				continue
+			}
+			retrier.Reset()
 			c.runControllersOnce(tailnetClients)
 			c.logger.Info(c.ctx, "tailnet API v2+ connection lost")
 		}
 	}()
+}
+
+// precheckClientsAndControllers checks that the set of clients we got is compatible with the
+// configured controllers. These checks will fail if the dialer is incompatible with the set of
+// controllers, or not configured correctly with respect to Tailnet API version.
+func (c *Controller) precheckClientsAndControllers(clients ControlProtocolClients) error {
+	if clients.Coordinator == nil && c.CoordCtrl != nil {
+		return xerrors.New("missing Coordinator client; have controller")
+	}
+	if clients.DERP == nil && c.DERPCtrl != nil {
+		return xerrors.New("missing DERPMap client; have controller")
+	}
+	if clients.WorkspaceUpdates == nil && c.WorkspaceUpdatesCtrl != nil {
+		return xerrors.New("missing WorkspaceUpdates client; have controller")
+	}
+
+	// Telemetry and ResumeToken support is considered optional, but the clients must be present
+	// so that we can call the functions and get an "unimplemented" error.
+	if clients.ResumeToken == nil && c.ResumeTokenCtrl != nil {
+		return xerrors.New("missing ResumeToken client; have controller")
+	}
+	if clients.Telemetry == nil && c.TelemetryCtrl != nil {
+		return xerrors.New("missing Telemetry client; have controller")
+	}
+	return nil
 }
 
 // runControllersOnce uses the provided clients to call into the controllers once. It is combined
@@ -1232,6 +1301,18 @@ func (c *Controller) runControllersOnce(clients ControlProtocolClients) {
 				// we do NOT want to gracefully disconnect on the coordinate() routine.  So, we'll just
 				// close the underlying connection. This will trigger a retry of the control plane in
 				// run().
+				closeClients()
+			}
+		}()
+	}
+	if c.WorkspaceUpdatesCtrl != nil {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			c.workspaceUpdates(clients.WorkspaceUpdates)
+			if c.ctx.Err() == nil {
+				// Main context is still active, but our workspace updates stream exited, due to
+				// some error. Close down all the rest of the clients so we'll exit and retry.
 				closeClients()
 			}
 		}()
@@ -1305,6 +1386,30 @@ func (c *Controller) derpMap(client DERPClient) error {
 			c.logger.Error(c.ctx, "error receiving DERP Map", slog.Error(err))
 		}
 		return err
+	}
+}
+
+func (c *Controller) workspaceUpdates(client WorkspaceUpdatesClient) {
+	defer func() {
+		c.logger.Debug(c.ctx, "exiting workspaceUpdates control routine")
+		cErr := client.Close()
+		if cErr != nil {
+			c.logger.Debug(c.ctx, "error closing WorkspaceUpdates RPC", slog.Error(cErr))
+		}
+	}()
+	cw := c.WorkspaceUpdatesCtrl.New(client)
+	select {
+	case <-c.ctx.Done():
+		c.logger.Debug(c.ctx, "workspaceUpdates: context done")
+		return
+	case err := <-cw.Wait():
+		c.logger.Debug(c.ctx, "workspaceUpdates: wait done")
+		if err != nil &&
+			!xerrors.Is(err, io.EOF) &&
+			!xerrors.Is(err, context.Canceled) &&
+			!xerrors.Is(err, context.DeadlineExceeded) {
+			c.logger.Error(c.ctx, "workspace updates stream error", slog.Error(err))
+		}
 	}
 }
 

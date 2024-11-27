@@ -13,18 +13,16 @@ import (
 	"testing"
 	"time"
 
-	"golang.org/x/xerrors"
-	"storj.io/drpc"
-
-	"cdr.dev/slog"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/oauth2"
+	"golang.org/x/xerrors"
+	"storj.io/drpc"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/buildinfo"
@@ -1214,14 +1212,13 @@ func TestCompleteJob(t *testing.T) {
 
 				// Simulate the given time starting from now.
 				require.False(t, c.now.IsZero())
-				start := time.Now()
+				clock := quartz.NewMock(t)
+				clock.Set(c.now)
 				tss := &atomic.Pointer[schedule.TemplateScheduleStore]{}
 				uqhss := &atomic.Pointer[schedule.UserQuietHoursScheduleStore]{}
 				auditor := audit.NewMock()
 				srv, db, ps, pd := setup(t, false, &overrides{
-					timeNowFn: func() time.Time {
-						return c.now.Add(time.Since(start))
-					},
+					clock:                       clock,
 					templateScheduleStore:       tss,
 					userQuietHoursScheduleStore: uqhss,
 					auditor:                     auditor,
@@ -1429,6 +1426,285 @@ func TestCompleteJob(t *testing.T) {
 			},
 		})
 		require.NoError(t, err)
+	})
+
+	t.Run("Modules", func(t *testing.T) {
+		t.Parallel()
+
+		templateVersionID := uuid.New()
+		workspaceBuildID := uuid.New()
+
+		cases := []struct {
+			name                 string
+			job                  *proto.CompletedJob
+			expectedResources    []database.WorkspaceResource
+			expectedModules      []database.WorkspaceModule
+			provisionerJobParams database.InsertProvisionerJobParams
+		}{
+			{
+				name: "TemplateDryRun",
+				job: &proto.CompletedJob{
+					Type: &proto.CompletedJob_TemplateDryRun_{
+						TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
+							Resources: []*sdkproto.Resource{{
+								Name:       "something",
+								Type:       "aws_instance",
+								ModulePath: "module.test1",
+							}, {
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "",
+							}},
+							Modules: []*sdkproto.Module{
+								{
+									Key:     "test1",
+									Version: "1.0.0",
+									Source:  "github.com/example/example",
+								},
+							},
+						},
+					},
+				},
+				expectedResources: []database.WorkspaceResource{{
+					Name: "something",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test1",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}, {
+					Name: "something2",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				expectedModules: []database.WorkspaceModule{{
+					Key:        "test1",
+					Version:    "1.0.0",
+					Source:     "github.com/example/example",
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				provisionerJobParams: database.InsertProvisionerJobParams{
+					Type: database.ProvisionerJobTypeTemplateVersionDryRun,
+				},
+			},
+			{
+				name: "TemplateImport",
+				job: &proto.CompletedJob{
+					Type: &proto.CompletedJob_TemplateImport_{
+						TemplateImport: &proto.CompletedJob_TemplateImport{
+							StartResources: []*sdkproto.Resource{{
+								Name:       "something",
+								Type:       "aws_instance",
+								ModulePath: "module.test1",
+							}},
+							StartModules: []*sdkproto.Module{
+								{
+									Key:     "test1",
+									Version: "1.0.0",
+									Source:  "github.com/example/example",
+								},
+							},
+							StopResources: []*sdkproto.Resource{{
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "module.test2",
+							}},
+							StopModules: []*sdkproto.Module{
+								{
+									Key:     "test2",
+									Version: "2.0.0",
+									Source:  "github.com/example2/example",
+								},
+							},
+						},
+					},
+				},
+				provisionerJobParams: database.InsertProvisionerJobParams{
+					Type: database.ProvisionerJobTypeTemplateVersionImport,
+					Input: must(json.Marshal(provisionerdserver.TemplateVersionImportJob{
+						TemplateVersionID: templateVersionID,
+					})),
+				},
+				expectedResources: []database.WorkspaceResource{{
+					Name: "something",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test1",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}, {
+					Name: "something2",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test2",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStop,
+				}},
+				expectedModules: []database.WorkspaceModule{{
+					Key:        "test1",
+					Version:    "1.0.0",
+					Source:     "github.com/example/example",
+					Transition: database.WorkspaceTransitionStart,
+				}, {
+					Key:        "test2",
+					Version:    "2.0.0",
+					Source:     "github.com/example2/example",
+					Transition: database.WorkspaceTransitionStop,
+				}},
+			},
+			{
+				name: "WorkspaceBuild",
+				job: &proto.CompletedJob{
+					Type: &proto.CompletedJob_WorkspaceBuild_{
+						WorkspaceBuild: &proto.CompletedJob_WorkspaceBuild{
+							Resources: []*sdkproto.Resource{{
+								Name:       "something",
+								Type:       "aws_instance",
+								ModulePath: "module.test1",
+							}, {
+								Name:       "something2",
+								Type:       "aws_instance",
+								ModulePath: "",
+							}},
+							Modules: []*sdkproto.Module{
+								{
+									Key:     "test1",
+									Version: "1.0.0",
+									Source:  "github.com/example/example",
+								},
+							},
+						},
+					},
+				},
+				expectedResources: []database.WorkspaceResource{{
+					Name: "something",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "module.test1",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}, {
+					Name: "something2",
+					Type: "aws_instance",
+					ModulePath: sql.NullString{
+						String: "",
+						Valid:  true,
+					},
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				expectedModules: []database.WorkspaceModule{{
+					Key:        "test1",
+					Version:    "1.0.0",
+					Source:     "github.com/example/example",
+					Transition: database.WorkspaceTransitionStart,
+				}},
+				provisionerJobParams: database.InsertProvisionerJobParams{
+					Type: database.ProvisionerJobTypeWorkspaceBuild,
+					Input: must(json.Marshal(provisionerdserver.WorkspaceProvisionJob{
+						WorkspaceBuildID: workspaceBuildID,
+					})),
+				},
+			},
+		}
+
+		for _, c := range cases {
+			c := c
+
+			t.Run(c.name, func(t *testing.T) {
+				t.Parallel()
+
+				srv, db, _, pd := setup(t, false, &overrides{})
+				jobParams := c.provisionerJobParams
+				if jobParams.ID == uuid.Nil {
+					jobParams.ID = uuid.New()
+				}
+				if jobParams.Provisioner == "" {
+					jobParams.Provisioner = database.ProvisionerTypeEcho
+				}
+				if jobParams.StorageMethod == "" {
+					jobParams.StorageMethod = database.ProvisionerStorageMethodFile
+				}
+				job, err := db.InsertProvisionerJob(ctx, jobParams)
+
+				tpl := dbgen.Template(t, db, database.Template{
+					OrganizationID: pd.OrganizationID,
+				})
+				tv := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true},
+					JobID:      job.ID,
+				})
+				workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+					TemplateID: tpl.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+					ID:                workspaceBuildID,
+					JobID:             job.ID,
+					WorkspaceID:       workspace.ID,
+					TemplateVersionID: tv.ID,
+				})
+
+				require.NoError(t, err)
+				_, err = db.AcquireProvisionerJob(ctx, database.AcquireProvisionerJobParams{
+					WorkerID: uuid.NullUUID{
+						UUID:  pd.ID,
+						Valid: true,
+					},
+					Types: []database.ProvisionerType{jobParams.Provisioner},
+				})
+				require.NoError(t, err)
+
+				completedJob := c.job
+				completedJob.JobId = job.ID.String()
+
+				_, err = srv.CompleteJob(ctx, completedJob)
+				require.NoError(t, err)
+
+				resources, err := db.GetWorkspaceResourcesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, resources, len(c.expectedResources))
+
+				for _, expectedResource := range c.expectedResources {
+					for i, resource := range resources {
+						if resource.Name == expectedResource.Name &&
+							resource.Type == expectedResource.Type &&
+							resource.ModulePath == expectedResource.ModulePath &&
+							resource.Transition == expectedResource.Transition {
+							resources[i] = database.WorkspaceResource{Name: "matched"}
+						}
+					}
+				}
+				// all resources should be matched
+				for _, resource := range resources {
+					require.Equal(t, "matched", resource.Name)
+				}
+
+				modules, err := db.GetWorkspaceModulesByJobID(ctx, job.ID)
+				require.NoError(t, err)
+				require.Len(t, modules, len(c.expectedModules))
+
+				for _, expectedModule := range c.expectedModules {
+					for i, module := range modules {
+						if module.Key == expectedModule.Key &&
+							module.Version == expectedModule.Version &&
+							module.Source == expectedModule.Source &&
+							module.Transition == expectedModule.Transition {
+							modules[i] = database.WorkspaceModule{Key: "matched"}
+						}
+					}
+				}
+				for _, module := range modules {
+					require.Equal(t, "matched", module.Key)
+				}
+			})
+		}
 	})
 }
 
@@ -1913,7 +2189,7 @@ type overrides struct {
 	externalAuthConfigs         []*externalauth.Config
 	templateScheduleStore       *atomic.Pointer[schedule.TemplateScheduleStore]
 	userQuietHoursScheduleStore *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
-	timeNowFn                   func() time.Time
+	clock                       *quartz.Mock
 	acquireJobLongPollDuration  time.Duration
 	heartbeatFn                 func(ctx context.Context) error
 	heartbeatInterval           time.Duration
@@ -1923,7 +2199,7 @@ type overrides struct {
 
 func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisionerDaemonServer, database.Store, pubsub.Pubsub, database.ProvisionerDaemon) {
 	t.Helper()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	db := dbmem.New()
 	ps := pubsub.NewInMemory()
 	defOrg, err := db.GetDefaultOrganization(context.Background())
@@ -1933,7 +2209,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 	var externalAuthConfigs []*externalauth.Config
 	tss := testTemplateScheduleStore()
 	uqhss := testUserQuietHoursScheduleStore()
-	var timeNowFn func() time.Time
+	clock := quartz.NewReal()
 	pollDur := time.Duration(0)
 	if ov == nil {
 		ov = &overrides{}
@@ -1970,8 +2246,8 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 			require.True(t, swapped)
 		}
 	}
-	if ov.timeNowFn != nil {
-		timeNowFn = ov.timeNowFn
+	if ov.clock != nil {
+		clock = ov.clock
 	}
 	auditPtr := &atomic.Pointer[audit.Auditor]{}
 	var auditor audit.Auditor = audit.NewMock()
@@ -2020,7 +2296,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		deploymentValues,
 		provisionerdserver.Options{
 			ExternalAuthConfigs:   externalAuthConfigs,
-			TimeNowFn:             timeNowFn,
+			Clock:                 clock,
 			OIDCConfig:            &oauth2.Config{},
 			AcquireJobLongPollDur: pollDur,
 			HeartbeatInterval:     ov.heartbeatInterval,

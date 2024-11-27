@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"errors"
 	"expvar"
 	"flag"
 	"fmt"
@@ -467,7 +468,7 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureOIDCConvert,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
 		}
 	}
 
@@ -478,7 +479,7 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
 		}
 	}
 
@@ -489,8 +490,28 @@ func New(options *Options) *API {
 			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
 		)
 		if err != nil {
-			options.Logger.Critical(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+			options.Logger.Fatal(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
 		}
+	}
+
+	if options.CoordinatorResumeTokenProvider == nil {
+		fetcher := &cryptokeys.DBFetcher{
+			DB: options.Database,
+		}
+
+		resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureTailnetResume,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
+		}
+		options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+			resumeKeycache,
+			options.Clock,
+			tailnet.DefaultResumeTokenExpiry,
+		)
 	}
 
 	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
@@ -1358,6 +1379,26 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", swaggerDisabled)
 	}
 
+	additionalCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(api.DeploymentValues.AdditionalCSPPolicy))
+	var cspParseErrors error
+	for _, v := range api.DeploymentValues.AdditionalCSPPolicy {
+		// Format is "<directive> <value> <value> ..."
+		v = strings.TrimSpace(v)
+		parts := strings.Split(v, " ")
+		if len(parts) < 2 {
+			cspParseErrors = errors.Join(cspParseErrors, xerrors.Errorf("invalid CSP header %q, not enough parts to be valid", v))
+			continue
+		}
+		additionalCSPHeaders[httpmw.CSPFetchDirective(strings.ToLower(parts[0]))] = parts[1:]
+	}
+
+	if cspParseErrors != nil {
+		// Do not fail Coder deployment startup because of this. Just log an error
+		// and continue
+		api.Logger.Error(context.Background(),
+			"parsing additional CSP headers", slog.Error(cspParseErrors))
+	}
+
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
@@ -1370,7 +1411,7 @@ func New(options *Options) *API {
 		}
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
-	})
+	}, additionalCSPHeaders)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
@@ -1465,9 +1506,6 @@ func (api *API) Close() error {
 	default:
 		api.cancel()
 	}
-	if api.derpCloseFunc != nil {
-		api.derpCloseFunc()
-	}
 
 	wsDone := make(chan struct{})
 	timer := time.NewTimer(10 * time.Second)
@@ -1493,11 +1531,16 @@ func (api *API) Close() error {
 		api.updateChecker.Close()
 	}
 	_ = api.workspaceAppServer.Close()
+	_ = api.agentProvider.Close()
+	if api.derpCloseFunc != nil {
+		api.derpCloseFunc()
+	}
+	// The coordinator should be closed after the agent provider, and the DERP
+	// handler.
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
 	_ = api.NetworkTelemetryBatcher.Close()
 	_ = api.OIDCConvertKeyCache.Close()
@@ -1605,6 +1648,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 	)
