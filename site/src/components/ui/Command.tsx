@@ -1,9 +1,13 @@
+/**
+ * Copied from shadc/ui on 11/13/2024
+ * @see {@link https://ui.shadcn.com/docs/components/command}
+ */
 import type { DialogProps } from "@radix-ui/react-dialog";
 import { Command as CommandPrimitive } from "cmdk";
 import { Search } from "lucide-react";
 import { type FC, forwardRef } from "react";
 
-import { Dialog, DialogContent } from "components/ui/Dialog";
+import { Dialog, DialogContent } from "components/Dialog/Dialog";
 import { cn } from "utils/cn";
 
 export const Command = forwardRef<
@@ -27,7 +31,11 @@ export const CommandDialog: FC<DialogProps> = ({
 	return (
 		<Dialog {...props}>
 			<DialogContent className="overflow-hidden p-0">
-				<Command className="[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-disabled [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0 [&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5 [&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5 [&_[cmdk-item]_svg]:w-5">
+				<Command className={`[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:font-medium
+					[&_[cmdk-group-heading]]:text-content-disabled [&_[cmdk-group]:not([hidden])_~[cmdk-group]]:pt-0
+					[&_[cmdk-group]]:px-2 [&_[cmdk-input-wrapper]_svg]:h-5 [&_[cmdk-input-wrapper]_svg]:w-5
+					[&_[cmdk-input]]:h-12 [&_[cmdk-item]]:px-2 [&_[cmdk-item]]:py-3 [&_[cmdk-item]_svg]:h-5
+					[&_[cmdk-item]_svg]:w-5`}>
 					{children}
 				</Command>
 			</DialogContent>
@@ -44,7 +52,9 @@ export const CommandInput = forwardRef<
 		<CommandPrimitive.Input
 			ref={ref}
 			className={cn(
-				"flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none placeholder:text-content-secondary disabled:cursor-not-allowed disabled:opacity-50",
+				`flex h-10 w-full rounded-md bg-transparent py-3 text-sm outline-none
+				placeholder:text-content-secondary
+				disabled:cursor-not-allowed disabled:opacity-50`,
 				className,
 			)}
 			{...props}
@@ -81,7 +91,9 @@ export const CommandGroup = forwardRef<
 	<CommandPrimitive.Group
 		ref={ref}
 		className={cn(
-			"overflow-hidden p-1 text-content-primary [&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs [&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-secondary",
+			`overflow-hidden p-1 text-content-primary
+			[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs
+			[&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-secondary`,
 			className,
 		)}
 		{...props}
@@ -106,7 +118,10 @@ export const CommandItem = forwardRef<
 	<CommandPrimitive.Item
 		ref={ref}
 		className={cn(
-			"relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none data-[disabled=true]:pointer-events-none data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary data-[disabled=true]:opacity-50 [&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0",
+			`relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none
+			data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
+			data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
+			[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,
 			className,
 		)}
 		{...props}
