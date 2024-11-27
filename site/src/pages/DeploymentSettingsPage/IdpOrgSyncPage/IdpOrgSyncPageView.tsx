@@ -101,7 +101,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
 								Organization sync field
 							</Label>
-							<div className="flex flex-row items-center gap-4">
+							<div className="flex flex-row items-center gap-5">
 								<div className="flex flex-row gap-2 w-72">
 									<Input
 										id={SYNC_FIELD_ID}
