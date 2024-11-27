@@ -9441,23 +9441,25 @@ INSERT INTO
 		message,
 		readme,
 		job_id,
-		created_by
+		created_by,
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertTemplateVersionParams struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
-	Name           string        `db:"name" json:"name"`
-	Message        string        `db:"message" json:"message"`
-	Readme         string        `db:"readme" json:"readme"`
-	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+	TemplateID      uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	Name            string         `db:"name" json:"name"`
+	Message         string         `db:"message" json:"message"`
+	Readme          string         `db:"readme" json:"readme"`
+	JobID           uuid.UUID      `db:"job_id" json:"job_id"`
+	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error {
@@ -9472,6 +9474,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.Readme,
 		arg.JobID,
 		arg.CreatedBy,
+		arg.SourceExampleID,
 	)
 	return err
 }
