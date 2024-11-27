@@ -196,7 +196,7 @@ const getNavigation = (manifest: Manifest): Nav => {
 };
 
 const removeHtmlComments = (string: string) => {
-	return sanitizeHtml(string, {});
+	return sanitizeHtml(string);
 };
 
 export const getStaticPaths: GetStaticPaths = () => {
