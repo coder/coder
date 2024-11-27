@@ -1,5 +1,5 @@
-import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 import { URL } from "url";
+import type { WorkspaceAgentPortShareProtocol } from "api/typesGenerated";
 
 export const portForwardURL = (
 	host: string,
