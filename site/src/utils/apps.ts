@@ -17,14 +17,14 @@ export const createAppLinkHref = (
 
 	// The backend redirects if the trailing slash isn't included, so we add it
 	// here to avoid extra roundtrips.
-	let path = `${preferredPathBase}/@${username}/${workspace.name}.${
+	let href = `${preferredPathBase}/@${username}/${workspace.name}.${
 		agent.name
 	}/apps/${encodeURIComponent(appSlug)}/`;
 	if (app.command) {
 		// Terminal links are relative. The terminal page knows how
 		// to select the correct workspace proxy for the websocket
 		// connection.
-		path = `/@${username}/${workspace.name}.${
+		href = `/@${username}/${workspace.name}.${
 			agent.name
 		}/terminal?command=${encodeURIComponent(app.command)}`;
 	}
@@ -35,7 +35,7 @@ export const createAppLinkHref = (
 		url.set('hostname', appsHost.replace('*', app.subdomain_name));
 		url.set('pathname', '/');
 
-		path = url.toString();
+		href = url.toString();
 	}
-	return path;
+	return href;
 };
