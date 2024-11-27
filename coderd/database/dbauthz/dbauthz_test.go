@@ -2567,6 +2567,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			ID:           uuid.New(),
 			Health:       database.WorkspaceAppHealthDisabled,
 			SharingLevel: database.AppSharingLevelOwner,
+			CORSBehavior: database.AppCorsBehaviorSimple,
 		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("InsertWorkspaceResourceMetadata", s.Subtest(func(db database.Store, check *expects) {

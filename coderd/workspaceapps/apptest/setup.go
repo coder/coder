@@ -32,11 +32,12 @@ import (
 )
 
 const (
-	proxyTestAgentName                        = "agent-name"
-	proxyTestAppNameFake                      = "test-app-fake"
-	proxyTestAppNameOwner                     = "test-app-owner"
-	proxyTestAppNameAuthenticated             = "test-app-authenticated"
-	proxyTestAppNamePublic                    = "test-app-public"
+	proxyTestAgentName            = "agent-name"
+	proxyTestAppNameFake          = "test-app-fake"
+	proxyTestAppNameOwner         = "test-app-owner"
+	proxyTestAppNameAuthenticated = "test-app-authenticated"
+	proxyTestAppNamePublic        = "test-app-public"
+	// nolint:gosec // Not a secret
 	proxyTestAppNameAuthenticatedCORSPassthru = "test-app-authenticated-cors-passthru"
 	proxyTestAppNamePublicCORSPassthru        = "test-app-public-cors-passthru"
 	proxyTestAppNameAuthenticatedCORSDefault  = "test-app-authenticated-cors-default"

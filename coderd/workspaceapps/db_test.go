@@ -280,11 +280,12 @@ func Test_ResolveRequest(t *testing.T) {
 						RegisteredClaims: jwtutils.RegisteredClaims{
 							Expiry: jwt.NewNumericDate(token.Expiry.Time()),
 						},
-						Request:     req,
-						UserID:      me.ID,
-						WorkspaceID: workspace.ID,
-						AgentID:     agentID,
-						AppURL:      appURL,
+						Request:      req,
+						UserID:       me.ID,
+						WorkspaceID:  workspace.ID,
+						AgentID:      agentID,
+						AppURL:       appURL,
+						CORSBehavior: token.CORSBehavior,
 					}, token)
 					require.NotZero(t, token.Expiry)
 					require.WithinDuration(t, time.Now().Add(workspaceapps.DefaultTokenExpiry), token.Expiry.Time(), time.Minute)

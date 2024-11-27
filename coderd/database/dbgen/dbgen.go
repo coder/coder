@@ -618,6 +618,7 @@ func WorkspaceApp(t testing.TB, db database.Store, orig database.WorkspaceApp) d
 		Health:               takeFirst(orig.Health, database.WorkspaceAppHealthHealthy),
 		DisplayOrder:         takeFirst(orig.DisplayOrder, 1),
 		Hidden:               orig.Hidden,
+		CORSBehavior:         takeFirst(orig.CORSBehavior, database.AppCorsBehaviorSimple),
 	})
 	require.NoError(t, err, "insert app")
 	return resource

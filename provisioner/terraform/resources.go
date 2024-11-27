@@ -439,7 +439,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				corsBehavior = proto.AppCORSBehavior_PASSTHRU
 			default:
 				corsBehavior = proto.AppCORSBehavior_SIMPLE
-				logger.Debug(ctx, "CORS behavior not set, defaulting to 'simple'")
+				logger.Debug(ctx, "cors_behavior not set, defaulting to 'simple'", slog.F("address", convertAddressToLabel(resource.Address)))
 			}
 
 			for _, agents := range resourceAgents {
