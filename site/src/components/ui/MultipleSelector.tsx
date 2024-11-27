@@ -448,7 +448,8 @@ export const MultipleSelector = React.forwardRef<
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
 				<div
 					className={cn(
-						"min-h-9 rounded-md border border-solid border-border text-sm pr-3",
+						`*:min-h-9 rounded-md border border-solid border-border text-sm pr-3
+						focus-within:ring-2 focus-within:ring-content-link`,
 						{
 							"pl-3 py-1": selected.length !== 0,
 							"cursor-text": !disabled && selected.length !== 0,
@@ -467,7 +468,7 @@ export const MultipleSelector = React.forwardRef<
 									<Badge
 										key={option.value}
 										className={cn(
-											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiary data-[disabled]:hover:bg-content-disabled",
+											"data-[disabled]:bg-content-disabled data-[disabled]:text-surface-tertiarydata-[disabled]:hover:bg-content-disabled",
 											"data-[fixed]:bg-content-disabled data-[fixed]:text-surface-tertiary data-[fixed]:hover:bg-surface-secondary",
 											badgeClassName,
 										)}
@@ -478,7 +479,8 @@ export const MultipleSelector = React.forwardRef<
 										<button
 											type="button"
 											className={cn(
-												"ml-1 pr-0 rounded-full bg-transparent border-none outline-none focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer",
+												`ml-1 pr-0 rounded-full bg-transparent border-none outline-none
+												focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer`,
 												(disabled || option.fixed) && "hidden",
 											)}
 											onKeyDown={(e) => {
@@ -559,7 +561,10 @@ export const MultipleSelector = React.forwardRef<
 				<div className="relative">
 					{open && (
 						<CommandList
-							className="absolute top-1 z-10 w-full rounded-md border border-solid border-border bg-surface-primary text-content-primary shadow-md outline-none animate-in"
+							className={`absolute top-1 z-10 w-full rounded-md
+								border border-solid border-border
+								bg-surface-primary text-content-primary shadow-md outline-none
+								animate-in`}
 							onPointerLeave={() => {
 								setOnScrollbar(false);
 							}}

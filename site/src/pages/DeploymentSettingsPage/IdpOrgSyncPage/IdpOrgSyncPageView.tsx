@@ -95,7 +95,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		<div className="flex flex-col gap-2">
 			{Boolean(error) && <ErrorAlert error={error} />}
 			<form onSubmit={form.handleSubmit}>
-				<fieldset disabled={form.isSubmitting}>
+				<fieldset disabled={form.isSubmitting} className="border-none">
 					<div className="flex flex-row">
 						<div className="grid items-center gap-1">
 							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
