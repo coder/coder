@@ -130,7 +130,9 @@ jobs:
           # the registry.
           export CODER_IMAGE_BUILD_BASE_TAG="$(CODER_IMAGE_BASE=coder-base ./scripts/image_tag.sh --version "$version")"
 
-          make -j "$image_job"
+          # We would like to use make -j here, but it doesn't work with the some recent additions
+          # to our code generation.
+          make "$image_job"
           echo "image=$(cat "$image_job")" >> $GITHUB_OUTPUT
 
       - name: Run Trivy vulnerability scanner
