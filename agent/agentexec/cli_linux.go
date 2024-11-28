@@ -19,13 +19,6 @@ import (
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
-	// We lock the OS thread here to avoid a race condition where the nice priority
-	// we set gets applied to a different thread than the one we exec the provided
-	// command on.
-	runtime.LockOSThread()
-	// Nop on success but we do it anyway in case of an error.
-	defer runtime.UnlockOSThread()
-
 	var (
 		fs   = flag.NewFlagSet("agent-exec", flag.ExitOnError)
 		nice = fs.Int("coder-nice", unset, "")
@@ -37,10 +30,35 @@ func CLI() error {
 	}
 
 	// Parse everything after "coder agent-exec".
-	err := fs.Parse(os.Args[2:])
+	var err error
+	err = fs.Parse(os.Args[2:])
 	if err != nil {
 		return xerrors.Errorf("parse flags: %w", err)
 	}
+
+	fmt.Println("oom", *oom)
+	if *oom == unset {
+		// If an explicit oom score isn't set, we use the default.
+		*oom, err = defaultOOMScore()
+		if err != nil {
+			return xerrors.Errorf("get default oom score: %w", err)
+		}
+	}
+
+	err = writeOOMScoreAdj(*oom)
+	if err != nil {
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for oom_score_adj.
+		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
+	}
+
+	// We lock the OS thread here to avoid a race condition where the nice priority
+	// we set gets applied to a different thread than the one we exec the provided
+	// command on.
+	runtime.LockOSThread()
+	// Nop on success but we do it anyway in case of an error.
+	defer runtime.UnlockOSThread()
 
 	// Get everything after "coder agent-exec --"
 	args := execArgs(os.Args)
@@ -56,28 +74,12 @@ func CLI() error {
 		}
 	}
 
-	if *oom == unset {
-		// If an explicit oom score isn't set, we use the default.
-		*oom, err = defaultOOMScore()
-		if err != nil {
-			return xerrors.Errorf("get default oom score: %w", err)
-		}
-	}
-
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
 	if err != nil {
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for niceness.
 		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
-	}
-
-	err = writeOOMScoreAdj(*oom)
-	if err != nil {
-		// We alert the user instead of failing the command since it can be difficult to debug
-		// for a template admin otherwise. It's quite possible (and easy) to set an
-		// inappriopriate value for oom_score_adj.
-		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, args, err)
 	}
 
 	path, err := exec.LookPath(args[0])
