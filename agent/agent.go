@@ -772,11 +772,13 @@ func (a *agent) run() (retErr error) {
 
 	connMan.startAgentAPI("push resources usage", gracefulShutdownBehaviorRemain,
 		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
-			_, err := aAPI.PushResourcesUsage(ctx, &proto.PushResourcesUsageRequest{
+			resp, err := aAPI.PushResourcesUsage(ctx, &proto.PushResourcesUsageRequest{
 				PercentCpu:    10,
 				PercentMemory: 20,
 				PercentDisk:   30,
 			})
+
+			a.logger.Info(ctx, "pushed resources", slog.F("resp", resp))
 			return err
 		})
 

@@ -99,7 +99,11 @@ func New(opts Options) *API {
 		WorkspaceID:              opts.WorkspaceID,
 	}
 
-	api.ResourcesUsageAPI = &ResourcesUsageAPI{}
+	api.ResourcesUsageAPI = &ResourcesUsageAPI{
+		AgentFn:  api.agent,
+		Database: opts.Database,
+		Log:      opts.Log,
+	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
