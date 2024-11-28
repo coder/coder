@@ -1515,7 +1515,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		// Check for eligible provisioners. This allows us to log a message warning deployment administrators
 		// of users submitting jobs for which no provisioners are available.
-		matchedProvisioners, err = checkProvisioners(ctx, tx, organization.ID, tags, api.DeploymentValues.Provisioner.DaemonPollInterval.Value())
+		matchedProvisioners, err = checkProvisioners(ctx, tx, organization.ID, tags)
 		if err != nil {
 			api.Logger.Error(ctx, "failed to check eligible provisioner daemons for job", slog.Error(err))
 		} else if matchedProvisioners.Count == 0 {
@@ -1823,7 +1823,7 @@ func (api *API) publishTemplateUpdate(ctx context.Context, templateID uuid.UUID)
 	}
 }
 
-func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUID, wantTags map[string]string, pollInterval time.Duration) (codersdk.MatchedProvisioners, error) {
+func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUID, wantTags map[string]string) (codersdk.MatchedProvisioners, error) {
 	// Check for eligible provisioners. This allows us to return a warning to the user if they
 	// submit a job for which no provisioner is available.
 	eligibleProvisioners, err := store.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
@@ -1835,7 +1835,7 @@ func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUI
 		return codersdk.MatchedProvisioners{}, xerrors.Errorf("provisioner daemons by organization: %w", err)
 	}
 
-	threePollsAgo := time.Now().Add(-3 * pollInterval)
+	staleInterval := time.Now().Add(-provisionerdserver.StaleInterval)
 	mostRecentlySeen := codersdk.NullTime{}
 	var matched codersdk.MatchedProvisioners
 	for _, provisioner := range eligibleProvisioners {
@@ -1843,7 +1843,7 @@ func checkProvisioners(ctx context.Context, store database.Store, orgID uuid.UUI
 			continue
 		}
 		matched.Count++
-		if provisioner.LastSeenAt.Time.After(threePollsAgo) {
+		if provisioner.LastSeenAt.Time.After(staleInterval) {
 			matched.Available++
 		}
 		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {
