@@ -22,12 +22,9 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
+//nolint:paralleltest // This test is sensitive to environment variables
 func TestCLI(t *testing.T) {
-	t.Parallel()
-
 	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		cmd, path := cmd(ctx, t, 123, 12)
 		err := cmd.Start()
@@ -40,8 +37,6 @@ func TestCLI(t *testing.T) {
 	})
 
 	t.Run("Defaults", func(t *testing.T) {
-		t.Parallel()
-
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		cmd, path := cmd(ctx, t, 0, 0)
 		err := cmd.Start()

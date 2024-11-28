@@ -36,7 +36,7 @@ func TestExec(t *testing.T) {
 		//nolint:paralleltest // we need to test environment variables
 		t.Run("Disabled", func(t *testing.T) {
 			if runtime.GOOS != "linux" {
-				t.Skip("skipping on linux")
+				t.Skip("skipping on non-linux")
 			}
 
 			cmd, err := agentexec.CommandContext(context.Background(), "sh", "-c", "sleep")
@@ -52,7 +52,7 @@ func TestExec(t *testing.T) {
 			t.Setenv(agentexec.EnvProcPrioMgmt, "hello")
 
 			if runtime.GOOS != "linux" {
-				t.Skip("skipping on linux")
+				t.Skip("skipping on non-linux")
 			}
 
 			executable, err := os.Executable()
@@ -69,7 +69,7 @@ func TestExec(t *testing.T) {
 			t.Setenv(agentexec.EnvProcNiceScore, "10")
 
 			if runtime.GOOS != "linux" {
-				t.Skip("skipping on linux")
+				t.Skip("skipping on non-linux")
 			}
 
 			executable, err := os.Executable()
@@ -86,7 +86,7 @@ func TestExec(t *testing.T) {
 			t.Setenv(agentexec.EnvProcOOMScore, "123")
 
 			if runtime.GOOS != "linux" {
-				t.Skip("skipping on linux")
+				t.Skip("skipping on non-linux")
 			}
 
 			executable, err := os.Executable()
@@ -104,7 +104,7 @@ func TestExec(t *testing.T) {
 			t.Setenv(agentexec.EnvProcNiceScore, "14")
 
 			if runtime.GOOS != "linux" {
-				t.Skip("skipping on linux")
+				t.Skip("skipping on non-linux")
 			}
 
 			executable, err := os.Executable()
