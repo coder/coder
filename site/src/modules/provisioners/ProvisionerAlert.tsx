@@ -3,7 +3,7 @@ import { Alert, type AlertColor } from "components/Alert/Alert";
 import { AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
-import { FC } from "react";
+import type { FC } from "react";
 interface ProvisionerAlertProps {
 	title: string;
 	detail: string;

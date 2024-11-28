@@ -13,7 +13,7 @@ const meta: Meta<typeof ProvisionerAlert> = {
 		title: "Title",
 		detail: "Detail",
 		severity: "info",
-		tags: {"tag": "tagValue"}
+		tags: { tag: "tagValue" },
 	},
 };
 
@@ -23,6 +23,6 @@ type Story = StoryObj<typeof ProvisionerAlert>;
 export const Info: Story = {};
 export const NullTags: Story = {
 	args: {
-		tags: undefined
-	}
+		tags: undefined,
+	},
 };

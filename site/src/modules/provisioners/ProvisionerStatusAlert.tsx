@@ -1,4 +1,4 @@
-import { AlertColor } from "components/Alert/Alert";
+import type { AlertColor } from "components/Alert/Alert";
 import type { FC } from "react";
 import { ProvisionerAlert } from "./ProvisionerAlert";
 
@@ -45,4 +45,3 @@ export const ProvisionerStatusAlert: FC<ProvisionerStatusAlertProps> = ({
 		/>
 	);
 };
-
