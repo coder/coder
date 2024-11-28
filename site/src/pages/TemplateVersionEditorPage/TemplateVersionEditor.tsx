@@ -595,26 +595,26 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												tags={templateVersion.job.tags}
 											/>
 										</div>
-									) : !gotBuildLogs && (
-										<>
-											<ProvisionerStatusAlert
-												matchingProvisioners={matchingProvisioners}
-												availableProvisioners={availableProvisioners}
-												tags={templateVersion.job.tags}
-											/>
-											<Loader css={{ height: "100%" }} />
-										</>
+									) : (
+										!gotBuildLogs && (
+											<>
+												<ProvisionerStatusAlert
+													matchingProvisioners={matchingProvisioners}
+													availableProvisioners={availableProvisioners}
+													tags={templateVersion.job.tags}
+												/>
+												<Loader css={{ height: "100%" }} />
+											</>
+										)
 									)}
 
-									{
-										gotBuildLogs && (
-											<WorkspaceBuildLogs
-												css={styles.buildLogs}
-												hideTimestamps
-												logs={buildLogs}
-											/>
-										)
-									}
+									{gotBuildLogs && (
+										<WorkspaceBuildLogs
+											css={styles.buildLogs}
+											hideTimestamps
+											logs={buildLogs}
+										/>
+									)}
 								</div>
 							)}
 
