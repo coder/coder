@@ -416,29 +416,6 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	if err != nil {
 		return nil, err
 	}
-	var tagsJSON strings.Builder
-	if err := json.NewEncoder(&tagsJSON).Encode(version.Job.Tags); err != nil {
-		// Fall back to the less-pretty string representation.
-		tagsJSON.Reset()
-		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", version.Job.Tags))
-	}
-	if version.MatchedProvisioners.Count == 0 {
-		cliui.Warnf(inv.Stderr, `No provisioners are available to handle the job!
-Please contact your deployment administrator for assistance.
-Details:
-	Provisioner job ID : %s
-	Requested tags     : %s
-`, version.Job.ID, tagsJSON.String())
-	} else if version.MatchedProvisioners.Available == 0 {
-		cliui.Warnf(inv.Stderr, `All available provisioner daemons have been silent for a while.
-Your build will proceed once they become available.
-If this persists, please contact your deployment administrator for assistance.
-Details:
-	Provisioner job ID : %s
-	Requested tags     : %s
-	Most recently seen : %s
-`, version.Job.ID, strings.TrimSpace(tagsJSON.String()), version.MatchedProvisioners.MostRecentlySeen.Time)
-	}
 
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
@@ -503,6 +480,44 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 		tags[parts[0]] = parts[1]
 	}
 	return tags, nil
+}
+
+var (
+	warnNoMatchedProvisioners = `No provisioners are available to handle the job!
+Please contact your deployment administrator for assistance.
+Details:
+	Provisioner job ID : %s
+	Requested tags     : %s
+`
+	warnNoAvailableProvisioners = `All available provisioner daemons have been silent for a while.
+Your build will proceed once they become available.
+If this persists, please contact your deployment administrator for assistance.
+Details:
+	Provisioner job ID : %s
+	Requested tags     : %s
+	Most recently seen : %s
+`
+)
+
+func WarnMatchedProvisioners(inv *serpent.Invocation, tv codersdk.TemplateVersion) {
+	var tagsJSON strings.Builder
+	if err := json.NewEncoder(&tagsJSON).Encode(tv.Job.Tags); err != nil {
+		// Fall back to the less-pretty string representation.
+		tagsJSON.Reset()
+		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", tv.Job.Tags))
+	}
+	if tv.MatchedProvisioners == nil {
+		// Nothing in the response, nothing to do here!
+		return
+	}
+	if tv.MatchedProvisioners.Count == 0 {
+		cliui.Warnf(inv.Stderr, warnNoMatchedProvisioners, tv.Job.ID, tagsJSON.String())
+		return
+	}
+	if tv.MatchedProvisioners.Available == 0 {
+		cliui.Warnf(inv.Stderr, warnNoAvailableProvisioners, tv.Job.ID, strings.TrimSpace(tagsJSON.String()), tv.MatchedProvisioners.MostRecentlySeen.Time)
+		return
+	}
 }
 
 // prettyDirectoryPath returns a prettified path when inside the users

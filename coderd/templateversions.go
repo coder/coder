@@ -1719,7 +1719,7 @@ func convertTemplateVersion(version database.TemplateVersion, job codersdk.Provi
 		},
 		Archived:            version.Archived,
 		Warnings:            warnings,
-		MatchedProvisioners: matchedProvisioners,
+		MatchedProvisioners: &matchedProvisioners,
 	}
 }
 

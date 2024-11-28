@@ -53,6 +53,7 @@ type ProvisionerDaemon struct {
 
 // MatchedProvisioners represents the number of provisioner daemons
 // available to take a job at a specific point in time.
+// Introduced in Coder version 2.18.0.
 type MatchedProvisioners struct {
 	// Count is the number of provisioner daemons that matched the given
 	// tags. If the count is 0, it means no provisioner daemons matched the
