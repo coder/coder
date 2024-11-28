@@ -3,25 +3,19 @@ package agentapi
 import (
 	"context"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
-	// "github.com/coder/coder/v2/coderd/appearance"
+	"github.com/coder/coder/v2/coderd/database"
 )
 
 type ResourcesUsageAPI struct {
-	// appearanceFetcher *atomic.Pointer[appearance.Fetcher]
+	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
+	Database database.Store
+	Log      slog.Logger
 }
 
-func (a *ResourcesUsageAPI) PushResourcesUsage(ctx context.Context, _ *proto.PushResourcesUsageRequest) (*proto.PushResourcesUsageResponse, error) {
-	// cfg, err := (*a.appearanceFetcher.Load()).Fetch(ctx)
-	// if err != nil {
-	// 	return nil, xerrors.Errorf("fetch appearance: %w", err)
-	// }
-	// banners := make([]*proto.BannerConfig, 0, len(cfg.AnnouncementBanners))
-	// for _, banner := range cfg.AnnouncementBanners {
-	// 	banners = append(banners, agentsdk.ProtoFromBannerConfig(banner))
-	// }
-	// return &proto.GetAnnouncementBannersResponse{
-	// 	AnnouncementBanners: banners,
-	// }, nil
-	return nil, nil
+func (a *ResourcesUsageAPI) PushResourcesUsage(ctx context.Context, req *proto.PushResourcesUsageRequest) (*proto.PushResourcesUsageResponse, error) {
+	a.Log.Info(ctx, "push resources usage", slog.F("request", req))
+
+	return &proto.PushResourcesUsageResponse{}, nil
 }

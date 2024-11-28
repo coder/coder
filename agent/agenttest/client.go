@@ -96,8 +96,8 @@ func (c *Client) Close() {
 	c.derpMapOnce.Do(func() { close(c.derpMapUpdates) })
 }
 
-func (c *Client) ConnectRPC23(ctx context.Context) (
-	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
+func (c *Client) ConnectRPC24(ctx context.Context) (
+	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient24, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
@@ -210,6 +210,11 @@ func (f *FakeAgentAPI) GetAnnouncementBanners(context.Context, *agentproto.GetAn
 		bannersProto = append(bannersProto, agentsdk.ProtoFromBannerConfig(banner))
 	}
 	return &agentproto.GetAnnouncementBannersResponse{AnnouncementBanners: bannersProto}, nil
+}
+
+func (f *FakeAgentAPI) PushResourcesUsage(ctx context.Context, req *agentproto.PushResourcesUsageRequest) (*agentproto.PushResourcesUsageResponse, error) {
+	f.logger.Info(ctx, "push resources usage", slog.F("request", req))
+	return &agentproto.PushResourcesUsageResponse{}, nil
 }
 
 func (f *FakeAgentAPI) UpdateStats(ctx context.Context, req *agentproto.UpdateStatsRequest) (*agentproto.UpdateStatsResponse, error) {
