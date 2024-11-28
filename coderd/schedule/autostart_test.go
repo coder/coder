@@ -26,7 +26,7 @@ func TestNextAllowedAutostart(t *testing.T) {
 			},
 		}
 
-		// NextAutostart wil, return a non-allowed autostart time as
+		// NextAutostart will return a non-allowed autostart time as
 		// our AutostartRequirement only allows Mondays but we expect
 		// this to return a Tuesday.
 		next, allowed := schedule.NextAutostart(at, sched, opts)

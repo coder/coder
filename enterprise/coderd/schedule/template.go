@@ -31,7 +31,7 @@ type EnterpriseTemplateScheduleStore struct {
 	// update.
 	UserQuietHoursScheduleStore *atomic.Pointer[agpl.UserQuietHoursScheduleStore]
 
-	// Custom time.Now() function to use in tests. Defaults to dbtime.Now().
+	// Clock for testing
 	Clock quartz.Clock
 
 	enqueuer notifications.Enqueuer
@@ -228,7 +228,7 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			if workspace.AutostartSchedule.Valid {
 				next, err := agpl.NextAllowedAutostart(s.now(), workspace.AutostartSchedule.String, templateSchedule)
 				if err == nil {
-					nextStartAt = next.UTC()
+					nextStartAt = dbtime.Time(next.UTC())
 				}
 			}
 

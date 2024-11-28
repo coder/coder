@@ -1104,8 +1104,7 @@ func TestNotifications(t *testing.T) {
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, admin.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			timeTilDormantMillis := timeTilDormant.Milliseconds()
-			ctr.TimeTilDormantMillis = &timeTilDormantMillis
+			ctr.TimeTilDormantMillis = ptr.Ref(timeTilDormant.Milliseconds())
 		})
 		userClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)

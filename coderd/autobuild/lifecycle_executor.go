@@ -209,7 +209,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
 						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
 						if err == nil {
-							nextStartAt := sql.NullTime{Valid: true, Time: next.UTC()}
+							nextStartAt := sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 							if err = tx.UpdateWorkspaceNextStartAt(e.ctx, database.UpdateWorkspaceNextStartAtParams{
 								ID:          wsID,
 								NextStartAt: nextStartAt,

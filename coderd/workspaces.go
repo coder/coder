@@ -559,7 +559,7 @@ func createWorkspace(
 	if dbAutostartSchedule.Valid {
 		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbAutostartSchedule.String, templateSchedule)
 		if err == nil {
-			nextStartAt = sql.NullTime{Valid: true, Time: next.UTC()}
+			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 		}
 	}
 
@@ -887,7 +887,7 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 	if dbSched.Valid {
 		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbSched.String, templateSchedule)
 		if err == nil {
-			nextStartAt = sql.NullTime{Valid: true, Time: next.UTC()}
+			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
 		}
 	}
 
