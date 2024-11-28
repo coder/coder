@@ -11126,7 +11126,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what groups a user\nshould be in. If empty, no groups will be synced.",
                     "type": "string"
                 },
                 "legacy_group_name_mapping": {
@@ -11137,7 +11137,7 @@ const docTemplate = `{
                     }
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+                    "description": "Mapping is a map from OIDC groups to Coder group IDs",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -12931,11 +12931,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what organization roles\na user should be given. If empty, no roles will be synced.",
                     "type": "string"
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+                    "description": "Mapping is a map from OIDC groups to Coder organization roles.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",

@@ -29,7 +29,12 @@ export const createAppLinkHref = (
 	}
 
 	if (appsHost && app.subdomain && app.subdomain_name) {
-		href = `${protocol}//${appsHost}/`.replace("*", app.subdomain_name);
+		const baseUrl = `${protocol}//${appsHost}`;
+		const url = new URL(baseUrl);
+		url.hostname = appsHost.replace("*", app.subdomain_name);
+		url.pathname = "/";
+
+		href = url.toString();
 	}
 	return href;
 };
