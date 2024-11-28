@@ -84,18 +84,19 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							drawerProps.onClose();
 						}}
 					/>
-				) : !logs ? (
-					<ProvisionerStatusAlert
-						matchingProvisioners={matchingProvisioners}
-						availableProvisioners={availableProvisioners}
-						tags={templateVersion?.job.tags ?? {}}
-					/>
 				) : logs ? (
 					<section ref={logsContainer} css={styles.logs}>
 						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
 					</section>
 				) : (
-					<Loader />
+					<>
+						<ProvisionerStatusAlert
+							matchingProvisioners={matchingProvisioners}
+							availableProvisioners={availableProvisioners}
+							tags={templateVersion?.job.tags ?? {}}
+						/>
+						<Loader />
+					</>
 				)}
 			</div>
 		</Drawer>

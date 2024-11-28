@@ -586,14 +586,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									<div>
 										{templateVersion.job.error ? (
+										<div>
 											<ProvisionerAlert
 												title="Error during the build"
 												detail={templateVersion.job.error}
 												severity="error"
 												tags={templateVersion.job.tags}
 											/>
+										</div>
 										) : (
 											!gotBuildLogs && (
 												<ProvisionerStatusAlert
@@ -603,9 +604,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												/>
 											)
 										)}
-									</div>
 
-									{buildLogs && buildLogs.length > 0 ? (
+									{gotBuildLogs ? (
 										<WorkspaceBuildLogs
 											css={styles.buildLogs}
 											hideTimestamps
