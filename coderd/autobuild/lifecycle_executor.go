@@ -205,7 +205,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
-					// If next start at is not valid we need to re-compute it.
+					// If next start at is not valid we need to re-compute it
 					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
 						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
 						if err == nil {

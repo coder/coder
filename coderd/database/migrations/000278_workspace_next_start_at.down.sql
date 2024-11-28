@@ -1,7 +1,10 @@
 DROP VIEW workspaces_expanded;
 
-DROP TRIGGER IF EXISTS trigger_update_workspaces_schedule ON workspaces;
-DROP FUNCTION IF EXISTS nullify_workspace_next_start_at;
+DROP TRIGGER IF EXISTS trigger_nullify_next_start_at_on_template_autostart_modification ON templates;
+DROP FUNCTION IF EXISTS nullify_next_start_at_on_template_autostart_modification;
+
+DROP TRIGGER IF EXISTS trigger_nullify_next_start_at_on_workspace_autostart_modification ON workspaces;
+DROP FUNCTION IF EXISTS nullify_next_start_at_on_workspace_autostart_modification;
 
 DROP INDEX workspace_next_start_at_idx;
 

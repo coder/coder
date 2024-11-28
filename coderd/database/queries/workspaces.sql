@@ -627,18 +627,22 @@ WHERE
 		--   * The workspace's owner is active.
 		--   * The provisioner job did not fail.
 		--   * The workspace build was a stop transition.
+		--   * The workspace is not dormant
 		--   * The workspace has an autostart schedule.
 		--   * It is after the workspace's next start time.
 		(
 			users.status = 'active'::user_status AND
 			provisioner_jobs.job_status != 'failed'::provisioner_job_status AND
 			workspace_builds.transition = 'stop'::workspace_transition AND
+			workspaces.dormant_at IS NULL AND
 			workspaces.autostart_schedule IS NOT NULL AND
 			(
-				-- next_start_at might be null when a coder instance has been updated
-				-- and we haven't yet had an opportunity to set next_start_at. When
-				-- this happens we leave it up to the Coder server to figure out if
-				-- the workspace is ready to autostart.
+				-- next_start_at might be null in these two scenarios:
+				--   * A coder instance was updated and we haven't updated next_start_at yet.
+				--   * A database trigger made it null because of an update to a related column.
+				--
+				-- When this occurs, we return the workspace so the Coder server can
+				-- compute a valid next start at and update it.
 				workspaces.next_start_at IS NULL OR
 				workspaces.next_start_at <= @now :: timestamptz
 			)

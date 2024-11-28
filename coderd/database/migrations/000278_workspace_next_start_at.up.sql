@@ -2,12 +2,17 @@ ALTER TABLE ONLY workspaces ADD COLUMN IF NOT EXISTS next_start_at TIMESTAMPTZ D
 
 CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted=false);
 
-CREATE FUNCTION nullify_workspace_next_start_at() RETURNS trigger
+CREATE FUNCTION nullify_next_start_at_on_workspace_autostart_modification() RETURNS trigger
 	LANGUAGE plpgsql
 AS $$
 DECLARE
 BEGIN
-	IF (NEW.autostart_schedule <> OLD.autostart_schedule) AND (NEW.next_start_at = OLD.next_start_at) THEN
+	-- A workspace's next_start_at might be invalidated by the following:
+	--   * The autostart schedule has changed independent to next_start_at
+	--   * The workspace has been marked as dormant
+	IF (NEW.autostart_schedule <> OLD.autostart_schedule AND NEW.next_start_at = OLD.next_start_at)
+		OR (NEW.dormant_at IS NOT NULL AND NEW.next_start_at IS NOT NULL)
+	THEN
 		UPDATE workspaces
 		SET next_start_at = NULL
 		WHERE id = NEW.id;
@@ -16,10 +21,10 @@ BEGIN
 END;
 $$;
 
-CREATE TRIGGER trigger_update_workspaces_schedule
+CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modification
 	AFTER UPDATE ON workspaces
 	FOR EACH ROW
-EXECUTE PROCEDURE nullify_workspace_next_start_at();
+EXECUTE PROCEDURE nullify_next_start_at_on_workspace_autostart_modification();
 
 -- Recreate view
 DROP VIEW workspaces_expanded;
