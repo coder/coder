@@ -472,7 +472,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		})
 	})
 
-	t.Run("CORS", func(t *testing.T) {
+	t.Run("WorkspaceApplicationCORS", func(t *testing.T) {
 		t.Parallel()
 
 		// Set up test headers that should be returned by the app
@@ -481,108 +481,118 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			"Access-Control-Allow-Methods": []string{"GET, POST, OPTIONS"},
 		}
 
-		t.Run("UnauthenticatedPassthruRejected", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			appDetails := setupProxyTest(t, &DeploymentOptions{
-				headers: testHeaders,
-			})
-
-			// Given: an unauthenticated client
-			client := appDetails.AppClient(t)
-			client.SetSessionToken("")
-
-			// When: a request is made to an authenticated app with passthru CORS behavior
-			resp, err := requestWithRetries(ctx, t, client, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.AuthenticatedCORSPassthru).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// Then: the request is redirected to login because even though CORS is passthru,
-			// the request must still be authenticated first
-			require.Equal(t, http.StatusSeeOther, resp.StatusCode)
-			gotLocation, err := resp.Location()
-			require.NoError(t, err)
-			require.Equal(t, appDetails.SDKClient.URL.Host, gotLocation.Host)
-			require.Equal(t, "/api/v2/applications/auth-redirect", gotLocation.Path)
+		appDetails := setupProxyTest(t, &DeploymentOptions{
+			headers: testHeaders,
 		})
 
-		t.Run("AuthenticatedPassthruOK", func(t *testing.T) {
-			t.Parallel()
+		unauthenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			c := appDetails.AppClient(t)
+			c.SetSessionToken("")
+			return c
+		}
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+		authenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			uc, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			c := appDetails.AppClient(t)
+			c.SetSessionToken(uc.SessionToken())
+			return c
+		}
 
-			appDetails := setupProxyTest(t, &DeploymentOptions{
-				headers: testHeaders,
+		ownerClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			return appDetails.SDKClient
+		}
+
+		tests := []struct {
+			name                string
+			app                 App
+			client              func(t *testing.T, appDetails *Details) *codersdk.Client
+			expectedStatusCode  int
+			expectedCORSHeaders bool
+		}{
+			// Public
+			{
+				name:                "Default/Public",
+				app:                 appDetails.Apps.PublicCORSDefault,
+				client:              unauthenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+				expectedCORSHeaders: false,
+			},
+			{
+				name:                "Passthru/Public",
+				app:                 appDetails.Apps.PublicCORSPassthru,
+				client:              unauthenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+				expectedCORSHeaders: true,
+			},
+			// Authenticated
+			{
+				name:                "Default/Authenticated",
+				app:                 appDetails.Apps.AuthenticatedCORSDefault,
+				expectedCORSHeaders: false,
+				client:              authenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{
+				name:                "Passthru/Authenticated",
+				app:                 appDetails.Apps.AuthenticatedCORSPassthru,
+				expectedCORSHeaders: true,
+				client:              authenticatedClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{
+				// The CORS behavior will not affect unauthenticated requests.
+				// The request will be redirected to the login page.
+				name:                "Passthru/Unauthenticated",
+				app:                 appDetails.Apps.AuthenticatedCORSPassthru,
+				expectedCORSHeaders: false,
+				client:              unauthenticatedClient,
+				expectedStatusCode:  http.StatusSeeOther,
+			},
+			// Owner
+			{
+				name:                "Default/Owner",
+				app:                 appDetails.Apps.AuthenticatedCORSDefault,
+				expectedCORSHeaders: false,
+				client:              ownerClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+			{
+				name:                "Passthru/Owner",
+				app:                 appDetails.Apps.AuthenticatedCORSPassthru,
+				expectedCORSHeaders: true,
+				client:              ownerClient,
+				expectedStatusCode:  http.StatusOK,
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				// Given: a client
+				client := tc.client(t, appDetails)
+
+				// When: a request is made to an authenticated app with a specified CORS behavior
+				resp, err := requestWithRetries(ctx, t, client, http.MethodGet, appDetails.SubdomainAppURL(tc.app).String(), nil)
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				// Then: the request must match expectations
+				require.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+				require.NoError(t, err)
+
+				// Then: the CORS headers must match expectations
+				if tc.expectedCORSHeaders {
+					require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
+					require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
+				} else {
+					require.Empty(t, resp.Header.Get("Access-Control-Allow-Origin"))
+					require.Empty(t, resp.Header.Get("Access-Control-Allow-Methods"))
+				}
 			})
-
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userAppClient := appDetails.AppClient(t)
-			userAppClient.SetSessionToken(userClient.SessionToken())
-
-			// Given: an authenticated app with passthru CORS behavior
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.AuthenticatedCORSPassthru).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			// Check CORS headers are passed through
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
-		})
-
-		t.Run("UnauthenticatedPublicPassthruOK", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			appDetails := setupProxyTest(t, &DeploymentOptions{
-				headers: testHeaders,
-			})
-
-			// Given: an unauthenticated client
-			client := appDetails.AppClient(t)
-			client.SetSessionToken("")
-
-			// When: a request is made to a public app with passthru CORS behavior
-			resp, err := requestWithRetries(ctx, t, client, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.PublicCORSPassthru).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// Then: the request succeeds because the app is public
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			// Check CORS headers are passed through
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
-		})
-
-		t.Run("AuthenticatedPublicPassthruOK", func(t *testing.T) {
-			t.Parallel()
-
-			ctx := testutil.Context(t, testutil.WaitLong)
-
-			appDetails := setupProxyTest(t, &DeploymentOptions{
-				headers: testHeaders,
-			})
-
-			userClient, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
-			userAppClient := appDetails.AppClient(t)
-			userAppClient.SetSessionToken(userClient.SessionToken())
-
-			// Given: an authenticated client accessing a public app with passthru CORS behavior
-			resp, err := requestWithRetries(ctx, t, userAppClient, http.MethodGet, appDetails.SubdomainAppURL(appDetails.Apps.PublicCORSPassthru).String(), nil)
-			require.NoError(t, err)
-			defer resp.Body.Close()
-
-			// Then: the request succeeds because the app is public
-			require.Equal(t, http.StatusOK, resp.StatusCode)
-
-			// Check CORS headers are passed through
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
-		})
+		}
 	})
 
 	t.Run("WorkspaceApplicationAuth", func(t *testing.T) {
