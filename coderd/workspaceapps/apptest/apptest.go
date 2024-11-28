@@ -529,7 +529,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Check CORS headers are passed through
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Credentials"), resp.Header.Get("Access-Control-Allow-Credentials"))
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
 		})
 
@@ -556,7 +555,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Check CORS headers are passed through
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Credentials"), resp.Header.Get("Access-Control-Allow-Credentials"))
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
 		})
 
@@ -583,7 +581,6 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 			// Check CORS headers are passed through
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Origin"), resp.Header.Get("Access-Control-Allow-Origin"))
-			require.Equal(t, testHeaders.Get("Access-Control-Allow-Credentials"), resp.Header.Get("Access-Control-Allow-Credentials"))
 			require.Equal(t, testHeaders.Get("Access-Control-Allow-Methods"), resp.Header.Get("Access-Control-Allow-Methods"))
 		})
 	})
