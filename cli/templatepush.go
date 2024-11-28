@@ -416,7 +416,7 @@ func createValidTemplateVersion(inv *serpent.Invocation, args createValidTemplat
 	if err != nil {
 		return nil, err
 	}
-
+	WarnMatchedProvisioners(inv, version)
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {
 			version, err := client.TemplateVersion(inv.Context(), version.ID)
