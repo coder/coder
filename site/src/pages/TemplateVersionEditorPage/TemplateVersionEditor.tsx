@@ -586,7 +586,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-										{templateVersion.job.error ? (
+									{templateVersion.job.error ? (
 										<div>
 											<ProvisionerAlert
 												title="Error during the build"
@@ -595,24 +595,21 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												tags={templateVersion.job.tags}
 											/>
 										</div>
-										) : (
-											!gotBuildLogs && (
-												<ProvisionerStatusAlert
-													matchingProvisioners={matchingProvisioners}
-													availableProvisioners={availableProvisioners}
-													tags={templateVersion.job.tags}
-												/>
-											)
-										)}
-
-									{gotBuildLogs ? (
+									) : gotBuildLogs ? (
 										<WorkspaceBuildLogs
 											css={styles.buildLogs}
 											hideTimestamps
 											logs={buildLogs}
 										/>
 									) : (
-										<Loader css={{ height: "100%" }} />
+										<>
+											<ProvisionerStatusAlert
+												matchingProvisioners={matchingProvisioners}
+												availableProvisioners={availableProvisioners}
+												tags={templateVersion.job.tags}
+											/>
+											<Loader css={{ height: "100%" }} />
+										</>
 									)}
 								</div>
 							)}
