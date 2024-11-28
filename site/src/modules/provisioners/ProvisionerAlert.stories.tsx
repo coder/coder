@@ -1,6 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { MockTemplateVersion } from "testHelpers/entities";
 import { ProvisionerAlert } from "./ProvisionerAlert";
 
 const meta: Meta<typeof ProvisionerAlert> = {
@@ -11,45 +10,19 @@ const meta: Meta<typeof ProvisionerAlert> = {
 	},
 	component: ProvisionerAlert,
 	args: {
-		matchingProvisioners: 0,
-		availableProvisioners: 0,
-		tags: MockTemplateVersion.job.tags,
+		title: "Title",
+		detail: "Detail",
+		severity: "info",
+		tags: {"tag": "tagValue"}
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof ProvisionerAlert>;
 
-export const HealthyProvisioners: Story = {
+export const Info: Story = {};
+export const NullTags: Story = {
 	args: {
-		matchingProvisioners: 1,
-		availableProvisioners: 1,
-	},
-};
-
-export const UndefinedMatchingProvisioners: Story = {
-	args: {
-		matchingProvisioners: undefined,
-		availableProvisioners: undefined,
-	},
-};
-
-export const UndefinedAvailableProvisioners: Story = {
-	args: {
-		matchingProvisioners: 1,
-		availableProvisioners: undefined,
-	},
-};
-
-export const NoMatchingProvisioners: Story = {
-	args: {
-		matchingProvisioners: 0,
-	},
-};
-
-export const NoAvailableProvisioners: Story = {
-	args: {
-		matchingProvisioners: 1,
-		availableProvisioners: 0,
-	},
+		tags: undefined
+	}
 };

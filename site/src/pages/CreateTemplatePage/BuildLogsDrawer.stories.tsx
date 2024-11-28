@@ -62,7 +62,6 @@ export const ProvisionersHealthy: Story = {
 	args: {
 		templateVersion: {
 			...MockTemplateVersion,
-			organization_id: "org-id",
 			matched_provisioners: {
 				count: 1,
 				available: 1,

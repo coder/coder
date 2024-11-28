@@ -28,10 +28,6 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import {
-	ProvisionerAlert,
-	ProvisionerJobAlert,
-} from "modules/provisioners/ProvisionerAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -63,6 +59,8 @@ import { MonacoEditor } from "./MonacoEditor";
 import { ProvisionerTagsPopover } from "./ProvisionerTagsPopover";
 import { PublishTemplateVersionDialog } from "./PublishTemplateVersionDialog";
 import { TemplateVersionStatusBadge } from "./TemplateVersionStatusBadge";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
 
 type Tab = "logs" | "resources" | undefined; // Undefined is to hide the tab
 
@@ -588,22 +586,22 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									{templateVersion.job.error && (
-										<ProvisionerJobAlert
-											severity="error"
+									<div>
+									{templateVersion.job.error ? (
+										<ProvisionerAlert
 											title="Error during the build"
 											detail={templateVersion.job.error}
+											severity="error"
 											tags={templateVersion.job.tags}
 										/>
-									)}
-
-									{!gotBuildLogs && (
-										<ProvisionerAlert
+									) : !gotBuildLogs && (
+										<ProvisionerStatusAlert
 											matchingProvisioners={matchingProvisioners}
 											availableProvisioners={availableProvisioners}
 											tags={templateVersion.job.tags}
 										/>
 									)}
+									</div>
 
 									{buildLogs && buildLogs.length > 0 ? (
 										<WorkspaceBuildLogs

@@ -8,7 +8,7 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
@@ -70,13 +70,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
-				{!logs && (
-					<ProvisionerAlert
-						matchingProvisioners={matchingProvisioners}
-						availableProvisioners={availableProvisioners}
-						tags={templateVersion?.job.tags ?? {}}
-					/>
-				)}
+				{}
 
 				{isMissingVariables ? (
 					<MissingVariablesBanner
@@ -89,6 +83,12 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							setTimeout(() => firstVariableInput?.focus(), 0);
 							drawerProps.onClose();
 						}}
+					/>
+				) : !logs ? (
+					<ProvisionerStatusAlert
+						matchingProvisioners={matchingProvisioners}
+						availableProvisioners={availableProvisioners}
+						tags={templateVersion?.job.tags ?? {}}
 					/>
 				) : logs ? (
 					<section ref={logsContainer} css={styles.logs}>
