@@ -44,6 +44,7 @@ type API struct {
 	*MetadataAPI
 	*LogsAPI
 	*ScriptsAPI
+	*ResourcesUsageAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -97,6 +98,8 @@ func New(opts Options) *API {
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
 	}
+
+	api.ResourcesUsageAPI = &ResourcesUsageAPI{}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
 		appearanceFetcher: opts.AppearanceFetcher,
