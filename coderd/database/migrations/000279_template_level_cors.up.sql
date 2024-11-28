@@ -32,7 +32,7 @@ CREATE VIEW template_with_names AS
     templates.deprecated,
     templates.activity_bump,
     templates.max_port_sharing_level,
-    templates.cors_behavior,
+    templates.cors_behavior,          -- <--- adding this column
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username,
     COALESCE(organizations.name, ''::text) AS organization_name,
