@@ -1,4 +1,5 @@
 import MuiAlert, {
+	type AlertColor as MuiAlertColor,
 	type AlertProps as MuiAlertProps,
 	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
@@ -10,6 +11,8 @@ import {
 	type ReactNode,
 	useState,
 } from "react";
+
+export type AlertColor = MuiAlertColor;
 
 export type AlertProps = MuiAlertProps & {
 	actions?: ReactNode;
