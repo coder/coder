@@ -50,6 +50,12 @@ func TestTemplateVersion(t *testing.T) {
 		tv, err := client.TemplateVersion(ctx, version.ID)
 		authz.AssertChecked(t, policy.ActionRead, tv)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		assert.Equal(t, "bananas", tv.Name)
 		assert.Equal(t, "first try", tv.Message)
@@ -87,8 +93,14 @@ func TestTemplateVersion(t *testing.T) {
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		_, err := client1.TemplateVersion(ctx, version.ID)
+		tv, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -158,6 +170,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, version.Job.Tags[provisionersdk.TagScope])
+		if assert.Equal(t, version.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, version.MatchedProvisioners)
+			assert.Equal(t, version.MatchedProvisioners.Available, 1)
+			assert.Equal(t, version.MatchedProvisioners.Count, 1)
+			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
@@ -790,8 +808,15 @@ func TestTemplateVersionByName(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
+		tv, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
 		require.NoError(t, err)
+
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 

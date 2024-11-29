@@ -22,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/externalauth"
@@ -32,6 +33,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/examples"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -60,6 +62,22 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var matchedProvisioners *codersdk.MatchedProvisioners
+	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: jobs[0].ProvisionerJob.OrganizationID,
+			WantTags:       jobs[0].ProvisionerJob.Tags,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
+		} else {
+			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+		}
+	}
+
 	schemas, err := api.Database.GetParameterSchemasByJobID(ctx, jobs[0].ProvisionerJob.ID)
 	if errors.Is(err, sql.ErrNoRows) {
 		err = nil
@@ -77,7 +95,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, warnings))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), matchedProvisioners, warnings))
 }
 
 // @Summary Patch template version by ID
@@ -173,7 +191,23 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), nil, nil))
+	var matchedProvisioners *codersdk.MatchedProvisioners
+	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: jobs[0].ProvisionerJob.OrganizationID,
+			WantTags:       jobs[0].ProvisionerJob.Tags,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
+		} else {
+			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), matchedProvisioners, nil))
 }
 
 // @Summary Cancel template version by ID
@@ -868,8 +902,23 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	var matchedProvisioners *codersdk.MatchedProvisioners
+	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: jobs[0].ProvisionerJob.OrganizationID,
+			WantTags:       jobs[0].ProvisionerJob.Tags,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
+		} else {
+			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+		}
+	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), matchedProvisioners, nil))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -934,7 +983,23 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, nil))
+	var matchedProvisioners *codersdk.MatchedProvisioners
+	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: jobs[0].ProvisionerJob.OrganizationID,
+			WantTags:       jobs[0].ProvisionerJob.Tags,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
+		} else {
+			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), matchedProvisioners, nil))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1020,7 +1085,23 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), nil, nil))
+	var matchedProvisioners *codersdk.MatchedProvisioners
+	if jobs[0].ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		provisioners, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+			OrganizationID: jobs[0].ProvisionerJob.OrganizationID,
+			WantTags:       jobs[0].ProvisionerJob.Tags,
+		})
+		if err != nil {
+			api.Logger.Error(ctx, "failed to fetch provisioners for job id", slog.F("job_id", jobs[0].ProvisionerJob.ID), slog.Error(err))
+		} else {
+			matchedProvisioners = ptr.Ref(db2sdk.MatchedProvisioners(provisioners, dbtime.Now(), provisionerdserver.StaleInterval))
+		}
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), matchedProvisioners, nil))
 }
 
 // @Summary Archive template unused versions by template id
@@ -1540,7 +1621,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 		// Check for eligible provisioners. This allows us to return a warning to the user if they
 		// submit a job for which no provisioner is available.
-		eligibleProvisioners, err := tx.GetProvisionerDaemonsByOrganization(ctx, database.GetProvisionerDaemonsByOrganizationParams{
+		// nolint: gocritic // The user hitting this endpoint may not have
+		// permission to read provisioner daemons, but we want to show them
+		// information about the provisioner daemons that are available.
+		eligibleProvisioners, err := tx.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
 			OrganizationID: organization.ID,
 			WantTags:       provisionerJob.Tags,
 		})

@@ -317,6 +317,23 @@ var (
 		}),
 		Scope: rbac.ScopeAll,
 	}.WithCachedASTValue()
+
+	subjectSystemReadProvisionerDaemons = rbac.Subject{
+		FriendlyName: "System",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "system-read-provisioner-daemons"},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
 )
 
 // AsProvisionerd returns a context with an actor that has permissions required
@@ -357,6 +374,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectSystemRestricted)
+}
+
+// AsSystemReadProvisionerDaemons returns a context with an actor that has permissions
+// to read provisioner daemons.
+func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
 }
 
 var AsRemoveActor = rbac.Subject{
