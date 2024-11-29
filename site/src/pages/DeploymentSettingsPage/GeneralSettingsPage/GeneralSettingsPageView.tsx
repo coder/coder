@@ -1,4 +1,5 @@
 import AlertTitle from "@mui/material/AlertTitle";
+import LinearProgress from "@mui/material/LinearProgress";
 import type {
 	DAUsResponse,
 	Entitlements,
@@ -10,7 +11,6 @@ import {
 	ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Gauge } from "components/Gauge/Gauge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -64,9 +64,14 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 				{licenseUtilizationPercentage && (
 					<div css={{ marginBottom: 24, height: 200 }}>
 						<ChartSection title="License Utilization">
-							<Gauge
+							<LinearProgress
+								variant="determinate"
 								value={licenseUtilizationPercentage * 100}
-								label="License Usage"
+								css={{
+									height: 24,
+									borderRadius: 4,
+									marginBottom: 8,
+								}}
 							/>
 							<span
 								css={{
