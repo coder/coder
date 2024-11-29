@@ -555,7 +555,13 @@ func TestTemplatePush(t *testing.T) {
 
 					require.Eventually(t, func() bool {
 						jobs, err := store.GetProvisionerJobsCreatedAfter(ctx, time.Time{})
-						return assert.NoError(t, err) && len(jobs) == 1 && assert.EqualValues(t, wantTags, jobs[0].Tags)
+						if !assert.NoError(t, err) {
+							return false
+						}
+						if len(jobs) == 0 {
+							return false
+						}
+						return assert.EqualValues(t, wantTags, jobs[0].Tags)
 					}, testutil.WaitShort, testutil.IntervalFast)
 					cancel()
 					<-done
