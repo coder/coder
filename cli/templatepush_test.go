@@ -432,13 +432,25 @@ func TestTemplatePush(t *testing.T) {
 				{
 					name: "provisioner stale",
 					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap) error {
-						_, err := store.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
+						pk, err := store.InsertProvisionerKey(ctx, database.InsertProvisionerKeyParams{
+							ID:             uuid.New(),
+							CreatedAt:      now,
+							OrganizationID: owner.OrganizationID,
+							Name:           "test",
+							Tags:           tags,
+							HashedSecret:   []byte("secret"),
+						})
+						if err != nil {
+							return err
+						}
+						_, err = store.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 							Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
 							LastSeenAt:     sql.NullTime{Time: oneHourAgo, Valid: true},
 							CreatedAt:      oneHourAgo,
 							Name:           "test",
 							Tags:           tags,
 							OrganizationID: owner.OrganizationID,
+							KeyID:          pk.ID,
 						})
 						return err
 					},
@@ -447,13 +459,25 @@ func TestTemplatePush(t *testing.T) {
 				{
 					name: "active provisioner",
 					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap) error {
-						_, err := store.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
+						pk, err := store.InsertProvisionerKey(ctx, database.InsertProvisionerKeyParams{
+							ID:             uuid.New(),
+							CreatedAt:      now,
+							OrganizationID: owner.OrganizationID,
+							Name:           "test",
+							Tags:           tags,
+							HashedSecret:   []byte("secret"),
+						})
+						if err != nil {
+							return err
+						}
+						_, err = store.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 							Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
 							LastSeenAt:     sql.NullTime{Time: now, Valid: true},
 							CreatedAt:      now,
 							Name:           "test-active",
 							Tags:           tags,
 							OrganizationID: owner.OrganizationID,
+							KeyID:          pk.ID,
 						})
 						return err
 					},
