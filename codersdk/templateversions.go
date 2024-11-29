@@ -32,7 +32,7 @@ type TemplateVersion struct {
 	Archived       bool           `json:"archived"`
 
 	Warnings            []TemplateVersionWarning `json:"warnings,omitempty" enums:"DEPRECATED_PARAMETERS"`
-	MatchedProvisioners MatchedProvisioners      `json:"matched_provisioners,omitempty"`
+	MatchedProvisioners *MatchedProvisioners     `json:"matched_provisioners,omitempty"`
 }
 
 type TemplateVersionExternalAuth struct {
