@@ -57,6 +57,10 @@ const (
 	// DefaultHeartbeatInterval is the interval at which the provisioner daemon
 	// will update its last seen at timestamp in the database.
 	DefaultHeartbeatInterval = time.Minute
+
+	// StaleInterval is the amount of time after the last heartbeat for which
+	// the provisioner will be reported as 'stale'.
+	StaleInterval = 90 * time.Second
 )
 
 type Options struct {
