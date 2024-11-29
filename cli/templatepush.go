@@ -492,7 +492,7 @@ Details:
 Details:
 	Provisioner job ID : %s
 	Requested tags     : %s
-	Last response      : %s
+	Most recently seen : %s
 `
 )
 
