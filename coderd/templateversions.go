@@ -77,7 +77,7 @@ func (api *API) templateVersion(rw http.ResponseWriter, r *http.Request) {
 		warnings = append(warnings, codersdk.TemplateVersionWarningUnsupportedWorkspaces)
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, warnings))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, warnings))
 }
 
 // @Summary Patch template version by ID
@@ -173,7 +173,7 @@ func (api *API) patchTemplateVersion(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(updatedTemplateVersion, convertProvisionerJob(jobs[0]), nil, nil))
 }
 
 // @Summary Cancel template version by ID
@@ -814,7 +814,7 @@ func (api *API) templateVersionsByTemplate(rw http.ResponseWriter, r *http.Reque
 				return err
 			}
 
-			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), codersdk.MatchedProvisioners{}, nil))
+			apiVersions = append(apiVersions, convertTemplateVersion(version, convertProvisionerJob(job), nil, nil))
 		}
 
 		return nil
@@ -869,7 +869,7 @@ func (api *API) templateVersionByName(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, nil))
 }
 
 // @Summary Get template version by organization, template, and name
@@ -934,7 +934,7 @@ func (api *API) templateVersionByOrganizationTemplateAndName(rw http.ResponseWri
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(templateVersion, convertProvisionerJob(jobs[0]), nil, nil))
 }
 
 // @Summary Get previous template version by organization, template, and name
@@ -1020,7 +1020,7 @@ func (api *API) previousTemplateVersionByOrganizationTemplateAndName(rw http.Res
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), codersdk.MatchedProvisioners{}, nil))
+	httpapi.Write(ctx, rw, http.StatusOK, convertTemplateVersion(previousTemplateVersion, convertProvisionerJob(jobs[0]), nil, nil))
 }
 
 // @Summary Archive template unused versions by template id
@@ -1633,7 +1633,7 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 			ProvisionerJob: provisionerJob,
 			QueuePosition:  0,
 		}),
-		matchedProvisioners,
+		&matchedProvisioners,
 		warnings))
 }
 
@@ -1701,7 +1701,7 @@ func (api *API) templateVersionLogs(rw http.ResponseWriter, r *http.Request) {
 	api.provisionerJobLogs(rw, r, job)
 }
 
-func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, matchedProvisioners codersdk.MatchedProvisioners, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
+func convertTemplateVersion(version database.TemplateVersion, job codersdk.ProvisionerJob, matchedProvisioners *codersdk.MatchedProvisioners, warnings []codersdk.TemplateVersionWarning) codersdk.TemplateVersion {
 	return codersdk.TemplateVersion{
 		ID:             version.ID,
 		TemplateID:     &version.TemplateID.UUID,
