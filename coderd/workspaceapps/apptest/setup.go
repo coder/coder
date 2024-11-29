@@ -65,6 +65,7 @@ type DeploymentOptions struct {
 	noWorkspace bool
 	port        uint16
 	headers     http.Header
+	handler     http.Handler
 }
 
 // Deployment is a license-agnostic deployment with all the fields that apps
@@ -214,7 +215,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 
 	if opts.port == 0 {
-		opts.port = appServer(t, opts.headers, opts.ServeHTTPS)
+		opts.port = appServer(t, opts.headers, opts.ServeHTTPS, opts.handler)
 	}
 	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
 
@@ -300,24 +301,28 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 }
 
 //nolint:revive
-func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
-	server := httptest.NewUnstartedServer(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				_, err := r.Cookie(codersdk.SessionTokenCookie)
-				assert.ErrorIs(t, err, http.ErrNoCookie)
-				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
-				w.Header().Set("X-Got-Host", r.Host)
-				for name, values := range headers {
-					for _, value := range values {
-						w.Header().Add(name, value)
-					}
+func appServer(t *testing.T, headers http.Header, isHTTPS bool, handler http.Handler) uint16 {
+	defaultHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, err := r.Cookie(codersdk.SessionTokenCookie)
+			assert.ErrorIs(t, err, http.ErrNoCookie)
+			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+			w.Header().Set("X-Got-Host", r.Host)
+			for name, values := range headers {
+				for _, value := range values {
+					w.Header().Add(name, value)
 				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(proxyTestAppBody))
-			},
-		),
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(proxyTestAppBody))
+		},
 	)
+
+	if handler == nil {
+		handler = defaultHandler
+	}
+
+	server := httptest.NewUnstartedServer(handler)
 
 	server.Config.ReadHeaderTimeout = time.Minute
 	if isHTTPS {
