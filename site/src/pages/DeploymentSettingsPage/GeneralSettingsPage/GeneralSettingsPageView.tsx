@@ -10,6 +10,7 @@ import {
 	ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Gauge } from "components/Gauge/Gauge";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -36,6 +37,12 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 	safeExperiments,
 	invalidExperiments,
 }) => {
+	const licenseUtilizationPercentage =
+		entitlements?.features?.user_limit?.actual &&
+		entitlements?.features?.user_limit?.limit
+			? entitlements.features.user_limit.actual /
+				entitlements.features.user_limit.limit
+			: undefined;
 	return (
 		<>
 			<SettingsHeader
@@ -51,6 +58,27 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 					<div css={{ marginBottom: 24, height: 200 }}>
 						<ChartSection title={<ActiveUsersTitle interval="day" />}>
 							<ActiveUserChart data={deploymentDAUs.entries} interval="day" />
+						</ChartSection>
+					</div>
+				)}
+				{licenseUtilizationPercentage && (
+					<div css={{ marginBottom: 24, height: 200 }}>
+						<ChartSection title="License Utilization">
+							<Gauge
+								value={licenseUtilizationPercentage * 100}
+								label="License Usage"
+							/>
+							<span
+								css={{
+									fontSize: "0.75rem",
+									display: "block",
+									textAlign: "right",
+								}}
+							>
+								{Math.round(licenseUtilizationPercentage * 100)}% used (
+								{entitlements!.features.user_limit.actual}/
+								{entitlements!.features.user_limit.limit} users)
+							</span>
 						</ChartSection>
 					</div>
 				)}
