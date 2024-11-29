@@ -1,15 +1,20 @@
 import { useTheme } from "@emotion/react";
-import type { ProvisionerJobLog } from "api/typesGenerated";
+import type { MatchedProvisioners, ProvisionerJobLog } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useEffect, useRef } from "react";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 
 interface WorkspaceBuildLogsSectionProps {
 	logs?: ProvisionerJobLog[];
+	tags: Record<string, string>;
+	matchedProvisioners: MatchedProvisioners;
 }
 
 export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 	logs,
+	tags,
+	matchedProvisioners,
 }) => {
 	const scrollRef = useRef<HTMLDivElement>(null);
 	const theme = useTheme();
@@ -26,6 +31,9 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 			scrollEl.scrollTop = scrollEl.scrollHeight;
 		}
 	}, [logs]);
+
+	const availableProvisioners = matchedProvisioners.available;
+	const matchingProvisioners = matchedProvisioners.count;
 
 	return (
 		<div
@@ -67,6 +75,11 @@ export const WorkspaceBuildLogsSection: FC<WorkspaceBuildLogsSectionProps> = ({
 							height: "100%",
 						}}
 					>
+						<ProvisionerStatusAlert
+							matchingProvisioners={matchingProvisioners}
+							availableProvisioners={availableProvisioners}
+							tags={tags}
+						/>
 						<Loader />
 					</div>
 				)}

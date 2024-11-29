@@ -266,7 +266,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				template={template}
 				buildLogs={
 					shouldDisplayBuildLogs && (
-						<WorkspaceBuildLogsSection logs={buildLogs} />
+						<WorkspaceBuildLogsSection
+							matchedProvisioners={workspace.latest_build.matched_provisioners}
+							logs={buildLogs}
+							tags={workspace.latest_build.job.tags}
+						/>
 					)
 				}
 				isOwner={isOwner}
