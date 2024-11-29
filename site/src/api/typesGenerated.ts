@@ -2012,6 +2012,7 @@ export interface WorkspaceBuild {
 	readonly max_deadline?: string;
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/workspacebuilds.go

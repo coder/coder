@@ -15068,6 +15068,9 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "matched_provisioners": {
+                    "$ref": "#/definitions/codersdk.MatchedProvisioners"
+                },
                 "max_deadline": {
                     "type": "string",
                     "format": "date-time"

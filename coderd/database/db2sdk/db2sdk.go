@@ -673,3 +673,23 @@ func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 		Secret:    key.Secret.String,
 	}
 }
+
+func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now time.Time, staleInterval time.Duration) codersdk.MatchedProvisioners {
+	minLastSeenAt := now.Add(-staleInterval)
+	mostRecentlySeen := codersdk.NullTime{}
+	var matched codersdk.MatchedProvisioners
+	for _, provisioner := range provisionerDaemons {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		matched.Count++
+		if provisioner.LastSeenAt.Time.After(minLastSeenAt) {
+			matched.Available++
+		}
+		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {
+			matched.MostRecentlySeen.Valid = true
+			matched.MostRecentlySeen.Time = provisioner.LastSeenAt.Time
+		}
+	}
+	return matched
+}

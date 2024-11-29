@@ -299,7 +299,7 @@ var (
 					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
 					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
-					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceProvisionerKeys.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
