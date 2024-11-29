@@ -483,32 +483,29 @@ func ParseProvisionerTags(rawTags []string) (map[string]string, error) {
 }
 
 var (
-	warnNoMatchedProvisioners = `No provisioners are available to handle the job!
-Please contact your deployment administrator for assistance.
+	warnNoMatchedProvisioners = `Your build has been enqueued, but there are no provisioners that accept the required tags. Once a compatible provisioner becomes available, your build will continue. Please contact your administrator.
 Details:
 	Provisioner job ID : %s
 	Requested tags     : %s
 `
-	warnNoAvailableProvisioners = `All available provisioner daemons have been silent for a while.
-Your build will proceed once they become available.
-If this persists, please contact your deployment administrator for assistance.
+	warnNoAvailableProvisioners = `Provisioners that accept the required tags have not responded for longer than expected. This may delay your build. Please contact your administrator if your build does not complete.
 Details:
 	Provisioner job ID : %s
 	Requested tags     : %s
-	Most recently seen : %s
+	Last response      : %s
 `
 )
 
 func WarnMatchedProvisioners(inv *serpent.Invocation, tv codersdk.TemplateVersion) {
+	if tv.MatchedProvisioners == nil {
+		// Nothing in the response, nothing to do here!
+		return
+	}
 	var tagsJSON strings.Builder
 	if err := json.NewEncoder(&tagsJSON).Encode(tv.Job.Tags); err != nil {
 		// Fall back to the less-pretty string representation.
 		tagsJSON.Reset()
 		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", tv.Job.Tags))
-	}
-	if tv.MatchedProvisioners == nil {
-		// Nothing in the response, nothing to do here!
-		return
 	}
 	if tv.MatchedProvisioners.Count == 0 {
 		cliui.Warnf(inv.Stderr, warnNoMatchedProvisioners, tv.Job.ID, tagsJSON.String())
