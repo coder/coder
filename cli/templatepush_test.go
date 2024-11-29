@@ -536,11 +536,9 @@ func TestTemplatePush(t *testing.T) {
 
 					templateName := strings.ReplaceAll(testutil.GetRandomName(t), "_", "-")
 
-					var output strings.Builder
 					inv, root := clitest.New(t, "templates", "push", templateName, "-d", tempDir, "--yes")
-					inv.Stdout = &output
-					inv.Stderr = &output
 					clitest.SetupConfig(t, templateAdmin, root)
+					pty := ptytest.New(t).Attach(inv)
 
 					ctx := testutil.Context(t, testutil.WaitShort)
 					now := dbtime.Now()
@@ -563,12 +561,13 @@ func TestTemplatePush(t *testing.T) {
 						}
 						return assert.EqualValues(t, wantTags, jobs[0].Tags)
 					}, testutil.WaitShort, testutil.IntervalFast)
-					cancel()
-					<-done
 
 					if tt.expectOutput != "" {
-						require.Contains(t, output.String(), tt.expectOutput)
+						pty.ExpectMatch(tt.expectOutput)
 					}
+
+					cancel()
+					<-done
 				})
 			}
 		})
