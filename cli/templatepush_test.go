@@ -414,24 +414,22 @@ func TestTemplatePush(t *testing.T) {
 
 		t.Run("WorkspaceTagsTerraform", func(t *testing.T) {
 			t.Parallel()
-			now := dbtime.Now()
-			oneHourAgo := now.Add(-time.Hour)
 
 			tests := []struct {
 				name         string
-				setupDaemon  func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap) error
+				setupDaemon  func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap, now time.Time) error
 				expectOutput string
 			}{
 				{
 					name: "no provisioners available",
-					setupDaemon: func(_ context.Context, _ database.Store, _ codersdk.CreateFirstUserResponse, _ database.StringMap) error {
+					setupDaemon: func(_ context.Context, _ database.Store, _ codersdk.CreateFirstUserResponse, _ database.StringMap, _ time.Time) error {
 						return nil
 					},
 					expectOutput: "there are no provisioners that accept the required tags",
 				},
 				{
 					name: "provisioner stale",
-					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap) error {
+					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap, now time.Time) error {
 						pk, err := store.InsertProvisionerKey(ctx, database.InsertProvisionerKeyParams{
 							ID:             uuid.New(),
 							CreatedAt:      now,
@@ -443,6 +441,7 @@ func TestTemplatePush(t *testing.T) {
 						if err != nil {
 							return err
 						}
+						oneHourAgo := now.Add(-time.Hour)
 						_, err = store.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
 							Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
 							LastSeenAt:     sql.NullTime{Time: oneHourAgo, Valid: true},
@@ -458,7 +457,7 @@ func TestTemplatePush(t *testing.T) {
 				},
 				{
 					name: "active provisioner",
-					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap) error {
+					setupDaemon: func(ctx context.Context, store database.Store, owner codersdk.CreateFirstUserResponse, tags database.StringMap, now time.Time) error {
 						pk, err := store.InsertProvisionerKey(ctx, database.InsertProvisionerKeyParams{
 							ID:             uuid.New(),
 							CreatedAt:      now,
@@ -544,7 +543,8 @@ func TestTemplatePush(t *testing.T) {
 					clitest.SetupConfig(t, templateAdmin, root)
 
 					ctx := testutil.Context(t, testutil.WaitShort)
-					require.NoError(t, tt.setupDaemon(ctx, store, owner, wantTags))
+					now := dbtime.Now()
+					require.NoError(t, tt.setupDaemon(ctx, store, owner, wantTags, now))
 
 					cancelCtx, cancel := context.WithCancel(ctx)
 					t.Cleanup(cancel)
