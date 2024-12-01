@@ -387,10 +387,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
-	if err != nil {
-		// Client probably doesn't care about this error, so just log it.
-		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+
+	if provisionerJob != nil {
+		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
+			// Client probably doesn't care about this error, so just log it.
+			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
 	}
 
 	var matchedProvisioners codersdk.MatchedProvisioners
