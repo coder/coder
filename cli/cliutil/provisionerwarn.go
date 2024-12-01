@@ -24,23 +24,30 @@ Details:
 `
 )
 
-func WarnMatchedProvisioners(w io.Writer, tv codersdk.TemplateVersion) {
-	if tv.MatchedProvisioners == nil {
+// WarnMatchedProvisioners warns the user if there are no provisioners that
+// match the requested tags for a given provisioner job.
+// If the job is not pending, it is ignored.
+func WarnMatchedProvisioners(w io.Writer, mp *codersdk.MatchedProvisioners, job codersdk.ProvisionerJob) {
+	if mp == nil {
 		// Nothing in the response, nothing to do here!
 		return
 	}
-	var tagsJSON strings.Builder
-	if err := json.NewEncoder(&tagsJSON).Encode(tv.Job.Tags); err != nil {
-		// Fall back to the less-pretty string representation.
-		tagsJSON.Reset()
-		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", tv.Job.Tags))
-	}
-	if tv.MatchedProvisioners.Count == 0 {
-		cliui.Warnf(w, warnNoMatchedProvisioners, tv.Job.ID, tagsJSON.String())
+	if job.Status != codersdk.ProvisionerJobPending {
+		// Only warn if the job is pending.
 		return
 	}
-	if tv.MatchedProvisioners.Available == 0 {
-		cliui.Warnf(w, warnNoAvailableProvisioners, tv.Job.ID, strings.TrimSpace(tagsJSON.String()), tv.MatchedProvisioners.MostRecentlySeen.Time)
+	var tagsJSON strings.Builder
+	if err := json.NewEncoder(&tagsJSON).Encode(job.Tags); err != nil {
+		// Fall back to the less-pretty string representation.
+		tagsJSON.Reset()
+		_, _ = tagsJSON.WriteString(fmt.Sprintf("%v", job.Tags))
+	}
+	if mp.Count == 0 {
+		cliui.Warnf(w, warnNoMatchedProvisioners, job.ID, tagsJSON.String())
+		return
+	}
+	if mp.Available == 0 {
+		cliui.Warnf(w, warnNoAvailableProvisioners, job.ID, strings.TrimSpace(tagsJSON.String()), mp.MostRecentlySeen.Time)
 		return
 	}
 }
