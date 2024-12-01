@@ -338,7 +338,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// to read all provisioner daemons. We need to retrieve the eligible
 	// provisioner daemons for this job to show in the UI if there is no
 	// matching provisioner daemon.
-	provisionerDaemons, err := b.store.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemRestricted(b.ctx), database.GetProvisionerDaemonsByOrganizationParams{
+	provisionerDaemons, err := b.store.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), database.GetProvisionerDaemonsByOrganizationParams{
 		OrganizationID: template.OrganizationID,
 		WantTags:       provisionerJob.Tags,
 	})
