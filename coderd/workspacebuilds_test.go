@@ -1218,6 +1218,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Pubsub:                   ps,
 			IncludeProvisionerDaemon: true,
 		})
+		defer closeDaemon.Close()
 		// Given: a user, template, and workspace
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1244,9 +1245,10 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
 		// Then: the response should indicate no provisioners are available.
 		if assert.NotNil(t, build.MatchedProvisioners) {
-			require.Zero(t, build.MatchedProvisioners.Count)
-			require.Zero(t, build.MatchedProvisioners.Available)
-			require.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 	})
 
@@ -1262,6 +1264,7 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Pubsub:                   ps,
 			IncludeProvisionerDaemon: true,
 		})
+		defer closeDaemon.Close()
 		// Given: a user, template, and workspace
 		user := coderdtest.CreateFirstUser(t, client)
 		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
@@ -1292,9 +1295,10 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
 		// Then: the response should indicate no provisioners are available
 		if assert.NotNil(t, build.MatchedProvisioners) {
-			require.Zero(t, build.MatchedProvisioners.Available)
-			require.Equal(t, 1, build.MatchedProvisioners.Count)
-			require.Equal(t, newLastSeenAt.UTC(), build.MatchedProvisioners.MostRecentlySeen.Time.UTC())
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Equal(t, 1, build.MatchedProvisioners.Count)
+			assert.Equal(t, newLastSeenAt.UTC(), build.MatchedProvisioners.MostRecentlySeen.Time.UTC())
+			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 	})
 }
