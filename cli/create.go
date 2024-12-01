@@ -14,6 +14,7 @@ import (
 	"github.com/coder/pretty"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
@@ -289,7 +290,7 @@ func (r *RootCmd) create() *serpent.Command {
 				ttlMillis = ptr.Ref(stopAfter.Milliseconds())
 			}
 
-			workspace, err := client.CreateWorkspace(inv.Context(), template.OrganizationID, workspaceOwner, codersdk.CreateWorkspaceRequest{
+			workspace, err := client.CreateUserWorkspace(inv.Context(), workspaceOwner, codersdk.CreateWorkspaceRequest{
 				TemplateVersionID:   templateVersionID,
 				Name:                workspaceName,
 				AutostartSchedule:   schedSpec,
@@ -300,6 +301,8 @@ func (r *RootCmd) create() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("create workspace: %w", err)
 			}
+
+			cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, workspace.LatestBuild.ID)
 			if err != nil {
