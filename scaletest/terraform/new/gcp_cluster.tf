@@ -10,6 +10,16 @@ locals {
       zone   = "us-east1-c"
       cidr   = "10.200.0.0/24"
     }
+    europe = {
+      region = "europe-west1"
+      zone   = "europe-west1-b"
+      cidr   = "10.201.0.0/24"
+    }
+    asia = {
+      region = "asia-southeast1"
+      zone   = "asia-southeast1-a"
+      cidr   = "10.202.0.0/24"
+    }
   }
   node_pools = {
     primary_coder = {
@@ -25,6 +35,36 @@ locals {
     primary_misc = {
       name = "misc"
       cluster = "primary"
+      size = 1
+    }
+    europe_coder = {
+      name = "coder"
+      cluster = "europe"
+      size = 1
+    }
+    europe_workspaces = {
+      name = "workspaces"
+      cluster = "europe"
+      size = 1
+    }
+    europe_misc = {
+      name = "misc"
+      cluster = "europe"
+      size = 1
+    }
+    asia_coder = {
+      name = "coder"
+      cluster = "asia"
+      size = 1
+    }
+    asia_workspaces = {
+      name = "workspaces"
+      cluster = "asia"
+      size = 1
+    }
+    asia_misc = {
+      name = "misc"
+      cluster = "asia"
       size = 1
     }
   }

@@ -32,6 +32,8 @@ resource "random_password" "provisionerd_psk" {
 }
 
 resource "kubernetes_secret" "coder-db" {
+  provider = kubernetes.primary
+
   type = "Opaque"
   metadata {
     name      = "coder-db-url"
@@ -224,6 +226,8 @@ EOF
 }
 
 resource "helm_release" "provisionerd-chart" {
+  provider = helm.primary
+  
   repository = local.coder_helm_repo
   chart      = local.provisionerd_helm_chart
   name       = local.provisionerd_release_name
