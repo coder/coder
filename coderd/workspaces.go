@@ -30,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 	"github.com/coder/coder/v2/coderd/searchquery"
 	"github.com/coder/coder/v2/coderd/telemetry"
@@ -555,6 +556,14 @@ func createWorkspace(
 		return
 	}
 
+	nextStartAt := sql.NullTime{}
+	if dbAutostartSchedule.Valid {
+		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbAutostartSchedule.String, templateSchedule)
+		if err == nil {
+			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+		}
+	}
+
 	dbTTL, err := validWorkspaceTTLMillis(req.TTLMillis, templateSchedule.DefaultTTL)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -620,6 +629,7 @@ func createWorkspace(
 			TemplateID:        template.ID,
 			Name:              req.Name,
 			AutostartSchedule: dbAutostartSchedule,
+			NextStartAt:       nextStartAt,
 			Ttl:               dbTTL,
 			// The workspaces page will sort by last used at, and it's useful to
 			// have the newly created workspace at the top of the list!
@@ -881,9 +891,18 @@ func (api *API) putWorkspaceAutostart(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	nextStartAt := sql.NullTime{}
+	if dbSched.Valid {
+		next, err := schedule.NextAllowedAutostart(dbtime.Now(), dbSched.String, templateSchedule)
+		if err == nil {
+			nextStartAt = sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+		}
+	}
+
 	err = api.Database.UpdateWorkspaceAutostart(ctx, database.UpdateWorkspaceAutostartParams{
 		ID:                workspace.ID,
 		AutostartSchedule: dbSched,
+		NextStartAt:       nextStartAt,
 	})
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1903,6 +1922,11 @@ func convertWorkspace(
 		deletingAt = &workspace.DeletingAt.Time
 	}
 
+	var nextStartAt *time.Time
+	if workspace.NextStartAt.Valid {
+		nextStartAt = &workspace.NextStartAt.Time
+	}
+
 	failingAgents := []uuid.UUID{}
 	for _, resource := range workspaceBuild.Resources {
 		for _, agent := range resource.Agents {
@@ -1953,6 +1977,7 @@ func convertWorkspace(
 		AutomaticUpdates: codersdk.AutomaticUpdates(workspace.AutomaticUpdates),
 		AllowRenames:     allowRenames,
 		Favorite:         requesterFavorite,
+		NextStartAt:      nextStartAt,
 	}, nil
 }
 

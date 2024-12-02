@@ -14543,6 +14543,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "next_start_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
