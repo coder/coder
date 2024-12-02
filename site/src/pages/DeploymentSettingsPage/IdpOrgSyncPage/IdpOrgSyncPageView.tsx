@@ -39,8 +39,8 @@ import type React from "react";
 import { useState } from "react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
-import { OrganizationPills } from "./OrganizationPills";
 import * as Yup from "yup";
+import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -79,10 +79,6 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const organizationMappingCount = form.values.mapping
 		? Object.entries(form.values.mapping).length
 		: 0;
-
-	if (!organizationSyncSettings) {
-		return <Loader />;
-	}
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -251,8 +247,6 @@ interface IdpMappingTableProps {
 }
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
-	const isLoading = false;
-
 	return (
 		<TableContainer>
 			<Table>
@@ -265,10 +259,6 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				</TableHead>
 				<TableBody>
 					<ChooseOne>
-						<Cond condition={isLoading}>
-							<TableLoader />
-						</Cond>
-
 						<Cond condition={isEmpty}>
 							<TableRow>
 								<TableCell colSpan={999}>
