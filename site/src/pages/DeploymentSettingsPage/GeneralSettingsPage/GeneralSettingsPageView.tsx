@@ -65,7 +65,7 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 					<ChartSection title="License Utilization">
 						<LinearProgress
 							variant="determinate"
-							value={(licenseUtilizationPercentage % 1) * 100}
+							value={Math.min(licenseUtilizationPercentage * 100, 100)}
 							color={
 								licenseUtilizationPercentage < 0.9
 									? "primary"
