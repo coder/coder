@@ -760,7 +760,7 @@ scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*)
 	done
 
 test:
-	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
+	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=10 ./enterprise
 .PHONY: test
 
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a

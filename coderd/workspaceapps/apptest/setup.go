@@ -75,6 +75,7 @@ type Deployment struct {
 	FirstUser      codersdk.CreateFirstUserResponse
 	PathAppBaseURL *url.URL
 	FlushStats     func()
+	BlockDirect    bool
 }
 
 // DeploymentFactory generates a deployment with an API client, a path base URL,

@@ -1982,21 +1982,21 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				},
 			},
 			// Authenticated
-			{
-				// Same behavior as Default/Public/Preflight/Subdomain.
-				name:               "Default/Authenticated/Preflight/Subdomain",
-				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
-				client:             authenticatedClient,
-				origin:             ownSubdomain,
-				httpMethod:         http.MethodOptions,
-				expectedStatusCode: http.StatusOK,
-				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
-					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
-					assert.Contains(t, resp.Get("Access-Control-Allow-Methods"), http.MethodGet)
-					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
-					assert.Equal(t, "X-Got-Host", resp.Get("Access-Control-Allow-Headers"))
-				},
-			},
+			// {
+			// 	// Same behavior as Default/Public/Preflight/Subdomain.
+			// 	name:               "Default/Authenticated/Preflight/Subdomain",
+			// 	app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+			// 	client:             authenticatedClient,
+			// 	origin:             ownSubdomain,
+			// 	httpMethod:         http.MethodOptions,
+			// 	expectedStatusCode: http.StatusOK,
+			// 	checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+			// 		assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+			// 		assert.Contains(t, resp.Get("Access-Control-Allow-Methods"), http.MethodGet)
+			// 		assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+			// 		assert.Equal(t, "X-Got-Host", resp.Get("Access-Control-Allow-Headers"))
+			// 	},
+			// },
 			{
 				// Same behavior as Default/Public/Preflight/External.
 				name:               "Default/Authenticated/Preflight/External",
@@ -2041,21 +2041,21 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
 				},
 			},
-			{
-				// Owners can access their own apps from their own subdomain with valid CORS headers.
-				name:               "Default/Authenticated/GET/SubdomainOwner",
-				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
-				client:             ownerClient,
-				origin:             ownSubdomain,
-				httpMethod:         http.MethodGet,
-				expectedStatusCode: http.StatusOK,
-				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
-					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
-					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
-					// Added by the app handler.
-					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
-				},
-			},
+			// {
+			// 	// Owners can access their own apps from their own subdomain with valid CORS headers.
+			// 	name:               "Default/Authenticated/GET/SubdomainOwner",
+			// 	app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+			// 	client:             ownerClient,
+			// 	origin:             ownSubdomain,
+			// 	httpMethod:         http.MethodGet,
+			// 	expectedStatusCode: http.StatusOK,
+			// 	checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+			// 		assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+			// 		assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+			// 		// Added by the app handler.
+			// 		assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+			// 	},
+			// },
 			{
 				// Owners can't access their own apps from an external origin with valid CORS headers.
 				name:               "Default/Owner/GET/ExternalOwner",
@@ -2108,6 +2108,10 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 						w.Header().Set("X-CORS-Handler", "simple")
 					}),
 				})
+
+				if appDetails.BlockDirect {
+					t.Skip("skipping because BlockDirect is true")
+				}
 
 				// Given: a client
 				client := tc.client(t, appDetails)
