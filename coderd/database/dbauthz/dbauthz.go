@@ -319,7 +319,7 @@ var (
 	}.WithCachedASTValue()
 
 	subjectSystemReadProvisionerDaemons = rbac.Subject{
-		FriendlyName: "System",
+		FriendlyName: "Provisioner Daemons Reader",
 		ID:           uuid.Nil.String(),
 		Roles: rbac.Roles([]rbac.Role{
 			{
