@@ -262,7 +262,14 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 }
 
 func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
-	if err := db.encryptField(&params.OAuthRefreshToken, &sql.NullString{String: params.OAuthRefreshTokenKeyID, Valid: true}); err != nil {
+	// We would normally use a sql.NullString here, but sqlc does not want to make
+	// a params struct with a nullable string.
+	var digest sql.NullString
+	if params.OAuthRefreshTokenKeyID != "" {
+		digest.String = params.OAuthRefreshTokenKeyID
+		digest.Valid = true
+	}
+	if err := db.encryptField(&params.OAuthRefreshToken, &digest); err != nil {
 		return err
 	}
 
