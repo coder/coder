@@ -297,7 +297,7 @@ export const MultiSelectCombobox = React.forwardRef<
 				setOptions(transitionToGroupOption(res || [], groupBy));
 			};
 
-			const exec = async () => {
+			const exec = () => {
 				if (!onSearchSync || !open) return;
 
 				if (triggerSearchOnFocus) {
@@ -310,7 +310,6 @@ export const MultiSelectCombobox = React.forwardRef<
 			};
 
 			void exec();
-			// eslint-disable-next-line react-hooks/exhaustive-deps
 		}, [
 			debouncedSearchTerm,
 			groupBy,
@@ -445,7 +444,7 @@ export const MultiSelectCombobox = React.forwardRef<
 				} // When onSearch is provided, we don't want to filter the options. You can still override it.
 				filter={commandFilter()}
 			>
-				{/* biome-ignore lint/a11y/useKeyWithClickEvents: <explanation> */}
+				{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
 				<div
 					className={cn(
 						`*:min-h-9 rounded-md border border-solid border-border text-sm pr-3
