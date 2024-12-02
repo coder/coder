@@ -14,7 +14,7 @@ import {
 	CommandGroup,
 	CommandItem,
 	CommandList,
-} from "components/ui/Command";
+} from "components/Command/Command";
 import { cn } from "utils/cn";
 
 export interface Option {
@@ -30,7 +30,7 @@ interface GroupOption {
 	[key: string]: Option[];
 }
 
-interface MultipleSelectorProps {
+interface MultiSelectComboboxProps {
 	value?: Option[];
 	defaultOptions?: Option[];
 	/** manually controlled options */
@@ -87,7 +87,7 @@ interface MultipleSelectorProps {
 	hideClearAllButton?: boolean;
 }
 
-export interface MultipleSelectorRef {
+export interface MultiSelectComboboxRef {
 	selectedValue: Option[];
 	input: HTMLInputElement;
 	focus: () => void;
@@ -157,9 +157,9 @@ const CommandEmpty = forwardRef<
 	);
 });
 
-export const MultipleSelector = React.forwardRef<
-	MultipleSelectorRef,
-	MultipleSelectorProps
+export const MultiSelectCombobox = React.forwardRef<
+	MultiSelectComboboxRef,
+	MultiSelectComboboxProps
 >(
 	(
 		{
@@ -186,7 +186,7 @@ export const MultipleSelector = React.forwardRef<
 			commandProps,
 			inputProps,
 			hideClearAllButton = false,
-		}: MultipleSelectorProps,
+		}: MultiSelectComboboxProps,
 		ref,
 	) => {
 		const inputRef = React.useRef<HTMLInputElement>(null);
@@ -478,6 +478,7 @@ export const MultipleSelector = React.forwardRef<
 										{option.label}
 										<button
 											type="button"
+											data-testid="clear-option-button"
 											className={cn(
 												`ml-1 pr-0 rounded-full bg-transparent border-none outline-none
 												focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer`,
@@ -539,6 +540,7 @@ export const MultipleSelector = React.forwardRef<
 						<div className="flex items-center justify-between">
 							<button
 								type="button"
+								data-testid="clear-all-button"
 								onClick={() => {
 									setSelected(fixedOptions);
 									onChange?.(fixedOptions);

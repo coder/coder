@@ -18,12 +18,15 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Switch } from "components/Switch/Switch";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { MultipleSelector, type Option } from "components/ui/MultipleSelector";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import type React from "react";
@@ -163,7 +166,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								<Label className="text-sm" htmlFor=":r1d:">
 									Coder organization
 								</Label>
-								<MultipleSelector
+								<MultiSelectCombobox
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
