@@ -160,7 +160,7 @@ jobs:
         run: |
           $url = "https://sourceforge.net/projects/imdisk-toolkit/files/20190130/ImDiskTk.exe"
           Invoke-WebRequest -Uri $url -OutFile "ImDiskTk.exe"
-          Start-Process -FilePath "ImDiskTk.exe" -ArgumentList "/fullsilent" -Wait
+          Start-Process -FilePath "ImDiskTk.exe" -ArgumentList "/fullsilent" -Wait -Verb RunAs
           
       - name: Create RAM Disk
         shell: cmd
