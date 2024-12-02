@@ -2,7 +2,6 @@ name: "Setup ImDisk"
 if: runner.os == 'Windows'
 description: |
   Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
-inputs:
 runs:
   using: "composite"
   steps:
