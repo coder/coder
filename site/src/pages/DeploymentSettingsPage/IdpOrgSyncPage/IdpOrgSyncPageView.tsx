@@ -15,6 +15,12 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import {
+	HelpTooltip,
+	HelpTooltipContent,
+	HelpTooltipText,
+	HelpTooltipTrigger,
+} from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
@@ -42,7 +48,7 @@ interface IdpSyncPageViewProps {
 	error?: unknown;
 }
 
-export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
 	organizations,
 	onSubmit,
@@ -136,9 +142,12 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											form.handleSubmit();
 										}}
 									/>
-									<Label htmlFor={ORGANIZATION_ASSIGN_DEFAULT_ID}>
-										Assign Default Organization
-									</Label>
+									<span className="flex flex-row items-center gap-1">
+										<Label htmlFor={ORGANIZATION_ASSIGN_DEFAULT_ID}>
+											Assign Default Organization
+										</Label>
+										<AssignDefaultOrgHelpTooltip />
+									</span>
 								</div>
 							</div>
 							<p className="text-content-secondary text-2xs m-0">
@@ -330,4 +339,17 @@ const TableLoader = () => {
 	);
 };
 
-export default IdpSyncPageView;
+export const AssignDefaultOrgHelpTooltip: FC = () => {
+	return (
+		<HelpTooltip>
+			<HelpTooltipTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipText>
+					Disabling will remove all users from the default organization.
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
+	);
+};
+
+export default IdpOrgSyncPageView;
