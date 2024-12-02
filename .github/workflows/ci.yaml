@@ -426,6 +426,12 @@ jobs:
 
           if [ "${{ runner.os }}" == "Linux" ]; then
             make test-postgres
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            # Create temp dir on D: drive for Windows. The default C: drive is extremely
+            # slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "D:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "D:/temp/embedded-pg"
+            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
           else
             go run scripts/embedded-pg/main.go
             DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...

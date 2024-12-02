@@ -3,6 +3,7 @@ package main
 
 import (
 	"database/sql"
+	"flag"
 	"os"
 	"path/filepath"
 
@@ -10,7 +11,15 @@ import (
 )
 
 func main() {
+	var customPath string
+	flag.StringVar(&customPath, "path", "", "Optional custom path for postgres data directory")
+	flag.Parse()
+
 	postgresPath := filepath.Join(os.TempDir(), "coder-test-postgres")
+	if customPath != "" {
+		postgresPath = customPath
+	}
+
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
 			Version(embeddedpostgres.V16).
