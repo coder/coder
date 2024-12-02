@@ -174,6 +174,23 @@ export const HighLicenseUtilization: Story = {
 	},
 };
 
+export const ExceedsLicenseUtilization: Story = {
+	args: {
+		entitlements: {
+			...MockEntitlementsWithUserLimit,
+			features: {
+				...MockEntitlementsWithUserLimit.features,
+				user_limit: {
+					...MockEntitlementsWithUserLimit.features.user_limit,
+					enabled: true,
+					actual: 100,
+					limit: 95,
+					entitlement: "entitled",
+				},
+			},
+		},
+	},
+};
 export const NoLicenseLimit: Story = {
 	args: {
 		entitlements: {

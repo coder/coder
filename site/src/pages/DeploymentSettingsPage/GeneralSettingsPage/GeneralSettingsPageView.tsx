@@ -62,30 +62,35 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 					</div>
 				)}
 				{licenseUtilizationPercentage && (
-					<div css={{ marginBottom: 24, height: 200 }}>
-						<ChartSection title="License Utilization">
-							<LinearProgress
-								variant="determinate"
-								value={licenseUtilizationPercentage * 100}
-								css={{
-									height: 24,
-									borderRadius: 4,
-									marginBottom: 8,
-								}}
-							/>
-							<span
-								css={{
-									fontSize: "0.75rem",
-									display: "block",
-									textAlign: "right",
-								}}
-							>
-								{Math.round(licenseUtilizationPercentage * 100)}% used (
-								{entitlements!.features.user_limit.actual}/
-								{entitlements!.features.user_limit.limit} users)
-							</span>
-						</ChartSection>
-					</div>
+					<ChartSection title="License Utilization">
+						<LinearProgress
+							variant="determinate"
+							value={(licenseUtilizationPercentage % 1) * 100}
+							color={
+								licenseUtilizationPercentage < 0.9
+									? "primary"
+									: licenseUtilizationPercentage < 1
+									? "warning"
+									: "error"
+							}
+							css={{
+								height: 24,
+								borderRadius: 4,
+								marginBottom: 8,
+							}}
+						/>
+						<span
+							css={{
+								fontSize: "0.75rem",
+								display: "block",
+								textAlign: "right",
+							}}
+						>
+							{Math.round(licenseUtilizationPercentage * 100)}% used (
+							{entitlements!.features.user_limit.actual}/
+							{entitlements!.features.user_limit.limit} users)
+						</span>
+					</ChartSection>
 				)}
 				{invalidExperiments.length > 0 && (
 					<Alert severity="warning">
