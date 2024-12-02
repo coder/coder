@@ -1944,6 +1944,46 @@ Status Code **200**
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get template version dry-run matched provisioners
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+| ----------------- | ---- | ------------ | -------- | ------------------- |
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+| `jobID`           | path | string(uuid) | true     | Job ID              |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"available": 0,
+	"count": 0,
+	"most_recently_seen": "2019-08-24T14:15:22Z"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                 |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get template version dry-run resources by job ID
 
 ### Code samples
