@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 )
@@ -162,36 +163,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logs := make(chan ProvisionerJobLog)
-	closed := make(chan struct{})
-	go func() {
-		defer close(closed)
-		defer close(logs)
-		defer conn.Close(websocket.StatusGoingAway, "")
-		var log ProvisionerJobLog
-		for {
-			msgType, msg, err := conn.Read(ctx)
-			if err != nil {
-				return
-			}
-			if msgType != websocket.MessageText {
-				return
-			}
-			err = json.Unmarshal(msg, &log)
-			if err != nil {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case logs <- log:
-			}
-		}
-	}()
-	return logs, closeFunc(func() error {
-		<-closed
-		return nil
-	}), nil
+	d := wsjson.NewDecoder[ProvisionerJobLog](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
 }
 
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
