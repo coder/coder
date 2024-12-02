@@ -7,14 +7,11 @@ import {
 } from "components/Popover/Popover";
 import type { FC } from "react";
 import { cn } from "utils/cn";
+import { UUID } from "utils/idp";
 
 interface OrganizationPillsProps {
 	organizations: readonly string[];
 }
-
-// used to check if the organization is a UUID
-const UUID =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	organizations,

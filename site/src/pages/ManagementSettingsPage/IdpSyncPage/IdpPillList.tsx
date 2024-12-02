@@ -7,14 +7,11 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import type { FC } from "react";
+import { UUID } from "utils/idp";
 
 interface PillListProps {
 	roles: readonly string[];
 }
-
-// used to check if the role is a UUID
-const UUID =
-	/^[0-9a-f]{8}-[0-9a-f]{4}-[0-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export const IdpPillList: FC<PillListProps> = ({ roles }) => {
 	return (
