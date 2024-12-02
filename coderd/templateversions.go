@@ -609,9 +609,8 @@ func (api *API) templateVersionDryRunMatchedProvisioners(rw http.ResponseWriter,
 				Detail:  err.Error(),
 			})
 			return
-		} else {
-			daemons = []database.ProvisionerDaemon{}
 		}
+		daemons = []database.ProvisionerDaemon{}
 	}
 
 	matchedProvisioners := db2sdk.MatchedProvisioners(daemons, dbtime.Now(), provisionerdserver.StaleInterval)
