@@ -101,7 +101,7 @@ prometheus:
   ]
 }
 
-resource "kubernetes_secret" "prometheus_postgres_password" {
+resource "kubernetes_secret" "prometheus-postgres-password" {
   type = "kubernetes.io/basic-auth"
   metadata {
     name      = "prometheus-postgres"
@@ -138,7 +138,7 @@ config:
     user: "${var.prometheus_postgres_user}"
     database: "${var.prometheus_postgres_dbname}"
     passwordSecret:
-      name: "${kubernetes_secret.prometheus_postgres_password.metadata.0.name}"
+      name: "${kubernetes_secret.prometheus-postgres-password.metadata.0.name}"
       key: password
     autoDiscoverDatabases: true
 serviceMonitor:
@@ -147,45 +147,27 @@ serviceMonitor:
   ]
 }
 
-# resource "kubernetes_manifest" "coder_monitoring" {
-#   depends_on = [helm_release.prometheus-chart]
-#   manifest = {
-#     apiVersion = "monitoring.coreos.com/v1"
-#     kind       = "PodMonitor"
-#     metadata = {
-#       namespace = kubernetes_namespace.coder_namespace.metadata.0.name
-#       name      = "coder-monitoring"
-#     }
-#     spec = {
-#       selector = {
-#         matchLabels = {
-#           "app.kubernetes.io/name" : "coder"
-#         }
-#       }
-#       podMetricsEndpoints = [
-#         {
-#           port     = "prometheus-http"
-#           interval = "30s"
-#         }
-#       ]
-#     }
-#   }
-# }
-
-resource "kubectl_manifest" "coder_monitoring" {
-  depends_on = [ helm_release.prometheus-chart ]
-    yaml_body = <<YAML
-apiVersion: monitoring.coreos.com/v1
-kind: PodMonitor
-metadata:
-  name: coder-monitoring
-  namespace: ${kubernetes_namespace.coder_namespace.metadata.0.name}
-spec:
-  selector:
-    matchLabels:
-      app.kubernetes.io/name: coder
-  podMetricsEndpoints:
-    - port: prometheus-http
-      interval: 30s
-YAML
+resource "kubernetes_manifest" "coder_monitoring" {
+  depends_on = [helm_release.prometheus-chart]
+  manifest = {
+    apiVersion = "monitoring.coreos.com/v1"
+    kind       = "PodMonitor"
+    metadata = {
+      namespace = kubernetes_namespace.coder_namespace.metadata.0.name
+      name      = "coder-monitoring"
+    }
+    spec = {
+      selector = {
+        matchLabels = {
+          "app.kubernetes.io/name" : "coder"
+        }
+      }
+      podMetricsEndpoints = [
+        {
+          port     = "prometheus-http"
+          interval = "30s"
+        }
+      ]
+    }
+  }
 }
