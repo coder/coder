@@ -13,9 +13,8 @@ export const portForwardURL = (
 
 	const subdomain = `${port}${suffix}--${agentName}--${workspaceName}--${username}`;
 
-	const baseUrl = `${location.protocol}//${host}`;
+	const baseUrl = `${location.protocol}//${host.replace("*", subdomain)}`;
 	const url = new URL(baseUrl);
-	url.hostname = host.replace("*", subdomain);
 
 	return url.toString();
 };
