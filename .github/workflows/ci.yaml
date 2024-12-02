@@ -156,16 +156,18 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Download ImDisk
-        shell: powershell
+        shell: bash
         run: |
-          $url = "https://sourceforge.net/projects/imdisk-toolkit/files/20241123/ImDiskTk-x64.zip/download"
-          Invoke-WebRequest -Uri $url -OutFile "ImDiskTk.zip"
-          Expand-Archive -Path "ImDiskTk.zip" -DestinationPath "ImDiskTk"
+          mkdir imdisk
+          cd imdisk
+          curl -L -o files.cab https://imdisk-ci-files.pages.dev/ImDiskTk20241123/files.cab
+          curl -L -o install.bat https://imdisk-ci-files.pages.dev/ImDiskTk20241123/install.bat
+          cd ..
       
       - name: Install ImDisk
         shell: cmd
         run: |
-          cd ImDiskTk
+          cd imdisk
           install.bat /silent
           
       - name: Create RAM Disk
