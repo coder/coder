@@ -8790,7 +8790,7 @@ func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(_ context.Context, arg 
 			continue
 		}
 		gitAuthLink.UpdatedAt = arg.UpdatedAt
-		gitAuthLink.OAuthRefreshToken = ""
+		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
 		q.externalAuthLinks[index] = gitAuthLink
 
 		return nil
