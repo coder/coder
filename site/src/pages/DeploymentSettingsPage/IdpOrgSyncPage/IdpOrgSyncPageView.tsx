@@ -40,6 +40,7 @@ import { useState } from "react";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 import { OrganizationPills } from "./OrganizationPills";
+import * as Yup from "yup";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -47,6 +48,14 @@ interface IdpSyncPageViewProps {
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	error?: unknown;
 }
+
+const validationSchema = Yup.object({
+	field: Yup.string().trim(),
+	organization_assign_default: Yup.boolean(),
+	mapping: Yup.object().shape({
+		[`${String}`]: Yup.array().of(Yup.string()),
+	}),
+});
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
@@ -61,7 +70,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 				organizationSyncSettings?.organization_assign_default ?? true,
 			mapping: organizationSyncSettings?.mapping ?? {},
 		},
-		// validationSchema,
+		validationSchema: validationSchema,
 		onSubmit,
 		enableReinitialize: Boolean(organizationSyncSettings),
 	});
