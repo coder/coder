@@ -1097,6 +1097,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		require.Eventually(t, func() bool {
@@ -1124,6 +1130,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 	})
 
@@ -1150,6 +1162,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			ProvisionerState:  wantState,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		gotState, err := client.WorkspaceBuildState(ctx, build.ID)
 		require.NoError(t, err)
 		require.Equal(t, wantState, gotState)
@@ -1173,6 +1191,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
@@ -1180,6 +1204,102 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
+	})
+
+	t.Run("NoProvisionersAvailable", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
+
+	t.Run("AllProvisionersStale", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: all provisioner daemons are stale
+		// First stop the provisioner
+		require.NoError(t, closeDaemon.Close())
+		newLastSeenAt := dbtime.Now().Add(-time.Hour)
+		// Update the last seen at for all provisioner daemons. We have to use the
+		// SQL db directly because store.UpdateProvisionerDaemonLastSeenAt has a
+		// built-in check to prevent updating the last seen at to a time in the past.
+		_, err := db.ExecContext(ctx, `UPDATE provisioner_daemons SET last_seen_at = $1;`, newLastSeenAt)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+		// Then: the response should indicate no provisioners are available
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Equal(t, 1, build.MatchedProvisioners.Count)
+			assert.Equal(t, newLastSeenAt.UTC(), build.MatchedProvisioners.MostRecentlySeen.Time.UTC())
+			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
