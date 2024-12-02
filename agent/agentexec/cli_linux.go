@@ -19,6 +19,13 @@ import (
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
+	// We lock the OS thread here to avoid a race condition where the nice priority
+	// we set gets applied to a different thread than the one we exec the provided
+	// command on.
+	runtime.LockOSThread()
+	// Nop on success but we do it anyway in case of an error.
+	defer runtime.UnlockOSThread()
+
 	var (
 		fs   = flag.NewFlagSet("agent-exec", flag.ExitOnError)
 		nice = fs.Int("coder-nice", unset, "")
@@ -36,7 +43,6 @@ func CLI() error {
 		return xerrors.Errorf("parse flags: %w", err)
 	}
 
-	fmt.Println("oom", *oom)
 	if *oom == unset {
 		// If an explicit oom score isn't set, we use the default.
 		*oom, err = defaultOOMScore()
@@ -49,7 +55,6 @@ func CLI() error {
 	if err != nil {
 		printfStdErr("failed to set dumpable: %v", err)
 	}
-	fmt.Println("set dumpable")
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
@@ -58,13 +63,6 @@ func CLI() error {
 		// inappriopriate value for oom_score_adj.
 		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
 	}
-
-	// We lock the OS thread here to avoid a race condition where the nice priority
-	// we set gets applied to a different thread than the one we exec the provided
-	// command on.
-	runtime.LockOSThread()
-	// Nop on success but we do it anyway in case of an error.
-	defer runtime.UnlockOSThread()
 
 	// Get everything after "coder agent-exec --"
 	args := execArgs(os.Args)
