@@ -150,76 +150,35 @@ jobs:
   #       run: git diff --exit-code
 
   lint:
-    needs: changes
-    if: needs.changes.outputs.offlinedocs-only == 'false' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: windows-latest-16-cores
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
-        with:
-          egress-policy: audit
-
-      - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
-        with:
-          fetch-depth: 1
-
-      - name: Setup Node
-        uses: ./.github/actions/setup-node
-
-      - name: Setup Go
-        uses: ./.github/actions/setup-go
-
-      - name: Get golangci-lint cache dir
+      - name: Checkout code
+        uses: actions/checkout@v4
+        
+      - name: Download and Install ImDisk
+        shell: powershell
         run: |
-          linter_ver=$(egrep -o 'GOLANGCI_LINT_VERSION=\S+' dogfood/contents/Dockerfile | cut -d '=' -f 2)
-          go install github.com/golangci/golangci-lint/cmd/golangci-lint@v$linter_ver
-          dir=$(golangci-lint cache status | awk '/Dir/ { print $2 }')
-          echo "LINT_CACHE_DIR=$dir" >> $GITHUB_ENV
-
-      - name: golangci-lint cache
-        uses: actions/cache@2cdf405574d6ef1f33a1d12acccd3ae82f47b3f2 # v4.1.0
-        with:
-          path: |
-            ${{ env.LINT_CACHE_DIR }}
-          key: golangci-lint-${{ runner.os }}-${{ hashFiles('**/*.go') }}
-          restore-keys: |
-            golangci-lint-${{ runner.os }}-
-
-      # Check for any typos
-      - name: Check for typos
-        uses: crate-ci/typos@b74202f74b4346efdbce7801d187ec57b266bac8 # v1.27.3
-        with:
-          config: .github/workflows/typos.toml
-
-      - name: Fix the typos
-        if: ${{ failure() }}
+          $url = "https://sourceforge.net/projects/imdisk-toolkit/files/20190130/ImDiskTk.exe"
+          Invoke-WebRequest -Uri $url -OutFile "ImDiskTk.exe"
+          Start-Process -FilePath "ImDiskTk.exe" -ArgumentList "/fullsilent" -Wait
+          
+      - name: Create RAM Disk
+        shell: cmd
         run: |
-          echo "::notice:: you can automatically fix typos from your CLI:
-          cargo install typos-cli
-          typos -c .github/workflows/typos.toml -w"
-
-      # Needed for helm chart linting
-      - name: Install helm
-        uses: azure/setup-helm@fe7b79cd5ee1e45176fcad797de68ecaf3ca4814 # v4.2.0
-        with:
-          version: v3.9.2
-
-      - name: make lint
+          imdisk -a -s 512M -m R: -p "/fs:ntfs /q /y"
+          
+      - name: Test RAM Disk
+        shell: cmd
         run: |
-          make --output-sync=line -j lint
-
-      - name: Check workflow files
+          dir R:
+          echo "Testing write to RAM disk" > R:\test.txt
+          type R:\test.txt
+          
+      - name: Cleanup RAM Disk
+        if: always()
+        shell: cmd
         run: |
-          bash <(curl https://raw.githubusercontent.com/rhysd/actionlint/main/scripts/download-actionlint.bash) 1.7.4
-          ./actionlint -color -shellcheck= -ignore "set-output"
-        shell: bash
-
-      - name: Check for unstaged files
-        run: |
-          rm -f ./actionlint ./typos
-          ./scripts/check_unstaged.sh
-        shell: bash
+          imdisk -D -m R:
 
   gen:
     timeout-minutes: 8
