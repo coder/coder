@@ -91,5 +91,5 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Devcontainer templates](./devcontainers.md)
+- [Devcontainer templates](./devcontainers/index.md)
 - [Change management](./change-management.md)

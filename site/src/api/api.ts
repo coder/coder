@@ -682,12 +682,20 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param tags to filter provisioner daemons by.
 	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
+		tags?: Record<string, string>,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
+		const params = new URLSearchParams();
+
+		if (tags) {
+			params.append("tags", JSON.stringify(tags));
+		}
+
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			`/api/v2/organizations/${organization}/provisionerdaemons?${params.toString()}`,
 		);
 		return response.data;
 	};
