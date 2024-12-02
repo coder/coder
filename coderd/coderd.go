@@ -1055,6 +1055,7 @@ func New(options *Options) *API {
 				r.Get("/{jobID}", api.templateVersionDryRun)
 				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
 				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Get("/{jobID}/matched-provisioners", api.templateVersionDryRunMatchedProvisioners)
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
 		})

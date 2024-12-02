@@ -436,6 +436,12 @@ func prepWorkspaceBuild(inv *serpent.Invocation, client *codersdk.Client, args p
 	if err != nil {
 		return nil, xerrors.Errorf("begin workspace dry-run: %w", err)
 	}
+
+	matchedProvisioners, err := client.TemplateVersionDryRunMatchedProvisioners(inv.Context(), templateVersion.ID, dryRun.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("get matched provisioners: %w", err)
+	}
+	cliutil.WarnMatchedProvisioners(inv.Stdout, &matchedProvisioners, dryRun)
 	_, _ = fmt.Fprintln(inv.Stdout, "Planning workspace...")
 	err = cliui.ProvisionerJob(inv.Context(), inv.Stdout, cliui.ProvisionerJobOptions{
 		Fetch: func() (codersdk.ProvisionerJob, error) {

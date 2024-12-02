@@ -1004,6 +1004,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, job.ID, newJob.ID)
 
+		// Check matched provisioners
+		matched, err := client.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, matched.Count)
+		require.Equal(t, 1, matched.Available)
+		require.NotZero(t, matched.MostRecentlySeen.Time)
+
 		// Stream logs
 		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, 0)
 		require.NoError(t, err)
@@ -1175,6 +1182,49 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
+	})
+
+	t.Run("Pending", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closer.Close()
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := db.Exec("DELETE FROM provisioner_daemons")
+		require.NoError(t, err)
+
+		job, err := templateAdmin.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       "test",
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{},
+			UserVariableValues:  []codersdk.VariableValue{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
+
+		matched, err := templateAdmin.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 0, matched.Count)
+		require.Equal(t, 0, matched.Available)
+		require.Zero(t, matched.MostRecentlySeen.Time)
 	})
 }
 

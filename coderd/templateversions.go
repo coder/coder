@@ -580,6 +580,44 @@ func (api *API) templateVersionDryRun(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJob(job))
 }
 
+// @Summary Get template version dry-run matched provisioners
+// @ID get-template-version-dry-run-matched-provisioners
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Templates
+// @Param templateversion path string true "Template version ID" format(uuid)
+// @Param jobID path string true "Job ID" format(uuid)
+// @Success 200 {object} codersdk.MatchedProvisioners
+// @Router /templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners [get]
+func (api *API) templateVersionDryRunMatchedProvisioners(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	job, ok := api.fetchTemplateVersionDryRunJob(rw, r)
+	if !ok {
+		return
+	}
+
+	// nolint:gocritic // The user may not have permissions to read all
+	// provisioner daemons in the org.
+	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(ctx), database.GetProvisionerDaemonsByOrganizationParams{
+		OrganizationID: job.ProvisionerJob.OrganizationID,
+		WantTags:       job.ProvisionerJob.Tags,
+	})
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching provisioner daemons by organization.",
+				Detail:  err.Error(),
+			})
+			return
+		} else {
+			daemons = []database.ProvisionerDaemon{}
+		}
+	}
+
+	matchedProvisioners := db2sdk.MatchedProvisioners(daemons, dbtime.Now(), provisionerdserver.StaleInterval)
+	httpapi.Write(ctx, rw, http.StatusOK, matchedProvisioners)
+}
+
 // @Summary Get template version dry-run resources by job ID
 // @ID get-template-version-dry-run-resources-by-job-id
 // @Security CoderSessionToken
