@@ -70,8 +70,8 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 								licenseUtilizationPercentage < 0.9
 									? "primary"
 									: licenseUtilizationPercentage < 1
-									? "warning"
-									: "error"
+										? "warning"
+										: "error"
 							}
 							css={{
 								height: 24,
