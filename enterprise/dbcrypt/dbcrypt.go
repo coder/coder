@@ -261,6 +261,14 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	return link, nil
 }
 
+func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	if err := db.encryptField(&params.OAuthRefreshToken, &sql.NullString{String: params.OAuthRefreshTokenKeyID, Valid: true}); err != nil {
+		return err
+	}
+
+	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
+}
+
 func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
 	keys, err := db.Store.GetCryptoKeys(ctx)
 	if err != nil {
