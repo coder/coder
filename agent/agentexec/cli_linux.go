@@ -45,6 +45,12 @@ func CLI() error {
 		}
 	}
 
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to set dumpable: %v", err)
+	}
+	fmt.Println("set dumpable")
+
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
 		// We alert the user instead of failing the command since it can be difficult to debug
