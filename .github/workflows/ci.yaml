@@ -368,6 +368,29 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      - name: Download ImDisk
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          mkdir imdisk
+          cd imdisk
+          curl -L -o files.cab https://imdisk-ci-files.pages.dev/ImDiskTk20241123/files.cab
+          curl -L -o install.bat https://imdisk-ci-files.pages.dev/ImDiskTk20241123/install.bat
+          cd ..
+      
+      - name: Install ImDisk
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          cd imdisk
+          install.bat /silent
+          
+      - name: Create RAM Disk
+        if: runner.os == 'Windows'
+        shell: cmd
+        run: |
+          imdisk -a -s 4096M -m R: -p "/fs:ntfs /q /y"
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
@@ -394,10 +417,10 @@ jobs:
           if [ "${{ runner.os }}" == "Linux" ]; then
             make test-postgres
           elif [ "${{ runner.os }}" == "Windows" ]; then
-            # Create temp dir on D: drive for Windows. The default C: drive is extremely
-            # slow: https://github.com/actions/runner-images/issues/8755
-            mkdir -p "D:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "D:/temp/embedded-pg"
+            # Create temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
             DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
           else
             go run scripts/embedded-pg/main.go
