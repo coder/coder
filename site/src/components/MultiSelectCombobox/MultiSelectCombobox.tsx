@@ -202,6 +202,12 @@ export const MultiSelectCombobox = React.forwardRef<
 		const [inputValue, setInputValue] = React.useState("");
 		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
 
+		const [previousValue, setPreviousValue] = React.useState<Option[]>(value || []);
+		if (value && value !== previousValue) {
+			setPreviousValue(value);
+			setSelected(value);
+		}
+
 		React.useImperativeHandle(
 			ref,
 			() => ({
@@ -271,12 +277,6 @@ export const MultiSelectCombobox = React.forwardRef<
 				document.removeEventListener("touchend", handleClickOutside);
 			};
 		}, [open]);
-
-		useEffect(() => {
-			if (value) {
-				setSelected(value);
-			}
-		}, [value]);
 
 		useEffect(() => {
 			/** If `onSearch` is provided, do not trigger options updated. */
