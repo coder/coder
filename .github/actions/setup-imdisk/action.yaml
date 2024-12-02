@@ -15,13 +15,13 @@ runs:
         curl -L -o files.cab https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/files.cab
         curl -L -o install.bat https://github.com/coder/imdisk-artifacts/raw/92a17839ebc0ee3e69be019f66b3e9b5d2de4482/install.bat
         cd ..
-    
+
     - name: Install ImDisk
       shell: cmd
       run: |
         cd imdisk
         install.bat /silent
-        
+
     - name: Create RAM Disk
       shell: cmd
       run: |
