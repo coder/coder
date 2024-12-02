@@ -184,6 +184,7 @@ func TestDelete(t *testing.T) {
 		user := coderdtest.CreateFirstUser(t, client)
 		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID, rbac.RoleTemplateAdmin())
 		version := coderdtest.CreateTemplateVersion(t, templateAdmin, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, version.ID)
 		template := coderdtest.CreateTemplate(t, templateAdmin, user.OrganizationID, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, templateAdmin, template.ID)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, templateAdmin, workspace.LatestBuild.ID)
