@@ -1,6 +1,7 @@
 ALTER TABLE ONLY workspaces ADD COLUMN IF NOT EXISTS next_start_at TIMESTAMPTZ DEFAULT NULL;
 
 CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted=false);
+CREATE INDEX workspace_template_id_idx   ON workspaces USING btree (template_id)   WHERE (deleted=false);
 
 CREATE FUNCTION nullify_next_start_at_on_workspace_autostart_modification() RETURNS trigger
 	LANGUAGE plpgsql

@@ -2137,6 +2137,8 @@ CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING 
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
 
+CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
 CREATE OR REPLACE VIEW provisioner_job_stats AS
