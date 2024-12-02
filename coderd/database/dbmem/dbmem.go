@@ -8775,7 +8775,7 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 	return database.ExternalAuthLink{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(_ context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
 	}
