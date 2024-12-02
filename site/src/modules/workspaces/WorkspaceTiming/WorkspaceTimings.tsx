@@ -58,15 +58,18 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	].sort((a, b) => {
 		return new Date(a.started_at).getTime() - new Date(b.started_at).getTime();
 	});
+
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
 	const isLoading = timings.length === 0;
 
-	// All stages
+	// Each agent connection timing is a stage in the timeline to make it easier
+	// to users to see the timing for connection and the other scripts.
 	const agentStageLabels = Array.from(
 		new Set(
 			agentConnectionTimings.map((t) => `agent (${t.workspace_agent_name})`),
 		),
 	);
+
 	const stages = [
 		...provisioningStages,
 		...agentStageLabels.flatMap((a) => agentStages(a)),
@@ -120,7 +123,8 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 											: mergeTimeRanges(stageTimings.map(toTimeRange));
 
 									// Prevent users from inspecting internal coder resources in
-									// provisioner timings.
+									// provisioner timings because they were not useful to the
+									// user and would add noise.
 									const visibleResources = stageTimings.filter((t) => {
 										const isProvisionerTiming = "resource" in t;
 										return isProvisionerTiming
