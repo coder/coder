@@ -2686,6 +2686,16 @@ export const MockOrganizationSyncSettings: TypesGen.OrganizationSyncSettings = {
 	organization_assign_default: true,
 };
 
+export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
+	{
+		field: "organization-test",
+		mapping: {
+			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-2": ["my-organization-id"],
+		},
+		organization_assign_default: true,
+	};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
