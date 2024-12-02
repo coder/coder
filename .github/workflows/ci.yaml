@@ -404,6 +404,7 @@ jobs:
 
       # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
       - name: Setup ImDisk
+        if: runner.os == 'Windows'
         uses: ./.github/actions/setup-imdisk
 
       - name: Test with PostgreSQL Database
@@ -432,7 +433,7 @@ jobs:
           if [ "${{ runner.os }}" == "Linux" ]; then
             make test-postgres
           elif [ "${{ runner.os }}" == "Windows" ]; then
-            # Create temp dir on the R: ramdisk drive for Windows. The default
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
             go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
