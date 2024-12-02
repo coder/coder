@@ -471,14 +471,13 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
 					require.NoError(t, err)
 					require.EqualValues(t, tt.wantTags, pj.Tags)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
-
-				// Also assert that we get the expected information back from the API endpoint
-				require.Zero(t, tv.MatchedProvisioners.Count)
-				require.Zero(t, tv.MatchedProvisioners.Available)
-				require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 			})
 		}
 	})
