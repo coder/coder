@@ -20,6 +20,9 @@ const (
 	EnvProcPrioMgmt  = "CODER_PROC_PRIO_MGMT"
 	EnvProcOOMScore  = "CODER_PROC_OOM_SCORE"
 	EnvProcNiceScore = "CODER_PROC_NICE_SCORE"
+
+	// unset is set to an invalid value for nice and oom scores.
+	unset = -2000
 )
 
 var DefaultExecer Execer = execer{}

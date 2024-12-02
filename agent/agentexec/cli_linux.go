@@ -17,9 +17,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// unset is set to an invalid value for nice and oom scores.
-const unset = -2000
-
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
 	// We lock the OS thread here to avoid a race condition where the nice priority
