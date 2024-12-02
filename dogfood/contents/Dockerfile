@@ -128,7 +128,7 @@ RUN apt-get update --quiet && apt-get install --yes \
 	ca-certificates \
 	cargo \
 	cmake \
-	containerd.io=1.7.23-1 \
+	containerd.io \
 	crypto-policies \
 	curl \
 	docker-ce \
