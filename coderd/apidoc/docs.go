@@ -4851,6 +4851,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run matched provisioners",
+                "operationId": "get-template-version-dry-run-matched-provisioners",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MatchedProvisioners"
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "security": [
@@ -15067,6 +15110,9 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "matched_provisioners": {
+                    "$ref": "#/definitions/codersdk.MatchedProvisioners"
                 },
                 "max_deadline": {
                     "type": "string",

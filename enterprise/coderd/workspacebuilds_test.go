@@ -109,7 +109,7 @@ func TestWorkspaceBuild(t *testing.T) {
 
 		for _, c := range cases {
 			t.Run(c.Name, func(t *testing.T) {
-				_, err = c.Client.CreateWorkspace(ctx, owner.OrganizationID, codersdk.Me, codersdk.CreateWorkspaceRequest{
+				_, err = c.Client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
 					TemplateVersionID: oldVersion.ID,
 					Name:              "abc123",
 					AutomaticUpdates:  codersdk.AutomaticUpdatesNever,

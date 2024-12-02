@@ -224,6 +224,22 @@ func (c *Client) TemplateVersionDryRun(ctx context.Context, version, job uuid.UU
 	return j, json.NewDecoder(res.Body).Decode(&j)
 }
 
+// TemplateVersionDryRunMatchedProvisioners returns the matched provisioners for a
+// template version dry-run job.
+func (c *Client) TemplateVersionDryRunMatchedProvisioners(ctx context.Context, version, job uuid.UUID) (MatchedProvisioners, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/templateversions/%s/dry-run/%s/matched-provisioners", version, job), nil)
+	if err != nil {
+		return MatchedProvisioners{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return MatchedProvisioners{}, ReadBodyAsError(res)
+	}
+
+	var matched MatchedProvisioners
+	return matched, json.NewDecoder(res.Body).Decode(&matched)
+}
+
 // TemplateVersionDryRunResources returns the resources of a finished template
 // version dry-run job.
 func (c *Client) TemplateVersionDryRunResources(ctx context.Context, version, job uuid.UUID) ([]WorkspaceResource, error) {
