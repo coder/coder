@@ -154,13 +154,19 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-        
-      - name: Download and Install ImDisk
+
+      - name: Download ImDisk
         shell: powershell
         run: |
-          $url = "https://sourceforge.net/projects/imdisk-toolkit/files/20190130/ImDiskTk.exe"
-          Invoke-WebRequest -Uri $url -OutFile "ImDiskTk.exe"
-          Start-Process -FilePath "ImDiskTk.exe" -ArgumentList "/fullsilent" -Wait -Verb RunAs
+          $url = "https://sourceforge.net/projects/imdisk-toolkit/files/20241123/ImDiskTk-x64.zip/download"
+          Invoke-WebRequest -Uri $url -OutFile "ImDiskTk.zip"
+          Expand-Archive -Path "ImDiskTk.zip" -DestinationPath "ImDiskTk"
+      
+      - name: Install ImDisk
+        shell: cmd
+        run: |
+          cd ImDiskTk
+          install.bat /silent
           
       - name: Create RAM Disk
         shell: cmd
