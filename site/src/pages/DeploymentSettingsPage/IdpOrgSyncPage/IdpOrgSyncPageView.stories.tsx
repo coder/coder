@@ -1,5 +1,4 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -49,16 +48,3 @@ export const MissingGroups: Story = {
 		organizationSyncSettings: MockOrganizationSyncSettings,
 	},
 };
-
-// export const RolesTab: Story = {
-// 	args: {
-// 		...Default.args,
-// 	},
-// 	play: async ({ canvasElement }) => {
-// 		const user = userEvent.setup();
-// 		const canvas = within(canvasElement);
-// 		const rolesTab = await canvas.findByText("Role Sync Settings");
-// 		await user.click(rolesTab);
-// 		await expect(canvas.findByText("IdP Role")).resolves.toBeVisible();
-// 	},
-// };
