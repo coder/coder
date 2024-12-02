@@ -368,28 +368,9 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
-      - name: Download ImDisk
-        if: runner.os == 'Windows'
-        shell: bash
-        run: |
-          mkdir imdisk
-          cd imdisk
-          curl -L -o files.cab https://imdisk-ci-files.pages.dev/ImDiskTk20241123/files.cab
-          curl -L -o install.bat https://imdisk-ci-files.pages.dev/ImDiskTk20241123/install.bat
-          cd ..
-      
-      - name: Install ImDisk
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          cd imdisk
-          install.bat /silent
-          
-      - name: Create RAM Disk
-        if: runner.os == 'Windows'
-        shell: cmd
-        run: |
-          imdisk -a -s 4096M -m R: -p "/fs:ntfs /q /y"
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        uses: ./.github/actions/setup-imdisk
 
       - name: Test with PostgreSQL Database
         env:
