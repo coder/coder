@@ -79,6 +79,7 @@ type Options struct {
 	PrometheusRegistry           *prometheus.Registry
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
+	PushResourcesUsageInterval   time.Duration
 	BlockFileTransfer            bool
 }
 
@@ -130,6 +131,9 @@ func New(options Options) Agent {
 	if options.ServiceBannerRefreshInterval == 0 {
 		options.ServiceBannerRefreshInterval = 2 * time.Minute
 	}
+	if options.PushResourcesUsageInterval == 0 {
+		options.PushResourcesUsageInterval = 10 * time.Second
+	}
 	if options.PortCacheDuration == 0 {
 		options.PortCacheDuration = 1 * time.Second
 	}
@@ -164,6 +168,7 @@ func New(options Options) Agent {
 		portCacheDuration:                  options.PortCacheDuration,
 		reportMetadataInterval:             options.ReportMetadataInterval,
 		announcementBannersRefreshInterval: options.ServiceBannerRefreshInterval,
+		pushResourcesUsageInterval:         options.PushResourcesUsageInterval,
 		sshMaxTimeout:                      options.SSHMaxTimeout,
 		subsystems:                         options.Subsystems,
 		logSender:                          agentsdk.NewLogSender(options.Logger),
@@ -220,6 +225,7 @@ type agent struct {
 	scriptRunner                       *agentscripts.Runner
 	announcementBanners                atomic.Pointer[[]codersdk.BannerConfig] // announcementBanners is atomic because it is periodically updated.
 	announcementBannersRefreshInterval time.Duration
+	pushResourcesUsageInterval         time.Duration
 	sessionToken                       atomic.Pointer[string]
 	sshServer                          *agentssh.Server
 	sshMaxTimeout                      time.Duration
@@ -605,6 +611,54 @@ func (a *agent) reportMetadata(ctx context.Context, aAPI proto.DRPCAgentClient24
 	}
 }
 
+func extractPercentage(s string) string {
+	start := strings.Index(s, "(")
+	end := strings.Index(s, "%)")
+	if start == -1 || end == -1 || start >= end {
+		return ""
+	}
+	return s[start+1 : end]
+}
+
+func (a *agent) pushResourcesUsage(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
+	ticker := time.NewTicker(a.pushResourcesUsageInterval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case <-ticker.C:
+			a.logger.Info(ctx, "Fetching resources usage")
+			diskData := a.collectMetadata(ctx, codersdk.WorkspaceAgentMetadataDescription{
+				Script: "coder stat disk",
+			}, time.Now())
+
+			memData := a.collectMetadata(ctx, codersdk.WorkspaceAgentMetadataDescription{
+				Script: "coder stat mem --host",
+			}, time.Now())
+
+			a.logger.Info(ctx, "Pushing resources usage")
+
+			parsedDisk := extractPercentage(diskData.Value)
+			parsedMem := extractPercentage(memData.Value)
+
+			diskValue, _ := strconv.Atoi(parsedDisk)
+			memValue, _ := strconv.Atoi(parsedMem)
+
+			_, err := aAPI.PushResourcesUsage(ctx, &proto.PushResourcesUsageRequest{
+				PercentMemory: int32(memValue),
+				PercentDisk:   int32(diskValue),
+			})
+			if err != nil {
+				return xerrors.Errorf("failed to push resources usage: %w", err)
+			}
+
+			a.logger.Info(ctx, fmt.Sprintf("Pushed resources usage - disk : %v - mem : %v", diskValue, memValue))
+		}
+	}
+}
+
 // reportLifecycle reports the current lifecycle state once. All state
 // changes are reported in order.
 func (a *agent) reportLifecycle(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
@@ -770,17 +824,7 @@ func (a *agent) run() (retErr error) {
 			return err
 		})
 
-	connMan.startAgentAPI("push resources usage", gracefulShutdownBehaviorRemain,
-		func(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
-			resp, err := aAPI.PushResourcesUsage(ctx, &proto.PushResourcesUsageRequest{
-				PercentCpu:    10,
-				PercentMemory: 20,
-				PercentDisk:   30,
-			})
-
-			a.logger.Info(ctx, "pushed resources", slog.F("resp", resp))
-			return err
-		})
+	connMan.startAgentAPI("push resources usage", gracefulShutdownBehaviorRemain, a.pushResourcesUsage)
 
 	// part of graceful shut down is reporting the final lifecycle states, e.g "ShuttingDown" so the
 	// lifecycle reporting has to be via gracefulShutdownBehaviorRemain

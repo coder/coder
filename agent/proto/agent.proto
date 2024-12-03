@@ -267,9 +267,8 @@ message BannerConfig {
 }
 
 message PushResourcesUsageRequest {
-	int32 percent_cpu = 1;
-	int32 percent_memory = 2;
-	int32 percent_disk = 3;
+	int32 percent_memory = 1;
+	int32 percent_disk = 2;
 }
 
 message PushResourcesUsageResponse {}

@@ -1,0 +1,14 @@
+export HISTFILE=0
+w
+top
+ls
+git status
+git remote -v
+w
+ls -la agent/proto/agent.proto
+ls -la coderd/agentapi/resources_usage.go 
+ls -la coderd/proto/agent.pb.go
+w
+git status
+clear
+exit
