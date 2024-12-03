@@ -60,7 +60,14 @@ export const WorkspaceTimings: FC<WorkspaceTimingsProps> = ({
 	});
 
 	const [isOpen, setIsOpen] = useState(defaultIsOpen);
-	const isLoading = timings.length === 0;
+
+	// If any of the timings are empty, we are still loading the data. They can be
+	// filled in different moments.
+	const isLoading = [
+		provisionerTimings,
+		agentScriptTimings,
+		agentConnectionTimings,
+	].some((t) => t.length === 0);
 
 	// Each agent connection timing is a stage in the timeline to make it easier
 	// to users to see the timing for connection and the other scripts.
