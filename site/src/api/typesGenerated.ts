@@ -1847,6 +1847,7 @@ export interface Workspace {
 	readonly automatic_updates: AutomaticUpdates;
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
+	readonly next_start_at?: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -2012,6 +2013,7 @@ export interface WorkspaceBuild {
 	readonly max_deadline?: string;
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/workspacebuilds.go

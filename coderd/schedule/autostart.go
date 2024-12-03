@@ -3,8 +3,12 @@ package schedule
 import (
 	"time"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/coder/v2/coderd/schedule/cron"
 )
+
+var ErrNoAllowedAutostart = xerrors.New("no allowed autostart")
 
 // NextAutostart takes the workspace and template schedule and returns the next autostart schedule
 // after "at". The boolean returned is if the autostart should be allowed to start based on the template
@@ -27,4 +31,20 @@ func NextAutostart(at time.Time, wsSchedule string, templateSchedule TemplateSch
 	allowed := templateSchedule.AutostartRequirement.DaysMap()[zonedTransition.Weekday()]
 
 	return zonedTransition, allowed
+}
+
+func NextAllowedAutostart(at time.Time, wsSchedule string, templateSchedule TemplateScheduleOptions) (time.Time, error) {
+	next := at
+
+	// Our cron schedules work on a weekly basis, so to ensure we've exhausted all
+	// possible autostart times we need to check up to 7 days worth of autostarts.
+	for next.Sub(at) < 7*24*time.Hour {
+		var valid bool
+		next, valid = NextAutostart(next, wsSchedule, templateSchedule)
+		if valid {
+			return next, nil
+		}
+	}
+
+	return time.Time{}, ErrNoAllowedAutostart
 }

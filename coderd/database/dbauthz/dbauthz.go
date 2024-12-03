@@ -299,7 +299,7 @@ var (
 					rbac.ResourceSystem.Type:                 {policy.WildcardSymbol},
 					rbac.ResourceOrganization.Type:           {policy.ActionCreate, policy.ActionRead},
 					rbac.ResourceOrganizationMember.Type:     {policy.ActionCreate, policy.ActionDelete, policy.ActionRead},
-					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionUpdate},
+					rbac.ResourceProvisionerDaemon.Type:      {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate},
 					rbac.ResourceProvisionerKeys.Type:        {policy.ActionCreate, policy.ActionRead, policy.ActionDelete},
 					rbac.ResourceUser.Type:                   rbac.ResourceUser.AvailableActions(),
 					rbac.ResourceWorkspaceDormant.Type:       {policy.ActionUpdate, policy.ActionDelete, policy.ActionWorkspaceStop},
@@ -310,6 +310,23 @@ var (
 					rbac.ResourceNotificationPreference.Type: {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceNotificationTemplate.Type:   {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
 					rbac.ResourceCryptoKey.Type:              {policy.ActionCreate, policy.ActionUpdate, policy.ActionDelete},
+				}),
+				Org:  map[string][]rbac.Permission{},
+				User: []rbac.Permission{},
+			},
+		}),
+		Scope: rbac.ScopeAll,
+	}.WithCachedASTValue()
+
+	subjectSystemReadProvisionerDaemons = rbac.Subject{
+		FriendlyName: "Provisioner Daemons Reader",
+		ID:           uuid.Nil.String(),
+		Roles: rbac.Roles([]rbac.Role{
+			{
+				Identifier:  rbac.RoleIdentifier{Name: "system-read-provisioner-daemons"},
+				DisplayName: "Coder",
+				Site: rbac.Permissions(map[string][]policy.Action{
+					rbac.ResourceProvisionerDaemon.Type: {policy.ActionRead},
 				}),
 				Org:  map[string][]rbac.Permission{},
 				User: []rbac.Permission{},
@@ -357,6 +374,12 @@ func AsNotifier(ctx context.Context) context.Context {
 // required for various system operations (login, logout, metrics cache).
 func AsSystemRestricted(ctx context.Context) context.Context {
 	return context.WithValue(ctx, authContextKey{}, subjectSystemRestricted)
+}
+
+// AsSystemReadProvisionerDaemons returns a context with an actor that has permissions
+// to read provisioner daemons.
+func AsSystemReadProvisionerDaemons(ctx context.Context) context.Context {
+	return context.WithValue(ctx, authContextKey{}, subjectSystemReadProvisionerDaemons)
 }
 
 var AsRemoveActor = rbac.Subject{
@@ -1028,6 +1051,13 @@ func (q *querier) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, arg databa
 		return err
 	}
 	return q.db.BatchUpdateWorkspaceLastUsedAt(ctx, arg)
+}
+
+func (q *querier) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg database.BatchUpdateWorkspaceNextStartAtParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspace.All()); err != nil {
+		return err
+	}
+	return q.db.BatchUpdateWorkspaceNextStartAt(ctx, arg)
 }
 
 func (q *querier) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
@@ -2817,6 +2847,13 @@ func (q *querier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID u
 	return q.db.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, prep)
 }
 
+func (q *querier) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetWorkspacesByTemplateID(ctx, templateID)
+}
+
 func (q *querier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	return q.db.GetWorkspacesEligibleForTransition(ctx, now)
 }
@@ -4060,6 +4097,13 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	fetch := func(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) (database.Workspace, error) {
+		return q.db.GetWorkspaceByID(ctx, arg.ID)
+	}
+	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceNextStartAt)(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
