@@ -2107,13 +2107,6 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	return proxy, err
 }
 
-func (m queryMetricsStore) RemoveRefreshToken(ctx context.Context, arg database.RemoveRefreshTokenParams) error {
-	start := time.Now()
-	r0 := m.s.RemoveRefreshToken(ctx, arg)
-	m.queryLatencies.WithLabelValues("RemoveRefreshToken").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
@@ -2182,6 +2175,13 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m queryMetricsStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateExternalAuthLinkRefreshToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLinkRefreshToken").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
