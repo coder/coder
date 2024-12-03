@@ -43,6 +43,8 @@ func main() {
 	// seems to have a bug where it sends malformed parameters to
 	// pg_ctl. It encloses each parameter in single quotes, which
 	// Windows can't handle.
+	// Related issue:
+	// https://github.com/fergusstrange/embedded-postgres/issues/145
 	paramQueries := []string{
 		`ALTER SYSTEM SET effective_cache_size = '1GB';`,
 		`ALTER SYSTEM SET fsync = 'off';`,
