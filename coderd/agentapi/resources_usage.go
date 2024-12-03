@@ -2,39 +2,38 @@ package agentapi
 
 import (
 	"context"
+	"fmt"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/notifications"
 )
 
 type ResourcesUsageAPI struct {
-	AgentFn  func(context.Context) (database.WorkspaceAgent, error)
-	Database database.Store
-	Log      slog.Logger
+	WorkspaceFn           func(context.Context) (database.Workspace, error)
+	Database              database.Store
+	NotificationsEnqueuer notifications.Enqueuer
+	Log                   slog.Logger
 }
 
 var (
 	// hardcoded test percentages - testing purpose
-	memoryThreshold = 90
-	diskThreshold   = 20
+	memoryThreshold int32 = 90
+	diskThreshold   int32 = 20
 )
 
 func (a *ResourcesUsageAPI) PushResourcesUsage(ctx context.Context, req *proto.PushResourcesUsageRequest) (*proto.PushResourcesUsageResponse, error) {
 	a.Log.Info(ctx, "push resources usage", slog.F("request", req))
 
-	// TODO : Implement this logic to fetch thresholds from build parameters.
-	// workspaceAgent, err := a.AgentFn(ctx)
-	// if err != nil {
-	// 	a.Log.Info(ctx, "push resources failed - agentFn", slog.Error(err))
-	// 	return &proto.PushResourcesUsageResponse{}, err
-	// }
+	workspace, err := a.WorkspaceFn(ctx)
+	if err != nil {
+		a.Log.Info(ctx, "push resources failed - WorkspaceFn", slog.Error(err))
+		return &proto.PushResourcesUsageResponse{}, err
+	}
 
-	// workspace, err := a.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
-	// if err != nil {
-	// 	a.Log.Info(ctx, "push resources failed - GetWorkspace", slog.Error(err))
-	// 	return &proto.PushResourcesUsageResponse{}, err
-	// }
+	// TODO : Implement this logic to fetch thresholds from build parameters.
 
 	// build, err := a.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 	// if err != nil {
@@ -47,6 +46,24 @@ func (a *ResourcesUsageAPI) PushResourcesUsage(ctx context.Context, req *proto.P
 	// 	a.Log.Info(ctx, "push resources failed - GetParameters", slog.Error(err))
 	// 	return &proto.PushResourcesUsageResponse{}, err
 	// }
+
+	// Implement logic required for debouncing
+	if req.PercentDisk >= diskThreshold {
+		a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
+			"resource":           "disk",
+			"resource_threshold": fmt.Sprintf("%v", diskThreshold),
+			"workspace_name":     workspace.Name,
+		}, "agent", workspace.OwnerID)
+	}
+
+	if req.PercentMemory >= memoryThreshold {
+		a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
+			"resource":           "memory",
+			"resource_threshold": fmt.Sprintf("%v", memoryThreshold),
+			"workspace_name":     workspace.Name,
+		}, "agent", workspace.OwnerID)
+
+	}
 
 	return &proto.PushResourcesUsageResponse{}, nil
 }
