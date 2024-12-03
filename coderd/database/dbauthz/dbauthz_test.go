@@ -1282,12 +1282,14 @@ func (s *MethodTestSuite) TestUser() {
 			UserID:     u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
-	s.Run("RemoveRefreshToken", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateExternalAuthLinkRefreshToken", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
-		check.Args(database.RemoveRefreshTokenParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-			UpdatedAt:  link.UpdatedAt,
+		check.Args(database.UpdateExternalAuthLinkRefreshTokenParams{
+			OAuthRefreshToken:      "",
+			OAuthRefreshTokenKeyID: "",
+			ProviderID:             link.ProviderID,
+			UserID:                 link.UserID,
+			UpdatedAt:              link.UpdatedAt,
 		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {
@@ -1907,6 +1909,19 @@ func (s *MethodTestSuite) TestWorkspace() {
 		check.Args(database.UpdateWorkspaceLastUsedAtParams{
 			ID: ws.ID,
 		}).Asserts(ws, policy.ActionUpdate).Returns()
+	}))
+	s.Run("UpdateWorkspaceNextStartAt", s.Subtest(func(db database.Store, check *expects) {
+		ws := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
+		check.Args(database.UpdateWorkspaceNextStartAtParams{
+			ID:          ws.ID,
+			NextStartAt: sql.NullTime{Valid: true, Time: dbtime.Now()},
+		}).Asserts(ws, policy.ActionUpdate)
+	}))
+	s.Run("BatchUpdateWorkspaceNextStartAt", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.BatchUpdateWorkspaceNextStartAtParams{
+			IDs:          []uuid.UUID{uuid.New()},
+			NextStartAts: []time.Time{dbtime.Now()},
+		}).Asserts(rbac.ResourceWorkspace.All(), policy.ActionUpdate)
 	}))
 	s.Run("BatchUpdateWorkspaceLastUsedAt", s.Subtest(func(db database.Store, check *expects) {
 		ws1 := dbgen.Workspace(s.T(), db, database.WorkspaceTable{})
@@ -2783,6 +2798,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("GetTemplateAverageBuildTime", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateAverageBuildTimeParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("GetWorkspacesByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(uuid.Nil).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetWorkspacesEligibleForTransition", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(time.Time{}).Asserts()

@@ -157,13 +157,27 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	// Cancel build
 	const cancelBuildMutation = useMutation(cancelBuild(workspace, queryClient));
 
-	// Build Timings. Fetch build timings only when the build job is completed.
-	const readyAgents = workspace.latest_build.resources
-		.flatMap((r) => r.agents)
-		.filter((a) => a && a.lifecycle_state !== "starting");
+	// Workspace Timings.
 	const timingsQuery = useQuery({
-		...workspaceBuildTimings(workspace.latest_build.id, readyAgents.length),
+		...workspaceBuildTimings(workspace.latest_build.id),
+
+		// Fetch build timings only when the build job is completed.
 		enabled: Boolean(workspace.latest_build.job.completed_at),
+
+		// Sometimes, the timings can be fetched before the agent script timings are
+		// done or saved in the database so we need to conditionally refetch the
+		// timings. To refetch the timings, I found the best way was to compare the
+		// expected amount of script timings with the current amount of script
+		// timings returned in the response.
+		refetchInterval: (data) => {
+			const expectedScriptTimingsCount = workspace.latest_build.resources
+				.flatMap((r) => r.agents)
+				.flatMap((a) => a?.scripts ?? []).length;
+			const currentScriptTimingsCount = data?.agent_script_timings?.length ?? 0;
+			return expectedScriptTimingsCount === currentScriptTimingsCount
+				? false
+				: 1_000;
+		},
 	});
 
 	const runLastBuild = (

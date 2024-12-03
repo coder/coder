@@ -628,7 +628,8 @@ func New(options *Options) *API {
 					CurrentVersion:         buildinfo.Version(),
 					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
-					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
+					StaleInterval:          provisionerdserver.StaleInterval,
+					// TimeNow set to default, see healthcheck/provisioner.go
 				},
 			})
 		}
@@ -1054,6 +1055,7 @@ func New(options *Options) *API {
 				r.Get("/{jobID}", api.templateVersionDryRun)
 				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
 				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Get("/{jobID}/matched-provisioners", api.templateVersionDryRunMatchedProvisioners)
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
 		})

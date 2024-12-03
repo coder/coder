@@ -72,7 +72,7 @@ func CLI() error {
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for niceness.
-		printfStdErr("failed to adjust niceness to %q: %v", *nice, err)
+		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
 	}
 
 	err = writeOOMScoreAdj(*oom)
@@ -80,7 +80,7 @@ func CLI() error {
 		// We alert the user instead of failing the command since it can be difficult to debug
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for oom_score_adj.
-		printfStdErr("failed to adjust oom score to %q: %v", *nice, err)
+		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, args, err)
 	}
 
 	path, err := exec.LookPath(args[0])
@@ -138,7 +138,7 @@ func oomScoreAdj() (int, error) {
 }
 
 func writeOOMScoreAdj(score int) error {
-	return os.WriteFile("/proc/self/oom_score_adj", []byte(fmt.Sprintf("%d", score)), 0o600)
+	return os.WriteFile(fmt.Sprintf("/proc/%d/oom_score_adj", os.Getpid()), []byte(fmt.Sprintf("%d", score)), 0o600)
 }
 
 // execArgs returns the arguments to pass to syscall.Exec after the "--" delimiter.

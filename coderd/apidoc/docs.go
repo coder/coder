@@ -4851,6 +4851,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run matched provisioners",
+                "operationId": "get-template-version-dry-run-matched-provisioners",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MatchedProvisioners"
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "security": [
@@ -11126,7 +11169,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what groups a user\nshould be in. If empty, no groups will be synced.",
                     "type": "string"
                 },
                 "legacy_group_name_mapping": {
@@ -11137,7 +11180,7 @@ const docTemplate = `{
                     }
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+                    "description": "Mapping is a map from OIDC groups to Coder group IDs",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -12931,11 +12974,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what organization roles\na user should be given. If empty, no roles will be synced.",
                     "type": "string"
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+                    "description": "Mapping is a map from OIDC groups to Coder organization roles.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -14500,6 +14543,10 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
+                "next_start_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
                 "organization_id": {
                     "type": "string",
                     "format": "uuid"
@@ -15067,6 +15114,9 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "matched_provisioners": {
+                    "$ref": "#/definitions/codersdk.MatchedProvisioners"
                 },
                 "max_deadline": {
                     "type": "string",

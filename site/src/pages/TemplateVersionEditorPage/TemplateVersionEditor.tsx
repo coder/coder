@@ -4,7 +4,6 @@ import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
@@ -17,7 +16,7 @@ import type {
 	VariableValue,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert } from "components/Alert/Alert";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -29,6 +28,8 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -126,6 +127,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
+	const matchingProvisioners = templateVersion.matched_provisioners?.count;
+	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
 	const triggerPreview = useCallback(async () => {
 		await onPreview(fileTree);
@@ -191,6 +194,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
+
+	const gotBuildLogs = buildLogs && buildLogs.length > 0;
 
 	return (
 		<>
@@ -581,31 +586,34 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									{templateVersion.job.error && (
+									{templateVersion.job.error ? (
 										<div>
-											<Alert
+											<ProvisionerAlert
+												title="Error during the build"
+												detail={templateVersion.job.error}
 												severity="error"
-												css={{
-													borderRadius: 0,
-													border: 0,
-													borderBottom: `1px solid ${theme.palette.divider}`,
-													borderLeft: `2px solid ${theme.palette.error.main}`,
-												}}
-											>
-												<AlertTitle>Error during the build</AlertTitle>
-												<AlertDetail>{templateVersion.job.error}</AlertDetail>
-											</Alert>
+												tags={templateVersion.job.tags}
+											/>
 										</div>
+									) : (
+										!gotBuildLogs && (
+											<>
+												<ProvisionerStatusAlert
+													matchingProvisioners={matchingProvisioners}
+													availableProvisioners={availableProvisioners}
+													tags={templateVersion.job.tags}
+												/>
+												<Loader css={{ height: "100%" }} />
+											</>
+										)
 									)}
 
-									{buildLogs && buildLogs.length > 0 ? (
+									{gotBuildLogs && (
 										<WorkspaceBuildLogs
 											css={styles.buildLogs}
 											hideTimestamps
 											logs={buildLogs}
 										/>
-									) : (
-										<Loader css={{ height: "100%" }} />
 									)}
 								</div>
 							)}
