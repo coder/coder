@@ -489,8 +489,8 @@ export const MultiSelectCombobox = forwardRef<
 											type="button"
 											data-testid="clear-option-button"
 											className={cn(
-												`ml-1 pr-0 rounded-full bg-transparent border-none outline-none
-												focus:ring-2 focus:ring-surface-invert-primary focus:ml-2.5 focus:pl-0 cursor-pointer`,
+												`ml-1 pr-0 rounded-sm bg-transparent border-none outline-none
+												focus:ring-2 focus:ring-content-link focus:ml-2.5 focus:pl-0 cursor-pointer`,
 												(disabled || option.fixed) && "hidden",
 											)}
 											onKeyDown={(e) => {
@@ -555,7 +555,7 @@ export const MultiSelectCombobox = forwardRef<
 									onChange?.(fixedOptions);
 								}}
 								className={cn(
-									"bg-transparent mt-1 border-none cursor-pointer text-content-secondary hover:text-content-primary",
+									"bg-transparent mt-1 border-none rounded-sm cursor-pointer text-content-secondary hover:text-content-primary outline-none focus:ring-2 focus:ring-content-link",
 									(hideClearAllButton ||
 										disabled ||
 										selected.length < 1 ||
