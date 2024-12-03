@@ -10,7 +10,7 @@ import (
 )
 
 var (
-	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$")
+	UsernameValidRegex = regexp.MustCompile("^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*-?$")
 	usernameReplace    = regexp.MustCompile("[^a-zA-Z0-9-]*")
 
 	templateVersionName = regexp.MustCompile(`^[a-zA-Z0-9]+(?:[_.-]{1}[a-zA-Z0-9]+)*$`)
