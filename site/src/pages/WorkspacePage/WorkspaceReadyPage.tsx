@@ -172,8 +172,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		refetchInterval: (data) => {
 			const expectedScriptTimingsCount = workspace.latest_build.resources
 				.flatMap((r) => r.agents)
-				.flatMap((a) => a?.scripts)
-				.filter((s) => s !== undefined).length;
+				.flatMap((a) => a?.scripts ?? []).length;
 			const currentScriptTimingsCount = data?.agent_script_timings?.length ?? 0;
 			return expectedScriptTimingsCount === currentScriptTimingsCount
 				? false
