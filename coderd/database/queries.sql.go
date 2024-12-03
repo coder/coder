@@ -1194,29 +1194,6 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 	return i, err
 }
 
-const removeRefreshToken = `-- name: RemoveRefreshToken :exec
-UPDATE
-	external_auth_links
-SET
-	oauth_refresh_token = '',
-	updated_at = $1
-WHERE provider_id = $2 AND user_id = $3
-`
-
-type RemoveRefreshTokenParams struct {
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	ProviderID string    `db:"provider_id" json:"provider_id"`
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-// Removing the refresh token disables the refresh behavior for a given
-// auth token. If a refresh token is marked invalid, it is better to remove it
-// then continually attempt to refresh the token.
-func (q *sqlQuerier) RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error {
-	_, err := q.db.ExecContext(ctx, removeRefreshToken, arg.UpdatedAt, arg.ProviderID, arg.UserID)
-	return err
-}
-
 const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
 UPDATE external_auth_links SET
     updated_at = $3,
@@ -1267,6 +1244,40 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthExtra,
 	)
 	return i, err
+}
+
+const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	oauth_refresh_token = $1,
+	updated_at = $2
+WHERE
+    provider_id = $3
+AND
+    user_id = $4
+AND
+    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
+    $5 :: text = $5 :: text
+`
+
+type UpdateExternalAuthLinkRefreshTokenParams struct {
+	OAuthRefreshToken      string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID             string    `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	OAuthRefreshTokenKeyID string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+}
+
+func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
+		arg.OAuthRefreshToken,
+		arg.UpdatedAt,
+		arg.ProviderID,
+		arg.UserID,
+		arg.OAuthRefreshTokenKeyID,
+	)
+	return err
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -8996,7 +9007,7 @@ FROM
 			-- Scope an archive to a single template and ignore already archived template versions
 			(
 				SELECT
-					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived
+					id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id
 				FROM
 					template_versions
 				WHERE
@@ -9097,7 +9108,7 @@ func (q *sqlQuerier) ArchiveUnusedTemplateVersions(ctx context.Context, arg Arch
 
 const getPreviousTemplateVersion = `-- name: GetPreviousTemplateVersion :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9134,6 +9145,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
+		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -9142,7 +9154,7 @@ func (q *sqlQuerier) GetPreviousTemplateVersion(ctx context.Context, arg GetPrev
 
 const getTemplateVersionByID = `-- name: GetTemplateVersionByID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9165,6 +9177,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
+		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -9173,7 +9186,7 @@ func (q *sqlQuerier) GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (
 
 const getTemplateVersionByJobID = `-- name: GetTemplateVersionByJobID :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9196,6 +9209,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
+		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -9204,7 +9218,7 @@ func (q *sqlQuerier) GetTemplateVersionByJobID(ctx context.Context, jobID uuid.U
 
 const getTemplateVersionByTemplateIDAndName = `-- name: GetTemplateVersionByTemplateIDAndName :one
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9233,6 +9247,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 		&i.ExternalAuthProviders,
 		&i.Message,
 		&i.Archived,
+		&i.SourceExampleID,
 		&i.CreatedByAvatarURL,
 		&i.CreatedByUsername,
 	)
@@ -9241,7 +9256,7 @@ func (q *sqlQuerier) GetTemplateVersionByTemplateIDAndName(ctx context.Context, 
 
 const getTemplateVersionsByIDs = `-- name: GetTemplateVersionsByIDs :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9270,6 +9285,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
+			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -9288,7 +9304,7 @@ func (q *sqlQuerier) GetTemplateVersionsByIDs(ctx context.Context, ids []uuid.UU
 
 const getTemplateVersionsByTemplateID = `-- name: GetTemplateVersionsByTemplateID :many
 SELECT
-	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username
+	id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username
 FROM
 	template_version_with_user AS template_versions
 WHERE
@@ -9364,6 +9380,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
+			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -9381,7 +9398,7 @@ func (q *sqlQuerier) GetTemplateVersionsByTemplateID(ctx context.Context, arg Ge
 }
 
 const getTemplateVersionsCreatedAfter = `-- name: GetTemplateVersionsCreatedAfter :many
-SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
+SELECT id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id, created_by_avatar_url, created_by_username FROM template_version_with_user AS template_versions WHERE created_at > $1
 `
 
 func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, createdAt time.Time) ([]TemplateVersion, error) {
@@ -9406,6 +9423,7 @@ func (q *sqlQuerier) GetTemplateVersionsCreatedAfter(ctx context.Context, create
 			&i.ExternalAuthProviders,
 			&i.Message,
 			&i.Archived,
+			&i.SourceExampleID,
 			&i.CreatedByAvatarURL,
 			&i.CreatedByUsername,
 		); err != nil {
@@ -9434,23 +9452,25 @@ INSERT INTO
 		message,
 		readme,
 		job_id,
-		created_by
+		created_by,
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
 `
 
 type InsertTemplateVersionParams struct {
-	ID             uuid.UUID     `db:"id" json:"id"`
-	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
-	OrganizationID uuid.UUID     `db:"organization_id" json:"organization_id"`
-	CreatedAt      time.Time     `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time     `db:"updated_at" json:"updated_at"`
-	Name           string        `db:"name" json:"name"`
-	Message        string        `db:"message" json:"message"`
-	Readme         string        `db:"readme" json:"readme"`
-	JobID          uuid.UUID     `db:"job_id" json:"job_id"`
-	CreatedBy      uuid.UUID     `db:"created_by" json:"created_by"`
+	ID              uuid.UUID      `db:"id" json:"id"`
+	TemplateID      uuid.NullUUID  `db:"template_id" json:"template_id"`
+	OrganizationID  uuid.UUID      `db:"organization_id" json:"organization_id"`
+	CreatedAt       time.Time      `db:"created_at" json:"created_at"`
+	UpdatedAt       time.Time      `db:"updated_at" json:"updated_at"`
+	Name            string         `db:"name" json:"name"`
+	Message         string         `db:"message" json:"message"`
+	Readme          string         `db:"readme" json:"readme"`
+	JobID           uuid.UUID      `db:"job_id" json:"job_id"`
+	CreatedBy       uuid.UUID      `db:"created_by" json:"created_by"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTemplateVersionParams) error {
@@ -9465,6 +9485,7 @@ func (q *sqlQuerier) InsertTemplateVersion(ctx context.Context, arg InsertTempla
 		arg.Readme,
 		arg.JobID,
 		arg.CreatedBy,
+		arg.SourceExampleID,
 	)
 	return err
 }

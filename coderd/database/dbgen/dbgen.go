@@ -788,16 +788,17 @@ func TemplateVersion(t testing.TB, db database.Store, orig database.TemplateVers
 	err := db.InTx(func(db database.Store) error {
 		versionID := takeFirst(orig.ID, uuid.New())
 		err := db.InsertTemplateVersion(genCtx, database.InsertTemplateVersionParams{
-			ID:             versionID,
-			TemplateID:     takeFirst(orig.TemplateID, uuid.NullUUID{}),
-			OrganizationID: takeFirst(orig.OrganizationID, uuid.New()),
-			CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
-			UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-			Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
-			Message:        orig.Message,
-			Readme:         takeFirst(orig.Readme, testutil.GetRandomName(t)),
-			JobID:          takeFirst(orig.JobID, uuid.New()),
-			CreatedBy:      takeFirst(orig.CreatedBy, uuid.New()),
+			ID:              versionID,
+			TemplateID:      takeFirst(orig.TemplateID, uuid.NullUUID{}),
+			OrganizationID:  takeFirst(orig.OrganizationID, uuid.New()),
+			CreatedAt:       takeFirst(orig.CreatedAt, dbtime.Now()),
+			UpdatedAt:       takeFirst(orig.UpdatedAt, dbtime.Now()),
+			Name:            takeFirst(orig.Name, testutil.GetRandomName(t)),
+			Message:         orig.Message,
+			Readme:          takeFirst(orig.Readme, testutil.GetRandomName(t)),
+			JobID:           takeFirst(orig.JobID, uuid.New()),
+			CreatedBy:       takeFirst(orig.CreatedBy, uuid.New()),
+			SourceExampleID: takeFirst(orig.SourceExampleID, sql.NullString{}),
 		})
 		if err != nil {
 			return err

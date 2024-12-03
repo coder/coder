@@ -1,6 +1,7 @@
 package telemetry_test
 
 import (
+	"database/sql"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -48,6 +49,10 @@ func TestTelemetry(t *testing.T) {
 		_ = dbgen.Template(t, db, database.Template{
 			Provisioner: database.ProvisionerTypeTerraform,
 		})
+		sourceExampleID := uuid.NewString()
+		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			SourceExampleID: sql.NullString{String: sourceExampleID, Valid: true},
+		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
 		user := dbgen.User(t, db, database.User{})
 		_ = dbgen.Workspace(t, db, database.WorkspaceTable{})
@@ -93,7 +98,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 1)
-		require.Len(t, snapshot.TemplateVersions, 1)
+		require.Len(t, snapshot.TemplateVersions, 2)
 		require.Len(t, snapshot.Users, 1)
 		require.Len(t, snapshot.Groups, 2)
 		// 1 member in the everyone group + 1 member in the custom group
@@ -111,6 +116,17 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
 		require.Equal(t, string(database.WorkspaceAgentSubsystemExectrace), wsa.Subsystems[1])
+
+		tvs := snapshot.TemplateVersions
+		sort.Slice(tvs, func(i, j int) bool {
+			// Sort by SourceExampleID presence (non-nil comes before nil)
+			if (tvs[i].SourceExampleID != nil) != (tvs[j].SourceExampleID != nil) {
+				return tvs[i].SourceExampleID != nil
+			}
+			return false
+		})
+		require.Equal(t, tvs[0].SourceExampleID, &sourceExampleID)
+		require.Nil(t, tvs[1].SourceExampleID)
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

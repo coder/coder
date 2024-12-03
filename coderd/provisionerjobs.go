@@ -15,6 +15,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -312,6 +313,7 @@ type logFollower struct {
 	r      *http.Request
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
+	enc    *wsjson.Encoder[codersdk.ProvisionerJobLog]
 
 	jobID         uuid.UUID
 	after         int64
@@ -391,6 +393,7 @@ func (f *logFollower) follow() {
 	}
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
 	go httpapi.Heartbeat(f.ctx, f.conn)
+	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
 
 	// query for logs once right away, so we can get historical data from before
 	// subscription
@@ -488,11 +491,7 @@ func (f *logFollower) query() error {
 		return xerrors.Errorf("error fetching logs: %w", err)
 	}
 	for _, log := range logs {
-		logB, err := json.Marshal(convertProvisionerJobLog(log))
-		if err != nil {
-			return xerrors.Errorf("error marshaling log: %w", err)
-		}
-		err = f.conn.Write(f.ctx, websocket.MessageText, logB)
+		err := f.enc.Encode(convertProvisionerJobLog(log))
 		if err != nil {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}
