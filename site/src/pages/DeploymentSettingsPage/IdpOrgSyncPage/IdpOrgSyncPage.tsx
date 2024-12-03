@@ -3,7 +3,6 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
-import type { OrganizationSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -86,7 +85,7 @@ export const IdpOrgSyncPage: FC = () => {
 						<IdpOrgSyncPageView
 							organizationSyncSettings={orgSyncSettingsData}
 							organizations={organizations}
-							onSubmit={async (data: OrganizationSyncSettings) => {
+							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
 									displaySuccess("Organization sync settings updated.");

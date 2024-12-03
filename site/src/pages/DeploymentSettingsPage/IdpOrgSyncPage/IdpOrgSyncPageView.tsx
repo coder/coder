@@ -1,4 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -23,7 +22,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
-import { Loader } from "components/Loader/Loader";
 import {
 	MultiSelectCombobox,
 	type Option,
@@ -35,9 +33,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
-import type React from "react";
-import { useState } from "react";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { docs } from "utils/docs";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
@@ -301,7 +297,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	onDelete,
 }) => {
 	return (
-		<TableRow data-testid={`group-${idpOrg}`}>
+		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>{idpOrg}</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />
@@ -310,6 +306,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 				<Button
 					variant="outline"
 					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
 					<Trash />

@@ -7,7 +7,7 @@ import {
 } from "components/Popover/Popover";
 import type { FC } from "react";
 import { cn } from "utils/cn";
-import { UUID } from "utils/idp";
+import { UUID } from "utils/uuid";
 
 interface OrganizationPillsProps {
 	organizations: readonly string[];
@@ -16,9 +16,10 @@ interface OrganizationPillsProps {
 export const OrganizationPills: FC<OrganizationPillsProps> = ({
 	organizations,
 }) => {
-	const orgs = organizations.map((org) => {
-		return { name: org, isUUID: UUID.test(org) };
-	});
+	const orgs = organizations.map((org) => ({
+		name: org,
+		isUUID: UUID.test(org),
+	}));
 
 	return (
 		<div className="flex flex-row gap-2">

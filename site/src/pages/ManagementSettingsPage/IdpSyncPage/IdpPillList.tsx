@@ -7,7 +7,7 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import type { FC } from "react";
-import { UUID } from "utils/idp";
+import { UUID } from "utils/uuid";
 
 interface PillListProps {
 	roles: readonly string[];

@@ -3,11 +3,6 @@
  * @see {@link https://shadcnui-expansions.typeart.cc/docs/multiple-selector}
  */
 import { Command as CommandPrimitive, useCommandState } from "cmdk";
-import { useDebouncedValue } from "hooks/debounce";
-import { ChevronDown, X } from "lucide-react";
-import * as React from "react";
-import { forwardRef, useEffect } from "react";
-
 import { Badge } from "components/Badge/Badge";
 import {
 	Command,
@@ -15,6 +10,21 @@ import {
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
+import { useDebouncedValue } from "hooks/debounce";
+import { ChevronDown, X } from "lucide-react";
+import {
+	type ComponentProps,
+	type ComponentPropsWithoutRef,
+	type KeyboardEvent,
+	type ReactNode,
+	forwardRef,
+	useCallback,
+	useEffect,
+	useImperativeHandle,
+	useMemo,
+	useRef,
+	useState,
+} from "react";
 import { cn } from "utils/cn";
 
 export interface Option {
@@ -37,9 +47,9 @@ interface MultiSelectComboboxProps {
 	options?: Option[];
 	placeholder?: string;
 	/** Loading component. */
-	loadingIndicator?: React.ReactNode;
+	loadingIndicator?: ReactNode;
 	/** Empty component. */
-	emptyIndicator?: React.ReactNode;
+	emptyIndicator?: ReactNode;
 	/** Debounce time for async search. Only work with `onSearch`. */
 	delay?: number;
 	/**
@@ -77,10 +87,10 @@ interface MultiSelectComboboxProps {
 	/** Allow user to create option when there is no option matched. */
 	creatable?: boolean;
 	/** Props of `Command` */
-	commandProps?: React.ComponentPropsWithoutRef<typeof Command>;
+	commandProps?: ComponentPropsWithoutRef<typeof Command>;
 	/** Props of `CommandInput` */
 	inputProps?: Omit<
-		React.ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
+		ComponentPropsWithoutRef<typeof CommandPrimitive.Input>,
 		"value" | "placeholder" | "disabled"
 	>;
 	/** hide or show the button that clears all the selected options. */
@@ -140,7 +150,7 @@ function isOptionsExist(groupOption: GroupOption, targetOption: Option[]) {
  **/
 const CommandEmpty = forwardRef<
 	HTMLDivElement,
-	React.ComponentProps<typeof CommandPrimitive.Empty>
+	ComponentProps<typeof CommandPrimitive.Empty>
 >(({ className, ...props }, forwardedRef) => {
 	const render = useCommandState((state) => state.filtered.count === 0);
 
@@ -157,7 +167,7 @@ const CommandEmpty = forwardRef<
 	);
 });
 
-export const MultiSelectCombobox = React.forwardRef<
+export const MultiSelectCombobox = forwardRef<
 	MultiSelectComboboxRef,
 	MultiSelectComboboxProps
 >(
@@ -189,28 +199,26 @@ export const MultiSelectCombobox = React.forwardRef<
 		}: MultiSelectComboboxProps,
 		ref,
 	) => {
-		const inputRef = React.useRef<HTMLInputElement>(null);
-		const [open, setOpen] = React.useState(false);
-		const [onScrollbar, setOnScrollbar] = React.useState(false);
-		const [isLoading, setIsLoading] = React.useState(false);
-		const dropdownRef = React.useRef<HTMLDivElement>(null); // Added this
+		const inputRef = useRef<HTMLInputElement>(null);
+		const [open, setOpen] = useState(false);
+		const [onScrollbar, setOnScrollbar] = useState(false);
+		const [isLoading, setIsLoading] = useState(false);
+		const dropdownRef = useRef<HTMLDivElement>(null); // Added this
 
-		const [selected, setSelected] = React.useState<Option[]>(value || []);
-		const [options, setOptions] = React.useState<GroupOption>(
+		const [selected, setSelected] = useState<Option[]>(value || []);
+		const [options, setOptions] = useState<GroupOption>(
 			transitionToGroupOption(arrayDefaultOptions, groupBy),
 		);
-		const [inputValue, setInputValue] = React.useState("");
+		const [inputValue, setInputValue] = useState("");
 		const debouncedSearchTerm = useDebouncedValue(inputValue, delay || 500);
 
-		const [previousValue, setPreviousValue] = React.useState<Option[]>(
-			value || [],
-		);
+		const [previousValue, setPreviousValue] = useState<Option[]>(value || []);
 		if (value && value !== previousValue) {
 			setPreviousValue(value);
 			setSelected(value);
 		}
 
-		React.useImperativeHandle(
+		useImperativeHandle(
 			ref,
 			() => ({
 				selectedValue: [...selected],
@@ -221,7 +229,7 @@ export const MultiSelectCombobox = React.forwardRef<
 			[selected],
 		);
 
-		const handleUnselect = React.useCallback(
+		const handleUnselect = useCallback(
 			(option: Option) => {
 				const newOptions = selected.filter((s) => s.value !== option.value);
 				setSelected(newOptions);
@@ -230,8 +238,8 @@ export const MultiSelectCombobox = React.forwardRef<
 			[onChange, selected],
 		);
 
-		const handleKeyDown = React.useCallback(
-			(e: React.KeyboardEvent<HTMLDivElement>) => {
+		const handleKeyDown = useCallback(
+			(e: KeyboardEvent<HTMLDivElement>) => {
 				const input = inputRef.current;
 				if (input) {
 					if (e.key === "Delete" || e.key === "Backspace") {
@@ -390,7 +398,7 @@ export const MultiSelectCombobox = React.forwardRef<
 			return undefined;
 		};
 
-		const EmptyItem = React.useCallback(() => {
+		const EmptyItem = useCallback(() => {
 			if (!emptyIndicator) return undefined;
 
 			// For async search that showing emptyIndicator
@@ -405,7 +413,7 @@ export const MultiSelectCombobox = React.forwardRef<
 			return <CommandEmpty>{emptyIndicator}</CommandEmpty>;
 		}, [creatable, emptyIndicator, onSearch, options]);
 
-		const selectables = React.useMemo<GroupOption>(
+		const selectables = useMemo<GroupOption>(
 			() => removePickedOption(options, selected),
 			[options, selected],
 		);
