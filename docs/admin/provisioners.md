@@ -302,7 +302,7 @@ will use in concert with the Helm chart for deploying the Coder server.
 1. Store the key in a kubernetes secret:
 
    ```sh
-   kubectl create secret generic coder-provisioner-psk --from-literal=my-cool-key=`<key omitted>`
+   kubectl create secret generic coder-provisioner-keys --from-literal=my-cool-key=`<key omitted>`
    ```
 
 1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm

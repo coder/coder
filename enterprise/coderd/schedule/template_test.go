@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestTemplateUpdateBuildDeadlines(t *testing.T) {
@@ -283,11 +284,11 @@ func TestTemplateUpdateBuildDeadlines(t *testing.T) {
 			userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 			userQuietHoursStorePtr.Store(&userQuietHoursStore)
 
+			clock := quartz.NewMock(t)
+			clock.Set(c.now)
+
 			// Set the template policy.
-			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger)
-			templateScheduleStore.TimeNowFn = func() time.Time {
-				return c.now
-			}
+			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger, clock)
 
 			autostopReq := agplschedule.TemplateAutostopRequirement{
 				// Every day
@@ -570,11 +571,11 @@ func TestTemplateUpdateBuildDeadlinesSkip(t *testing.T) {
 	userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 	userQuietHoursStorePtr.Store(&userQuietHoursStore)
 
+	clock := quartz.NewMock(t)
+	clock.Set(now)
+
 	// Set the template policy.
-	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger)
-	templateScheduleStore.TimeNowFn = func() time.Time {
-		return now
-	}
+	templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifications.NewNoopEnqueuer(), logger, clock)
 	_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
 		UserAutostartEnabled: false,
 		UserAutostopEnabled:  false,
@@ -682,8 +683,7 @@ func TestNotifications(t *testing.T) {
 		require.NoError(t, err)
 		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 		userQuietHoursStorePtr.Store(&userQuietHoursStore)
-		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, &notifyEnq, logger)
-		templateScheduleStore.TimeNowFn = time.Now
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, &notifyEnq, logger, nil)
 
 		// Lower the dormancy TTL to ensure the schedule recalculates deadlines and
 		// triggers notifications.
