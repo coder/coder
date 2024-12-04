@@ -49,20 +49,21 @@ func (a *ResourcesUsageAPI) PushResourcesUsage(ctx context.Context, req *proto.P
 
 	// Implement logic required for debouncing
 	if req.PercentDisk >= diskThreshold {
-		a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
+		_, err = a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
 			"resource":           "disk",
 			"resource_threshold": fmt.Sprintf("%v", diskThreshold),
 			"workspace_name":     workspace.Name,
 		}, "agent", workspace.OwnerID)
+		a.Log.Info(ctx, "push resources final", slog.Error(err))
 	}
 
 	if req.PercentMemory >= memoryThreshold {
-		a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
+		_, err = a.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), workspace.OwnerID, notifications.TemplateResourceThresholdReached, map[string]string{
 			"resource":           "memory",
 			"resource_threshold": fmt.Sprintf("%v", memoryThreshold),
 			"workspace_name":     workspace.Name,
 		}, "agent", workspace.OwnerID)
-
+		a.Log.Info(ctx, "push resources final", slog.Error(err))
 	}
 
 	return &proto.PushResourcesUsageResponse{}, nil

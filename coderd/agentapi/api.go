@@ -102,9 +102,10 @@ func New(opts Options) *API {
 	}
 
 	api.ResourcesUsageAPI = &ResourcesUsageAPI{
-		WorkspaceFn: api.workspace,
-		Database:    opts.Database,
-		Log:         opts.Log,
+		WorkspaceFn:           api.workspace,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Database:              opts.Database,
+		Log:                   opts.Log,
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
