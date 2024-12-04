@@ -177,7 +177,7 @@
 		"ts-node": "10.9.1",
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
-		"typescript": "5.6.3",
+		"typescript": "5.7.2",
 		"vite": "5.4.10",
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
