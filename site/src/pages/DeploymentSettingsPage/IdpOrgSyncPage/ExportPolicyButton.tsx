@@ -1,25 +1,17 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import Button from "@mui/material/Button";
-import type {
-	GroupSyncSettings,
-	Organization,
-	RoleSyncSettings,
-} from "api/typesGenerated";
+import type { OrganizationSyncSettings } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
+import { Download } from "lucide-react";
 import { type FC, useState } from "react";
 
-interface DownloadPolicyButtonProps {
-	syncSettings: RoleSyncSettings | GroupSyncSettings | undefined;
-	type: "groups" | "roles";
-	organization: Organization;
+interface ExportPolicyButtonProps {
+	syncSettings: OrganizationSyncSettings | undefined;
 	download?: (file: Blob, filename: string) => void;
 }
 
-export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
+export const ExportPolicyButton: FC<ExportPolicyButtonProps> = ({
 	syncSettings,
-	type,
-	organization,
 	download = saveAs,
 }) => {
 	const [isDownloading, setIsDownloading] = useState(false);
@@ -29,7 +21,7 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 
 	return (
 		<Button
-			startIcon={<DownloadOutlined />}
+			variant={"outline"}
 			disabled={!canCreatePolicyJson || isDownloading}
 			onClick={async () => {
 				if (canCreatePolicyJson) {
@@ -38,16 +30,17 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 						const file = new Blob([JSON.stringify(syncSettings, null, 2)], {
 							type: "application/json",
 						});
-						download(file, `${organization.name}_${type}-policy.json`);
+						download(file, "organizations_policy.json");
 					} catch (e) {
 						console.error(e);
-						displayError("Failed to export policy json");
+						displayError("Failed to export organizations policy json");
 					} finally {
 						setIsDownloading(false);
 					}
 				}
 			}}
 		>
+			<Download size={14} />
 			Export Policy
 		</Button>
 	);
