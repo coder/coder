@@ -5,7 +5,6 @@ import TableCell from "@mui/material/TableCell";
 import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
-import * as VisuallyHidden from "@radix-ui/react-visually-hidden";
 import type {
 	Organization,
 	OrganizationSyncSettings,
@@ -310,7 +309,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 					onClick={() => onDelete(idpOrg)}
 				>
 					<Trash />
-					<VisuallyHidden.Root>Delete IdP mapping</VisuallyHidden.Root>
+					<span className="sr-only">Delete IdP mapping</span>
 				</Button>
 			</TableCell>
 		</TableRow>
