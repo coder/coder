@@ -115,16 +115,18 @@ export const organizations = () => {
 	};
 };
 
-export const getProvisionerDaemonsKey = (organization: string) => [
-	"organization",
-	organization,
-	"provisionerDaemons",
-];
+export const getProvisionerDaemonsKey = (
+	organization: string,
+	tags?: Record<string, string>,
+) => ["organization", organization, tags, "provisionerDaemons"];
 
-export const provisionerDaemons = (organization: string) => {
+export const provisionerDaemons = (
+	organization: string,
+	tags?: Record<string, string>,
+) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization),
+		queryKey: getProvisionerDaemonsKey(organization, tags),
+		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
 	};
 };
 

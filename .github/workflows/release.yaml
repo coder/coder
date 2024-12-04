@@ -46,6 +46,14 @@ jobs:
         with:
           fetch-depth: 0
 
+      # If the event that triggered the build was an annotated tag (which our
+      # tags are supposed to be), actions/checkout has a bug where the tag in
+      # question is only a lightweight tag and not a full annotated tag. This
+      # command seems to fix it.
+      # https://github.com/actions/checkout/issues/290
+      - name: Fetch git tags
+        run: git fetch --tags --force
+
       - name: Setup build tools
         run: |
           brew install bash gnu-getopt make

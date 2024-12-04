@@ -3026,10 +3026,10 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | Name                         | Type                           | Required | Restrictions | Description                                                                                                                                                                                                                                                                            |
 | ---------------------------- | ------------------------------ | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `auto_create_missing_groups` | boolean                        | false    |              | Auto create missing groups controls whether groups returned by the OIDC provider are automatically created in Coder if they are missing.                                                                                                                                               |
-| `field`                      | string                         | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider.                                                                                                            |
+| `field`                      | string                         | false    |              | Field is the name of the claim field that specifies what groups a user should be in. If empty, no groups will be synced.                                                                                                                                                               |
 | `legacy_group_name_mapping`  | object                         | false    |              | Legacy group name mapping is deprecated. It remaps an IDP group name to a Coder group name. Since configuration is now done at runtime, group IDs are used to account for group renames. For legacy configurations, this config option has to remain. Deprecated: Use Mapping instead. |
 | » `[any property]`           | string                         | false    |              |                                                                                                                                                                                                                                                                                        |
-| `mapping`                    | object                         | false    |              | Mapping maps from an OIDC group --> Coder group ID                                                                                                                                                                                                                                     |
+| `mapping`                    | object                         | false    |              | Mapping is a map from OIDC groups to Coder group IDs                                                                                                                                                                                                                                   |
 | » `[any property]`           | array of string                | false    |              |                                                                                                                                                                                                                                                                                        |
 | `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              | Regex filter is a regular expression that filters the groups returned by the OIDC provider. Any group not matched by this regex will be ignored. If the group filter is nil, then no group filtering will occur.                                                                       |
 
@@ -4876,11 +4876,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 ### Properties
 
-| Name               | Type            | Required | Restrictions | Description                                                                                                                                                                 |
-| ------------------ | --------------- | -------- | ------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `field`            | string          | false    |              | Field selects the claim field to be used as the created user's groups. If the group field is the empty string, then no group updates will ever come from the OIDC provider. |
-| `mapping`          | object          | false    |              | Mapping maps from an OIDC group --> Coder organization role                                                                                                                 |
-| » `[any property]` | array of string | false    |              |                                                                                                                                                                             |
+| Name               | Type            | Required | Restrictions | Description                                                                                                                            |
+| ------------------ | --------------- | -------- | ------------ | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `field`            | string          | false    |              | Field is the name of the claim field that specifies what organization roles a user should be given. If empty, no roles will be synced. |
+| `mapping`          | object          | false    |              | Mapping is a map from OIDC groups to Coder organization roles.                                                                         |
+| » `[any property]` | array of string | false    |              |                                                                                                                                        |
 
 ## codersdk.SSHConfig
 
@@ -6602,6 +6602,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
+		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
 		"resources": [
@@ -6728,6 +6733,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"workspace_owner_name": "string"
 	},
 	"name": "string",
+	"next_start_at": "2019-08-24T14:15:22Z",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"organization_name": "string",
 	"outdated": true,
@@ -6762,6 +6768,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `last_used_at`                              | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `latest_build`                              | [codersdk.WorkspaceBuild](#codersdkworkspacebuild)     | false    |              |                                                                                                                                                                                                                                                       |
 | `name`                                      | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
+| `next_start_at`                             | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `organization_id`                           | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `organization_name`                         | string                                                 | false    |              |                                                                                                                                                                                                                                                       |
 | `outdated`                                  | boolean                                                | false    |              |                                                                                                                                                                                                                                                       |
@@ -7300,6 +7307,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		},
 		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 	},
+	"matched_provisioners": {
+		"available": 0,
+		"count": 0,
+		"most_recently_seen": "2019-08-24T14:15:22Z"
+	},
 	"max_deadline": "2019-08-24T14:15:22Z",
 	"reason": "initiator",
 	"resources": [
@@ -7439,6 +7451,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `initiator_id`               | string                                                            | false    |              |             |
 | `initiator_name`             | string                                                            | false    |              |             |
 | `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |             |
 | `max_deadline`               | string                                                            | false    |              |             |
 | `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
@@ -7926,6 +7939,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					},
 					"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 				},
+				"matched_provisioners": {
+					"available": 0,
+					"count": 0,
+					"most_recently_seen": "2019-08-24T14:15:22Z"
+				},
 				"max_deadline": "2019-08-24T14:15:22Z",
 				"reason": "initiator",
 				"resources": [
@@ -8048,6 +8066,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"workspace_owner_name": "string"
 			},
 			"name": "string",
+			"next_start_at": "2019-08-24T14:15:22Z",
 			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 			"organization_name": "string",
 			"outdated": true,

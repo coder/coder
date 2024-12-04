@@ -127,6 +127,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
 		"archived":                ActionTrack,
+		"source_example_id":       ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
@@ -164,6 +165,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleting_at":        ActionTrack,
 		"automatic_updates":  ActionTrack,
 		"favorite":           ActionTrack,
+		"next_start_at":      ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
 		"id":                      ActionIgnore,

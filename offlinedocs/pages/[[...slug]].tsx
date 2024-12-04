@@ -38,6 +38,7 @@ import { MdMenu } from "react-icons/md";
 import ReactMarkdown from "react-markdown";
 import rehypeRaw from "rehype-raw";
 import remarkGfm from "remark-gfm";
+import sanitizeHtml from "sanitize-html";
 
 type FilePath = string;
 type UrlPath = string;
@@ -194,10 +195,6 @@ const getNavigation = (manifest: Manifest): Nav => {
 	return navigation;
 };
 
-const removeHtmlComments = (string: string) => {
-	return string.replace(/<!--[\s\S]*?-->/g, "");
-};
-
 export const getStaticPaths: GetStaticPaths = () => {
 	const manifest = getManifest();
 	const routes = mapRoutes(manifest);
@@ -221,7 +218,7 @@ export const getStaticProps: GetStaticProps = (context) => {
 	const route = routes[urlPath];
 	const { body } = fm(readContentFile(route.path));
 	// Serialize MDX to support custom components
-	const content = removeHtmlComments(body);
+	const content = sanitizeHtml(body);
 	const navigation = getNavigation(manifest);
 	const version = manifest.versions[0];
 
