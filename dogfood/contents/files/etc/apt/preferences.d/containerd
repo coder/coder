@@ -1,0 +1,6 @@
+# Ref: https://github.com/nestybox/sysbox/issues/879
+# We need to pin containerd to a specific version to avoid breaking
+# Docker-in-Docker.
+Package: containerd.io
+Pin: version 1.7.23-1
+Pin-Priority: 1001

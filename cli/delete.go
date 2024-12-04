@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -55,6 +56,7 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 			if err != nil {
 				return err
 			}
+			cliutil.WarnMatchedProvisioners(inv.Stdout, build.MatchedProvisioners, build.Job)
 
 			err = cliui.WorkspaceBuild(inv.Context(), inv.Stdout, client, build.ID)
 			if err != nil {

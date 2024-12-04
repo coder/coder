@@ -190,7 +190,7 @@ func TestRefreshToken(t *testing.T) {
 
 		// Try again with a bad refresh token error
 		// Expect DB call to remove the refresh token
-		mDB.EXPECT().RemoveRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
+		mDB.EXPECT().UpdateExternalAuthLinkRefreshToken(gomock.Any(), gomock.Any()).Return(nil).Times(1)
 		refreshErr = &oauth2.RetrieveError{ // github error
 			Response: &http.Response{
 				StatusCode: http.StatusOK,

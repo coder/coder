@@ -17,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -94,6 +95,31 @@ func TestUserLinks(t *testing.T) {
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "refresh")
 		require.EqualValues(t, expectedClaims, rawLink.Claims)
+	})
+
+	t.Run("UpdateExternalAuthLinkRefreshToken", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, crypt, database.User{})
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+			UserID: user.ID,
+		})
+
+		err := crypt.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
+			OAuthRefreshToken:      "",
+			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID.String,
+			UpdatedAt:              dbtime.Now(),
+			ProviderID:             link.ProviderID,
+			UserID:                 link.UserID,
+		})
+		require.NoError(t, err)
+
+		rawLink, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "")
 	})
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
