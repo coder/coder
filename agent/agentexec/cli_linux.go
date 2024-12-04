@@ -18,11 +18,6 @@ import (
 	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
 
-func init() {
-	p := cap.GetProc()
-	fmt.Println(p.String())
-}
-
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
 	// We lock the OS thread here to avoid a race condition where the nice priority
@@ -62,6 +57,14 @@ func CLI() error {
 		}
 	}
 
+	if *nice == unset {
+		// If an explicit nice score isn't set, we use the default.
+		*nice, err = defaultNiceScore()
+		if err != nil {
+			return xerrors.Errorf("get default nice score: %w", err)
+		}
+	}
+
 	// We drop effective caps prior to setting dumpable so that we limit the
 	// impact of someone attempting to hijack the process (i.e. with a debugger)
 	// to take advantage of the capabilities of the agent process.
@@ -90,14 +93,6 @@ func CLI() error {
 	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
 	if err != nil {
 		printfStdErr("failed to unset dumpable: %v", err)
-	}
-
-	if *nice == unset {
-		// If an explicit nice score isn't set, we use the default.
-		*nice, err = defaultNiceScore()
-		if err != nil {
-			return xerrors.Errorf("get default nice score: %w", err)
-		}
 	}
 
 	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
