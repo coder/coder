@@ -1,11 +1,13 @@
-/** @type {import('tailwindcss').Config} */
-module.exports = {
+import AnimatePlugin from "tailwindcss-animate";
+
+export default {
 	corePlugins: {
 		preflight: false,
 	},
+	plugins: [AnimatePlugin],
 	darkMode: ["selector"],
-	content: ["./index.html", "./src/**/*.{js,ts,jsx,tsx}"],
-	important: ["#root", "#storybook-root"],
+	content: ["./index.html", "./src/**/*.{ts,tsx}"],
+	important: "#root, #storybook-root",
 	theme: {
 		extend: {
 			fontSize: {
@@ -48,5 +50,4 @@ module.exports = {
 			},
 		},
 	},
-	plugins: [require("tailwindcss-animate")],
-};
+} satisfies import("tailwindcss").Config;
