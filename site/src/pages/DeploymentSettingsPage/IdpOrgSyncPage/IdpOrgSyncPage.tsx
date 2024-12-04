@@ -28,7 +28,7 @@ export const IdpOrgSyncPage: FC = () => {
 		data: orgSyncSettingsData,
 		isLoading,
 		error,
-	} = useQuery(organizationIdpSyncSettings());
+	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),

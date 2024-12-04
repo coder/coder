@@ -15,9 +15,10 @@ export const patchOrganizationSyncSettings = (queryClient: QueryClient) => {
 	};
 };
 
-export const organizationIdpSyncSettings = () => {
+export const organizationIdpSyncSettings = (isIdpSyncEnabled: boolean) => {
 	return {
 		queryKey: getOrganizationIdpSyncSettingsKey(),
 		queryFn: () => API.getOrganizationIdpSyncSettings(),
+		enabled: isIdpSyncEnabled,
 	};
 };
