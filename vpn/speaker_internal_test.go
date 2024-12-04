@@ -54,7 +54,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, expectedHandshake, string(b[:n]))
 
-	_, err = mp.Write([]byte("codervpn manager 1.0\n"))
+	_, err = mp.Write([]byte("codervpn manager 1.3,2.1\n"))
 	require.NoError(t, err)
 
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
@@ -179,7 +179,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 	}{
 		{name: "preamble", handshake: "ssh manager 1.0\n"},
 		{name: "2components", handshake: "ssh manager\n"},
-		{name: "newmajor", handshake: "codervpn manager 2.0\n"},
+		{name: "newmajors", handshake: "codervpn manager 2.0,3.0\n"},
 		{name: "0version", handshake: "codervpn 0.1 manager\n"},
 		{name: "unknown_role", handshake: "codervpn 1.0 supervisor\n"},
 		{name: "unexpected_role", handshake: "codervpn 1.0 tunnel\n"},

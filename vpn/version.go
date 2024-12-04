@@ -79,7 +79,7 @@ func ParseRPCVersionList(str string) (RPCVersionList, error) {
 	for i, v := range split {
 		version, err := ParseRPCVersion(v)
 		if err != nil {
-			return RPCVersionList{}, xerrors.Errorf("invalid version string: %s", v)
+			return RPCVersionList{}, xerrors.Errorf("invalid version list: %s", str)
 		}
 		versions[i] = version
 	}
@@ -105,11 +105,14 @@ func (vl RPCVersionList) Validate() error {
 	if len(vl.Versions) == 0 {
 		return xerrors.New("no versions")
 	}
-	for i := 1; i < len(vl.Versions); i++ {
-		if vl.Versions[i-1].Major == vl.Versions[i].Major {
+	for i := 0; i < len(vl.Versions); i++ {
+		if vl.Versions[i].Major == 0 {
+			return xerrors.Errorf("invalid version: %s", vl.Versions[i].String())
+		}
+		if i > 0 && vl.Versions[i-1].Major == vl.Versions[i].Major {
 			return xerrors.Errorf("duplicate major version: %d", vl.Versions[i].Major)
 		}
-		if vl.Versions[i-1].Major > vl.Versions[i].Major {
+		if i > 0 && vl.Versions[i-1].Major > vl.Versions[i].Major {
 			return xerrors.Errorf("versions are not sorted")
 		}
 	}
