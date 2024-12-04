@@ -16238,6 +16238,25 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 	return items, nil
 }
 
+const updateWorkspacesTTLByTemplateID = `-- name: UpdateWorkspacesTTLByTemplateID :exec
+UPDATE
+		workspaces
+SET
+		ttl = $2
+WHERE
+		template_id = $1
+`
+
+type UpdateWorkspacesTTLByTemplateIDParams struct {
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+	Ttl        sql.NullInt64 `db:"ttl" json:"ttl"`
+}
+
+func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacesTTLByTemplateID, arg.TemplateID, arg.Ttl)
+	return err
+}
+
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many
 SELECT workspace_agent_id, log_source_id, log_path, created_at, script, cron, start_blocks_login, run_on_start, run_on_stop, timeout_seconds, display_name, id FROM workspace_agent_scripts WHERE workspace_agent_id = ANY($1 :: uuid [ ])
 `

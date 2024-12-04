@@ -19,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -705,6 +706,136 @@ func TestNotifications(t *testing.T) {
 			require.Contains(t, sent[i].Targets, dormantWs.OrganizationID)
 			require.Contains(t, sent[i].Targets, dormantWs.OwnerID)
 		}
+	})
+}
+
+func TestTemplateTTL(t *testing.T) {
+	t.Parallel()
+
+	t.Run("ModifiesWorkspaceTTLWhenAllowUserAutostopIsFalse", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitLong)
+			user        = dbgen.User(t, db, database.User{})
+			file        = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags:        database.StringMap{"foo": "bar"},
+			})
+			defaultTTL      = 24 * time.Hour
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID:   templateVersion.ID,
+				CreatedBy:         user.ID,
+				OrganizationID:    templateJob.OrganizationID,
+				AllowUserAutostop: false,
+				DefaultTTL:        int64(defaultTTL),
+			})
+			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+				OrganizationID: templateJob.OrganizationID,
+				LastUsedAt:     dbtime.Now(),
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(defaultTTL)},
+			})
+		)
+
+		// Setup the template schedule store
+		notifyEnq := notifications.NewNoopEnqueuer()
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
+
+		// We've created a template with a TTL of 24 hours, so we expect our
+		// workspace to have a TTL of 24 hours.
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, workspace.Ttl)
+
+		// As our template has `AllowUserAutostop` false, we expect that modifying
+		// the template's TTL should modify any workspaces that use this template.
+		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			UserAutostopEnabled: false,
+			DefaultTTL:          1 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		// Verify that the workspace's TTL time has been updated.
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(1 * time.Hour)}, ws.Ttl)
+	})
+
+	t.Run("DoesNotModifyWorkspaceTTLWhenAllowUserAutostopIsTrue", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			db, _       = dbtestutil.NewDB(t)
+			ctx         = testutil.Context(t, testutil.WaitLong)
+			user        = dbgen.User(t, db, database.User{})
+			file        = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags:        database.StringMap{"foo": "bar"},
+			})
+			defaultTTL      = 24 * time.Hour
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID:   templateVersion.ID,
+				CreatedBy:         user.ID,
+				OrganizationID:    templateJob.OrganizationID,
+				AllowUserAutostop: true,
+				DefaultTTL:        int64(defaultTTL),
+			})
+			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				TemplateID:     template.ID,
+				OrganizationID: templateJob.OrganizationID,
+				LastUsedAt:     dbtime.Now(),
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(defaultTTL)},
+			})
+		)
+
+		// Setup the template schedule store
+		notifyEnq := notifications.NewNoopEnqueuer()
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
+
+		// We've created a template with a TTL of 24 hours, so we expect our
+		// workspace to have a TTL of 24 hours.
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, workspace.Ttl)
+
+		// As our template has `AllowUserAutostop` true, we expect that modifying
+		// the template's TTL should NOT modify any workspaces that use this template.
+		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			UserAutostopEnabled: true,
+			DefaultTTL:          1 * time.Hour,
+		})
+		require.NoError(t, err)
+
+		// Verify that the workspace's TTL not been updated.
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, ws.Ttl)
 	})
 }
 
