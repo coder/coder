@@ -29,7 +29,7 @@ var (
 	//go:embed templates/azure-linux
 	//go:embed templates/do-linux
 	//go:embed templates/docker
-	//go:embed templates/devcontainer-docker
+	//go:embed templates/docker-devcontainer
 	//go:embed templates/devcontainer-kubernetes
 	//go:embed templates/gcp-devcontainer
 	//go:embed templates/gcp-linux

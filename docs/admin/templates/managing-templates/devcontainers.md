@@ -34,7 +34,7 @@ iterate on their development environments.
 
 ## Example templates
 
-- [Devcontainers (Docker)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)
+- [Docker (Devcontainer)](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)
   provisions a development container using Docker.
 - [Devcontainers (Kubernetes)](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)
   provisions a development container on the Kubernetes.
