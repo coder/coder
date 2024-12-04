@@ -179,11 +179,11 @@ func dropEffectiveCaps() error {
 	proc := cap.GetProc()
 	err := proc.ClearFlag(cap.Effective)
 	if err != nil {
-		return xerrors.Errorf("failed to drop effective caps: %w", err)
+		return xerrors.Errorf("clear effective caps: %w", err)
 	}
 	err = proc.SetProc()
 	if err != nil {
-		return xerrors.Errorf("failed to set proc: %w", err)
+		return xerrors.Errorf("set proc: %w", err)
 	}
 	return nil
 }
