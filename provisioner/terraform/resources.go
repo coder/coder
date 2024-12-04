@@ -84,6 +84,7 @@ type agentAppAttributes struct {
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
 	Hidden      bool                       `mapstructure:"hidden"`
+	OpenIn      string                     `mapstructure:"open_in"`
 }
 
 type agentEnvAttributes struct {
@@ -452,6 +453,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
 						Hidden:       attrs.Hidden,
+						OpenIn:       attrs.OpenIn,
 					})
 				}
 			}
