@@ -51,10 +51,15 @@ func CLI() error {
 		}
 	}
 
-	err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	err = dropEffectiveCaps()
 	if err != nil {
-		printfStdErr("failed to set dumpable: %v", err)
+		printfStdErr("failed to drop effective caps: %v", err)
 	}
+
+	// err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	// if err != nil {
+	// 	printfStdErr("failed to set dumpable: %v", err)
+	// }
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
@@ -62,6 +67,11 @@ func CLI() error {
 		// for a template admin otherwise. It's quite possible (and easy) to set an
 		// inappriopriate value for oom_score_adj.
 		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
+	}
+
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to unset dumpable: %v", err)
 	}
 
 	// Get everything after "coder agent-exec --"
@@ -156,4 +166,27 @@ func execArgs(args []string) []string {
 
 func printfStdErr(format string, a ...any) {
 	_, _ = fmt.Fprintf(os.Stderr, "coder-agent: %s\n", fmt.Sprintf(format, a...))
+}
+
+func dropEffectiveCaps() error {
+	// Get the current capabilities
+	var header unix.CapUserHeader
+	var data unix.CapUserData
+
+	header.Version = unix.LINUX_CAPABILITY_VERSION_3
+	header.Pid = 0 // 0 means current process
+
+	// Get current caps
+	if err := unix.Capget(&header, &data); err != nil {
+		return xerrors.Errorf("capget failed: %v", err)
+	}
+
+	// Clear the effective set by setting it to 0
+	data.Effective = 0
+
+	// Set the new capabilities
+	if err := unix.Capset(&header, &data); err != nil {
+		return xerrors.Errorf("capset failed: %v", err)
+	}
+	return nil
 }
