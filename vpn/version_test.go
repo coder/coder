@@ -148,12 +148,12 @@ func TestRPCVersionListParseString(t *testing.T) {
 		{
 			name:        "invalid version",
 			input:       "1.0,invalid",
-			errContains: "invalid version string",
+			errContains: "invalid version list",
 		},
 		{
 			name:        "empty string",
 			input:       "",
-			errContains: "invalid version string",
+			errContains: "invalid version list",
 		},
 		{
 			name:        "duplicate versions",
