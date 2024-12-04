@@ -75,10 +75,7 @@ const OverflowPill: FC<OverflowPillProps> = ({ roles }) => {
 				}}
 			>
 				{roles.map((role) => (
-					<Pill
-						key={role}
-						css={isUUID(role) ? styles.errorPill : styles.pill}
-					>
+					<Pill key={role} css={isUUID(role) ? styles.errorPill : styles.pill}>
 						{role}
 					</Pill>
 				))}
