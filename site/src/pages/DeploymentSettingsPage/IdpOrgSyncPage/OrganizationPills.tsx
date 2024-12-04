@@ -7,7 +7,7 @@ import {
 } from "components/Popover/Popover";
 import type { FC } from "react";
 import { cn } from "utils/cn";
-import { UUID } from "utils/uuid";
+import { isUUID } from "utils/uuid";
 
 interface OrganizationPillsProps {
 	organizations: readonly string[];
@@ -18,7 +18,7 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 }) => {
 	const orgs = organizations.map((org) => ({
 		name: org,
-		isUUID: UUID.test(org),
+		isUUID: isUUID(org),
 	}));
 
 	return (
