@@ -5648,10 +5648,20 @@ func (q *FakeQuerier) GetUsers(_ context.Context, params database.GetUsersParams
 		users = usersFilteredByRole
 	}
 
-	if !params.CreatedAt.IsZero() {
+	if !params.CreatedAtBefore.IsZero() {
 		usersFilteredByCreatedAt := make([]database.User, 0, len(users))
 		for i, user := range users {
-			if user.CreatedAt.Equal(params.CreatedAt) {
+			if user.CreatedAt.Before(params.CreatedAtBefore) {
+				usersFilteredByCreatedAt = append(usersFilteredByCreatedAt, users[i])
+			}
+		}
+		users = usersFilteredByCreatedAt
+	}
+
+	if !params.CreatedAtAfter.IsZero() {
+		usersFilteredByCreatedAt := make([]database.User, 0, len(users))
+		for i, user := range users {
+			if user.CreatedAt.After(params.CreatedAtAfter) {
 				usersFilteredByCreatedAt = append(usersFilteredByCreatedAt, users[i])
 			}
 		}

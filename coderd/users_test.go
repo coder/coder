@@ -1467,7 +1467,6 @@ func TestUsersFilter(t *testing.T) {
 
 	firstUser, err := client.User(ctx, codersdk.Me)
 	require.NoError(t, err, "fetch me")
-	createdAt := firstUser.CreatedAt
 
 	// Noon on Jan 18 is the "now" for this test for last_seen timestamps.
 	// All these values are equal
@@ -1657,13 +1656,34 @@ func TestUsersFilter(t *testing.T) {
 			},
 		},
 		{
-			Name: "CreatedAt",
+			Name: "CreatedAtBefore",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: fmt.Sprintf(`created_at:%q`, createdAt.Format(time.RFC3339)),
+				SearchQuery: `created_at_before:"2023-01-31T23:59:59Z"`,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				target := time.Date(2023, 1, 18, 12, 0, 0, 0, time.UTC)
-				return u.CreatedAt.Equal(target)
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.Before(end)
+			},
+		},
+		{
+			Name: "CreatedAtAfter",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_at_after:"2023-01-01T00:00:00Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				return u.CreatedAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAtRange",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_at_after:"2023-01-01T00:00:00Z" created_at_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.After(start) && u.CreatedAt.Before(end)
 			},
 		},
 	}
