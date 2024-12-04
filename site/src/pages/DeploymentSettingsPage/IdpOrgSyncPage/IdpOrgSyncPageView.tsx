@@ -121,6 +121,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									/>
 									<Button
 										className="w-20"
+										type="submit"
 										disabled={form.isSubmitting || !form.dirty}
 										onClick={(event) => {
 											event.preventDefault();
@@ -193,9 +194,10 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid items-center gap-1">
-								<div>&nbsp;</div>
+								&nbsp;
 								<Button
 									className="mb-px"
+									type="submit"
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
 										const newSyncSettings = {
