@@ -15,7 +15,13 @@ import (
 
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
+
+func init() {
+	p := cap.GetProc()
+	fmt.Println(p.String())
+}
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
@@ -37,10 +43,15 @@ func CLI() error {
 	}
 
 	// Parse everything after "coder agent-exec".
-	var err error
-	err = fs.Parse(os.Args[2:])
+	err := fs.Parse(os.Args[2:])
 	if err != nil {
 		return xerrors.Errorf("parse flags: %w", err)
+	}
+
+	// Get everything after "coder agent-exec --"
+	args := execArgs(os.Args)
+	if len(args) == 0 {
+		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
 
 	if *oom == unset {
@@ -51,15 +62,21 @@ func CLI() error {
 		}
 	}
 
+	// We drop effective caps prior to setting dumpable so that we limit the
+	// impact of someone attempting to hijack the process (i.e. with a debugger)
+	// to take advantage of the capabilities of the agent process.
 	err = dropEffectiveCaps()
 	if err != nil {
 		printfStdErr("failed to drop effective caps: %v", err)
 	}
 
-	// err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
-	// if err != nil {
-	// 	printfStdErr("failed to set dumpable: %v", err)
-	// }
+	// Set dumpable to 1 so that we can adjust the oom score. If the process
+	// doesn't have capabilities or has an suid/sgid bit set, this is already
+	// set.
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to set dumpable: %v", err)
+	}
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
@@ -69,15 +86,10 @@ func CLI() error {
 		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
 	}
 
+	// Set dumpable back to 0 just to be safe. It's not inherited for execve anyways.
 	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
 	if err != nil {
 		printfStdErr("failed to unset dumpable: %v", err)
-	}
-
-	// Get everything after "coder agent-exec --"
-	args := execArgs(os.Args)
-	if len(args) == 0 {
-		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
 
 	if *nice == unset {
@@ -169,24 +181,14 @@ func printfStdErr(format string, a ...any) {
 }
 
 func dropEffectiveCaps() error {
-	// Get the current capabilities
-	var header unix.CapUserHeader
-	var data unix.CapUserData
-
-	header.Version = unix.LINUX_CAPABILITY_VERSION_3
-	header.Pid = 0 // 0 means current process
-
-	// Get current caps
-	if err := unix.Capget(&header, &data); err != nil {
-		return xerrors.Errorf("capget failed: %v", err)
+	proc := cap.GetProc()
+	err := proc.ClearFlag(cap.Effective)
+	if err != nil {
+		return xerrors.Errorf("failed to drop effective caps: %w", err)
 	}
-
-	// Clear the effective set by setting it to 0
-	data.Effective = 0
-
-	// Set the new capabilities
-	if err := unix.Capset(&header, &data); err != nil {
-		return xerrors.Errorf("capset failed: %v", err)
+	err = proc.SetProc()
+	if err != nil {
+		return xerrors.Errorf("failed to set proc: %w", err)
 	}
 	return nil
 }
