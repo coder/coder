@@ -238,29 +238,30 @@ export const MultiSelectCombobox = forwardRef<
 			[onChange, selected],
 		);
 
-		const handleKeyDown = useCallback(
-			(e: KeyboardEvent<HTMLDivElement>) => {
-				const input = inputRef.current;
-				if (input) {
-					if (e.key === "Delete" || e.key === "Backspace") {
-						if (input.value === "" && selected.length > 0) {
-							const lastSelectOption = selected[selected.length - 1];
-							// If last item is fixed, we should not remove it.
-							if (!lastSelectOption.fixed) {
-								handleUnselect(selected[selected.length - 1]);
-							}
+		const handleKeyDown = (e: KeyboardEvent<HTMLDivElement>) => {
+			const input = inputRef.current;
+			if (input) {
+				if (e.key === "Delete" || e.key === "Backspace") {
+					if (input.value === "" && selected.length > 0) {
+						const lastSelectOption = selected[selected.length - 1];
+						// If last item is fixed, we should not remove it.
+						if (!lastSelectOption.fixed) {
+							handleUnselect(selected[selected.length - 1]);
 						}
 					}
-					// This is not a default behavior of the <input /> field
-					if (e.key === "Escape") {
-						input.blur();
-					}
 				}
-			},
-			[handleUnselect, selected],
-		);
+				// This is not a default behavior of the <input /> field
+				if (e.key === "Escape") {
+					input.blur();
+				}
+			}
+		};
 
 		useEffect(() => {
+			if (!open) {
+				return;
+			}
+
 			const handleClickOutside = (event: MouseEvent | TouchEvent) => {
 				if (
 					dropdownRef.current &&
@@ -272,10 +273,6 @@ export const MultiSelectCombobox = forwardRef<
 					inputRef.current.blur();
 				}
 			};
-
-			if (!open) {
-				return;
-			}
 
 			if (open) {
 				document.addEventListener("mousedown", handleClickOutside);
@@ -381,7 +378,7 @@ export const MultiSelectCombobox = forwardRef<
 						onChange?.(newOptions);
 					}}
 				>
-					{`Create "${inputValue}"`}
+					Create "{inputValue}"
 				</CommandItem>
 			);
 
@@ -553,6 +550,12 @@ export const MultiSelectCombobox = forwardRef<
 								onClick={() => {
 									setSelected(fixedOptions);
 									onChange?.(fixedOptions);
+								}}
+								onKeyDown={(e) => {
+									if (e.key === "Enter") {
+										setSelected(fixedOptions);
+										onChange?.(fixedOptions);
+									}
 								}}
 								className={cn(
 									"bg-transparent mt-1 border-none rounded-sm cursor-pointer text-content-secondary hover:text-content-primary outline-none focus:ring-2 focus:ring-content-link",
