@@ -62,6 +62,7 @@ type WorkspaceApp struct {
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`
 	Hidden      bool               `json:"hidden"`
+	OpenIn      string             `json:"open_in"`
 }
 
 type Healthcheck struct {
