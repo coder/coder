@@ -27,7 +27,7 @@ var (
 	//go:embed templates/aws-linux
 	//go:embed templates/aws-windows
 	//go:embed templates/azure-linux
-	//go:embed templates/do-linux
+	//go:embed templates/digitalocean-linux
 	//go:embed templates/docker
 	//go:embed templates/docker-devcontainer
 	//go:embed templates/gcp-devcontainer
