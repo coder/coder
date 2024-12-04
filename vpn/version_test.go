@@ -57,6 +57,7 @@ func TestRPCVersionParseString(t *testing.T) {
 		},
 	}
 
+	// nolint:paralleltest
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
@@ -102,6 +103,7 @@ func TestRPCVersionIsCompatibleWith(t *testing.T) {
 		},
 	}
 
+	// nolint:paralleltest
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
