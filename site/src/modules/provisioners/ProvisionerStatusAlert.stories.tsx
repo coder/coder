@@ -2,6 +2,7 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
 import { MockTemplateVersion } from "testHelpers/entities";
 import { ProvisionerStatusAlert } from "./ProvisionerStatusAlert";
+import { AlertVariant } from "./ProvisionerAlert";
 
 const meta: Meta<typeof ProvisionerStatusAlert> = {
 	title: "modules/provisioners/ProvisionerStatusAlert",
@@ -47,9 +48,24 @@ export const NoMatchingProvisioners: Story = {
 	},
 };
 
+export const NoMatchingProvisionersInLogs: Story = {
+	args: {
+		matchingProvisioners: 0,
+		variant: AlertVariant.InLogs,
+	},
+};
+
 export const NoAvailableProvisioners: Story = {
 	args: {
 		matchingProvisioners: 1,
 		availableProvisioners: 0,
+	},
+};
+
+export const NoAvailableProvisionersInLogs: Story = {
+	args: {
+		matchingProvisioners: 1,
+		availableProvisioners: 0,
+		variant: AlertVariant.InLogs,
 	},
 };

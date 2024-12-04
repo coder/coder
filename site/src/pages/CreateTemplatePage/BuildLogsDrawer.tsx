@@ -9,6 +9,7 @@ import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
+import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
@@ -94,6 +95,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							matchingProvisioners={matchingProvisioners}
 							availableProvisioners={availableProvisioners}
 							tags={templateVersion?.job.tags ?? {}}
+							variant={AlertVariant.InLogs}
 						/>
 						<Loader />
 					</>

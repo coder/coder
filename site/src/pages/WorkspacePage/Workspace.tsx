@@ -22,6 +22,7 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -107,6 +108,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
+
+	const provisionersHealthy =
+		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
+	const shouldShowProvisionerAlert =
+		workspace.latest_build.status === "pending" &&
+		!provisionersHealthy && !buildLogs;
 
 	return (
 		<div
@@ -208,6 +215,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
+					{shouldShowProvisionerAlert && (
+						<ProvisionerStatusAlert
+							matchingProvisioners={workspace.latest_build.matched_provisioners?.count}
+							availableProvisioners={workspace.latest_build.matched_provisioners?.available ?? 0}
+							tags={workspace.latest_build.job.tags}
+						/>
+					)}
+
 					{workspace.latest_build.job.error && (
 						<Alert severity="error">
 							<AlertTitle>Workspace build failed</AlertTitle>
@@ -222,7 +237,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{buildLogs}
 
 					{selectedResource && (
 						<section

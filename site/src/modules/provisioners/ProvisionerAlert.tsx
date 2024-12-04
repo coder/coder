@@ -4,11 +4,18 @@ import { AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
+
+export enum AlertVariant {
+	Standalone = "Standalone",
+	InLogs = "InLogs",
+}
+
 interface ProvisionerAlertProps {
 	title: string;
 	detail: string;
 	severity: AlertColor;
 	tags: Record<string, string>;
+	variant?: AlertVariant;
 }
 
 export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
@@ -16,18 +23,19 @@ export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	detail,
 	severity,
 	tags,
+	variant = AlertVariant.Standalone,
 }) => {
 	return (
 		<Alert
 			severity={severity}
-			css={(theme) => {
-				return {
+			{...(variant === AlertVariant.InLogs && {
+				css: (theme) => ({
 					borderRadius: 0,
 					border: 0,
 					borderBottom: `1px solid ${theme.palette.divider}`,
 					borderLeft: `2px solid ${theme.palette[severity].main}`,
-				};
-			}}
+				}),
+			})}
 		>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
