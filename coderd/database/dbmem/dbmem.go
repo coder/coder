@@ -8607,29 +8607,6 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) RemoveRefreshToken(_ context.Context, arg database.RemoveRefreshTokenParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	for index, gitAuthLink := range q.externalAuthLinks {
-		if gitAuthLink.ProviderID != arg.ProviderID {
-			continue
-		}
-		if gitAuthLink.UserID != arg.UserID {
-			continue
-		}
-		gitAuthLink.UpdatedAt = arg.UpdatedAt
-		gitAuthLink.OAuthRefreshToken = ""
-		q.externalAuthLinks[index] = gitAuthLink
-
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8847,6 +8824,29 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 		return gitAuthLink, nil
 	}
 	return database.ExternalAuthLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(_ context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, gitAuthLink := range q.externalAuthLinks {
+		if gitAuthLink.ProviderID != arg.ProviderID {
+			continue
+		}
+		if gitAuthLink.UserID != arg.UserID {
+			continue
+		}
+		gitAuthLink.UpdatedAt = arg.UpdatedAt
+		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
+		q.externalAuthLinks[index] = gitAuthLink
+
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {

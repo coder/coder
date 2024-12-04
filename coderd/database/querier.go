@@ -426,10 +426,6 @@ type sqlcQuerier interface {
 	OrganizationMembers(ctx context.Context, arg OrganizationMembersParams) ([]OrganizationMembersRow, error)
 	ReduceWorkspaceAgentShareLevelToAuthenticatedByTemplate(ctx context.Context, templateID uuid.UUID) error
 	RegisterWorkspaceProxy(ctx context.Context, arg RegisterWorkspaceProxyParams) (WorkspaceProxy, error)
-	// Removing the refresh token disables the refresh behavior for a given
-	// auth token. If a refresh token is marked invalid, it is better to remove it
-	// then continually attempt to refresh the token.
-	RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
@@ -445,6 +441,7 @@ type sqlcQuerier interface {
 	UpdateCryptoKeyDeletesAt(ctx context.Context, arg UpdateCryptoKeyDeletesAtParams) (CryptoKey, error)
 	UpdateCustomRole(ctx context.Context, arg UpdateCustomRoleParams) (CustomRole, error)
 	UpdateExternalAuthLink(ctx context.Context, arg UpdateExternalAuthLinkParams) (ExternalAuthLink, error)
+	UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error
 	UpdateGitSSHKey(ctx context.Context, arg UpdateGitSSHKeyParams) (GitSSHKey, error)
 	UpdateGroupByID(ctx context.Context, arg UpdateGroupByIDParams) (Group, error)
 	UpdateInactiveUsersToDormant(ctx context.Context, arg UpdateInactiveUsersToDormantParams) ([]UpdateInactiveUsersToDormantRow, error)
