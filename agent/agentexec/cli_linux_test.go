@@ -206,7 +206,7 @@ func execArgs(oom int, nice int) []string {
 func setCaps(t *testing.T, bin string, caps ...string) error {
 	t.Helper()
 
-	setcap := fmt.Sprintf("sudo setcap %s=ep %s", strings.Join(caps, ", "), bin)
+	setcap := fmt.Sprintf("sudo -n setcap %s=ep %s", strings.Join(caps, ", "), bin)
 	out, err := exec.CommandContext(context.Background(), "sh", "-c", setcap).CombinedOutput()
 	if err != nil {
 		return xerrors.Errorf("setcap %q (%s): %w", setcap, out, err)
