@@ -871,6 +871,74 @@ func TestTemplateTTL(t *testing.T) {
 			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(otherTTL)}, ws.Ttl)
 		})
 	}
+
+	t.Run("WorkspaceTTLUpdatedWhenAllowUserAutostopGetsDisabled", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+			db, _  = dbtestutil.NewDB(t)
+			ctx    = testutil.Context(t, testutil.WaitLong)
+			user   = dbgen.User(t, db, database.User{})
+			file   = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+			// Create first template
+			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+				FileID:      file.ID,
+				InitiatorID: user.ID,
+				Tags:        database.StringMap{"foo": "bar"},
+			})
+			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+				CreatedBy:      user.ID,
+				JobID:          templateJob.ID,
+				OrganizationID: templateJob.OrganizationID,
+			})
+			template = dbgen.Template(t, db, database.Template{
+				ActiveVersionID: templateVersion.ID,
+				CreatedBy:       user.ID,
+				OrganizationID:  templateJob.OrganizationID,
+			})
+		)
+
+		// Setup the template schedule store
+		notifyEnq := notifications.NewNoopEnqueuer()
+		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+		require.NoError(t, err)
+		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+		userQuietHoursStorePtr.Store(&userQuietHoursStore)
+		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
+
+		// Enable AllowUserAutostop
+		template, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			DefaultTTL:          24 * time.Hour,
+			UserAutostopEnabled: true,
+		})
+		require.NoError(t, err)
+
+		// Create a workspace with a TTL different to the template schedule
+		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+			OrganizationID: templateJob.OrganizationID,
+			LastUsedAt:     dbtime.Now(),
+			Ttl:            sql.NullInt64{Valid: true, Int64: int64(48 * time.Hour)},
+		})
+
+		// Ensure the workspace's start with the correct TTLs
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(48 * time.Hour)}, workspace.Ttl)
+
+		// Disable AllowUserAutostop
+		template, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+			DefaultTTL:          24 * time.Hour,
+			UserAutostopEnabled: false,
+		})
+		require.NoError(t, err)
+
+		// Ensure the workspace's ends with the correct TTLs
+		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+		require.NoError(t, err)
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)}, ws.Ttl)
+	})
 }
 
 func must[V any](v V, err error) V {

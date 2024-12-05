@@ -195,9 +195,11 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return xerrors.Errorf("get updated template schedule: %w", err)
 		}
 
-		// If this template disallows users from customizing their own autostop, then
-		// we want to keep their workspaces in track with any template TTL changes.
-		if !template.AllowUserAutostop && int64(opts.DefaultTTL) != tpl.DefaultTTL {
+		// Update all workspace's TTL using this template if either of the following:
+		//   - The template's AllowUserAutostop has just been disabled
+		//   - The template's TTL has been modified and AllowUserAutostop is disabled
+		if (!opts.UserAutostopEnabled && opts.UserAutostopEnabled != tpl.AllowUserAutostop) ||
+			(!template.AllowUserAutostop && int64(opts.DefaultTTL) != tpl.DefaultTTL) {
 			var ttl sql.NullInt64
 			if opts.DefaultTTL != 0 {
 				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
