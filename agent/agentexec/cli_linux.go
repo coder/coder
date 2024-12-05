@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -111,7 +112,16 @@ func CLI() error {
 		return xerrors.Errorf("look path: %w", err)
 	}
 
-	return syscall.Exec(path, args, os.Environ())
+	// Remove environment variables specific to the agentexec command. This is
+	// especially important for environments that are attempting to develop Coder in Coder.
+	env := os.Environ()
+	env = slices.DeleteFunc(env, func(e string) bool {
+		return strings.HasPrefix(e, EnvProcPrioMgmt) ||
+			strings.HasPrefix(e, EnvProcOOMScore) ||
+			strings.HasPrefix(e, EnvProcNiceScore)
+	})
+
+	return syscall.Exec(path, args, env)
 }
 
 func defaultNiceScore() (int, error) {
