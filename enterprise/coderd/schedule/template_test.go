@@ -819,7 +819,7 @@ func TestTemplateTTL(t *testing.T) {
 			require.NoError(t, err)
 			userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
 			userQuietHoursStorePtr.Store(&userQuietHoursStore)
-			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
+			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger, nil)
 
 			// Set both template's default TTL
 			template, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
