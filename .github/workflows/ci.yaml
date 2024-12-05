@@ -666,6 +666,8 @@ jobs:
         name: make gen
 
       - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
 
       - run: pnpm playwright:install
