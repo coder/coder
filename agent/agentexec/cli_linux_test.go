@@ -152,7 +152,6 @@ func binCmd(ctx context.Context, t *testing.T, bin string, oom, nice int) (*exec
 		}
 	})
 	return cmd, file
-
 }
 
 func cmd(ctx context.Context, t *testing.T, oom, nice int) (*exec.Cmd, string) {
