@@ -915,7 +915,7 @@ func TestTemplateTTL(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Create a workspace with a TTL different to the template schedule
+		// Create a workspace with a TTL different than the template's default TTL
 		workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 			OwnerID:        user.ID,
 			TemplateID:     template.ID,
@@ -924,7 +924,7 @@ func TestTemplateTTL(t *testing.T) {
 			Ttl:            sql.NullInt64{Valid: true, Int64: int64(48 * time.Hour)},
 		})
 
-		// Ensure the workspace's start with the correct TTLs
+		// Ensure the workspace start with the correct TTLs
 		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(48 * time.Hour)}, workspace.Ttl)
 
 		// Disable AllowUserAutostop
@@ -934,7 +934,7 @@ func TestTemplateTTL(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		// Ensure the workspace's ends with the correct TTLs
+		// Ensure the workspace ends with the correct TTLs
 		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
 		require.NoError(t, err)
 		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)}, ws.Ttl)
