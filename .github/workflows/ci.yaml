@@ -224,7 +224,7 @@ jobs:
       - name: markdownlint-cli2-action
         uses: DavidAnson/markdownlint-cli2-action@v18.0.0
         with:
-          config: ".github/actions/markdownlint-cli2-action/.markdownlint.json"
+          config: ".github/actions/markdownlint-cli2/.markdownlint.json"
           globs: "docs/**/*.md"
           fix: true
 
