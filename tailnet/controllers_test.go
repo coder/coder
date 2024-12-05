@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/netip"
 	"slices"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -1451,10 +1452,35 @@ func (f *fakeDNSSetter) SetDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
 	}
 }
 
+func newFakeUpdateHandler(ctx context.Context, t testing.TB) *fakeUpdateHandler {
+	return &fakeUpdateHandler{
+		ctx: ctx,
+		t:   t,
+		ch:  make(chan tailnet.WorkspaceUpdate),
+	}
+}
+
+type fakeUpdateHandler struct {
+	ctx context.Context
+	t   testing.TB
+	ch  chan tailnet.WorkspaceUpdate
+}
+
+func (f *fakeUpdateHandler) Update(wu tailnet.WorkspaceUpdate) error {
+	f.t.Helper()
+	select {
+	case <-f.ctx.Done():
+		return timeoutOnFakeErr
+	case f.ch <- wu:
+		// OK
+	}
+	return nil
+}
+
 func setupConnectedAllWorkspaceUpdatesController(
 	ctx context.Context, t testing.TB, logger slog.Logger, opts ...tailnet.TunnelAllOption,
 ) (
-	*fakeCoordinatorClient, *fakeWorkspaceUpdateClient,
+	*fakeCoordinatorClient, *fakeWorkspaceUpdateClient, *tailnet.TunnelAllWorkspaceUpdatesController,
 ) {
 	fConn := &fakeCoordinatee{}
 	tsc := tailnet.NewTunnelSrcCoordController(logger, fConn)
@@ -1484,7 +1510,7 @@ func setupConnectedAllWorkspaceUpdatesController(
 		err := testutil.RequireRecvCtx(ctx, t, updateCW.Wait())
 		require.ErrorIs(t, err, io.EOF)
 	})
-	return coordC, updateC
+	return coordC, updateC, uut
 }
 
 func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
@@ -1492,9 +1518,12 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
+	fUH := newFakeUpdateHandler(ctx, t)
 	fDNS := newFakeDNSSetter(ctx, t)
-	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger,
-		tailnet.WithDNS(fDNS, "testy"))
+	coordC, updateC, updateCtrl := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger,
+		tailnet.WithDNS(fDNS, "testy"),
+		tailnet.WithHandler(fUH),
+	)
 
 	// Initial update contains 2 workspaces with 1 & 2 agents, respectively
 	w1ID := testUUID(1)
@@ -1528,19 +1557,71 @@ func TestTunnelAllWorkspaceUpdatesController_Initial(t *testing.T) {
 	require.Contains(t, adds, w2a1ID)
 	require.Contains(t, adds, w2a2ID)
 
+	ws1a1IP := netip.MustParseAddr("fd60:627a:a42b:0101::")
+	w2a1IP := netip.MustParseAddr("fd60:627a:a42b:0201::")
+	w2a2IP := netip.MustParseAddr("fd60:627a:a42b:0202::")
+
 	// Also triggers setting DNS hosts
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w2a1.w2.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0201::")},
-		"w2a2.w2.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0202::")},
-		"w1a1.w1.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w2a1.w2.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0201::")},
-		"w2a2.w2.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0202::")},
-		"w1.coder.":            {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+		"w1a1.w1.me.coder.":    {ws1a1IP},
+		"w2a1.w2.me.coder.":    {w2a1IP},
+		"w2a2.w2.me.coder.":    {w2a2IP},
+		"w1a1.w1.testy.coder.": {ws1a1IP},
+		"w2a1.w2.testy.coder.": {w2a1IP},
+		"w2a2.w2.testy.coder.": {w2a2IP},
+		"w1.coder.":            {ws1a1IP},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
 	testutil.RequireSendCtx(ctx, t, dnsCall.err, nil)
+
+	currentState := tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{ID: w1ID, Name: "w1"},
+			{ID: w2ID, Name: "w2"},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{
+				ID: w1a1ID, Name: "w1a1", WorkspaceID: w1ID,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"w1.coder.":            {ws1a1IP},
+					"w1a1.w1.me.coder.":    {ws1a1IP},
+					"w1a1.w1.testy.coder.": {ws1a1IP},
+				},
+			},
+			{
+				ID: w2a1ID, Name: "w2a1", WorkspaceID: w2ID,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"w2a1.w2.me.coder.":    {w2a1IP},
+					"w2a1.w2.testy.coder.": {w2a1IP},
+				},
+			},
+			{
+				ID: w2a2ID, Name: "w2a2", WorkspaceID: w2ID,
+				Hosts: map[dnsname.FQDN][]netip.Addr{
+					"w2a2.w2.me.coder.":    {w2a2IP},
+					"w2a2.w2.testy.coder.": {w2a2IP},
+				},
+			},
+		},
+		DeletedWorkspaces: []*tailnet.Workspace{},
+		DeletedAgents:     []*tailnet.Agent{},
+	}
+
+	// And the callback
+	cbUpdate := testutil.RequireRecvCtx(ctx, t, fUH.ch)
+	require.Equal(t, currentState, cbUpdate)
+
+	// Current recvState should match
+	recvState, err := updateCtrl.CurrentState()
+	require.NoError(t, err)
+	slices.SortFunc(recvState.UpsertedWorkspaces, func(a, b *tailnet.Workspace) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	slices.SortFunc(recvState.UpsertedAgents, func(a, b *tailnet.Agent) int {
+		return strings.Compare(a.Name, b.Name)
+	})
+	require.Equal(t, currentState, recvState)
 }
 
 func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
@@ -1548,13 +1629,19 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	logger := testutil.Logger(t)
 
+	fUH := newFakeUpdateHandler(ctx, t)
 	fDNS := newFakeDNSSetter(ctx, t)
-	coordC, updateC := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger,
-		tailnet.WithDNS(fDNS, "testy"))
+	coordC, updateC, updateCtrl := setupConnectedAllWorkspaceUpdatesController(ctx, t, logger,
+		tailnet.WithDNS(fDNS, "testy"),
+		tailnet.WithHandler(fUH),
+	)
 
 	w1ID := testUUID(1)
 	w1a1ID := testUUID(1, 1)
 	w1a2ID := testUUID(1, 2)
+	ws1a1IP := netip.MustParseAddr("fd60:627a:a42b:0101::")
+	ws1a2IP := netip.MustParseAddr("fd60:627a:a42b:0102::")
+
 	initUp := &proto.WorkspaceUpdate{
 		UpsertedWorkspaces: []*proto.Workspace{
 			{Id: w1ID[:], Name: "w1"},
@@ -1574,13 +1661,36 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 
 	// DNS for w1a1
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w1a1.w1.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w1.coder.":            {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+		"w1a1.w1.testy.coder.": {ws1a1IP},
+		"w1a1.w1.me.coder.":    {ws1a1IP},
+		"w1.coder.":            {ws1a1IP},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
 	testutil.RequireSendCtx(ctx, t, dnsCall.err, nil)
+
+	initRecvUp := tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{ID: w1ID, Name: "w1"},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{ID: w1a1ID, Name: "w1a1", WorkspaceID: w1ID, Hosts: map[dnsname.FQDN][]netip.Addr{
+				"w1a1.w1.testy.coder.": {ws1a1IP},
+				"w1a1.w1.me.coder.":    {ws1a1IP},
+				"w1.coder.":            {ws1a1IP},
+			}},
+		},
+		DeletedWorkspaces: []*tailnet.Workspace{},
+		DeletedAgents:     []*tailnet.Agent{},
+	}
+
+	cbUpdate := testutil.RequireRecvCtx(ctx, t, fUH.ch)
+	require.Equal(t, initRecvUp, cbUpdate)
+
+	// Current state should match initial
+	state, err := updateCtrl.CurrentState()
+	require.NoError(t, err)
+	require.Equal(t, initRecvUp, state)
 
 	// Send update that removes w1a1 and adds w1a2
 	agentUpdate := &proto.WorkspaceUpdate{
@@ -1606,13 +1716,51 @@ func TestTunnelAllWorkspaceUpdatesController_DeleteAgent(t *testing.T) {
 
 	// DNS contains only w1a2
 	expectedDNS = map[dnsname.FQDN][]netip.Addr{
-		"w1a2.w1.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0102::")},
-		"w1a2.w1.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0102::")},
-		"w1.coder.":            {netip.MustParseAddr("fd60:627a:a42b:0102::")},
+		"w1a2.w1.testy.coder.": {ws1a2IP},
+		"w1a2.w1.me.coder.":    {ws1a2IP},
+		"w1.coder.":            {ws1a2IP},
 	}
 	dnsCall = testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
 	testutil.RequireSendCtx(ctx, t, dnsCall.err, nil)
+
+	cbUpdate = testutil.RequireRecvCtx(ctx, t, fUH.ch)
+	sndRecvUpdate := tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{},
+		UpsertedAgents: []*tailnet.Agent{
+			{ID: w1a2ID, Name: "w1a2", WorkspaceID: w1ID, Hosts: map[dnsname.FQDN][]netip.Addr{
+				"w1a2.w1.testy.coder.": {ws1a2IP},
+				"w1a2.w1.me.coder.":    {ws1a2IP},
+				"w1.coder.":            {ws1a2IP},
+			}},
+		},
+		DeletedWorkspaces: []*tailnet.Workspace{},
+		DeletedAgents: []*tailnet.Agent{
+			{ID: w1a1ID, Name: "w1a1", WorkspaceID: w1ID, Hosts: map[dnsname.FQDN][]netip.Addr{
+				"w1a1.w1.testy.coder.": {ws1a1IP},
+				"w1a1.w1.me.coder.":    {ws1a1IP},
+				"w1.coder.":            {ws1a1IP},
+			}},
+		},
+	}
+	require.Equal(t, sndRecvUpdate, cbUpdate)
+
+	state, err = updateCtrl.CurrentState()
+	require.NoError(t, err)
+	require.Equal(t, tailnet.WorkspaceUpdate{
+		UpsertedWorkspaces: []*tailnet.Workspace{
+			{ID: w1ID, Name: "w1"},
+		},
+		UpsertedAgents: []*tailnet.Agent{
+			{ID: w1a2ID, Name: "w1a2", WorkspaceID: w1ID, Hosts: map[dnsname.FQDN][]netip.Addr{
+				"w1a2.w1.testy.coder.": {ws1a2IP},
+				"w1a2.w1.me.coder.":    {ws1a2IP},
+				"w1.coder.":            {ws1a2IP},
+			}},
+		},
+		DeletedWorkspaces: []*tailnet.Workspace{},
+		DeletedAgents:     []*tailnet.Agent{},
+	}, state)
 }
 
 func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
@@ -1635,6 +1783,8 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 
 	w1ID := testUUID(1)
 	w1a1ID := testUUID(1, 1)
+	ws1a1IP := netip.MustParseAddr("fd60:627a:a42b:0101::")
+
 	initUp := &proto.WorkspaceUpdate{
 		UpsertedWorkspaces: []*proto.Workspace{
 			{Id: w1ID[:], Name: "w1"},
@@ -1648,9 +1798,9 @@ func TestTunnelAllWorkspaceUpdatesController_DNSError(t *testing.T) {
 
 	// DNS for w1a1
 	expectedDNS := map[dnsname.FQDN][]netip.Addr{
-		"w1a1.w1.me.coder.":    {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w1a1.w1.testy.coder.": {netip.MustParseAddr("fd60:627a:a42b:0101::")},
-		"w1.coder.":            {netip.MustParseAddr("fd60:627a:a42b:0101::")},
+		"w1a1.w1.me.coder.":    {ws1a1IP},
+		"w1a1.w1.testy.coder.": {ws1a1IP},
+		"w1.coder.":            {ws1a1IP},
 	}
 	dnsCall := testutil.RequireRecvCtx(ctx, t, fDNS.calls)
 	require.Equal(t, expectedDNS, dnsCall.hosts)
@@ -1776,6 +1926,10 @@ type fakeWorkspaceUpdatesController struct {
 	ctx   context.Context
 	t     testing.TB
 	calls chan *newWorkspaceUpdatesCall
+}
+
+func (*fakeWorkspaceUpdatesController) CurrentState() *proto.WorkspaceUpdate {
+	panic("unimplemented")
 }
 
 type newWorkspaceUpdatesCall struct {

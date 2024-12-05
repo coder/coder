@@ -6,32 +6,56 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"net/http"
+	"net/url"
 	"reflect"
 	"strconv"
 	"sync"
 	"unicode"
 
 	"golang.org/x/xerrors"
+	"tailscale.com/net/dns"
+	"tailscale.com/wgengine/router"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/tailnet"
 )
 
 type Tunnel struct {
 	speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	ctx             context.Context
-	logger          slog.Logger
 	requestLoopDone chan struct{}
+
+	logger slog.Logger
 
 	logMu sync.Mutex
 	logs  []*TunnelMessage
+
+	client Client
+	conn   Conn
+
+	// clientLogger is a separate logger than `logger` when the `UseAsLogger`
+	// option is used, to avoid the tunnel using itself as a sink for it's own
+	// logs, which could lead to deadlocks.
+	clientLogger slog.Logger
+	// router and dnsConfigurator may be nil
+	router          router.Router
+	dnsConfigurator dns.OSConfigurator
 }
 
+type TunnelOption func(t *Tunnel)
+
 func NewTunnel(
-	ctx context.Context, logger slog.Logger, conn io.ReadWriteCloser,
+	ctx context.Context,
+	logger slog.Logger,
+	mgrConn io.ReadWriteCloser,
+	client Client,
+	opts ...TunnelOption,
 ) (*Tunnel, error) {
 	logger = logger.Named("vpn")
 	s, err := newSpeaker[*TunnelMessage, *ManagerMessage](
-		ctx, logger, conn, SpeakerRoleTunnel, SpeakerRoleManager)
+		ctx, logger, mgrConn, SpeakerRoleTunnel, SpeakerRoleManager)
 	if err != nil {
 		return nil, err
 	}
@@ -40,7 +64,13 @@ func NewTunnel(
 		speaker:         *(s),
 		ctx:             ctx,
 		logger:          logger,
+		clientLogger:    logger,
 		requestLoopDone: make(chan struct{}),
+		client:          client,
+	}
+
+	for _, opt := range opts {
+		opt(t)
 	}
 	t.speaker.start()
 	go t.requestLoop()
@@ -54,6 +84,14 @@ func (t *Tunnel) requestLoop() {
 			resp := t.handleRPC(req.msg, req.msg.Rpc.MsgId)
 			if err := req.sendReply(resp); err != nil {
 				t.logger.Debug(t.ctx, "failed to send RPC reply", slog.Error(err))
+			}
+			if _, ok := resp.GetMsg().(*TunnelMessage_Stop); ok {
+				// TODO: Wait for the reply to be sent before closing the speaker.
+				// err := t.speaker.Close()
+				// if err != nil {
+				// 	t.logger.Error(t.ctx, "failed to close speaker", slog.Error(err))
+				// }
+				return
 			}
 			continue
 		}
@@ -70,12 +108,12 @@ func (t *Tunnel) handleRPC(req *ManagerMessage, msgID uint64) *TunnelMessage {
 	resp.Rpc = &RPC{ResponseTo: msgID}
 	switch msg := req.GetMsg().(type) {
 	case *ManagerMessage_GetPeerUpdate:
-		// TODO: actually get the peer updates
+		state, err := t.conn.CurrentWorkspaceState()
+		if err != nil {
+			t.logger.Critical(t.ctx, "failed to get current workspace state", slog.Error(err))
+		}
 		resp.Msg = &TunnelMessage_PeerUpdate{
-			PeerUpdate: &PeerUpdate{
-				UpsertedWorkspaces: nil,
-				UpsertedAgents:     nil,
-			},
+			PeerUpdate: convertWorkspaceUpdate(state),
 		}
 		return resp
 	case *ManagerMessage_Start:
@@ -84,31 +122,57 @@ func (t *Tunnel) handleRPC(req *ManagerMessage, msgID uint64) *TunnelMessage {
 			slog.F("url", startReq.CoderUrl),
 			slog.F("tunnel_fd", startReq.TunnelFileDescriptor),
 		)
-		// TODO: actually start the tunnel
+		err := t.start(startReq)
+		var errStr string
+		if err != nil {
+			t.logger.Error(t.ctx, "failed to start tunnel", slog.Error(err))
+			errStr = err.Error()
+		}
 		resp.Msg = &TunnelMessage_Start{
 			Start: &StartResponse{
-				Success: true,
+				Success:      err == nil,
+				ErrorMessage: errStr,
 			},
 		}
 		return resp
 	case *ManagerMessage_Stop:
 		t.logger.Info(t.ctx, "stopping CoderVPN tunnel")
-		// TODO: actually stop the tunnel
-		resp.Msg = &TunnelMessage_Stop{
-			Stop: &StopResponse{
-				Success: true,
-			},
-		}
-		err := t.speaker.Close()
+		err := t.stop(msg.Stop)
+		var errStr string
 		if err != nil {
-			t.logger.Error(t.ctx, "failed to close speaker", slog.Error(err))
+			t.logger.Error(t.ctx, "failed to stop tunnel", slog.Error(err))
+			errStr = err.Error()
 		} else {
 			t.logger.Info(t.ctx, "coderVPN tunnel stopped")
+		}
+		resp.Msg = &TunnelMessage_Stop{
+			Stop: &StopResponse{
+				Success:      err == nil,
+				ErrorMessage: errStr,
+			},
 		}
 		return resp
 	default:
 		t.logger.Warn(t.ctx, "unhandled manager request", slog.F("request", msg))
 		return resp
+	}
+}
+
+func UseAsRouter() TunnelOption {
+	return func(t *Tunnel) {
+		t.router = NewRouter(t)
+	}
+}
+
+func UseAsLogger() TunnelOption {
+	return func(t *Tunnel) {
+		t.clientLogger = slog.Make(t)
+	}
+}
+
+func UseAsDNSConfig() TunnelOption {
+	return func(t *Tunnel) {
+		t.dnsConfigurator = NewDNSConfigurator(t)
 	}
 }
 
@@ -127,6 +191,65 @@ func (t *Tunnel) ApplyNetworkSettings(ctx context.Context, ns *NetworkSettingsRe
 		return xerrors.Errorf("network settings failed: %s", resp.ErrorMessage)
 	}
 	return nil
+}
+
+func (t *Tunnel) Update(update tailnet.WorkspaceUpdate) error {
+	msg := &TunnelMessage{
+		Msg: &TunnelMessage_PeerUpdate{
+			PeerUpdate: convertWorkspaceUpdate(update),
+		},
+	}
+	select {
+	case <-t.ctx.Done():
+		return t.ctx.Err()
+	case t.sendCh <- msg:
+	}
+	return nil
+}
+
+func (t *Tunnel) start(req *StartRequest) error {
+	rawURL := req.GetCoderUrl()
+	if rawURL == "" {
+		return xerrors.New("missing coder url")
+	}
+	svrURL, err := url.Parse(rawURL)
+	if err != nil {
+		return xerrors.Errorf("parse url %q: %w", rawURL, err)
+	}
+	apiToken := req.GetApiToken()
+	if apiToken == "" {
+		return xerrors.New("missing api token")
+	}
+	var header http.Header
+	for _, h := range req.GetHeaders() {
+		header.Add(h.GetName(), h.GetValue())
+	}
+
+	if t.conn == nil {
+		t.conn, err = t.client.NewConn(
+			t.ctx,
+			svrURL,
+			apiToken,
+			&Options{
+				Headers:           header,
+				Logger:            t.clientLogger,
+				DNSConfigurator:   t.dnsConfigurator,
+				Router:            t.router,
+				TUNFileDescriptor: ptr.Ref(int(req.GetTunnelFileDescriptor())),
+				UpdateHandler:     t,
+			},
+		)
+	} else {
+		t.logger.Warn(t.ctx, "asked to start tunnel, but tunnel is already running")
+	}
+	return err
+}
+
+func (t *Tunnel) stop(*StopRequest) error {
+	if t.conn == nil {
+		return nil
+	}
+	return t.conn.Close()
 }
 
 var _ slog.Sink = &Tunnel{}
@@ -168,6 +291,60 @@ func sinkEntryToPb(e slog.SinkEntry) *Log {
 		})
 	}
 	return l
+}
+
+func convertWorkspaceUpdate(update tailnet.WorkspaceUpdate) *PeerUpdate {
+	out := &PeerUpdate{
+		UpsertedWorkspaces: make([]*Workspace, len(update.UpsertedWorkspaces)),
+		UpsertedAgents:     make([]*Agent, len(update.UpsertedAgents)),
+		DeletedWorkspaces:  make([]*Workspace, len(update.DeletedWorkspaces)),
+		DeletedAgents:      make([]*Agent, len(update.DeletedAgents)),
+	}
+	for i, ws := range update.UpsertedWorkspaces {
+		out.UpsertedWorkspaces[i] = &Workspace{
+			Id:     tailnet.UUIDToByteSlice(ws.ID),
+			Name:   ws.Name,
+			Status: Workspace_Status(ws.Status),
+		}
+	}
+	for i, agent := range update.UpsertedAgents {
+		fqdn := make([]string, 0, len(agent.Hosts))
+		for name := range agent.Hosts {
+			fqdn = append(fqdn, name.WithTrailingDot())
+		}
+		out.UpsertedAgents[i] = &Agent{
+			Id:          tailnet.UUIDToByteSlice(agent.ID),
+			Name:        agent.Name,
+			WorkspaceId: tailnet.UUIDToByteSlice(agent.WorkspaceID),
+			Fqdn:        fqdn,
+			IpAddrs:     []string{tailnet.CoderServicePrefix.AddrFromUUID(agent.ID).String()},
+			// TODO: Populate
+			LastHandshake: nil,
+		}
+	}
+	for i, ws := range update.DeletedWorkspaces {
+		out.DeletedWorkspaces[i] = &Workspace{
+			Id:     tailnet.UUIDToByteSlice(ws.ID),
+			Name:   ws.Name,
+			Status: Workspace_Status(ws.Status),
+		}
+	}
+	for i, agent := range update.DeletedAgents {
+		fqdn := make([]string, 0, len(agent.Hosts))
+		for name := range agent.Hosts {
+			fqdn = append(fqdn, name.WithTrailingDot())
+		}
+		out.DeletedAgents[i] = &Agent{
+			Id:          tailnet.UUIDToByteSlice(agent.ID),
+			Name:        agent.Name,
+			WorkspaceId: tailnet.UUIDToByteSlice(agent.WorkspaceID),
+			Fqdn:        fqdn,
+			IpAddrs:     []string{tailnet.CoderServicePrefix.AddrFromUUID(agent.ID).String()},
+			// TODO: Populate
+			LastHandshake: nil,
+		}
+	}
+	return out
 }
 
 // the following are taken from sloghuman:
