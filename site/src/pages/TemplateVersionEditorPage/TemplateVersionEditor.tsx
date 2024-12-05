@@ -594,7 +594,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												detail={templateVersion.job.error}
 												severity="error"
 												tags={templateVersion.job.tags}
-												variant={AlertVariant.InLogs}
+												variant={AlertVariant.Inline}
 											/>
 										</div>
 									) : (
@@ -604,7 +604,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 													matchingProvisioners={matchingProvisioners}
 													availableProvisioners={availableProvisioners}
 													tags={templateVersion.job.tags}
-													variant={AlertVariant.InLogs}
+													variant={AlertVariant.Inline}
 												/>
 												<Loader css={{ height: "100%" }} />
 											</>

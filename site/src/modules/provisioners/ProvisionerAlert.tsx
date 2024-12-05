@@ -6,8 +6,13 @@ import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
 
 export enum AlertVariant {
+	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
+	// The Standalone variant conforms to this styling.
 	Standalone = "Standalone",
-	InLogs = "InLogs",
+	// We show these same alerts in environments such as log drawers where we stream the logs from builds.
+	// In this case the full border is incongruent with the surroundings of the component.
+	// The Inline variant replaces the full rounded border with a left border and a divider so that it complements the surroundings.
+	Inline = "Inline",
 }
 
 interface ProvisionerAlertProps {
@@ -18,6 +23,22 @@ interface ProvisionerAlertProps {
 	variant?: AlertVariant;
 }
 
+const getAlertStyles = (variant: AlertVariant, severity: AlertColor) => {
+	switch (variant) {
+		case AlertVariant.Inline:
+			return {
+				css: (theme) => ({
+					borderRadius: 0,
+					border: 0,
+					borderBottom: `1px solid ${theme.palette.divider}`,
+					borderLeft: `2px solid ${theme.palette[severity].main}`,
+				}),
+			};
+		default:
+			return {};
+	}
+};
+
 export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	title,
 	detail,
@@ -26,17 +47,7 @@ export const ProvisionerAlert: FC<ProvisionerAlertProps> = ({
 	variant = AlertVariant.Standalone,
 }) => {
 	return (
-		<Alert
-			severity={severity}
-			{...(variant === AlertVariant.InLogs && {
-				css: (theme) => ({
-					borderRadius: 0,
-					border: 0,
-					borderBottom: `1px solid ${theme.palette.divider}`,
-					borderLeft: `2px solid ${theme.palette[severity].main}`,
-				}),
-			})}
-		>
+		<Alert severity={severity} {...getAlertStyles(variant, severity)}>
 			<AlertTitle>{title}</AlertTitle>
 			<AlertDetail>
 				<div>{detail}</div>

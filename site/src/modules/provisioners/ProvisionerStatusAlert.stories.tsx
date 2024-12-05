@@ -51,7 +51,7 @@ export const NoMatchingProvisioners: Story = {
 export const NoMatchingProvisionersInLogs: Story = {
 	args: {
 		matchingProvisioners: 0,
-		variant: AlertVariant.InLogs,
+		variant: AlertVariant.Inline,
 	},
 };
 
@@ -66,6 +66,6 @@ export const NoAvailableProvisionersInLogs: Story = {
 	args: {
 		matchingProvisioners: 1,
 		availableProvisioners: 0,
-		variant: AlertVariant.InLogs,
+		variant: AlertVariant.Inline,
 	},
 };

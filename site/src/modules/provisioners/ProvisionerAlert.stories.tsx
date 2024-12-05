@@ -24,7 +24,7 @@ export const Info: Story = {};
 
 export const InfoStyledForLogs: Story = {
 	args: {
-		variant: AlertVariant.InLogs,
+		variant: AlertVariant.Inline,
 	},
 };
 
@@ -37,7 +37,7 @@ export const Warning: Story = {
 export const WarningStyledForLogs: Story = {
 	args: {
 		severity: "warning",
-		variant: AlertVariant.InLogs,
+		variant: AlertVariant.Inline,
 	},
 };
 
