@@ -127,6 +127,19 @@ export const PendingWithNoAvailableProvisioners: Story = {
 	},
 };
 
+export const PendingWithUndefinedProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: undefined,
+			},
+		},
+	},
+};
+
 export const Starting: Story = {
 	args: {
 		...Running.args,

@@ -1,6 +1,6 @@
 import type { AlertColor } from "components/Alert/Alert";
 import type { FC } from "react";
-import { ProvisionerAlert, AlertVariant } from "./ProvisionerAlert";
+import { AlertVariant, ProvisionerAlert } from "./ProvisionerAlert";
 
 interface ProvisionerStatusAlertProps {
 	matchingProvisioners: number | undefined;

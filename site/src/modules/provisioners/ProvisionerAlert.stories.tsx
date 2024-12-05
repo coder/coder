@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { chromatic } from "testHelpers/chromatic";
-import { ProvisionerAlert, AlertVariant } from "./ProvisionerAlert";
+import { AlertVariant, ProvisionerAlert } from "./ProvisionerAlert";
 
 const meta: Meta<typeof ProvisionerAlert> = {
 	title: "modules/provisioners/ProvisionerAlert",

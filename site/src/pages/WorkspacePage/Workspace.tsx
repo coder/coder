@@ -7,6 +7,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
@@ -22,7 +23,6 @@ import { WorkspaceDeletedBanner } from "./WorkspaceDeletedBanner";
 import { WorkspaceTopbar } from "./WorkspaceTopbar";
 import type { WorkspacePermissions } from "./permissions";
 import { resourceOptionValue, useResourcesNav } from "./useResourcesNav";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 
 export interface WorkspaceProps {
 	handleStart: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
@@ -113,7 +113,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
 	const shouldShowProvisionerAlert =
 		workspace.latest_build.status === "pending" &&
-		!provisionersHealthy && !buildLogs;
+		!provisionersHealthy &&
+		!buildLogs;
 
 	return (
 		<div
@@ -217,8 +218,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 
 					{shouldShowProvisionerAlert && (
 						<ProvisionerStatusAlert
-							matchingProvisioners={workspace.latest_build.matched_provisioners?.count}
-							availableProvisioners={workspace.latest_build.matched_provisioners?.available ?? 0}
+							matchingProvisioners={
+								workspace.latest_build.matched_provisioners?.count
+							}
+							availableProvisioners={
+								workspace.latest_build.matched_provisioners?.available ?? 0
+							}
 							tags={workspace.latest_build.job.tags}
 						/>
 					)}
@@ -238,7 +243,6 @@ export const Workspace: FC<WorkspaceProps> = ({
 					)}
 
 					{buildLogs}
-
 
 					{selectedResource && (
 						<section

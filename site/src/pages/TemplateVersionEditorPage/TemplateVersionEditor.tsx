@@ -29,8 +29,8 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
-import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
