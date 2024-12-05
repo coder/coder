@@ -18,56 +18,127 @@ import (
 func TestTemplateTTL(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ModifiesWorkspaceTTL", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name     string
+		fromTTL  time.Duration
+		toTTL    time.Duration
+		expected sql.NullInt64
+	}{
+		{
+			name:     "ModifyTTLDurationDown",
+			fromTTL:  24 * time.Hour,
+			toTTL:    1 * time.Hour,
+			expected: sql.NullInt64{Valid: true, Int64: int64(1 * time.Hour)},
+		},
+		{
+			name:     "ModifyTTLDurationUp",
+			fromTTL:  24 * time.Hour,
+			toTTL:    36 * time.Hour,
+			expected: sql.NullInt64{Valid: true, Int64: int64(36 * time.Hour)},
+		},
+		{
+			name:     "DisableTTL",
+			fromTTL:  24 * time.Hour,
+			toTTL:    0,
+			expected: sql.NullInt64{},
+		},
+	}
 
-		var (
-			db, _       = dbtestutil.NewDB(t)
-			ctx         = testutil.Context(t, testutil.WaitLong)
-			user        = dbgen.User(t, db, database.User{})
-			file        = dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-				FileID:      file.ID,
-				InitiatorID: user.ID,
-				Tags:        database.StringMap{"foo": "bar"},
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				db, _ = dbtestutil.NewDB(t)
+				ctx   = testutil.Context(t, testutil.WaitLong)
+				user  = dbgen.User(t, db, database.User{})
+				file  = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				// Create first template
+				templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Tags:        database.StringMap{"foo": "bar"},
+				})
+				templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					JobID:          templateJob.ID,
+					OrganizationID: templateJob.OrganizationID,
+				})
+				template = dbgen.Template(t, db, database.Template{
+					ActiveVersionID: templateVersion.ID,
+					CreatedBy:       user.ID,
+					OrganizationID:  templateJob.OrganizationID,
+				})
+				// Create second template
+				otherTTL         = tt.fromTTL + 6*time.Hour
+				otherTemplateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Tags:        database.StringMap{"foo": "bar"},
+				})
+				otherTemplateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					JobID:          otherTemplateJob.ID,
+					OrganizationID: otherTemplateJob.OrganizationID,
+				})
+				otherTemplate = dbgen.Template(t, db, database.Template{
+					ActiveVersionID: otherTemplateVersion.ID,
+					CreatedBy:       user.ID,
+					OrganizationID:  otherTemplateJob.OrganizationID,
+				})
+			)
+
+			templateScheduleStore := schedule.NewAGPLTemplateScheduleStore()
+
+			// Set both template's default TTL
+			template, err := templateScheduleStore.Set(ctx, db, template, schedule.TemplateScheduleOptions{
+				DefaultTTL: tt.fromTTL,
 			})
-			defaultTTL      = 24 * time.Hour
-			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				JobID:          templateJob.ID,
-				OrganizationID: templateJob.OrganizationID,
+			require.NoError(t, err)
+			otherTemplate, err = templateScheduleStore.Set(ctx, db, otherTemplate, schedule.TemplateScheduleOptions{
+				DefaultTTL: otherTTL,
 			})
-			template = dbgen.Template(t, db, database.Template{
-				ActiveVersionID: templateVersion.ID,
-				CreatedBy:       user.ID,
-				OrganizationID:  templateJob.OrganizationID,
-				DefaultTTL:      int64(defaultTTL),
-			})
-			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			require.NoError(t, err)
+
+			// We create two workspaces here, one with the template we're modifying, the
+			// other with a different template. We want to ensure we only modify one
+			// of the workspaces.
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     dbtime.Now(),
-				Ttl:            sql.NullInt64{Valid: true, Int64: int64(defaultTTL)},
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(tt.fromTTL)},
 			})
-		)
+			otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+				OwnerID:        user.ID,
+				TemplateID:     otherTemplate.ID,
+				OrganizationID: otherTemplateJob.OrganizationID,
+				LastUsedAt:     dbtime.Now(),
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(otherTTL)},
+			})
 
-		templateScheduleStore := schedule.NewAGPLTemplateScheduleStore()
+			// Ensure the workspace's start with the correct TTLs
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(tt.fromTTL)}, workspace.Ttl)
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(otherTTL)}, otherWorkspace.Ttl)
 
-		// We've created a template with a TTL of 24 hours, so we expect our
-		// workspace to have a TTL of 24 hours.
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, workspace.Ttl)
+			// Update _only_ the primary template's TTL
+			_, err = templateScheduleStore.Set(ctx, db, template, schedule.TemplateScheduleOptions{
+				DefaultTTL: tt.toTTL,
+			})
+			require.NoError(t, err)
 
-		// We expect an AGPL template schedule store to always update
-		// the TTL of existing workspaces.
-		_, err := templateScheduleStore.Set(ctx, db, template, schedule.TemplateScheduleOptions{
-			DefaultTTL: 1 * time.Hour,
+			// Verify the primary workspace's TTL has been updated.
+			ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, ws.Ttl)
+
+			// Verify that the other workspace's TTL has not been touched.
+			ws, err = db.GetWorkspaceByID(ctx, otherWorkspace.ID)
+			require.NoError(t, err)
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(otherTTL)}, ws.Ttl)
 		})
-		require.NoError(t, err)
-
-		// Verify that the workspace's TTL has been updated.
-		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(1 * time.Hour)}, ws.Ttl)
-	})
+	}
 }

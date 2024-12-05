@@ -712,131 +712,165 @@ func TestNotifications(t *testing.T) {
 func TestTemplateTTL(t *testing.T) {
 	t.Parallel()
 
-	t.Run("ModifiesWorkspaceTTLWhenAllowUserAutostopIsFalse", func(t *testing.T) {
-		t.Parallel()
+	tests := []struct {
+		name              string
+		allowUserAutostop bool
+		fromTTL           time.Duration
+		toTTL             time.Duration
+		expected          sql.NullInt64
+	}{
+		{
+			name:              "AllowUserAutostopFalse/ModifyTTLDurationDown",
+			allowUserAutostop: false,
+			fromTTL:           24 * time.Hour,
+			toTTL:             1 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(1 * time.Hour)},
+		},
+		{
+			name:              "AllowUserAutostopFalse/ModifyTTLDurationUp",
+			allowUserAutostop: false,
+			fromTTL:           24 * time.Hour,
+			toTTL:             36 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(36 * time.Hour)},
+		},
+		{
+			name:              "AllowUserAutostopFalse/DisableTTL",
+			allowUserAutostop: false,
+			fromTTL:           24 * time.Hour,
+			toTTL:             0,
+			expected:          sql.NullInt64{},
+		},
+		{
+			name:              "AllowUserAutostopTrue/ModifyTTLDurationDown",
+			allowUserAutostop: true,
+			fromTTL:           24 * time.Hour,
+			toTTL:             1 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+		{
+			name:              "AllowUserAutostopTrue/ModifyTTLDurationUp",
+			allowUserAutostop: true,
+			fromTTL:           24 * time.Hour,
+			toTTL:             36 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+		{
+			name:              "AllowUserAutostopTrue/DisableTTL",
+			allowUserAutostop: true,
+			fromTTL:           24 * time.Hour,
+			toTTL:             0,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+	}
 
-		var (
-			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			db, _       = dbtestutil.NewDB(t)
-			ctx         = testutil.Context(t, testutil.WaitLong)
-			user        = dbgen.User(t, db, database.User{})
-			file        = dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-				FileID:      file.ID,
-				InitiatorID: user.ID,
-				Tags:        database.StringMap{"foo": "bar"},
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			var (
+				logger = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+				db, _  = dbtestutil.NewDB(t)
+				ctx    = testutil.Context(t, testutil.WaitLong)
+				user   = dbgen.User(t, db, database.User{})
+				file   = dbgen.File(t, db, database.File{CreatedBy: user.ID})
+				// Create first template
+				templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Tags:        database.StringMap{"foo": "bar"},
+				})
+				templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					JobID:          templateJob.ID,
+					OrganizationID: templateJob.OrganizationID,
+				})
+				template = dbgen.Template(t, db, database.Template{
+					ActiveVersionID:   templateVersion.ID,
+					CreatedBy:         user.ID,
+					OrganizationID:    templateJob.OrganizationID,
+					AllowUserAutostop: false,
+				})
+				// Create second template
+				otherTTL         = tt.fromTTL + 6*time.Hour
+				otherTemplateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+					FileID:      file.ID,
+					InitiatorID: user.ID,
+					Tags:        database.StringMap{"foo": "bar"},
+				})
+				otherTemplateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+					CreatedBy:      user.ID,
+					JobID:          otherTemplateJob.ID,
+					OrganizationID: otherTemplateJob.OrganizationID,
+				})
+				otherTemplate = dbgen.Template(t, db, database.Template{
+					ActiveVersionID:   otherTemplateVersion.ID,
+					CreatedBy:         user.ID,
+					OrganizationID:    otherTemplateJob.OrganizationID,
+					AllowUserAutostop: false,
+				})
+			)
+
+			// Setup the template schedule store
+			notifyEnq := notifications.NewNoopEnqueuer()
+			const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
+			userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
+			require.NoError(t, err)
+			userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
+			userQuietHoursStorePtr.Store(&userQuietHoursStore)
+			templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
+
+			// Set both template's default TTL
+			template, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+				DefaultTTL: tt.fromTTL,
 			})
-			defaultTTL      = 24 * time.Hour
-			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				JobID:          templateJob.ID,
-				OrganizationID: templateJob.OrganizationID,
+			require.NoError(t, err)
+			otherTemplate, err = templateScheduleStore.Set(ctx, db, otherTemplate, agplschedule.TemplateScheduleOptions{
+				DefaultTTL: otherTTL,
 			})
-			template = dbgen.Template(t, db, database.Template{
-				ActiveVersionID:   templateVersion.ID,
-				CreatedBy:         user.ID,
-				OrganizationID:    templateJob.OrganizationID,
-				AllowUserAutostop: false,
-				DefaultTTL:        int64(defaultTTL),
-			})
-			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			require.NoError(t, err)
+
+			// We create two workspaces here, one with the template we're modifying, the
+			// other with a different template. We want to ensure we only modify one
+			// of the workspaces.
+			workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
 				TemplateID:     template.ID,
 				OrganizationID: templateJob.OrganizationID,
 				LastUsedAt:     dbtime.Now(),
-				Ttl:            sql.NullInt64{Valid: true, Int64: int64(defaultTTL)},
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(tt.fromTTL)},
 			})
-		)
-
-		// Setup the template schedule store
-		notifyEnq := notifications.NewNoopEnqueuer()
-		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
-		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
-		require.NoError(t, err)
-		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
-		userQuietHoursStorePtr.Store(&userQuietHoursStore)
-		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
-
-		// We've created a template with a TTL of 24 hours, so we expect our
-		// workspace to have a TTL of 24 hours.
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, workspace.Ttl)
-
-		// As our template has `AllowUserAutostop` false, we expect that modifying
-		// the template's TTL should modify any workspaces that use this template.
-		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-			UserAutostopEnabled: false,
-			DefaultTTL:          1 * time.Hour,
-		})
-		require.NoError(t, err)
-
-		// Verify that the workspace's TTL time has been updated.
-		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(1 * time.Hour)}, ws.Ttl)
-	})
-
-	t.Run("DoesNotModifyWorkspaceTTLWhenAllowUserAutostopIsTrue", func(t *testing.T) {
-		t.Parallel()
-
-		var (
-			logger      = slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-			db, _       = dbtestutil.NewDB(t)
-			ctx         = testutil.Context(t, testutil.WaitLong)
-			user        = dbgen.User(t, db, database.User{})
-			file        = dbgen.File(t, db, database.File{CreatedBy: user.ID})
-			templateJob = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-				FileID:      file.ID,
-				InitiatorID: user.ID,
-				Tags:        database.StringMap{"foo": "bar"},
-			})
-			defaultTTL      = 24 * time.Hour
-			templateVersion = dbgen.TemplateVersion(t, db, database.TemplateVersion{
-				CreatedBy:      user.ID,
-				JobID:          templateJob.ID,
-				OrganizationID: templateJob.OrganizationID,
-			})
-			template = dbgen.Template(t, db, database.Template{
-				ActiveVersionID:   templateVersion.ID,
-				CreatedBy:         user.ID,
-				OrganizationID:    templateJob.OrganizationID,
-				AllowUserAutostop: true,
-				DefaultTTL:        int64(defaultTTL),
-			})
-			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
+			otherWorkspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID:        user.ID,
-				TemplateID:     template.ID,
-				OrganizationID: templateJob.OrganizationID,
+				TemplateID:     otherTemplate.ID,
+				OrganizationID: otherTemplateJob.OrganizationID,
 				LastUsedAt:     dbtime.Now(),
-				Ttl:            sql.NullInt64{Valid: true, Int64: int64(defaultTTL)},
+				Ttl:            sql.NullInt64{Valid: true, Int64: int64(otherTTL)},
 			})
-		)
 
-		// Setup the template schedule store
-		notifyEnq := notifications.NewNoopEnqueuer()
-		const userQuietHoursSchedule = "CRON_TZ=UTC 0 0 * * *" // midnight UTC
-		userQuietHoursStore, err := schedule.NewEnterpriseUserQuietHoursScheduleStore(userQuietHoursSchedule, true)
-		require.NoError(t, err)
-		userQuietHoursStorePtr := &atomic.Pointer[agplschedule.UserQuietHoursScheduleStore]{}
-		userQuietHoursStorePtr.Store(&userQuietHoursStore)
-		templateScheduleStore := schedule.NewEnterpriseTemplateScheduleStore(userQuietHoursStorePtr, notifyEnq, logger)
+			// Ensure the workspace's start with the correct TTLs
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(tt.fromTTL)}, workspace.Ttl)
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(otherTTL)}, otherWorkspace.Ttl)
 
-		// We've created a template with a TTL of 24 hours, so we expect our
-		// workspace to have a TTL of 24 hours.
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, workspace.Ttl)
+			// Update _only_ the primary template's TTL
+			_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
+				UserAutostopEnabled: tt.allowUserAutostop,
+				DefaultTTL:          tt.toTTL,
+			})
+			require.NoError(t, err)
 
-		// As our template has `AllowUserAutostop` true, we expect that modifying
-		// the template's TTL should NOT modify any workspaces that use this template.
-		_, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-			UserAutostopEnabled: true,
-			DefaultTTL:          1 * time.Hour,
+			// Verify the primary workspace's TTL is what we expect
+			ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
+			require.NoError(t, err)
+			require.Equal(t, tt.expected, ws.Ttl)
+
+			// Verify we haven't changed the other workspace's TTL
+			ws, err = db.GetWorkspaceByID(ctx, otherWorkspace.ID)
+			require.NoError(t, err)
+			require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(otherTTL)}, ws.Ttl)
 		})
-		require.NoError(t, err)
-
-		// Verify that the workspace's TTL not been updated.
-		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
-		require.NoError(t, err)
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(defaultTTL)}, ws.Ttl)
-	})
+	}
 }
 
 func must[V any](v V, err error) V {
