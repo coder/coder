@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/externalauth"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -49,6 +50,12 @@ func TestTemplateVersion(t *testing.T) {
 		tv, err := client.TemplateVersion(ctx, version.ID)
 		authz.AssertChecked(t, policy.ActionRead, tv)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		assert.Equal(t, "bananas", tv.Name)
 		assert.Equal(t, "first try", tv.Message)
@@ -86,8 +93,14 @@ func TestTemplateVersion(t *testing.T) {
 
 		client1, _ := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
 
-		_, err := client1.TemplateVersion(ctx, version.ID)
+		tv, err := client1.TemplateVersion(ctx, version.ID)
 		require.NoError(t, err)
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -134,7 +147,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 	t.Run("WithParameters", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
-		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
+		client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true, Auditor: auditor})
 		user := coderdtest.CreateFirstUser(t, client)
 		data, err := echo.Tar(&echo.Responses{
 			Parse:          echo.ParseComplete,
@@ -157,14 +170,26 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, "bananas", version.Name)
 		require.Equal(t, provisionersdk.ScopeOrganization, version.Job.Tags[provisionersdk.TagScope])
+		if assert.Equal(t, version.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, version.MatchedProvisioners)
+			assert.Equal(t, version.MatchedProvisioners.Available, 1)
+			assert.Equal(t, version.MatchedProvisioners.Count, 1)
+			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 
 		require.Len(t, auditor.AuditLogs(), 2)
 		assert.Equal(t, database.AuditActionCreate, auditor.AuditLogs()[1].Action)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), version.ID)
+		require.NoError(t, err)
+		require.False(t, tvDB.SourceExampleID.Valid)
 	})
 
 	t.Run("Example", func(t *testing.T) {
 		t.Parallel()
-		client := coderdtest.New(t, nil)
+		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -204,6 +229,12 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, "my-example", tv.Name)
+
+		admin, err := client.User(ctx, user.UserID.String())
+		require.NoError(t, err)
+		tvDB, err := db.GetTemplateVersionByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(admin, user.OrganizationID)), tv.ID)
+		require.NoError(t, err)
+		require.Equal(t, ls[0].ID, tvDB.SourceExampleID.String)
 
 		// ensure the template tar was uploaded correctly
 		fl, ct, err := client.Download(ctx, tv.Job.FileID)
@@ -458,14 +489,13 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 					pj, err := store.GetProvisionerJobByID(ctx, tv.Job.ID)
 					require.NoError(t, err)
 					require.EqualValues(t, tt.wantTags, pj.Tags)
+					// Also assert that we get the expected information back from the API endpoint
+					require.Zero(t, tv.MatchedProvisioners.Count)
+					require.Zero(t, tv.MatchedProvisioners.Available)
+					require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 				} else {
 					require.ErrorContains(t, err, tt.expectError)
 				}
-
-				// Also assert that we get the expected information back from the API endpoint
-				require.Zero(t, tv.MatchedProvisioners.Count)
-				require.Zero(t, tv.MatchedProvisioners.Available)
-				require.Zero(t, tv.MatchedProvisioners.MostRecentlySeen.Time)
 			})
 		}
 	})
@@ -778,8 +808,15 @@ func TestTemplateVersionByName(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
-		_, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
+		tv, err := client.TemplateVersionByName(ctx, template.ID, version.Name)
 		require.NoError(t, err)
+
+		if assert.Equal(t, tv.Job.Status, codersdk.ProvisionerJobPending) {
+			assert.NotNil(t, tv.MatchedProvisioners)
+			assert.Zero(t, tv.MatchedProvisioners.Available)
+			assert.Zero(t, tv.MatchedProvisioners.Count)
+			assert.False(t, tv.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
 	})
 }
 
@@ -967,6 +1004,13 @@ func TestTemplateVersionDryRun(t *testing.T) {
 		require.NoError(t, err)
 		require.Equal(t, job.ID, newJob.ID)
 
+		// Check matched provisioners
+		matched, err := client.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 1, matched.Count)
+		require.Equal(t, 1, matched.Available)
+		require.NotZero(t, matched.MostRecentlySeen.Time)
+
 		// Stream logs
 		logs, closer, err := client.TemplateVersionDryRunLogsAfter(ctx, version.ID, job.ID, 0)
 		require.NoError(t, err)
@@ -1138,6 +1182,49 @@ func TestTemplateVersionDryRun(t *testing.T) {
 			require.ErrorAs(t, err, &apiErr)
 			require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		})
+	})
+
+	t.Run("Pending", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closer := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closer.Close()
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionApply: echo.ApplyComplete,
+		})
+		version = coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		require.Equal(t, codersdk.ProvisionerJobSucceeded, version.Job.Status)
+
+		templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		_, err := db.Exec("DELETE FROM provisioner_daemons")
+		require.NoError(t, err)
+
+		job, err := templateAdmin.CreateTemplateVersionDryRun(ctx, version.ID, codersdk.CreateTemplateVersionDryRunRequest{
+			WorkspaceName:       "test",
+			RichParameterValues: []codersdk.WorkspaceBuildParameter{},
+			UserVariableValues:  []codersdk.VariableValue{},
+		})
+		require.NoError(t, err)
+		require.Equal(t, codersdk.ProvisionerJobPending, job.Status)
+
+		matched, err := templateAdmin.TemplateVersionDryRunMatchedProvisioners(ctx, version.ID, job.ID)
+		require.NoError(t, err)
+		require.Equal(t, 0, matched.Count)
+		require.Equal(t, 0, matched.Available)
+		require.Zero(t, matched.MostRecentlySeen.Time)
 	})
 }
 

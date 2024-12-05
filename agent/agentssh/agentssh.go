@@ -30,6 +30,7 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/usershell"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/pty"
@@ -97,6 +98,7 @@ type Server struct {
 	// a lock on mu but protected by closing.
 	wg sync.WaitGroup
 
+	Execer agentexec.Execer
 	logger slog.Logger
 	srv    *ssh.Server
 
@@ -109,7 +111,7 @@ type Server struct {
 	metrics *sshServerMetrics
 }
 
-func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, config *Config) (*Server, error) {
+func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prometheus.Registry, fs afero.Fs, execer agentexec.Execer, config *Config) (*Server, error) {
 	// Clients' should ignore the host key when connecting.
 	// The agent needs to authenticate with coderd to SSH,
 	// so SSH authentication doesn't improve security.
@@ -152,6 +154,7 @@ func NewServer(ctx context.Context, logger slog.Logger, prometheusRegistry *prom
 
 	metrics := newSSHServerMetrics(prometheusRegistry)
 	s := &Server{
+		Execer:    execer,
 		listeners: make(map[net.Listener]struct{}),
 		fs:        fs,
 		conns:     make(map[net.Conn]struct{}),
@@ -725,7 +728,7 @@ func (s *Server) CreateCommand(ctx context.Context, script string, env []string)
 		}
 	}
 
-	cmd := pty.CommandContext(ctx, name, args...)
+	cmd := s.Execer.PTYCommandContext(ctx, name, args...)
 	cmd.Dir = s.config.WorkingDirectory()
 
 	// If the metadata directory doesn't exist, we run the command

@@ -27,15 +27,15 @@ var (
 	//go:embed templates/aws-linux
 	//go:embed templates/aws-windows
 	//go:embed templates/azure-linux
-	//go:embed templates/do-linux
+	//go:embed templates/digitalocean-linux
 	//go:embed templates/docker
-	//go:embed templates/devcontainer-docker
-	//go:embed templates/devcontainer-kubernetes
+	//go:embed templates/docker-devcontainer
 	//go:embed templates/gcp-devcontainer
 	//go:embed templates/gcp-linux
 	//go:embed templates/gcp-vm-container
 	//go:embed templates/gcp-windows
 	//go:embed templates/kubernetes
+	//go:embed templates/kubernetes-devcontainer
 	//go:embed templates/nomad-docker
 	//go:embed templates/scratch
 	files embed.FS

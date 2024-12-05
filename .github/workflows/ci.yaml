@@ -34,7 +34,7 @@ jobs:
       tailnet-integration: ${{ steps.filter.outputs.tailnet-integration }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -155,7 +155,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@b74202f74b4346efdbce7801d187ec57b266bac8 # v1.27.3
+        uses: crate-ci/typos@2872c382bb9668d4baa5eade234dcbc0048ca2cf # v1.28.2
         with:
           config: .github/workflows/typos.toml
 
@@ -227,7 +227,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -281,7 +281,7 @@ jobs:
     timeout-minutes: 7
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -322,7 +322,7 @@ jobs:
           - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -370,18 +370,23 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg:
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    needs:
-      - changes
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
     # even if some of the preceding steps are slow.
     timeout-minutes: 25
+    strategy:
+      matrix:
+        os:
+          - ubuntu-latest
+          - macos-latest
+          - windows-2022
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -396,12 +401,46 @@ jobs:
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/setup-imdisk
+
       - name: Test with PostgreSQL Database
         env:
           POSTGRES_VERSION: "13"
           TS_DEBUG_DISCO: "true"
+        shell: bash
         run: |
-          make test-postgres
+          # if macOS, install google-chrome for scaletests
+          # As another concern, should we really have this kind of external dependency
+          # requirement on standard CI?
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            brew install google-chrome
+          fi
+
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          # macOS will output "The default interactive shell is now zsh"
+          # intermittently in CI...
+          if [ "${{ matrix.os }}" == "macos-latest" ]; then
+            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
+          fi
+
+          if [ "${{ runner.os }}" == "Linux" ]; then
+            make test-postgres
+          elif [ "${{ runner.os }}" == "Windows" ]; then
+            # Create a temp dir on the R: ramdisk drive for Windows. The default
+            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
+            mkdir -p "R:/temp/embedded-pg"
+            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
+            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
+          else
+            go run scripts/embedded-pg/main.go
+            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
+          fi
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
@@ -426,7 +465,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -463,7 +502,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -494,6 +533,47 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
+  test-go-race-pg:
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-16' || 'ubuntu-latest' }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    timeout-minutes: 25
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      # We run race tests with reduced parallelism because they use more CPU and we were finding
+      # instances where tests appear to hang for multiple seconds, resulting in flaky tests when
+      # short timeouts are used.
+      # c.f. discussion on https://github.com/coder/coder/pull/15106
+      - name: Run Tests
+        env:
+          POSTGRES_VERSION: "16"
+        run: |
+          make test-postgres-docker
+          DB=ci gotestsum --junitfile="gotests.xml" -- -race -parallel 4 -p 4 ./...
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: always()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
   # Tailnet integration tests only run when the `tailnet` directory or `go.sum`
   # and `go.mod` are changed. These tests are to ensure we don't add regressions
   # to tailnet, either due to our code or due to updating dependencies.
@@ -508,7 +588,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -534,7 +614,7 @@ jobs:
     timeout-minutes: 20
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -566,7 +646,7 @@ jobs:
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -586,6 +666,8 @@ jobs:
         name: make gen
 
       - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
 
       - run: pnpm playwright:install
@@ -630,7 +712,7 @@ jobs:
     if: needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -707,7 +789,7 @@ jobs:
 
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -771,6 +853,7 @@ jobs:
       - test-go
       - test-go-pg
       - test-go-race
+      - test-go-race-pg
       - test-js
       - test-e2e
       - offlinedocs
@@ -780,7 +863,7 @@ jobs:
     if: always()
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -793,6 +876,7 @@ jobs:
           echo "- test-go: ${{ needs.test-go.result }}"
           echo "- test-go-pg: ${{ needs.test-go-pg.result }}"
           echo "- test-go-race: ${{ needs.test-go-race.result }}"
+          echo "- test-go-race-pg: ${{ needs.test-go-race-pg.result }}"
           echo "- test-js: ${{ needs.test-js.result }}"
           echo "- test-e2e: ${{ needs.test-e2e.result }}"
           echo "- offlinedocs: ${{ needs.offlinedocs.result }}"
@@ -815,7 +899,7 @@ jobs:
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -901,7 +985,7 @@ jobs:
       IMAGE: ghcr.io/coder/coder-preview:${{ steps.build-docker.outputs.tag }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -1037,7 +1121,7 @@ jobs:
       id-token: write
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -1062,7 +1146,7 @@ jobs:
           version: "2.2.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
+        uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
@@ -1099,7 +1183,7 @@ jobs:
     if: github.ref == 'refs/heads/main' && !github.event.pull_request.head.repo.fork
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -1134,7 +1218,7 @@ jobs:
     if: needs.changes.outputs.db == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 

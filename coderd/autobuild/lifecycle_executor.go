@@ -142,7 +142,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, currentTick)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -205,6 +205,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("get template scheduling options: %w", err)
 					}
 
+					// If next start at is not valid we need to re-compute it
+					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
+						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
+						if err == nil {
+							nextStartAt := sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+							if err = tx.UpdateWorkspaceNextStartAt(e.ctx, database.UpdateWorkspaceNextStartAtParams{
+								ID:          wsID,
+								NextStartAt: nextStartAt,
+							}); err != nil {
+								return xerrors.Errorf("update workspace next start at: %w", err)
+							}
+
+							// Save re-fetching the workspace
+							ws.NextStartAt = nextStartAt
+						}
+					}
+
 					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template by ID: %w", err)
@@ -245,7 +262,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}
 						}
 
-						nextBuild, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -463,8 +480,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
-	nextTransition, allowed := schedule.NextAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
-	if !allowed {
+	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
+	if err != nil {
 		return false
 	}
 

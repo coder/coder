@@ -4,50 +4,66 @@
 
 @layer base {
 	:root {
-		--content-primary: 240, 3%, 15%;
-		--content-secondary: 240, 4%, 32%;
-		--content-link: 217, 84%, 54%;
+		--content-primary: 240, 10%, 4%;
+		--content-secondary: 240, 5%, 34%;
+		--content-link: 221, 83%, 53%;
 		--content-invert: 0, 0%, 98%;
-		--content-disabled: 240, 4%, 66%;
-		--content-success: 144, 83%, 32%;
-		--content-danger: 0, 82%, 63%;
+		--content-disabled: 240, 5%, 65%;
+		--content-success: 142, 72%, 29%;
+		--content-danger: 0, 84%, 60%;
+		--content-warning: 27, 96%, 61%;
 		--surface-primary: 0, 0%, 98%;
-		--surface-secondary: 240, 4%, 96%;
-		--surface-tertiary: 240, 4%, 89%;
-		--surface-invert-primary: 240, 3%, 15%;
-		--surface-invert-secondary: 240, 4%, 25%;
+		--surface-secondary: 240, 5%, 96%;
+		--surface-tertiary: 240, 6%, 90%;
+		--surface-quaternary: 240, 5%, 84%;
+		--surface-invert-primary: 240, 4%, 16%;
+		--surface-invert-secondary: 240, 5%, 26%;
 		--surface-error: 0, 100%, 14%;
-		--border-default: 240, 4%, 89%;
-		--border-error: 0, 82%, 63%;
+		--border-default: 240, 6%, 90%;
+		--border-success: 142, 76%, 36%;
+		--border-error: 0, 84%, 60%;
 		--radius: 0.5rem;
 		--chart-1: 12 76% 61%;
 		--chart-2: 173 58% 39%;
 		--chart-3: 197 37% 24%;
 		--chart-4: 43 74% 66%;
 		--chart-5: 27 87% 67%;
-		--background: 0, 0%, 98%;
+		--border: 240 5.9% 90%;
+		--input: 240 5.9% 90%;
+		--ring: 240 10% 3.9%;
 	}
 	.dark {
 		--content-primary: 0, 0%, 98%;
-		--content-secondary: 240, 4%, 66%;
-		--content-link: 217, 92%, 67%;
-		--content-invert: 240, 5%, 4%;
-		--content-disabled: 240, 4%, 25%;
-		--content-success: 144, 83%, 35%;
-		--content-danger: 0, 82%, 71%;
-		--surface-primary: 240, 5%, 4%;
-		--surface-secondary: 240, 5%, 9%;
-		--surface-tertiary: 240, 3%, 15%;
-		--surface-invert-primary: 240, 4%, 89%;
-		--surface-invert-secondary: 240, 4%, 66%;
+		--content-secondary: 240, 5%, 65%;
+		--content-link: 213, 94%, 68%;
+		--content-invert: 240, 10%, 4%;
+		--content-disabled: 240, 5%, 26%;
+		--content-success: 142, 76%, 36%;
+		--content-danger: 0, 91%, 71%;
+		--content-warning: 27, 96%, 61%;
+		--surface-primary: 240, 10%, 4%;
+		--surface-secondary: 240, 6%, 10%;
+		--surface-tertiary: 240, 4%, 16%;
+		--surface-quaternary: 240, 5%, 26%;
+		--surface-invert-primary: 240, 6%, 90%;
+		--surface-invert-secondary: 240, 5%, 65%;
 		--surface-error: 0, 100%, 14%;
-		--border-default: 240, 3%, 15%;
-		--border-error: 0, 82%, 71%;
+		--border-default: 240, 4%, 16%;
+		--border-success: 142, 76%, 36%;
+		--border-error: 0, 91%, 71%;
 		--chart-1: 220 70% 50%;
 		--chart-2: 160 60% 45%;
 		--chart-3: 30 80% 55%;
 		--chart-4: 280 65% 60%;
 		--chart-5: 340 75% 55%;
-		--background: 240, 5%, 4%;
+		--border: 240 3.7% 15.9%;
+		--input: 240 3.7% 15.9%;
+		--ring: 240 4.9% 83.9%;
+	}
+}
+
+@layer base {
+	* {
+		@apply border-border;
 	}
 }

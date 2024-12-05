@@ -9,21 +9,21 @@ import (
 	"os"
 	"os/exec"
 	"runtime"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
 
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
+	"kernel.org/pub/linux/libs/security/libcap/cap"
 )
-
-// unset is set to an invalid value for nice and oom scores.
-const unset = -2000
 
 // CLI runs the agent-exec command. It should only be called by the cli package.
 func CLI() error {
 	// We lock the OS thread here to avoid a race condition where the nice priority
-	// we get is on a different thread from the one we set it on.
+	// we set gets applied to a different thread than the one we exec the provided
+	// command on.
 	runtime.LockOSThread()
 	// Nop on success but we do it anyway in case of an error.
 	defer runtime.UnlockOSThread()
@@ -50,14 +50,6 @@ func CLI() error {
 		return xerrors.Errorf("no exec command provided %+v", os.Args)
 	}
 
-	if *nice == unset {
-		// If an explicit nice score isn't set, we use the default.
-		*nice, err = defaultNiceScore()
-		if err != nil {
-			return xerrors.Errorf("get default nice score: %w", err)
-		}
-	}
-
 	if *oom == unset {
 		// If an explicit oom score isn't set, we use the default.
 		*oom, err = defaultOOMScore()
@@ -66,14 +58,53 @@ func CLI() error {
 		}
 	}
 
-	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
+	if *nice == unset {
+		// If an explicit nice score isn't set, we use the default.
+		*nice, err = defaultNiceScore()
+		if err != nil {
+			return xerrors.Errorf("get default nice score: %w", err)
+		}
+	}
+
+	// We drop effective caps prior to setting dumpable so that we limit the
+	// impact of someone attempting to hijack the process (i.e. with a debugger)
+	// to take advantage of the capabilities of the agent process. We encourage
+	// users to set cap_net_admin on the agent binary for improved networking
+	// performance and doing so results in the process having its SET_DUMPABLE
+	// attribute disabled (meaning we cannot adjust the oom score).
+	err = dropEffectiveCaps()
 	if err != nil {
-		return xerrors.Errorf("set nice score: %w", err)
+		printfStdErr("failed to drop effective caps: %v", err)
+	}
+
+	// Set dumpable to 1 so that we can adjust the oom score. If the process
+	// doesn't have capabilities or has an suid/sgid bit set, this is already
+	// set.
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 1, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to set dumpable: %v", err)
 	}
 
 	err = writeOOMScoreAdj(*oom)
 	if err != nil {
-		return xerrors.Errorf("set oom score: %w", err)
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for oom_score_adj.
+		printfStdErr("failed to adjust oom score to %d for cmd %+v: %v", *oom, execArgs(os.Args), err)
+	}
+
+	// Set dumpable back to 0 just to be safe. It's not inherited for execve anyways.
+	err = unix.Prctl(unix.PR_SET_DUMPABLE, 0, 0, 0, 0)
+	if err != nil {
+		printfStdErr("failed to unset dumpable: %v", err)
+	}
+
+	err = unix.Setpriority(unix.PRIO_PROCESS, 0, *nice)
+	if err != nil {
+		// We alert the user instead of failing the command since it can be difficult to debug
+		// for a template admin otherwise. It's quite possible (and easy) to set an
+		// inappriopriate value for niceness.
+		printfStdErr("failed to adjust niceness to %d for cmd %+v: %v", *nice, args, err)
 	}
 
 	path, err := exec.LookPath(args[0])
@@ -81,7 +112,16 @@ func CLI() error {
 		return xerrors.Errorf("look path: %w", err)
 	}
 
-	return syscall.Exec(path, args, os.Environ())
+	// Remove environment variables specific to the agentexec command. This is
+	// especially important for environments that are attempting to develop Coder in Coder.
+	env := os.Environ()
+	env = slices.DeleteFunc(env, func(e string) bool {
+		return strings.HasPrefix(e, EnvProcPrioMgmt) ||
+			strings.HasPrefix(e, EnvProcOOMScore) ||
+			strings.HasPrefix(e, EnvProcNiceScore)
+	})
+
+	return syscall.Exec(path, args, env)
 }
 
 func defaultNiceScore() (int, error) {
@@ -131,7 +171,7 @@ func oomScoreAdj() (int, error) {
 }
 
 func writeOOMScoreAdj(score int) error {
-	return os.WriteFile("/proc/self/oom_score_adj", []byte(fmt.Sprintf("%d", score)), 0o600)
+	return os.WriteFile(fmt.Sprintf("/proc/%d/oom_score_adj", os.Getpid()), []byte(fmt.Sprintf("%d", score)), 0o600)
 }
 
 // execArgs returns the arguments to pass to syscall.Exec after the "--" delimiter.
@@ -140,6 +180,23 @@ func execArgs(args []string) []string {
 		if arg == "--" {
 			return args[i+1:]
 		}
+	}
+	return nil
+}
+
+func printfStdErr(format string, a ...any) {
+	_, _ = fmt.Fprintf(os.Stderr, "coder-agent: %s\n", fmt.Sprintf(format, a...))
+}
+
+func dropEffectiveCaps() error {
+	proc := cap.GetProc()
+	err := proc.ClearFlag(cap.Effective)
+	if err != nil {
+		return xerrors.Errorf("clear effective caps: %w", err)
+	}
+	err = proc.SetProc()
+	if err != nil {
+		return xerrors.Errorf("set proc: %w", err)
 	}
 	return nil
 }

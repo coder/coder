@@ -766,6 +766,94 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.NoError(t, err)
 		require.EqualValues(t, exp, *ws.TTLMillis)
 	})
+
+	t.Run("NoProvisionersAvailable", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Given: all the provisioner daemons disappear
+		ctx := testutil.Context(t, testutil.WaitLong)
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace is created
+		ws, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing",
+		})
+		// Then: the request succeeds
+		require.NoError(t, err)
+		// Then: the workspace build is pending
+		require.Equal(t, codersdk.ProvisionerJobPending, ws.LatestBuild.Job.Status)
+		// Then: the workspace build has no matched provisioners
+		if assert.NotNil(t, ws.LatestBuild.MatchedProvisioners) {
+			assert.Zero(t, ws.LatestBuild.MatchedProvisioners.Count)
+			assert.Zero(t, ws.LatestBuild.MatchedProvisioners.Available)
+			assert.Zero(t, ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
+
+	t.Run("AllProvisionersStale", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+
+		// Given: all the provisioner daemons have not been seen for a while
+		ctx := testutil.Context(t, testutil.WaitLong)
+		newLastSeenAt := dbtime.Now().Add(-time.Hour)
+		_, err := db.ExecContext(ctx, `UPDATE provisioner_daemons SET last_seen_at = $1;`, newLastSeenAt)
+		require.NoError(t, err)
+
+		// When: a new workspace is created
+		ws, err := client.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "testing",
+		})
+		// Then: the request succeeds
+		require.NoError(t, err)
+		// Then: the workspace build is pending
+		require.Equal(t, codersdk.ProvisionerJobPending, ws.LatestBuild.Job.Status)
+		// Then: we can see that there are some provisioners that are stale
+		if assert.NotNil(t, ws.LatestBuild.MatchedProvisioners) {
+			assert.Equal(t, 1, ws.LatestBuild.MatchedProvisioners.Count)
+			assert.Zero(t, ws.LatestBuild.MatchedProvisioners.Available)
+			assert.Equal(t, newLastSeenAt.UTC(), ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Time.UTC())
+			assert.True(t, ws.LatestBuild.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
 }
 
 func TestWorkspaceByOwnerAndName(t *testing.T) {

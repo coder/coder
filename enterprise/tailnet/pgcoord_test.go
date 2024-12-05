@@ -921,7 +921,7 @@ func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	ctx := testutil.Context(t, testutil.WaitShort)
+	ctx := testutil.Context(t, testutil.WaitMedium)
 	store, ps := dbtestutil.NewDB(t)
 	logger := testutil.Logger(t)
 

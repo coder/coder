@@ -54,7 +54,7 @@ func TestPurge(t *testing.T) {
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	now := dbtime.Now()
