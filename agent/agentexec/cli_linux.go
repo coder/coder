@@ -67,7 +67,10 @@ func CLI() error {
 
 	// We drop effective caps prior to setting dumpable so that we limit the
 	// impact of someone attempting to hijack the process (i.e. with a debugger)
-	// to take advantage of the capabilities of the agent process.
+	// to take advantage of the capabilities of the agent process. We encourage
+	// users to set cap_net_admin on the agent binary for improved networking
+	// performance and doing so results in the process having its SET_DUMPABLE
+	// attribute disabled (meaning we cannot adjust the oom score).
 	err = dropEffectiveCaps()
 	if err != nil {
 		printfStdErr("failed to drop effective caps: %v", err)
