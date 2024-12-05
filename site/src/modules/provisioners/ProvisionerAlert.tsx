@@ -1,10 +1,10 @@
+import type { Theme } from "@emotion/react";
 import AlertTitle from "@mui/material/AlertTitle";
 import { Alert, type AlertColor } from "components/Alert/Alert";
 import { AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
-import type { Theme } from "@emotion/react";
 
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
