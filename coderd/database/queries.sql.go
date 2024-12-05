@@ -10263,16 +10263,16 @@ LIMIT
 `
 
 type GetUsersParams struct {
-	AfterID         uuid.UUID    `db:"after_id" json:"after_id"`
-	Search          string       `db:"search" json:"search"`
-	Status          []UserStatus `db:"status" json:"status"`
-	RbacRole        []string     `db:"rbac_role" json:"rbac_role"`
-	LastSeenBefore  time.Time    `db:"last_seen_before" json:"last_seen_before"`
-	LastSeenAfter   time.Time    `db:"last_seen_after" json:"last_seen_after"`
-	CreatedAtBefore time.Time    `db:"created_at_before" json:"created_at_before"`
-	CreatedAtAfter  time.Time    `db:"created_at_after" json:"created_at_after"`
-	OffsetOpt       int32        `db:"offset_opt" json:"offset_opt"`
-	LimitOpt        int32        `db:"limit_opt" json:"limit_opt"`
+	AfterID        uuid.UUID    `db:"after_id" json:"after_id"`
+	Search         string       `db:"search" json:"search"`
+	Status         []UserStatus `db:"status" json:"status"`
+	RbacRole       []string     `db:"rbac_role" json:"rbac_role"`
+	LastSeenBefore time.Time    `db:"last_seen_before" json:"last_seen_before"`
+	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore  time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter   time.Time    `db:"created_after" json:"created_after"`
+	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
+	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
 }
 
 type GetUsersRow struct {
@@ -10306,8 +10306,8 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
-		arg.CreatedAtBefore,
-		arg.CreatedAtAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

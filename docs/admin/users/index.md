@@ -188,7 +188,7 @@ to use the Coder's filter query:
 - To find users who have not been active since July 2023:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
 - To find users who were created between January 1 and January 18, 2023:
-  `created_at_before:"2023-01-18T00:00:00Z" created_at_after:"2023-01-01T23:59:59Z"`
+  `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
 
 The following filters are supported:
 
@@ -200,5 +200,5 @@ The following filters are supported:
 - `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
-- `created_at_before` and `created_at_after` - The time a user was created. Uses
+- `created_before` and `created_after` - The time a user was created. Uses
   the RFC3339Nano format.

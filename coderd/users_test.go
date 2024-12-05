@@ -1658,7 +1658,7 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "CreatedAtBefore",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: `created_at_before:"2023-01-31T23:59:59Z"`,
+				SearchQuery: `created_before:"2023-01-31T23:59:59Z"`,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
@@ -1668,7 +1668,7 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "CreatedAtAfter",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: `created_at_after:"2023-01-01T00:00:00Z"`,
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z"`,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
@@ -1678,7 +1678,7 @@ func TestUsersFilter(t *testing.T) {
 		{
 			Name: "CreatedAtRange",
 			Filter: codersdk.UsersRequest{
-				SearchQuery: `created_at_after:"2023-01-01T00:00:00Z" created_at_before:"2023-01-31T23:59:59Z"`,
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z" created_before:"2023-01-31T23:59:59Z"`,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)

@@ -65,13 +65,13 @@ func Users(query string) (database.GetUsersParams, []codersdk.ValidationError) {
 
 	parser := httpapi.NewQueryParamParser()
 	filter := database.GetUsersParams{
-		Search:          parser.String(values, "", "search"),
-		Status:          httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
-		RbacRole:        parser.Strings(values, []string{}, "role"),
-		LastSeenAfter:   parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
-		LastSeenBefore:  parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
-		CreatedAtAfter:  parser.Time3339Nano(values, time.Time{}, "created_at_after"),
-		CreatedAtBefore: parser.Time3339Nano(values, time.Time{}, "created_at_before"),
+		Search:         parser.String(values, "", "search"),
+		Status:         httpapi.ParseCustomList(parser, values, []database.UserStatus{}, "status", httpapi.ParseEnum[database.UserStatus]),
+		RbacRole:       parser.Strings(values, []string{}, "role"),
+		LastSeenAfter:  parser.Time3339Nano(values, time.Time{}, "last_seen_after"),
+		LastSeenBefore: parser.Time3339Nano(values, time.Time{}, "last_seen_before"),
+		CreatedAfter:   parser.Time3339Nano(values, time.Time{}, "created_after"),
+		CreatedBefore:  parser.Time3339Nano(values, time.Time{}, "created_before"),
 	}
 	parser.ErrorExcessParams(values)
 	return filter, parser.Errors

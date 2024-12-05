@@ -201,13 +201,13 @@ WHERE
 	END
 	-- Filter by created_at
 	AND CASE
-		WHEN @created_at_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at <= @created_at_before
+		WHEN @created_before :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= @created_before
 		ELSE true
 	END
 	AND CASE
-		WHEN @created_at_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
-			created_at >= @created_at_after
+		WHEN @created_after :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= @created_after
 		ELSE true
 	END
 	-- End of filters
