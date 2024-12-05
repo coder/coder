@@ -1,17 +1,15 @@
 {
-    "outputFormatters": [
-        [ "markdownlint-cli2-formatter-pretty" ]
-    ],
-    "MD009": true,
-    "MD010": false,
-    "MD012": true, 
-    "MD013": false, 
-    "MD022": true, 
-    "MD024": false,
-    "MD029": false,
-    "MD031": true, 
-    "MD033": false,
-    "MD036": false,
-    "MD041": false,
-    "MD045": true
+	"outputFormatters": [["markdownlint-cli2-formatter-pretty"]],
+	"MD009": true,
+	"MD010": false,
+	"MD012": true,
+	"MD013": false,
+	"MD022": true,
+	"MD024": false,
+	"MD029": false,
+	"MD031": true,
+	"MD033": false,
+	"MD036": false,
+	"MD041": false,
+	"MD045": true
 }
