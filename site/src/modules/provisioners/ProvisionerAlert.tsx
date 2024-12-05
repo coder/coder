@@ -4,6 +4,7 @@ import { AlertDetail } from "components/Alert/Alert";
 import { Stack } from "components/Stack/Stack";
 import { ProvisionerTag } from "modules/provisioners/ProvisionerTag";
 import type { FC } from "react";
+import type { Theme } from "@emotion/react";
 
 export enum AlertVariant {
 	// Alerts are usually styled with a full rounded border and meant to use as a visually distinct element of the page.
@@ -27,7 +28,7 @@ const getAlertStyles = (variant: AlertVariant, severity: AlertColor) => {
 	switch (variant) {
 		case AlertVariant.Inline:
 			return {
-				css: (theme) => ({
+				css: (theme: Theme) => ({
 					borderRadius: 0,
 					border: 0,
 					borderBottom: `1px solid ${theme.palette.divider}`,
