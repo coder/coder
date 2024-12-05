@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"slices"
 	"strconv"
 	"strings"
 	"syscall"
@@ -20,6 +21,7 @@ import (
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -35,6 +37,32 @@ func TestCLI(t *testing.T) {
 		waitForSentinel(ctx, t, cmd, path)
 		requireOOMScore(t, cmd.Process.Pid, 123)
 		requireNiceScore(t, cmd.Process.Pid, 12)
+	})
+
+	t.Run("FiltersEnv", func(t *testing.T) {
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		cmd, path := cmd(ctx, t, 123, 12)
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=true", agentexec.EnvProcPrioMgmt))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=123", agentexec.EnvProcOOMScore))
+		cmd.Env = append(cmd.Env, fmt.Sprintf("%s=12", agentexec.EnvProcNiceScore))
+		// Ensure unrelated environment variables are preserved.
+		cmd.Env = append(cmd.Env, "CODER_TEST_ME_AGENTEXEC=true")
+		err := cmd.Start()
+		require.NoError(t, err)
+		go cmd.Wait()
+		waitForSentinel(ctx, t, cmd, path)
+
+		env := procEnv(t, cmd.Process.Pid)
+		hasExecEnvs := slices.ContainsFunc(
+			env,
+			func(e string) bool {
+				return strings.HasPrefix(e, agentexec.EnvProcPrioMgmt) ||
+					strings.HasPrefix(e, agentexec.EnvProcOOMScore) ||
+					strings.HasPrefix(e, agentexec.EnvProcNiceScore)
+			})
+		require.False(t, hasExecEnvs, "expected environment variables to be filtered")
+		userEnv := slices.Contains(env, "CODER_TEST_ME_AGENTEXEC=true")
+		require.True(t, userEnv, "expected user environment variables to be preserved")
 	})
 
 	t.Run("Defaults", func(t *testing.T) {
@@ -174,6 +202,15 @@ func expectedOOMScore(t *testing.T) int {
 		return 1000
 	}
 	return 998
+}
+
+// procEnv returns the environment variables for a given process.
+func procEnv(t *testing.T, pid int) []string {
+	t.Helper()
+
+	env, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
+	require.NoError(t, err)
+	return strings.Split(string(env), "\x00")
 }
 
 func expectedNiceScore(t *testing.T) int {
