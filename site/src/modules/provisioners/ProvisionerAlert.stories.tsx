@@ -22,7 +22,7 @@ type Story = StoryObj<typeof ProvisionerAlert>;
 
 export const Info: Story = {};
 
-export const InfoStyledForLogs: Story = {
+export const InfoInline: Story = {
 	args: {
 		variant: AlertVariant.Inline,
 	},
@@ -34,7 +34,7 @@ export const Warning: Story = {
 	},
 };
 
-export const WarningStyledForLogs: Story = {
+export const WarningInline: Story = {
 	args: {
 		severity: "warning",
 		variant: AlertVariant.Inline,
