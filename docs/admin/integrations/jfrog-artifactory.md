@@ -3,7 +3,7 @@
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">M Atif Ali</span>
-    <img src="https://github.com/matifali.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/matifali.png" alt="matifali" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 January 24, 2024
