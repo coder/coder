@@ -237,6 +237,8 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
+					{buildLogs}
+
 
 					{selectedResource && (
 						<section
