@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@b74202f74b4346efdbce7801d187ec57b266bac8 # v1.27.3
+        uses: crate-ci/typos@2872c382bb9668d4baa5eade234dcbc0048ca2cf # v1.28.2
         with:
           config: .github/workflows/typos.toml
 
@@ -540,7 +540,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -1146,7 +1146,7 @@ jobs:
           version: "2.2.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
+        uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
