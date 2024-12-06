@@ -2,6 +2,7 @@ import { expect, test } from "@playwright/test";
 import {
 	createOrganizationSyncSettings,
 	createOrganizationWithName,
+	deleteOrganization,
 	setupApiCalls,
 } from "../../api";
 import { requiresLicense } from "../../helpers";
@@ -150,5 +151,7 @@ test.describe("IdpOrgSyncPage", () => {
 		await expect(
 			page.getByText("Organization sync settings updated."),
 		).toBeVisible();
+
+		await deleteOrganization("developers");
 	});
 });
