@@ -133,7 +133,7 @@ However, Tailscale has graciously allowed us to use
 You can launch `coder server` with Tailscale's DERPs like so:
 
 ```bash
-$ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
+coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
 ```
 
 #### Custom Relays
@@ -166,7 +166,7 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```
 
 ```bash
-$ coder server --derp-config-path derpmap.json
+coder server --derp-config-path derpmap.json
 ```
 
 ### Dashboard connections
