@@ -1,5 +1,4 @@
 {
-	"outputFormatters": [["markdownlint-cli2-formatter-pretty"]],
 	"MD009": true,
 	"MD010": false,
 	"MD012": true,
