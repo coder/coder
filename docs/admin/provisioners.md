@@ -227,7 +227,7 @@ This is illustrated in the below table:
 > **Note to maintainers:** to generate this table, run the following command and
 > copy the output:
 >
-> ```
+> ```go
 > go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
 > ```
 

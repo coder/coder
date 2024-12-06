@@ -1,15 +1,17 @@
 # Secrets
 
-<blockquote class="info">
+<blockquote class="admonition note">
+
 This article explains how to use secrets in a workspace. To authenticate the
-workspace provisioner, see <a href="../users">this</a>.
+workspace provisioner, see the [provisioners](../provisioners.md) documentation.
+
 </blockquote>
 
 Coder is open-minded about how you get your secrets into your workspaces.
 
-## Wait a minute...
+## Before you begin
 
-Your first stab at secrets with Coder should be your local method. You can do
+Your first attempt at secrets with Coder should be your local method. You can do
 everything you can locally and more with your Coder workspace, so whatever
 workflow and tools you already use to manage secrets may be brought over.
 
