@@ -178,6 +178,22 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Name:      "workspace_builds_total",
 				Help:      "The number of workspaces started, updated, or deleted.",
 			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
+			WorkspaceBuildTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "workspace_build_timings_seconds",
+				Help:      "workspace build time in seconds.",
+				Buckets: []float64{
+					1, // 1s
+					10,
+					30,
+					60, // 1min
+					60 * 5,
+					60 * 10,
+					60 * 30, // 30min
+					60 * 60, // 1hr
+				},
+			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
