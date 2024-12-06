@@ -96,4 +96,4 @@ testdata/
 site/
 
 # Prettier messes up markdown alignment in the documentation
-**/docs/*.md
+/docs/*.md

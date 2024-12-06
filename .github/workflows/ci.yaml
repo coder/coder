@@ -226,7 +226,6 @@ jobs:
         with:
           config: ".github/actions/markdownlint-cli2/.markdownlint.json"
           globs: "docs/**/*.md"
-          fix: true
 
   gen:
     timeout-minutes: 8
