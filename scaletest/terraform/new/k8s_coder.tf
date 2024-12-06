@@ -278,7 +278,7 @@ resource "kubernetes_secret" "proxy_token_europe" {
     namespace = kubernetes_namespace.coder_europe.metadata.0.name
   }
   data = {
-    token = terraform_data.proxy_tokens.output.europe
+    token = trimspace(data.local_file.europe_proxy_token.content)
   }
   lifecycle {
     ignore_changes = [timeouts, wait_for_service_account_token]
@@ -295,6 +295,7 @@ resource "helm_release" "coder_europe" {
   namespace  = kubernetes_namespace.coder_europe.metadata.0.name
   values = [<<EOF
 coder:
+  workspaceProxy: true
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -319,7 +320,7 @@ coder:
     - name: CODER_PROXY_SESSION_TOKEN
       valueFrom:
         secretKeyRef:
-          key: europe
+          key: token
           name: "${kubernetes_secret.proxy_token_europe.metadata.0.name}"
     - name: "CODER_ACCESS_URL"
       value: "${local.coder_europe_url}"
@@ -572,7 +573,7 @@ data "http" "coder_healthy" {
   depends_on = [ helm_release.coder-chart, cloudflare_record.coder ]
 }
 
-resource "terraform_data" "proxy_tokens" {
+resource "null_resource" "proxy_tokens" {
   provisioner "local-exec" {
     interpreter = [ "/bin/bash", "-c" ]
     command = <<EOF
@@ -599,10 +600,37 @@ asia_token=$(curl '${local.coder_url}/api/v2/workspaceproxies' \
   --data-raw '{"name":"asia"}' \
   --insecure --silent | jq -r .proxy_token)
 
-echo "{\"europe\": \"$${europe_token}\", \"asia\": \"$${asia_token}\"}"
+echo -n $${europe_token} > ${path.module}/europe_proxy_token
+echo -n $${asia_token} > ${path.module}/asia_proxy_token
 EOF
   }
 
   depends_on = [ data.http.coder_healthy ]
 }
+
+data "local_file" "europe_proxy_token" {
+  filename = "${path.module}/europe_proxy_token"
+  depends_on = [ null_resource.proxy_tokens ]
+}
+
+data "local_file" "asia_proxy_token" {
+  filename = "${path.module}/asia_proxy_token"
+  depends_on = [ null_resource.proxy_tokens ]
+}
+
+# data "external" "proxy_tokens" {
+#   program = ["bash", "${path.module}/workspace_proxies.sh"]
+#   query = {
+#     coder_url = local.coder_url
+#     coder_admin_email = local.coder_admin_email
+#     coder_admin_password = local.coder_admin_password
+#     coder_admin_user = local.coder_admin_user
+#     coder_admin_full_name = local.coder_admin_full_name
+#     coder_license = var.coder_license
+
+#     status_code = data.http.coder_healthy.status_code
+#   }
+
+#   depends_on = [ data.http.coder_healthy ]
+# }
 
