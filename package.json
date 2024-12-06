@@ -10,8 +10,5 @@
 	},
 	"devDependencies": {
 		"prettier": "3.3.3"
-	},
-	"dependencies": {
-		"remark-admonitions": "^1.2.1"
 	}
 }
