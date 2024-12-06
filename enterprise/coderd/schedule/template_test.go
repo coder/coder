@@ -734,6 +734,13 @@ func TestTemplateTTL(t *testing.T) {
 			expected:          sql.NullInt64{Valid: true, Int64: int64(36 * time.Hour)},
 		},
 		{
+			name:              "AllowUserAutostopFalse/ModifyTTLDurationSame",
+			allowUserAutostop: false,
+			fromTTL:           24 * time.Hour,
+			toTTL:             24 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+		{
 			name:              "AllowUserAutostopFalse/DisableTTL",
 			allowUserAutostop: false,
 			fromTTL:           24 * time.Hour,
@@ -752,6 +759,13 @@ func TestTemplateTTL(t *testing.T) {
 			allowUserAutostop: true,
 			fromTTL:           24 * time.Hour,
 			toTTL:             36 * time.Hour,
+			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+		{
+			name:              "AllowUserAutostopTrue/ModifyTTLDurationSame",
+			allowUserAutostop: true,
+			fromTTL:           24 * time.Hour,
+			toTTL:             24 * time.Hour,
 			expected:          sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
 		},
 		{
@@ -929,7 +943,7 @@ func TestTemplateTTL(t *testing.T) {
 
 		// Disable AllowUserAutostop
 		template, err = templateScheduleStore.Set(ctx, db, template, agplschedule.TemplateScheduleOptions{
-			DefaultTTL:          24 * time.Hour,
+			DefaultTTL:          23 * time.Hour,
 			UserAutostopEnabled: false,
 		})
 		require.NoError(t, err)
@@ -937,7 +951,7 @@ func TestTemplateTTL(t *testing.T) {
 		// Ensure the workspace ends with the correct TTLs
 		ws, err := db.GetWorkspaceByID(ctx, workspace.ID)
 		require.NoError(t, err)
-		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)}, ws.Ttl)
+		require.Equal(t, sql.NullInt64{Valid: true, Int64: int64(23 * time.Hour)}, ws.Ttl)
 	})
 }
 

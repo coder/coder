@@ -37,6 +37,12 @@ func TestTemplateTTL(t *testing.T) {
 			expected: sql.NullInt64{Valid: true, Int64: int64(36 * time.Hour)},
 		},
 		{
+			name:     "ModifyTTLDurationSame",
+			fromTTL:  24 * time.Hour,
+			toTTL:    24 * time.Hour,
+			expected: sql.NullInt64{Valid: true, Int64: int64(24 * time.Hour)},
+		},
+		{
 			name:     "DisableTTL",
 			fromTTL:  24 * time.Hour,
 			toTTL:    0,
