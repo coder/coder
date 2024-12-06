@@ -9,7 +9,7 @@ resource "google_compute_network" "vpc" {
 }
 
 resource "google_compute_subnetwork" "subnet" {
-  for_each      = local.clusters
+  for_each      = local.deployments
   name          = "${var.name}-${each.key}"
   project       = var.project_id
   region        = each.value.region
@@ -18,7 +18,7 @@ resource "google_compute_subnetwork" "subnet" {
 }
 
 resource "google_compute_address" "coder" {
-  for_each     = local.clusters
+  for_each     = local.deployments
   project      = var.project_id
   region       = each.value.region
   name         = "${var.name}-${each.key}-coder"
