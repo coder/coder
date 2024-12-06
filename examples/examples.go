@@ -22,6 +22,7 @@ import (
 var (
 	// Only some templates are embedded that we want to display inside the UI.
 	// The metadata in examples.gen.json is generated via scripts/examplegen.
+	// Template IDs should not change over time. They are used as persistent identifiers in telemetry.
 	//go:embed examples.gen.json
 	//go:embed templates/aws-devcontainer
 	//go:embed templates/aws-linux
