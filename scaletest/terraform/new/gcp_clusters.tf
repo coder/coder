@@ -1,54 +1,54 @@
 data "google_compute_default_service_account" "default" {
-  project = var.project_id
-  depends_on = [ google_project_service.api["compute.googleapis.com"] ]
+  project    = var.project_id
+  depends_on = [google_project_service.api["compute.googleapis.com"]]
 }
 
 locals {
   node_pools = {
     primary_coder = {
-      name = "coder"
+      name    = "coder"
       cluster = "primary"
-      size = 1
+      size    = 1
     }
     primary_workspaces = {
-      name = "workspaces"
+      name    = "workspaces"
       cluster = "primary"
-      size = 1
+      size    = 1
     }
     primary_misc = {
-      name = "misc"
+      name    = "misc"
       cluster = "primary"
-      size = 1
+      size    = 1
     }
     europe_coder = {
-      name = "coder"
+      name    = "coder"
       cluster = "europe"
-      size = 1
+      size    = 1
     }
     europe_workspaces = {
-      name = "workspaces"
+      name    = "workspaces"
       cluster = "europe"
-      size = 1
+      size    = 1
     }
     europe_misc = {
-      name = "misc"
+      name    = "misc"
       cluster = "europe"
-      size = 1
+      size    = 1
     }
     asia_coder = {
-      name = "coder"
+      name    = "coder"
       cluster = "asia"
-      size = 1
+      size    = 1
     }
     asia_workspaces = {
-      name = "workspaces"
+      name    = "workspaces"
       cluster = "asia"
-      size = 1
+      size    = 1
     }
     asia_misc = {
-      name = "misc"
+      name    = "misc"
       cluster = "asia"
-      size = 1
+      size    = 1
     }
   }
 }

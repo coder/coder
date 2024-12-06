@@ -51,28 +51,28 @@ provider "cloudflare" {
 }
 
 provider "kubernetes" {
-  alias = "primary"
+  alias                  = "primary"
   host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["primary"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 
 provider "kubernetes" {
-  alias = "europe"
+  alias                  = "europe"
   host                   = "https://${google_container_cluster.cluster["europe"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["europe"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 
 provider "kubernetes" {
-  alias = "asia"
+  alias                  = "asia"
   host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 
 provider "kubectl" {
-  alias = "primary"
+  alias                  = "primary"
   host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["primary"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
@@ -80,7 +80,7 @@ provider "kubectl" {
 }
 
 provider "kubectl" {
-  alias = "europe"
+  alias                  = "europe"
   host                   = "https://${google_container_cluster.cluster["europe"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["europe"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
@@ -88,7 +88,7 @@ provider "kubectl" {
 }
 
 provider "kubectl" {
-  alias = "asia"
+  alias                  = "asia"
   host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token

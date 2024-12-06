@@ -141,7 +141,7 @@ EOF
 
 resource "helm_release" "provisionerd_asia" {
   provider = helm.asia
-  
+
   repository = local.coder_helm_repo
   chart      = local.provisionerd_helm_chart
   name       = local.provisionerd_release_name
