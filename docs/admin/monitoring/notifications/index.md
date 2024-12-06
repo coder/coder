@@ -232,7 +232,14 @@ notification is indicated on the right hand side of this table.
 
 ![User Notification Preferences](../../../images/admin/monitoring/notifications/user-notification-preferences.png)
 
-## Delivery Preferences (enterprise) (premium)
+## Delivery Preferences
+
+<blockquote class="admonition tip">
+
+Delivery preferences is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Administrators can configure which delivery methods are used for each different
 [event type](#event-types).

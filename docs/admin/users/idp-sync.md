@@ -184,7 +184,14 @@ Users who are not in a matching group will see the following error:
 
 ![Unauthorized group error](../../images/admin/group-allowlist.png)
 
-## Role sync (enterprise) (premium)
+## Role sync
+
+<blockquote class="admonition tip">
+
+Role sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to roles within Coder.
@@ -302,7 +309,14 @@ Visit the Coder UI to confirm these changes:
 
 </div>
 
-## Organization Sync (Premium)
+## Organization Sync
+
+<blockquote class="admonition tip">
+
+Organization sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 > Note: In a future Coder release, this can be managed via the Coder UI instead
 > of server flags.
