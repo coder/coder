@@ -78,9 +78,8 @@ can only be delivered to one method, and this method is configured globally with
 will be disabled.
 
 Premium customers can configure which method to use for each of the supported
-[Events](#workspace-events); see the
-[Preferences](#delivery-preferences-enterprise-premium) section below for more
-details.
+[Events](#workspace-events); see the [Preferences](#delivery-preferences)
+section below for more details.
 
 ## SMTP (Email)
 
