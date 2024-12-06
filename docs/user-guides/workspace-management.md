@@ -90,7 +90,7 @@ manually updated the workspace.
 
 ## Bulk operations
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Bulk operations are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

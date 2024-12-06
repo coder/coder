@@ -1,4 +1,11 @@
-# IDP Sync (enterprise) (premium)
+# IDP Sync
+
+<blockquote class="info">
+
+IDP sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
@@ -186,7 +193,7 @@ Users who are not in a matching group will see the following error:
 
 ## Role sync
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Role sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -311,7 +318,7 @@ Visit the Coder UI to confirm these changes:
 
 ## Organization Sync
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Organization sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

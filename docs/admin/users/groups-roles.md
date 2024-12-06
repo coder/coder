@@ -33,7 +33,7 @@ may use personal workspaces.
 
 ## Custom Roles
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Custom roles are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
