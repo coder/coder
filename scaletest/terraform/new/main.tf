@@ -46,6 +46,10 @@ terraform {
 provider "google" {
 }
 
+provider "cloudflare" {
+  api_token = var.cloudflare_api_token
+}
+
 provider "kubernetes" {
   alias = "primary"
   host                   = "https://${google_container_cluster.cluster["primary"].endpoint}"
@@ -57,6 +61,13 @@ provider "kubernetes" {
   alias = "europe"
   host                   = "https://${google_container_cluster.cluster["europe"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["europe"].master_auth.0.cluster_ca_certificate)
+  token                  = data.google_client_config.default.access_token
+}
+
+provider "kubernetes" {
+  alias = "asia"
+  host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
+  cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
 }
 
@@ -72,6 +83,14 @@ provider "kubectl" {
   alias = "europe"
   host                   = "https://${google_container_cluster.cluster["europe"].endpoint}"
   cluster_ca_certificate = base64decode(google_container_cluster.cluster["europe"].master_auth.0.cluster_ca_certificate)
+  token                  = data.google_client_config.default.access_token
+  load_config_file       = false
+}
+
+provider "kubectl" {
+  alias = "asia"
+  host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
+  cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
   token                  = data.google_client_config.default.access_token
   load_config_file       = false
 }
@@ -94,6 +113,11 @@ provider "helm" {
   }
 }
 
-provider "cloudflare" {
-  api_token = var.cloudflare_api_token
+provider "helm" {
+  alias = "asia"
+  kubernetes {
+    host                   = "https://${google_container_cluster.cluster["asia"].endpoint}"
+    cluster_ca_certificate = base64decode(google_container_cluster.cluster["asia"].master_auth.0.cluster_ca_certificate)
+    token                  = data.google_client_config.default.access_token
+  }
 }

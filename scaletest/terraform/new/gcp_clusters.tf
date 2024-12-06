@@ -4,23 +4,6 @@ data "google_compute_default_service_account" "default" {
 }
 
 locals {
-  clusters = {
-    primary = {
-      region = "us-east1"
-      zone   = "us-east1-c"
-      cidr   = "10.200.0.0/24"
-    }
-    europe = {
-      region = "europe-west1"
-      zone   = "europe-west1-b"
-      cidr   = "10.201.0.0/24"
-    }
-    asia = {
-      region = "asia-southeast1"
-      zone   = "asia-southeast1-a"
-      cidr   = "10.202.0.0/24"
-    }
-  }
   node_pools = {
     primary_coder = {
       name = "coder"
@@ -71,7 +54,7 @@ locals {
 }
 
 resource "google_container_cluster" "cluster" {
-  for_each                  = local.clusters
+  for_each                  = local.deployments
   name                      = "${var.name}-${each.key}"
   location                  = each.value.zone
   project                   = var.project_id
@@ -118,7 +101,7 @@ resource "google_container_cluster" "cluster" {
 resource "google_container_node_pool" "node_pool" {
   for_each = local.node_pools
   name     = each.value.name
-  location = local.clusters[each.value.cluster].zone
+  location = local.deployments[each.value.cluster].zone
   project  = var.project_id
   cluster  = google_container_cluster.cluster[each.value.cluster].name
   autoscaling {
