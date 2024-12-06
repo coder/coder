@@ -1,6 +1,6 @@
 data "http" "coder_healthy" {
   url = local.deployments.primary.url
-  // Wait up to 5 minutes for DNS to propogate
+  // Wait up to 5 minutes for DNS to propagate
   retry {
     attempts     = 30
     min_delay_ms = 10000
