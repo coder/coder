@@ -63,6 +63,10 @@ export const createOrganization = async () => {
 	return org;
 };
 
+export const deleteOrganization = async (orgName: string) => {
+	await API.deleteOrganization(orgName);
+};
+
 export const createOrganizationWithName = async (name: string) => {
 	const org = await API.createOrganization({
 		name,
