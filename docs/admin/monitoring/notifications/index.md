@@ -107,14 +107,14 @@ existing one.
 
 **TLS Settings:**
 
-| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                      | Default |
-| :------: | --------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See https://datatracker.ietf.org/doc/html/rfc8314#section-3.3. | false   |
-|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                         | false   |
-|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                             | false   |
-|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                            |         |
-|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
-|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
+| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                        | Default |
+| :------: | --------------------------- | ----------------------------- | -------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------- |
+|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See <https://datatracker.ietf.org/doc/html/rfc8314#section-3.3>. | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                           | false   |
+|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                               | false   |
+|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                              |         |
+|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |
+|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                       |         |
 
 **NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
 on a port other than `465`.
@@ -124,9 +124,11 @@ on a port other than `465`.
 After setting the required fields above:
 
 1. Create an [App Password](https://myaccount.google.com/apppasswords) using the
-   account you wish to send from
-2. Set the following configuration options:
-   ```
+   account you wish to send from.
+
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
    CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
@@ -141,8 +143,9 @@ for more options.
 After setting the required fields above:
 
 1. Setup an account on Microsoft 365 or outlook.com
-2. Set the following configuration options:
-   ```
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
    CODER_EMAIL_TLS_STARTTLS=true
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>

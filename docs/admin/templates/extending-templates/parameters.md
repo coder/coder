@@ -90,7 +90,7 @@ data "coder_parameter" "security_groups" {
 > For the above example, to override the default values of the `security_groups`
 > parameter, you will need to pass the following argument to `coder create`:
 >
-> ```
+> ```shell
 > --parameter "\"security_groups=[\"\"DevOps Security Group\"\",\"\"Backend Security Group\"\"]\""
 > ```
 >
