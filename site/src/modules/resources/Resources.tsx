@@ -3,7 +3,7 @@ import Button from "@mui/material/Button";
 import type { WorkspaceAgent, WorkspaceResource } from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Stack } from "components/Stack/Stack";
-import { type FC, useState } from "react";
+import { type FC, type JSX, useState } from "react";
 import { ResourceCard } from "./ResourceCard";
 
 const countAgents = (resource: WorkspaceResource) => {
