@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -44,6 +45,7 @@ type API struct {
 	*MetadataAPI
 	*LogsAPI
 	*ScriptsAPI
+	*ResourcesUsageAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -67,6 +69,7 @@ type Options struct {
 	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
+	NotificationsEnqueuer             notifications.Enqueuer
 
 	AccessURL                 *url.URL
 	AppHostname               string
@@ -96,6 +99,13 @@ func New(opts Options) *API {
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
+	}
+
+	api.ResourcesUsageAPI = &ResourcesUsageAPI{
+		WorkspaceFn:           api.workspace,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+		Database:              opts.Database,
+		Log:                   opts.Log,
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -195,6 +205,14 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 		return database.WorkspaceAgent{}, xerrors.Errorf("get workspace agent by id %q: %w", a.opts.AgentID, err)
 	}
 	return agent, nil
+}
+
+func (a *API) workspace(ctx context.Context) (database.Workspace, error) {
+	workspace, err := a.opts.Database.GetWorkspaceByID(ctx, a.opts.WorkspaceID)
+	if err != nil {
+		return database.Workspace{}, xerrors.Errorf("get workspace by id %q: %w", a.opts.WorkspaceID, err)
+	}
+	return workspace, nil
 }
 
 func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
