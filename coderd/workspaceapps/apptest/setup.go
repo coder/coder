@@ -31,13 +31,15 @@ import (
 )
 
 const (
-	proxyTestAgentName            = "agent-name"
-	proxyTestAppNameFake          = "test-app-fake"
-	proxyTestAppNameOwner         = "test-app-owner"
-	proxyTestAppNameAuthenticated = "test-app-authenticated"
-	proxyTestAppNamePublic        = "test-app-public"
-	proxyTestAppQuery             = "query=true"
-	proxyTestAppBody              = "hello world from apps test"
+	proxyTestAgentName                       = "agent-name"
+	proxyTestAppNameFake                     = "test-app-fake"
+	proxyTestAppNameOwner                    = "test-app-owner"
+	proxyTestAppNameAuthenticated            = "test-app-authenticated"
+	proxyTestAppNamePublic                   = "test-app-public"
+	proxyTestAppNameAuthenticatedCORSDefault = "test-app-authenticated-cors-default"
+	proxyTestAppNamePublicCORSDefault        = "test-app-public-cors-default"
+	proxyTestAppQuery                        = "query=true"
+	proxyTestAppBody                         = "hello world from apps test"
 
 	proxyTestSubdomainRaw = "*.test.coder.com"
 	proxyTestSubdomain    = "test.coder.com"
@@ -60,6 +62,7 @@ type DeploymentOptions struct {
 	noWorkspace bool
 	port        uint16
 	headers     http.Header
+	handler     http.Handler
 }
 
 // Deployment is a license-agnostic deployment with all the fields that apps
@@ -109,12 +112,14 @@ type Details struct {
 	AppPort   uint16
 
 	Apps struct {
-		Fake          App
-		Owner         App
-		Authenticated App
-		Public        App
-		Port          App
-		PortHTTPS     App
+		Fake                     App
+		Owner                    App
+		Authenticated            App
+		Public                   App
+		Port                     App
+		PortHTTPS                App
+		PublicCORSDefault        App
+		AuthenticatedCORSDefault App
 	}
 }
 
@@ -201,7 +206,7 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 	}
 
 	if opts.port == 0 {
-		opts.port = appServer(t, opts.headers, opts.ServeHTTPS)
+		opts.port = appServer(t, opts.headers, opts.ServeHTTPS, opts.handler)
 	}
 	workspace, agnt := createWorkspaceWithApps(t, deployment.SDKClient, deployment.FirstUser.OrganizationID, me, opts.port, opts.ServeHTTPS)
 
@@ -252,29 +257,47 @@ func setupProxyTestWithFactory(t *testing.T, factory DeploymentFactory, opts *De
 		AgentName:     agnt.Name,
 		AppSlugOrPort: strconv.Itoa(int(opts.port)) + "s",
 	}
+	details.Apps.PublicCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNamePublicCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
+	details.Apps.AuthenticatedCORSDefault = App{
+		Username:      me.Username,
+		WorkspaceName: workspace.Name,
+		AgentName:     agnt.Name,
+		AppSlugOrPort: proxyTestAppNameAuthenticatedCORSDefault,
+		Query:         proxyTestAppQuery,
+	}
 
 	return details
 }
 
 //nolint:revive
-func appServer(t *testing.T, headers http.Header, isHTTPS bool) uint16 {
-	server := httptest.NewUnstartedServer(
-		http.HandlerFunc(
-			func(w http.ResponseWriter, r *http.Request) {
-				_, err := r.Cookie(codersdk.SessionTokenCookie)
-				assert.ErrorIs(t, err, http.ErrNoCookie)
-				w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
-				w.Header().Set("X-Got-Host", r.Host)
-				for name, values := range headers {
-					for _, value := range values {
-						w.Header().Add(name, value)
-					}
+func appServer(t *testing.T, headers http.Header, isHTTPS bool, handler http.Handler) uint16 {
+	defaultHandler := http.HandlerFunc(
+		func(w http.ResponseWriter, r *http.Request) {
+			_, err := r.Cookie(codersdk.SessionTokenCookie)
+			assert.ErrorIs(t, err, http.ErrNoCookie)
+			w.Header().Set("X-Forwarded-For", r.Header.Get("X-Forwarded-For"))
+			w.Header().Set("X-Got-Host", r.Host)
+			for name, values := range headers {
+				for _, value := range values {
+					w.Header().Add(name, value)
 				}
-				w.WriteHeader(http.StatusOK)
-				_, _ = w.Write([]byte(proxyTestAppBody))
-			},
-		),
+			}
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(proxyTestAppBody))
+		},
 	)
+
+	if handler == nil {
+		handler = defaultHandler
+	}
+
+	server := httptest.NewUnstartedServer(handler)
 
 	server.Config.ReadHeaderTimeout = time.Minute
 	if isHTTPS {
@@ -358,6 +381,20 @@ func createWorkspaceWithApps(t *testing.T, client *codersdk.Client, orgID uuid.U
 			Slug:         proxyTestAppNamePublic,
 			DisplayName:  proxyTestAppNamePublic,
 			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNamePublicCORSDefault,
+			DisplayName:  proxyTestAppNamePublicCORSDefault,
+			SharingLevel: proto.AppSharingLevel_PUBLIC,
+			Url:          appURL,
+			Subdomain:    true,
+		},
+		{
+			Slug:         proxyTestAppNameAuthenticatedCORSDefault,
+			DisplayName:  proxyTestAppNameAuthenticatedCORSDefault,
+			SharingLevel: proto.AppSharingLevel_AUTHENTICATED,
 			Url:          appURL,
 			Subdomain:    true,
 		},

@@ -1388,7 +1388,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			forceURLTransport(t, client)
 
 			// Create workspace.
-			port := appServer(t, nil, false)
+			port := appServer(t, nil, false, nil)
 			workspace, _ = createWorkspaceWithApps(t, client, user.OrganizationIDs[0], user, port, false)
 
 			// Verify that the apps have the correct sharing levels set.
@@ -1399,10 +1399,12 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			agnt = workspaceBuild.Resources[0].Agents[0]
 			found := map[string]codersdk.WorkspaceAppSharingLevel{}
 			expected := map[string]codersdk.WorkspaceAppSharingLevel{
-				proxyTestAppNameFake:          codersdk.WorkspaceAppSharingLevelOwner,
-				proxyTestAppNameOwner:         codersdk.WorkspaceAppSharingLevelOwner,
-				proxyTestAppNameAuthenticated: codersdk.WorkspaceAppSharingLevelAuthenticated,
-				proxyTestAppNamePublic:        codersdk.WorkspaceAppSharingLevelPublic,
+				proxyTestAppNameFake:                     codersdk.WorkspaceAppSharingLevelOwner,
+				proxyTestAppNameOwner:                    codersdk.WorkspaceAppSharingLevelOwner,
+				proxyTestAppNameAuthenticated:            codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNamePublic:                   codersdk.WorkspaceAppSharingLevelPublic,
+				proxyTestAppNameAuthenticatedCORSDefault: codersdk.WorkspaceAppSharingLevelAuthenticated,
+				proxyTestAppNamePublicCORSDefault:        codersdk.WorkspaceAppSharingLevelPublic,
 			}
 			for _, app := range agnt.Apps {
 				found[app.DisplayName] = app.SharingLevel
@@ -1559,6 +1561,9 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 				// Unauthenticated user should not have any access.
 				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticated, clientWithNoAuth, false, true)
+
+				// Unauthenticated user should not have any access, regardless of CORS behavior (using default).
+				verifyAccess(t, appDetails, isPathApp, user.Username, workspace.Name, agnt.Name, proxyTestAppNameAuthenticatedCORSDefault, clientWithNoAuth, false, true)
 			})
 
 			t.Run("LevelPublic", func(t *testing.T) {
@@ -1830,6 +1835,306 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 		_ = resp.Body.Close()
 		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		require.Equal(t, "text/html; charset=utf-8", resp.Header.Get("Content-Type"))
+	})
+
+	t.Run("WorkspaceApplicationCORS", func(t *testing.T) {
+		t.Parallel()
+
+		const external = "https://example.com"
+
+		unauthenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			c := appDetails.AppClient(t)
+			c.SetSessionToken("")
+			return c
+		}
+
+		authenticatedClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			uc, _ := coderdtest.CreateAnotherUser(t, appDetails.SDKClient, appDetails.FirstUser.OrganizationID, rbac.RoleMember())
+			c := appDetails.AppClient(t)
+			c.SetSessionToken(uc.SessionToken())
+			return c
+		}
+
+		ownerClient := func(t *testing.T, appDetails *Details) *codersdk.Client {
+			return appDetails.SDKClient
+		}
+
+		ownSubdomain := func(details *Details, app App) string {
+			url := details.SubdomainAppURL(app)
+			return url.Scheme + "://" + url.Host
+		}
+
+		externalOrigin := func(*Details, App) string {
+			return external
+		}
+
+		tests := []struct {
+			name                 string
+			app                  func(details *Details) App
+			client               func(t *testing.T, appDetails *Details) *codersdk.Client
+			httpMethod           string
+			origin               func(details *Details, app App) string
+			expectedStatusCode   int
+			checkRequestHeaders  func(t *testing.T, origin string, req http.Header)
+			checkResponseHeaders func(t *testing.T, origin string, resp http.Header)
+		}{
+			// Public
+			{
+				// The default behavior is to a accept preflight request if it matches the app's own subdomain.
+				name:               "Default/Public/Preflight/Subdomain",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             unauthenticatedClient,
+				httpMethod:         http.MethodOptions,
+				origin:             ownSubdomain,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Contains(t, resp.Get("Access-Control-Allow-Methods"), http.MethodGet)
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					assert.Equal(t, "X-Got-Host", resp.Get("Access-Control-Allow-Headers"))
+				},
+			},
+			{
+				// The default behavior is to reject a preflight request from origins other than the app's own subdomain.
+				name:               "Default/Public/Preflight/External",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             unauthenticatedClient,
+				httpMethod:         http.MethodOptions,
+				origin:             externalOrigin,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					// We don't add a valid Allow-Origin header for requests we won't proxy.
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+				},
+			},
+			{
+				// An unauthenticated request to the app is allowed from its own subdomain.
+				name:               "Default/Public/GET/Subdomain",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             unauthenticatedClient,
+				origin:             ownSubdomain,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
+				// An unauthenticated request to the app is allowed from an external origin, but the CORS
+				// headers are not added to the response because it's not coming from a known origin.
+				name:               "Default/Public/GET/External",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             unauthenticatedClient,
+				origin:             externalOrigin,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					// We don't add a valid Allow-Origin header for requests we won't proxy.
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+				},
+			},
+			{
+				// The owner can access their own apps from their own subdomain with valid CORS headers.
+				name:               "Default/Public/GET/SubdomainOwner",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             ownerClient,
+				origin:             ownSubdomain,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
+				// The owner can't access their own apps from an external origin with valid CORS headers.
+				name:               "Default/Public/GET/ExternalOwner",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             ownerClient,
+				origin:             externalOrigin,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					// We don't add a valid Allow-Origin header for requests we won't proxy.
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+				},
+			},
+			{
+				// A request without an Origin header would be rejected by an actual browser since it lacks CORS headers,
+				// but we accept it since it's common for non-browser clients to not send the Origin header.
+				name:               "Default/Public/GET/NoOrigin",
+				app:                func(details *Details) App { return details.Apps.PublicCORSDefault },
+				client:             unauthenticatedClient,
+				origin:             func(*Details, App) string { return "" },
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Headers"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			// Authenticated
+			{
+				// Same behavior as Default/Public/Preflight/Subdomain.
+				name:               "Default/Authenticated/Preflight/Subdomain",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             authenticatedClient,
+				origin:             ownSubdomain,
+				httpMethod:         http.MethodOptions,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Contains(t, resp.Get("Access-Control-Allow-Methods"), http.MethodGet)
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					assert.Equal(t, "X-Got-Host", resp.Get("Access-Control-Allow-Headers"))
+				},
+			},
+			{
+				// Same behavior as Default/Public/Preflight/External.
+				name:               "Default/Authenticated/Preflight/External",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             authenticatedClient,
+				origin:             externalOrigin,
+				httpMethod:         http.MethodOptions,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+				},
+			},
+			{
+				// An authenticated request to the app is allowed from its own subdomain.
+				name:               "Default/Authenticated/GET/Subdomain",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             authenticatedClient,
+				origin:             ownSubdomain,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
+				// An authenticated request to the app is allowed from an external origin.
+				// The origin doesn't match the app's own subdomain, so the CORS headers are not added.
+				name:               "Default/Authenticated/GET/External",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             authenticatedClient,
+				origin:             externalOrigin,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Headers"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
+				// Owners can access their own apps from their own subdomain with valid CORS headers.
+				name:               "Default/Authenticated/GET/SubdomainOwner",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             ownerClient,
+				origin:             ownSubdomain,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Equal(t, origin, resp.Get("Access-Control-Allow-Origin"))
+					assert.Equal(t, "true", resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+			{
+				// Owners can't access their own apps from an external origin with valid CORS headers.
+				name:               "Default/Owner/GET/ExternalOwner",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             ownerClient,
+				origin:             externalOrigin,
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					// We don't add a valid Allow-Origin header for requests we won't proxy.
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+				},
+			},
+			{
+				// Same behavior as Default/Public/GET/NoOrigin.
+				name:               "Default/Authenticated/GET/NoOrigin",
+				app:                func(details *Details) App { return details.Apps.AuthenticatedCORSDefault },
+				client:             authenticatedClient,
+				origin:             func(*Details, App) string { return "" },
+				httpMethod:         http.MethodGet,
+				expectedStatusCode: http.StatusOK,
+				checkResponseHeaders: func(t *testing.T, origin string, resp http.Header) {
+					assert.Empty(t, resp.Get("Access-Control-Allow-Origin"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Headers"))
+					assert.Empty(t, resp.Get("Access-Control-Allow-Credentials"))
+					// Added by the app handler.
+					assert.Equal(t, "simple", resp.Get("X-CORS-Handler"))
+				},
+			},
+		}
+
+		for _, tc := range tests {
+			t.Run(tc.name, func(t *testing.T) {
+				t.Parallel()
+
+				ctx := testutil.Context(t, testutil.WaitLong)
+
+				var reqHeaders http.Header
+
+				// Given: a workspace app
+				appDetails := setupProxyTest(t, &DeploymentOptions{
+					// Setup an HTTP handler which is the "app"; this handler conditionally responds
+					// to requests based on the CORS behavior
+					handler: http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+						_, err := r.Cookie(codersdk.SessionTokenCookie)
+						assert.ErrorIs(t, err, http.ErrNoCookie)
+
+						// Store the request headers for later assertions
+						reqHeaders = r.Header
+						w.Header().Set("X-CORS-Handler", "simple")
+					}),
+				})
+
+				// Given: a client
+				client := tc.client(t, appDetails)
+				path := appDetails.SubdomainAppURL(tc.app(appDetails)).String()
+				origin := tc.origin(appDetails, tc.app(appDetails))
+
+				// When: a preflight request is made to an app with a specified CORS behavior
+				resp, err := requestWithRetries(ctx, t, client, tc.httpMethod, path, nil, func(r *http.Request) {
+					// Mimic non-browser clients that don't send the Origin header.
+					if origin != "" {
+						r.Header.Set("Origin", origin)
+					}
+					r.Header.Set("Access-Control-Request-Method", "GET")
+					r.Header.Set("Access-Control-Request-Headers", "X-Got-Host")
+				})
+				require.NoError(t, err)
+				defer resp.Body.Close()
+
+				// Then: the request & response must match expectations
+				assert.Equal(t, tc.expectedStatusCode, resp.StatusCode)
+				assert.NoError(t, err)
+				if tc.checkRequestHeaders != nil {
+					tc.checkRequestHeaders(t, origin, reqHeaders)
+				}
+				tc.checkResponseHeaders(t, origin, resp.Header)
+			})
+		}
 	})
 }
 
