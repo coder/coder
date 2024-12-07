@@ -48,28 +48,18 @@ export const SSHButton: FC<SSHButtonProps> = ({
 					Run the following commands to connect with SSH:
 				</HelpTooltipText>
 
-				<Stack spacing={0.5} css={styles.codeExamples}>
-					<div>
-						<HelpTooltipText>
-							<strong css={styles.codeExampleLabel}>
-								Configure SSH hosts on machine:
-							</strong>
-						</HelpTooltipText>
-						<CodeExample secret={false} code="coder config-ssh" />
-					</div>
-
-					<div>
-						<HelpTooltipText>
-							<strong css={styles.codeExampleLabel}>
-								Connect to the agent:
-							</strong>
-						</HelpTooltipText>
-						<CodeExample
-							secret={false}
-							code={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+				<ol style={{ margin: 0, padding: 0 }}>
+					<Stack spacing={0.5} css={styles.codeExamples}>
+						<SSHStep
+							helpText="Configure SSH hosts on machine:"
+							codeExample="coder config-ssh"
 						/>
-					</div>
-				</Stack>
+						<SSHStep
+							helpText="Connect to the agent:"
+							codeExample={`ssh ${sshPrefix}${workspaceName}.${agentName}`}
+						/>
+					</Stack>
+				</ol>
 
 				<HelpTooltipLinksGroup>
 					<HelpTooltipLink href={docs("/install")}>
@@ -91,6 +81,15 @@ export const SSHButton: FC<SSHButtonProps> = ({
 		</Popover>
 	);
 };
+
+const SSHStep = (props: { helpText: string; codeExample: string }) => (
+	<li style={{ listStylePosition: "inside" }}>
+		<HelpTooltipText style={{ display: "inline" }}>
+			<strong css={styles.codeExampleLabel}>Connect to the agent:</strong>
+		</HelpTooltipText>
+		<CodeExample secret={false} code={props.codeExample} />
+	</li>
+);
 
 const classNames = {
 	paper: (css, theme) => css`
