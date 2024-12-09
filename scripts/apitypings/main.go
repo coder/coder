@@ -75,6 +75,9 @@ func TsMutations(ts *guts.Typescript) {
 		config.ReadOnly,
 		// Add ignore linter comments
 		config.BiomeLintIgnoreAnyTypeParameters,
+		// Omitempty + null is just '?' in golang json marshal
+		// number?: number | null --> number?: number
+		config.SimplifyOmitEmpty,
 	)
 }
 
@@ -82,8 +85,11 @@ func TsMutations(ts *guts.Typescript) {
 func TypeMappings(gen *guts.GoParser) error {
 	gen.IncludeCustomDeclaration(config.StandardMappings())
 
+	gen.IncludeCustomDeclaration(map[string]guts.TypeOverride{
+		"github.com/coder/coder/v2/codersdk.NullTime": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordString)),
+	})
+
 	err := gen.IncludeCustom(map[string]string{
-		"github.com/coder/coder/v2/codersdk.NullTime": "string",
 		// Serpent fields
 		"github.com/coder/serpent.Regexp":         "string",
 		"github.com/coder/serpent.StringArray":    "string",

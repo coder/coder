@@ -168,7 +168,7 @@ export interface AuditLog {
 	readonly resource_link: string;
 	readonly is_deleted: boolean;
 	readonly organization_id: string;
-	readonly organization?: MinimalOrganization | null;
+	readonly organization?: MinimalOrganization;
 	readonly user: User | null;
 }
 
@@ -238,7 +238,7 @@ export interface BannerConfig {
 
 // From healthsdk/healthsdk.go
 export interface BaseReport {
-	readonly error: string | null;
+	readonly error?: string;
 	readonly severity: HealthSeverity;
 	readonly warnings: readonly HealthMessage[];
 	readonly dismissed: boolean;
@@ -361,16 +361,16 @@ export interface CreateTemplateRequest {
 	readonly description?: string;
 	readonly icon?: string;
 	readonly template_version_id: string;
-	readonly default_ttl_ms?: number | null;
-	readonly activity_bump_ms?: number | null;
-	readonly autostop_requirement?: TemplateAutostopRequirement | null;
-	readonly autostart_requirement?: TemplateAutostartRequirement | null;
+	readonly default_ttl_ms?: number;
+	readonly activity_bump_ms?: number;
+	readonly autostop_requirement?: TemplateAutostopRequirement;
+	readonly autostart_requirement?: TemplateAutostartRequirement;
 	readonly allow_user_cancel_workspace_jobs: boolean | null;
-	readonly allow_user_autostart: boolean | null;
-	readonly allow_user_autostop: boolean | null;
-	readonly failure_ttl_ms?: number | null;
-	readonly dormant_ttl_ms?: number | null;
-	readonly delete_ttl_ms?: number | null;
+	readonly allow_user_autostart?: boolean;
+	readonly allow_user_autostop?: boolean;
+	readonly failure_ttl_ms?: number;
+	readonly dormant_ttl_ms?: number;
+	readonly delete_ttl_ms?: number;
 	readonly disable_everyone_group_access: boolean;
 	readonly require_active_version: boolean;
 	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
@@ -448,8 +448,8 @@ export interface CreateWorkspaceRequest {
 	readonly template_id?: string;
 	readonly template_version_id?: string;
 	readonly name: string;
-	readonly autostart_schedule: string | null;
-	readonly ttl_ms?: number | null;
+	readonly autostart_schedule?: string;
+	readonly ttl_ms?: number;
 	readonly rich_parameter_values?: readonly WorkspaceBuildParameter[];
 	readonly automatic_updates?: AutomaticUpdates;
 }
@@ -522,8 +522,8 @@ export interface DERPHealthReport extends BaseReport {
 	readonly healthy: boolean;
 	readonly regions: Record<number, DERPRegionReport | null>;
 	// Invalid type, using 'any'. Might be a reference to any external package
-	readonly netcheck: any | null;
-	readonly netcheck_err: string | null;
+	readonly netcheck?: any;
+	readonly netcheck_err?: string;
 	readonly netcheck_logs: readonly string[];
 }
 
@@ -532,7 +532,7 @@ export interface DERPNodeReport {
 	readonly healthy: boolean;
 	readonly severity: HealthSeverity;
 	readonly warnings: readonly HealthMessage[];
-	readonly error: string | null;
+	readonly error?: string;
 	// Invalid type, using 'any'. Might be a reference to any external package
 	readonly node: any | null;
 	// Invalid type, using 'any'. Might be a reference to any external package
@@ -557,7 +557,7 @@ export interface DERPRegionReport {
 	readonly healthy: boolean;
 	readonly severity: HealthSeverity;
 	readonly warnings: readonly HealthMessage[];
-	readonly error: string | null;
+	readonly error?: string;
 	// Invalid type, using 'any'. Might be a reference to any external package
 	readonly region: any | null;
 	readonly node_reports: readonly (DERPNodeReport | null)[];
@@ -597,7 +597,7 @@ export interface DeleteWorkspaceAgentPortShareRequest {
 
 // From codersdk/deployment.go
 export interface DeploymentConfig {
-	readonly config?: DeploymentValues | null;
+	readonly config?: DeploymentValues;
 	readonly options?: SerpentOptionSet;
 }
 
@@ -739,7 +739,7 @@ export type Experiment =
 	| "workspace-usage";
 
 // From codersdk/deployment.go
-export type Experiments = Experiment[];
+export type Experiments = readonly Experiment[];
 
 // From codersdk/externalauth.go
 export interface ExternalAuth {
@@ -827,8 +827,8 @@ export interface ExternalAuthUser {
 export interface Feature {
 	readonly entitlement: Entitlement;
 	readonly enabled: boolean;
-	readonly limit?: number | null;
-	readonly actual?: number | null;
+	readonly limit?: number;
+	readonly actual?: number;
 }
 
 // From codersdk/deployment.go
@@ -1294,7 +1294,7 @@ export interface OAuth2ProviderAppFilter {
 // From codersdk/oauth2.go
 export interface OAuth2ProviderAppSecret {
 	readonly id: string;
-	readonly last_used_at: string;
+	readonly last_used_at: string | null;
 	readonly client_secret_truncated: string;
 }
 
@@ -1425,7 +1425,7 @@ export interface PatchGroupRequest {
 // From codersdk/templateversions.go
 export interface PatchTemplateVersionRequest {
 	readonly name: string;
-	readonly message?: string | null;
+	readonly message?: string;
 }
 
 // From codersdk/workspaceproxy.go
@@ -1525,13 +1525,13 @@ export interface ProvisionerDaemonsReportItem {
 export interface ProvisionerJob {
 	readonly id: string;
 	readonly created_at: string;
-	readonly started_at?: string | null;
-	readonly completed_at?: string | null;
-	readonly canceled_at?: string | null;
+	readonly started_at?: string;
+	readonly completed_at?: string;
+	readonly canceled_at?: string;
 	readonly error?: string;
 	readonly error_code?: JobErrorCode;
 	readonly status: ProvisionerJobStatus;
-	readonly worker_id?: string | null;
+	readonly worker_id?: string;
 	readonly file_id: string;
 	readonly tags: Record<string, string>;
 	readonly queue_position: number;
@@ -1945,7 +1945,7 @@ export type SerpentAnnotations = Record<string, string>;
 
 // From serpent/serpent.go
 export interface SerpentGroup {
-	readonly parent?: SerpentGroup | null;
+	readonly parent?: SerpentGroup;
 	readonly name?: string;
 	readonly yaml?: string;
 	readonly description?: string;
@@ -1965,14 +1965,14 @@ export interface SerpentOption {
 	// this is likely an enum in an external package "github.com/spf13/pflag.Value"
 	readonly value?: unknown;
 	readonly annotations?: SerpentAnnotations;
-	readonly group?: SerpentGroup | null;
+	readonly group?: SerpentGroup;
 	readonly use_instead?: readonly SerpentOption[];
 	readonly hidden?: boolean;
 	readonly value_source?: SerpentValueSource;
 }
 
 // From serpent/option.go
-export type SerpentOptionSet = SerpentOption[];
+export type SerpentOptionSet = readonly SerpentOption[];
 
 // From serpent/values.go
 export type SerpentStruct<T extends any> = T;
@@ -2215,7 +2215,7 @@ export interface TemplateInsightsRequest {
 
 // From codersdk/insights.go
 export interface TemplateInsightsResponse {
-	readonly report?: TemplateInsightsReport | null;
+	readonly report?: TemplateInsightsReport;
 	readonly interval_reports?: readonly TemplateInsightsIntervalReport[];
 }
 
@@ -2257,7 +2257,7 @@ export interface TemplateUser extends User {
 // From codersdk/templateversions.go
 export interface TemplateVersion {
 	readonly id: string;
-	readonly template_id?: string | null;
+	readonly template_id?: string;
 	readonly organization_id?: string;
 	readonly created_at: string;
 	readonly updated_at: string;
@@ -2268,7 +2268,7 @@ export interface TemplateVersion {
 	readonly created_by: MinimalUser;
 	readonly archived: boolean;
 	readonly warnings?: readonly TemplateVersionWarning[];
-	readonly matched_provisioners?: MatchedProvisioners | null;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/templateversions.go
@@ -2295,8 +2295,8 @@ export interface TemplateVersionParameter {
 	readonly options: readonly TemplateVersionParameterOption[];
 	readonly validation_error?: string;
 	readonly validation_regex?: string;
-	readonly validation_min?: number | null;
-	readonly validation_max?: number | null;
+	readonly validation_min?: number;
+	readonly validation_max?: number;
 	readonly validation_monotonic?: ValidationMonotonicOrder;
 	readonly required: boolean;
 	readonly ephemeral: boolean;
@@ -2414,8 +2414,8 @@ export interface UpdateNotificationTemplateMethod {
 export interface UpdateOrganizationRequest {
 	readonly name?: string;
 	readonly display_name?: string;
-	readonly description?: string | null;
-	readonly icon?: string | null;
+	readonly description?: string;
+	readonly icon?: string;
 }
 
 // From codersdk/users.go
@@ -2437,8 +2437,8 @@ export interface UpdateTemplateMeta {
 	readonly icon?: string;
 	readonly default_ttl_ms?: number;
 	readonly activity_bump_ms?: number;
-	readonly autostop_requirement?: TemplateAutostopRequirement | null;
-	readonly autostart_requirement?: TemplateAutostartRequirement | null;
+	readonly autostop_requirement?: TemplateAutostopRequirement;
+	readonly autostart_requirement?: TemplateAutostartRequirement;
 	readonly allow_user_autostart?: boolean;
 	readonly allow_user_autostop?: boolean;
 	readonly allow_user_cancel_workspace_jobs?: boolean;
@@ -2448,9 +2448,9 @@ export interface UpdateTemplateMeta {
 	readonly update_workspace_last_used_at: boolean;
 	readonly update_workspace_dormant_at: boolean;
 	readonly require_active_version?: boolean;
-	readonly deprecation_message: string | null;
+	readonly deprecation_message?: string;
 	readonly disable_everyone_group_access: boolean;
-	readonly max_port_share_level: WorkspaceAgentPortShareLevel | null;
+	readonly max_port_share_level?: WorkspaceAgentPortShareLevel;
 }
 
 // From codersdk/users.go
@@ -2487,7 +2487,7 @@ export interface UpdateWorkspaceAutomaticUpdatesRequest {
 
 // From codersdk/workspaces.go
 export interface UpdateWorkspaceAutostartRequest {
-	readonly schedule: string | null;
+	readonly schedule?: string;
 }
 
 // From codersdk/workspaces.go
@@ -2699,8 +2699,8 @@ export interface Workspace {
 	readonly latest_build: WorkspaceBuild;
 	readonly outdated: boolean;
 	readonly name: string;
-	readonly autostart_schedule?: string | null;
-	readonly ttl_ms?: number | null;
+	readonly autostart_schedule?: string;
+	readonly ttl_ms?: number;
 	readonly last_used_at: string;
 	readonly deleting_at: string | null;
 	readonly dormant_at: string | null;
@@ -2716,11 +2716,11 @@ export interface WorkspaceAgent {
 	readonly id: string;
 	readonly created_at: string;
 	readonly updated_at: string;
-	readonly first_connected_at?: string | null;
-	readonly last_connected_at?: string | null;
-	readonly disconnected_at?: string | null;
-	readonly started_at?: string | null;
-	readonly ready_at?: string | null;
+	readonly first_connected_at?: string;
+	readonly last_connected_at?: string;
+	readonly disconnected_at?: string;
+	readonly started_at?: string;
+	readonly ready_at?: string;
 	readonly status: WorkspaceAgentStatus;
 	readonly lifecycle_state: WorkspaceAgentLifecycle;
 	readonly name: string;
@@ -2956,7 +2956,7 @@ export interface WorkspaceBuild {
 	readonly max_deadline?: string;
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
-	readonly matched_provisioners?: MatchedProvisioners | null;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/workspacebuilds.go

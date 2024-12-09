@@ -72,6 +72,6 @@ export const formValuesToTTLRequest = (
 		ttl_ms:
 			values.autostopEnabled && values.ttl
 				? values.ttl * 60 * 60 * 1000
-				: undefined,
+				: null,
 	};
 };

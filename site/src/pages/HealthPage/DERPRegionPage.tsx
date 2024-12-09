@@ -7,6 +7,8 @@ import type {
 	HealthMessage,
 	HealthSeverity,
 	HealthcheckReport,
+	DERPRegionReport,
+	DERPNodeReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
@@ -35,7 +37,7 @@ export const DERPRegionPage: FC = () => {
 		node_reports: reports,
 		warnings,
 		severity,
-	} = healthStatus.derp.regions[regionId];
+	} = healthStatus.derp.regions[regionId] as DERPRegionReport;
 
 	return (
 		<>
@@ -101,6 +103,7 @@ export const DERPRegionPage: FC = () => {
 				</section>
 
 				{reports.map((report) => {
+					report = report as DERPNodeReport; // Can technically be null
 					const { node, client_logs: logs } = report;
 					const latencyColor = getLatencyColor(
 						theme,
