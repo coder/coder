@@ -2119,7 +2119,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "get provisioner daemon by org")
 		check.Args(database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
-	s.Run("GetProvisionerDaemonsByJobID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetProvisionerDaemonsByProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
