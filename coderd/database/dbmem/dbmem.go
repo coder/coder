@@ -2773,6 +2773,52 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	results := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0)
+	seen := make(map[string]struct{}) // Track unique combinations
+
+	for _, jobID := range provisionerJobIds {
+		var job database.ProvisionerJob
+		found := false
+		for _, j := range q.provisionerJobs {
+			if j.ID == jobID {
+				job = j
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		for _, daemon := range q.provisionerDaemons {
+			if daemon.OrganizationID != job.OrganizationID {
+				continue
+			}
+
+			if !tagsSubset(job.Tags, daemon.Tags) {
+				continue
+			}
+
+			key := jobID.String() + "-" + daemon.ID.String()
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+
+			results = append(results, database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
+				JobID:             jobID,
+				ProvisionerDaemon: daemon,
+			})
+		}
+	}
+
+	return results, nil
+}
+
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -3682,52 +3728,6 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	}
 
 	return daemons, nil
-}
-
-func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	results := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0)
-	seen := make(map[string]struct{}) // Track unique combinations
-
-	for _, jobID := range provisionerJobIds {
-		var job database.ProvisionerJob
-		found := false
-		for _, j := range q.provisionerJobs {
-			if j.ID == jobID {
-				job = j
-				found = true
-				break
-			}
-		}
-		if !found {
-			continue
-		}
-
-		for _, daemon := range q.provisionerDaemons {
-			if daemon.OrganizationID != job.OrganizationID {
-				continue
-			}
-
-			if !tagsSubset(job.Tags, daemon.Tags) {
-				continue
-			}
-
-			key := jobID.String() + "-" + daemon.ID.String()
-			if _, exists := seen[key]; exists {
-				continue
-			}
-			seen[key] = struct{}{}
-
-			results = append(results, database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
-				JobID:             jobID,
-				ProvisionerDaemon: daemon,
-			})
-		}
-	}
-
-	return results, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
