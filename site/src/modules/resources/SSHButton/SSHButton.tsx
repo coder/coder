@@ -85,7 +85,7 @@ export const SSHButton: FC<SSHButtonProps> = ({
 const SSHStep = (props: { helpText: string; codeExample: string }) => (
 	<li style={{ listStylePosition: "inside" }}>
 		<HelpTooltipText style={{ display: "inline" }}>
-			<strong css={styles.codeExampleLabel}>Connect to the agent:</strong>
+			<strong css={styles.codeExampleLabel}>{props.helpText}</strong>
 		</HelpTooltipText>
 		<CodeExample secret={false} code={props.codeExample} />
 	</li>
