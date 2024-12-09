@@ -75,7 +75,7 @@ for providing values to variables using the Coder CLI:
 1. _Manual input in CLI_: You can manually input values for Terraform variables
    directly in the CLI during the deployment process.
 1. _Web UI_: You can set or edit variable values under **Variables** in the template's settings.   
-3. _Command-line argument_: Utilize the `--var name=value` command-line argument
+1. _Command-line argument_: Utilize the `--var name=value` command-line argument
    to specify variable values inline as key-value pairs.
 4. _Variables file selection_: Alternatively, you can use a variables file
    selected via the `--variables-file values.yml` command-line argument. This
