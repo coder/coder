@@ -21,23 +21,22 @@ func main() {
 		log.Fatalf("new convert: %v", err)
 	}
 
-	generateDirectories := []string{
-		"github.com/coder/coder/v2/codersdk",
-		"github.com/coder/coder/v2/codersdk/health",
+	generateDirectories := map[string]string{
+		"github.com/coder/coder/v2/codersdk":                  "",
+		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
 	}
-	for _, dir := range generateDirectories {
-		err = gen.Include(dir, true)
+	for dir, prefix := range generateDirectories {
+		err = gen.IncludeGenerateWithPrefix(dir, prefix)
 		if err != nil {
 			log.Fatalf("include generate package %q: %v", dir, err)
 		}
 	}
 
-	referencePackages := []string{
-		"github.com/coder/serpent",
-		"github.com/coder/coder/v2/coderd/healthcheck/health",
+	referencePackages := map[string]string{
+		"github.com/coder/serpent": "Serpent",
 	}
-	for _, pkg := range referencePackages {
-		err = gen.Include(pkg, false)
+	for pkg, prefix := range referencePackages {
+		err = gen.IncludeReference(pkg, prefix)
 		if err != nil {
 			log.Fatalf("include reference package %q: %v", pkg, err)
 		}
@@ -70,6 +69,8 @@ func TsMutations(ts *guts.Typescript) {
 		config.ExportTypes,
 		// Readonly interface fields
 		config.ReadOnly,
+		// Add ignore linter comments
+		config.BiomeLintIgnoreAnyTypeParameters,
 	)
 }
 
@@ -89,6 +90,7 @@ func TypeMappings(gen *guts.GoParser) error {
 		"github.com/coder/serpent.Bool":           "bool",
 		"github.com/coder/serpent.Duration":       "int64",
 		"github.com/coder/serpent.URL":            "string",
+		"github.com/coder/serpent.HostPort":       "string",
 		"encoding/json.RawMessage":                "map[string]string",
 	})
 	if err != nil {

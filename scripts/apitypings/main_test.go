@@ -14,9 +14,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/coder/guts"
 	"github.com/stretchr/testify/require"
-
-	"github.com/coder/gots"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -37,7 +36,7 @@ func TestGeneration(t *testing.T) {
 			t.Parallel()
 			dir := filepath.Join(".", "testdata", f.Name())
 
-			gen, err := gots.NewGolangParser()
+			gen, err := guts.NewGolangParser()
 			if err != nil {
 				log.Fatalf("new convert: %v", err)
 			}

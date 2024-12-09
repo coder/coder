@@ -1,6 +1,6 @@
 {
 	"files": {
-		"ignore": ["**/*Generated.ts"]
+		"ignore": []
 	},
 	"linter": {
 		"rules": {
