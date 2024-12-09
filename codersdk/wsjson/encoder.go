@@ -27,6 +27,7 @@ func (e *Encoder[T]) Encode(v T) error {
 	return nil
 }
 
+// nolint: revive // complains that Decoder has the same function name
 func (e *Encoder[T]) Close(c websocket.StatusCode) error {
 	return e.conn.Close(c, "")
 }

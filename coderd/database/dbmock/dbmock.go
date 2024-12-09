@@ -4508,20 +4508,6 @@ func (mr *MockStoreMockRecorder) RegisterWorkspaceProxy(ctx, arg any) *gomock.Ca
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RegisterWorkspaceProxy", reflect.TypeOf((*MockStore)(nil).RegisterWorkspaceProxy), ctx, arg)
 }
 
-// RemoveRefreshToken mocks base method.
-func (m *MockStore) RemoveRefreshToken(ctx context.Context, arg database.RemoveRefreshTokenParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RemoveRefreshToken", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RemoveRefreshToken indicates an expected call of RemoveRefreshToken.
-func (mr *MockStoreMockRecorder) RemoveRefreshToken(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RemoveRefreshToken", reflect.TypeOf((*MockStore)(nil).RemoveRefreshToken), ctx, arg)
-}
-
 // RemoveUserFromAllGroups mocks base method.
 func (m *MockStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
 	m.ctrl.T.Helper()
@@ -4665,6 +4651,20 @@ func (m *MockStore) UpdateExternalAuthLink(ctx context.Context, arg database.Upd
 func (mr *MockStoreMockRecorder) UpdateExternalAuthLink(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLink", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLink), ctx, arg)
+}
+
+// UpdateExternalAuthLinkRefreshToken mocks base method.
+func (m *MockStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateExternalAuthLinkRefreshToken", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateExternalAuthLinkRefreshToken indicates an expected call of UpdateExternalAuthLinkRefreshToken.
+func (mr *MockStoreMockRecorder) UpdateExternalAuthLinkRefreshToken(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateExternalAuthLinkRefreshToken", reflect.TypeOf((*MockStore)(nil).UpdateExternalAuthLinkRefreshToken), ctx, arg)
 }
 
 // UpdateGitSSHKey mocks base method.
@@ -5500,6 +5500,20 @@ func (m *MockStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Co
 func (mr *MockStoreMockRecorder) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesDormantDeletingAtByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesDormantDeletingAtByTemplateID), ctx, arg)
+}
+
+// UpdateWorkspacesTTLByTemplateID mocks base method.
+func (m *MockStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspacesTTLByTemplateID", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspacesTTLByTemplateID indicates an expected call of UpdateWorkspacesTTLByTemplateID.
+func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), ctx, arg)
 }
 
 // UpsertAnnouncementBanners mocks base method.

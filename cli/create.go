@@ -39,7 +39,7 @@ func (r *RootCmd) create() *serpent.Command {
 	client := new(codersdk.Client)
 	cmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "create [name]",
+		Use:         "create [workspace]",
 		Short:       "Create a workspace",
 		Long: FormatExamples(
 			Example{

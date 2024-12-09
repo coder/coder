@@ -1017,6 +1017,12 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspacesTTLByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateWorkspacesTTLByTemplateIDParams{
+			TemplateID: t1.ID,
+		}).Asserts(t1, policy.ActionUpdate)
+	}))
 	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			ActiveVersionID: uuid.New(),
@@ -1282,12 +1288,14 @@ func (s *MethodTestSuite) TestUser() {
 			UserID:     u.ID,
 		}).Asserts(u, policy.ActionUpdatePersonal)
 	}))
-	s.Run("RemoveRefreshToken", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpdateExternalAuthLinkRefreshToken", s.Subtest(func(db database.Store, check *expects) {
 		link := dbgen.ExternalAuthLink(s.T(), db, database.ExternalAuthLink{})
-		check.Args(database.RemoveRefreshTokenParams{
-			ProviderID: link.ProviderID,
-			UserID:     link.UserID,
-			UpdatedAt:  link.UpdatedAt,
+		check.Args(database.UpdateExternalAuthLinkRefreshTokenParams{
+			OAuthRefreshToken:      "",
+			OAuthRefreshTokenKeyID: "",
+			ProviderID:             link.ProviderID,
+			UserID:                 link.UserID,
+			UpdatedAt:              link.UpdatedAt,
 		}).Asserts(rbac.ResourceUserObject(link.UserID), policy.ActionUpdatePersonal)
 	}))
 	s.Run("UpdateExternalAuthLink", s.Subtest(func(db database.Store, check *expects) {

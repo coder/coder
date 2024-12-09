@@ -126,7 +126,7 @@ require (
 	github.com/hashicorp/hc-install v0.9.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
 	github.com/hashicorp/terraform-json v0.23.0
-	github.com/hashicorp/yamux v0.1.1
+	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
 	github.com/jedib0t/go-pretty/v6 v6.6.0
@@ -212,6 +212,7 @@ require (
 	github.com/google/go-github/v61 v61.0.0
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
 	github.com/natefinch/atomic v1.0.1
+	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
 )
 
 require (
@@ -248,6 +249,7 @@ require (
 	github.com/vmihailenco/msgpack/v5 v5.4.1 // indirect
 	github.com/vmihailenco/tagparser/v2 v2.0.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.54.0 // indirect
+	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 )
 
 require (
