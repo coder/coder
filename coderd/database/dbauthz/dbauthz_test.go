@@ -2130,7 +2130,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "insert provisioner daemon")
 		ds, err := db.GetProvisionerDaemonsByProvisionerJobs(context.Background(), []uuid.UUID{d.ID})
 		s.NoError(err, "get provisioner daemon by org")
-		check.Args(database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
+		check.Args(uuid.UUIDs{org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
 	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
