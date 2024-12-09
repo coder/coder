@@ -191,8 +191,6 @@ func (r *Runner) Run() {
 				status,
 			).Inc()
 			r.metrics.WorkspaceBuildTimings.WithLabelValues(
-				build.Metadata.WorkspaceOwner,
-				build.Metadata.WorkspaceName,
 				build.Metadata.TemplateName,
 				build.Metadata.TemplateVersion,
 				build.Metadata.WorkspaceTransition.String(),

@@ -193,7 +193,7 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 					60 * 30, // 30min
 					60 * 60, // 1hr
 				},
-			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
+			}, []string{"template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
