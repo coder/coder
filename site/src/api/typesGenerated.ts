@@ -1979,7 +1979,7 @@ export interface SerpentOption {
 export type SerpentOptionSet = readonly SerpentOption[];
 
 // From serpent/values.go
-export type SerpentStruct<T extends any> = T;
+export type SerpentStruct<T> = T;
 
 // From serpent/option.go
 export type SerpentValueSource = string;
