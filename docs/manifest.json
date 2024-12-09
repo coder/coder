@@ -757,6 +757,11 @@
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
 						{
+							"title": "Best Practices for Coder Security",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
+						},
+						{
 							"title": "Speed up your workspaces",
 							"description": "Speed up your Coder templates and workspaces",
 							"path": "./tutorials/best-practices/speed-up-templates.md"
