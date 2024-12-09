@@ -6,11 +6,12 @@ import (
 	"regexp"
 	"testing"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/serpent"
 
