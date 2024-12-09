@@ -34,6 +34,42 @@ export const MissingVariables: Story = {
 	},
 };
 
+export const NoProvisioners: Story = {
+	args: {
+		templateVersion: {
+			...MockTemplateVersion,
+			matched_provisioners: {
+				count: 0,
+				available: 0,
+			},
+		},
+	},
+};
+
+export const ProvisionersUnhealthy: Story = {
+	args: {
+		templateVersion: {
+			...MockTemplateVersion,
+			matched_provisioners: {
+				count: 1,
+				available: 0,
+			},
+		},
+	},
+};
+
+export const ProvisionersHealthy: Story = {
+	args: {
+		templateVersion: {
+			...MockTemplateVersion,
+			matched_provisioners: {
+				count: 1,
+				available: 1,
+			},
+		},
+	},
+};
+
 export const Logs: Story = {
 	args: {
 		templateVersion: {

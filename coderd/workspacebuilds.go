@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
@@ -85,6 +86,7 @@ func (api *API) workspaceBuild(rw http.ResponseWriter, r *http.Request) {
 		data.scripts,
 		data.logSources,
 		data.templateVersions[0],
+		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -289,6 +291,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.scripts,
 		data.logSources,
 		data.templateVersions[0],
+		nil,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -352,7 +355,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		builder = builder.State(createBuild.ProvisionerState)
 	}
 
-	workspaceBuild, provisionerJob, err := builder.Build(
+	workspaceBuild, provisionerJob, provisionerDaemons, err := builder.Build(
 		ctx,
 		api.Database,
 		func(action policy.Action, object rbac.Objecter) bool {
@@ -384,12 +387,18 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	err = provisionerjobs.PostJob(api.Pubsub, *provisionerJob)
-	if err != nil {
-		// Client probably doesn't care about this error, so just log it.
-		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+
+	if provisionerJob != nil {
+		if err := provisionerjobs.PostJob(api.Pubsub, *provisionerJob); err != nil {
+			// Client probably doesn't care about this error, so just log it.
+			api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+		}
 	}
 
+	var matchedProvisioners codersdk.MatchedProvisioners
+	if provisionerJob != nil {
+		matchedProvisioners = db2sdk.MatchedProvisioners(provisionerDaemons, provisionerJob.CreatedAt, provisionerdserver.StaleInterval)
+	}
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -404,6 +413,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceAgentScript{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
+		&matchedProvisioners,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -804,6 +814,7 @@ func (api *API) convertWorkspaceBuilds(
 			agentScripts,
 			agentLogSources,
 			templateVersion,
+			nil,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -826,6 +837,7 @@ func (api *API) convertWorkspaceBuild(
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
+	matchedProvisioners *codersdk.MatchedProvisioners,
 ) (codersdk.WorkspaceBuild, error) {
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {
@@ -918,6 +930,7 @@ func (api *API) convertWorkspaceBuild(
 		Resources:               apiResources,
 		Status:                  codersdk.ConvertWorkspaceStatus(apiJob.Status, transition),
 		DailyCost:               build.DailyCost,
+		MatchedProvisioners:     matchedProvisioners,
 	}, nil
 }
 

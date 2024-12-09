@@ -49,6 +49,73 @@ type Story = StoryObj<typeof TemplateVersionEditor>;
 
 export const Example: Story = {};
 
+export const UndefinedLogs: Story = {
+	args: {
+		defaultTab: "logs",
+		buildLogs: undefined,
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+		},
+	},
+};
+
+export const EmptyLogs: Story = {
+	args: {
+		defaultTab: "logs",
+		buildLogs: [],
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+		},
+	},
+};
+
+export const NoProvisioners: Story = {
+	args: {
+		defaultTab: "logs",
+		buildLogs: [],
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+			matched_provisioners: {
+				count: 0,
+				available: 0,
+			},
+		},
+	},
+};
+
+export const UnavailableProvisioners: Story = {
+	args: {
+		defaultTab: "logs",
+		buildLogs: [],
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+			matched_provisioners: {
+				count: 1,
+				available: 0,
+			},
+		},
+	},
+};
+
+export const HealthyProvisioners: Story = {
+	args: {
+		defaultTab: "logs",
+		buildLogs: [],
+		templateVersion: {
+			...MockTemplateVersion,
+			job: MockRunningProvisionerJob,
+			matched_provisioners: {
+				count: 1,
+				available: 1,
+			},
+		},
+	},
+};
+
 export const Logs: Story = {
 	args: {
 		defaultTab: "logs",

@@ -2773,6 +2773,7 @@ type TemplateVersion struct {
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
+	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2826,8 +2827,9 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message  string `db:"message" json:"message"`
-	Archived bool   `db:"archived" json:"archived"`
+	Message         string         `db:"message" json:"message"`
+	Archived        bool           `db:"archived" json:"archived"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 type TemplateVersionVariable struct {
@@ -2920,6 +2922,7 @@ type Workspace struct {
 	DeletingAt              sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool             `db:"favorite" json:"favorite"`
+	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
@@ -3223,5 +3226,6 @@ type WorkspaceTable struct {
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite bool `db:"favorite" json:"favorite"`
+	Favorite    bool         `db:"favorite" json:"favorite"`
+	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 }

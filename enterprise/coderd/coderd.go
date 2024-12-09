@@ -738,7 +738,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 			if enabled {
-				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"))
+				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
 				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 

@@ -43,13 +43,16 @@ UPDATE external_auth_links SET
 	oauth_extra = $9
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
 
--- name: RemoveRefreshToken :exec
--- Removing the refresh token disables the refresh behavior for a given
--- auth token. If a refresh token is marked invalid, it is better to remove it
--- then continually attempt to refresh the token.
+-- name: UpdateExternalAuthLinkRefreshToken :exec
 UPDATE
 	external_auth_links
 SET
-	oauth_refresh_token = '',
+	oauth_refresh_token = @oauth_refresh_token,
 	updated_at = @updated_at
-WHERE provider_id = @provider_id AND user_id = @user_id;
+WHERE
+    provider_id = @provider_id
+AND
+    user_id = @user_id
+AND
+    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
+    @oauth_refresh_token_key_id :: text = @oauth_refresh_token_key_id :: text;

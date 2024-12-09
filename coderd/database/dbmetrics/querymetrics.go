@@ -126,6 +126,13 @@ func (m queryMetricsStore) BatchUpdateWorkspaceLastUsedAt(ctx context.Context, a
 	return r0
 }
 
+func (m queryMetricsStore) BatchUpdateWorkspaceNextStartAt(ctx context.Context, arg database.BatchUpdateWorkspaceNextStartAtParams) error {
+	start := time.Now()
+	r0 := m.s.BatchUpdateWorkspaceNextStartAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("BatchUpdateWorkspaceNextStartAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) BulkMarkNotificationMessagesFailed(ctx context.Context, arg database.BulkMarkNotificationMessagesFailedParams) (int64, error) {
 	start := time.Now()
 	r0, r1 := m.s.BulkMarkNotificationMessagesFailed(ctx, arg)
@@ -1673,6 +1680,13 @@ func (m queryMetricsStore) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspacesByTemplateID(ctx, templateID)
+	m.queryLatencies.WithLabelValues("GetWorkspacesByTemplateID").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	start := time.Now()
 	workspaces, err := m.s.GetWorkspacesEligibleForTransition(ctx, now)
@@ -2093,13 +2107,6 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	return proxy, err
 }
 
-func (m queryMetricsStore) RemoveRefreshToken(ctx context.Context, arg database.RemoveRefreshTokenParams) error {
-	start := time.Now()
-	r0 := m.s.RemoveRefreshToken(ctx, arg)
-	m.queryLatencies.WithLabelValues("RemoveRefreshToken").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
@@ -2168,6 +2175,13 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m queryMetricsStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateExternalAuthLinkRefreshToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLinkRefreshToken").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -2541,6 +2555,13 @@ func (m queryMetricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg da
 	return err
 }
 
+func (m queryMetricsStore) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceNextStartAt(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceNextStartAt").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpdateWorkspaceProxy(ctx context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxy, err := m.s.UpdateWorkspaceProxy(ctx, arg)
@@ -2567,6 +2588,13 @@ func (m queryMetricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx con
 	r0, r1 := m.s.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspacesDormantDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesTTLByTemplateID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {

@@ -868,6 +868,9 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	if version.TemplateID.Valid {
 		snapVersion.TemplateID = &version.TemplateID.UUID
 	}
+	if version.SourceExampleID.Valid {
+		snapVersion.SourceExampleID = &version.SourceExampleID.String
+	}
 	return snapVersion
 }
 
@@ -1116,11 +1119,12 @@ type Template struct {
 }
 
 type TemplateVersion struct {
-	ID             uuid.UUID  `json:"id"`
-	CreatedAt      time.Time  `json:"created_at"`
-	TemplateID     *uuid.UUID `json:"template_id,omitempty"`
-	OrganizationID uuid.UUID  `json:"organization_id"`
-	JobID          uuid.UUID  `json:"job_id"`
+	ID              uuid.UUID  `json:"id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	TemplateID      *uuid.UUID `json:"template_id,omitempty"`
+	OrganizationID  uuid.UUID  `json:"organization_id"`
+	JobID           uuid.UUID  `json:"job_id"`
+	SourceExampleID *string    `json:"source_example_id,omitempty"`
 }
 
 type ProvisionerJob struct {
