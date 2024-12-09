@@ -81,6 +81,7 @@ resource "helm_release" "provisionerd_asia" {
   name       = local.provisionerd_release_name
   version    = var.provisionerd_chart_version
   namespace  = kubernetes_namespace.coder_asia.metadata.0.name
+<<<<<<< HEAD
   values = [templatefile("${path.module}/coder_helm_values.tftpl", {
     workspace_proxy  = false,
     provisionerd     = true,
@@ -101,4 +102,68 @@ resource "helm_release" "provisionerd_asia" {
     cpu_limit        = local.scenarios[var.scenario].provisionerd.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
   })]
+=======
+  values = [<<EOF
+coder:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${google_container_node_pool.node_pool["asia_coder"].name}"]
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+            - key:      "app.kubernetes.io/instance"
+              operator: "In"
+              values:   ["${local.coder_release_name}"]
+  env:
+    - name: "CODER_URL"
+      value: "${local.deployments.primary.url}"
+    - name: "CODER_VERBOSE"
+      value: "true"
+    - name: "CODER_CONFIG_DIR"
+      value: "/tmp/config"
+    - name: "CODER_CACHE_DIRECTORY"
+      value: "/tmp/coder"
+    - name: "CODER_TELEMETRY_ENABLE"
+      value: "false"
+    - name: "CODER_LOGGING_HUMAN"
+      value: "/dev/null"
+    - name: "CODER_LOGGING_STACKDRIVER"
+      value: "/dev/stderr"
+    - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
+    - name: "CODER_PROVISIONERD_TAGS"
+      value: "scope=organization"
+  image:
+    repo: ${var.provisionerd_image_repo}
+    tag: ${var.provisionerd_image_tag}
+  replicaCount: "${local.scenarios[var.scenario].provisionerd.replicas}"
+  resources:
+    requests:
+      cpu: "${local.scenarios[var.scenario].provisionerd.request}"
+      memory: "${local.scenarios[var.scenario].provisionerd.mem_request}"
+    limits:
+      cpu: "${local.scenarios[var.scenario].provisionerd.cpu_limit}"
+      memory: "${local.scenarios[var.scenario].provisionerd.mem_limit}"
+  securityContext:
+    readOnlyRootFilesystem: true
+  volumeMounts:
+  - mountPath: "/tmp"
+    name: cache
+    readOnly: false
+  volumes:
+  - emptyDir:
+      sizeLimit: 1024Mi
+    name: cache
+EOF
+  ]
+>>>>>>> 2751240f8 (scenarios)
 }
