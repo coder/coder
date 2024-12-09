@@ -33,6 +33,7 @@ import (
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/proto"
@@ -80,6 +81,7 @@ type Options struct {
 	ReportMetadataInterval       time.Duration
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
+	Execer                       agentexec.Execer
 }
 
 type Client interface {
@@ -139,6 +141,10 @@ func New(options Options) Agent {
 		prometheusRegistry = prometheus.NewRegistry()
 	}
 
+	if options.Execer == nil {
+		options.Execer = agentexec.DefaultExecer
+	}
+
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
 	a := &agent{
@@ -171,6 +177,7 @@ func New(options Options) Agent {
 
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
+		execer:             options.Execer,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -239,6 +246,7 @@ type agent struct {
 	// metrics are prometheus registered metrics that will be collected and
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
+	execer  agentexec.Execer
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {
@@ -247,7 +255,7 @@ func (a *agent) TailnetConn() *tailnet.Conn {
 
 func (a *agent) init() {
 	// pass the "hard" context because we explicitly close the SSH server as part of graceful shutdown.
-	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, &agentssh.Config{
+	sshSrv, err := agentssh.NewServer(a.hardCtx, a.logger.Named("ssh-server"), a.prometheusRegistry, a.filesystem, a.execer, &agentssh.Config{
 		MaxTimeout:          a.sshMaxTimeout,
 		MOTDFile:            func() string { return a.manifest.Load().MOTDFile },
 		AnnouncementBanners: func() *[]codersdk.BannerConfig { return a.announcementBanners.Load() },

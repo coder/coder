@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
@@ -160,7 +161,7 @@ func setup(t *testing.T, getScriptLogger func(logSourceID uuid.UUID) agentscript
 	}
 	fs := afero.NewMemMapFs()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, nil)
+	s, err := agentssh.NewServer(context.Background(), logger, prometheus.NewRegistry(), fs, agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = s.Close()

@@ -65,9 +65,9 @@ resource "random_password" "admin_password" {
   length  = 16
   special = true
   # https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements#reference
-  # we remove characters that require special handling in XML, as this is how we pass it to the VM
-  # namely: <>&'"
-  override_special = "~!@#$%^*_-+=`|\\(){}[]:;,.?/"
+  # we remove characters that require special handling in XML, as this is how we pass it to the VM; we also remove the powershell escape character
+  # namely: <>&'`"
+  override_special = "~!@#$%^*_-+=|\\(){}[]:;,.?/"
 }
 
 locals {

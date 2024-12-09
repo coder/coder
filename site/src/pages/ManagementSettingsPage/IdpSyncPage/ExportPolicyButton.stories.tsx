@@ -8,7 +8,7 @@ import {
 import { ExportPolicyButton } from "./ExportPolicyButton";
 
 const meta: Meta<typeof ExportPolicyButton> = {
-	title: "modules/resources/ExportPolicyButton",
+	title: "pages/IdpSyncPage/ExportPolicyButton",
 	component: ExportPolicyButton,
 	args: {
 		syncSettings: MockGroupSyncSettings,

@@ -1,5 +1,5 @@
 ---
-display_name: Envbox (Kubernetes)
+display_name: Kubernetes (Envbox)
 description: Provision envbox pods as Coder workspaces
 icon: ../../../site/static/icon/k8s.png
 maintainer_github: coder

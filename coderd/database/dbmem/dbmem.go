@@ -10192,6 +10192,26 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 	return affectedRows, nil
 }
 
+func (q *FakeQuerier) UpdateWorkspacesTTLByTemplateID(_ context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		q.workspaces[i].Ttl = arg.Ttl
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()

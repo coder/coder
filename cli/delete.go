@@ -21,6 +21,12 @@ func (r *RootCmd) deleteWorkspace() *serpent.Command {
 		Annotations: workspaceCommand,
 		Use:         "delete <workspace>",
 		Short:       "Delete a workspace",
+		Long: FormatExamples(
+			Example{
+				Description: "Delete a workspace for another user (if you have permission)",
+				Command:     "coder delete <username>/<workspace_name>",
+			},
+		),
 		Middleware: serpent.Chain(
 			serpent.RequireNArgs(1),
 			r.InitClient(client),

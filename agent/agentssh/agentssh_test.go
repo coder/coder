@@ -22,6 +22,7 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/pty/ptytest"
 	"github.com/coder/coder/v2/testutil"
@@ -36,7 +37,7 @@ func TestNewServer_ServeClient(t *testing.T) {
 
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -77,7 +78,7 @@ func TestNewServer_ExecuteShebang(t *testing.T) {
 
 	ctx := context.Background()
 	logger := testutil.Logger(t)
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = s.Close()
@@ -108,7 +109,7 @@ func TestNewServer_CloseActiveConnections(t *testing.T) {
 
 	ctx := context.Background()
 	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
-	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+	s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 	require.NoError(t, err)
 	defer s.Close()
 
@@ -159,7 +160,7 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := testutil.Logger(t)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
 
@@ -224,7 +225,7 @@ func TestNewServer_Signal(t *testing.T) {
 
 		ctx := context.Background()
 		logger := testutil.Logger(t)
-		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), nil)
+		s, err := agentssh.NewServer(ctx, logger, prometheus.NewRegistry(), afero.NewMemMapFs(), agentexec.DefaultExecer, nil)
 		require.NoError(t, err)
 		defer s.Close()
 

@@ -53,7 +53,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # the below token should have repo scope and must be manually added by you in the repository's secret
-          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCOMMUNITY_GITHUB_TOKEN }}
+          PERSONAL_ACCESS_TOKEN: ${{ secrets.CDRCI2_GITHUB_TOKEN }}
         with:
           remote-organization-name: "coder"
           remote-repository-name: "cla"

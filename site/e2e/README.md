@@ -55,7 +55,7 @@ code .
 Enterprise tests require a license key to run.
 
 ```shell
-export CODER_E2E_ENTERPRISE_LICENSE=<license key>
+export CODER_E2E_LICENSE=<license key>
 ```
 
 # Debugging tests

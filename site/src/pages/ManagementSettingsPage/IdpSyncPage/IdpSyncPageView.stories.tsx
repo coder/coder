@@ -12,7 +12,7 @@ import {
 import { IdpSyncPageView } from "./IdpSyncPageView";
 
 const meta: Meta<typeof IdpSyncPageView> = {
-	title: "pages/OrganizationIdpSyncPage",
+	title: "pages/IdpSyncPage",
 	component: IdpSyncPageView,
 };
 

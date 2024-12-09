@@ -14,6 +14,14 @@ Aliases:
 coder delete [flags] <workspace>
 ```
 
+## Description
+
+```console
+  - Delete a workspace for another user (if you have permission):
+
+     $ coder delete <username>/<workspace_name>
+```
+
 ## Options
 
 ### --orphan

@@ -4138,6 +4138,17 @@ func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Cont
 	return q.db.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
 }
 
+func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return xerrors.Errorf("get template by id: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+}
+
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {
 	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceDeploymentConfig); err != nil {
 		return err

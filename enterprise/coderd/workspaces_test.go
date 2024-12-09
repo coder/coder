@@ -1117,9 +1117,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			clock   = quartz.NewMock(t)
 		)
 
-		// Set the clock to 8AM Monday, 1st January, 2024 to keep
-		// this test deterministic.
-		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		clock.Set(dbtime.Now())
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -1129,7 +1127,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildStats:           statsCh,
 				Logger:                   &logger,
 				Clock:                    clock,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, clock),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -1185,7 +1183,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			}
 
 			// Ensure that there is a valid next start at and that is is after
-			// the preivous start.
+			// the previous start.
 			require.NotNil(t, ws.NextStartAt)
 			require.Greater(t, *ws.NextStartAt, next)
 

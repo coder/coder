@@ -309,6 +309,11 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				)
 			}
 
+			execer, err := agentexec.NewExecer()
+			if err != nil {
+				return xerrors.Errorf("create agent execer: %w", err)
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -333,6 +338,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
+				Execer:             execer,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)

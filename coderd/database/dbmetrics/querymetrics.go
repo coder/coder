@@ -2590,6 +2590,13 @@ func (m queryMetricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx con
 	return r0, r1
 }
 
+func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesTTLByTemplateID").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {
 	start := time.Now()
 	r0 := m.s.UpsertAnnouncementBanners(ctx, value)

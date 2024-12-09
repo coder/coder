@@ -50,7 +50,12 @@
 		"@mui/system": "5.16.7",
 		"@mui/utils": "5.16.6",
 		"@mui/x-tree-view": "7.18.0",
+		"@radix-ui/react-dialog": "1.1.2",
+		"@radix-ui/react-label": "2.1.0",
+		"@radix-ui/react-slider": "1.2.1",
 		"@radix-ui/react-slot": "1.1.0",
+		"@radix-ui/react-switch": "1.1.1",
+		"@radix-ui/react-visually-hidden": "1.1.0",
 		"@tanstack/react-query-devtools": "4.35.3",
 		"@xterm/addon-canvas": "0.7.0",
 		"@xterm/addon-fit": "0.10.0",
@@ -67,6 +72,7 @@
 		"chroma-js": "2.4.2",
 		"class-variance-authority": "0.7.0",
 		"clsx": "2.1.1",
+		"cmdk": "1.0.0",
 		"color-convert": "2.0.1",
 		"cron-parser": "4.9.0",
 		"cronstrue": "2.50.0",
@@ -176,7 +182,11 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
+	"browserslist": [
+		"chrome 110",
+		"firefox 111",
+		"safari 16.0"
+	],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

@@ -1,5 +1,5 @@
 ---
-display_name: Devcontainers (Docker)
+display_name: Docker (Devcontainer)
 description: Provision envbuilder containers as Coder workspaces
 icon: ../../../site/static/icon/docker.png
 maintainer_github: coder

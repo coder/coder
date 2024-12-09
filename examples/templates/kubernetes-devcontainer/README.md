@@ -1,5 +1,5 @@
 ---
-display_name: Devcontainers (Kubernetes)
+display_name: Kubernetes (Devcontainer)
 description: Provision envbuilder pods as Coder workspaces
 icon: ../../../site/static/icon/k8s.png
 maintainer_github: coder

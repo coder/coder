@@ -38,7 +38,7 @@ choose a template from the
 1. Use the `template init` command to initialize your choice of image:
 
    ```shell
-   coder template init --id devcontainer-kubernetes
+   coder template init --id kubernetes-devcontainer
    ```
 
    A list of available templates is shown in the
@@ -47,7 +47,7 @@ choose a template from the
 1. `cd` into the directory and push the template to your Coder deployment:
 
    ```shell
-   cd devcontainer-kubernetes && coder templates push
+   cd kubernetes-devcontainer && coder templates push
    ```
 
    You can also edit the files or make changes to the files before you push them
@@ -122,8 +122,8 @@ their development environments:
 
 | Template                                                                                                            | Description                                                                                                                                                         |
 | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-docker)            | Docker provisions a development container.                                                                                                                          |
-| [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/devcontainer-kubernetes)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
+| [Docker dev containers](https://github.com/coder/coder/tree/main/examples/templates/docker-devcontainer)            | Docker provisions a development container.                                                                                                                          |
+| [Kubernetes dev containers](https://github.com/coder/coder/tree/main/examples/templates/kubernetes-devcontainer)    | Provisions a development container on the Kubernetes cluster.                                                                                                       |
 | [Google Compute Engine dev container](https://github.com/coder/coder/tree/main/examples/templates/gcp-devcontainer) | Runs a development container inside a single GCP instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 | [AWS EC2 dev container](https://github.com/coder/coder/tree/main/examples/templates/aws-devcontainer)               | Runs a development container inside a single EC2 instance. It also mounts the Docker socket from the VM inside the container to enable Docker inside the workspace. |
 
