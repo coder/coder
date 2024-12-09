@@ -4,11 +4,11 @@ import CodeOutlined from "@mui/icons-material/CodeOutlined";
 import TagOutlined from "@mui/icons-material/TagOutlined";
 import Tooltip from "@mui/material/Tooltip";
 import type {
+	DERPNodeReport,
+	DERPRegionReport,
 	HealthMessage,
 	HealthSeverity,
 	HealthcheckReport,
-	DERPRegionReport,
-	DERPNodeReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";

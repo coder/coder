@@ -6,7 +6,7 @@ toolchain go1.23.3
 
 require (
 	github.com/coder/coder/v2 v2.0.0-00010101000000-000000000000
-	github.com/coder/guts v0.0.0-20241209215642-27b52f675ebe
+	github.com/coder/guts v0.0.0-20241209221220-f181da87c0bc
 	github.com/coder/serpent v0.10.0
 	github.com/stretchr/testify v1.10.0
 )

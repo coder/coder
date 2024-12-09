@@ -522,6 +522,7 @@ export interface DERPHealthReport extends BaseReport {
 	readonly healthy: boolean;
 	readonly regions: Record<number, DERPRegionReport | null>;
 	// Invalid type, using 'any'. Might be a reference to any external package
+	// biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
 	readonly netcheck?: any;
 	readonly netcheck_err?: string;
 	readonly netcheck_logs: readonly string[];
@@ -534,8 +535,10 @@ export interface DERPNodeReport {
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
 	// Invalid type, using 'any'. Might be a reference to any external package
+	// biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
 	readonly node: any | null;
 	// Invalid type, using 'any'. Might be a reference to any external package
+	// biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
 	readonly node_info: any;
 	readonly can_exchange_messages: boolean;
 	readonly round_trip_ping: string;
@@ -559,6 +562,7 @@ export interface DERPRegionReport {
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
 	// Invalid type, using 'any'. Might be a reference to any external package
+	// biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
 	readonly region: any | null;
 	readonly node_reports: readonly (DERPNodeReport | null)[];
 }
