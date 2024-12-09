@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/pty"
 )
@@ -55,7 +56,7 @@ type ReconnectingPTY interface {
 // close itself (and all connections to it) if nothing is attached for the
 // duration of the timeout, if the context ends, or the process exits (buffered
 // backend only).
-func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger) ReconnectingPTY {
+func New(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) ReconnectingPTY {
 	if options.Timeout == 0 {
 		options.Timeout = 5 * time.Minute
 	}
@@ -75,9 +76,9 @@ func New(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger
 
 	switch backendType {
 	case "screen":
-		return newScreen(ctx, cmd, options, logger)
+		return newScreen(ctx, logger, execer, cmd, options)
 	default:
-		return newBuffered(ctx, cmd, options, logger)
+		return newBuffered(ctx, logger, execer, cmd, options)
 	}
 }
 

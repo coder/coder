@@ -501,6 +501,14 @@ SET
 WHERE
 	id = $1;
 
+-- name: UpdateWorkspacesTTLByTemplateID :exec
+UPDATE
+		workspaces
+SET
+		ttl = $2
+WHERE
+		template_id = $1;
+
 -- name: UpdateWorkspaceLastUsedAt :exec
 UPDATE
 	workspaces
