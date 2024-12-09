@@ -86,9 +86,9 @@ provisioner and the provisioner is responsible for executing the Terraform.
 There are planned improvements to the troubleshooting provisioners process.
 Follow these GitHub issues for more details:
 
-- [coder/coder:15048](https://github.com/coder/coder/issues/15048)
-- [coder/coder:15087](https://github.com/coder/coder/issues/15087)
-- [coder/coder:15192](https://github.com/coder/coder/issues/15192)
+- [coder/coder#15048](https://github.com/coder/coder/issues/15048)
+- [coder/coder#15087](https://github.com/coder/coder/issues/15087)
+- [coder/coder#15192](https://github.com/coder/coder/issues/15192)
 
 ## Identity Provider (SSO) Sync
 
@@ -101,13 +101,13 @@ organization roles.
 ### Planned enhancements
 
 Organization and site-wide role sync is managed via server flags. We plan on
-changing this to runtime configuration so Coder does not need a re-deploy.
+changing this to runtime configuration so Coder does not need a re-deploy:
 
-- Issue [coder/internal:86](https://github.com/coder/internal/issues/86)
+- Issue [coder/internal#86](https://github.com/coder/internal/issues/86)
 
-Make all sync configurable via the dashboard UI.
+Make all sync configurable via the dashboard UI:
 
-- [coder/coder:15290](https://github.com/coder/coder/issues/15290)
+- [coder/coder#15290](https://github.com/coder/coder/issues/15290)
 
 Regex filters and mapping can be configured to ensure the proper resources are
 allocated in Coder. Learn more about [IDP sync](../../admin/users/idp-sync.md).
@@ -147,7 +147,7 @@ starter templates.
 
 Support for managing Organizations via the coderd Terrafom provider is planned
 so that this can be done declaratively and bulk updates to things like templates
-and quotas can be performed easily.
+and quotas can be performed easily:
 
 - Issue
-  [coder/terraform-provider-coderd:39](https://github.com/coder/terraform-provider-coderd/issues/39)
+  [coder/terraform-provider-coderd#39](https://github.com/coder/terraform-provider-coderd/issues/39)
