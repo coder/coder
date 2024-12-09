@@ -35,12 +35,12 @@ curl '${local.deployments.primary.url}/api/v2/licenses' \
 
 europe_token=$(curl '${local.deployments.primary.url}/api/v2/workspaceproxies' \
   -H "Coder-Session-Token: $${token}" \
-  --data-raw '{"name":"europe","display_name":"Europe","icon":"/emojis/1f35b.png"}' \
+  --data-raw '{"name":"europe","display_name":"Europe","icon":"/emojis/1f950.png"}' \
   --insecure --silent | jq -r .proxy_token)
 
 asia_token=$(curl '${local.deployments.primary.url}/api/v2/workspaceproxies' \
   -H "Coder-Session-Token: $${token}" \
-  --data-raw '{"name":"asia","display_name":"Asia","icon":"/emojis/1f950.png"}' \
+  --data-raw '{"name":"asia","display_name":"Asia","icon":"/emojis/1f35b.png"}' \
   --insecure --silent | jq -r .proxy_token)
 
 mkdir -p ${path.module}/.coderv2
