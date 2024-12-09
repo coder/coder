@@ -27,6 +27,8 @@ resource "kubernetes_namespace" "coder_primary" {
   lifecycle {
     ignore_changes = [timeouts, wait_for_default_service_account]
   }
+
+  depends_on = [google_container_node_pool.node_pool["primary_misc"]]
 }
 
 resource "kubernetes_secret" "coder_db" {

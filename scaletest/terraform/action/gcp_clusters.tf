@@ -90,11 +90,11 @@ resource "google_container_cluster" "cluster" {
 }
 
 resource "google_container_node_pool" "node_pool" {
-  for_each = local.node_pools
-  name     = each.value.name
-  location = local.deployments[each.value.cluster].zone
-  project  = var.project_id
-  cluster  = google_container_cluster.cluster[each.value.cluster].name
+  for_each   = local.node_pools
+  name       = each.value.name
+  location   = local.deployments[each.value.cluster].zone
+  project    = var.project_id
+  cluster    = google_container_cluster.cluster[each.value.cluster].name
   node_count = local.scenarios[var.scenario][each.value.name].nodepool_size
   node_config {
     oauth_scopes = [

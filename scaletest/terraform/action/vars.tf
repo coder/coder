@@ -5,7 +5,7 @@ variable "name" {
 variable "scenario" {
   description = "The scenario to deploy"
   validation {
-    condition = contains(["small", "medium", "large"], var.scenario)
+    condition     = contains(["small", "medium", "large"], var.scenario)
     error_message = "Scenario must be one of small, medium, or large"
   }
 }

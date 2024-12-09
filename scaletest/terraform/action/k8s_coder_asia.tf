@@ -7,6 +7,8 @@ resource "kubernetes_namespace" "coder_asia" {
   lifecycle {
     ignore_changes = [timeouts, wait_for_default_service_account]
   }
+
+  depends_on = [google_container_node_pool.node_pool["asia_misc"]]
 }
 
 resource "kubernetes_secret" "provisionerd_psk_asia" {
