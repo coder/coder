@@ -1017,6 +1017,12 @@ func (s *MethodTestSuite) TestTemplate() {
 			TemplateID: t1.ID,
 		}).Asserts(t1, policy.ActionUpdate)
 	}))
+	s.Run("UpdateWorkspacesTTLByTemplateID", s.Subtest(func(db database.Store, check *expects) {
+		t1 := dbgen.Template(s.T(), db, database.Template{})
+		check.Args(database.UpdateWorkspacesTTLByTemplateIDParams{
+			TemplateID: t1.ID,
+		}).Asserts(t1, policy.ActionUpdate)
+	}))
 	s.Run("UpdateTemplateActiveVersionByID", s.Subtest(func(db database.Store, check *expects) {
 		t1 := dbgen.Template(s.T(), db, database.Template{
 			ActiveVersionID: uuid.New(),

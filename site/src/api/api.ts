@@ -712,6 +712,24 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getOrganizationIdpSyncSettings =
+		async (): Promise<TypesGen.OrganizationSyncSettings> => {
+			const response = await this.axios.get<TypesGen.OrganizationSyncSettings>(
+				"/api/v2/settings/idpsync/organization",
+			);
+			return response.data;
+		};
+
+	patchOrganizationIdpSyncSettings = async (
+		data: TypesGen.OrganizationSyncSettings,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			"/api/v2/settings/idpsync/organization",
+			data,
+		);
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */

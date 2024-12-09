@@ -195,6 +195,23 @@ func (s *EnterpriseTemplateScheduleStore) Set(ctx context.Context, db database.S
 			return xerrors.Errorf("get updated template schedule: %w", err)
 		}
 
+		// Update all workspace's TTL using this template if either of the following:
+		//   - The template's AllowUserAutostop has just been disabled
+		//   - The template's TTL has been modified and AllowUserAutostop is disabled
+		if !opts.UserAutostopEnabled && (tpl.AllowUserAutostop || int64(opts.DefaultTTL) != tpl.DefaultTTL) {
+			var ttl sql.NullInt64
+			if opts.DefaultTTL != 0 {
+				ttl = sql.NullInt64{Valid: true, Int64: int64(opts.DefaultTTL)}
+			}
+
+			if err = tx.UpdateWorkspacesTTLByTemplateID(ctx, database.UpdateWorkspacesTTLByTemplateIDParams{
+				TemplateID: template.ID,
+				Ttl:        ttl,
+			}); err != nil {
+				return xerrors.Errorf("update workspaces ttl by template id %q: %w", template.ID, err)
+			}
+		}
+
 		// Recalculate max_deadline and deadline for all running workspace
 		// builds on this template.
 		err = s.updateWorkspaceBuilds(ctx, tx, template)
