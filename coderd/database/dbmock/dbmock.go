@@ -5486,6 +5486,20 @@ func (mr *MockStoreMockRecorder) UpdateWorkspacesDormantDeletingAtByTemplateID(a
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesDormantDeletingAtByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesDormantDeletingAtByTemplateID), arg0, arg1)
 }
 
+// UpdateWorkspacesTTLByTemplateID mocks base method.
+func (m *MockStore) UpdateWorkspacesTTLByTemplateID(arg0 context.Context, arg1 database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateWorkspacesTTLByTemplateID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateWorkspacesTTLByTemplateID indicates an expected call of UpdateWorkspacesTTLByTemplateID.
+func (mr *MockStoreMockRecorder) UpdateWorkspacesTTLByTemplateID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspacesTTLByTemplateID", reflect.TypeOf((*MockStore)(nil).UpdateWorkspacesTTLByTemplateID), arg0, arg1)
+}
+
 // UpsertAnnouncementBanners mocks base method.
 func (m *MockStore) UpsertAnnouncementBanners(arg0 context.Context, arg1 string) error {
 	m.ctrl.T.Helper()
