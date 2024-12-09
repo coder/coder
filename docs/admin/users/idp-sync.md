@@ -431,12 +431,12 @@ settings, a user's memberships will update when they log out and log back in.
 1. In the **Organization sync field** text box, enter the organization claim,
    then select **Save**.
 
-   If there are already users in the default organization, leave **Assign
-   Default Organization** enabled. Disabling it might remove users from the
-   default organization.
+   Do not disable **Assign Default Organization** if there are already users in
+   the default organization. If you disable the default organization, the system
+   will remove users who are already assigned to it.
 
-1. Enter an IdP organization name and Coder organization, then select **Add IdP
-   organization**:
+1. Enter an IdP organization name and Coder organization(s), then select **Add
+   IdP organization**:
 
    ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
 
