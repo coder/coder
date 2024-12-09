@@ -321,9 +321,26 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Devcontainers",
-									"description": "Learn about using devcontainers in templates",
-									"path": "./admin/templates/managing-templates/devcontainers.md"
+									"title": "Dev containers",
+									"description": "Learn about using development containers in templates",
+									"path": "./admin/templates/managing-templates/devcontainers/index.md",
+									"children": [
+										{
+											"title": "Add a dev container template",
+											"description": "How to add a dev container template to Coder",
+											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
+										},
+										{
+											"title": "Dev container security and caching",
+											"description": "Configure dev container authentication and caching",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
+										},
+										{
+											"title": "Dev container releases and known issues",
+											"description": "Dev container releases and known issues",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
+										}
+									]
 								},
 								{
 									"title": "Template Dependencies",
@@ -708,6 +725,11 @@
 					"title": "Cloning Git Repositories",
 					"description": "Learn how to clone Git repositories in Coder",
 					"path": "./tutorials/cloning-git-repositories.md"
+				},
+				{
+					"title": "Test Templates Through CI/CD",
+					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
+					"path": "./tutorials/testing-templates.md"
 				},
 				{
 					"title": "Use Apache as a Reverse Proxy",

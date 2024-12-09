@@ -523,6 +523,7 @@ export interface DeploymentValues {
 	readonly cli_upgrade_message?: string;
 	readonly terms_of_service_url?: string;
 	readonly notifications?: NotificationsConfig;
+	readonly additional_csp_policy?: string[];
 	readonly config?: string;
 	readonly write_config?: boolean;
 	readonly address?: string;
@@ -756,6 +757,13 @@ export interface LoginWithPasswordRequest {
 // From codersdk/users.go
 export interface LoginWithPasswordResponse {
 	readonly session_token: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface MatchedProvisioners {
+	readonly count: number;
+	readonly available: number;
+	readonly most_recently_seen?: string;
 }
 
 // From codersdk/organizations.go
@@ -1463,6 +1471,7 @@ export interface TemplateVersion {
 	readonly created_by: MinimalUser;
 	readonly archived: boolean;
 	readonly warnings?: Readonly<Array<TemplateVersionWarning>>;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/templateversions.go
@@ -1838,6 +1847,7 @@ export interface Workspace {
 	readonly automatic_updates: AutomaticUpdates;
 	readonly allow_renames: boolean;
 	readonly favorite: boolean;
+	readonly next_start_at?: string;
 }
 
 // From codersdk/workspaceagents.go
@@ -2003,6 +2013,7 @@ export interface WorkspaceBuild {
 	readonly max_deadline?: string;
 	readonly status: WorkspaceStatus;
 	readonly daily_cost: number;
+	readonly matched_provisioners?: MatchedProvisioners;
 }
 
 // From codersdk/workspacebuilds.go

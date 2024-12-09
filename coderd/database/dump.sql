@@ -380,6 +380,25 @@ BEGIN
 END;
 $$;
 
+CREATE FUNCTION nullify_next_start_at_on_workspace_autostart_modification() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	-- A workspace's next_start_at might be invalidated by the following:
+	--   * The autostart schedule has changed independent to next_start_at
+	--   * The workspace has been marked as dormant
+	IF (NEW.autostart_schedule <> OLD.autostart_schedule AND NEW.next_start_at = OLD.next_start_at)
+		OR (NEW.dormant_at IS NOT NULL AND NEW.next_start_at IS NOT NULL)
+	THEN
+		UPDATE workspaces
+		SET next_start_at = NULL
+		WHERE id = NEW.id;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
     LANGUAGE plpgsql
     AS $$
@@ -1217,7 +1236,8 @@ CREATE TABLE template_versions (
     created_by uuid NOT NULL,
     external_auth_providers jsonb DEFAULT '[]'::jsonb NOT NULL,
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
-    archived boolean DEFAULT false NOT NULL
+    archived boolean DEFAULT false NOT NULL,
+    source_example_id text
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -1245,6 +1265,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.external_auth_providers,
     template_versions.message,
     template_versions.archived,
+    template_versions.source_example_id,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (template_versions
@@ -1729,7 +1750,8 @@ CREATE TABLE workspaces (
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -1750,6 +1772,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.deleting_at,
     workspaces.automatic_updates,
     workspaces.favorite,
+    workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     organizations.name AS organization_name,
@@ -2108,9 +2131,13 @@ CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING b
 
 CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
 
+CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
+
+CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
@@ -2189,6 +2216,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 

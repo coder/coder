@@ -39,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 )
@@ -396,11 +397,9 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 	}
 	go httpapi.Heartbeat(ctx, conn)
 
-	ctx, wsNetConn := codersdk.WebsocketNetConn(ctx, conn, websocket.MessageText)
-	defer wsNetConn.Close() // Also closes conn.
+	encoder := wsjson.NewEncoder[[]codersdk.WorkspaceAgentLog](conn, websocket.MessageText)
+	defer encoder.Close(websocket.StatusNormalClosure)
 
-	// The Go stdlib JSON encoder appends a newline character after message write.
-	encoder := json.NewEncoder(wsNetConn)
 	err = encoder.Encode(convertWorkspaceAgentLogs(logs))
 	if err != nil {
 		return
@@ -740,16 +739,8 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-	ctx, nconn := codersdk.WebsocketNetConn(ctx, ws, websocket.MessageBinary)
-	defer nconn.Close()
-
-	// Slurp all packets from the connection into io.Discard so pongs get sent
-	// by the websocket package. We don't do any reads ourselves so this is
-	// necessary.
-	go func() {
-		_, _ = io.Copy(io.Discard, nconn)
-		_ = nconn.Close()
-	}()
+	encoder := wsjson.NewEncoder[*tailcfg.DERPMap](ws, websocket.MessageBinary)
+	defer encoder.Close(websocket.StatusGoingAway)
 
 	go func(ctx context.Context) {
 		// TODO(mafredri): Is this too frequent? Use separate ping disconnect timeout?
@@ -767,7 +758,7 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 			err := ws.Ping(ctx)
 			cancel()
 			if err != nil {
-				_ = nconn.Close()
+				_ = ws.Close(websocket.StatusGoingAway, "ping failed")
 				return
 			}
 		}
@@ -780,9 +771,8 @@ func (api *API) derpMapUpdates(rw http.ResponseWriter, r *http.Request) {
 	for {
 		derpMap := api.DERPMap()
 		if lastDERPMap == nil || !tailnet.CompareDERPMaps(lastDERPMap, derpMap) {
-			err := json.NewEncoder(nconn).Encode(derpMap)
+			err := encoder.Encode(derpMap)
 			if err != nil {
-				_ = nconn.Close()
 				return
 			}
 			lastDERPMap = derpMap

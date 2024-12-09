@@ -14,7 +14,7 @@ importers:
     dependencies:
       widdershins:
         specifier: ^4.0.1
-        version: 4.0.1(ajv@6.12.6)(mkdirp@3.0.1)
+        version: 4.0.1(ajv@5.5.2)(mkdirp@3.0.1)
 
 packages:
 
@@ -141,8 +141,8 @@ packages:
   core-js@3.31.0:
     resolution: {integrity: sha512-NIp2TQSGfR6ba5aalZD+ZQ1fSxGhDo/s1w0nx3RYzf2pnJxt7YynxFlFScP6eV7+GZsKO95NSjGxyJsU3DZgeQ==}
 
-  cross-spawn@6.0.5:
-    resolution: {integrity: sha512-eTVLrBSt7fjbDygz805pMnstIs2VTBNkRm0qxZd+M7A5XDdxVRWO5MxGBXZhjY4cqLYLdtrGqRf8mBPmzwSpWQ==}
+  cross-spawn@6.0.6:
+    resolution: {integrity: sha512-VqCUuhcd1iB+dsv8gxPttb5iZh/D0iubSP21g36KXdEuf6I5JiioesUVjpCdHV9MZRUfVFlvwtIUyPfxo5trtw==}
     engines: {node: '>=4.8'}
 
   debug@2.6.9:
@@ -785,17 +785,6 @@ snapshots:
       jsonpointer: 5.0.1
       leven: 3.1.0
 
-  better-ajv-errors@0.6.7(ajv@6.12.6):
-    dependencies:
-      '@babel/code-frame': 7.22.5
-      '@babel/runtime': 7.22.6
-      ajv: 6.12.6
-      chalk: 2.4.2
-      core-js: 3.31.0
-      json-to-ast: 2.1.0
-      jsonpointer: 5.0.1
-      leven: 3.1.0
-
   call-me-maybe@1.0.2: {}
 
   camelcase@5.3.1: {}
@@ -858,7 +847,7 @@ snapshots:
 
   core-js@3.31.0: {}
 
-  cross-spawn@6.0.5:
+  cross-spawn@6.0.6:
     dependencies:
       nice-try: 1.0.5
       path-key: 2.0.1
@@ -904,7 +893,7 @@ snapshots:
 
   execa@1.0.0:
     dependencies:
-      cross-spawn: 6.0.5
+      cross-spawn: 6.0.6
       get-stream: 4.1.0
       is-stream: 1.1.0
       npm-run-path: 2.0.2
@@ -1317,9 +1306,9 @@ snapshots:
     dependencies:
       has-flag: 3.0.0
 
-  swagger2openapi@6.2.3(ajv@6.12.6):
+  swagger2openapi@6.2.3(ajv@5.5.2):
     dependencies:
-      better-ajv-errors: 0.6.7(ajv@6.12.6)
+      better-ajv-errors: 0.6.7(ajv@5.5.2)
       call-me-maybe: 1.0.2
       node-fetch-h2: 2.3.0
       node-readfiles: 0.2.0
@@ -1358,7 +1347,7 @@ snapshots:
     dependencies:
       isexe: 2.0.0
 
-  widdershins@4.0.1(ajv@6.12.6)(mkdirp@3.0.1):
+  widdershins@4.0.1(ajv@5.5.2)(mkdirp@3.0.1):
     dependencies:
       dot: 1.1.3
       fast-safe-stringify: 2.1.1
@@ -1372,7 +1361,7 @@ snapshots:
       oas-schema-walker: 1.1.5
       openapi-sampler: 1.3.1
       reftools: 1.1.9
-      swagger2openapi: 6.2.3(ajv@6.12.6)
+      swagger2openapi: 6.2.3(ajv@5.5.2)
       urijs: 1.19.11
       yaml: 1.10.2
       yargs: 12.0.5

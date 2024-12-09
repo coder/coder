@@ -19,6 +19,7 @@ import (
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
 )
@@ -49,6 +50,23 @@ type ProvisionerDaemon struct {
 	APIVersion     string            `json:"api_version"`
 	Provisioners   []ProvisionerType `json:"provisioners"`
 	Tags           map[string]string `json:"tags"`
+}
+
+// MatchedProvisioners represents the number of provisioner daemons
+// available to take a job at a specific point in time.
+// Introduced in Coder version 2.18.0.
+type MatchedProvisioners struct {
+	// Count is the number of provisioner daemons that matched the given
+	// tags. If the count is 0, it means no provisioner daemons matched the
+	// requested tags.
+	Count int `json:"count"`
+	// Available is the number of provisioner daemons that are available to
+	// take jobs. This may be less than the count if some provisioners are
+	// busy or have been stopped.
+	Available int `json:"available"`
+	// MostRecentlySeen is the most recently seen time of the set of matched
+	// provisioners. If no provisioners matched, this field will be null.
+	MostRecentlySeen NullTime `json:"most_recently_seen,omitempty" format:"date-time"`
 }
 
 // ProvisionerJobStatus represents the at-time state of a job.
@@ -145,36 +163,8 @@ func (c *Client) provisionerJobLogsAfter(ctx context.Context, path string, after
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logs := make(chan ProvisionerJobLog)
-	closed := make(chan struct{})
-	go func() {
-		defer close(closed)
-		defer close(logs)
-		defer conn.Close(websocket.StatusGoingAway, "")
-		var log ProvisionerJobLog
-		for {
-			msgType, msg, err := conn.Read(ctx)
-			if err != nil {
-				return
-			}
-			if msgType != websocket.MessageText {
-				return
-			}
-			err = json.Unmarshal(msg, &log)
-			if err != nil {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case logs <- log:
-			}
-		}
-	}()
-	return logs, closeFunc(func() error {
-		<-closed
-		return nil
-	}), nil
+	d := wsjson.NewDecoder[ProvisionerJobLog](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
 }
 
 // ServeProvisionerDaemonRequest are the parameters to call ServeProvisionerDaemon with
@@ -365,6 +355,26 @@ func (c *Client) ListProvisionerKeys(ctx context.Context, organizationID uuid.UU
 		return nil, ReadBodyAsError(res)
 	}
 	var resp []ProvisionerKey
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// GetProvisionerKey returns the provisioner key.
+func (c *Client) GetProvisionerKey(ctx context.Context, pk string) (ProvisionerKey, error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/provisionerkeys/%s", pk), nil,
+		func(req *http.Request) {
+			req.Header.Add(ProvisionerDaemonKey, pk)
+		},
+	)
+	if err != nil {
+		return ProvisionerKey{}, xerrors.Errorf("request to fetch provisioner key failed: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return ProvisionerKey{}, ReadBodyAsError(res)
+	}
+	var resp ProvisionerKey
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

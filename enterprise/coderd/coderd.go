@@ -343,6 +343,15 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		r.Route("/provisionerkeys", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+					DB:       api.Database,
+					Optional: false,
+				}),
+			)
+			r.Get("/{provisionerkey}", api.fetchProvisionerKey)
+		})
 		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
@@ -729,7 +738,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 			if enabled {
-				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"))
+				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
 				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 

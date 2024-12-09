@@ -1329,10 +1329,22 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 
 				wantBody, err := os.ReadFile(goldenFile)
 				require.NoError(t, err, fmt.Sprintf("missing golden notification body file. %s", hint))
+				wantBody = normalizeLineEndings(wantBody)
 				require.Equal(t, wantBody, content, fmt.Sprintf("smtp notification does not match golden file. If this is expected, %s", hint))
 			})
 		})
 	}
+}
+
+// normalizeLineEndings ensures that all line endings are normalized to \n.
+// Required for Windows compatibility.
+func normalizeLineEndings(content []byte) []byte {
+	content = bytes.ReplaceAll(content, []byte("\r\n"), []byte("\n"))
+	content = bytes.ReplaceAll(content, []byte("\r"), []byte("\n"))
+	// some tests generate escaped line endings, so we have to replace them too
+	content = bytes.ReplaceAll(content, []byte("\\r\\n"), []byte("\\n"))
+	content = bytes.ReplaceAll(content, []byte("\\r"), []byte("\\n"))
+	return content
 }
 
 func normalizeGoldenEmail(content []byte) []byte {
@@ -1363,6 +1375,7 @@ func normalizeGoldenWebhook(content []byte) []byte {
 	const constantUUID = "00000000-0000-0000-0000-000000000000"
 	uuidRegex := regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}`)
 	content = uuidRegex.ReplaceAll(content, []byte(constantUUID))
+	content = normalizeLineEndings(content)
 
 	return content
 }

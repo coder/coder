@@ -2,6 +2,7 @@ package notifications_test
 
 import (
 	"context"
+	"runtime"
 	"strconv"
 	"sync"
 	"testing"
@@ -130,6 +131,11 @@ func TestMetrics(t *testing.T) {
 				t.Logf("coderd_notifications_queued_seconds > 0: %v", metric.Histogram.GetSampleSum())
 			}
 
+			// This check is extremely flaky on windows. It fails more often than not, but not always.
+			if runtime.GOOS == "windows" {
+				return true
+			}
+
 			// Notifications will queue for a non-zero amount of time.
 			return metric.Histogram.GetSampleSum() > 0
 		},
@@ -138,6 +144,11 @@ func TestMetrics(t *testing.T) {
 
 			if debug {
 				t.Logf("coderd_notifications_dispatcher_send_seconds > 0: %v", metric.Histogram.GetSampleSum())
+			}
+
+			// This check is extremely flaky on windows. It fails more often than not, but not always.
+			if runtime.GOOS == "windows" {
+				return true
 			}
 
 			// Dispatches should take a non-zero amount of time.

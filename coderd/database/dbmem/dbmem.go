@@ -475,6 +475,7 @@ func (q *FakeQuerier) convertToWorkspaceRowsNoLock(ctx context.Context, workspac
 			DeletingAt:        w.DeletingAt,
 			AutomaticUpdates:  w.AutomaticUpdates,
 			Favorite:          w.Favorite,
+			NextStartAt:       w.NextStartAt,
 
 			OwnerAvatarUrl: extended.OwnerAvatarUrl,
 			OwnerUsername:  extended.OwnerUsername,
@@ -1428,6 +1429,35 @@ func (q *FakeQuerier) BatchUpdateWorkspaceLastUsedAt(_ context.Context, arg data
 		q.workspaces[i].LastUsedAt = arg.LastUsedAt
 		n++
 	}
+	return nil
+}
+
+func (q *FakeQuerier) BatchUpdateWorkspaceNextStartAt(_ context.Context, arg database.BatchUpdateWorkspaceNextStartAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, workspace := range q.workspaces {
+		for j, workspaceID := range arg.IDs {
+			if workspace.ID != workspaceID {
+				continue
+			}
+
+			nextStartAt := arg.NextStartAts[j]
+			if nextStartAt.IsZero() {
+				q.workspaces[i].NextStartAt = sql.NullTime{}
+			} else {
+				q.workspaces[i].NextStartAt = sql.NullTime{Valid: true, Time: nextStartAt}
+			}
+
+			break
+		}
+	}
+
 	return nil
 }
 
@@ -6928,6 +6958,20 @@ func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, owner
 	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
 }
 
+func (q *FakeQuerier) GetWorkspacesByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	workspaces := []database.WorkspaceTable{}
+	for _, workspace := range q.workspaces {
+		if workspace.TemplateID == templateID {
+			workspaces = append(workspaces, workspace)
+		}
+	}
+
+	return workspaces, nil
+}
+
 func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]database.GetWorkspacesEligibleForTransitionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -6972,7 +7016,13 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 		if user.Status == database.UserStatusActive &&
 			job.JobStatus != database.ProvisionerJobStatusFailed &&
 			build.Transition == database.WorkspaceTransitionStop &&
-			workspace.AutostartSchedule.Valid {
+			workspace.AutostartSchedule.Valid &&
+			// We do not know if workspace with a zero next start is eligible
+			// for autostart, so we accept this false-positive. This can occur
+			// when a coder version is upgraded and next_start_at has yet to
+			// be set.
+			(workspace.NextStartAt.Time.IsZero() ||
+				!now.Before(workspace.NextStartAt.Time)) {
 			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
 				ID:   workspace.ID,
 				Name: workspace.Name,
@@ -6982,7 +7032,7 @@ func (q *FakeQuerier) GetWorkspacesEligibleForTransition(ctx context.Context, no
 
 		if !workspace.DormantAt.Valid &&
 			template.TimeTilDormant > 0 &&
-			now.Sub(workspace.LastUsedAt) > time.Duration(template.TimeTilDormant) {
+			now.Sub(workspace.LastUsedAt) >= time.Duration(template.TimeTilDormant) {
 			workspaces = append(workspaces, database.GetWorkspacesEligibleForTransitionRow{
 				ID:   workspace.ID,
 				Name: workspace.Name,
@@ -7719,16 +7769,17 @@ func (q *FakeQuerier) InsertTemplateVersion(_ context.Context, arg database.Inse
 
 	//nolint:gosimple
 	version := database.TemplateVersionTable{
-		ID:             arg.ID,
-		TemplateID:     arg.TemplateID,
-		OrganizationID: arg.OrganizationID,
-		CreatedAt:      arg.CreatedAt,
-		UpdatedAt:      arg.UpdatedAt,
-		Name:           arg.Name,
-		Message:        arg.Message,
-		Readme:         arg.Readme,
-		JobID:          arg.JobID,
-		CreatedBy:      arg.CreatedBy,
+		ID:              arg.ID,
+		TemplateID:      arg.TemplateID,
+		OrganizationID:  arg.OrganizationID,
+		CreatedAt:       arg.CreatedAt,
+		UpdatedAt:       arg.UpdatedAt,
+		Name:            arg.Name,
+		Message:         arg.Message,
+		Readme:          arg.Readme,
+		JobID:           arg.JobID,
+		CreatedBy:       arg.CreatedBy,
+		SourceExampleID: arg.SourceExampleID,
 	}
 	q.templateVersions = append(q.templateVersions, version)
 	return nil
@@ -7946,6 +7997,7 @@ func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWork
 		Ttl:               arg.Ttl,
 		LastUsedAt:        arg.LastUsedAt,
 		AutomaticUpdates:  arg.AutomaticUpdates,
+		NextStartAt:       arg.NextStartAt,
 	}
 	q.workspaces = append(q.workspaces, workspace)
 	return workspace, nil
@@ -8429,6 +8481,52 @@ func (q *FakeQuerier) ListWorkspaceAgentPortShares(_ context.Context, workspaceI
 	return shares, nil
 }
 
+// nolint:forcetypeassert
+func (q *FakeQuerier) OIDCClaimFieldValues(_ context.Context, args database.OIDCClaimFieldValuesParams) ([]string, error) {
+	orgMembers := q.getOrganizationMemberNoLock(args.OrganizationID)
+
+	var values []string
+	for _, link := range q.userLinks {
+		if args.OrganizationID != uuid.Nil {
+			inOrg := slices.ContainsFunc(orgMembers, func(organizationMember database.OrganizationMember) bool {
+				return organizationMember.UserID == link.UserID
+			})
+			if !inOrg {
+				continue
+			}
+		}
+
+		if link.LoginType != database.LoginTypeOIDC {
+			continue
+		}
+
+		if len(link.Claims.MergedClaims) == 0 {
+			continue
+		}
+
+		value, ok := link.Claims.MergedClaims[args.ClaimField]
+		if !ok {
+			continue
+		}
+		switch value := value.(type) {
+		case string:
+			values = append(values, value)
+		case []string:
+			values = append(values, value...)
+		case []any:
+			for _, v := range value {
+				if sv, ok := v.(string); ok {
+					values = append(values, sv)
+				}
+			}
+		default:
+			continue
+		}
+	}
+
+	return slice.Unique(values), nil
+}
+
 func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUID) ([]string, error) {
 	orgMembers := q.getOrganizationMemberNoLock(organizationID)
 
@@ -8447,10 +8545,7 @@ func (q *FakeQuerier) OIDCClaimFields(_ context.Context, organizationID uuid.UUI
 			continue
 		}
 
-		for k := range link.Claims.IDTokenClaims {
-			fields = append(fields, k)
-		}
-		for k := range link.Claims.UserInfoClaims {
+		for k := range link.Claims.MergedClaims {
 			fields = append(fields, k)
 		}
 	}
@@ -8749,6 +8844,29 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 		return gitAuthLink, nil
 	}
 	return database.ExternalAuthLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(_ context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, gitAuthLink := range q.externalAuthLinks {
+		if gitAuthLink.ProviderID != arg.ProviderID {
+			continue
+		}
+		if gitAuthLink.UserID != arg.UserID {
+			continue
+		}
+		gitAuthLink.UpdatedAt = arg.UpdatedAt
+		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
+		q.externalAuthLinks[index] = gitAuthLink
+
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -9821,6 +9939,7 @@ func (q *FakeQuerier) UpdateWorkspaceAutostart(_ context.Context, arg database.U
 			continue
 		}
 		workspace.AutostartSchedule = arg.AutostartSchedule
+		workspace.NextStartAt = arg.NextStartAt
 		q.workspaces[index] = workspace
 		return nil
 	}
@@ -9970,6 +10089,29 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateWorkspaceNextStartAt(_ context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, workspace := range q.workspaces {
+		if workspace.ID != arg.ID {
+			continue
+		}
+
+		workspace.NextStartAt = arg.NextStartAt
+		q.workspaces[index] = workspace
+
+		return nil
+	}
+
+	return sql.ErrNoRows
+}
+
 func (q *FakeQuerier) UpdateWorkspaceProxy(_ context.Context, arg database.UpdateWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -10068,6 +10210,26 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 	}
 
 	return affectedRows, nil
+}
+
+func (q *FakeQuerier) UpdateWorkspacesTTLByTemplateID(_ context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		q.workspaces[i].Ttl = arg.Ttl
+	}
+
+	return nil
 }
 
 func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {

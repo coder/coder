@@ -46,6 +46,7 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/quartz"
 )
 
 const (
@@ -56,13 +57,18 @@ const (
 	// DefaultHeartbeatInterval is the interval at which the provisioner daemon
 	// will update its last seen at timestamp in the database.
 	DefaultHeartbeatInterval = time.Minute
+
+	// StaleInterval is the amount of time after the last heartbeat for which
+	// the provisioner will be reported as 'stale'.
+	StaleInterval = 90 * time.Second
 )
 
 type Options struct {
 	OIDCConfig          promoauth.OAuth2Config
 	ExternalAuthConfigs []*externalauth.Config
-	// TimeNowFn is only used in tests
-	TimeNowFn func() time.Time
+
+	// Clock for testing
+	Clock quartz.Clock
 
 	// AcquireJobLongPollDur is used in tests
 	AcquireJobLongPollDur time.Duration
@@ -104,7 +110,7 @@ type server struct {
 
 	OIDCConfig promoauth.OAuth2Config
 
-	TimeNowFn func() time.Time
+	Clock quartz.Clock
 
 	acquireJobLongPollDur time.Duration
 
@@ -191,6 +197,9 @@ func NewServer(
 	if options.HeartbeatInterval == 0 {
 		options.HeartbeatInterval = DefaultHeartbeatInterval
 	}
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
+	}
 
 	s := &server{
 		lifecycleCtx:                lifecycleCtx,
@@ -213,7 +222,7 @@ func NewServer(
 		UserQuietHoursScheduleStore: userQuietHoursScheduleStore,
 		DeploymentValues:            deploymentValues,
 		OIDCConfig:                  options.OIDCConfig,
-		TimeNowFn:                   options.TimeNowFn,
+		Clock:                       options.Clock,
 		acquireJobLongPollDur:       options.AcquireJobLongPollDur,
 		heartbeatInterval:           options.HeartbeatInterval,
 		heartbeatFn:                 options.HeartbeatFn,
@@ -229,11 +238,8 @@ func NewServer(
 
 // timeNow should be used when trying to get the current time for math
 // calculations regarding workspace start and stop time.
-func (s *server) timeNow() time.Time {
-	if s.TimeNowFn != nil {
-		return dbtime.Time(s.TimeNowFn())
-	}
-	return dbtime.Now()
+func (s *server) timeNow(tags ...string) time.Time {
+	return dbtime.Time(s.Clock.Now(tags...))
 }
 
 // heartbeatLoop runs heartbeatOnce at the interval specified by HeartbeatInterval
@@ -365,7 +371,7 @@ func (s *server) AcquireJobWithCancel(stream proto.DRPCProvisionerDaemon_Acquire
 		logger.Error(streamCtx, "recv error and failed to cancel acquire job", slog.Error(recvErr))
 		// Well, this is awkward.  We hit an error receiving from the stream, but didn't cancel before we locked a job
 		// in the database.  We need to mark this job as failed so the end user can retry if they want to.
-		now := dbtime.Now()
+		now := s.timeNow()
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(
 			//nolint:gocritic // Provisionerd has specific authz rules.
 			dbauthz.AsProvisionerd(context.Background()),
@@ -406,7 +412,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		err := s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID: job.ID,
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  s.timeNow(),
 				Valid: true,
 			},
 			Error: sql.NullString{
@@ -414,7 +420,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 				Valid:  true,
 			},
 			ErrorCode: job.ErrorCode,
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: s.timeNow(),
 		})
 		if err != nil {
 			return xerrors.Errorf("update provisioner job: %w", err)
@@ -792,7 +798,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 	}
 	err = s.Database.UpdateProvisionerJobByID(ctx, database.UpdateProvisionerJobByIDParams{
 		ID:        parsedID,
-		UpdatedAt: dbtime.Now(),
+		UpdatedAt: s.timeNow(),
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("update job: %w", err)
@@ -869,7 +875,7 @@ func (s *server) UpdateJob(ctx context.Context, request *proto.UpdateJobRequest)
 		err := s.Database.UpdateTemplateVersionDescriptionByJobID(ctx, database.UpdateTemplateVersionDescriptionByJobIDParams{
 			JobID:     job.ID,
 			Readme:    string(request.Readme),
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: s.timeNow(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version description: %w", err)
@@ -958,7 +964,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 		return nil, xerrors.Errorf("job already completed")
 	}
 	job.CompletedAt = sql.NullTime{
-		Time:  dbtime.Now(),
+		Time:  s.timeNow(),
 		Valid: true,
 	}
 	job.Error = sql.NullString{
@@ -973,7 +979,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 	err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 		ID:          jobID,
 		CompletedAt: job.CompletedAt,
-		UpdatedAt:   dbtime.Now(),
+		UpdatedAt:   s.timeNow(),
 		Error:       job.Error,
 		ErrorCode:   job.ErrorCode,
 	})
@@ -1008,7 +1014,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 			if jobType.WorkspaceBuild.State != nil {
 				err = db.UpdateWorkspaceBuildProvisionerStateByID(ctx, database.UpdateWorkspaceBuildProvisionerStateByIDParams{
 					ID:               input.WorkspaceBuildID,
-					UpdatedAt:        dbtime.Now(),
+					UpdatedAt:        s.timeNow(),
 					ProvisionerState: jobType.WorkspaceBuild.State,
 				})
 				if err != nil {
@@ -1016,7 +1022,7 @@ func (s *server) FailJob(ctx context.Context, failJob *proto.FailedJob) (*proto.
 				}
 				err = db.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
 					ID:          input.WorkspaceBuildID,
-					UpdatedAt:   dbtime.Now(),
+					UpdatedAt:   s.timeNow(),
 					Deadline:    build.Deadline,
 					MaxDeadline: build.MaxDeadline,
 				})
@@ -1382,7 +1388,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		err = s.Database.UpdateTemplateVersionExternalAuthProvidersByJobID(ctx, database.UpdateTemplateVersionExternalAuthProvidersByJobIDParams{
 			JobID:                 jobID,
 			ExternalAuthProviders: json.RawMessage(externalAuthProvidersMessage),
-			UpdatedAt:             dbtime.Now(),
+			UpdatedAt:             s.timeNow(),
 		})
 		if err != nil {
 			return nil, xerrors.Errorf("update template version external auth providers: %w", err)
@@ -1390,9 +1396,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: s.timeNow(),
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  s.timeNow(),
 				Valid: true,
 			},
 			Error:     completedError,
@@ -1432,9 +1438,11 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 				return getWorkspaceError
 			}
 
+			templateScheduleStore := *s.TemplateScheduleStore.Load()
+
 			autoStop, err := schedule.CalculateAutostop(ctx, schedule.CalculateAutostopParams{
 				Database:                    db,
-				TemplateScheduleStore:       *s.TemplateScheduleStore.Load(),
+				TemplateScheduleStore:       templateScheduleStore,
 				UserQuietHoursScheduleStore: *s.UserQuietHoursScheduleStore.Load(),
 				Now:                         now,
 				Workspace:                   workspace.WorkspaceTable(),
@@ -1443,6 +1451,24 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			})
 			if err != nil {
 				return xerrors.Errorf("calculate auto stop: %w", err)
+			}
+
+			if workspace.AutostartSchedule.Valid {
+				templateScheduleOptions, err := templateScheduleStore.Get(ctx, db, workspace.TemplateID)
+				if err != nil {
+					return xerrors.Errorf("get template schedule options: %w", err)
+				}
+
+				nextStartAt, err := schedule.NextAllowedAutostart(now, workspace.AutostartSchedule.String, templateScheduleOptions)
+				if err == nil {
+					err = db.UpdateWorkspaceNextStartAt(ctx, database.UpdateWorkspaceNextStartAtParams{
+						ID:          workspace.ID,
+						NextStartAt: sql.NullTime{Valid: true, Time: nextStartAt.UTC()},
+					})
+					if err != nil {
+						return xerrors.Errorf("update workspace next start at: %w", err)
+					}
+				}
 			}
 
 			err = db.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
@@ -1687,9 +1713,9 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		err = s.Database.UpdateProvisionerJobWithCompleteByID(ctx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:        jobID,
-			UpdatedAt: dbtime.Now(),
+			UpdatedAt: s.timeNow(),
 			CompletedAt: sql.NullTime{
-				Time:  dbtime.Now(),
+				Time:  s.timeNow(),
 				Valid: true,
 			},
 			Error:     sql.NullString{},

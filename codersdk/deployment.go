@@ -391,6 +391,7 @@ type DeploymentValues struct {
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -2147,6 +2148,18 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
 		},
+		{
+			Name: "Additional CSP Policy",
+			Description: "Coder configures a Content Security Policy (CSP) to protect against XSS attacks. " +
+				"This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. " +
+				"Format matches the CSP directive format, e.g. --additional-csp-policy=\"script-src https://example.com\".",
+			Flag:  "additional-csp-policy",
+			Env:   "CODER_ADDITIONAL_CSP_POLICY",
+			YAML:  "additionalCSPPolicy",
+			Value: &c.AdditionalCSPPolicy,
+			Group: &deploymentGroupNetworkingHTTP,
+		},
+
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORS requests",

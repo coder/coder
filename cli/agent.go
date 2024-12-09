@@ -25,7 +25,7 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
@@ -171,6 +171,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				slog.F("auth", auth),
 				slog.F("version", version),
 			)
+
 			client := agentsdk.New(r.agentURL)
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
@@ -292,11 +293,25 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			environmentVariables := map[string]string{
 				"GIT_ASKPASS": executablePath,
 			}
-			if v, ok := os.LookupEnv(agent.EnvProcPrioMgmt); ok {
-				environmentVariables[agent.EnvProcPrioMgmt] = v
+
+			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
+			if enabled != "" && runtime.GOOS == "linux" {
+				logger.Info(ctx, "process priority management enabled",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
+			} else {
+				logger.Info(ctx, "process priority management not enabled (linux-only) ",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
 			}
-			if v, ok := os.LookupEnv(agent.EnvProcOOMScore); ok {
-				environmentVariables[agent.EnvProcOOMScore] = v
+
+			execer, err := agentexec.NewExecer()
+			if err != nil {
+				return xerrors.Errorf("create agent execer: %w", err)
 			}
 
 			agnt := agent.New(agent.Options{
@@ -322,12 +337,8 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				Subsystems:           subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
-				Syscaller:          agentproc.NewSyscaller(),
-				// Intentionally set this to nil. It's mainly used
-				// for testing.
-				ModifiedProcesses: nil,
-
-				BlockFileTransfer: blockFileTransfer,
+				BlockFileTransfer:  blockFileTransfer,
+				Execer:             execer,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)

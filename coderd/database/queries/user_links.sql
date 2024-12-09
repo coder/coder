@@ -58,7 +58,6 @@ SET
 WHERE
 	user_id = $7 AND login_type = $8 RETURNING *;
 
-
 -- name: OIDCClaimFields :many
 -- OIDCClaimFields returns a list of distinct keys in the the merged_claims fields.
 -- This query is used to generate the list of available sync fields for idp sync settings.
@@ -75,6 +74,39 @@ WHERE
 	login_type = 'oidc'
 	AND CASE WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
 		user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = @organization_id)
+		ELSE true
+	END
+;
+
+-- name: OIDCClaimFieldValues :many
+SELECT
+	-- DISTINCT to remove duplicates
+	DISTINCT jsonb_array_elements_text(CASE
+		-- When the type is an array, filter out any non-string elements.
+		-- This is to keep the return type consistent.
+		WHEN jsonb_typeof(claims->'merged_claims'->sqlc.arg('claim_field')::text) = 'array' THEN
+			(
+				SELECT
+					jsonb_agg(element)
+				FROM
+					jsonb_array_elements(claims->'merged_claims'->sqlc.arg('claim_field')::text) AS element
+				WHERE
+					-- Filtering out non-string elements
+					jsonb_typeof(element) = 'string'
+			)
+		-- Some IDPs return a single string instead of an array of strings.
+		WHEN jsonb_typeof(claims->'merged_claims'->sqlc.arg('claim_field')::text) = 'string' THEN
+			jsonb_build_array(claims->'merged_claims'->sqlc.arg('claim_field')::text)
+	END)
+FROM
+	user_links
+WHERE
+	-- IDP sync only supports string and array (of string) types
+	jsonb_typeof(claims->'merged_claims'->sqlc.arg('claim_field')::text) = ANY(ARRAY['string', 'array'])
+	AND login_type = 'oidc'
+	AND CASE
+		WHEN @organization_id :: uuid != '00000000-0000-0000-0000-000000000000'::uuid  THEN
+			user_links.user_id = ANY(SELECT organization_members.user_id FROM organization_members WHERE organization_id = @organization_id)
 		ELSE true
 	END
 ;

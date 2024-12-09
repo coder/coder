@@ -294,6 +294,73 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
 	})
 
+	t.Run("OKWithTags", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, user := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+		//nolint:gocritic // ignore This client is operating as the owner user, which has unrestricted permissions
+		res, err := client.CreateProvisionerKey(ctx, user.OrganizationID, codersdk.CreateProvisionerKeyRequest{
+			Name: "dont-TEST-me",
+			Tags: map[string]string{
+				"tag1": "value1",
+				"tag2": "value2",
+			},
+		})
+		require.NoError(t, err)
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", res.Key, "--name=matt-daemon")
+		err = conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		pty := ptytest.New(t).Attach(inv)
+		clitest.Start(t, inv)
+		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
+		pty.ExpectMatchContext(ctx, `tags={"tag1":"value1","tag2":"value2"}`)
+
+		var daemons []codersdk.ProvisionerDaemon
+		require.Eventually(t, func() bool {
+			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
+			if err != nil {
+				return false
+			}
+			return len(daemons) == 1
+		}, testutil.WaitShort, testutil.IntervalSlow)
+		require.Equal(t, "matt-daemon", daemons[0].Name)
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+		require.Equal(t, buildinfo.Version(), daemons[0].Version)
+		require.Equal(t, proto.CurrentVersion.String(), daemons[0].APIVersion)
+	})
+
+	t.Run("NoProvisionerKeyFound", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		client, _ := coderdenttest.New(t, &coderdenttest.Options{
+			ProvisionerDaemonPSK: "provisionersftw",
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+					codersdk.FeatureMultipleOrganizations:      1,
+				},
+			},
+		})
+
+		inv, conf := newCLI(t, "provisionerd", "start", "--key", "ThisKeyDoesNotExist", "--name=matt-daemon")
+		err := conf.URL().Write(client.URL.String())
+		require.NoError(t, err)
+		err = inv.WithContext(ctx).Run()
+		require.ErrorContains(t, err, "unable to get provisioner key details")
+	})
+
 	t.Run("NoPSK", func(t *testing.T) {
 		t.Parallel()
 

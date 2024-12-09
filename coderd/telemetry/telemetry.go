@@ -11,6 +11,7 @@ import (
 	"net/http"
 	"net/url"
 	"os"
+	"regexp"
 	"runtime"
 	"slices"
 	"strings"
@@ -680,9 +681,95 @@ func shouldSendRawModuleSource(source string) bool {
 	return strings.Contains(source, "registry.coder.com")
 }
 
+// ModuleSourceType is the type of source for a module.
+// For reference, see https://developer.hashicorp.com/terraform/language/modules/sources
+type ModuleSourceType string
+
+const (
+	ModuleSourceTypeLocal           ModuleSourceType = "local"
+	ModuleSourceTypeLocalAbs        ModuleSourceType = "local_absolute"
+	ModuleSourceTypePublicRegistry  ModuleSourceType = "public_registry"
+	ModuleSourceTypePrivateRegistry ModuleSourceType = "private_registry"
+	ModuleSourceTypeCoderRegistry   ModuleSourceType = "coder_registry"
+	ModuleSourceTypeGitHub          ModuleSourceType = "github"
+	ModuleSourceTypeBitbucket       ModuleSourceType = "bitbucket"
+	ModuleSourceTypeGit             ModuleSourceType = "git"
+	ModuleSourceTypeMercurial       ModuleSourceType = "mercurial"
+	ModuleSourceTypeHTTP            ModuleSourceType = "http"
+	ModuleSourceTypeS3              ModuleSourceType = "s3"
+	ModuleSourceTypeGCS             ModuleSourceType = "gcs"
+	ModuleSourceTypeUnknown         ModuleSourceType = "unknown"
+)
+
+// Terraform supports a variety of module source types, like:
+//   - local paths (./ or ../)
+//   - absolute local paths (/)
+//   - git URLs (git:: or git@)
+//   - http URLs
+//   - s3 URLs
+//
+// and more!
+//
+// See https://developer.hashicorp.com/terraform/language/modules/sources for an overview.
+//
+// This function attempts to classify the source type of a module. It's imperfect,
+// as checks that terraform actually does are pretty complicated.
+// See e.g. https://github.com/hashicorp/go-getter/blob/842d6c379e5e70d23905b8f6b5a25a80290acb66/detect.go#L47
+// if you're interested in the complexity.
+func GetModuleSourceType(source string) ModuleSourceType {
+	source = strings.TrimSpace(source)
+	source = strings.ToLower(source)
+	if strings.HasPrefix(source, "./") || strings.HasPrefix(source, "../") {
+		return ModuleSourceTypeLocal
+	}
+	if strings.HasPrefix(source, "/") {
+		return ModuleSourceTypeLocalAbs
+	}
+	// Match public registry modules in the format <NAMESPACE>/<NAME>/<PROVIDER>
+	// Sources can have a `//...` suffix, which signifies a subdirectory.
+	// The allowed characters are based on
+	// https://developer.hashicorp.com/terraform/cloud-docs/api-docs/private-registry/modules#request-body-1
+	// because Hashicorp's documentation about module sources doesn't mention it.
+	if matched, _ := regexp.MatchString(`^[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+/[a-zA-Z0-9_-]+(//.*)?$`, source); matched {
+		return ModuleSourceTypePublicRegistry
+	}
+	if strings.Contains(source, "github.com") {
+		return ModuleSourceTypeGitHub
+	}
+	if strings.Contains(source, "bitbucket.org") {
+		return ModuleSourceTypeBitbucket
+	}
+	if strings.HasPrefix(source, "git::") || strings.HasPrefix(source, "git@") {
+		return ModuleSourceTypeGit
+	}
+	if strings.HasPrefix(source, "hg::") {
+		return ModuleSourceTypeMercurial
+	}
+	if strings.HasPrefix(source, "http://") || strings.HasPrefix(source, "https://") {
+		return ModuleSourceTypeHTTP
+	}
+	if strings.HasPrefix(source, "s3::") {
+		return ModuleSourceTypeS3
+	}
+	if strings.HasPrefix(source, "gcs::") {
+		return ModuleSourceTypeGCS
+	}
+	if strings.Contains(source, "registry.terraform.io") {
+		return ModuleSourceTypePublicRegistry
+	}
+	if strings.Contains(source, "app.terraform.io") || strings.Contains(source, "localterraform.com") {
+		return ModuleSourceTypePrivateRegistry
+	}
+	if strings.Contains(source, "registry.coder.com") {
+		return ModuleSourceTypeCoderRegistry
+	}
+	return ModuleSourceTypeUnknown
+}
+
 func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
 	source := module.Source
 	version := module.Version
+	sourceType := GetModuleSourceType(source)
 	if !shouldSendRawModuleSource(source) {
 		source = fmt.Sprintf("%x", sha256.Sum256([]byte(source)))
 		version = fmt.Sprintf("%x", sha256.Sum256([]byte(version)))
@@ -694,6 +781,7 @@ func ConvertWorkspaceModule(module database.WorkspaceModule) WorkspaceModule {
 		Transition: module.Transition,
 		Source:     source,
 		Version:    version,
+		SourceType: sourceType,
 		Key:        module.Key,
 		CreatedAt:  module.CreatedAt,
 	}
@@ -779,6 +867,9 @@ func ConvertTemplateVersion(version database.TemplateVersion) TemplateVersion {
 	}
 	if version.TemplateID.Valid {
 		snapVersion.TemplateID = &version.TemplateID.UUID
+	}
+	if version.SourceExampleID.Valid {
+		snapVersion.SourceExampleID = &version.SourceExampleID.String
 	}
 	return snapVersion
 }
@@ -938,6 +1029,7 @@ type WorkspaceModule struct {
 	Key        string                       `json:"key"`
 	Version    string                       `json:"version"`
 	Source     string                       `json:"source"`
+	SourceType ModuleSourceType             `json:"source_type"`
 }
 
 type WorkspaceAgent struct {
@@ -1027,11 +1119,12 @@ type Template struct {
 }
 
 type TemplateVersion struct {
-	ID             uuid.UUID  `json:"id"`
-	CreatedAt      time.Time  `json:"created_at"`
-	TemplateID     *uuid.UUID `json:"template_id,omitempty"`
-	OrganizationID uuid.UUID  `json:"organization_id"`
-	JobID          uuid.UUID  `json:"job_id"`
+	ID              uuid.UUID  `json:"id"`
+	CreatedAt       time.Time  `json:"created_at"`
+	TemplateID      *uuid.UUID `json:"template_id,omitempty"`
+	OrganizationID  uuid.UUID  `json:"organization_id"`
+	JobID           uuid.UUID  `json:"job_id"`
+	SourceExampleID *string    `json:"source_example_id,omitempty"`
 }
 
 type ProvisionerJob struct {
