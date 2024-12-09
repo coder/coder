@@ -6,10 +6,13 @@ import (
 	"regexp"
 	"testing"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/serpent"
 
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -26,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 // nolint:bodyclose
@@ -1147,7 +1149,7 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	fake := oidctest.NewFakeIDP(t,
 		append([]oidctest.FakeIDPOpt{
 			oidctest.WithStaticUserInfo(settings.Userinfo),
-			oidctest.WithLogging(t, nil),
+			oidctest.WithLogging(t, &slogtest.Options{IgnoreErrors: true}),
 			// Run fake IDP on a real webserver
 			oidctest.WithServing(),
 		}, settings.FakeOpts...)...,
