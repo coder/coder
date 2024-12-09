@@ -3390,7 +3390,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3399,7 +3399,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -5350,7 +5350,7 @@ func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, ar
 	return items, nil
 }
 
-const getProvisionerDaemonsByProvisionerJobs = `-- name: GetProvisionerDaemonsByProvisionerJobs :many
+const GetEligibleProvisionerDaemonsByProvisionerJobIDs = `-- name: GetEligibleProvisionerDaemonsByProvisionerJobIDs :many
 SELECT DISTINCT
     provisioner_jobs.id as job_id, provisioner_daemons.id, provisioner_daemons.created_at, provisioner_daemons.name, provisioner_daemons.provisioners, provisioner_daemons.replica_id, provisioner_daemons.tags, provisioner_daemons.last_seen_at, provisioner_daemons.version, provisioner_daemons.api_version, provisioner_daemons.organization_id, provisioner_daemons.key_id
 FROM
@@ -5362,20 +5362,20 @@ WHERE
     provisioner_jobs.id = ANY($1 :: uuid[])
 `
 
-type GetProvisionerDaemonsByProvisionerJobsRow struct {
+type GetEligibleProvisionerDaemonsByProvisionerJobIDsRow struct {
 	JobID             uuid.UUID         `db:"job_id" json:"job_id"`
 	ProvisionerDaemon ProvisionerDaemon `db:"provisioner_daemon" json:"provisioner_daemon"`
 }
 
-func (q *sqlQuerier) GetProvisionerDaemonsByProvisionerJobs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetProvisionerDaemonsByProvisionerJobsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsByProvisionerJobs, pq.Array(provisionerJobIds))
+func (q *sqlQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, GetEligibleProvisionerDaemonsByProvisionerJobIDs, pq.Array(provisionerJobIds))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetProvisionerDaemonsByProvisionerJobsRow
+	var items []GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	for rows.Next() {
-		var i GetProvisionerDaemonsByProvisionerJobsRow
+		var i GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 		if err := rows.Scan(
 			&i.JobID,
 			&i.ProvisionerDaemon.ID,
@@ -6267,7 +6267,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -6383,10 +6383,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -8072,7 +8072,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -12643,7 +12643,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

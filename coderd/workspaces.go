@@ -613,7 +613,7 @@ func createWorkspace(
 	var (
 		provisionerJob     *database.ProvisionerJob
 		workspaceBuild     *database.WorkspaceBuild
-		provisionerDaemons []database.GetProvisionerDaemonsByProvisionerJobsRow
+		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := dbtime.Now()

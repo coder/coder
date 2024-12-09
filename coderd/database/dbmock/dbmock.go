@@ -2001,19 +2001,19 @@ func (mr *MockStoreMockRecorder) GetProvisionerDaemonsByOrganization(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsByOrganization", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsByOrganization), arg0, arg1)
 }
 
-// GetProvisionerDaemonsByProvisionerJobs mocks base method.
-func (m *MockStore) GetProvisionerDaemonsByProvisionerJobs(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetProvisionerDaemonsByProvisionerJobsRow, error) {
+// GetEligibleProvisionerDaemonsByProvisionerJobIDs mocks base method.
+func (m *MockStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(arg0 context.Context, arg1 []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetProvisionerDaemonsByProvisionerJobs", arg0, arg1)
-	ret0, _ := ret[0].([]database.GetProvisionerDaemonsByProvisionerJobsRow)
+	ret := m.ctrl.Call(m, "GetEligibleProvisionerDaemonsByProvisionerJobIDs", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
-// GetProvisionerDaemonsByProvisionerJobs indicates an expected call of GetProvisionerDaemonsByProvisionerJobs.
-func (mr *MockStoreMockRecorder) GetProvisionerDaemonsByProvisionerJobs(arg0, arg1 any) *gomock.Call {
+// GetEligibleProvisionerDaemonsByProvisionerJobIDs indicates an expected call of GetEligibleProvisionerDaemonsByProvisionerJobIDs.
+func (mr *MockStoreMockRecorder) GetEligibleProvisionerDaemonsByProvisionerJobIDs(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsByProvisionerJobs", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsByProvisionerJobs), arg0, arg1)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetEligibleProvisionerDaemonsByProvisionerJobIDs", reflect.TypeOf((*MockStore)(nil).GetEligibleProvisionerDaemonsByProvisionerJobIDs), arg0, arg1)
 }
 
 // GetProvisionerJobByID mocks base method.

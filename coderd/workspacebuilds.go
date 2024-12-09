@@ -653,7 +653,7 @@ type workspaceBuildsData struct {
 	apps               []database.WorkspaceApp
 	scripts            []database.WorkspaceAgentScript
 	logSources         []database.WorkspaceAgentLogSource
-	provisionerDaemons []database.GetProvisionerDaemonsByProvisionerJobsRow
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -672,7 +672,7 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		}
 	}
 
-	pendingJobProvisioners, err := api.Database.GetProvisionerDaemonsByProvisionerJobs(ctx, pendingJobIDs)
+	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
 	}
@@ -785,7 +785,7 @@ func (api *API) convertWorkspaceBuilds(
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
-	provisionerDaemons []database.GetProvisionerDaemonsByProvisionerJobsRow,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
@@ -850,7 +850,7 @@ func (api *API) convertWorkspaceBuild(
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
-	provisionerDaemons []database.GetProvisionerDaemonsByProvisionerJobsRow,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {

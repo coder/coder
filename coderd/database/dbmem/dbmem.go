@@ -3684,11 +3684,11 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	return daemons, nil
 }
 
-func (q *FakeQuerier) GetProvisionerDaemonsByProvisionerJobs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetProvisionerDaemonsByProvisionerJobsRow, error) {
+func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	results := make([]database.GetProvisionerDaemonsByProvisionerJobsRow, 0)
+	results := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0)
 	seen := make(map[string]struct{}) // Track unique combinations
 
 	for _, jobID := range provisionerJobIds {
@@ -3720,7 +3720,7 @@ func (q *FakeQuerier) GetProvisionerDaemonsByProvisionerJobs(_ context.Context, 
 			}
 			seen[key] = struct{}{}
 
-			results = append(results, database.GetProvisionerDaemonsByProvisionerJobsRow{
+			results = append(results, database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
 				JobID:             jobID,
 				ProvisionerDaemon: daemon,
 			})

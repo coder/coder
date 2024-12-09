@@ -2119,7 +2119,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "get provisioner daemon by org")
 		check.Args(database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
-	s.Run("GetProvisionerDaemonsByProvisionerJobs", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetEligibleProvisionerDaemonsByProvisionerJobIDs", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		tags := database.StringMap(map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -2137,7 +2137,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 			Tags:           tags,
 		})
 		s.NoError(err, "insert provisioner daemon")
-		ds, err := db.GetProvisionerDaemonsByProvisionerJobs(context.Background(), []uuid.UUID{j.ID})
+		ds, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{j.ID})
 		s.NoError(err, "get provisioner daemon by org")
 		check.Args(uuid.UUIDs{j.ID}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))

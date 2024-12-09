@@ -269,7 +269,7 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 		InOrg(p.OrganizationID)
 }
 
-func (p GetProvisionerDaemonsByProvisionerJobsRow) RBACObject() rbac.Object {
+func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.Object {
 	return p.ProvisionerDaemon.RBACObject()
 }
 

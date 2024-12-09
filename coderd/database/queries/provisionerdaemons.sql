@@ -16,7 +16,7 @@ WHERE
 	-- adding support for searching by tags:
 	(@want_tags :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, @want_tags::tagset));
 
--- name: GetProvisionerDaemonsByProvisionerJobs :many
+-- name: GetEligibleProvisionerDaemonsByProvisionerJobIDs :many
 SELECT DISTINCT
     provisioner_jobs.id as job_id, sqlc.embed(provisioner_daemons)
 FROM

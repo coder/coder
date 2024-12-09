@@ -1924,8 +1924,8 @@ func (q *querier) GetProvisionerDaemonsByOrganization(ctx context.Context, organ
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByOrganization)(ctx, organizationID)
 }
 
-func (q *querier) GetProvisionerDaemonsByProvisionerJobs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetProvisionerDaemonsByProvisionerJobsRow, error) {
-	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByProvisionerJobs)(ctx, provisionerJobIds)
+func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIds)
 }
 
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {

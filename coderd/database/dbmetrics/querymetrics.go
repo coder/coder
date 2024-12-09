@@ -973,10 +973,10 @@ func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Conte
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetProvisionerDaemonsByProvisionerJobs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetProvisionerDaemonsByProvisionerJobsRow, error) {
+func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetProvisionerDaemonsByProvisionerJobs(ctx, provisionerJobIds)
-	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsByProvisionerJobs").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
+	m.queryLatencies.WithLabelValues("GetEligibleProvisionerDaemonsByProvisionerJobIDs").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
