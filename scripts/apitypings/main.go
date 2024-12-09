@@ -134,7 +134,7 @@ func FixSerpentStruct(gen *guts.Typescript) {
 							Prefix:  "",
 						},
 						Modifiers:   nil,
-						Type:        ptr(bindings.KeywordAny),
+						Type:        nil,
 						DefaultType: nil,
 					},
 				},
