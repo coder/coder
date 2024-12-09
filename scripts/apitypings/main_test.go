@@ -14,8 +14,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/coder/guts"
 	"github.com/stretchr/testify/require"
+
+	"github.com/coder/guts"
 )
 
 // updateGoldenFiles is a flag that can be set to update golden files.
@@ -40,7 +41,7 @@ func TestGeneration(t *testing.T) {
 			if err != nil {
 				log.Fatalf("new convert: %v", err)
 			}
-			err = gen.Include("./"+dir, true)
+			err = gen.IncludeGenerate("./" + dir)
 			require.NoError(t, err)
 
 			err = TypeMappings(gen)

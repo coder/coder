@@ -5,6 +5,8 @@ import (
 	"log"
 
 	"github.com/coder/guts"
+	"github.com/coder/guts/bindings"
+	"github.com/coder/guts/bindings/walk"
 	"github.com/coder/guts/config"
 
 	// Must import the packages we are trying to convert
@@ -24,6 +26,7 @@ func main() {
 	generateDirectories := map[string]string{
 		"github.com/coder/coder/v2/codersdk":                  "",
 		"github.com/coder/coder/v2/coderd/healthcheck/health": "Health",
+		"github.com/coder/coder/v2/codersdk/healthsdk":        "",
 	}
 	for dir, prefix := range generateDirectories {
 		err = gen.IncludeGenerateWithPrefix(dir, prefix)
@@ -63,6 +66,7 @@ func main() {
 
 func TsMutations(ts *guts.Typescript) {
 	ts.ApplyMutations(
+		FixSerpentStruct,
 		// Enum list generator
 		config.EnumLists,
 		// Export all top level types
@@ -98,4 +102,58 @@ func TypeMappings(gen *guts.GoParser) error {
 	}
 
 	return nil
+}
+
+// FixSerpentStruct fixes 'serpent.Struct', which defers to the underlying type.
+func FixSerpentStruct(gen *guts.Typescript) {
+	gen.ForEach(func(key string, originalNode bindings.Node) {
+		// replace it with
+		// export type SerpentStruct<T extends any> = T
+		isInterface, ok := originalNode.(*bindings.Interface)
+		if ok && isInterface.Name.Ref() == "SerpentStruct" {
+			// TODO: Add a method to add comments here
+			gen.ReplaceNode("SerpentStruct", &bindings.Alias{
+				Name:      isInterface.Name,
+				Modifiers: nil,
+				Type: bindings.Reference(bindings.Identifier{
+					Name:    "T",
+					Package: isInterface.Name.Package,
+					Prefix:  "",
+				}),
+				Parameters: []*bindings.TypeParameter{
+					{
+						Name: bindings.Identifier{
+							Name:    "T",
+							Package: isInterface.Name.Package,
+							Prefix:  "",
+						},
+						Modifiers:   nil,
+						Type:        ptr(bindings.KeywordAny),
+						DefaultType: nil,
+					},
+				},
+				Source: isInterface.Source,
+			})
+		}
+	})
+}
+
+type serpentStructVisitor struct {
+}
+
+func (s *serpentStructVisitor) Visit(originalNode bindings.Node) walk.Visitor {
+	switch node := originalNode.(type) {
+	case *bindings.ReferenceType:
+		if node.Name.Name == "Struct" && node.Name.PkgName() == "github.com/coder/serpent" {
+			// We always expect an argument
+			arg := node.Arguments[0]
+			*node = *arg.(*bindings.ReferenceType)
+			//originalNode = node.Arguments[0]
+		}
+	}
+	return s
+}
+
+func ptr[T any](v T) *T {
+	return &v
 }
