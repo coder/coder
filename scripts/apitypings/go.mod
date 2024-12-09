@@ -5,8 +5,8 @@ go 1.23.1
 toolchain go1.23.3
 
 require (
-	github.com/coder/coder/v2 v2.17.2
-	github.com/coder/guts v0.0.0-20241209184738-ebb754154404
+	github.com/coder/coder/v2 v2.0.0-00010101000000-000000000000
+	github.com/coder/guts v0.0.0-20241209185925-e72f1f13edf1
 	github.com/coder/serpent v0.10.0
 	github.com/stretchr/testify v1.10.0
 )
@@ -133,3 +133,5 @@ require (
 )
 
 replace github.com/coder/coder/v2 => ../../
+
+replace github.com/coder/guts => /home/steven/go/src/github.com/coder/guts
