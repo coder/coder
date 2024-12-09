@@ -58,6 +58,8 @@ interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
 export const OrganizationMembersPageView: FC<
 	OrganizationMembersPageViewProps
 > = (props) => {
+	console.log(props.members);
+
 	return (
 		<div>
 			<SettingsHeader title="Members" />

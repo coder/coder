@@ -987,3 +987,48 @@ export async function openTerminalWindow(
 
 	return terminal;
 }
+
+type UserValues = {
+	name: string;
+	username: string;
+	email: string;
+	password: string;
+};
+
+export async function createUser(
+	page: Page,
+	userValues: Partial<UserValues> = {},
+): Promise<UserValues> {
+	const returnTo = page.url();
+
+	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
+	await expect(page).toHaveTitle("Users - Coder");
+
+	await page.getByRole("button", { name: "Create user" }).click();
+	await expect(page).toHaveTitle("Create User - Coder");
+
+	const username = userValues.username ?? randomName();
+	const name = userValues.name ?? username;
+	const email = userValues.email ?? `${username}@coder.com`;
+	const password = userValues.password || "s3cure&password!";
+
+	await page.getByLabel("Username").fill(username);
+	if (name) {
+		await page.getByLabel("Full name").fill(name);
+	}
+	await page.getByLabel("Email").fill(email);
+	await page.getByLabel("Login Type").click();
+	await page.getByRole("option", { name: "Password", exact: false }).click();
+	// Using input[name=password] due to the select element utilizing 'password'
+	// as the label for the currently active option.
+	const passwordField = page.locator("input[name=password]");
+	await passwordField.fill(password);
+	await page.getByRole("button", { name: "Create user" }).click();
+	await expect(page.getByText("Successfully created user.")).toBeVisible();
+
+	await expect(page).toHaveTitle("Users - Coder");
+	await expect(page.locator("tr", { hasText: email })).toBeVisible();
+
+	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
+	return { name, username, email, password };
+}
