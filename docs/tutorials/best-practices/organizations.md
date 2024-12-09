@@ -25,6 +25,8 @@ Organizations are the hierarchical parent for templates, groups, and
 provisioners. Every new organization must have separate templates, provisioners,
 and groups.
 
+![Organizations architecture](../../images/best-practice/organizations-architecture.png)
+
 Users can belong to multiple organizations while templates and provisioners
 cannot.
 
