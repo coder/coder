@@ -2,13 +2,13 @@ resource "google_sql_database_instance" "db" {
   name                = "${var.name}-coder"
   project             = var.project_id
   region              = local.deployments.primary.region
-  database_version    = var.cloudsql_version
+  database_version    = "POSTGRES_14"
   deletion_protection = false
 
   depends_on = [google_service_networking_connection.private_vpc_connection]
 
   settings {
-    tier              = var.cloudsql_tier
+    tier              = local.scenarios[var.scenario].cloudsql.tier
     activation_policy = "ALWAYS"
     availability_type = "ZONAL"
 
@@ -18,7 +18,7 @@ resource "google_sql_database_instance" "db" {
 
     database_flags {
       name  = "max_connections"
-      value = var.cloudsql_max_connections
+      value = local.scenarios[var.scenario].cloudsql.max_connections
     }
 
     ip_configuration {

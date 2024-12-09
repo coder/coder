@@ -8,47 +8,38 @@ locals {
     primary_coder = {
       name    = "coder"
       cluster = "primary"
-      size    = 1
     }
     primary_workspaces = {
       name    = "workspaces"
       cluster = "primary"
-      size    = 1
     }
     primary_misc = {
       name    = "misc"
       cluster = "primary"
-      size    = 1
     }
     europe_coder = {
       name    = "coder"
       cluster = "europe"
-      size    = 1
     }
     europe_workspaces = {
       name    = "workspaces"
       cluster = "europe"
-      size    = 1
     }
     europe_misc = {
       name    = "misc"
       cluster = "europe"
-      size    = 1
     }
     asia_coder = {
       name    = "coder"
       cluster = "asia"
-      size    = 1
     }
     asia_workspaces = {
       name    = "workspaces"
       cluster = "asia"
-      size    = 1
     }
     asia_misc = {
       name    = "misc"
       cluster = "asia"
-      size    = 1
     }
   }
 }
@@ -104,10 +95,7 @@ resource "google_container_node_pool" "node_pool" {
   location = local.deployments[each.value.cluster].zone
   project  = var.project_id
   cluster  = google_container_cluster.cluster[each.value.cluster].name
-  autoscaling {
-    min_node_count = 1
-    max_node_count = each.value.size
-  }
+  node_count = local.scenarios[var.scenario][each.value.name].nodepool_size
   node_config {
     oauth_scopes = [
       "https://www.googleapis.com/auth/logging.write",
@@ -117,10 +105,9 @@ resource "google_container_node_pool" "node_pool" {
       "https://www.googleapis.com/auth/service.management.readonly",
       "https://www.googleapis.com/auth/servicecontrol",
     ]
-    disk_size_gb    = var.node_disk_size_gb
-    machine_type    = var.nodepool_machine_type_coder
-    image_type      = var.node_image_type
-    preemptible     = var.node_preemptible
+    disk_size_gb    = 100
+    machine_type    = local.scenarios[var.scenario][each.value.name].machine_type
+    image_type      = "cos_containerd"
     service_account = data.google_compute_default_service_account.default.email
     tags            = ["gke-node", "${var.project_id}-gke"]
     labels = {

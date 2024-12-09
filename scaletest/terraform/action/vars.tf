@@ -2,6 +2,14 @@ variable "name" {
   description = "The name all resources will be prefixed with"
 }
 
+variable "scenario" {
+  description = "The scenario to deploy"
+  validation {
+    condition = contains(["small", "medium", "large"], var.scenario)
+    error_message = "Scenario must be one of small, medium, or large"
+  }
+}
+
 // GCP
 variable "project_id" {
   description = "The project in which to provision resources"
@@ -10,41 +18,6 @@ variable "project_id" {
 variable "k8s_version" {
   description = "Kubernetes version to provision."
   default     = "1.24"
-}
-
-variable "node_disk_size_gb" {
-  description = "Size of the root disk for cluster nodes."
-  default     = 100
-}
-
-variable "node_image_type" {
-  description = "Image type to use for cluster nodes."
-  default     = "cos_containerd"
-}
-
-variable "node_preemptible" {
-  description = "Use preemptible nodes."
-  default     = false
-}
-
-variable "nodepool_machine_type_coder" {
-  description = "Machine type to use for Coder control plane nodepool."
-  default     = "t2d-standard-4"
-}
-
-variable "cloudsql_version" {
-  description = "CloudSQL version to provision"
-  default     = "POSTGRES_14"
-}
-
-variable "cloudsql_tier" {
-  description = "CloudSQL database tier."
-  default     = "db-f1-micro"
-}
-
-variable "cloudsql_max_connections" {
-  description = "CloudSQL database max_connections"
-  default     = 500
 }
 
 // Cloudflare
@@ -87,31 +60,6 @@ variable "coder_image_repo" {
   default     = "ghcr.io/coder/coder"
 }
 
-variable "coder_replicas" {
-  description = "Number of Coder replicas to provision."
-  default     = 1
-}
-
-variable "coder_cpu_request" {
-  description = "CPU request to allocate to Coder."
-  default     = "500m"
-}
-
-variable "coder_mem_request" {
-  description = "Memory request to allocate to Coder."
-  default     = "512Mi"
-}
-
-variable "coder_cpu_limit" {
-  description = "CPU limit to allocate to Coder."
-  default     = "1000m"
-}
-
-variable "coder_mem_limit" {
-  description = "Memory limit to allocate to Coder."
-  default     = "1024Mi"
-}
-
 variable "coder_experiments" {
   description = "Coder Experiments to enable."
   default     = ""
@@ -121,52 +69,6 @@ variable "coder_experiments" {
 variable "workspace_image" {
   description = "Image and tag to use for workspaces."
   default     = "docker.io/codercom/enterprise-minimal:ubuntu"
-}
-
-variable "workspace_cpu_request" {
-  description = "CPU request to allocate to workspaces."
-  default     = "100m"
-}
-
-variable "workspace_cpu_limit" {
-  description = "CPU limit to allocate to workspaces."
-  default     = "100m"
-}
-
-variable "workspace_mem_request" {
-  description = "Memory request to allocate to workspaces."
-  default     = "128Mi"
-}
-
-variable "workspace_mem_limit" {
-  description = "Memory limit to allocate to workspaces."
-  default     = "128Mi"
-}
-
-// Provisioners
-variable "provisionerd_cpu_request" {
-  description = "CPU request to allocate to provisionerd."
-  default     = "100m"
-}
-
-variable "provisionerd_mem_request" {
-  description = "Memory request to allocate to provisionerd."
-  default     = "1Gi"
-}
-
-variable "provisionerd_cpu_limit" {
-  description = "CPU limit to allocate to provisionerd."
-  default     = "1000m"
-}
-
-variable "provisionerd_mem_limit" {
-  description = "Memory limit to allocate to provisionerd."
-  default     = "1Gi"
-}
-
-variable "provisionerd_replicas" {
-  description = "Number of Provisionerd replicas."
-  default     = 1
 }
 
 variable "provisionerd_chart_version" {

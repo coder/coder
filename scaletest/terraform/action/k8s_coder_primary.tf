@@ -130,14 +130,14 @@ coder:
   image:
     repo: ${var.coder_image_repo}
     tag: ${var.coder_image_tag}
-  replicaCount: "${var.coder_replicas}"
+  replicaCount: "${local.scenarios[var.scenario].coder.replicas}"
   resources:
     requests:
-      cpu: "${var.coder_cpu_request}"
-      memory: "${var.coder_mem_request}"
+      cpu: "${local.scenarios[var.scenario].coder.cpu_request}"
+      memory: "${local.scenarios[var.scenario].coder.mem_request}"
     limits:
-      cpu: "${var.coder_cpu_limit}"
-      memory: "${var.coder_mem_limit}"
+      cpu: "${local.scenarios[var.scenario].coder.cpu_limit}"
+      memory: "${local.scenarios[var.scenario].coder.mem_limit}"
   securityContext:
     readOnlyRootFilesystem: true
   service:
@@ -206,14 +206,14 @@ coder:
   image:
     repo: ${var.provisionerd_image_repo}
     tag: ${var.provisionerd_image_tag}
-  replicaCount: "${var.provisionerd_replicas}"
+  replicaCount: "${local.scenarios[var.scenario].provisionerd.replicas}"
   resources:
     requests:
-      cpu: "${var.provisionerd_cpu_request}"
-      memory: "${var.provisionerd_mem_request}"
+      cpu: "${local.scenarios[var.scenario].provisionerd.request}"
+      memory: "${local.scenarios[var.scenario].provisionerd.mem_request}"
     limits:
-      cpu: "${var.provisionerd_cpu_limit}"
-      memory: "${var.provisionerd_mem_limit}"
+      cpu: "${local.scenarios[var.scenario].provisionerd.cpu_limit}"
+      memory: "${local.scenarios[var.scenario].provisionerd.mem_limit}"
   securityContext:
     readOnlyRootFilesystem: true
   volumeMounts:
