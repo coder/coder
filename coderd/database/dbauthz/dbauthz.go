@@ -1924,6 +1924,10 @@ func (q *querier) GetProvisionerDaemonsByOrganization(ctx context.Context, organ
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByOrganization)(ctx, organizationID)
 }
 
+func (q *querier) GetProvisionerDaemonsByProvisionerJobs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetProvisionerDaemonsByProvisionerJobsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByProvisionerJobs)(ctx, provisionerJobIds)
+}
+
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, id)
 	if err != nil {
