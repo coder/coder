@@ -630,11 +630,8 @@ jobs:
         working-directory: site
 
   test-e2e:
-    # test-e2e fails on 2-core 8GB runners, so we use the 4-core 16GB runner
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -643,6 +640,9 @@ jobs:
             name: test-e2e
           - premium: true
             name: test-e2e-premium
+    # Skip test-e2e on forks as they don't have access to CI secrets
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
+    timeout-minutes: 20
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
@@ -749,7 +749,7 @@ jobs:
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
           # Avoid uploading single files, because that's very slow
           zip: true
@@ -776,7 +776,7 @@ jobs:
           workingDir: "./site"
           storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
           # Avoid uploading single files, because that's very slow
           zip: true
