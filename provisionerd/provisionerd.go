@@ -182,7 +182,7 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Namespace: "coderd",
 				Subsystem: "provisionerd",
 				Name:      "workspace_build_timings_seconds",
-				Help:      "workspace build time in seconds.",
+				Help:      "The time taken for a workspace to build.",
 				Buckets: []float64{
 					1, // 1s
 					10,
