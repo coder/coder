@@ -1,3 +1,7 @@
+# Filtering pull requests is much easier when we can reliably guarantee
+# that the "Assignee" field is populated.
+name: Docs markdown lint
+
 on: [push, pull_request]
 
 jobs:
@@ -17,3 +21,8 @@ jobs:
       with:
         globs: ${{ steps.changed-files.outputs.all_changed_files }}
         separator: ","
+    - name: markdownlint-cli2-action
+      uses: DavidAnson/markdownlint-cli2-action@v18.0.0
+      with:
+        config: ".github/actions/docs/markdownlint-cli2/.markdownlint.json"
+        globs: "docs/**/*.md"

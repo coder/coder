@@ -221,12 +221,6 @@ jobs:
           ./scripts/check_unstaged.sh
         shell: bash
 
-      - name: markdownlint-cli2-action
-        uses: DavidAnson/markdownlint-cli2-action@v18.0.0
-        with:
-          config: ".github/actions/docs/markdownlint-cli2/.markdownlint.json"
-          globs: "docs/**/*.md"
-
   gen:
     timeout-minutes: 8
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
