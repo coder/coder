@@ -4,6 +4,8 @@ October 31, 2024
 
 ---
 
+# This should error in the linter
+
 If it takes your workspace a long time to start, find out why and make some
 changes to your Coder templates to help speed things up.
 
