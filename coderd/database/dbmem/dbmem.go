@@ -6979,6 +6979,11 @@ func (q *FakeQuerier) GetWorkspaces(ctx context.Context, arg database.GetWorkspa
 	return workspaceRows, err
 }
 
+func (q *FakeQuerier) GetWorkspacesAndAgentsByOwnerID(ctx context.Context, ownerID uuid.UUID) ([]database.GetWorkspacesAndAgentsByOwnerIDRow, error) {
+	// No auth filter.
+	return q.GetAuthorizedWorkspacesAndAgentsByOwnerID(ctx, ownerID, nil)
+}
+
 func (q *FakeQuerier) GetWorkspacesByTemplateID(_ context.Context, templateID uuid.UUID) ([]database.WorkspaceTable, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
