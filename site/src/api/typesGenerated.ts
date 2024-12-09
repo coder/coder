@@ -222,7 +222,7 @@ export type AuthorizationResponse = Record<string, boolean>;
 // From codersdk/workspaces.go
 export type AutomaticUpdates = "always" | "never";
 
-export const AutomaticUpdatess: AutomaticUpdates[] = ["always", "never"];
+export const AutomaticUpdateses: AutomaticUpdates[] = ["always", "never"];
 
 // From codersdk/deployment.go
 export interface AvailableExperiments {
@@ -1558,7 +1558,7 @@ export type ProvisionerJobStatus =
 	| "succeeded"
 	| "unknown";
 
-export const ProvisionerJobStatuss: ProvisionerJobStatus[] = [
+export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 	"canceled",
 	"canceling",
 	"failed",
@@ -1643,7 +1643,7 @@ export type ProxyHealthStatus =
 	| "unreachable"
 	| "unregistered";
 
-export const ProxyHealthStatuss: ProxyHealthStatus[] = [
+export const ProxyHealthStatuses: ProxyHealthStatus[] = [
 	"ok",
 	"unhealthy",
 	"unreachable",
@@ -2634,7 +2634,7 @@ export interface UserRoles {
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 
-export const UserStatuss: UserStatus[] = ["active", "dormant", "suspended"];
+export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 
 // From codersdk/users.go
 export interface UsersRequest extends Pagination {
@@ -2886,7 +2886,7 @@ export type WorkspaceAgentStatus =
 	| "disconnected"
 	| "timeout";
 
-export const WorkspaceAgentStatuss: WorkspaceAgentStatus[] = [
+export const WorkspaceAgentStatuses: WorkspaceAgentStatus[] = [
 	"connected",
 	"connecting",
 	"disconnected",
@@ -3082,7 +3082,7 @@ export type WorkspaceStatus =
 	| "stopped"
 	| "stopping";
 
-export const WorkspaceStatuss: WorkspaceStatus[] = [
+export const WorkspaceStatuses: WorkspaceStatus[] = [
 	"canceled",
 	"canceling",
 	"deleted",
