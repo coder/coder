@@ -49,9 +49,13 @@ locals {
         cpu_limit = "100m"
         mem_limit = "128Mi"
       }
+      misc = {
+        nodepool_size = 1
+        machine_type = "t2d-standard-4"
+      }
       cloudsql = {
         tier = "db-f1-micro"
-        replicas = 1
+        max_connections = 500
       }
     }
   }

@@ -209,7 +209,7 @@ coder:
   replicaCount: "${local.scenarios[var.scenario].provisionerd.replicas}"
   resources:
     requests:
-      cpu: "${local.scenarios[var.scenario].provisionerd.request}"
+      cpu: "${local.scenarios[var.scenario].provisionerd.cpu_request}"
       memory: "${local.scenarios[var.scenario].provisionerd.mem_request}"
     limits:
       cpu: "${local.scenarios[var.scenario].provisionerd.cpu_limit}"
