@@ -74,16 +74,17 @@ type agentAppAttributes struct {
 	Slug        string `mapstructure:"slug"`
 	DisplayName string `mapstructure:"display_name"`
 	// Name is deprecated in favor of DisplayName.
-	Name        string                     `mapstructure:"name"`
-	Icon        string                     `mapstructure:"icon"`
-	URL         string                     `mapstructure:"url"`
-	External    bool                       `mapstructure:"external"`
-	Command     string                     `mapstructure:"command"`
-	Share       string                     `mapstructure:"share"`
-	Subdomain   bool                       `mapstructure:"subdomain"`
-	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
-	Order       int64                      `mapstructure:"order"`
-	Hidden      bool                       `mapstructure:"hidden"`
+	Name         string                     `mapstructure:"name"`
+	Icon         string                     `mapstructure:"icon"`
+	URL          string                     `mapstructure:"url"`
+	External     bool                       `mapstructure:"external"`
+	Command      string                     `mapstructure:"command"`
+	Share        string                     `mapstructure:"share"`
+	CORSBehavior string                     `mapstructure:"cors_behavior"`
+	Subdomain    bool                       `mapstructure:"subdomain"`
+	Healthcheck  []appHealthcheckAttributes `mapstructure:"healthcheck"`
+	Order        int64                      `mapstructure:"order"`
+	Hidden       bool                       `mapstructure:"hidden"`
 }
 
 type agentEnvAttributes struct {
@@ -432,6 +433,15 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				sharingLevel = proto.AppSharingLevel_PUBLIC
 			}
 
+			var corsBehavior proto.AppCORSBehavior
+			switch strings.ToLower(attrs.CORSBehavior) {
+			case "passthru":
+				corsBehavior = proto.AppCORSBehavior_PASSTHRU
+			default:
+				corsBehavior = proto.AppCORSBehavior_SIMPLE
+				logger.Debug(ctx, "cors_behavior not set, defaulting to 'simple'", slog.F("address", convertAddressToLabel(resource.Address)))
+			}
+
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
@@ -449,6 +459,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Icon:         attrs.Icon,
 						Subdomain:    attrs.Subdomain,
 						SharingLevel: sharingLevel,
+						CorsBehavior: corsBehavior,
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
 						Hidden:       attrs.Hidden,

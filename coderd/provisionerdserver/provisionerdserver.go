@@ -2012,6 +2012,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				sharingLevel = database.AppSharingLevelPublic
 			}
 
+			var corsBehavior database.AppCORSBehavior
+			switch app.CorsBehavior {
+			case sdkproto.AppCORSBehavior_PASSTHRU:
+				corsBehavior = database.AppCorsBehaviorPassthru
+			default:
+				corsBehavior = database.AppCorsBehaviorSimple
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:          uuid.New(),
 				CreatedAt:   dbtime.Now(),
@@ -2030,6 +2038,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				External:             app.External,
 				Subdomain:            app.Subdomain,
 				SharingLevel:         sharingLevel,
+				CORSBehavior:         corsBehavior,
 				HealthcheckUrl:       app.Healthcheck.Url,
 				HealthcheckInterval:  app.Healthcheck.Interval,
 				HealthcheckThreshold: app.Healthcheck.Threshold,

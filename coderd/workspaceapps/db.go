@@ -16,6 +16,7 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -123,12 +124,14 @@ func (p *DBTokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *
 		WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "get app details from database")
 		return nil, "", false
 	}
+
 	token.UserID = dbReq.User.ID
 	token.WorkspaceID = dbReq.Workspace.ID
 	token.AgentID = dbReq.Agent.ID
 	if dbReq.AppURL != nil {
 		token.AppURL = dbReq.AppURL.String()
 	}
+	token.CORSBehavior = codersdk.AppCORSBehavior(dbReq.AppCORSBehavior)
 
 	// Verify the user has access to the app.
 	authed, warnings, err := p.authorizeRequest(r.Context(), authz, dbReq)
