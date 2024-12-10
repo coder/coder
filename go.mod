@@ -67,6 +67,8 @@ replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145
 // which we use in the awsiamrds package.
 replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
 
+replace github.com/charmbracelet/bubbletea => github.com/sreya/bubbletea v1.2.2-0.20241210232551-43ff5fc42edd
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.5.2
@@ -202,7 +204,7 @@ require go.uber.org/mock v0.5.0
 require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v1.2.1
+	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/coder/serpent v0.10.0
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21
@@ -212,6 +214,7 @@ require (
 	github.com/google/go-github/v61 v61.0.0
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
 	github.com/natefinch/atomic v1.0.1
+	github.com/sreya/bubbletea v1.2.2-0.20241210232912-64577f67745d
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
 )
 
