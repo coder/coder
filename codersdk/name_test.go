@@ -34,6 +34,7 @@ func TestUsernameValid(t *testing.T) {
 		{"abcdefghijklmnopqrst", true},
 		{"abcdefghijklmnopqrstu", true},
 		{"wow-test", true},
+		{"github-legacy-name-", true},
 
 		{"", false},
 		{" ", false},
