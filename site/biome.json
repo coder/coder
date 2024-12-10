@@ -3,8 +3,8 @@
 		"ignore": [
 		  "e2e/provisionerGenerated.ts",
 		  "e2e/google/protobuf/timestampGenerated.ts",
-		  "site/src/api/countriesGenerated.ts",
-		  "site/src/api/rbacresourcesGenerated.ts"
+		  "src/api/countriesGenerated.ts",
+		  "src/api/rbacresourcesGenerated.ts"
 		]
 	},
 	"linter": {
