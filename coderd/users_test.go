@@ -1655,6 +1655,37 @@ func TestUsersFilter(t *testing.T) {
 				return u.LastSeenAt.Before(end) && u.LastSeenAt.After(start)
 			},
 		},
+		{
+			Name: "CreatedAtBefore",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.Before(end)
+			},
+		},
+		{
+			Name: "CreatedAtAfter",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				return u.CreatedAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAtRange",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z" created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.After(start) && u.CreatedAt.Before(end)
+			},
+		},
 	}
 
 	for _, c := range testCases {
