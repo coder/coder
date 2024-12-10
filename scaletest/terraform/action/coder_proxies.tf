@@ -20,8 +20,11 @@ resource "null_resource" "api_key" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
     command     = <<EOF
+<<<<<<< HEAD
 set -e
 
+=======
+>>>>>>> 46f631c0c (back to curl)
 curl '${local.deployments.primary.url}/api/v2/users/first' \
   --data-raw $'{"email":"${local.coder_admin_email}","password":"${local.coder_admin_password}","username":"${local.coder_admin_user}","name":"${local.coder_admin_full_name}","trial":false}' \
   --insecure --silent --output /dev/null

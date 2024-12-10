@@ -87,15 +87,15 @@ variable "provisionerd_image_tag" {
 }
 
 // Traffic
-variable "traffic_bytes_per_tick" {
-  description = "Number of bytes to send per tick."
-  default     = 1024
-}
+# variable "traffic_bytes_per_tick" {
+#   description = "Number of bytes to send per tick."
+#   default     = 1024
+# }
 
-variable "traffic_tick_interval" {
-  description = "Interval between ticks."
-  default     = "1s"
-}
+# variable "traffic_tick_interval" {
+#   description = "Interval between ticks."
+#   default     = "10s"
+# }
 
 variable "workspace_count" {
   description = "Number of workspaces to create."
@@ -104,5 +104,5 @@ variable "workspace_count" {
 
 variable "workspace_create_concurrency" {
   description = "Number of workspaces to create concurrently."
-  default     = 1
+  default     = 10
 }
