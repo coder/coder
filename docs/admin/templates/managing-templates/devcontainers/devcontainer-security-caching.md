@@ -3,7 +3,7 @@
 Ensure Envbuilder can only pull pre-approved images and artifacts by configuring
 it with your existing HTTP proxies, firewalls, and artifact managers.
 
-### Configure registry authentication
+## Configure registry authentication
 
 You may need to authenticate to your container registry, such as Artifactory, or
 Git provider such as GitLab, to use Envbuilder. See the
