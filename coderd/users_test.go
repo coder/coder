@@ -1515,35 +1515,38 @@ func TestUsersFilter(t *testing.T) {
 
 	// Add users with different creation dates for testing date filters
 	for i := 0; i < 3; i++ {
-		// nolint:gocritic
+		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("before%d@coder.com", i),
 			Username:  fmt.Sprintf("before%d", i),
 			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
 			CreatedAt: time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		users = append(users, dbUserToSDKUser(user1))
 
-		// nolint:gocritic
+		// nolint:gocritic //Using system context is necessary to seed data in tests
 		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("during%d@coder.com", i),
 			Username:  fmt.Sprintf("during%d", i),
 			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
 			CreatedAt: time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
 		users = append(users, dbUserToSDKUser(user2))
 
-		// nolint:gocritic
+		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("after%d@coder.com", i),
 			Username:  fmt.Sprintf("after%d", i),
+			Status:    string(codersdk.UserStatusActive),
 			LoginType: database.LoginTypeNone,
 			CreatedAt: time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
@@ -1560,8 +1563,10 @@ func TestUsersFilter(t *testing.T) {
 		FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
 	}{
 		{
-			Name:   "All",
-			Filter: codersdk.UsersRequest{},
+			Name: "All",
+			Filter: codersdk.UsersRequest{
+				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
+			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				return true
 			},
@@ -1639,7 +1644,7 @@ func TestUsersFilter(t *testing.T) {
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return u.Status == codersdk.UserStatusSuspended || u.Status == codersdk.UserStatusActive
+				return true
 			},
 		},
 		{
