@@ -15,6 +15,7 @@ jobs:
         id: changed-files
         with:
           files: "docs/**/*.md"
+          files_ignore: "docs/reference/*.md"
           separator: ","
       - uses: DavidAnson/markdownlint-cli2-action@v18
         if: steps.changed-files.outputs.any_changed == 'true'
