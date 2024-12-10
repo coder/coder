@@ -1,10 +1,9 @@
 import { test, expect } from "@playwright/test";
-import { MockOrganization } from "testHelpers/entities";
 import {
-	createOrganization,
 	createCustomRole,
-	getCurrentOrgId,
+	createOrganizationWithName,
 	setupApiCalls,
+	deleteOrganization,
 } from "../../../api";
 import { requiresLicense } from "../../../helpers";
 import { beforeCoderTest } from "../../../hooks";
@@ -13,11 +12,12 @@ test.describe("CustomRolesPage", () => {
 
   test.beforeEach(async ({ page }) => await beforeCoderTest(page));
 
-  test("create custom role", async ({ page }) => {
+  test("create custom role and cancel edit changes", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganization();
+	const org = await createOrganizationWithName("developers");
+
 	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
 
 	await page.goto(`/organizations/${org.name}/roles`);
@@ -25,13 +25,68 @@ test.describe("CustomRolesPage", () => {
 	await expect(roleRow.getByText(customRole.display_name)).toBeVisible();
 	await expect(roleRow.getByText("organization_member")).toBeVisible();
 
+	await roleRow.getByRole("button", { name: "More options" }).click()
+	const menu = page.locator("#more-options");
+	await menu.getByText("Edit").click();
+
+	await expect(page).toHaveURL(`/organizations/${org.name}/roles/${customRole.name}`);
+
+	const cancelButton = page.getByRole("button", { name: "Cancel" }).first();
+	await expect(cancelButton).toBeVisible();
+	await cancelButton.click();
+
+	await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
+
+	await deleteOrganization("developers");
+  });
+
+  test("create custom role, edit role and save changes", async ({ page }) => {
+	requiresLicense();
+	await setupApiCalls(page);
+
+	const org = await createOrganizationWithName("developers");
+
+	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
+
+	await page.goto(`/organizations/${org.name}/roles`);
+	const roleRow = page.getByTestId(`role-${customRole.name}`);
+	await expect(roleRow.getByText(customRole.display_name)).toBeVisible();
+	await expect(roleRow.getByText("organization_member")).toBeVisible();
+
+	await page.goto(`/organizations/${org.name}/roles/${customRole.name}`);
+
+	const displayNameInput = page.getByRole("textbox", { name: "Display name" });
+	await displayNameInput.fill("Custom Role Test 2 Edited");
+
+	const groupCheckbox = page.getByTestId("group").getByRole("checkbox");
+	await expect(groupCheckbox).toBeVisible();
+	await groupCheckbox.click();
+
+	const organizationMemberCheckbox = page.getByTestId("organization_member").getByRole("checkbox");
+	await expect(organizationMemberCheckbox).toBeVisible();
+	await organizationMemberCheckbox.click();
+
+	const saveButton = page.getByRole("button", { name: "Save" }).first();
+	await expect(saveButton).toBeVisible();
+	await saveButton.click();
+
+	await expect(roleRow.getByText("Custom Role Test 2 Edited")).toBeVisible();
+
+	const roleRow2 = page.getByTestId(`role-${customRole.name}`);
+	await expect(roleRow2.getByText("organization_member")).not.toBeVisible();
+	await expect(roleRow2.getByText("group")).toBeVisible();
+
+	await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
+
+	await deleteOrganization("developers");
   });
 
   test("displays built-in role without edit/delete options", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganization();
+	const org = await createOrganizationWithName("developers");
+
 	await page.goto(`/organizations/${org.name}/roles`);
 
     const roleRow = page.getByTestId("role-organization-admin");
@@ -41,74 +96,63 @@ test.describe("CustomRolesPage", () => {
 
     // Verify that the more menu (three dots) is not present for built-in roles
     await expect(roleRow.getByRole("button", { name: "More options" })).not.toBeVisible();
+
+	await deleteOrganization("developers");
   });
 
-  test("can navigate to create custom role", async ({ page }) => {
+  test("create custom role with UI", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganization();
+	const org = await createOrganizationWithName("developers");
+
 	await page.goto(`/organizations/${org.name}/roles`);
 
     await page.getByRole("link", { name: "Create custom role" }).first().click();
+
     await expect(page).toHaveURL(`/organizations/${org.name}/roles/create`);
+
+	const customRoleName = "custom-role-test";
+	const roleNameInput = page.getByRole("textbox", { exact: true, name: "Name" });
+	await roleNameInput.fill(customRoleName);
+
+	const customRoleDisplayName = "Custom Role Test";
+	const displayNameInput = page.getByRole("textbox", { exact: true, name: "Display Name" });
+	await displayNameInput.fill(customRoleDisplayName);
+
+	await page.getByRole("button", { name: "Create Role" }).first().click();
+
+	await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
+
+	const roleRow = page.getByTestId(`role-${customRoleName}`);
+	await expect(roleRow.getByText(customRoleDisplayName)).toBeVisible();
+	await expect(roleRow.getByText("None")).toBeVisible();
+
+	await deleteOrganization("developers");
   });
 
-//   test("delete custom role", async ({ page }) => {
-// 	requiresLicense();
-// 	await setupApiCalls(page);
+  test("delete custom role", async ({ page }) => {
+	requiresLicense();
+	await setupApiCalls(page);
 
-// 	const org = await createOrganization();
-// 	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
-// 	await page.goto(`/organizations/${org.name}/roles`);
+	const org = await createOrganizationWithName("developers");
+	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
+	await page.goto(`/organizations/${org.name}/roles`);
 
-//     // const roleRow = page.getByTestId("role-custom-role-test-1");
-//     await page.getByRole("button", { name: "More options" }).click();
+	const roleRow = page.getByTestId(`role-${customRole.name}`);
+    await roleRow.getByRole("button", { name: "More options" }).click()
 
-//     // Check menu items
-//     await expect(page.getByRole("menuitem", { name: "Edit" })).toBeVisible();
-// 	await expect(page.getByText("Edit")).toBeVisible();
-// 	// const menu = page.getByRole("menu");
+	const menu = page.locator("#more-options");
+	await menu.getByText("Delete…").click();
 
-// 	const deleteButton = page.getByRole("menuitem", { name: "Delete&hellip;" });
-//     await expect(deleteButton).toBeVisible();
-// 	await deleteButton.click();
+	const input = page.getByRole("textbox");
+	await input.fill(customRole.name);
+	await page.getByRole("button", { name: "Delete" }).click();
 
-// 	const input = page.getByRole("textbox");
-// 	await input.fill(customRole.name);
-// 	await page.getByRole("button", { name: "Delete" }).click();
+	await expect(page.getByText("Custom role deleted successfully!")).toBeVisible();
 
-// 	await expect(page.getByText("Custom role deleted successfully!")).toBeVisible();
-//   });
-
-//   test("shows delete confirmation dialog", async ({ page }) => {
-//     // Click delete option
-//     const roleRow = page.getByTestId("role-custom-role-test-1");
-//     await roleRow.getByRole("button", { name: "More options" }).click();
-//     await page.getByRole("menuitem", { name: "Delete…" }).click();
-
-//     // Check dialog content
-//     await expect(page.getByRole("dialog")).toBeVisible();
-//     await expect(page.getByText(/Are you sure you want to delete/)).toBeVisible();
-//     await expect(page.getByRole("button", { name: "Cancel" })).toBeVisible();
-//     await expect(page.getByRole("button", { name: "Delete" })).toBeVisible();
-//   });
-
-//   test("handles delete role successfully", async ({ page }) => {
-//     // Mock delete API call
-//     await page.route("**/api/v2/organizations/*/roles/*", (route) =>
-//       route.fulfill(createMockApiResponse({}))
-//     );
-
-//     // Perform delete
-//     const roleRow = page.getByTestId("role-custom-role-test-1");
-//     await roleRow.getByRole("button", { name: "More options" }).click();
-//     await page.getByRole("menuitem", { name: "Delete…" }).click();
-//     await page.getByRole("button", { name: "Delete" }).click();
-
-//     // Check success message
-//     await expect(page.getByText("Custom role deleted successfully!")).toBeVisible();
-//   });
+	await deleteOrganization("developers");
+  });
 
 //   test("shows paywall when custom roles not enabled", async ({ page }) => {
 //     // Mock feature flags to disable custom roles
