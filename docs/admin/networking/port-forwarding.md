@@ -183,7 +183,7 @@ following:
 
 Below is a list of the cross-origin headers Coder sets with example values:
 
-```
+```text
 access-control-allow-credentials: true
 access-control-allow-methods: PUT
 access-control-allow-headers: X-Custom-Header

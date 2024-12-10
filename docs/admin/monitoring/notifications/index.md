@@ -93,7 +93,7 @@ existing one.
 | Required | CLI                 | Env                     | Type     | Description                               | Default   |
 | :------: | ------------------- | ----------------------- | -------- | ----------------------------------------- | --------- |
 |    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |           |
 |    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
 
 **Authentication Settings:**
