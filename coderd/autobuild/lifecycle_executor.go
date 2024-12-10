@@ -3,6 +3,7 @@ package autobuild
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -176,6 +177,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				)
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
+
+					ok, err := tx.TryAcquireLock(e.ctx, database.GenLockID(fmt.Sprintf("lifecycle-executor:%s", wsID)))
+					if err != nil {
+						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
+					}
+					if !ok {
+						e.log.Debug(e.ctx, "unable to acquire lock for workspace, skipping", slog.F("workspace_id", wsID))
+						return nil
+					}
 
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
