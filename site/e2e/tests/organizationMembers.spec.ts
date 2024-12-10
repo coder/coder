@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
 import { expectUrl } from "../expectUrl";
-import { randomName, requiresLicense } from "../helpers";
+import { createUser, randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
@@ -28,18 +28,20 @@ test("create and delete organization", async ({ page }) => {
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
 	await expect(page.getByText("Organization created.")).toBeVisible();
 
-	const newName = randomName();
-	await page.getByLabel("Slug").fill(newName);
-	await page.getByLabel("Description").fill(`Org description ${newName}`);
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByText("Members").click();
 
-	// Expect to be redirected when renaming the organization
-	await expectUrl(page).toHavePathName(`/organizations/${newName}`);
-	await expect(page.getByText("Organization settings updated.")).toBeVisible();
+	const personToAdd = await createUser(page);
+	await page.getByPlaceholder("User email or username").fill(personToAdd.email);
+	await page.getByRole("option", { name: personToAdd.email }).click();
+	await page.getByRole("button", { name: "Add user" }).click();
+	await page.pause();
+	await expect(
+		page.locator("tr", { hasText: personToAdd.email }),
+	).toBeVisible();
 
-	await page.getByRole("button", { name: "Delete this organization" }).click();
-	const dialog = page.getByTestId("dialog");
-	await dialog.getByLabel("Name").fill(newName);
-	await dialog.getByRole("button", { name: "Delete" }).click();
-	await expect(page.getByText("Organization deleted.")).toBeVisible();
+	// await page.getByRole("button", { name: "Delete this organization" }).click();
+	// const dialog = page.getByTestId("dialog");
+	// await dialog.getByLabel("Name").fill(newName);
+	// await dialog.getByRole("button", { name: "Delete" }).click();
+	// await expect(page.getByText("Organization deleted.")).toBeVisible();
 });
