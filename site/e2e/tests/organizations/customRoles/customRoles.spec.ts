@@ -44,7 +44,7 @@ test.describe("CustomRolesPage", () => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganizationWithName("developers");
+	const org = await createOrganizationWithName("users");
 
 	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
 
@@ -78,14 +78,14 @@ test.describe("CustomRolesPage", () => {
 
 	await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
 
-	await deleteOrganization("developers");
+	await deleteOrganization("users");
   });
 
   test("displays built-in role without edit/delete options", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganizationWithName("developers");
+	const org = await createOrganizationWithName("testers");
 
 	await page.goto(`/organizations/${org.name}/roles`);
 
@@ -97,14 +97,14 @@ test.describe("CustomRolesPage", () => {
     // Verify that the more menu (three dots) is not present for built-in roles
     await expect(roleRow.getByRole("button", { name: "More options" })).not.toBeVisible();
 
-	await deleteOrganization("developers");
+	await deleteOrganization("testers");
   });
 
   test("create custom role with UI", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganizationWithName("developers");
+	const org = await createOrganizationWithName("contractors");
 
 	await page.goto(`/organizations/${org.name}/roles`);
 
@@ -128,14 +128,14 @@ test.describe("CustomRolesPage", () => {
 	await expect(roleRow.getByText(customRoleDisplayName)).toBeVisible();
 	await expect(roleRow.getByText("None")).toBeVisible();
 
-	await deleteOrganization("developers");
+	await deleteOrganization("contractors");
   });
 
   test("delete custom role", async ({ page }) => {
 	requiresLicense();
 	await setupApiCalls(page);
 
-	const org = await createOrganizationWithName("developers");
+	const org = await createOrganizationWithName("custom1");
 	const customRole = await createCustomRole(org.id, "custom-role-test-1", "Custom Role Test 1");
 	await page.goto(`/organizations/${org.name}/roles`);
 
@@ -151,7 +151,7 @@ test.describe("CustomRolesPage", () => {
 
 	await expect(page.getByText("Custom role deleted successfully!")).toBeVisible();
 
-	await deleteOrganization("developers");
+	await deleteOrganization("custom1");
   });
 
 //   test("shows paywall when custom roles not enabled", async ({ page }) => {

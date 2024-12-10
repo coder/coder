@@ -117,7 +117,7 @@ test.describe("IdpOrgSyncPage", () => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		await createOrganizationWithName("developers");
+		await createOrganizationWithName("admins");
 
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -135,7 +135,7 @@ test.describe("IdpOrgSyncPage", () => {
 
 		// Select Coder organization from combobox
 		await orgSelector.click();
-		await page.getByRole("option", { name: "developers" }).click();
+		await page.getByRole("option", { name: "admins" }).click();
 
 		// Add button should now be enabled
 		await expect(addButton).toBeEnabled();
@@ -146,12 +146,12 @@ test.describe("IdpOrgSyncPage", () => {
 		const newRow = page.getByTestId("idp-org-new-idp-org");
 		await expect(newRow).toBeVisible();
 		await expect(newRow.getByText("new-idp-org")).toBeVisible();
-		await expect(newRow.getByText("developers")).toBeVisible();
+		await expect(newRow.getByText("admins")).toBeVisible();
 
 		await expect(
 			page.getByText("Organization sync settings updated."),
 		).toBeVisible();
 
-		await deleteOrganization("developers");
+		await deleteOrganization("admins");
 	});
 });
