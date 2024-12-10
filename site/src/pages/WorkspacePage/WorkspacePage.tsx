@@ -5,7 +5,6 @@ import { workspaceBuildsKey } from "api/queries/workspaceBuilds";
 import { workspaceByOwnerAndName } from "api/queries/workspaces";
 import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
@@ -15,6 +14,7 @@ import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
+import { WorkspaceLoadingPage } from "./WorkspaceLoadingPage";
 
 export const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
@@ -116,7 +116,7 @@ export const WorkspacePage: FC = () => {
 						/>
 					</Margins>
 				) : isLoading ? (
-					<Loader />
+					<WorkspaceLoadingPage workspace={workspace} />
 				) : (
 					<WorkspaceReadyPage
 						workspace={workspace}
