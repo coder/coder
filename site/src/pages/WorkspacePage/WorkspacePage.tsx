@@ -12,9 +12,9 @@ import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import { WorkspaceLoadingPage } from "./WorkspaceLoadingPage";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
-import { WorkspaceLoadingPage } from "./WorkspaceLoadingPage";
 
 export const WorkspacePage: FC = () => {
 	const queryClient = useQueryClient();
