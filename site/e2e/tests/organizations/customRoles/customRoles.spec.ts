@@ -191,6 +191,10 @@ test("custom roles disabled", async ({ page }) => {
 	await page.goto("/organizations/coder/roles");
 	await expect(page).toHaveURL("/organizations/coder/roles");
 
-	await expect(page.getByText("Upgrade to a premium license to create a custom role")).toBeVisible();
-	await expect(page.getByRole("link", { name: "Create custom role" })).not.toBeVisible();
+	await expect(
+		page.getByText("Upgrade to a premium license to create a custom role"),
+	).toBeVisible();
+	await expect(
+		page.getByRole("link", { name: "Create custom role" }),
+	).not.toBeVisible();
 });
