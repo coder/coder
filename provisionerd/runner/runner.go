@@ -86,7 +86,8 @@ type Metrics struct {
 	// JobTimings also counts the total amount of jobs.
 	JobTimings *prometheus.HistogramVec
 	// WorkspaceBuilds counts workspace build successes and failures.
-	WorkspaceBuilds *prometheus.CounterVec
+	WorkspaceBuilds       *prometheus.CounterVec
+	WorkspaceBuildTimings *prometheus.HistogramVec
 }
 
 type JobUpdater interface {
@@ -189,6 +190,12 @@ func (r *Runner) Run() {
 				build.Metadata.WorkspaceTransition.String(),
 				status,
 			).Inc()
+			r.metrics.WorkspaceBuildTimings.WithLabelValues(
+				build.Metadata.TemplateName,
+				build.Metadata.TemplateVersion,
+				build.Metadata.WorkspaceTransition.String(),
+				status,
+			).Observe(time.Since(start).Seconds())
 		}
 		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
