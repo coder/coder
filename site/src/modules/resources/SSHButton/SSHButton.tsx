@@ -82,12 +82,14 @@ export const SSHButton: FC<SSHButtonProps> = ({
 	);
 };
 
-const SSHStep = (props: { helpText: string; codeExample: string }) => (
+interface SSHStepProps { helpText: string; codeExample: string }
+
+const SSHStep = ({ helpText, codeExample }: SSHStepProps) => (
 	<li style={{ listStylePosition: "inside" }}>
 		<HelpTooltipText style={{ display: "inline" }}>
-			<strong css={styles.codeExampleLabel}>{props.helpText}</strong>
+			<strong css={styles.codeExampleLabel}>{helpText}</strong>
 		</HelpTooltipText>
-		<CodeExample secret={false} code={props.codeExample} />
+		<CodeExample secret={false} code={codeExample} />
 	</li>
 );
 
