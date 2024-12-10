@@ -354,6 +354,46 @@ dashboard:
 
 <div class="tabs">
 
+### Dashboard
+
+1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
+   the following URL with an `Owner` account:
+
+   ```text
+   https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
+   ```
+
+   You should see a field in either `id_token_claims`, `user_info_claims` or
+   both followed by a list of the user's OIDC groups in the response. This is
+   the [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims)
+   sent by the OIDC provider. See
+   [Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
+
+   Depending on the OIDC provider, this claim may be called something else.
+   Common names include `groups`, `memberOf`, and `roles`.
+
+1. Fetch the corresponding organization IDs using the following endpoint:
+
+   ```text
+   https://[coder.example.com]/api/v2/organizations
+   ```
+
+1. As a Coder organization user admin or site-wide user admin, go to
+   **Settings** > **IdP organization sync**.
+
+1. In the **Organization sync field** text box, enter the organization claim,
+   then select **Save**.
+
+   Users are automatically added to the default organization.
+
+   Do not disable **Assign Default Organization**. If you disable the default
+   organization, the system will remove users who are already assigned to it.
+
+1. Enter an IdP organization name and Coder organization(s), then select **Add
+   IdP organization**:
+
+   ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
+
 ### CLI
 
 Use the Coder CLI to show and adjust the settings.
@@ -401,46 +441,6 @@ settings, a user's memberships will update when they log out and log back in.
    | field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
    | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
    | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |
-
-### Dashboard
-
-1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
-   the following URL with an `Owner` account:
-
-   ```text
-   https://[coder.example.com]/api/v2/debug/[your-username]/debug-link
-   ```
-
-   You should see a field in either `id_token_claims`, `user_info_claims` or
-   both followed by a list of the user's OIDC groups in the response. This is
-   the [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims)
-   sent by the OIDC provider. See
-   [Troubleshooting](#troubleshooting-grouproleorganization-sync) to debug this.
-
-   Depending on the OIDC provider, this claim may be called something else.
-   Common names include `groups`, `memberOf`, and `roles`.
-
-1. Fetch the corresponding organization IDs using the following endpoint:
-
-   ```text
-   https://[coder.example.com]/api/v2/organizations
-   ```
-
-1. As a Coder organization user admin or site-wide user admin, go to
-   **Settings** > **IdP organization sync**.
-
-1. In the **Organization sync field** text box, enter the organization claim,
-   then select **Save**.
-
-   Users are automatically added to the default organization.
-
-   Do not disable **Assign Default Organization**. If you disable the default
-   organization, the system will remove users who are already assigned to it.
-
-1. Enter an IdP organization name and Coder organization(s), then select **Add
-   IdP organization**:
-
-   ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
 
 </div>
 
