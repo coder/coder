@@ -181,7 +181,7 @@ CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 
 ## Multiple External Providers
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Multiple providers is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

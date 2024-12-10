@@ -233,7 +233,7 @@ notification is indicated on the right hand side of this table.
 
 ## Delivery Preferences
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Delivery preferences is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

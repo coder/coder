@@ -51,7 +51,7 @@ for your workspace.
 
 ## Autostop requirement
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Autostop requirement is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -70,7 +70,7 @@ and specified quiet hours (see below).
 
 ### User quiet hours
 
-<blockquote class="tip">
+<blockquote class="info">
 
 User quiet hours are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -115,7 +115,7 @@ hours of inactivity.
 
 ## Dormancy
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Dormancy is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

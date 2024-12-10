@@ -132,7 +132,7 @@ CODER_DISABLE_PASSWORD_AUTH=true
 
 ## SCIM
 
-<blockquote class="tip">
+<blockquote class="info">
 
 SCIM is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

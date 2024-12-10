@@ -60,7 +60,7 @@ infrastructure, software, or security patches. Learn more about
 
 ### Template update policies
 
-<blockquote class="tip">
+<blockquote class="info">
 
 Template update policies are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
