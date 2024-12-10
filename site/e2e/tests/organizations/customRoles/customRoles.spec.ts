@@ -5,7 +5,7 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../../api";
-import { requiresLicense, noPremiumLicense } from "../../../helpers";
+import { noPremiumLicense, requiresLicense } from "../../../helpers";
 import { beforeCoderTest } from "../../../hooks";
 
 test.describe("CustomRolesPage", () => {
