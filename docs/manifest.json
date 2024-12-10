@@ -698,7 +698,7 @@
 				},
 				{
 					"title": "Istio Integration",
-					"description": "Integrate Coder with an Istio Service Mesh",
+					"description": "Integrate Coder with Istio",
 					"path": "./admin/integrations/istio.md"
 				},
 				{
