@@ -111,7 +111,6 @@ require (
 	github.com/go-chi/render v1.0.1
 	github.com/go-jose/go-jose/v3 v3.0.3
 	github.com/go-logr/logr v1.4.2
-	github.com/go-ping/ping v1.1.0
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/gofrs/flock v0.12.0
 	github.com/gohugoio/hugo v0.139.2
@@ -147,6 +146,7 @@ require (
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
 	github.com/pkg/sftp v1.13.6
+	github.com/prometheus-community/pro-bing v0.5.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
 	github.com/prometheus/common v0.61.0
