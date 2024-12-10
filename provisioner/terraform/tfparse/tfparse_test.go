@@ -132,7 +132,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						all = true
 					}
 					data "coder_parameter" "az" {
-					  name = "az"
+						name = "az"
 						type = "string"
 						default = var.az
 					}
