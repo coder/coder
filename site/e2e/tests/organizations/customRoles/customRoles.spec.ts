@@ -185,19 +185,12 @@ test.describe("CustomRolesPage", () => {
 
 		await deleteOrganization("custom1");
 	});
+});
 
-	//   test("shows paywall when custom roles not enabled", async ({ page }) => {
-	//     // Mock feature flags to disable custom roles
-	//     await page.route("**/api/v2/features", (route) =>
-	//       route.fulfill(createMockApiResponse({
-	//         custom_roles: false
-	//       }))
-	//     );
+test("custom roles disabled", async ({ page }) => {
+	await page.goto("/organizations/coder/roles");
+	await expect(page).toHaveURL("/organizations/coder/roles");
 
-	//     await page.reload();
-
-	//     // Check paywall content
-	//     await expect(page.getByText("Upgrade to a premium license to create a custom role")).toBeVisible();
-	//     await expect(page.getByRole("link", { name: "Create custom role" })).not.toBeVisible();
-	//   });
+	await expect(page.getByText("Upgrade to a premium license to create a custom role")).toBeVisible();
+	await expect(page.getByRole("link", { name: "Create custom role" })).not.toBeVisible();
 });
