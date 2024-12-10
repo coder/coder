@@ -7,7 +7,7 @@ import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
-import { Loader } from "lucide-react";
+import { Loader } from "components/Loader/Loader";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
