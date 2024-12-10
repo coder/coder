@@ -420,36 +420,27 @@ settings, a user's memberships will update when they log out and log back in.
    Depending on the OIDC provider, this claim may be called something else.
    Common names include `groups`, `memberOf`, and `roles`.
 
-1. Configure the Coder server to read groups from the claim name with the OIDC
-   organization field server flag:
-
-   ```sh
-   # as an environment variable
-   CODER_OIDC_ORGANIZATION_FIELD=groups
-   ```
-
 1. Fetch the corresponding organization IDs using the following endpoint:
 
    ```text
    https://[coder.example.com]/api/v2/organizations
    ```
 
-1. Set the following in your Coder server [configuration](../setup/index.md).
+1. As a Coder organization user admin or site-wide user admin, go to
+   **Settings** > **IdP organization sync**.
 
-   ```env
-   CODER_OIDC_ORGANIZATION_MAPPING='{"data-scientists":["d8d9daef-e273-49ff-a832-11fe2b2d4ab1",  "70be0908-61b5-4fb5-aba4-4dfb3a6c5787"]}'
-   ```
+1. In the **Organization sync field** text box, enter the organization claim,
+   then select **Save**.
 
-   > One claim value from your identity provider can be mapped to many
-   > organizations in Coder. The example above maps to two organizations in
-   > Coder.
+   Users are automatically added to the default organization.
 
-1. By default, all users are assigned to the default (first) organization. You
-   can disable that with:
+   Do not disable **Assign Default Organization**. If you disable the default
+   organization, the system will remove users who are already assigned to it.
 
-   ```env
-   CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT=false
-   ```
+1. Enter an IdP organization name and Coder organization(s), then select **Add
+   IdP organization**:
+
+   ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
 
 </div>
 
