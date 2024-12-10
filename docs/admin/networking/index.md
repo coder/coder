@@ -176,7 +176,14 @@ coder server, so they can only be geo-distributed with High Availability mode in
 our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
 more.
 
-## Browser-only connections (enterprise) (premium)
+## Browser-only connections
+
+<blockquote class="info">
+
+Browser-only connections is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to
@@ -186,7 +193,14 @@ With browser-only connections, developers can only connect to their workspaces
 via the web terminal and
 [web IDEs](../../user-guides/workspace-access/web-ides.md).
 
-### Workspace Proxies (enterprise) (premium)
+### Workspace Proxies
+
+<blockquote class="info">
+
+Workspace proxies are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Workspace proxies are a Coder Enterprise feature that allows you to provide
 low-latency browser experiences for geo-distributed teams.
