@@ -1,8 +1,8 @@
 # Configure Istio Service Mesh
 
-Integrating Istio's service mesh with Coder's Ingress enables powerful traffic management, security, and observability capabilities. By placing Coder's workspace traffic behind Istio's intelligent proxy layer, you can implement access controls, encrypt service-to-service communication, and gain visibility into your workspace network patterns. This guide walks through the process of configuring Istio alongside Coder's existing ingress controller, ensuring that developer workspaces remain accessible while benefiting from Istio's comprehensive service mesh features.
+Use Istio service mesh for your Coder workspace traffic to implement access controls, encrypt service-to-service communication, and gain visibility into your workspace network patterns. This guide walks through the required steps to configure the Istio service mesh for use with Coder.
 
-Before proceeding, ensure you have a running Kubernetes cluster with both Coder and Istio installed, and that you have administrative access to configure both systems. Once you have access to your Coder cluster, apply the following manifest:
+While Istio is platform-independent, this guide assumes you are leveraging Kubernetes. Ensure you have a running Kubernetes cluster with both Coder and Istio installed, and that you have administrative access to configure both systems. Once you have access to your Coder cluster, apply the following manifest:
 
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
