@@ -112,7 +112,7 @@ export const onChangeTrimmed =
 // REMARK: Keep these consts in sync with coderd/httpapi/httpapi.go
 const maxLenName = 32;
 const displayNameMaxLength = 64;
-const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*$/;
+const usernameRE = /^[a-zA-Z0-9]+(?:-[a-zA-Z0-9]+)*-?$/;
 const displayNameRE = /^[^\s](.*[^\s])?$/;
 
 // REMARK: see #1756 for name/username semantics

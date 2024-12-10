@@ -193,5 +193,10 @@ describe("form util functions", () => {
 			const validate = () => nameSchema.validateSync("test 3");
 			expect(validate).toThrow();
 		});
+
+		it("allows '3-test-' to be used as a name", () => {
+			const validate = () => nameSchema.validateSync("3-test-");
+			expect(validate).not.toThrow();
+		});
 	});
 });
