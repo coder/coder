@@ -426,14 +426,16 @@ settings, a user's memberships will update when they log out and log back in.
    https://[coder.example.com]/api/v2/organizations
    ```
 
-1. As a Coder admin, go to **Settings** > **IdP organization sync**.
+1. As a Coder organization user admin or site-wide user admin, go to
+   **Settings** > **IdP organization sync**.
 
 1. In the **Organization sync field** text box, enter the organization claim,
    then select **Save**.
 
-   Do not disable **Assign Default Organization** if there are already users in
-   the default organization. If you disable the default organization, the system
-   will remove users who are already assigned to it.
+   Users are automatically added to the default organization.
+
+   Do not disable **Assign Default Organization**. If you disable the default
+   organization, the system will remove users who are already assigned to it.
 
 1. Enter an IdP organization name and Coder organization(s), then select **Add
    IdP organization**:
