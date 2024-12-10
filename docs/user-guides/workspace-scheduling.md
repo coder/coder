@@ -51,12 +51,12 @@ for your workspace.
 
 ## Autostop requirement
 
-<blockquote class="admonition tip">
+:::important
 
 Autostop requirement is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
 
-</blockquote>
+:::
 
 Licensed template admins may enforce a required stop for workspaces to apply
 updates or undergo maintenance. These stops ignore any active connections or
