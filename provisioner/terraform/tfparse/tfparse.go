@@ -172,7 +172,7 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := p.CoderParameterDefaults(ctx)
+	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults)
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -268,7 +268,7 @@ func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error
 
 // CoderParameterDefaults returns the default values of all coder_parameter data sources
 // in the parsed module.
-func (p *Parser) CoderParameterDefaults(ctx context.Context) (map[string]string, error) {
+func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	var (
 		skipped []string
@@ -316,6 +316,7 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context) (map[string]string,
 			}
 
 			if _, ok := resContent.Attributes["default"]; !ok {
+				p.logger.Warn(ctx, "coder_parameter data source does not have a default value", slog.F("name", dataResource.Name))
 				defaultsM[dataResource.Name] = ""
 			} else {
 				expr := resContent.Attributes["default"].Expr
@@ -323,7 +324,20 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context) (map[string]string,
 				if err != nil {
 					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
-				defaultsM[dataResource.Name] = strings.Trim(value, `"`)
+				// Issue #15795: the "default" value could also be an expression we need
+				// to evaluate.
+				// TODO: should we support coder_parameter default values that reference other coder_parameter data sources?
+				evalCtx := buildEvalContext(varsDefaults, nil)
+				val, diags := expr.Value(evalCtx)
+				if diags.HasErrors() {
+					return nil, xerrors.Errorf("failed to evaluate coder_parameter %q default value %q: %s", dataResource.Name, value, diags.Error())
+				}
+				// Do not use "val.AsString()" as it can panic
+				strVal, err := ctyValueString(val)
+				if err != nil {
+					return nil, xerrors.Errorf("failed to marshal coder_parameter %q default value %q as string: %s", dataResource.Name, value, err)
+				}
+				defaultsM[dataResource.Name] = strings.Trim(strVal, `"`)
 			}
 		}
 	}
