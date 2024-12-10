@@ -21,7 +21,7 @@ import {
 
 type TriggerMode = "hover" | "click";
 
-type TriggerRef = RefObject<HTMLElement>;
+type TriggerRef = RefObject<HTMLElement | null>;
 
 // Have to append ReactNode type to satisfy React's cloneElement function. It
 // has absolutely no bearing on what happens at runtime
@@ -62,7 +62,12 @@ type ControlledPopoverProps = BasePopoverProps & {
 
 export type PopoverProps = UncontrolledPopoverProps | ControlledPopoverProps;
 
-export const Popover: FC<PopoverProps> = (props) => {
+export const Popover: FC<PopoverProps> = ({
+	mode,
+	open,
+	onOpenChange,
+	children,
+}) => {
 	const hookId = useId();
 	const [uncontrolledOpen, setUncontrolledOpen] = useState(false);
 	const triggerRef: TriggerRef = useRef(null);
@@ -79,16 +84,12 @@ export const Popover: FC<PopoverProps> = (props) => {
 	const value: PopoverContextValue = {
 		triggerRef,
 		id: `${hookId}-popover`,
-		mode: props.mode ?? "click",
-		open: props.open ?? uncontrolledOpen,
-		setOpen: props.onOpenChange ?? setUncontrolledOpen,
+		mode: mode ?? "click",
+		open: open ?? uncontrolledOpen,
+		setOpen: onOpenChange ?? setUncontrolledOpen,
 	};
 
-	return (
-		<PopoverContext.Provider value={value}>
-			{props.children}
-		</PopoverContext.Provider>
-	);
+	return <PopoverContext value={value}>{children}</PopoverContext>;
 };
 
 export const usePopover = () => {
@@ -113,10 +114,14 @@ type PopoverTriggerProps = Readonly<
 	}
 >;
 
-export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
+export const PopoverTrigger: FC<PopoverTriggerProps> = ({
+	children,
+	onClick,
+	onPointerEnter,
+	onPointerLeave,
+	...elementProps
+}) => {
 	const popover = usePopover();
-	const { children, onClick, onPointerEnter, onPointerLeave, ...elementProps } =
-		props;
 
 	const clickProps = {
 		onClick: (event: PointerEvent<HTMLElement>) => {
@@ -144,6 +149,8 @@ export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
 	return cloneElement(evaluatedChildren, {
 		...elementProps,
 		...(popover.mode === "click" ? clickProps : hoverProps),
+		// @ts-expect-error – This is definitely a valid prop, but the types are
+		// freaking out.
 		"aria-haspopup": true,
 		"aria-owns": popover.id,
 		"aria-expanded": popover.open,

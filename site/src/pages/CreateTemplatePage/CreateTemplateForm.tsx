@@ -180,7 +180,7 @@ export type CreateTemplateFormProps = (
 	jobError?: string;
 	logs?: ProvisionerJobLog[];
 	allowAdvancedScheduling: boolean;
-	variablesSectionRef: React.RefObject<HTMLDivElement>;
+	variablesSectionRef: React.RefObject<HTMLDivElement | null>;
 	showOrganizationPicker?: boolean;
 };
 

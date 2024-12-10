@@ -159,7 +159,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	}, [triggerPreview]);
 
 	// Automatically switch to the template preview tab when the build succeeds.
-	const previousVersion = useRef<TemplateVersion>();
+	const previousVersion = useRef<TemplateVersion | undefined>(undefined);
 	useEffect(() => {
 		if (!previousVersion.current) {
 			previousVersion.current = templateVersion;
@@ -542,6 +542,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									}}
 								>
 									<button
+										type="button"
 										disabled={!buildLogs}
 										css={styles.tab}
 										className={selectedTab === "logs" ? "active" : ""}
@@ -553,6 +554,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									</button>
 
 									<button
+										type="button"
 										disabled={!canPublish}
 										css={styles.tab}
 										className={selectedTab === "resources" ? "active" : ""}
