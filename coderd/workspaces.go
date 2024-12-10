@@ -27,7 +27,6 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
-	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -612,10 +611,9 @@ func createWorkspace(
 	}
 
 	var (
-		provisionerJob      *database.ProvisionerJob
-		workspaceBuild      *database.WorkspaceBuild
-		provisionerDaemons  []database.ProvisionerDaemon
-		matchedProvisioners codersdk.MatchedProvisioners
+		provisionerJob     *database.ProvisionerJob
+		workspaceBuild     *database.WorkspaceBuild
+		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := dbtime.Now()
@@ -688,9 +686,6 @@ func createWorkspace(
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
-	if provisionerJob != nil {
-		matchedProvisioners = db2sdk.MatchedProvisioners(provisionerDaemons, provisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	}
 
 	auditReq.New = workspace.WorkspaceTable()
 
@@ -713,7 +708,7 @@ func createWorkspace(
 		[]database.WorkspaceAgentScript{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
-		&matchedProvisioners,
+		provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1843,6 +1838,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.scripts,
 		data.logSources,
 		data.templateVersions,
+		data.provisionerDaemons,
 	)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)

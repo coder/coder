@@ -7,6 +7,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
@@ -108,6 +109,13 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
 
+	const provisionersHealthy =
+		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
+	const shouldShowProvisionerAlert =
+		workspace.latest_build.status === "pending" &&
+		!provisionersHealthy &&
+		!buildLogs;
+
 	return (
 		<div
 			css={{
@@ -205,6 +213,18 @@ export const Workspace: FC<WorkspaceProps> = ({
 					{workspace.latest_build.status === "deleted" && (
 						<WorkspaceDeletedBanner
 							handleClick={() => navigate("/templates")}
+						/>
+					)}
+
+					{shouldShowProvisionerAlert && (
+						<ProvisionerStatusAlert
+							matchingProvisioners={
+								workspace.latest_build.matched_provisioners?.count
+							}
+							availableProvisioners={
+								workspace.latest_build.matched_provisioners?.available ?? 0
+							}
+							tags={workspace.latest_build.job.tags}
 						/>
 					)}
 

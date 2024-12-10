@@ -50,7 +50,12 @@
       "deadline": "[timestamp]",
       "max_deadline": null,
       "status": "running",
-      "daily_cost": 0
+      "daily_cost": 0,
+      "matched_provisioners": {
+        "count": 0,
+        "available": 0,
+        "most_recently_seen": null
+      }
     },
     "outdated": false,
     "name": "test-workspace",

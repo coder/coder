@@ -29,6 +29,7 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
+import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
@@ -593,6 +594,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 												detail={templateVersion.job.error}
 												severity="error"
 												tags={templateVersion.job.tags}
+												variant={AlertVariant.Inline}
 											/>
 										</div>
 									) : (
@@ -602,6 +604,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 													matchingProvisioners={matchingProvisioners}
 													availableProvisioners={availableProvisioners}
 													tags={templateVersion.job.tags}
+													variant={AlertVariant.Inline}
 												/>
 												<Loader css={{ height: "100%" }} />
 											</>

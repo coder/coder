@@ -61,7 +61,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -116,7 +116,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -161,7 +161,7 @@ func TestBuilder_Baggage(t *testing.T) {
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -198,7 +198,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 		// Outputs
 		expectProvisionerJob(func(_ database.InsertProvisionerJobParams) {
@@ -234,7 +234,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withLastBuildNotFound,
 		withParameterSchemas(activeJobID, nil),
 		withWorkspaceTags(activeVersionID, nil),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 		// previous rich parameters are not queried because there is no previous build.
 
 		// Outputs
@@ -324,7 +324,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, workspaceTags),
-		withProvisionerDaemons([]database.ProvisionerDaemon{}),
+		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
@@ -416,7 +416,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 			withWorkspaceTags(inactiveVersionID, nil),
-			withProvisionerDaemons([]database.ProvisionerDaemon{}),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -462,7 +462,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 			withWorkspaceTags(inactiveVersionID, nil),
-			withProvisionerDaemons([]database.ProvisionerDaemon{}),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -596,7 +596,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 			withWorkspaceTags(activeVersionID, nil),
-			withProvisionerDaemons([]database.ProvisionerDaemon{}),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -658,7 +658,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 			withWorkspaceTags(activeVersionID, nil),
-			withProvisionerDaemons([]database.ProvisionerDaemon{}),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -718,7 +718,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 			withWorkspaceTags(activeVersionID, nil),
-			withProvisionerDaemons([]database.ProvisionerDaemon{}),
+			withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
 
 			// Outputs
 			expectProvisionerJob(func(job database.InsertProvisionerJobParams) {}),
@@ -1009,8 +1009,8 @@ func expectBuildParameters(
 	}
 }
 
-func withProvisionerDaemons(provisionerDaemons []database.ProvisionerDaemon) func(mTx *dbmock.MockStore) {
+func withProvisionerDaemons(provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) func(mTx *dbmock.MockStore) {
 	return func(mTx *dbmock.MockStore) {
-		mTx.EXPECT().GetProvisionerDaemonsByOrganization(gomock.Any(), gomock.Any()).Return(provisionerDaemons, nil)
+		mTx.EXPECT().GetEligibleProvisionerDaemonsByProvisionerJobIDs(gomock.Any(), gomock.Any()).Return(provisionerDaemons, nil)
 	}
 }

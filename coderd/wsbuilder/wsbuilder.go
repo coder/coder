@@ -214,7 +214,7 @@ func (b *Builder) Build(
 	authFunc func(action policy.Action, object rbac.Objecter) bool,
 	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, []database.ProvisionerDaemon, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	var err error
 	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
@@ -228,7 +228,7 @@ func (b *Builder) Build(
 	// later reads are consistent with earlier ones.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
-	var provisionerDaemons []database.ProvisionerDaemon
+	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
 		b.store = tx
@@ -248,7 +248,7 @@ func (b *Builder) Build(
 //
 // In order to utilize this cache, the functions that compute build attributes use a pointer receiver type.
 func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Objecter) bool) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, []database.ProvisionerDaemon, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	if authFunc != nil {
 		err := b.authorize(authFunc)
@@ -338,15 +338,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// to read all provisioner daemons. We need to retrieve the eligible
 	// provisioner daemons for this job to show in the UI if there is no
 	// matching provisioner daemon.
-	provisionerDaemons, err := b.store.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), database.GetProvisionerDaemonsByOrganizationParams{
-		OrganizationID: template.OrganizationID,
-		WantTags:       provisionerJob.Tags,
-	})
+	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), []uuid.UUID{provisionerJob.ID})
 	if err != nil {
 		// NOTE: we do **not** want to fail a workspace build if we fail to
 		// retrieve provisioner daemons. This is just to show in the UI if there
 		// is no matching provisioner daemon for the job.
-		provisionerDaemons = []database.ProvisionerDaemon{}
+		provisionerDaemons = []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}
 	}
 
 	templateVersionID, err := b.getTemplateVersionID()
