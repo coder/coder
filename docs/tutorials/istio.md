@@ -1,8 +1,15 @@
 # Integrate Coder with Istio
 
-Use Istio service mesh for your Coder workspace traffic to implement access controls, encrypt service-to-service communication, and gain visibility into your workspace network patterns. This guide walks through the required steps to configure the Istio service mesh for use with Coder.
+Use Istio service mesh for your Coder workspace traffic to implement access
+controls, encrypt service-to-service communication, and gain visibility into
+your workspace network patterns. This guide walks through the required steps to
+configure the Istio service mesh for use with Coder.
 
-While Istio is platform-independent, this guide assumes you are leveraging Kubernetes. Ensure you have a running Kubernetes cluster with both Coder and Istio installed, and that you have administrative access to configure both systems. Once you have access to your Coder cluster, apply the following manifest:
+While Istio is platform-independent, this guide assumes you are leveraging
+Kubernetes. Ensure you have a running Kubernetes cluster with both Coder and
+Istio installed, and that you have administrative access to configure both
+systems. Once you have access to your Coder cluster, apply the following
+manifest:
 
 ```yaml
 apiVersion: networking.istio.io/v1alpha3
