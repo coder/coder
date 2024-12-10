@@ -190,7 +190,7 @@ export async function verifyConfigFlagDuration(
 	const configOption = page.locator(
 		`div.options-table .option-${flag} .option-value-string`,
 	);
-	// 
+	//
 	await expect(configOption).toHaveText(
 		formatDuration(
 			// intervalToDuration takes ms, so convert nanoseconds to ms

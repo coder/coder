@@ -6,7 +6,6 @@ import (
 
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
-	"github.com/coder/guts/bindings/walk"
 	"github.com/coder/guts/config"
 
 	// Must import the packages we are trying to convert
@@ -142,24 +141,4 @@ func FixSerpentStruct(gen *guts.Typescript) {
 			})
 		}
 	})
-}
-
-type serpentStructVisitor struct {
-}
-
-func (s *serpentStructVisitor) Visit(originalNode bindings.Node) walk.Visitor {
-	switch node := originalNode.(type) {
-	case *bindings.ReferenceType:
-		if node.Name.Name == "Struct" && node.Name.PkgName() == "github.com/coder/serpent" {
-			// We always expect an argument
-			arg := node.Arguments[0]
-			*node = *arg.(*bindings.ReferenceType)
-			//originalNode = node.Arguments[0]
-		}
-	}
-	return s
-}
-
-func ptr[T any](v T) *T {
-	return &v
 }
