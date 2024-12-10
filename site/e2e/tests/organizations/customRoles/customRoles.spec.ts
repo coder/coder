@@ -5,7 +5,7 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../../api";
-import { requiresLicense } from "../../../helpers";
+import { requiresLicense, noPremiumLicense } from "../../../helpers";
 import { beforeCoderTest } from "../../../hooks";
 
 test.describe("CustomRolesPage", () => {
@@ -188,6 +188,7 @@ test.describe("CustomRolesPage", () => {
 });
 
 test("custom roles disabled", async ({ page }) => {
+	noPremiumLicense();
 	await page.goto("/organizations/coder/roles");
 	await expect(page).toHaveURL("/organizations/coder/roles");
 
