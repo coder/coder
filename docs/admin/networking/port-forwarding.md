@@ -131,7 +131,7 @@ to the app.
 
 ### Configure maximum port sharing level
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Configuring port sharing level is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

@@ -28,7 +28,7 @@ manage infrastructure costs.
 
 ## Failure cleanup
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Failure cleanup is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -41,7 +41,7 @@ available for licensed customers.
 
 ## Dormancy threshold
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Dormancy threshold is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -58,7 +58,7 @@ only available for licensed customers.
 
 ## Dormancy auto-deletion
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Dormancy auto-deletion is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -71,7 +71,7 @@ Auto-Deletion is only available for licensed customers.
 
 ## Autostop requirement
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Autostop requirement is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -108,7 +108,7 @@ requirement during the deprecation period, but only one can be used at a time.
 
 ## User quiet hours
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 User quiet hours are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

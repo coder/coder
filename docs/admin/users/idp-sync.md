@@ -186,7 +186,7 @@ Users who are not in a matching group will see the following error:
 
 ## Role sync
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Role sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -311,7 +311,7 @@ Visit the Coder UI to confirm these changes:
 
 ## Organization Sync
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Organization sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).

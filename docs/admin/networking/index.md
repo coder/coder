@@ -178,7 +178,7 @@ more.
 
 ## Browser-only connections
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Browser-only connections is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
@@ -195,7 +195,7 @@ via the web terminal and
 
 ### Workspace Proxies
 
-<blockquote class="admonition tip">
+<blockquote class="tip">
 
 Workspace proxies are an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
