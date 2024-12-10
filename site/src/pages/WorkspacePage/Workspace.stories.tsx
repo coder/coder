@@ -175,7 +175,7 @@ export const FailedWithLogs: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 
@@ -193,7 +193,7 @@ export const FailedWithRetry: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 

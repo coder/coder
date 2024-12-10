@@ -15,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	ActiveTransition,
 	WorkspaceBuildProgress,
@@ -47,7 +48,7 @@ export interface WorkspaceProps {
 	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	buildLogs?: React.ReactNode;
+	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
@@ -108,6 +109,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
+
+	const shouldDisplayBuildLogs =
+		workspace.latest_build.status !== "running" && !!buildLogs;
 
 	const provisionersHealthy =
 		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
@@ -242,7 +246,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{buildLogs}
+					{shouldDisplayBuildLogs && (
+						<WorkspaceBuildLogsSection logs={buildLogs} />
+					)}
 
 					{selectedResource && (
 						<section

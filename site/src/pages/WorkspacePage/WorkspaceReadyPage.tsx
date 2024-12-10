@@ -278,11 +278,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				buildInfo={buildInfoQuery.data}
 				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
 				template={template}
-				buildLogs={
-					shouldDisplayBuildLogs && (
-						<WorkspaceBuildLogsSection logs={buildLogs} />
-					)
-				}
+				buildLogs={buildLogs}
 				isOwner={isOwner}
 				timings={timingsQuery.data}
 			/>

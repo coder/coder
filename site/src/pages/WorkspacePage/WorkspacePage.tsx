@@ -7,12 +7,12 @@ import type { Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Margins } from "components/Margins/Margins";
 import { useEffectEvent } from "hooks/hookPolyfills";
+import { Loader } from "lucide-react";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
 import { Navbar } from "modules/dashboard/Navbar/Navbar";
 import { type FC, useEffect } from "react";
 import { useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
-import { WorkspaceLoadingPage } from "./WorkspaceLoadingPage";
 import { WorkspaceReadyPage } from "./WorkspaceReadyPage";
 import { type WorkspacePermissions, workspaceChecks } from "./permissions";
 
@@ -116,7 +116,7 @@ export const WorkspacePage: FC = () => {
 						/>
 					</Margins>
 				) : isLoading ? (
-					<WorkspaceLoadingPage workspace={workspace} />
+					<Loader />
 				) : (
 					<WorkspaceReadyPage
 						workspace={workspace}
