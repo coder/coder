@@ -1738,15 +1738,20 @@ class ApiMethods {
 			name: "",
 			add_users: [userId],
 			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 
 	removeMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
-			display_name: "",
 			add_users: [],
 			remove_users: [userId],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 

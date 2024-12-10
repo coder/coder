@@ -640,7 +640,9 @@ vpn/vpn.pb.go: vpn/vpn.proto
 		./vpn/vpn.proto
 
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
-	go run ./scripts/apitypings/ > $@
+	# -C sets the directory for the go run command
+	go run -C ./scripts/apitypings main.go > $@
+	(cd ./site && npx biome format --write ./src/api/typesGenerated.ts)
 	./scripts/pnpm_install.sh
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go

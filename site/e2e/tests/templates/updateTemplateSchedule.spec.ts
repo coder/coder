@@ -24,6 +24,8 @@ test("update template schedule settings without override other settings", async 
 		template_version_id: templateVersion.id,
 		disable_everyone_group_access: false,
 		require_active_version: true,
+		max_port_share_level: null,
+		allow_user_cancel_workspace_jobs: null,
 	});
 
 	await page.goto(`${baseURL}/templates/${template.name}/settings/schedule`, {

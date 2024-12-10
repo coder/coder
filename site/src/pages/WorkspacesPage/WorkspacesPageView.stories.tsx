@@ -45,8 +45,8 @@ const createWorkspace = (
 					: MockWorkspace.latest_build.job,
 		},
 		last_used_at: lastUsedAt,
-		dormant_at: dormantAt,
-		deleting_at: deletingAt,
+		dormant_at: dormantAt || null,
+		deleting_at: deletingAt || null,
 	};
 };
 

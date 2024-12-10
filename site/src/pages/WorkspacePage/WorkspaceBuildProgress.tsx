@@ -83,7 +83,9 @@ export const WorkspaceBuildProgress: FC<WorkspaceBuildProgressProps> = ({
 			if (
 				job.status !== "running" ||
 				transitionStats.P50 === undefined ||
-				transitionStats.P95 === undefined
+				transitionStats.P95 === undefined ||
+				transitionStats.P50 === null ||
+				transitionStats.P95 === null
 			) {
 				setProgressValue(undefined);
 				setProgressText(undefined);
