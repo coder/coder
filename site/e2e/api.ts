@@ -90,9 +90,13 @@ export const createOrganizationSyncSettings = async () => {
 		organization_assign_default: true,
 	});
 	return settings;
-}
+};
 
-export const createCustomRole = async (orgId: string, name: string, displayName: string) => {
+export const createCustomRole = async (
+	orgId: string,
+	name: string,
+	displayName: string,
+) => {
 	const role = await API.createOrganizationRole(orgId, {
 		name,
 		display_name: displayName,
