@@ -34,6 +34,8 @@ func main() {
 		}
 	}
 
+	// Serpent has some types referenced in the codersdk.
+	// We want the referenced types generated.
 	referencePackages := map[string]string{
 		"github.com/coder/serpent": "Serpent",
 	}
@@ -89,7 +91,7 @@ func TypeMappings(gen *guts.GoParser) error {
 	})
 
 	err := gen.IncludeCustom(map[string]string{
-		// Serpent fields
+		// Serpent fields should be converted to their primitive types
 		"github.com/coder/serpent.Regexp":         "string",
 		"github.com/coder/serpent.StringArray":    "string",
 		"github.com/coder/serpent.String":         "string",
@@ -109,22 +111,26 @@ func TypeMappings(gen *guts.GoParser) error {
 	return nil
 }
 
-// FixSerpentStruct fixes 'serpent.Struct', which defers to the underlying type.
+// FixSerpentStruct fixes 'serpent.Struct'.
+// 'serpent.Struct' overrides the json.Marshal to use the underlying type,
+// so the typescript type should be the underlying type.
 func FixSerpentStruct(gen *guts.Typescript) {
 	gen.ForEach(func(key string, originalNode bindings.Node) {
-		// replace it with
-		// export type SerpentStruct<T extends any> = T
 		isInterface, ok := originalNode.(*bindings.Interface)
 		if ok && isInterface.Name.Ref() == "SerpentStruct" {
-			// TODO: Add a method to add comments here
+			// replace it with
+			// export type SerpentStruct<T> = T
 			gen.ReplaceNode("SerpentStruct", &bindings.Alias{
 				Name:      isInterface.Name,
 				Modifiers: nil,
+				// The RHS expression is just 'T'
 				Type: bindings.Reference(bindings.Identifier{
 					Name:    "T",
 					Package: isInterface.Name.Package,
 					Prefix:  "",
 				}),
+				// Generic type parameters, T can be anything.
+				// Do not provide it a type, as it 'extends any'
 				Parameters: []*bindings.TypeParameter{
 					{
 						Name: bindings.Identifier{
