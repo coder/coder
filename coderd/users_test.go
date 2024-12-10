@@ -1513,6 +1513,45 @@ func TestUsersFilter(t *testing.T) {
 		users = append(users, user)
 	}
 
+	// Add users with different creation dates for testing date filters
+	for i := 0; i < 3; i++ {
+		// nolint:gocritic
+		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("before%d@coder.com", i),
+			Username:  fmt.Sprintf("before%d", i),
+			LoginType: database.LoginTypeNone,
+			CreatedAt: time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, dbUserToSDKUser(user1))
+
+		// nolint:gocritic
+		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("during%d@coder.com", i),
+			Username:  fmt.Sprintf("during%d", i),
+			LoginType: database.LoginTypeNone,
+			CreatedAt: time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, dbUserToSDKUser(user2))
+
+		// nolint:gocritic
+		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("after%d@coder.com", i),
+			Username:  fmt.Sprintf("after%d", i),
+			LoginType: database.LoginTypeNone,
+			CreatedAt: time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, dbUserToSDKUser(user3))
+	}
+
 	// --- Setup done ---
 	testCases := []struct {
 		Name   string
@@ -1521,10 +1560,8 @@ func TestUsersFilter(t *testing.T) {
 		FilterF func(f codersdk.UsersRequest, user codersdk.User) bool
 	}{
 		{
-			Name: "All",
-			Filter: codersdk.UsersRequest{
-				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
-			},
+			Name:   "All",
+			Filter: codersdk.UsersRequest{},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
 				return true
 			},
@@ -1602,7 +1639,7 @@ func TestUsersFilter(t *testing.T) {
 				Status: codersdk.UserStatusSuspended + "," + codersdk.UserStatusActive,
 			},
 			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
-				return true
+				return u.Status == codersdk.UserStatusSuspended || u.Status == codersdk.UserStatusActive
 			},
 		},
 		{
@@ -2302,6 +2339,28 @@ func onlyUsernames[U codersdk.User | database.User](users []U) []string {
 		}
 	}
 	return out
+}
+
+// dbUserToSDKUser converts database.User to codersdk.User
+func dbUserToSDKUser(dbUser database.User) codersdk.User {
+	return codersdk.User{
+		ReducedUser: codersdk.ReducedUser{
+			MinimalUser: codersdk.MinimalUser{
+				ID:        dbUser.ID,
+				Username:  dbUser.Username,
+				AvatarURL: dbUser.AvatarURL,
+			},
+			Email:           dbUser.Email,
+			CreatedAt:       dbUser.CreatedAt,
+			UpdatedAt:       dbUser.UpdatedAt,
+			LastSeenAt:      dbUser.LastSeenAt,
+			Status:          codersdk.UserStatus(dbUser.Status),
+			LoginType:       codersdk.LoginType(dbUser.LoginType),
+			ThemePreference: dbUser.ThemePreference,
+		},
+		OrganizationIDs: make([]uuid.UUID, 0),
+		Roles:           make([]codersdk.SlimRole, 0),
+	}
 }
 
 func BenchmarkUsersMe(b *testing.B) {

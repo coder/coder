@@ -200,5 +200,5 @@ The following filters are supported:
 - `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
-- `created_before` and `created_after` - The time a user was created. Uses
-  the RFC3339Nano format.
+- `created_before` and `created_after` - The time a user was created. Uses the
+  RFC3339Nano format.
