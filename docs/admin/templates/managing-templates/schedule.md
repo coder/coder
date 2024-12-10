@@ -12,9 +12,8 @@ Template [admins](../../users/index.md) may define these default values:
 - [**Default autostop**](../../../user-guides/workspace-scheduling.md#autostop):
   How long a workspace runs without user activity before Coder automatically
   stops it.
-- [**Autostop requirement**](#autostop-requirement-enterprise-premium): Enforce
-  mandatory workspace restarts to apply template updates regardless of user
-  activity.
+- [**Autostop requirement**](#autostop-requirement): Enforce mandatory workspace
+  restarts to apply template updates regardless of user activity.
 - **Activity bump**: The duration of inactivity that must pass before a
   workspace is automatically stopped.
 - **Dormancy**: This allows automatic deletion of unused workspaces to reduce

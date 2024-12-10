@@ -69,7 +69,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 	enc.SetEscapeHTML(true)
 	_ = enc.Encode(scim.ServiceProviderConfig{
 		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"},
-		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim",
 		Patch: scim.Supported{
 			Supported: true,
 		},
@@ -93,7 +93,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 				Type:        "oauthbearertoken",
 				Name:        "HTTP Header Authentication",
 				Description: "Authentication scheme using the Authorization header with the shared token",
-				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim",
 			},
 		},
 		Meta: scim.ServiceProviderMeta{
