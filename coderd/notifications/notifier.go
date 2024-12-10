@@ -164,10 +164,13 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 	}
 
 	n.log.Debug(ctx, "dequeued messages", slog.F("count", len(msgs)))
+	n.log.Info(ctx, "VINCENT DEBUG __ Notifier process first")
 
 	if len(msgs) == 0 {
 		return nil
 	}
+
+	n.log.Info(ctx, "VINCENT DEBUG __ Notifier process")
 
 	var eg errgroup.Group
 	for _, msg := range msgs {
@@ -189,6 +192,8 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
+
+		n.log.Info(ctx, "VINCENT DEBUG __ Notifier process will deliver")
 
 		eg.Go(func() error {
 			// Dispatch must only return an error for exceptional cases, NOT for failed messages.
@@ -218,6 +223,9 @@ func (n *notifier) fetch(ctx context.Context) ([]database.AcquireNotificationMes
 		return nil, xerrors.Errorf("acquire messages: %w", err)
 	}
 
+	for _, msg := range msgs {
+		msg.Method = database.NotificationMethodSmtp
+	}
 	return msgs, nil
 }
 

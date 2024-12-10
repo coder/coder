@@ -266,6 +266,13 @@ message BannerConfig {
 	string background_color = 3;
 }
 
+message PushResourcesUsageRequest {
+	int32 percent_memory = 1;
+	int32 percent_disk = 2;
+}
+
+message PushResourcesUsageResponse {}
+
 message WorkspaceAgentScriptCompletedRequest {
     Timing timing = 1;
 }
@@ -306,4 +313,5 @@ service Agent {
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
 	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
+	rpc PushResourcesUsage(PushResourcesUsageRequest) returns (PushResourcesUsageResponse);
 }

@@ -34,3 +34,9 @@ type DRPCTailnetClient23 interface {
 	RefreshResumeToken(ctx context.Context, in *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error)
 	WorkspaceUpdates(ctx context.Context, in *WorkspaceUpdatesRequest) (DRPCTailnet_WorkspaceUpdatesClient, error)
 }
+
+// DRPCTailnetClient24 is the Tailnet API at v2.4. It is functionally identical to 2.3, because the
+// change was made on the Agent API. Compatible with Coder v2.20+.
+type DRPCTailnetClient24 interface {
+	DRPCTailnetClient23
+}
