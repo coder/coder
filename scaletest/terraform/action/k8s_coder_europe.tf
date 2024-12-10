@@ -36,7 +36,7 @@ resource "kubernetes_secret" "proxy_token_europe" {
     namespace = kubernetes_namespace.coder_europe.metadata.0.name
   }
   data = {
-    token = trimspace(data.local_file.europe_proxy_token.content)
+    token = coderd_workspace_proxy.europe.session_token
   }
   lifecycle {
     ignore_changes = [timeouts, wait_for_service_account_token]

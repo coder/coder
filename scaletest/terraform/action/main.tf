@@ -38,6 +38,11 @@ terraform {
       source  = "cloudflare/cloudflare"
       version = "~> 4.0"
     }
+
+    coderd = {
+      source  = "coder/coderd"
+      version = "~> 0.0.8"
+    }
   }
 
   required_version = "~> 1.9.0"

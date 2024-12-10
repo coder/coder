@@ -85,3 +85,24 @@ variable "provisionerd_image_tag" {
   description = "Tag to use for Provisionerd image."
   default     = "latest"
 }
+
+// Traffic
+variable "traffic_bytes_per_tick" {
+  description = "Number of bytes to send per tick."
+  default     = 1024
+}
+
+variable "traffic_tick_interval" {
+  description = "Interval between ticks."
+  default     = "1s"
+}
+
+variable "workspace_count" {
+  description = "Number of workspaces to create."
+  default     = 10
+}
+
+variable "workspace_create_concurrency" {
+  description = "Number of workspaces to create concurrently."
+  default     = 1
+}
