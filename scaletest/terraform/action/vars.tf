@@ -85,3 +85,8 @@ variable "provisionerd_image_tag" {
   description = "Tag to use for Provisionerd image."
   default     = "latest"
 }
+
+variable "workspace_create_concurrency" {
+  description = "Number of concurrent workspace creation jobs to run."
+  default     = 10
+}

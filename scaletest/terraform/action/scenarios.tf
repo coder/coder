@@ -18,12 +18,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-4"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 10
+        nodepool_size        = 1
+        machine_type         = "t2d-standard-4"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
@@ -52,12 +53,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-8"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 10
+        nodepool_size        = 1
+        machine_type         = "t2d-standard-8"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
@@ -86,12 +88,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-8"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 10
+        nodepool_size        = 1
+        machine_type         = "t2d-standard-8"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
