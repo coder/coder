@@ -2135,6 +2135,7 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			OrganizationID: org.ID,
 			Tags:           tags,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
 		})
 		s.NoError(err, "insert provisioner daemon")
 		ds, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{j.ID})
