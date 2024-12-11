@@ -9,7 +9,7 @@ test.beforeEach(async ({ page }) => {
 	await setupApiCalls(page);
 });
 
-test("create and delete organization", async ({ page }) => {
+test("add and remove organization member", async ({ page }) => {
 	requiresLicense();
 
 	// Create a new organization to test
@@ -36,19 +36,15 @@ test("create and delete organization", async ({ page }) => {
 
 	// Give them a role
 	await addedRow.getByLabel("Edit user roles").click();
-	await page.getByRole("checkbox", { name: "Organization admin" }).click();
-	// await addedRow.getByLabel("Edit user roles").click();
-	await expect(addedRow.getByText("Organization admin")).toBeVisible();
+	await page.getByText("Organization User Admin").click();
+	await page.getByText("Organization Template Admin").click();
+	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+	await expect(addedRow.getByText("Organization User Admin")).toBeVisible();
+	await expect(addedRow.getByText("+1 more")).toBeVisible();
 
 	// Remove them from the org
 	await addedRow.getByLabel("More options").click();
 	await page.getByText("Remove").click(); // Click the "Remove" option
 	await page.getByRole("button", { name: "Remove" }).click(); // Click "Remove" in the confirmation dialog
 	await expect(addedRow).not.toBeVisible();
-
-	// await page.getByRole("button", { name: "Delete this organization" }).click();
-	// const dialog = page.getByTestId("dialog");
-	// await dialog.getByLabel("Name").fill(newName);
-	// await dialog.getByRole("button", { name: "Delete" }).click();
-	// await expect(page.getByText("Organization deleted.")).toBeVisible();
 });
