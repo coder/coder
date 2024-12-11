@@ -95,6 +95,51 @@ export const PendingInQueue: Story = {
 	},
 };
 
+export const PendingWithNoProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: {
+					count: 0,
+					available: 0,
+				},
+			},
+		},
+	},
+};
+
+export const PendingWithNoAvailableProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: {
+					count: 1,
+					available: 0,
+				},
+			},
+		},
+	},
+};
+
+export const PendingWithUndefinedProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: undefined,
+			},
+		},
+	},
+};
+
 export const Starting: Story = {
 	args: {
 		...Running.args,
@@ -130,7 +175,7 @@ export const FailedWithLogs: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 
@@ -148,7 +193,7 @@ export const FailedWithRetry: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 

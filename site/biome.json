@@ -1,6 +1,11 @@
 {
 	"files": {
-		"ignore": ["**/*Generated.ts"]
+		"ignore": [
+		  "e2e/provisionerGenerated.ts",
+		  "e2e/google/protobuf/timestampGenerated.ts",
+		  "src/api/countriesGenerated.ts",
+		  "src/api/rbacresourcesGenerated.ts"
+		]
 	},
 	"linter": {
 		"rules": {

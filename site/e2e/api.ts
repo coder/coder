@@ -37,6 +37,7 @@ export const createUser = async (orgId: string) => {
 		password: "s3cure&password!",
 		login_type: "password",
 		organization_ids: [orgId],
+		user_status: null,
 	});
 	return user;
 };
@@ -129,7 +130,8 @@ export async function verifyConfigFlagString(
 	const configOption = page.locator(
 		`div.options-table .option-${flag} .option-value-string`,
 	);
-	await expect(configOption).toHaveText(opt.value);
+	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+	await expect(configOption).toHaveText(opt.value as any);
 }
 
 export async function verifyConfigFlagEmpty(page: Page, flag: string) {
@@ -150,7 +152,8 @@ export async function verifyConfigFlagArray(
 	);
 
 	// Verify array of options with simple dots
-	for (const item of opt.value) {
+	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+	for (const item of opt.value as any) {
 		await expect(configOption.locator("li", { hasText: item })).toBeVisible();
 	}
 }
@@ -166,7 +169,8 @@ export async function verifyConfigFlagEntries(
 	);
 
 	// Verify array of options with green marks.
-	Object.entries(opt.value)
+	// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+	Object.entries(opt.value as any)
 		.sort((a, b) => a[0].localeCompare(b[0]))
 		.map(async ([item]) => {
 			await expect(
@@ -186,6 +190,7 @@ export async function verifyConfigFlagDuration(
 	const configOption = page.locator(
 		`div.options-table .option-${flag} .option-value-string`,
 	);
+	//
 	await expect(configOption).toHaveText(
 		formatDuration(
 			// intervalToDuration takes ms, so convert nanoseconds to ms
