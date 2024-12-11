@@ -81,28 +81,6 @@ resource "helm_release" "provisionerd_asia" {
   name       = local.provisionerd_release_name
   version    = var.provisionerd_chart_version
   namespace  = kubernetes_namespace.coder_asia.metadata.0.name
-<<<<<<< HEAD
-  values = [templatefile("${path.module}/coder_helm_values.tftpl", {
-    workspace_proxy  = false,
-    provisionerd     = true,
-    primary_url      = null,
-    proxy_token      = null,
-    db_secret        = null,
-    ip_address       = null,
-    provisionerd_psk = kubernetes_secret.provisionerd_psk_asia.metadata.0.name,
-    access_url       = local.deployments.primary.url,
-    node_pool        = google_container_node_pool.node_pool["asia_coder"].name,
-    release_name     = local.coder_release_name,
-    experiments      = var.coder_experiments,
-    image_repo       = var.coder_image_repo,
-    image_tag        = var.coder_image_tag,
-    replicas         = local.scenarios[var.scenario].provisionerd.replicas,
-    cpu_request      = local.scenarios[var.scenario].provisionerd.cpu_request,
-    mem_request      = local.scenarios[var.scenario].provisionerd.mem_request,
-    cpu_limit        = local.scenarios[var.scenario].provisionerd.cpu_limit,
-    mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
-  })]
-=======
   values = [<<EOF
 coder:
   affinity:
@@ -165,5 +143,4 @@ coder:
     name: cache
 EOF
   ]
->>>>>>> 2751240f8 (scenarios)
 }
