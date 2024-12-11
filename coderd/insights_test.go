@@ -49,6 +49,7 @@ func TestDeploymentInsights(t *testing.T) {
 	logger := testutil.Logger(t)
 	rollupEvents := make(chan dbrollup.Event)
 	statsInterval := 500 * time.Millisecond
+	// Speed up the test by controlling batch size and interval.
 	batcher, closeBatcher, err := workspacestats.NewBatcher(context.Background(),
 		workspacestats.BatcherWithLogger(logger.Named("batcher").Leveled(slog.LevelDebug)),
 		workspacestats.BatcherWithStore(db),
