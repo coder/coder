@@ -5,8 +5,8 @@ December 9, 2024
 ---
 
 Coder [Organizations](../../admin/users/organizations.md) allow administrators
-finer control over groups, templates, workspaces, and provisioners within their Coder
-deployment.
+finer control over groups, templates, workspaces, and provisioners within their
+Coder deployment.
 
 Organizations allow multiple platform teams to offer templates and
 infrastructure to their users instead of having them entirely managed in a
@@ -100,8 +100,8 @@ organization roles.
 
 ### Planned enhancements
 
-Site-wide role sync is managed via server flags. We plan on
-changing this to runtime configuration so Coder does not need a re-deploy:
+Site-wide role sync is managed via server flags. We plan on changing this to
+runtime configuration so Coder does not need a re-deploy:
 
 - Issue [coder/internal#86](https://github.com/coder/internal/issues/86)
 
