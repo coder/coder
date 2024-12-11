@@ -56,10 +56,7 @@ func (s *statsReporter) callback(_, _ time.Time, virtual, _ map[netlogtype.Conne
 	defer s.L.Unlock()
 	s.logger.Debug(context.Background(), "got stats callback")
 	// Accumulate stats until they've been reported.
-	if s.unreported {
-		if s.networkStats == nil && virtual != nil {
-			s.networkStats = make(map[netlogtype.Connection]netlogtype.Counts)
-		}
+	if s.unreported && len(s.networkStats) > 0 {
 		for k, v := range virtual {
 			s.networkStats[k] = s.networkStats[k].Add(v)
 		}
