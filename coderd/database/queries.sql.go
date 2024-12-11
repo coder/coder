@@ -5255,6 +5255,60 @@ func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	return err
 }
 
+const getEligibleProvisionerDaemonsByProvisionerJobIDs = `-- name: GetEligibleProvisionerDaemonsByProvisionerJobIDs :many
+SELECT DISTINCT
+    provisioner_jobs.id as job_id, provisioner_daemons.id, provisioner_daemons.created_at, provisioner_daemons.name, provisioner_daemons.provisioners, provisioner_daemons.replica_id, provisioner_daemons.tags, provisioner_daemons.last_seen_at, provisioner_daemons.version, provisioner_daemons.api_version, provisioner_daemons.organization_id, provisioner_daemons.key_id
+FROM
+    provisioner_jobs
+JOIN
+    provisioner_daemons ON provisioner_daemons.organization_id = provisioner_jobs.organization_id
+    AND provisioner_tagset_contains(provisioner_daemons.tags::tagset, provisioner_jobs.tags::tagset)
+    AND provisioner_jobs.provisioner = ANY(provisioner_daemons.provisioners)
+WHERE
+    provisioner_jobs.id = ANY($1 :: uuid[])
+`
+
+type GetEligibleProvisionerDaemonsByProvisionerJobIDsRow struct {
+	JobID             uuid.UUID         `db:"job_id" json:"job_id"`
+	ProvisionerDaemon ProvisionerDaemon `db:"provisioner_daemon" json:"provisioner_daemon"`
+}
+
+func (q *sqlQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEligibleProvisionerDaemonsByProvisionerJobIDs, pq.Array(provisionerJobIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	for rows.Next() {
+		var i GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		if err := rows.Scan(
+			&i.JobID,
+			&i.ProvisionerDaemon.ID,
+			&i.ProvisionerDaemon.CreatedAt,
+			&i.ProvisionerDaemon.Name,
+			pq.Array(&i.ProvisionerDaemon.Provisioners),
+			&i.ProvisionerDaemon.ReplicaID,
+			&i.ProvisionerDaemon.Tags,
+			&i.ProvisionerDaemon.LastSeenAt,
+			&i.ProvisionerDaemon.Version,
+			&i.ProvisionerDaemon.APIVersion,
+			&i.ProvisionerDaemon.OrganizationID,
+			&i.ProvisionerDaemon.KeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
 SELECT
 	id, created_at, name, provisioners, replica_id, tags, last_seen_at, version, api_version, organization_id, key_id

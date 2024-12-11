@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -35,6 +36,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -1762,6 +1764,214 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(member) fetch workspaces")
 	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
+}
+
+func TestWorkspaceByOwnerAndName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Matching Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		_ = coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		// Pending builds should show matching provisioners
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 1)
+
+		// Completed builds should not show matching provisioners, because no provisioner daemon can
+		// be eligible to process a job that is already completed.
+		completedBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, completedBuild.Status, codersdk.WorkspaceStatusRunning)
+		require.Equal(t, completedBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, completedBuild.MatchedProvisioners.Available, 0)
+
+		ws, err := client.WorkspaceByOwnerAndName(ctx, username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+
+		// Verify the workspace details
+		require.Equal(t, workspace.ID, ws.ID)
+		require.Equal(t, workspace.Name, ws.Name)
+		require.Equal(t, workspace.TemplateID, ws.TemplateID)
+		require.Equal(t, completedBuild.Status, ws.LatestBuild.Status)
+		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// Verify that the provisioner daemon is registered in the database
+		//nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(daemons))
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+	})
+
+	t.Run("No Matching Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		closer := coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		// nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, len(daemons), 1)
+
+		// Simulate a provisioner daemon failure:
+		err = closer.Close()
+		require.NoError(t, err)
+
+		// Simulate it's subsequent deletion from the database:
+
+		// nolint:gocritic // unit testing
+		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+			Name:           daemons[0].Name,
+			OrganizationID: daemons[0].OrganizationID,
+			Tags:           daemons[0].Tags,
+			Provisioners:   daemons[0].Provisioners,
+			Version:        daemons[0].Version,
+			APIVersion:     daemons[0].APIVersion,
+			KeyID:          daemons[0].KeyID,
+			// Simulate the passing of time such that the provisioner daemon is considered stale
+			// and will be deleted:
+			CreatedAt: time.Now().Add(-time.Hour * 24 * 8),
+			LastSeenAt: sql.NullTime{
+				Time:  time.Now().Add(-time.Hour * 24 * 8),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		// nolint:gocritic // unit testing
+		err = db.DeleteOldProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+
+		// Create a workspace that will not be able to provision due to a lack of provisioner daemons:
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// nolint:gocritic // unit testing
+		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+	})
+
+	t.Run("Unavailable Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		closer := coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		// nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, len(daemons), 1)
+
+		// Simulate a provisioner daemon failure:
+		err = closer.Close()
+		require.NoError(t, err)
+
+		// nolint:gocritic // unit testing
+		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+			Name:           daemons[0].Name,
+			OrganizationID: daemons[0].OrganizationID,
+			Tags:           daemons[0].Tags,
+			Provisioners:   daemons[0].Provisioners,
+			Version:        daemons[0].Version,
+			APIVersion:     daemons[0].APIVersion,
+			KeyID:          daemons[0].KeyID,
+			// Simulate the passing of time such that the provisioner daemon, though not stale, has been
+			// has been inactive for a while:
+			CreatedAt: time.Now().Add(-time.Hour * 24 * 2),
+			LastSeenAt: sql.NullTime{
+				Time:  time.Now().Add(-time.Hour * 24 * 2),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Create a workspace that will not be able to provision due to a lack of provisioner daemons:
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// nolint:gocritic // unit testing
+		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+	})
 }
 
 func must[T any](value T, err error) T {
