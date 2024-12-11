@@ -1,6 +1,6 @@
 # Reference
 
-# Automation
+## Automation
 
 All actions possible through the Coder dashboard can also be automated. There
 are several ways to extend/automate Coder:

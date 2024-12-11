@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # organizations settings
 
 Manage organization settings.
 
 Aliases:
 
-- setting
+* setting
 
 ## Usage
 
@@ -16,7 +15,7 @@ coder organizations settings
 
 ## Subcommands
 
-| Name                                                  | Purpose                                 |
-| ----------------------------------------------------- | --------------------------------------- |
+| Name |   Purpose |
+| ---- |   ----- |
 | [<code>show</code>](./organizations_settings_show.md) | Outputs specified organization setting. |
-| [<code>set</code>](./organizations_settings_set.md)   | Update specified organization setting.  |
+| [<code>set</code>](./organizations_settings_set.md) | Update specified organization setting. |

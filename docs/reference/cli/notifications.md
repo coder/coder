@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # notifications
 
 Manage Coder notifications
 
 Aliases:
 
-- notification
+* notification
 
 ## Usage
 
@@ -31,7 +30,7 @@ server or Webhook not responding).:
 
 ## Subcommands
 
-| Name                                             | Purpose              |
-| ------------------------------------------------ | -------------------- |
-| [<code>pause</code>](./notifications_pause.md)   | Pause notifications  |
+| Name |   Purpose |
+| ---- |   ----- |
+| [<code>pause</code>](./notifications_pause.md) | Pause notifications |
 | [<code>resume</code>](./notifications_resume.md) | Resume notifications |

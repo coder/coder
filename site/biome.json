@@ -1,6 +1,6 @@
 {
 	"files": {
-		"ignore": ["**/*Generated.ts"]
+		"ignore": ["**/*Generated.ts", "../helm/**/templates/*.yaml"]
 	},
 	"linter": {
 		"rules": {

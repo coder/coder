@@ -18,15 +18,15 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ```json
 {
-	"license": "string"
+  "license": "string"
 }
 ```
 
 ### Parameters
 
-| Name   | In   | Type                                                               | Required | Description         |
-| ------ | ---- | ------------------------------------------------------------------ | -------- | ------------------- |
-| `body` | body | [codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest) | true     | Add license request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[codersdk.AddLicenseRequest](schemas.md#codersdkaddlicenserequest)|true|Add license request|
 
 ### Example responses
 
@@ -34,18 +34,18 @@ curl -X POST http://coder-server:8080/api/v2/licenses \
 
 ```json
 {
-	"claims": {},
-	"id": 0,
-	"uploaded_at": "2019-08-24T14:15:22Z",
-	"uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
+  "claims": {},
+  "id": 0,
+  "uploaded_at": "2019-08-24T14:15:22Z",
+  "uuid": "095be615-a8ad-4c33-8e9c-c7612fbf6c9f"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                         |
-| ------ | ------------------------------------------------------------ | ----------- | ---------------------------------------------- |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.License](schemas.md#codersdklicense) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|201|[Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)|Created|[codersdk.License](schemas.md#codersdklicense)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -68,22 +68,22 @@ curl -X POST http://coder-server:8080/api/v2/licenses/refresh-entitlements \
 
 ```json
 {
-	"detail": "string",
-	"message": "string",
-	"validations": [
-		{
-			"detail": "string",
-			"field": "string"
-		}
-	]
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                           |
-| ------ | ------------------------------------------------------------ | ----------- | ------------------------------------------------ |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|201|[Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)|Created|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -106,40 +106,40 @@ curl -X GET http://coder-server:8080/api/v2/organizations \
 
 ```json
 [
-	{
-		"created_at": "2019-08-24T14:15:22Z",
-		"description": "string",
-		"display_name": "string",
-		"icon": "string",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"is_default": true,
-		"name": "string",
-		"updated_at": "2019-08-24T14:15:22Z"
-	}
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "description": "string",
+    "display_name": "string",
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "is_default": true,
+    "name": "string",
+    "updated_at": "2019-08-24T14:15:22Z"
+  }
 ]
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                            |
-| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Organization](schemas.md#codersdkorganization) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|array of [codersdk.Organization](schemas.md#codersdkorganization)|
 
 <h3 id="get-organizations-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name             | Type              | Required | Restrictions | Description |
-| ---------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`   | array             | false    |              |             |
-| `» created_at`   | string(date-time) | true     |              |             |
-| `» description`  | string            | false    |              |             |
-| `» display_name` | string            | false    |              |             |
-| `» icon`         | string            | false    |              |             |
-| `» id`           | string(uuid)      | true     |              |             |
-| `» is_default`   | boolean           | true     |              |             |
-| `» name`         | string            | false    |              |             |
-| `» updated_at`   | string(date-time) | true     |              |             |
+|Name|Type|Required|Restrictions|Description|
+|---|---|---|---|---|
+|`[array item]`|array|false|||
+|`» created_at`|string(date-time)|true|||
+|`» description`|string|false|||
+|`» display_name`|string|false|||
+|`» icon`|string|false|||
+|`» id`|string(uuid)|true|||
+|`» is_default`|boolean|true|||
+|`» name`|string|false|||
+|`» updated_at`|string(date-time)|true|||
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -161,18 +161,18 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
-	"description": "string",
-	"display_name": "string",
-	"icon": "string",
-	"name": "string"
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "name": "string"
 }
 ```
 
 ### Parameters
 
-| Name   | In   | Type                                                                               | Required | Description                 |
-| ------ | ---- | ---------------------------------------------------------------------------------- | -------- | --------------------------- |
-| `body` | body | [codersdk.CreateOrganizationRequest](schemas.md#codersdkcreateorganizationrequest) | true     | Create organization request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`body`|body|[codersdk.CreateOrganizationRequest](schemas.md#codersdkcreateorganizationrequest)|true|Create organization request|
 
 ### Example responses
 
@@ -180,22 +180,22 @@ curl -X POST http://coder-server:8080/api/v2/organizations \
 
 ```json
 {
-	"created_at": "2019-08-24T14:15:22Z",
-	"description": "string",
-	"display_name": "string",
-	"icon": "string",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"is_default": true,
-	"name": "string",
-	"updated_at": "2019-08-24T14:15:22Z"
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                      | Description | Schema                                                   |
-| ------ | ------------------------------------------------------------ | ----------- | -------------------------------------------------------- |
-| 201    | [Created](https://tools.ietf.org/html/rfc7231#section-6.3.2) | Created     | [codersdk.Organization](schemas.md#codersdkorganization) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|201|[Created](https://tools.ietf.org/html/rfc7231#section-6.3.2)|Created|[codersdk.Organization](schemas.md#codersdkorganization)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -214,9 +214,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Parameters
 
-| Name           | In   | Type         | Required | Description     |
-| -------------- | ---- | ------------ | -------- | --------------- |
-| `organization` | path | string(uuid) | true     | Organization ID |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`organization`|path|string(uuid)|true|Organization ID|
 
 ### Example responses
 
@@ -224,22 +224,22 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-	"created_at": "2019-08-24T14:15:22Z",
-	"description": "string",
-	"display_name": "string",
-	"icon": "string",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"is_default": true,
-	"name": "string",
-	"updated_at": "2019-08-24T14:15:22Z"
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                   |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Organization](schemas.md#codersdkorganization)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -258,9 +258,9 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 ### Parameters
 
-| Name           | In   | Type   | Required | Description             |
-| -------------- | ---- | ------ | -------- | ----------------------- |
-| `organization` | path | string | true     | Organization ID or name |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`organization`|path|string|true|Organization ID or name|
 
 ### Example responses
 
@@ -268,22 +268,22 @@ curl -X DELETE http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-	"detail": "string",
-	"message": "string",
-	"validations": [
-		{
-			"detail": "string",
-			"field": "string"
-		}
-	]
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Response](schemas.md#codersdkresponse)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -305,19 +305,19 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-	"description": "string",
-	"display_name": "string",
-	"icon": "string",
-	"name": "string"
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "name": "string"
 }
 ```
 
 ### Parameters
 
-| Name           | In   | Type                                                                               | Required | Description                |
-| -------------- | ---- | ---------------------------------------------------------------------------------- | -------- | -------------------------- |
-| `organization` | path | string                                                                             | true     | Organization ID or name    |
-| `body`         | body | [codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest) | true     | Patch organization request |
+|Name|In|Type|Required|Description|
+|---|---|---|---|---|
+|`organization`|path|string|true|Organization ID or name|
+|`body`|body|[codersdk.UpdateOrganizationRequest](schemas.md#codersdkupdateorganizationrequest)|true|Patch organization request|
 
 ### Example responses
 
@@ -325,21 +325,21 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization} \
 
 ```json
 {
-	"created_at": "2019-08-24T14:15:22Z",
-	"description": "string",
-	"display_name": "string",
-	"icon": "string",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"is_default": true,
-	"name": "string",
-	"updated_at": "2019-08-24T14:15:22Z"
+  "created_at": "2019-08-24T14:15:22Z",
+  "description": "string",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "is_default": true,
+  "name": "string",
+  "updated_at": "2019-08-24T14:15:22Z"
 }
 ```
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                   |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Organization](schemas.md#codersdkorganization) |
+|Status|Meaning|Description|Schema|
+|---|---|---|---|
+|200|[OK](https://tools.ietf.org/html/rfc7231#section-6.3.1)|OK|[codersdk.Organization](schemas.md#codersdkorganization)|
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

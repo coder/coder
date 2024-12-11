@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # organizations members add
 
 Add a new member to the current organization

@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # schedule override-stop
 
 Override the stop time of a currently running workspace instance.

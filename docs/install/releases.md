@@ -7,6 +7,8 @@ We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
+## Release channels
+
 We support two release channels:
 [mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
 edge version of Coder and

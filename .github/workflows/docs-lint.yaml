@@ -17,9 +17,9 @@ jobs:
           files: "docs/**/*.md"
           files_ignore: "docs/reference/*.md"
           separator: ","
-      - uses: DavidAnson/markdownlint-cli2-action@v18
+      - name: lint
         if: steps.changed-files.outputs.any_changed == 'true'
-        with:
-          globs: ${{ steps.changed-files.outputs.all_changed_files }}
-          separator: ","
-          config: ".github/actions/docs/markdownlint-cli2/.markdownlint.json"
+        run: |
+          cd site
+          ../scripts/pnpm_install.sh
+          pnpm exec markdownlint-cli2 --fix {{ steps.changed-files.outputs.all_changed_files }}
