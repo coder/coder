@@ -30,10 +30,6 @@ and groups.
 Users can belong to multiple organizations while templates and provisioners
 cannot.
 
-Organizations allow multiple platform teams to offer templates and
-infrastructure to their users instead of having them entirely managed in a
-centralized fashion.
-
 ## When to use organizations
 
 Organizations increase the maintenance overhead of a Coder deployment, so we
