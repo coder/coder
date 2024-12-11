@@ -45,9 +45,9 @@ export const Pill: FC<PillProps> = forwardRef<HTMLDivElement, PillProps>(
 				ref={ref}
 				css={[
 					styles.pill,
-					icon && size === "md" && styles.pillWithIcon,
+					Boolean(icon) && size === "md" && styles.pillWithIcon,
 					size === "lg" && styles.pillLg,
-					icon && size === "lg" && styles.pillLgWithIcon,
+					Boolean(icon) && size === "lg" && styles.pillLgWithIcon,
 					typeStyles,
 				]}
 				{...divProps}

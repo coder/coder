@@ -1,4 +1,5 @@
 import SvgIcon, { type SvgIconProps } from "@mui/material/SvgIcon";
+import type { JSX } from "react";
 
 export const GitlabIcon = (props: SvgIconProps): JSX.Element => (
 	<SvgIcon {...props} viewBox="0 0 194 186">

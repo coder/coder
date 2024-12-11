@@ -44,7 +44,7 @@ export const useClipboard = (input: UseClipboardInput): UseClipboardResult => {
 	const { textToCopy, onError: errorCallback } = input;
 	const [showCopiedSuccess, setShowCopiedSuccess] = useState(false);
 	const [error, setError] = useState<Error>();
-	const timeoutIdRef = useRef<number | undefined>();
+	const timeoutIdRef = useRef<number | undefined>(undefined);
 
 	useEffect(() => {
 		const clearIdOnUnmount = () => window.clearTimeout(timeoutIdRef.current);

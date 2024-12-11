@@ -13,7 +13,7 @@ const widthBySize: Record<Size, number> = {
 	small: containerWidth / 3,
 };
 
-type MarginsProps = JSX.IntrinsicElements["div"] & {
+type MarginsProps = React.ComponentProps<"div"> & {
 	size?: Size;
 };
 

@@ -9,7 +9,7 @@ export const useWorkspaceBuildLogs = (
 	enabled = true,
 ) => {
 	const [logs, setLogs] = useState<ProvisionerJobLog[]>();
-	const socket = useRef<WebSocket>();
+	const socket = useRef<WebSocket | undefined>(undefined);
 
 	useEffect(() => {
 		if (!buildId || !enabled) {

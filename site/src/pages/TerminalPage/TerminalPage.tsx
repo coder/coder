@@ -99,7 +99,7 @@ const TerminalPage: FC = () => {
 	}, [handleWebLink]);
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>();
+	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;

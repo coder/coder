@@ -19,7 +19,7 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { usePopover } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import type { FC } from "react";
+import type { FC, JSX } from "react";
 import { Link } from "react-router-dom";
 
 export const Language = {

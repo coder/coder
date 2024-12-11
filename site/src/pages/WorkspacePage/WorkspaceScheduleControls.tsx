@@ -120,7 +120,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 	const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
 	const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-	const deadlineUpdateTimeout = useRef<number>();
+	const deadlineUpdateTimeout = useRef<number | undefined>(undefined);
 	const lastStableDeadline = useRef<Dayjs>(deadline);
 
 	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {
