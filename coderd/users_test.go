@@ -1749,8 +1749,6 @@ func TestUsersFilter(t *testing.T) {
 					exp = append(exp, made)
 				}
 			}
-			fmt.Printf("expexp: %+v\n", exp)
-			fmt.Printf("matched.Usersmatched.Users: %+v\n", matched.Users)
 			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
 		})
 	}
