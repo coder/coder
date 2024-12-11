@@ -19,6 +19,7 @@ locals {
     "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
     "ja-tokyo"      = "tcp://reuenthal-tokyo-cdr-dev.tailscale.svc.cluster.local:2375"
   }
@@ -77,6 +78,11 @@ data "coder_parameter" "region" {
     icon  = "/emojis/1f1e7-1f1f7.png"
     name  = "São Paulo"
     value = "sa-saopaulo"
+  }
+  option {
+    icon  = "/emojis/1f1ff-1f1e6.png"
+    name  = "Cape Town"
+    value = "za-cpt"
   }
   option {
     icon  = "/emojis/1f1ff-1f1e6.png"

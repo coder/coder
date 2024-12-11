@@ -1199,6 +1199,10 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	matched_provisioners: {
+		count: 1,
+		available: 1,
+	},
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -2674,6 +2678,28 @@ export const MockRoleSyncSettings: TypesGen.RoleSyncSettings = {
 	},
 };
 
+export const MockOrganizationSyncSettings: TypesGen.OrganizationSyncSettings = {
+	field: "organization-test",
+	mapping: {
+		"idp-org-1": [
+			"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+			"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+		],
+		"idp-org-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+	},
+	organization_assign_default: true,
+};
+
+export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
+	{
+		field: "organization-test",
+		mapping: {
+			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
+			"idp-org-2": ["my-organization-id"],
+		},
+		organization_assign_default: true,
+	};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",
@@ -2774,6 +2800,7 @@ export const MockPermissions: Permissions = {
 	createGroup: true,
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
+	viewOrganizationIDPSyncSettings: true,
 };
 
 export const MockNoPermissions: Permissions = {
@@ -2797,6 +2824,7 @@ export const MockNoPermissions: Permissions = {
 	createGroup: false,
 	viewAllLicenses: false,
 	viewNotificationTemplate: false,
+	viewOrganizationIDPSyncSettings: false,
 };
 
 export const MockDeploymentConfig: DeploymentConfig = {

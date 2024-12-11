@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -208,6 +209,145 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(0), stats.SessionCountSSH)
 		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
 		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+	})
+}
+
+func TestGetEligibleProvisionerDaemonsByProvisionerJobIDs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoJobsReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{})
+		require.NoError(t, err)
+		require.Empty(t, daemons)
+	})
+
+	t.Run("MatchesProvisionerType", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		matchingDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, matchingDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesOrganizationScope", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		})
+
+		orgDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "org-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "user-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, orgDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesMultipleProvisioners", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-1",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemon2 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-2",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-3",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+
+		daemonIDs := []uuid.UUID{daemons[0].ProvisionerDaemon.ID, daemons[1].ProvisionerDaemon.ID}
+		require.ElementsMatch(t, []uuid.UUID{daemon1.ID, daemon2.ID}, daemonIDs)
 	})
 }
 

@@ -63,6 +63,35 @@ export const createOrganization = async () => {
 	return org;
 };
 
+export const deleteOrganization = async (orgName: string) => {
+	await API.deleteOrganization(orgName);
+};
+
+export const createOrganizationWithName = async (name: string) => {
+	const org = await API.createOrganization({
+		name,
+		display_name: `${name}`,
+		description: `Org description ${name}`,
+		icon: "/emojis/1f957.png",
+	});
+	return org;
+};
+
+export const createOrganizationSyncSettings = async () => {
+	const settings = await API.patchOrganizationIdpSyncSettings({
+		field: "organization-field-test",
+		mapping: {
+			"idp-org-1": [
+				"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+				"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+			],
+			"idp-org-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+		},
+		organization_assign_default: true,
+	});
+	return settings;
+};
+
 export async function verifyConfigFlagBoolean(
 	page: Page,
 	config: DeploymentConfig,

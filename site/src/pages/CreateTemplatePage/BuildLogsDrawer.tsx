@@ -8,6 +8,7 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
 import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
@@ -94,6 +95,7 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 							matchingProvisioners={matchingProvisioners}
 							availableProvisioners={availableProvisioners}
 							tags={templateVersion?.job.tags ?? {}}
+							variant={AlertVariant.Inline}
 						/>
 						<Loader />
 					</>

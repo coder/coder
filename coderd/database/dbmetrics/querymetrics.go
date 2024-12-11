@@ -637,6 +637,13 @@ func (m queryMetricsStore) GetDeploymentWorkspaceStats(ctx context.Context) (dat
 	return row, err
 }
 
+func (m queryMetricsStore) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, provisionerJobIds)
+	m.queryLatencies.WithLabelValues("GetEligibleProvisionerDaemonsByProvisionerJobIDs").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	start := time.Now()
 	link, err := m.s.GetExternalAuthLink(ctx, arg)
@@ -2107,13 +2114,6 @@ func (m queryMetricsStore) RegisterWorkspaceProxy(ctx context.Context, arg datab
 	return proxy, err
 }
 
-func (m queryMetricsStore) RemoveRefreshToken(ctx context.Context, arg database.RemoveRefreshTokenParams) error {
-	start := time.Now()
-	r0 := m.s.RemoveRefreshToken(ctx, arg)
-	m.queryLatencies.WithLabelValues("RemoveRefreshToken").Observe(time.Since(start).Seconds())
-	return r0
-}
-
 func (m queryMetricsStore) RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error {
 	start := time.Now()
 	r0 := m.s.RemoveUserFromAllGroups(ctx, userID)
@@ -2182,6 +2182,13 @@ func (m queryMetricsStore) UpdateExternalAuthLink(ctx context.Context, arg datab
 	link, err := m.s.UpdateExternalAuthLink(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateExternalAuthLink").Observe(time.Since(start).Seconds())
 	return link, err
+}
+
+func (m queryMetricsStore) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateExternalAuthLinkRefreshToken(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateExternalAuthLinkRefreshToken").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateGitSSHKey(ctx context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -2588,6 +2595,13 @@ func (m queryMetricsStore) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx con
 	r0, r1 := m.s.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspacesDormantDeletingAtByTemplateID").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspacesTTLByTemplateID(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspacesTTLByTemplateID").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpsertAnnouncementBanners(ctx context.Context, value string) error {

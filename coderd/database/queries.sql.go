@@ -1194,29 +1194,6 @@ func (q *sqlQuerier) InsertExternalAuthLink(ctx context.Context, arg InsertExter
 	return i, err
 }
 
-const removeRefreshToken = `-- name: RemoveRefreshToken :exec
-UPDATE
-	external_auth_links
-SET
-	oauth_refresh_token = '',
-	updated_at = $1
-WHERE provider_id = $2 AND user_id = $3
-`
-
-type RemoveRefreshTokenParams struct {
-	UpdatedAt  time.Time `db:"updated_at" json:"updated_at"`
-	ProviderID string    `db:"provider_id" json:"provider_id"`
-	UserID     uuid.UUID `db:"user_id" json:"user_id"`
-}
-
-// Removing the refresh token disables the refresh behavior for a given
-// auth token. If a refresh token is marked invalid, it is better to remove it
-// then continually attempt to refresh the token.
-func (q *sqlQuerier) RemoveRefreshToken(ctx context.Context, arg RemoveRefreshTokenParams) error {
-	_, err := q.db.ExecContext(ctx, removeRefreshToken, arg.UpdatedAt, arg.ProviderID, arg.UserID)
-	return err
-}
-
 const updateExternalAuthLink = `-- name: UpdateExternalAuthLink :one
 UPDATE external_auth_links SET
     updated_at = $3,
@@ -1267,6 +1244,40 @@ func (q *sqlQuerier) UpdateExternalAuthLink(ctx context.Context, arg UpdateExter
 		&i.OAuthExtra,
 	)
 	return i, err
+}
+
+const updateExternalAuthLinkRefreshToken = `-- name: UpdateExternalAuthLinkRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	oauth_refresh_token = $1,
+	updated_at = $2
+WHERE
+    provider_id = $3
+AND
+    user_id = $4
+AND
+    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
+    $5 :: text = $5 :: text
+`
+
+type UpdateExternalAuthLinkRefreshTokenParams struct {
+	OAuthRefreshToken      string    `db:"oauth_refresh_token" json:"oauth_refresh_token"`
+	UpdatedAt              time.Time `db:"updated_at" json:"updated_at"`
+	ProviderID             string    `db:"provider_id" json:"provider_id"`
+	UserID                 uuid.UUID `db:"user_id" json:"user_id"`
+	OAuthRefreshTokenKeyID string    `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
+}
+
+func (q *sqlQuerier) UpdateExternalAuthLinkRefreshToken(ctx context.Context, arg UpdateExternalAuthLinkRefreshTokenParams) error {
+	_, err := q.db.ExecContext(ctx, updateExternalAuthLinkRefreshToken,
+		arg.OAuthRefreshToken,
+		arg.UpdatedAt,
+		arg.ProviderID,
+		arg.UserID,
+		arg.OAuthRefreshTokenKeyID,
+	)
+	return err
 }
 
 const getFileByHashAndCreator = `-- name: GetFileByHashAndCreator :one
@@ -5242,6 +5253,60 @@ DELETE FROM provisioner_daemons WHERE (
 func (q *sqlQuerier) DeleteOldProvisionerDaemons(ctx context.Context) error {
 	_, err := q.db.ExecContext(ctx, deleteOldProvisionerDaemons)
 	return err
+}
+
+const getEligibleProvisionerDaemonsByProvisionerJobIDs = `-- name: GetEligibleProvisionerDaemonsByProvisionerJobIDs :many
+SELECT DISTINCT
+    provisioner_jobs.id as job_id, provisioner_daemons.id, provisioner_daemons.created_at, provisioner_daemons.name, provisioner_daemons.provisioners, provisioner_daemons.replica_id, provisioner_daemons.tags, provisioner_daemons.last_seen_at, provisioner_daemons.version, provisioner_daemons.api_version, provisioner_daemons.organization_id, provisioner_daemons.key_id
+FROM
+    provisioner_jobs
+JOIN
+    provisioner_daemons ON provisioner_daemons.organization_id = provisioner_jobs.organization_id
+    AND provisioner_tagset_contains(provisioner_daemons.tags::tagset, provisioner_jobs.tags::tagset)
+    AND provisioner_jobs.provisioner = ANY(provisioner_daemons.provisioners)
+WHERE
+    provisioner_jobs.id = ANY($1 :: uuid[])
+`
+
+type GetEligibleProvisionerDaemonsByProvisionerJobIDsRow struct {
+	JobID             uuid.UUID         `db:"job_id" json:"job_id"`
+	ProvisionerDaemon ProvisionerDaemon `db:"provisioner_daemon" json:"provisioner_daemon"`
+}
+
+func (q *sqlQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getEligibleProvisionerDaemonsByProvisionerJobIDs, pq.Array(provisionerJobIds))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	for rows.Next() {
+		var i GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+		if err := rows.Scan(
+			&i.JobID,
+			&i.ProvisionerDaemon.ID,
+			&i.ProvisionerDaemon.CreatedAt,
+			&i.ProvisionerDaemon.Name,
+			pq.Array(&i.ProvisionerDaemon.Provisioners),
+			&i.ProvisionerDaemon.ReplicaID,
+			&i.ProvisionerDaemon.Tags,
+			&i.ProvisionerDaemon.LastSeenAt,
+			&i.ProvisionerDaemon.Version,
+			&i.ProvisionerDaemon.APIVersion,
+			&i.ProvisionerDaemon.OrganizationID,
+			&i.ProvisionerDaemon.KeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const getProvisionerDaemons = `-- name: GetProvisionerDaemons :many
@@ -16225,6 +16290,25 @@ func (q *sqlQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.C
 		return nil, err
 	}
 	return items, nil
+}
+
+const updateWorkspacesTTLByTemplateID = `-- name: UpdateWorkspacesTTLByTemplateID :exec
+UPDATE
+		workspaces
+SET
+		ttl = $2
+WHERE
+		template_id = $1
+`
+
+type UpdateWorkspacesTTLByTemplateIDParams struct {
+	TemplateID uuid.UUID     `db:"template_id" json:"template_id"`
+	Ttl        sql.NullInt64 `db:"ttl" json:"ttl"`
+}
+
+func (q *sqlQuerier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg UpdateWorkspacesTTLByTemplateIDParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspacesTTLByTemplateID, arg.TemplateID, arg.Ttl)
+	return err
 }
 
 const getWorkspaceAgentScriptsByAgentIDs = `-- name: GetWorkspaceAgentScriptsByAgentIDs :many

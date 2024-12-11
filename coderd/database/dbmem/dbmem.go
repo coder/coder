@@ -1120,6 +1120,14 @@ func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) 
 	return scripts, nil
 }
 
+// getOwnerFromTags returns the lowercase owner from tags, matching SQL's COALESCE(tags ->> 'owner', ”)
+func getOwnerFromTags(tags map[string]string) string {
+	if owner, ok := tags["owner"]; ok {
+		return strings.ToLower(owner)
+	}
+	return ""
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2771,6 +2779,63 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 		}
 	}
 	return stat, nil
+}
+
+func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	results := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0)
+	seen := make(map[string]struct{}) // Track unique combinations
+
+	for _, jobID := range provisionerJobIds {
+		var job database.ProvisionerJob
+		found := false
+		for _, j := range q.provisionerJobs {
+			if j.ID == jobID {
+				job = j
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		for _, daemon := range q.provisionerDaemons {
+			if daemon.OrganizationID != job.OrganizationID {
+				continue
+			}
+
+			if !tagsSubset(job.Tags, daemon.Tags) {
+				continue
+			}
+
+			provisionerMatches := false
+			for _, p := range daemon.Provisioners {
+				if p == job.Provisioner {
+					provisionerMatches = true
+					break
+				}
+			}
+			if !provisionerMatches {
+				continue
+			}
+
+			key := jobID.String() + "-" + daemon.ID.String()
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+
+			results = append(results, database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
+				JobID:             jobID,
+				ProvisionerDaemon: daemon,
+			})
+		}
+	}
+
+	return results, nil
 }
 
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
@@ -8607,29 +8672,6 @@ func (q *FakeQuerier) RegisterWorkspaceProxy(_ context.Context, arg database.Reg
 	return database.WorkspaceProxy{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) RemoveRefreshToken(_ context.Context, arg database.RemoveRefreshTokenParams) error {
-	if err := validateDatabaseType(arg); err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	for index, gitAuthLink := range q.externalAuthLinks {
-		if gitAuthLink.ProviderID != arg.ProviderID {
-			continue
-		}
-		if gitAuthLink.UserID != arg.UserID {
-			continue
-		}
-		gitAuthLink.UpdatedAt = arg.UpdatedAt
-		gitAuthLink.OAuthRefreshToken = ""
-		q.externalAuthLinks[index] = gitAuthLink
-
-		return nil
-	}
-	return sql.ErrNoRows
-}
-
 func (q *FakeQuerier) RemoveUserFromAllGroups(_ context.Context, userID uuid.UUID) error {
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
@@ -8847,6 +8889,29 @@ func (q *FakeQuerier) UpdateExternalAuthLink(_ context.Context, arg database.Upd
 		return gitAuthLink, nil
 	}
 	return database.ExternalAuthLink{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateExternalAuthLinkRefreshToken(_ context.Context, arg database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	if err := validateDatabaseType(arg); err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	for index, gitAuthLink := range q.externalAuthLinks {
+		if gitAuthLink.ProviderID != arg.ProviderID {
+			continue
+		}
+		if gitAuthLink.UserID != arg.UserID {
+			continue
+		}
+		gitAuthLink.UpdatedAt = arg.UpdatedAt
+		gitAuthLink.OAuthRefreshToken = arg.OAuthRefreshToken
+		q.externalAuthLinks[index] = gitAuthLink
+
+		return nil
+	}
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateGitSSHKey(_ context.Context, arg database.UpdateGitSSHKeyParams) (database.GitSSHKey, error) {
@@ -10192,6 +10257,26 @@ func (q *FakeQuerier) UpdateWorkspacesDormantDeletingAtByTemplateID(_ context.Co
 	return affectedRows, nil
 }
 
+func (q *FakeQuerier) UpdateWorkspacesTTLByTemplateID(_ context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, ws := range q.workspaces {
+		if ws.TemplateID != arg.TemplateID {
+			continue
+		}
+
+		q.workspaces[i].Ttl = arg.Ttl
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpsertAnnouncementBanners(_ context.Context, data string) error {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -10324,25 +10409,26 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 }
 
 func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
+	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerDaemon{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	for _, d := range q.provisionerDaemons {
-		if d.Name == arg.Name {
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeOrganization && arg.Tags[provisionersdk.TagOwner] != "" {
-				continue
-			}
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser && arg.Tags[provisionersdk.TagOwner] != d.Tags[provisionersdk.TagOwner] {
-				continue
-			}
+
+	// Look for existing daemon using the same composite key as SQL
+	for i, d := range q.provisionerDaemons {
+		if d.OrganizationID == arg.OrganizationID &&
+			d.Name == arg.Name &&
+			getOwnerFromTags(d.Tags) == getOwnerFromTags(arg.Tags) {
 			d.Provisioners = arg.Provisioners
 			d.Tags = maps.Clone(arg.Tags)
-			d.Version = arg.Version
 			d.LastSeenAt = arg.LastSeenAt
+			d.Version = arg.Version
+			d.APIVersion = arg.APIVersion
+			d.OrganizationID = arg.OrganizationID
+			d.KeyID = arg.KeyID
+			q.provisionerDaemons[i] = d
 			return d, nil
 		}
 	}
@@ -10352,7 +10438,6 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Name:           arg.Name,
 		Provisioners:   arg.Provisioners,
 		Tags:           maps.Clone(arg.Tags),
-		ReplicaID:      uuid.NullUUID{},
 		LastSeenAt:     arg.LastSeenAt,
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,
