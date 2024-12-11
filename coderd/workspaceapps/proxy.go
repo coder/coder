@@ -20,6 +20,7 @@ import (
 	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
+	"github.com/coder/coder/v2/coderd/workspaceapps/cors"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
@@ -395,37 +397,69 @@ func (s *Server) HandleSubdomain(middlewares ...func(http.Handler) http.Handler)
 				return
 			}
 
-			// Use the passed in app middlewares before checking authentication and
-			// passing to the proxy app.
-			mws := chi.Middlewares(append(middlewares, httpmw.WorkspaceAppCors(s.HostnameRegex, app)))
-			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
-				if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
-					return
-				}
+			if !s.handleAPIKeySmuggling(rw, r, AccessMethodSubdomain) {
+				return
+			}
 
-				token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
-					Logger:              s.Logger,
-					SignedTokenProvider: s.SignedTokenProvider,
-					DashboardURL:        s.DashboardURL,
-					PathAppBaseURL:      s.AccessURL,
-					AppHostname:         s.Hostname,
-					AppRequest: Request{
-						AccessMethod:      AccessMethodSubdomain,
-						BasePath:          "/",
-						Prefix:            app.Prefix,
-						UsernameOrID:      app.Username,
-						WorkspaceNameOrID: app.WorkspaceName,
-						AgentNameOrID:     app.AgentName,
-						AppSlugOrPort:     app.AppSlugOrPort,
-					},
-					AppPath:  r.URL.Path,
-					AppQuery: r.URL.RawQuery,
-				})
-				if !ok {
-					return
-				}
+			// Generate a signed token for the request.
+			token, ok := ResolveRequest(rw, r, ResolveRequestOptions{
+				Logger:              s.Logger,
+				SignedTokenProvider: s.SignedTokenProvider,
+				DashboardURL:        s.DashboardURL,
+				PathAppBaseURL:      s.AccessURL,
+				AppHostname:         s.Hostname,
+				AppRequest: Request{
+					AccessMethod:      AccessMethodSubdomain,
+					BasePath:          "/",
+					Prefix:            app.Prefix,
+					UsernameOrID:      app.Username,
+					WorkspaceNameOrID: app.WorkspaceName,
+					AgentNameOrID:     app.AgentName,
+					AppSlugOrPort:     app.AppSlugOrPort,
+				},
+				AppPath:  r.URL.Path,
+				AppQuery: r.URL.RawQuery,
+			})
+			if !ok {
+				return
+			}
+
+			// Proxy the request (possibly with the CORS middleware).
+			mws := chi.Middlewares(append(middlewares, s.determineCORSBehavior(token, app)))
+			mws.Handler(http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 				s.proxyWorkspaceApp(rw, r, *token, r.URL.Path, app)
 			})).ServeHTTP(rw, r.WithContext(ctx))
+		})
+	}
+}
+
+// determineCORSBehavior examines the given token and conditionally applies
+// CORS middleware if the token specifies that behavior.
+func (s *Server) determineCORSBehavior(token *SignedToken, app appurl.ApplicationURL) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		// Create the CORS middleware handler upfront.
+		corsHandler := httpmw.WorkspaceAppCors(s.HostnameRegex, app)(next)
+
+		return http.HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
+			var behavior codersdk.AppCORSBehavior
+			if token != nil {
+				behavior = token.CORSBehavior
+			}
+
+			// Add behavior to context regardless of which handler we use,
+			// since we will use this later on to determine if we should strip
+			// CORS headers in the response.
+			r = r.WithContext(cors.WithBehavior(r.Context(), behavior))
+
+			switch behavior {
+			case codersdk.AppCORSBehaviorPassthru:
+				// Bypass the CORS middleware.
+				next.ServeHTTP(rw, r)
+				return
+			default:
+				// Apply the CORS middleware.
+				corsHandler.ServeHTTP(rw, r)
+			}
 		})
 	}
 }
@@ -560,6 +594,11 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	proxy := s.AgentProvider.ReverseProxy(appURL, s.DashboardURL, appToken.AgentID, app, s.Hostname)
 
 	proxy.ModifyResponse = func(r *http.Response) error {
+		// If passthru behavior is set, disable our CORS header stripping.
+		if cors.HasBehavior(r.Request.Context(), codersdk.AppCORSBehaviorPassthru) {
+			return nil
+		}
+
 		r.Header.Del(httpmw.AccessControlAllowOriginHeader)
 		r.Header.Del(httpmw.AccessControlAllowCredentialsHeader)
 		r.Header.Del(httpmw.AccessControlAllowMethodsHeader)
