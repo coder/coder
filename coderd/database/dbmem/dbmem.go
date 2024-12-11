@@ -1120,6 +1120,14 @@ func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) 
 	return scripts, nil
 }
 
+// getOwnerFromTags returns the lowercase owner from tags, matching SQL's COALESCE(tags ->> 'owner', ”)
+func getOwnerFromTags(tags map[string]string) string {
+	if owner, ok := tags["owner"]; ok {
+		return strings.ToLower(owner)
+	}
+	return ""
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -10398,14 +10406,6 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 
 	q.oauthSigningKey = value
 	return nil
-}
-
-// getOwnerFromTags returns the lowercase owner from tags, matching SQL's COALESCE(tags ->> 'owner', ”)
-func getOwnerFromTags(tags map[string]string) string {
-	if owner, ok := tags["owner"]; ok {
-		return strings.ToLower(owner)
-	}
-	return ""
 }
 
 func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
