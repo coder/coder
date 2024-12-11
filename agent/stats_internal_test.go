@@ -102,7 +102,7 @@ func TestStatsReporter(t *testing.T) {
 	require.Equal(t, stats, update.Stats)
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
-	// second update -- only netStats1 is reported
+	// second update -- netStat0 and netStats1 are accumulated and reported
 	wantNetStats := map[netlogtype.Connection]netlogtype.Counts{
 		{
 			Proto: ipproto.TCP,
