@@ -682,26 +682,26 @@ docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/met
 	go run scripts/metricsdocgen/main.go
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --write ../docs/admin/integrations/prometheus.md
+	pnpm exec markdownlint-cli2 --write "../docs/admin/integrations/prometheus.md"
 
 docs/reference/cli/index.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix ../docs/reference/cli/index.md ../docs/reference/cli/*.md
+	pnpm exec markdownlint-cli2 --fix "../docs/reference/cli/index.md" "../docs/reference/cli/*.md"
 	pnpm exec biome format --write ../docs/manifest.json
 
 docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix ../docs/admin/security/audit-logs.md
+	pnpm exec markdownlint-cli2 --fix "../docs/admin/security/audit-logs.md"
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix ../docs/reference/api
+	pnpm exec markdownlint-cli2 --fix "../docs/reference/api/*.md"
 	pnpm exec biome format --write ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: \
