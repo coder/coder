@@ -8621,6 +8621,10 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 		tmp = append(tmp, database.OrganizationMembersRow{
 			OrganizationMember: organizationMember,
 			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
 		})
 	}
 	return tmp, nil
