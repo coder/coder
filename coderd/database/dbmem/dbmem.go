@@ -2803,6 +2803,17 @@ func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context
 				continue
 			}
 
+			provisionerMatches := false
+			for _, p := range daemon.Provisioners {
+				if p == job.Provisioner {
+					provisionerMatches = true
+					break
+				}
+			}
+			if !provisionerMatches {
+				continue
+			}
+
 			key := jobID.String() + "-" + daemon.ID.String()
 			if _, exists := seen[key]; exists {
 				continue
