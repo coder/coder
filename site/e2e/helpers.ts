@@ -883,13 +883,6 @@ export const updateTemplate = async (
 		},
 	);
 
-	child.stdout.on("data", (data) =>
-		console.log("::::", new TextDecoder().decode(data)),
-	);
-	child.stderr.on("data", (data) =>
-		console.log(";;;;", new TextDecoder().decode(data)),
-	);
-
 	const uploaded = new Awaiter();
 
 	child.on("exit", (code) => {
