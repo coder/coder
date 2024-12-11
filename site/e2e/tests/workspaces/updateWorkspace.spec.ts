@@ -41,7 +41,7 @@ test("update workspace, new optional, immutable parameter added", async ({
 	const updatedRichParameters = [...richParameters, fifthParameter];
 	await updateTemplate(
 		page,
-		"default",
+		"coder",
 		template,
 		echoResponsesWithParameters(updatedRichParameters),
 	);
@@ -80,7 +80,7 @@ test("update workspace, new required, mutable parameter added", async ({
 	const updatedRichParameters = [...richParameters, sixthParameter];
 	await updateTemplate(
 		page,
-		"default",
+		"coder",
 		template,
 		echoResponsesWithParameters(updatedRichParameters),
 	);

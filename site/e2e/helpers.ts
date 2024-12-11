@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -862,8 +863,6 @@ export const updateTemplate = async (
 		[
 			"run",
 			coderMain,
-			"-O",
-			organization,
 			"templates",
 			"push",
 			"--test.provisioner",
@@ -871,6 +870,8 @@ export const updateTemplate = async (
 			"-y",
 			"-d",
 			"-",
+			"-O",
+			organization,
 			templateName,
 		],
 		{
@@ -882,7 +883,15 @@ export const updateTemplate = async (
 		},
 	);
 
+	child.stdout.on("data", (data) =>
+		console.log("::::", new TextDecoder().decode(data)),
+	);
+	child.stderr.on("data", (data) =>
+		console.log(";;;;", new TextDecoder().decode(data)),
+	);
+
 	const uploaded = new Awaiter();
+
 	child.on("exit", (code) => {
 		if (code === 0) {
 			uploaded.done();
