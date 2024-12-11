@@ -25,7 +25,19 @@
 #     container {
 #       name    = "cli"
 #       image   = "${var.coder_image_repo}:${var.coder_image_tag}"
-#       command = ["/opt/coder --verbose --url=${local.deployments.primary.url} --token=${trimspace(data.local_file.api_key.content)} exp scaletest create-workspaces --count ${var.workspace_count} --template=kubernetes --concurrency ${var.workspace_create_concurrency} --no-cleanup"]
+#       command = [
+#         "/opt/coder",
+#         "--verbose",
+#         "--url=${local.deployments.primary.url}",
+#         "--token=${trimspace(data.local_file.api_key.content)}",
+#         "exp",
+#         "scaletest",
+#         "create-workspaces",
+#         "--count=${var.workspace_count}",
+#         "--template=kubernetes",
+#         "--concurrency=${var.workspace_create_concurrency}",
+#         "--no-cleanup"
+#       ]
 #     }
 #     restart_policy = "Never"
 #   }
