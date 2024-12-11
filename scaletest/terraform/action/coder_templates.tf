@@ -98,7 +98,7 @@ resource "kubernetes_config_map" "template" {
   }
 }
 
-resource "kubernetes_pod" "push_template" {
+resource "kubernetes_job" "push_template" {
   provider = kubernetes.primary
 
   metadata {
@@ -109,48 +109,52 @@ resource "kubernetes_pod" "push_template" {
     }
   }
   spec {
-    affinity {
-      node_affinity {
-        required_during_scheduling_ignored_during_execution {
-          node_selector_term {
-            match_expressions {
-              key      = "cloud.google.com/gke-nodepool"
-              operator = "In"
-              values   = ["${google_container_node_pool.node_pool["primary_misc"].name}"]
+    completions = 1
+    template {
+      metadata {}
+      spec {
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "cloud.google.com/gke-nodepool"
+                  operator = "In"
+                  values   = ["${google_container_node_pool.node_pool["primary_misc"].name}"]
+                }
+              }
             }
           }
         }
-      }
-    }
-    container {
-      name  = "cli"
-      image = "${var.coder_image_repo}:${var.coder_image_tag}"
-      command = [
-        "/opt/coder",
-        "--verbose",
-        "--url=${local.deployments.primary.url}",
-        "--token=${trimspace(data.local_file.api_key.content)}",
-        "templates",
-        "push",
-        "--directory=/template",
-        "--yes",
-        "kubernetes"
-      ]
-      volume_mount {
-        name       = "coder-template"
-        mount_path = "/template"
-      }
-    }
-    volume {
-      name = "coder-template"
-      config_map {
-        name = kubernetes_config_map.template.metadata.0.name
-        items {
-          key  = "main.tf"
-          path = "main.tf"
+        container {
+          name  = "cli"
+          image = "${var.coder_image_repo}:${var.coder_image_tag}"
+          command = [
+            "/opt/coder",
+            "--verbose",
+            "--url=${local.deployments.primary.url}",
+            "--token=${trimspace(data.local_file.api_key.content)}",
+            "templates",
+            "push",
+            "--directory=/home/coder/template",
+            "--yes",
+            "kubernetes"
+          ]
+          volume_mount {
+            name       = "coder-template"
+            mount_path = "/home/coder/template/main.tf"
+            sub_path   = "main.tf"
+          }
         }
+        volume {
+          name = "coder-template"
+          config_map {
+            name = kubernetes_config_map.template.metadata.0.name
+          }
+        }
+        restart_policy = "Never"
       }
     }
-    restart_policy = "Never"
   }
+  wait_for_completion = true
 }
