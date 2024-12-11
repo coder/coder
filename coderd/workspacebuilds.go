@@ -202,6 +202,7 @@ func (api *API) workspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		data.scripts,
 		data.logSources,
 		data.templateVersions,
+		data.provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -291,7 +292,7 @@ func (api *API) workspaceBuildByBuildNumber(rw http.ResponseWriter, r *http.Requ
 		data.scripts,
 		data.logSources,
 		data.templateVersions[0],
-		nil,
+		data.provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -395,10 +396,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		}
 	}
 
-	var matchedProvisioners codersdk.MatchedProvisioners
-	if provisionerJob != nil {
-		matchedProvisioners = db2sdk.MatchedProvisioners(provisionerDaemons, provisionerJob.CreatedAt, provisionerdserver.StaleInterval)
-	}
 	apiBuild, err := api.convertWorkspaceBuild(
 		*workspaceBuild,
 		workspace,
@@ -413,7 +410,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		[]database.WorkspaceAgentScript{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
-		&matchedProvisioners,
+		provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -648,14 +645,15 @@ func (api *API) workspaceBuildTimings(rw http.ResponseWriter, r *http.Request) {
 }
 
 type workspaceBuildsData struct {
-	jobs             []database.GetProvisionerJobsByIDsWithQueuePositionRow
-	templateVersions []database.TemplateVersion
-	resources        []database.WorkspaceResource
-	metadata         []database.WorkspaceResourceMetadatum
-	agents           []database.WorkspaceAgent
-	apps             []database.WorkspaceApp
-	scripts          []database.WorkspaceAgentScript
-	logSources       []database.WorkspaceAgentLogSource
+	jobs               []database.GetProvisionerJobsByIDsWithQueuePositionRow
+	templateVersions   []database.TemplateVersion
+	resources          []database.WorkspaceResource
+	metadata           []database.WorkspaceResourceMetadatum
+	agents             []database.WorkspaceAgent
+	apps               []database.WorkspaceApp
+	scripts            []database.WorkspaceAgentScript
+	logSources         []database.WorkspaceAgentLogSource
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 }
 
 func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []database.WorkspaceBuild) (workspaceBuildsData, error) {
@@ -666,6 +664,17 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	jobs, err := api.Database.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
 	if err != nil && !errors.Is(err, sql.ErrNoRows) {
 		return workspaceBuildsData{}, xerrors.Errorf("get provisioner jobs: %w", err)
+	}
+	pendingJobIDs := []uuid.UUID{}
+	for _, job := range jobs {
+		if job.ProvisionerJob.JobStatus == database.ProvisionerJobStatusPending {
+			pendingJobIDs = append(pendingJobIDs, job.ProvisionerJob.ID)
+		}
+	}
+
+	pendingJobProvisioners, err := api.Database.GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx, pendingJobIDs)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return workspaceBuildsData{}, xerrors.Errorf("get provisioner daemons: %w", err)
 	}
 
 	templateVersionIDs := make([]uuid.UUID, 0, len(workspaceBuilds))
@@ -687,8 +696,9 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			jobs:             jobs,
-			templateVersions: templateVersions,
+			jobs:               jobs,
+			templateVersions:   templateVersions,
+			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
 
@@ -711,10 +721,11 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 
 	if len(resources) == 0 {
 		return workspaceBuildsData{
-			jobs:             jobs,
-			templateVersions: templateVersions,
-			resources:        resources,
-			metadata:         metadata,
+			jobs:               jobs,
+			templateVersions:   templateVersions,
+			resources:          resources,
+			metadata:           metadata,
+			provisionerDaemons: pendingJobProvisioners,
 		}, nil
 	}
 
@@ -751,14 +762,15 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 	}
 
 	return workspaceBuildsData{
-		jobs:             jobs,
-		templateVersions: templateVersions,
-		resources:        resources,
-		metadata:         metadata,
-		agents:           agents,
-		apps:             apps,
-		scripts:          scripts,
-		logSources:       logSources,
+		jobs:               jobs,
+		templateVersions:   templateVersions,
+		resources:          resources,
+		metadata:           metadata,
+		agents:             agents,
+		apps:               apps,
+		scripts:            scripts,
+		logSources:         logSources,
+		provisionerDaemons: pendingJobProvisioners,
 	}, nil
 }
 
@@ -773,6 +785,7 @@ func (api *API) convertWorkspaceBuilds(
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersions []database.TemplateVersion,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) ([]codersdk.WorkspaceBuild, error) {
 	workspaceByID := map[uuid.UUID]database.Workspace{}
 	for _, workspace := range workspaces {
@@ -814,7 +827,7 @@ func (api *API) convertWorkspaceBuilds(
 			agentScripts,
 			agentLogSources,
 			templateVersion,
-			nil,
+			provisionerDaemons,
 		)
 		if err != nil {
 			return nil, xerrors.Errorf("converting workspace build: %w", err)
@@ -837,7 +850,7 @@ func (api *API) convertWorkspaceBuild(
 	agentScripts []database.WorkspaceAgentScript,
 	agentLogSources []database.WorkspaceAgentLogSource,
 	templateVersion database.TemplateVersion,
-	matchedProvisioners *codersdk.MatchedProvisioners,
+	provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow,
 ) (codersdk.WorkspaceBuild, error) {
 	resourcesByJobID := map[uuid.UUID][]database.WorkspaceResource{}
 	for _, resource := range workspaceResources {
@@ -863,6 +876,14 @@ func (api *API) convertWorkspaceBuild(
 	for _, logSource := range agentLogSources {
 		logSourcesByAgentID[logSource.WorkspaceAgentID] = append(logSourcesByAgentID[logSource.WorkspaceAgentID], logSource)
 	}
+	provisionerDaemonsForThisWorkspaceBuild := []database.ProvisionerDaemon{}
+	for _, provisionerDaemon := range provisionerDaemons {
+		if provisionerDaemon.JobID != job.ProvisionerJob.ID {
+			continue
+		}
+		provisionerDaemonsForThisWorkspaceBuild = append(provisionerDaemonsForThisWorkspaceBuild, provisionerDaemon.ProvisionerDaemon)
+	}
+	matchedProvisioners := db2sdk.MatchedProvisioners(provisionerDaemonsForThisWorkspaceBuild, job.ProvisionerJob.CreatedAt, provisionerdserver.StaleInterval)
 
 	resources := resourcesByJobID[job.ProvisionerJob.ID]
 	apiResources := make([]codersdk.WorkspaceResource, 0)
@@ -930,7 +951,7 @@ func (api *API) convertWorkspaceBuild(
 		Resources:               apiResources,
 		Status:                  codersdk.ConvertWorkspaceStatus(apiJob.Status, transition),
 		DailyCost:               build.DailyCost,
-		MatchedProvisioners:     matchedProvisioners,
+		MatchedProvisioners:     &matchedProvisioners,
 	}, nil
 }
 

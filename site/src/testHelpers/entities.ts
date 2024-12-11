@@ -1199,6 +1199,10 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	matched_provisioners: {
+		count: 1,
+		available: 1,
+	},
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
