@@ -661,7 +661,7 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec biome format --write examples/examples.gen.json
+	pnpm exec biome format --write ../examples/examples.gen.json
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/typegen/main.go rbac object > coderd/rbac/object_gen.go
