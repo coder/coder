@@ -1523,6 +1523,7 @@ func TestUsersFilter(t *testing.T) {
 			Username:  fmt.Sprintf("before%d", i),
 			LoginType: database.LoginTypeNone,
 			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
 			CreatedAt: time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
 		})
@@ -1536,6 +1537,7 @@ func TestUsersFilter(t *testing.T) {
 			Username:  fmt.Sprintf("during%d", i),
 			LoginType: database.LoginTypeNone,
 			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
 			CreatedAt: time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
 		})
@@ -1549,6 +1551,7 @@ func TestUsersFilter(t *testing.T) {
 			Username:  fmt.Sprintf("after%d", i),
 			Status:    string(codersdk.UserStatusActive),
 			LoginType: database.LoginTypeNone,
+			RBACRoles: []string{codersdk.RoleOwner},
 			CreatedAt: time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC),
 			UpdatedAt: dbtime.Now(),
 		})
