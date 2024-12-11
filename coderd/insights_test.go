@@ -121,7 +121,7 @@ func TestDeploymentInsights(t *testing.T) {
 
 	select {
 	case <-ctx.Done():
-		require.Failf(t, "timed out waiting for initial rollup event: %s", ctx.Err())
+		require.Failf(t, "timed out waiting for initial rollup event: %v", ctx.Err())
 	case ev := <-rollupEvents:
 		require.True(t, ev.Init, "want init event")
 	}
