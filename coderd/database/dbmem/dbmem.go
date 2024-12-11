@@ -10400,26 +10400,35 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 	return nil
 }
 
+// getOwnerFromTags returns the lowercase owner from tags, matching SQL's COALESCE(tags ->> 'owner', ”)
+func getOwnerFromTags(tags map[string]string) string {
+	if owner, ok := tags["owner"]; ok {
+		return strings.ToLower(owner)
+	}
+	return ""
+}
+
 func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
+	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerDaemon{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	for _, d := range q.provisionerDaemons {
-		if d.Name == arg.Name {
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeOrganization && arg.Tags[provisionersdk.TagOwner] != "" {
-				continue
-			}
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser && arg.Tags[provisionersdk.TagOwner] != d.Tags[provisionersdk.TagOwner] {
-				continue
-			}
+
+	// Look for existing daemon using the same composite key as SQL
+	for i, d := range q.provisionerDaemons {
+		if d.OrganizationID == arg.OrganizationID &&
+			d.Name == arg.Name &&
+			getOwnerFromTags(d.Tags) == getOwnerFromTags(arg.Tags) {
 			d.Provisioners = arg.Provisioners
 			d.Tags = maps.Clone(arg.Tags)
-			d.Version = arg.Version
 			d.LastSeenAt = arg.LastSeenAt
+			d.Version = arg.Version
+			d.APIVersion = arg.APIVersion
+			d.OrganizationID = arg.OrganizationID
+			d.KeyID = arg.KeyID
+			q.provisionerDaemons[i] = d
 			return d, nil
 		}
 	}
@@ -10429,7 +10438,6 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Name:           arg.Name,
 		Provisioners:   arg.Provisioners,
 		Tags:           maps.Clone(arg.Tags),
-		ReplicaID:      uuid.NullUUID{},
 		LastSeenAt:     arg.LastSeenAt,
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,

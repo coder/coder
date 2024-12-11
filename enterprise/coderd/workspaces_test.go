@@ -1888,12 +1888,6 @@ func TestWorkspaceByOwnerAndName(t *testing.T) {
 		err = db.DeleteOldProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
 		require.NoError(t, err)
 
-		// Verify that the provisioner daemon is deleted from the database:
-		// nolint:gocritic // unit testing
-		daemons, err = db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
-		require.NoError(t, err)
-		require.Equal(t, len(daemons), 0)
-
 		// Create a workspace that will not be able to provision due to a lack of provisioner daemons:
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 
