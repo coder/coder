@@ -116,7 +116,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const provisionersHealthy =
 		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
 	const shouldShowProvisionerAlert =
-		!provisionersHealthy && (!buildLogs || buildLogs.length === 0);
+		!shouldDisplayBuildLogs && !provisionersHealthy;
 
 	return (
 		<div
