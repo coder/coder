@@ -1,3 +1,5 @@
+test
+
 <div align="center">
   <a href="https://coder.com#gh-light-mode-only">
     <img src="./docs/images/logo-black.png" style="width: 128px">
