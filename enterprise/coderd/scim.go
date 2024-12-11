@@ -517,6 +517,7 @@ func immutabilityViolation[T comparable](old, new T) bool {
 	return old != new
 }
 
+//nolint:revive // active is not a control flag
 func scimUserStatus(user database.User, active bool) database.UserStatus {
 	if !active {
 		return database.UserStatusSuspended

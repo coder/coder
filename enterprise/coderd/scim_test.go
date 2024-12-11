@@ -720,7 +720,7 @@ func TestScim(t *testing.T) {
 
 			sUser.UserName += "changed"
 
-			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusBadRequest, res.StatusCode)
