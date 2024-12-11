@@ -850,6 +850,7 @@ export const fillParameters = async (
 
 export const updateTemplate = async (
 	page: Page,
+	organization: string,
 	templateName: string,
 	responses?: EchoProvisionerResponses,
 ) => {
@@ -861,6 +862,8 @@ export const updateTemplate = async (
 		[
 			"run",
 			coderMain,
+			"-O",
+			organization,
 			"templates",
 			"push",
 			"--test.provisioner",
