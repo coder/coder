@@ -814,7 +814,7 @@ func TestScim(t *testing.T) {
 
 			// User is dormant on create
 			sUser := makeScimUser(t)
-			res, err := client.Request(ctx, http.MethodPut, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
+			res, err := client.Request(ctx, http.MethodPost, "/scim/v2/Users", sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			defer res.Body.Close()
 			assert.Equal(t, http.StatusOK, res.StatusCode)
@@ -843,7 +843,7 @@ func TestScim(t *testing.T) {
 
 			// Patch the user
 			mockAudit.ResetLogs()
-			res, err = client.Request(ctx, "PATCH", "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
+			res, err = client.Request(ctx, http.MethodPut, "/scim/v2/Users/"+sUser.ID, sUser, setScimAuth(scimAPIKey))
 			require.NoError(t, err)
 			_, _ = io.Copy(io.Discard, res.Body)
 			_ = res.Body.Close()
