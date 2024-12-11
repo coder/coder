@@ -697,6 +697,11 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
+					"title": "Istio Integration",
+					"description": "Integrate Coder with Istio",
+					"path": "./admin/integrations/istio.md"
+				},
+				{
 					"title": "Island Secure Browser Integration",
 					"description": "Integrate Coder with Island's Secure Browser",
 					"path": "./admin/integrations/island.md"
