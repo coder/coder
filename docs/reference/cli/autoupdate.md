@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # autoupdate
 
 Toggle auto-update policy for a workspace
@@ -14,8 +13,8 @@ coder autoupdate [flags] <workspace> <always|never>
 
 ### -y, --yes
 
-|      |                   |
-| ---- | ----------------- |
+| | |
+| --- | --- |
 | Type | <code>bool</code> |
 
 Bypass prompts.

@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # external-auth access-token
 
 Print auth for an external provider
@@ -36,8 +35,8 @@ fi
 
 ### --extra
 
-|      |                     |
-| ---- | ------------------- |
+| | |
+| --- | --- |
 | Type | <code>string</code> |
 
 Extract a field from the "extra" properties of the OAuth token.

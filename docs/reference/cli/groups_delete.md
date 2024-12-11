@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # groups delete
 
 Delete a user group
 
 Aliases:
 
-- rm
+* rm
 
 ## Usage
 
@@ -18,9 +17,9 @@ coder groups delete [flags] <name>
 
 ### -O, --org
 
-|             |                                  |
-| ----------- | -------------------------------- |
-| Type        | <code>string</code>              |
+| | |
+| --- | --- |
+| Type | <code>string</code> |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 
 Select which organization (uuid or name) to use.
