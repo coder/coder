@@ -110,15 +110,12 @@ export const Workspace: FC<WorkspaceProps> = ({
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
 
-	const shouldDisplayBuildLogs =
-		workspace.latest_build.status !== "running" && !!buildLogs;
+	const shouldDisplayBuildLogs = workspace.latest_build.status !== "running";
 
 	const provisionersHealthy =
 		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
 	const shouldShowProvisionerAlert =
-		workspace.latest_build.status === "pending" &&
-		!provisionersHealthy &&
-		!buildLogs;
+		!provisionersHealthy && (!buildLogs || buildLogs.length === 0);
 
 	return (
 		<div

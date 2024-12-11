@@ -5263,6 +5263,7 @@ FROM
 JOIN
     provisioner_daemons ON provisioner_daemons.organization_id = provisioner_jobs.organization_id
     AND provisioner_tagset_contains(provisioner_daemons.tags::tagset, provisioner_jobs.tags::tagset)
+    AND provisioner_jobs.provisioner = ANY(provisioner_daemons.provisioners)
 WHERE
     provisioner_jobs.id = ANY($1 :: uuid[])
 `
