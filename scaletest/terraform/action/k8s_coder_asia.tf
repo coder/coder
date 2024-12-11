@@ -70,6 +70,7 @@ resource "helm_release" "coder_asia" {
     mem_request      = local.scenarios[var.scenario].coder.mem_request,
     cpu_limit        = local.scenarios[var.scenario].coder.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].coder.mem_limit,
+    deployment       = "asia",
   })]
 }
 

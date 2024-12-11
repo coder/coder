@@ -85,7 +85,7 @@ resource "local_file" "kubernetes_template" {
   EOF
 }
 
-resource "kubernetes_config_map" "template" {
+resource "kubernetes_config_map" "template_primary" {
   provider = kubernetes.primary
 
   metadata {
@@ -98,7 +98,7 @@ resource "kubernetes_config_map" "template" {
   }
 }
 
-resource "kubernetes_job" "push_template" {
+resource "kubernetes_job" "push_template_primary" {
   provider = kubernetes.primary
 
   metadata {
@@ -137,8 +137,10 @@ resource "kubernetes_job" "push_template" {
             "templates",
             "push",
             "--directory=/home/coder/template",
+            "--provisioner-tag=scope=organization",
+            "--provisioner-tag=deployment=primary",
             "--yes",
-            "kubernetes"
+            "kubernetes-primary"
           ]
           volume_mount {
             name       = "coder-template"
@@ -149,7 +151,159 @@ resource "kubernetes_job" "push_template" {
         volume {
           name = "coder-template"
           config_map {
-            name = kubernetes_config_map.template.metadata.0.name
+            name = kubernetes_config_map.template_primary.metadata.0.name
+          }
+        }
+        restart_policy = "Never"
+      }
+    }
+  }
+  wait_for_completion = true
+}
+
+resource "kubernetes_config_map" "template_europe" {
+  provider = kubernetes.europe
+
+  metadata {
+    name      = "coder-template"
+    namespace = kubernetes_namespace.coder_europe.metadata.0.name
+  }
+
+  data = {
+    "main.tf" = local_file.kubernetes_template.content
+  }
+}
+
+resource "kubernetes_job" "push_template_europe" {
+  provider = kubernetes.europe
+
+  metadata {
+    name      = "${var.name}-push-template"
+    namespace = kubernetes_namespace.coder_europe.metadata.0.name
+    labels = {
+      "app.kubernetes.io/name" = "${var.name}-push-template"
+    }
+  }
+  spec {
+    completions = 1
+    template {
+      metadata {}
+      spec {
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "cloud.google.com/gke-nodepool"
+                  operator = "In"
+                  values   = ["${google_container_node_pool.node_pool["europe_misc"].name}"]
+                }
+              }
+            }
+          }
+        }
+        container {
+          name  = "cli"
+          image = "${var.coder_image_repo}:${var.coder_image_tag}"
+          command = [
+            "/opt/coder",
+            "--verbose",
+            "--url=${local.deployments.primary.url}",
+            "--token=${trimspace(data.local_file.api_key.content)}",
+            "templates",
+            "push",
+            "--directory=/home/coder/template",
+            "--provisioner-tag=scope=organization",
+            "--provisioner-tag=deployment=europe",
+            "--yes",
+            "kubernetes-europe"
+          ]
+          volume_mount {
+            name       = "coder-template"
+            mount_path = "/home/coder/template/main.tf"
+            sub_path   = "main.tf"
+          }
+        }
+        volume {
+          name = "coder-template"
+          config_map {
+            name = kubernetes_config_map.template_europe.metadata.0.name
+          }
+        }
+        restart_policy = "Never"
+      }
+    }
+  }
+  wait_for_completion = true
+}
+
+resource "kubernetes_config_map" "template_asia" {
+  provider = kubernetes.asia
+
+  metadata {
+    name      = "coder-template"
+    namespace = kubernetes_namespace.coder_asia.metadata.0.name
+  }
+
+  data = {
+    "main.tf" = local_file.kubernetes_template.content
+  }
+}
+
+resource "kubernetes_job" "push_template_asia" {
+  provider = kubernetes.asia
+
+  metadata {
+    name      = "${var.name}-push-template"
+    namespace = kubernetes_namespace.coder_asia.metadata.0.name
+    labels = {
+      "app.kubernetes.io/name" = "${var.name}-push-template"
+    }
+  }
+  spec {
+    completions = 1
+    template {
+      metadata {}
+      spec {
+        affinity {
+          node_affinity {
+            required_during_scheduling_ignored_during_execution {
+              node_selector_term {
+                match_expressions {
+                  key      = "cloud.google.com/gke-nodepool"
+                  operator = "In"
+                  values   = ["${google_container_node_pool.node_pool["asia_misc"].name}"]
+                }
+              }
+            }
+          }
+        }
+        container {
+          name  = "cli"
+          image = "${var.coder_image_repo}:${var.coder_image_tag}"
+          command = [
+            "/opt/coder",
+            "--verbose",
+            "--url=${local.deployments.primary.url}",
+            "--token=${trimspace(data.local_file.api_key.content)}",
+            "templates",
+            "push",
+            "--directory=/home/coder/template",
+            "--provisioner-tag=scope=organization",
+            "--provisioner-tag=deployment=asia",
+            "--yes",
+            "kubernetes-asia"
+          ]
+          volume_mount {
+            name       = "coder-template"
+            mount_path = "/home/coder/template/main.tf"
+            sub_path   = "main.tf"
+          }
+        }
+        volume {
+          name = "coder-template"
+          config_map {
+            name = kubernetes_config_map.template_asia.metadata.0.name
           }
         }
         restart_policy = "Never"

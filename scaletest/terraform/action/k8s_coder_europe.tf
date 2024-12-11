@@ -70,6 +70,7 @@ resource "helm_release" "coder_europe" {
     mem_request      = local.scenarios[var.scenario].coder.mem_request,
     cpu_limit        = local.scenarios[var.scenario].coder.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].coder.mem_limit,
+    deployment       = "europe",
   })]
 }
 
@@ -100,5 +101,6 @@ resource "helm_release" "provisionerd_europe" {
     mem_request      = local.scenarios[var.scenario].provisionerd.mem_request,
     cpu_limit        = local.scenarios[var.scenario].provisionerd.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
+    deployment       = "europe",
   })]
 }
