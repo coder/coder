@@ -51,7 +51,7 @@ export const authMethodLanguage = {
 				<Link
 					target="_blank"
 					rel="noopener"
-					href="https://coder.com/docs/admin/auth#disable-built-in-authentication"
+					href="https://coder.com/docs/admin/users/headless-auth"
 				>
 					documentation
 				</Link>{" "}
