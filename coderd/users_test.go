@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -1526,7 +1527,7 @@ func TestUsersFilter(t *testing.T) {
 			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
-		users = append(users, dbUserToSDKUser(user1))
+		users = append(users, db2sdk.User(user1, []uuid.UUID{}))
 
 		// nolint:gocritic //Using system context is necessary to seed data in tests
 		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
@@ -1539,7 +1540,7 @@ func TestUsersFilter(t *testing.T) {
 			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
-		users = append(users, dbUserToSDKUser(user2))
+		users = append(users, db2sdk.User(user2, []uuid.UUID{}))
 
 		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
@@ -1552,7 +1553,7 @@ func TestUsersFilter(t *testing.T) {
 			UpdatedAt: dbtime.Now(),
 		})
 		require.NoError(t, err)
-		users = append(users, dbUserToSDKUser(user3))
+		users = append(users, db2sdk.User(user3, []uuid.UUID{}))
 	}
 
 	// --- Setup done ---
@@ -1748,6 +1749,8 @@ func TestUsersFilter(t *testing.T) {
 					exp = append(exp, made)
 				}
 			}
+			fmt.Printf("expexp: %+v\n", exp)
+			fmt.Printf("matched.Usersmatched.Users: %+v\n", matched.Users)
 			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
 		})
 	}
@@ -2344,28 +2347,6 @@ func onlyUsernames[U codersdk.User | database.User](users []U) []string {
 		}
 	}
 	return out
-}
-
-// dbUserToSDKUser converts database.User to codersdk.User
-func dbUserToSDKUser(dbUser database.User) codersdk.User {
-	return codersdk.User{
-		ReducedUser: codersdk.ReducedUser{
-			MinimalUser: codersdk.MinimalUser{
-				ID:        dbUser.ID,
-				Username:  dbUser.Username,
-				AvatarURL: dbUser.AvatarURL,
-			},
-			Email:           dbUser.Email,
-			CreatedAt:       dbUser.CreatedAt,
-			UpdatedAt:       dbUser.UpdatedAt,
-			LastSeenAt:      dbUser.LastSeenAt,
-			Status:          codersdk.UserStatus(dbUser.Status),
-			LoginType:       codersdk.LoginType(dbUser.LoginType),
-			ThemePreference: dbUser.ThemePreference,
-		},
-		OrganizationIDs: make([]uuid.UUID, 0),
-		Roles:           make([]codersdk.SlimRole, 0),
-	}
 }
 
 func BenchmarkUsersMe(b *testing.B) {
