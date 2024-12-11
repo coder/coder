@@ -10,8 +10,6 @@ import (
 
 	// Must import the packages we are trying to convert
 	// And include the ones we are referencing
-	//_ "github.com/coder/coder/coderd/healthcheck/health"
-	//_ "github.com/coder/coder/codersdk/health"
 	_ "github.com/coder/coder/v2/codersdk"
 	_ "github.com/coder/serpent"
 )
