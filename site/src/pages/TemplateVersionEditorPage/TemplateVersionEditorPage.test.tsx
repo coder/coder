@@ -226,6 +226,28 @@ test("Patch request is not send when there are no changes", async () => {
 	expect(patchTemplateVersion).toBeCalledTimes(0);
 });
 
+test("The file is uploaded with the correct content type", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	expect(API.uploadFile).toHaveBeenCalledWith(
+		expect.objectContaining({
+			name: "template.tar",
+			type: "application/x-tar",
+		}),
+	);
+});
+
 describe.each([
 	{
 		testName: "Do not ask when template version has no errors",
