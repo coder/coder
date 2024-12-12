@@ -67,7 +67,9 @@ replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145
 // which we use in the awsiamrds package.
 replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
 
-replace github.com/charmbracelet/bubbletea => github.com/sreya/bubbletea v1.2.2-0.20241210232551-43ff5fc42edd
+// Removes an init() function that causes terminal sequences to be printed to the web terminal when
+// used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
+replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41
 
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
@@ -214,7 +216,6 @@ require (
 	github.com/google/go-github/v61 v61.0.0
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
 	github.com/natefinch/atomic v1.0.1
-	github.com/sreya/bubbletea v1.2.2-0.20241210232912-64577f67745d
 	kernel.org/pub/linux/libs/security/libcap/cap v1.2.73
 )
 

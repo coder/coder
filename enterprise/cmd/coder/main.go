@@ -5,7 +5,7 @@ import (
 	"os"
 	_ "time/tzdata"
 
-	tea "github.com/sreya/bubbletea"
+	tea "github.com/charmbracelet/bubbletea"
 
 	"github.com/coder/coder/v2/agent/agentexec"
 	entcli "github.com/coder/coder/v2/enterprise/cli"
