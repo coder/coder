@@ -368,7 +368,7 @@ export const downloadCoderVersion = async (
 	// Run our official install script to install the binary
 	await new Promise<void>((resolve, reject) => {
 		const cp = spawn(
-			new URL("../../install.sh", import.meta.url).toString(),
+			new URL("../../install.sh", import.meta.url).pathname,
 			[
 				"--version",
 				version,

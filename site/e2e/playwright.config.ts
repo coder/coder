@@ -13,7 +13,7 @@ import {
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
 // This is where auth cookies are stored!
-export const storageState = new URL(".auth.json", import.meta.url).toString();
+export const storageState = new URL(".auth.json", import.meta.url).pathname;
 
 // If running terraform tests, verify the requirements exist in the
 // environment.

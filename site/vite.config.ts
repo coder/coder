@@ -1,5 +1,4 @@
 import react from "@vitejs/plugin-react";
-import * as path from "node:path";
 import { visualizer } from "rollup-plugin-visualizer";
 import { defineConfig, type PluginOption } from "vite";
 import checker from "vite-plugin-checker";
@@ -83,15 +82,15 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			api: new URL("./src/api", import.meta.url).toString(),
-			components: new URL("./src/components", import.meta.url).toString(),
-			contexts: new URL("./src/contexts", import.meta.url).toString(),
-			hooks: new URL("./src/hooks", import.meta.url).toString(),
-			modules: new URL("./src/modules", import.meta.url).toString(),
-			pages: new URL("./src/pages", import.meta.url).toString(),
-			testHelpers: new URL("./src/testHelpers", import.meta.url).toString(),
-			theme: new URL("./src/theme", import.meta.url).toString(),
-			utils: new URL("./src/utils", import.meta.url).toString(),
+			api: new URL("./src/api", import.meta.url).pathname,
+			components: new URL("./src/components", import.meta.url).pathname,
+			contexts: new URL("./src/contexts", import.meta.url).pathname,
+			hooks: new URL("./src/hooks", import.meta.url).pathname,
+			modules: new URL("./src/modules", import.meta.url).pathname,
+			pages: new URL("./src/pages", import.meta.url).pathname,
+			testHelpers: new URL("./src/testHelpers", import.meta.url).pathname,
+			theme: new URL("./src/theme", import.meta.url).pathname,
+			utils: new URL("./src/utils", import.meta.url).pathname,
 		},
 	},
 });
