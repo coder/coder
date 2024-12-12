@@ -129,7 +129,14 @@ resource uses a different method of authentication and **is not impacted by the
 template's maximum sharing level**, nor the level of a shared port that points
 to the app.
 
-### Configure maximum port sharing level (enterprise) (premium)
+### Configure maximum port sharing level
+
+<blockquote class="info">
+
+Configuring port sharing level is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the

@@ -1,4 +1,11 @@
-# IDP Sync (enterprise) (premium)
+# IDP Sync
+
+<blockquote class="info">
+
+IDP sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
@@ -205,7 +212,14 @@ Users who are not in a matching group will see the following error:
 
 <Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
-## Role sync (enterprise) (premium)
+## Role sync
+
+<blockquote class="info">
+
+Role sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to roles within Coder.
@@ -337,7 +351,14 @@ Visit the Coder UI to confirm these changes:
 
 </div>
 
-## Organization Sync (Premium)
+## Organization Sync
+
+<blockquote class="info">
+
+Organization sync is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 If your OpenID Connect provider supports groups/role claims, you can configure
 Coder to synchronize claims in your auth provider to organizations within Coder.
