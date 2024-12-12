@@ -32,4 +32,5 @@ jobs:
       - name: fmt
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
+          # markdown-table-formatter requires a space separated list of files
           echo ${{ steps.changed-files.outputs.all_changed_files }} | tr ',' '\n' | pnpm exec markdown-table-formatter --check
