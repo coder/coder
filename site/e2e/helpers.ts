@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -368,7 +369,7 @@ export const downloadCoderVersion = async (
 	// Run our official install script to install the binary
 	await new Promise<void>((resolve, reject) => {
 		const cp = spawn(
-			new URL("../../install.sh", import.meta.url).pathname,
+			path.join(__dirname, "../../install.sh"),
 			[
 				"--version",
 				version,

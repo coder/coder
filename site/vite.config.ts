@@ -32,7 +32,6 @@ export default defineConfig({
 		"process.env": {
 			NODE_ENV: process.env.NODE_ENV,
 			STORYBOOK: process.env.STORYBOOK,
-			INSPECT_XSTATE: process.env.INSPECT_XSTATE,
 		},
 	},
 	server: {

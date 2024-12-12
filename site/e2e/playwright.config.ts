@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
 	coderMain,
@@ -13,7 +14,7 @@ import {
 export const wsEndpoint = process.env.CODER_E2E_WS_ENDPOINT;
 
 // This is where auth cookies are stored!
-export const storageState = new URL(".auth.json", import.meta.url).pathname;
+export const storageState = path.join(__dirname, ".auth.json");
 
 // If running terraform tests, verify the requirements exist in the
 // environment.
