@@ -11,6 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/serpent"
+
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
@@ -26,7 +30,6 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/coderdenttest"
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/testutil"
-	"github.com/coder/serpent"
 )
 
 // nolint:bodyclose
@@ -1147,7 +1150,7 @@ func setupOIDCTest(t *testing.T, settings oidcTestConfig) *oidcTestRunner {
 	fake := oidctest.NewFakeIDP(t,
 		append([]oidctest.FakeIDPOpt{
 			oidctest.WithStaticUserInfo(settings.Userinfo),
-			oidctest.WithLogging(t, nil),
+			oidctest.WithLogging(t, &slogtest.Options{IgnoreErrors: true}),
 			// Run fake IDP on a real webserver
 			oidctest.WithServing(),
 		}, settings.FakeOpts...)...,
