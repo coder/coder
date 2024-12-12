@@ -689,7 +689,7 @@ docs/reference/cli/index.md: scripts/clidocgen/main.go examples/examples.gen.jso
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	cd site
 	../scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix "../docs/reference/cli/index.md" "../docs/reference/cli/*.md"
+	pnpm exec markdownlint-cli2 --fix "../docs/reference/cli/*.md"
 	pnpm exec biome format --write ../docs/manifest.json
 
 docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
