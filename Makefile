@@ -436,8 +436,8 @@ else
 endif
 .PHONY: fmt/ts
 
-fmt/ts:
-	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET)"
+fmt/biome:
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
@@ -445,7 +445,7 @@ ifdef CI
 else
 	pnpm run format
 endif
-.PHONY: fmt/ts
+.PHONY: fmt/biome
 
 fmt/terraform: $(wildcard *.tf)
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET)"
