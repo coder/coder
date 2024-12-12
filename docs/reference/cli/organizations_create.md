@@ -13,8 +13,8 @@ coder organizations create [flags] <organization name>
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
+| | |
+| --- | --- |
 | Type | <code>bool</code> |
 
 Bypass prompts.

@@ -13,8 +13,8 @@ coder autoupdate [flags] <workspace> <always|never>
 
 ### -y, --yes
 
-|      |                   |
-|------|-------------------|
+| | |
+| --- | --- |
 | Type | <code>bool</code> |
 
 Bypass prompts.

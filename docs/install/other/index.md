@@ -4,7 +4,7 @@ Coder has a number of alternate unofficial install methods. Contributions are
 welcome!
 
 | Platform Name                                                                     | Status     | Documentation                                                                                |
-|-----------------------------------------------------------------------------------|------------|----------------------------------------------------------------------------------------------|
+| --------------------------------------------------------------------------------- | ---------- | -------------------------------------------------------------------------------------------- |
 | AWS EC2                                                                           | Official   | [Guide: AWS](../cloud/ec2.md)                                                                |
 | Google Compute Engine                                                             | Official   | [Guide: Google Compute Engine](../cloud/compute-engine.md)                                   |
 | Azure AKS                                                                         | Unofficial | [GitHub: coder-aks](https://github.com/ericpaulsen/coder-aks)                                |

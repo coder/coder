@@ -11,6 +11,6 @@ coder open
 
 ## Subcommands
 
-| Name                                    | Purpose                             |
-|-----------------------------------------|-------------------------------------|
+| Name |   Purpose |
+| ---- |   ----- |
 | [<code>vscode</code>](./open_vscode.md) | Open a workspace in VS Code Desktop |
