@@ -5,7 +5,7 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../../api";
-import { noPremiumLicense, requiresLicense } from "../../../helpers";
+import { randomName, requiresUnlicensed, requiresLicense } from "../../../helpers";
 import { beforeCoderTest } from "../../../hooks";
 
 test.describe("CustomRolesPage", () => {
@@ -15,7 +15,7 @@ test.describe("CustomRolesPage", () => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		const org = await createOrganizationWithName("developers");
+		const org = await createOrganizationWithName(randomName());
 
 		const customRole = await createCustomRole(
 			org.id,
@@ -42,14 +42,14 @@ test.describe("CustomRolesPage", () => {
 
 		await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
 
-		await deleteOrganization("developers");
+		await deleteOrganization(org.name);
 	});
 
 	test("create custom role, edit role and save changes", async ({ page }) => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		const org = await createOrganizationWithName("users");
+		const org = await createOrganizationWithName(randomName());
 
 		const customRole = await createCustomRole(
 			org.id,
@@ -91,7 +91,7 @@ test.describe("CustomRolesPage", () => {
 
 		await expect(page).toHaveURL(`/organizations/${org.name}/roles`);
 
-		await deleteOrganization("users");
+		await deleteOrganization(org.name);
 	});
 
 	test("displays built-in role without edit/delete options", async ({
@@ -100,7 +100,7 @@ test.describe("CustomRolesPage", () => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		const org = await createOrganizationWithName("testers");
+		const org = await createOrganizationWithName(randomName());
 
 		await page.goto(`/organizations/${org.name}/roles`);
 
@@ -114,14 +114,14 @@ test.describe("CustomRolesPage", () => {
 			roleRow.getByRole("button", { name: "More options" }),
 		).not.toBeVisible();
 
-		await deleteOrganization("testers");
+		await deleteOrganization(org.name);
 	});
 
 	test("create custom role with UI", async ({ page }) => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		const org = await createOrganizationWithName("contractors");
+		const org = await createOrganizationWithName(randomName());
 
 		await page.goto(`/organizations/${org.name}/roles`);
 
@@ -154,14 +154,14 @@ test.describe("CustomRolesPage", () => {
 		await expect(roleRow.getByText(customRoleDisplayName)).toBeVisible();
 		await expect(roleRow.getByText("None")).toBeVisible();
 
-		await deleteOrganization("contractors");
+		await deleteOrganization(org.name);
 	});
 
 	test("delete custom role", async ({ page }) => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		const org = await createOrganizationWithName("custom1");
+		const org = await createOrganizationWithName(randomName());
 		const customRole = await createCustomRole(
 			org.id,
 			"custom-role-test-1",
@@ -183,12 +183,12 @@ test.describe("CustomRolesPage", () => {
 			page.getByText("Custom role deleted successfully!"),
 		).toBeVisible();
 
-		await deleteOrganization("custom1");
+		await deleteOrganization(org.name);
 	});
 });
 
 test("custom roles disabled", async ({ page }) => {
-	noPremiumLicense();
+	requiresUnlicensed();
 	await page.goto("/organizations/coder/roles");
 	await expect(page).toHaveURL("/organizations/coder/roles");
 
