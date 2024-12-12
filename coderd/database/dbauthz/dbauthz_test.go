@@ -2119,6 +2119,29 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		s.NoError(err, "get provisioner daemon by org")
 		check.Args(database.GetProvisionerDaemonsByOrganizationParams{OrganizationID: org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
+	s.Run("GetEligibleProvisionerDaemonsByProvisionerJobIDs", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		tags := database.StringMap(map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+		j, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Tags:           tags,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+		})
+		s.NoError(err, "insert provisioner job")
+		d, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
+			OrganizationID: org.ID,
+			Tags:           tags,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+		})
+		s.NoError(err, "insert provisioner daemon")
+		ds, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{j.ID})
+		s.NoError(err, "get provisioner daemon by org")
+		check.Args(uuid.UUIDs{j.ID}).Asserts(d, policy.ActionRead).Returns(ds)
+	}))
 	s.Run("DeleteOldProvisionerDaemons", s.Subtest(func(db database.Store, check *expects) {
 		_, err := db.UpsertProvisionerDaemon(context.Background(), database.UpsertProvisionerDaemonParams{
 			Tags: database.StringMap(map[string]string{
