@@ -136,14 +136,8 @@ const OverflowRolePill: FC<OverflowRolePillProps> = ({ roles }) => {
 						minWidth: "auto",
 					},
 				}}
-				anchorOrigin={{
-					vertical: -4,
-					horizontal: "center",
-				}}
-				transformOrigin={{
-					vertical: "bottom",
-					horizontal: "center",
-				}}
+				anchorOrigin={{ vertical: -4, horizontal: "center" }}
+				transformOrigin={{ vertical: "bottom", horizontal: "center" }}
 			>
 				{roles.map((role) => (
 					<Pill
