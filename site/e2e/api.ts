@@ -93,6 +93,43 @@ export const createOrganizationSyncSettings = async () => {
 	return settings;
 };
 
+export const createCustomRole = async (
+	orgId: string,
+	name: string,
+	displayName: string,
+) => {
+	const role = await API.createOrganizationRole(orgId, {
+		name,
+		display_name: displayName,
+		organization_id: orgId,
+		site_permissions: [],
+		organization_permissions: [
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "create",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "delete",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "read",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "update",
+			},
+		],
+		user_permissions: [],
+	});
+	return role;
+};
+
 export async function verifyConfigFlagBoolean(
 	page: Page,
 	config: DeploymentConfig,
