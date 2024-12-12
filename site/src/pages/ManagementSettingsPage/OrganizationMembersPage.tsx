@@ -17,8 +17,10 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
 import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -50,8 +52,7 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useManagementSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
+	const { organization } = useManagementSettings();
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	const [memberToDelete, setMemberToDelete] =
@@ -62,8 +63,17 @@ const OrganizationMembersPage: FC = () => {
 		return <Loader />;
 	}
 
+	const helmet = organization && (
+		<Helmet>
+			<title>
+				{pageTitle("Members", organization.display_name || organization.name)}
+			</title>
+		</Helmet>
+	);
+
 	return (
 		<>
+			{helmet}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={permissions.editMembers}

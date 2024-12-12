@@ -28,7 +28,7 @@ export const getCurrentOrgId = async (): Promise<string> => {
 	return currentOrgId;
 };
 
-export const createUser = async (orgId: string) => {
+export const createUser = async (...orgIds: string[]) => {
 	const name = randomName();
 	const user = await API.createUser({
 		email: `${name}@coder.com`,
@@ -36,7 +36,7 @@ export const createUser = async (orgId: string) => {
 		name: name,
 		password: "s3cure&password!",
 		login_type: "password",
-		organization_ids: [orgId],
+		organization_ids: orgIds,
 		user_status: null,
 	});
 	return user;
