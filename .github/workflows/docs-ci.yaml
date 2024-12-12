@@ -27,6 +27,7 @@ jobs:
       - name: fmt
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
+          echo "{{ steps.changed-files.outputs.all_changed_files }}"
           pnpm exec markdown-table-formatter --check {{ steps.changed-files.outputs.all_changed_files }}
 
       - name: lint
