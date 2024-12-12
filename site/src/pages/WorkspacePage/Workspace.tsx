@@ -7,6 +7,7 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { SidebarIconButton } from "components/FullPageLayout/Sidebar";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
@@ -14,6 +15,7 @@ import { useNavigate } from "react-router-dom";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";
+import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import {
 	ActiveTransition,
 	WorkspaceBuildProgress,
@@ -46,7 +48,7 @@ export interface WorkspaceProps {
 	canDebugMode: boolean;
 	handleRetry: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
 	handleDebug: (buildParameters?: TypesGen.WorkspaceBuildParameter[]) => void;
-	buildLogs?: React.ReactNode;
+	buildLogs?: TypesGen.ProvisionerJobLog[];
 	latestVersion?: TypesGen.TemplateVersion;
 	permissions: WorkspacePermissions;
 	isOwner: boolean;
@@ -107,6 +109,14 @@ export const Workspace: FC<WorkspaceProps> = ({
 	const selectedResource = resources.find(
 		(r) => resourceOptionValue(r) === resourcesNav.value,
 	);
+
+	const workspaceRunning = workspace.latest_build.status === "running";
+	const haveBuildLogs = (buildLogs ?? []).length > 0;
+	const provisionersHealthy =
+		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
+	const shouldDisplayBuildLogs = haveBuildLogs && !workspaceRunning;
+	const shouldShowProvisionerAlert =
+		!workspaceRunning && !haveBuildLogs && !provisionersHealthy;
 
 	return (
 		<div
@@ -208,6 +218,18 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
+					{shouldShowProvisionerAlert && (
+						<ProvisionerStatusAlert
+							matchingProvisioners={
+								workspace.latest_build.matched_provisioners?.count
+							}
+							availableProvisioners={
+								workspace.latest_build.matched_provisioners?.available ?? 0
+							}
+							tags={workspace.latest_build.job.tags}
+						/>
+					)}
+
 					{workspace.latest_build.job.error && (
 						<Alert severity="error">
 							<AlertTitle>Workspace build failed</AlertTitle>
@@ -222,7 +244,9 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{buildLogs}
+					{shouldDisplayBuildLogs && (
+						<WorkspaceBuildLogsSection logs={buildLogs} />
+					)}
 
 					{selectedResource && (
 						<section

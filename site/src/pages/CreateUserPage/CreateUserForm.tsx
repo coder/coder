@@ -51,7 +51,7 @@ export const authMethodLanguage = {
 				<Link
 					target="_blank"
 					rel="noopener"
-					href="https://coder.com/docs/admin/auth#disable-built-in-authentication"
+					href="https://coder.com/docs/admin/users/headless-auth"
 				>
 					documentation
 				</Link>{" "}
@@ -96,6 +96,7 @@ export const CreateUserForm: FC<
 				name: "",
 				organization_ids: ["00000000-0000-0000-0000-000000000000"],
 				login_type: "",
+				user_status: null,
 			},
 			validationSchema,
 			onSubmit,
