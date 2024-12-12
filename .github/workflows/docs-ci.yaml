@@ -17,8 +17,6 @@ jobs:
 
       - name: Setup Node
         uses: ./.github/actions/setup-node
-        with:
-          directory: ${{ github.workspace }}
 
       - uses: tj-actions/changed-files@bab30c2299617f6615ec02a68b9a40d10bd21366 # v45.0.5
         id: changed-files
