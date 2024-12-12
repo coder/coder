@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
 import Paper from "@mui/material/Paper";
-import type { FC, HTMLProps, ReactNode } from "react";
+import type { FC, HTMLProps, JSX, ReactNode } from "react";
 
 export interface ChartSectionProps {
 	/**

@@ -23,7 +23,7 @@ export type UseClickableResult<
 	TElement extends ClickableElement = ClickableElement,
 	TRole extends ClickableAriaRole = ClickableAriaRole,
 > = Readonly<{
-	ref: RefObject<TElement>;
+	ref: RefObject<TElement | null>;
 	tabIndex: 0;
 	role: TRole;
 	onClick: MouseEventHandler<TElement>;

@@ -6,7 +6,13 @@ import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
 import { SimpleTreeView, TreeItem } from "@mui/x-tree-view";
 import { DockerIcon } from "components/Icons/DockerIcon";
-import { type CSSProperties, type ElementType, type FC, useState } from "react";
+import {
+	type CSSProperties,
+	type ElementType,
+	type FC,
+	type JSX,
+	useState,
+} from "react";
 import type { FileTree } from "utils/filetree";
 
 const isFolder = (content?: FileTree | string): content is FileTree =>
