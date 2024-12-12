@@ -2270,6 +2270,90 @@ curl -X GET http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## SCIM 2.0: Replace user account
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/scim+json' \
+  -H 'Authorizaiton: API_KEY'
+```
+
+`PUT /scim/v2/Users/{id}`
+
+> Body parameter
+
+```json
+{
+	"active": true,
+	"emails": [
+		{
+			"display": "string",
+			"primary": true,
+			"type": "string",
+			"value": "user@example.com"
+		}
+	],
+	"groups": [null],
+	"id": "string",
+	"meta": {
+		"resourceType": "string"
+	},
+	"name": {
+		"familyName": "string",
+		"givenName": "string"
+	},
+	"schemas": ["string"],
+	"userName": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                         | Required | Description          |
+| ------ | ---- | -------------------------------------------- | -------- | -------------------- |
+| `id`   | path | string(uuid)                                 | true     | User ID              |
+| `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Replace user request |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+	"avatar_url": "http://example.com",
+	"created_at": "2019-08-24T14:15:22Z",
+	"email": "user@example.com",
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"login_type": "",
+	"name": "string",
+	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
+	"roles": [
+		{
+			"display_name": "string",
+			"name": "string",
+			"organization_id": "string"
+		}
+	],
+	"status": "active",
+	"theme_preference": "string",
+	"updated_at": "2019-08-24T14:15:22Z",
+	"username": "string"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                   |
+| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## SCIM 2.0: Update user account
 
 ### Code samples
