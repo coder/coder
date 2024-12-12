@@ -4,10 +4,8 @@
 	"version": "0.0.0",
 	"packageManager": "pnpm@9.14.4",
 	"scripts": {
-		"format-docs": "markdown-table-formatter --check ./docs/**/*.md",
-		"format-docs:fix": "markdown-table-formatter ./docs/**/*.md",
-		"lint-docs": "markdownlint-cli2 ./docs/**/*.md",
-		"lint-docs:fix": "markdownlint-cli2 --fix ./docs/**/*.md"
+		"format-docs": "markdown-table-formatter './docs/**/*.md'",
+		"lint-docs": "markdownlint-cli2 --fix './docs/**/*.md'"
 	},
 	"devDependencies": {
 		"markdown-table-formatter": "^1.6.1",

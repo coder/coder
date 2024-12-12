@@ -24,9 +24,12 @@ jobs:
           files: "docs/**/*.md"
           separator: ","
 
+      - name: fmt
+        if: steps.changed-files.outputs.any_changed == 'true'
+        run: |
+          pnpm exec markdown-table-formatter --check {{ steps.changed-files.outputs.all_changed_files }}
+
       - name: lint
         if: steps.changed-files.outputs.any_changed == 'true'
         run: |
-          cd site
-          ../scripts/pnpm_install.sh
           pnpm exec markdownlint-cli2 {{ steps.changed-files.outputs.all_changed_files }}

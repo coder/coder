@@ -2361,7 +2361,7 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 ### Parameters
 
 | Name   | In   | Type                                         | Required | Description          |
-| ------ | ---- | -------------------------------------------- | -------- | -------------------- |
+|--------|------|----------------------------------------------|----------|----------------------|
 | `id`   | path | string(uuid)                                 | true     | User ID              |
 | `body` | body | [coderd.SCIMUser](schemas.md#coderdscimuser) | true     | Replace user request |
 
@@ -2396,7 +2396,7 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                   |
-| ------ | ------------------------------------------------------- | ----------- | ---------------------------------------- |
+|--------|---------------------------------------------------------|-------------|------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.User](schemas.md#codersdkuser) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
