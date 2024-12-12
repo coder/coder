@@ -1,6 +1,7 @@
-import * as path from "node:path";
-
-export const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
+export const coderMain = new URL(
+	"../../enterprise/cmd/coder",
+	import.meta.url,
+).toString();
 
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT

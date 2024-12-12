@@ -21,9 +21,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins: plugins,
-	publicDir: path.resolve(__dirname, "./static"),
+	publicDir: "static/",
 	build: {
-		outDir: path.resolve(__dirname, "./out"),
+		outDir: "out/",
 		// We need to keep the /bin folder and GITKEEP files
 		emptyOutDir: false,
 		// 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
@@ -83,15 +83,15 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			api: path.resolve(__dirname, "./src/api"),
-			components: path.resolve(__dirname, "./src/components"),
-			contexts: path.resolve(__dirname, "./src/contexts"),
-			hooks: path.resolve(__dirname, "./src/hooks"),
-			modules: path.resolve(__dirname, "./src/modules"),
-			pages: path.resolve(__dirname, "./src/pages"),
-			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
-			theme: path.resolve(__dirname, "./src/theme"),
-			utils: path.resolve(__dirname, "./src/utils"),
+			api: new URL("./src/api", import.meta.url).toString(),
+			components: new URL("./src/components", import.meta.url).toString(),
+			contexts: new URL("./src/contexts", import.meta.url).toString(),
+			hooks: new URL("./src/hooks", import.meta.url).toString(),
+			modules: new URL("./src/modules", import.meta.url).toString(),
+			pages: new URL("./src/pages", import.meta.url).toString(),
+			testHelpers: new URL("./src/testHelpers", import.meta.url).toString(),
+			theme: new URL("./src/theme", import.meta.url).toString(),
+			utils: new URL("./src/utils", import.meta.url).toString(),
 		},
 	},
 });
