@@ -89,7 +89,7 @@ func (api *API) returnDAUsInternal(rw http.ResponseWriter, r *http.Request, temp
 	}
 	for _, row := range rows {
 		resp.Entries = append(resp.Entries, codersdk.DAUEntry{
-			Date:   row.StartTime.Format(time.DateOnly),
+			Date:   row.StartTime.In(loc).Format(time.DateOnly),
 			Amount: int(row.ActiveUsers),
 		})
 	}
