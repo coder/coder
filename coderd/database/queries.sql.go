@@ -5884,7 +5884,7 @@ queue_position AS (
         id,
         ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
     FROM
-       pending_jobs
+        pending_jobs
 ),
 queue_size AS (
 	SELECT COUNT(*) AS count FROM pending_jobs
