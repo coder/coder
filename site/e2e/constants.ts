@@ -1,7 +1,5 @@
-export const coderMain = new URL(
-	"../../enterprise/cmd/coder",
-	import.meta.url,
-).toString();
+export const coderMain = new URL("../../enterprise/cmd/coder", import.meta.url)
+	.pathname;
 
 // Default port from the server
 export const coderPort = process.env.CODER_E2E_PORT
