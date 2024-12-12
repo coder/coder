@@ -26,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -1513,6 +1514,51 @@ func TestUsersFilter(t *testing.T) {
 		users = append(users, user)
 	}
 
+	// Add users with different creation dates for testing date filters
+	for i := 0; i < 3; i++ {
+		// nolint:gocritic // Using system context is necessary to seed data in tests
+		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("before%d@coder.com", i),
+			Username:  fmt.Sprintf("before%d", i),
+			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
+			CreatedAt: time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, db2sdk.User(user1, []uuid.UUID{}))
+
+		// nolint:gocritic //Using system context is necessary to seed data in tests
+		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("during%d@coder.com", i),
+			Username:  fmt.Sprintf("during%d", i),
+			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
+			CreatedAt: time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, db2sdk.User(user2, []uuid.UUID{}))
+
+		// nolint:gocritic // Using system context is necessary to seed data in tests
+		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("after%d@coder.com", i),
+			Username:  fmt.Sprintf("after%d", i),
+			Status:    string(codersdk.UserStatusActive),
+			LoginType: database.LoginTypeNone,
+			RBACRoles: []string{codersdk.RoleOwner},
+			CreatedAt: time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC),
+			UpdatedAt: dbtime.Now(),
+		})
+		require.NoError(t, err)
+		users = append(users, db2sdk.User(user3, []uuid.UUID{}))
+	}
+
 	// --- Setup done ---
 	testCases := []struct {
 		Name   string
@@ -1653,6 +1699,37 @@ func TestUsersFilter(t *testing.T) {
 				start := time.Date(2023, 1, 8, 0, 0, 0, 0, time.UTC)
 				end := time.Date(2023, 1, 14, 23, 59, 59, 0, time.UTC)
 				return u.LastSeenAt.Before(end) && u.LastSeenAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAtBefore",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.Before(end)
+			},
+		},
+		{
+			Name: "CreatedAtAfter",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				return u.CreatedAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAtRange",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z" created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.After(start) && u.CreatedAt.Before(end)
 			},
 		},
 	}
