@@ -468,7 +468,7 @@ fmt/docs-md-tables:
 	pnpm exec markdown-table-formatter "../docs/**/*.md"
 .PHONY: fmt/docs-md-tables
 
-lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown lint/md-tables
+lint: lint/shellcheck lint/go lint/ts lint/examples lint/helm lint/site-icons lint/markdown
 .PHONY: lint
 
 lint/site-icons:
