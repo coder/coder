@@ -85,6 +85,7 @@
 		"jszip": "3.10.1",
 		"lodash": "4.17.21",
 		"lucide-react": "0.454.0",
+		"markdown-table-formatter": "1.6.1",
 		"monaco-editor": "0.52.0",
 		"pretty-bytes": "6.1.1",
 		"react": "18.3.1",
