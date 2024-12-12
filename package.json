@@ -5,7 +5,8 @@
 	"packageManager": "pnpm@9.14.4",
 	"scripts": {
 		"format-docs": "markdown-table-formatter './docs/**/*.md'",
-		"lint-docs": "markdownlint-cli2 --fix './docs/**/*.md'"
+		"lint-docs": "markdownlint-cli2 --fix './docs/**/*.md'",
+		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
 		"markdown-table-formatter": "^1.6.1",
