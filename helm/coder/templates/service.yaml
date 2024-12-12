@@ -35,7 +35,7 @@ spec:
   {{- with .Values.coder.service.externalTrafficPolicy }}
   externalTrafficPolicy: {{ . | quote }}
   {{- end }}
-  {{- with .Values.coder.service.className }}
+  {{- with .Values.coder.service.loadBalancerClass }}
   loadBalancerClass: {{ . | quote }}
   {{- end }}
   {{- end }}
