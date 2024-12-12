@@ -22,7 +22,6 @@ jobs:
         id: changed-files
         with:
           files: "docs/**/*.md"
-          files_ignore: "docs/reference/*.md"
           separator: ","
 
       - name: lint

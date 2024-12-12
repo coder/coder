@@ -164,7 +164,6 @@
 		"jest-location-mock": "2.0.0",
 		"jest-websocket-mock": "2.5.0",
 		"jest_workaround": "0.1.14",
-		"markdownlint-cli2": "0.16.0",
 		"msw": "2.3.5",
 		"postcss": "8.4.47",
 		"protobufjs": "7.4.0",

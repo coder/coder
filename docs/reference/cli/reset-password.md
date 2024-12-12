@@ -13,9 +13,9 @@ coder reset-password [flags] <username>
 
 ### --postgres-url
 
-| | |
-| --- | --- |
-| Type | <code>string</code> |
+|             |                                       |
+|-------------|---------------------------------------|
+| Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
 URL of a PostgreSQL database to connect to.
