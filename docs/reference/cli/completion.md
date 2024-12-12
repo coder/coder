@@ -13,16 +13,16 @@ coder completion [flags]
 
 ### -s, --shell
 
-| | |
-| --- | --- |
+|      |                                          |
+|------|------------------------------------------|
 | Type | <code>bash\|fish\|zsh\|powershell</code> |
 
 The shell to install completion for.
 
 ### -p, --print
 
-| | |
-| --- | --- |
+|      |                   |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Print the completion script instead of installing it.

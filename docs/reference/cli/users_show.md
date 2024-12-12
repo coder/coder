@@ -19,9 +19,9 @@ coder users show [flags] <username|user_id|'me'>
 
 ### -o, --output
 
-| | |
-| --- | --- |
-| Type | <code>table\|json</code> |
-| Default |<code>table</code> |
+|         |                          |
+|---------|--------------------------|
+| Type    | <code>table\|json</code> |
+| Default | <code>table</code>       |
 
 Output format.

@@ -11,6 +11,6 @@ coder support
 
 ## Subcommands
 
-| Name |   Purpose |
-| ---- |   ----- |
+| Name                                       | Purpose                                                                     |
+|--------------------------------------------|-----------------------------------------------------------------------------|
 | [<code>bundle</code>](./support_bundle.md) | Generate a support bundle to troubleshoot issues connecting to a workspace. |
