@@ -436,8 +436,8 @@ else
 endif
 .PHONY: fmt/ts
 
-fmt/biome:
-	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET)"
+fmt/ts:
+	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
@@ -445,7 +445,7 @@ ifdef CI
 else
 	pnpm run format
 endif
-.PHONY: fmt/biome
+.PHONY: fmt/ts
 
 fmt/terraform: $(wildcard *.tf)
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/terraform$(RESET)"
@@ -644,7 +644,8 @@ vpn/vpn.pb.go: vpn/vpn.proto
 
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	go run ./scripts/apitypings/ > $@
-	./scripts/pnpm_install.sh
+	cd site
+	../scripts/pnpm_install.sh
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
