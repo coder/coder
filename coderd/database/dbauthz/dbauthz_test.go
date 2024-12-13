@@ -20,6 +20,7 @@ import (
 	"cdr.dev/slog"
 
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/codersdk"
@@ -458,10 +459,14 @@ func (s *MethodTestSuite) TestGroup() {
 		g2 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		g3 := dbgen.Group(s.T(), db, database.Group{OrganizationID: o.ID})
 		_ = dbgen.GroupMember(s.T(), db, database.GroupMemberTable{GroupID: g1.ID, UserID: u1.ID})
+		returns := slice.New(g2.ID, g3.ID)
+		if !dbtestutil.WillUsePostgres() {
+			returns = slice.New(g1.ID, g2.ID, g3.ID)
+		}
 		check.Args(database.InsertUserGroupsByIDParams{
 			UserID:   u1.ID,
 			GroupIds: slice.New(g1.ID, g2.ID, g3.ID),
-		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(slice.New(g2.ID, g3.ID))
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate).Returns(returns)
 	}))
 	s.Run("RemoveUserFromAllGroups", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
@@ -862,6 +867,11 @@ func (s *MethodTestSuite) TestOrganization() {
 		u := dbgen.User(s.T(), db, database.User{})
 		member := dbgen.OrganizationMember(s.T(), db, database.OrganizationMember{UserID: u.ID, OrganizationID: o.ID})
 
+		cancelledErr := "fetch object: context canceled"
+		if !dbtestutil.WillUsePostgres() {
+			cancelledErr = sql.ErrNoRows.Error()
+		}
+
 		check.Args(database.DeleteOrganizationMemberParams{
 			OrganizationID: o.ID,
 			UserID:         u.ID,
@@ -870,7 +880,8 @@ func (s *MethodTestSuite) TestOrganization() {
 			member, policy.ActionRead,
 			member, policy.ActionDelete).
 			WithNotAuthorized("no rows").
-			WithCancelled("fetch object: context canceled")
+			WithCancelled(cancelledErr).
+			ErrorsWithInMemDB(sql.ErrNoRows)
 	}))
 	s.Run("UpdateOrganization", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{
@@ -916,13 +927,18 @@ func (s *MethodTestSuite) TestOrganization() {
 		out := mem
 		out.Roles = []string{}
 
+		cancelledErr := "fetch object: context canceled"
+		if !dbtestutil.WillUsePostgres() {
+			cancelledErr = sql.ErrNoRows.Error()
+		}
+
 		check.Args(database.UpdateMemberRolesParams{
 			GrantedRoles: []string{},
 			UserID:       u.ID,
 			OrgID:        o.ID,
 		}).
 			WithNotAuthorized(sql.ErrNoRows.Error()).
-			WithCancelled("fetch object: context canceled").
+			WithCancelled(cancelledErr).
 			Asserts(
 				mem, policy.ActionRead,
 				rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign, // org-mem
@@ -1280,6 +1296,7 @@ func (s *MethodTestSuite) TestTemplate() {
 	}))
 	s.Run("GetUserActivityInsights", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetUserActivityInsightsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
+			ErrorsWithInMemDB(sql.ErrNoRows).
 			Returns([]database.GetUserActivityInsightsRow{})
 	}))
 	s.Run("GetTemplateParameterInsights", s.Subtest(func(db database.Store, check *expects) {
@@ -1303,6 +1320,7 @@ func (s *MethodTestSuite) TestTemplate() {
 	}))
 	s.Run("GetTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.GetTemplateUsageStatsParams{}).Asserts(rbac.ResourceTemplate, policy.ActionViewInsights).
+			ErrorsWithInMemDB(sql.ErrNoRows).
 			Returns([]database.TemplateUsageStat{})
 	}))
 	s.Run("UpsertTemplateUsageStats", s.Subtest(func(db database.Store, check *expects) {
@@ -1578,7 +1596,7 @@ func (s *MethodTestSuite) TestUser() {
 			SitePermissions: nil,
 			OrgPermissions:  nil,
 			UserPermissions: nil,
-		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate).Errors(sql.ErrNoRows)
+		}).Asserts(rbac.ResourceAssignRole, policy.ActionUpdate).ErrorsWithPG(sql.ErrNoRows)
 	}))
 	s.Run("SitePermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		customRole := dbgen.CustomRole(s.T(), db, database.CustomRole{
@@ -1609,7 +1627,7 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceTemplate, policy.ActionViewInsights,
 
 			rbac.ResourceWorkspace.WithOwner(testActorID.String()), policy.ActionRead,
-		).Errors(sql.ErrNoRows)
+		).ErrorsWithPG(sql.ErrNoRows)
 	}))
 	s.Run("OrgPermissions/UpdateCustomRole", s.Subtest(func(db database.Store, check *expects) {
 		orgID := uuid.New()
@@ -3115,7 +3133,7 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 				CreatedAt:      pk.CreatedAt,
 				OrganizationID: pk.OrganizationID,
 				Name:           pk.Name,
-				HashedSecret:   []byte{},
+				HashedSecret:   pk.HashedSecret,
 			},
 		}
 		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
@@ -3129,7 +3147,7 @@ func (s *MethodTestSuite) TestProvisionerKeys() {
 				CreatedAt:      pk.CreatedAt,
 				OrganizationID: pk.OrganizationID,
 				Name:           pk.Name,
-				HashedSecret:   []byte{},
+				HashedSecret:   pk.HashedSecret,
 			},
 		}
 		check.Args(org.ID).Asserts(pk, policy.ActionRead).Returns(pks)
@@ -3221,123 +3239,150 @@ func (s *MethodTestSuite) TestExtraMethods() {
 }
 
 func (s *MethodTestSuite) TestTailnetFunctions() {
-	s.Run("CleanTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("CleanTailnetLostPeers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetLostPeers", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("CleanTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("CleanTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteAllTailnetClientSubscriptions", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetClientSubscriptionsParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteAllTailnetTunnelsParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteCoordinator", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteCoordinator", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetAgent", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetAgentParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).Errors(sql.ErrNoRows)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).Errors(sql.ErrNoRows).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteTailnetClient", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetClient", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).Errors(sql.ErrNoRows).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetClientSubscription", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetClientSubscriptionParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("DeleteTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetPeer", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetPeerParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
-			Errors(sql.ErrNoRows)
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+			ErrorsWithPG(sql.ErrNoRows)
 	}))
-	s.Run("DeleteTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("DeleteTailnetTunnel", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.DeleteTailnetTunnelParams{}).
 			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionDelete).
-			Errors(sql.ErrNoRows)
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented).
+			ErrorsWithPG(sql.ErrNoRows)
 	}))
-	s.Run("GetAllTailnetAgents", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetAllTailnetAgents", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetTailnetAgents", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTailnetAgents", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetTailnetClientsForAgent", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTailnetClientsForAgent", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetTailnetPeers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTailnetPeers", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetTailnetTunnelPeerBindings", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTailnetTunnelPeerBindings", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetTailnetTunnelPeerIDs", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetTailnetTunnelPeerIDs", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetAllTailnetCoordinators", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetAllTailnetCoordinators", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetAllTailnetPeers", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetAllTailnetPeers", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("GetAllTailnetTunnels", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetAllTailnetTunnels", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args().
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionRead).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpsertTailnetAgent", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetAgentParams{Node: json.RawMessage("{}")}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpsertTailnetClient", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetClientParams{Node: json.RawMessage("{}")}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpsertTailnetClientSubscription", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetClientSubscriptionParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
-	s.Run("UpsertTailnetCoordinator", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("UpsertTailnetCoordinator", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(uuid.New()).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpsertTailnetPeer", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetPeerParams{
 			Status: database.TailnetStatusOk,
 		}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpsertTailnetTunnel", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpsertTailnetTunnelParams{}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionCreate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("UpdateTailnetPeerStatusByCoordinator", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		check.Args(database.UpdateTailnetPeerStatusByCoordinatorParams{Status: database.TailnetStatusOk}).
-			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate)
+			Asserts(rbac.ResourceTailnetCoordinator, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 }
 
@@ -3592,7 +3637,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		})
 		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{ID: tv.JobID})
 		check.Args(job.ID).
-			Asserts(tpl, policy.ActionRead).Returns([]database.ParameterSchema{})
+			Asserts(tpl, policy.ActionRead).
+			ErrorsWithInMemDB(sql.ErrNoRows).
+			Returns([]database.ParameterSchema{})
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
@@ -3805,13 +3852,16 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 		check.Args(database.GetTemplateDAUsParams{}).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetActiveWorkspaceBuildsByTemplateID", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(uuid.New()).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns([]database.WorkspaceBuild{})
+		check.Args(uuid.New()).
+			Asserts(rbac.ResourceSystem, policy.ActionRead).
+			ErrorsWithInMemDB(sql.ErrNoRows).
+			Returns([]database.WorkspaceBuild{})
 	}))
 	s.Run("GetDeploymentDAUs", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(int32(0)).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
 	s.Run("GetAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).ErrorsWithPG(sql.ErrNoRows)
 	}))
 	s.Run("UpsertAppSecurityKey", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("foo").Asserts(rbac.ResourceSystem, policy.ActionUpdate)
@@ -3914,6 +3964,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	}))
 	s.Run("UpdateInactiveUsersToDormant", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateInactiveUsersToDormantParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate).
+			ErrorsWithInMemDB(sql.ErrNoRows).
 			Returns([]database.UpdateInactiveUsersToDormantRow{})
 	}))
 	s.Run("GetWorkspaceUniqueOwnerCountByTemplateIDs", s.Subtest(func(db database.Store, check *expects) {
@@ -4145,7 +4196,9 @@ func (s *MethodTestSuite) TestNotifications() {
 	}))
 	s.Run("FetchNewMessageMetadata", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
-		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).Asserts(rbac.ResourceNotificationMessage, policy.ActionRead).Errors(sql.ErrNoRows)
+		check.Args(database.FetchNewMessageMetadataParams{UserID: u.ID}).
+			Asserts(rbac.ResourceNotificationMessage, policy.ActionRead).
+			ErrorsWithPG(sql.ErrNoRows)
 	}))
 	s.Run("GetNotificationMessagesByStatus", s.Subtest(func(_ database.Store, check *expects) {
 		check.Args(database.GetNotificationMessagesByStatusParams{
@@ -4159,18 +4212,21 @@ func (s *MethodTestSuite) TestNotifications() {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
 		user := dbgen.User(s.T(), db, database.User{})
 		check.Args(user.ID).Asserts(rbac.ResourceNotificationTemplate, policy.ActionRead).
-			Errors(sql.ErrNoRows)
+			ErrorsWithPG(sql.ErrNoRows).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 	s.Run("GetNotificationTemplatesByKind", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.NotificationTemplateKindSystem).
-			Asserts()
+			Asserts().
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 		// TODO(dannyk): add support for other database.NotificationTemplateKind types once implemented.
 	}))
 	s.Run("UpdateNotificationTemplateMethodByID", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.UpdateNotificationTemplateMethodByIDParams{
 			Method: database.NullNotificationMethod{NotificationMethod: database.NotificationMethodWebhook, Valid: true},
 			ID:     notifications.TemplateWorkspaceDormant,
-		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate)
+		}).Asserts(rbac.ResourceNotificationTemplate, policy.ActionUpdate).
+			ErrorsWithInMemDB(dbmem.ErrUnimplemented)
 	}))
 
 	// Notification preferences
@@ -4208,6 +4264,9 @@ func (s *MethodTestSuite) TestOAuth2ProviderApps() {
 			UserID: user.ID,
 		})
 		createdAt := dbtestutil.NowInDefaultTimezone()
+		if !dbtestutil.WillUsePostgres() {
+			createdAt = time.Time{}
+		}
 		app := dbgen.OAuth2ProviderApp(s.T(), db, database.OAuth2ProviderApp{
 			CreatedAt: createdAt,
 			UpdatedAt: createdAt,
