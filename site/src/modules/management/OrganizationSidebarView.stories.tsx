@@ -57,43 +57,6 @@ export const NoCreateOrg: Story = {
 	},
 };
 
-export const NoViewUsers: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			viewAllUsers: false,
-		},
-	},
-};
-
-export const NoAuditLog: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			viewAnyAuditLog: false,
-		},
-	},
-};
-
-export const NoLicenses: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			viewAllLicenses: false,
-		},
-	},
-};
-
-export const NoDeploymentValues: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			viewDeploymentValues: false,
-			editDeploymentValues: false,
-		},
-	},
-};
-
 export const NoPermissions: Story = {
 	args: {
 		permissions: MockNoPermissions,

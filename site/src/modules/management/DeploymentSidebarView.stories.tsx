@@ -16,15 +16,6 @@ const meta: Meta<typeof DeploymentSidebarView> = {
 export default meta;
 type Story = StoryObj<typeof DeploymentSidebarView>;
 
-export const NoCreateOrg: Story = {
-	args: {
-		permissions: {
-			...MockPermissions,
-			createOrganization: false,
-		},
-	},
-};
-
 export const NoViewUsers: Story = {
 	args: {
 		permissions: {
