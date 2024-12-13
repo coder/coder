@@ -18,6 +18,7 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/schedule"
@@ -70,6 +71,76 @@ func TestExecutorAutostartOK(t *testing.T) {
 	template, err := client.Template(ctx, workspace.TemplateID)
 	require.NoError(t, err)
 	require.Equal(t, template.AutostartRequirement.DaysOfWeek, []string{"monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"})
+}
+
+func TestMultipleLifecycleExecutors(t *testing.T) {
+	t.Parallel()
+
+	db, ps := dbtestutil.NewDB(t)
+
+	var (
+		sched = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
+		// Create our first client
+		tickCh   = make(chan time.Time, 2)
+		statsChA = make(chan autobuild.Stats)
+		clientA  = coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			AutobuildTicker:          tickCh,
+			AutobuildStats:           statsChA,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		// ... And then our second client
+		statsChB = make(chan autobuild.Stats)
+		_        = coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			AutobuildTicker:          tickCh,
+			AutobuildStats:           statsChB,
+			Database:                 db,
+			Pubsub:                   ps,
+		})
+		// Now create a workspace (we can use either client, it doesn't matter)
+		workspace = mustProvisionWorkspace(t, clientA, func(cwr *codersdk.CreateWorkspaceRequest) {
+			cwr.AutostartSchedule = ptr.Ref(sched.String())
+		})
+	)
+
+	// Have the workspace stopped so we can perform an autostart
+	workspace = coderdtest.MustTransitionWorkspace(t, clientA, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	// Get both clients to perform a lifecycle execution tick
+	next := sched.Next(workspace.LatestBuild.CreatedAt)
+
+	startCh := make(chan struct{})
+	go func() {
+		<-startCh
+		tickCh <- next
+	}()
+	go func() {
+		<-startCh
+		tickCh <- next
+	}()
+	close(startCh)
+
+	// Now we want to check the stats for both clients
+	statsA := <-statsChA
+	statsB := <-statsChB
+
+	// We expect there to be no errors
+	assert.Len(t, statsA.Errors, 0)
+	assert.Len(t, statsB.Errors, 0)
+
+	// We also expect there to have been only one transition
+	require.Equal(t, 1, len(statsA.Transitions)+len(statsB.Transitions))
+
+	stats := statsA
+	if len(statsB.Transitions) == 1 {
+		stats = statsB
+	}
+
+	// And we expect this transition to have been a start transition
+	assert.Contains(t, stats.Transitions, workspace.ID)
+	assert.Equal(t, database.WorkspaceTransitionStart, stats.Transitions[workspace.ID])
 }
 
 func TestExecutorAutostartTemplateUpdated(t *testing.T) {

@@ -5865,23 +5865,29 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH unstarted_jobs AS (
+WITH pending_jobs AS (
     SELECT
         id, created_at
     FROM
         provisioner_jobs
     WHERE
         started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
 ),
 queue_position AS (
     SELECT
         id,
         ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
     FROM
-        unstarted_jobs
+        pending_jobs
 ),
 queue_size AS (
-	SELECT COUNT(*) as count FROM unstarted_jobs
+	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,

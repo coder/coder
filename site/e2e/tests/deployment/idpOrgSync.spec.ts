@@ -78,7 +78,7 @@ test.describe("IdpOrgSyncPage", () => {
 		).toBeVisible();
 	});
 
-	test("toggle default organization assignment", async ({ page }) => {
+	test("toggle off default organization assignment", async ({ page }) => {
 		requiresLicense();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -88,6 +88,12 @@ test.describe("IdpOrgSyncPage", () => {
 			name: "Assign Default Organization",
 		});
 		await toggle.click();
+
+		const dialog = page.getByRole("dialog");
+		await expect(dialog).toBeVisible();
+
+		await dialog.getByRole("button", { name: "Confirm" }).click();
+		await expect(dialog).not.toBeVisible();
 
 		await expect(
 			page.getByText("Organization sync settings updated."),

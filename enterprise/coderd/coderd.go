@@ -488,6 +488,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Post("/", api.scimPostUser)
 				r.Get("/{id}", api.scimGetUser)
 				r.Patch("/{id}", api.scimPatchUser)
+				r.Put("/{id}", api.scimPutUser)
 			})
 			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
 				u := r.URL.String()
