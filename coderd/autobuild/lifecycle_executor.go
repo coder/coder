@@ -399,7 +399,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				}
 				return nil
 			}()
-			if err != nil {
+			if err != nil && !xerrors.Is(err, context.Canceled) {
 				log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
 				statsMu.Lock()
 				stats.Errors[wsID] = err
