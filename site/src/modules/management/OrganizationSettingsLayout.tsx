@@ -48,7 +48,9 @@ const OrganizationSettingsLayout: FC = () => {
 		organization?: string;
 	};
 
-	const canViewOrganizationSettingsPage = permissions.editAnyOrganization;
+	const canViewOrganizationSettingsPage =
+	permissions.viewDeploymentValues ||
+	permissions.editAnyOrganization;
 
 	const organization =
 		organizations && orgName
