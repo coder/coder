@@ -976,7 +976,7 @@ jobs:
       - changes
       - build-dylib
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: "ubuntu-22.04"
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
       packages: write # Needed to push images to ghcr.io
     env:
