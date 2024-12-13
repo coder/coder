@@ -1037,3 +1037,25 @@ export async function createUser(
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
 	return { name, username, email, password };
 }
+
+export async function createOrganization(page: Page): Promise<{
+	name: string;
+	displayName: string;
+	description: string;
+}> {
+	// Create a new organization to test
+	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
+	const name = randomName();
+	await page.getByLabel("Slug").fill(name);
+	const displayName = `Org ${name}`;
+	await page.getByLabel("Display name").fill(displayName);
+	const description = `Org description ${name}`;
+	await page.getByLabel("Description").fill(description);
+	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
+	await page.getByRole("button", { name: "Submit" }).click();
+
+	await expectUrl(page).toHavePathName(`/organizations/${name}`);
+	await expect(page.getByText("Organization created.")).toBeVisible();
+
+	return { name, displayName, description };
+}
