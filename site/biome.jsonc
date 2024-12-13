@@ -1,10 +1,13 @@
 {
 	"files": {
 		"ignore": [
-		  "e2e/provisionerGenerated.ts",
-		  "e2e/google/protobuf/timestampGenerated.ts",
-		  "src/api/countriesGenerated.ts",
-		  "src/api/rbacresourcesGenerated.ts"
+			"build/",
+			"node_modules/",
+			"out/",
+			"test-results/",
+			"e2e/**/*Generated.ts",
+			"src/api/*Generated.ts",
+			"pnpm-lock.yaml"
 		]
 	},
 	"linter": {
@@ -44,5 +47,6 @@
 				}
 			}
 		}
-	}
+	},
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json"
 }
