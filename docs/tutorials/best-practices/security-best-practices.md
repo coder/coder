@@ -72,8 +72,8 @@ vulnerable.
 Coder session tokens and API keys are salted and hashed, so a read-only
 compromise of the database is unlikely to allow an attacker to log into Coder.
 However, the database contains the Terraform state for all workspaces, OIDC
-tokens, and agent tokens, so it is possibile that a read-only attack could
-enable lateral movement to other systems.
+tokens, and agent tokens, so it is possible that a read-only attack could enable
+lateral movement to other systems.
 
 A successful attack that modifies database state could be escalated to a full
 takeover of an owner account in Coder which could lead to a complete compromise
@@ -361,7 +361,7 @@ clusters/clouds designated by Coder’s operators (like platform or developer
 experience teams). End users are granted shell access and from there can execute
 arbitrary commands.
 
-This means that end users have remote code execution priviledges within the
+This means that end users have remote code execution privileges within the
 clusters/clouds that host Coder workspaces.
 
 It is important to limit Coder users to trusted insiders and/or take steps to
