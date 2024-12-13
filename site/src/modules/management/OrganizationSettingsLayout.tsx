@@ -1,4 +1,12 @@
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import {
+	Breadcrumb,
+	BreadcrumbItem,
+	BreadcrumbLink,
+	BreadcrumbList,
+	BreadcrumbPage,
+	BreadcrumbSeparator,
+} from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
@@ -64,14 +72,40 @@ const OrganizationSettingsLayout: FC = () => {
 					organization,
 				}}
 			>
-				<div className="px-10 max-w-screen-2xl">
-					<div className="flex flex-row gap-12 py-10">
-						<OrganizationSidebar />
-						<main css={{ flexGrow: 1 }}>
-							<Suspense fallback={<Loader />}>
-								<Outlet />
-							</Suspense>
-						</main>
+				<div>
+					<Breadcrumb>
+						<BreadcrumbList>
+							<BreadcrumbItem>
+								<BreadcrumbPage>Admin Settings</BreadcrumbPage>
+							</BreadcrumbItem>
+							<BreadcrumbSeparator />
+							<BreadcrumbItem>
+								<BreadcrumbLink href="/organizations">
+									Organizations
+								</BreadcrumbLink>
+							</BreadcrumbItem>
+							{organization && (
+								<>
+									<BreadcrumbSeparator />
+									<BreadcrumbItem>
+										<BreadcrumbPage className="text-content-primary">
+											{organization?.name}
+										</BreadcrumbPage>
+									</BreadcrumbItem>
+								</>
+							)}
+						</BreadcrumbList>
+					</Breadcrumb>
+					<hr className="h-px border-none bg-border" />
+					<div className="px-10 max-w-screen-2xl">
+						<div className="flex flex-row gap-12 py-10">
+							<OrganizationSidebar />
+							<main css={{ flexGrow: 1 }}>
+								<Suspense fallback={<Loader />}>
+									<Outlet />
+								</Suspense>
+							</main>
+						</div>
 					</div>
 				</div>
 			</OrganizationSettingsContext.Provider>
