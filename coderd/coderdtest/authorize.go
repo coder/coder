@@ -358,6 +358,8 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 // Meaning 'FakeAuthorizer' by default will never return "unauthorized".
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
+	RegoAuthorizer    *rbac.RegoAuthorizer
+	sqlFilter         string
 }
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
@@ -370,6 +372,12 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 	return d
 }
 
+// OverrideSQLFilter overrides the SQL filter for the FakeAuthorizer.
+func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
+	d.sqlFilter = filter
+	return d
+}
+
 func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, action policy.Action, object rbac.Object) error {
 	if d.ConditionalReturn != nil {
 		return d.ConditionalReturn(ctx, subject, action, object)
@@ -377,11 +385,16 @@ func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, ac
 	return nil
 }
 
-func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action policy.Action, _ string) (rbac.PreparedAuthorized, error) {
+func (d *FakeAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
+	prep, err := d.RegoAuthorizer.Prepare(ctx, subject, action, objectType)
+	if err != nil {
+		return nil, err
+	}
 	return &fakePreparedAuthorizer{
-		Original: d,
-		Subject:  subject,
-		Action:   action,
+		Original:               d,
+		Subject:                subject,
+		Action:                 action,
+		PreparedRegoAuthorizer: prep,
 	}, nil
 }
 
@@ -391,19 +404,21 @@ var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
 // return the same error as the original FakeAuthorizer.
 type fakePreparedAuthorizer struct {
 	sync.RWMutex
-	Original *FakeAuthorizer
-	Subject  rbac.Subject
-	Action   policy.Action
+	Original               *FakeAuthorizer
+	PreparedRegoAuthorizer rbac.PreparedAuthorized
+	Subject                rbac.Subject
+	Action                 policy.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
+func (f *fakePreparedAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+	if f.Original.sqlFilter != "" {
+		return f.Original.sqlFilter, nil
+	}
+	return f.PreparedRegoAuthorizer.CompileToSQL(ctx, cfg)
 }
 
 // Random rbac helper funcs
