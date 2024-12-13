@@ -209,7 +209,7 @@ While your most privileged secrets should never be included in template files, t
 
 - Ensure that operators who write, review or modify Coder templates are working on laptops/workstations with full disk encryption, or do their work inside a Coder workspace with full disk encryption.
 - Ensure [PostgreSQL](#postgresql) is encrypted at rest.
-- Ensure any [source code repositories that store templates](#git-ops) are encrypted at rest and have appropriate access controls.
+- Ensure any [source code repositories that store templates](#gitops) are encrypted at rest and have appropriate access controls.
 
 ### GitOps
 
