@@ -183,7 +183,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
 					}
 					if !ok {
-						e.log.Debug(e.ctx, "unable to acquire lock for workspace, skipping", slog.F("workspace_id", wsID))
+						log.Debug(e.ctx, "unable to acquire lock for workspace, skipping")
 						return nil
 					}
 
