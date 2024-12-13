@@ -81,21 +81,20 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	var (
 		sched = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		// Create our first client
-		tickChA  = make(chan time.Time)
+		tickCh   = make(chan time.Time, 2)
 		statsChA = make(chan autobuild.Stats)
 		clientA  = coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			AutobuildTicker:          tickChA,
+			AutobuildTicker:          tickCh,
 			AutobuildStats:           statsChA,
 			Database:                 db,
 			Pubsub:                   ps,
 		})
 		// ... And then our second client
-		tickChB  = make(chan time.Time)
 		statsChB = make(chan autobuild.Stats)
 		_        = coderdtest.New(t, &coderdtest.Options{
 			IncludeProvisionerDaemon: true,
-			AutobuildTicker:          tickChB,
+			AutobuildTicker:          tickCh,
 			AutobuildStats:           statsChB,
 			Database:                 db,
 			Pubsub:                   ps,
@@ -111,13 +110,11 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 
 	// Get both clients to perform a lifecycle execution tick
 	next := sched.Next(workspace.LatestBuild.CreatedAt)
+
 	go func() {
-		tickChA <- next
-		close(tickChA)
-	}()
-	go func() {
-		tickChB <- next
-		close(tickChB)
+		tickCh <- next
+		tickCh <- next
+		close(tickCh)
 	}()
 
 	// Now we want to check the stats for both clients
