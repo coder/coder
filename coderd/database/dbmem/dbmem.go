@@ -2206,7 +2206,7 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
-func (q *FakeQuerier) DisableForeignKeysAndTriggers(_ context.Context) error {
+func (*FakeQuerier) DisableForeignKeysAndTriggers(_ context.Context) error {
 	// This is a no-op in the in-memory database.
 	return nil
 }
