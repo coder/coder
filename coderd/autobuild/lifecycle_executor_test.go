@@ -111,11 +111,16 @@ func TestMultipleLifecycleExecutors(t *testing.T) {
 	// Get both clients to perform a lifecycle execution tick
 	next := sched.Next(workspace.LatestBuild.CreatedAt)
 
+	startCh := make(chan struct{})
 	go func() {
+		<-startCh
 		tickCh <- next
-		tickCh <- next
-		close(tickCh)
 	}()
+	go func() {
+		<-startCh
+		tickCh <- next
+	}()
+	close(startCh)
 
 	// Now we want to check the stats for both clients
 	statsA := <-statsChA
