@@ -16,7 +16,7 @@ test("add and remove organization member", async ({ page }) => {
 
 	// Navigate to members page
 	await page.getByText("Members").click();
-	await expect(page).toHaveTitle(`Members — ${displayName} - Coder`);
+	await expect(page).toHaveTitle(`Members - ${displayName} - Coder`);
 
 	// Add a user to the org
 	const personToAdd = await createUser(page);
