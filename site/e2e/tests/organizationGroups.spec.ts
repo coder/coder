@@ -1,5 +1,10 @@
 import { expect, test } from "@playwright/test";
-import { createOrganization, createUser, setupApiCalls } from "../api";
+import {
+	createGroup,
+	createOrganization,
+	createUser,
+	setupApiCalls,
+} from "../api";
 import { expectUrl } from "../expectUrl";
 import { randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
@@ -67,4 +72,32 @@ test("create group", async ({ page }) => {
 
 	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
 	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
+});
+
+test("change quota settings", async ({ page }) => {
+	requiresLicense();
+
+	// Create a new organization and group
+	const org = await createOrganization();
+	const group = await createGroup(org.id);
+
+	// Go to settings
+	await page.goto(`/organizations/${org.name}/groups/${group.name}`);
+	await page.getByRole("button", { name: "Settings" }).click();
+	expectUrl(page).toHavePathName(
+		`/organizations/${org.name}/groups/${group.name}/settings`,
+	);
+
+	// Update Quota
+	await page.getByLabel("Quota Allowance").fill("100");
+	await page.getByRole("button", { name: "Submit" }).click();
+
+	// We should get sent back to the group page afterwards
+	expectUrl(page).toHavePathName(
+		`/organizations/${org.name}/groups/${group.name}`,
+	);
+
+	// ...and that setting should persist if we go back
+	await page.getByRole("button", { name: "Settings" }).click();
+	await expect(page.getByLabel("Quota Allowance")).toHaveValue("100");
 });
