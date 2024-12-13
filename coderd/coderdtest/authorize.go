@@ -372,7 +372,7 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 	return d
 }
 
-// OverrideSQLFilter overrides the SQL filter for the FakeAuthorizer.
+// OverrideSQLFilter sets the SQL filter that will always be returned by CompileToSQL.
 func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
 	d.sqlFilter = filter
 	return d

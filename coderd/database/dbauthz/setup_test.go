@@ -243,6 +243,7 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
+		// Override the SQL filter to always fail.
 		az.OverrideSQLFilter("FALSE")
 
 		// If we have assertions, that means the method should FAIL
