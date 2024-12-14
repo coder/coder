@@ -26,7 +26,6 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
@@ -1522,13 +1521,26 @@ func TestUsersFilter(t *testing.T) {
 			Email:     fmt.Sprintf("before%d@coder.com", i),
 			Username:  fmt.Sprintf("before%d", i),
 			LoginType: database.LoginTypeNone,
-			Status:    string(codersdk.UserStatusActive),
-			RBACRoles: []string{codersdk.RoleOwner},
-			CreatedAt: time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: dbtime.Now(),
+			RBACRoles: []string{codersdk.RoleMember},
+			CreatedAt: dbtime.Time(time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC)),
 		})
 		require.NoError(t, err)
-		users = append(users, db2sdk.User(user1, []uuid.UUID{}))
+
+		orgMember, err := api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
+			OrganizationID: firstUser.OrganizationIDs[0],
+			UserID:         user1.ID,
+			Roles:          []string{},
+			CreatedAt:      dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		// hack: Call UpdateUserStatus to get API-formatted timestamps (without timezones)
+		// instead of database-formatted timestamps (with timezones) for comparison
+		sdkUser1, err := client.UpdateUserStatus(ctx, user1.ID.String(), codersdk.UserStatusActive)
+		require.NoError(t, err)
+
+		sdkUser1.OrganizationIDs = []uuid.UUID{orgMember.OrganizationID}
+		users = append(users, sdkUser1)
 
 		// nolint:gocritic //Using system context is necessary to seed data in tests
 		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
@@ -1536,27 +1548,53 @@ func TestUsersFilter(t *testing.T) {
 			Email:     fmt.Sprintf("during%d@coder.com", i),
 			Username:  fmt.Sprintf("during%d", i),
 			LoginType: database.LoginTypeNone,
-			Status:    string(codersdk.UserStatusActive),
 			RBACRoles: []string{codersdk.RoleOwner},
-			CreatedAt: time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: dbtime.Now(),
+			CreatedAt: dbtime.Time(time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC)),
 		})
 		require.NoError(t, err)
-		users = append(users, db2sdk.User(user2, []uuid.UUID{}))
+
+		// hack: Call UpdateUserStatus to get API-formatted timestamps (without timezones)
+		// instead of database-formatted timestamps (with timezones) for comparison
+		sdkUser2, err := client.UpdateUserStatus(ctx, user2.ID.String(), codersdk.UserStatusActive)
+		require.NoError(t, err)
+
+		orgMember, err = api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
+			OrganizationID: firstUser.OrganizationIDs[0],
+			UserID:         user2.ID,
+			Roles:          []string{},
+			CreatedAt:      dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		sdkUser2.OrganizationIDs = []uuid.UUID{orgMember.OrganizationID}
+		users = append(users, sdkUser2)
 
 		// nolint:gocritic // Using system context is necessary to seed data in tests
 		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
 			ID:        uuid.New(),
 			Email:     fmt.Sprintf("after%d@coder.com", i),
 			Username:  fmt.Sprintf("after%d", i),
-			Status:    string(codersdk.UserStatusActive),
 			LoginType: database.LoginTypeNone,
 			RBACRoles: []string{codersdk.RoleOwner},
-			CreatedAt: time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC),
-			UpdatedAt: dbtime.Now(),
+			CreatedAt: dbtime.Time(time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC)),
 		})
 		require.NoError(t, err)
-		users = append(users, db2sdk.User(user3, []uuid.UUID{}))
+
+		// hack: Call UpdateUserStatus to get API-formatted timestamps (without timezones)
+		// instead of database-formatted timestamps (with timezones) for comparison
+		sdkUser3, err := client.UpdateUserStatus(ctx, user3.ID.String(), codersdk.UserStatusActive)
+		require.NoError(t, err)
+
+		orgMember, err = api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
+			OrganizationID: firstUser.OrganizationIDs[0],
+			UserID:         user3.ID,
+			Roles:          []string{},
+			CreatedAt:      dbtime.Now(),
+		})
+		require.NoError(t, err)
+
+		sdkUser3.OrganizationIDs = []uuid.UUID{orgMember.OrganizationID}
+		users = append(users, sdkUser3)
 	}
 
 	// --- Setup done ---
