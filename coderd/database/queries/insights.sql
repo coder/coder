@@ -771,3 +771,71 @@ SELECT
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
+
+-- name: GetUserStatusCountsByDay :many
+WITH dates AS (
+    -- Generate a series of dates between start and end
+    SELECT
+        day::date
+    FROM
+        generate_series(
+            date_trunc('day', @start_time::timestamptz),
+            date_trunc('day', @end_time::timestamptz),
+            '1 day'::interval
+        ) AS day
+),
+initial_statuses AS (
+    -- Get the status of each user right before the start date
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        new_status as status
+    FROM
+        user_status_changes
+    WHERE
+        changed_at < @start_time::timestamptz
+    ORDER BY
+        user_id,
+        changed_at DESC
+),
+relevant_changes AS (
+    -- Get only the status changes within our date range
+    SELECT
+        date_trunc('day', changed_at)::date AS day,
+        user_id,
+        new_status as status
+    FROM
+        user_status_changes
+    WHERE
+        changed_at >= @start_time::timestamptz
+        AND changed_at <= @end_time::timestamptz
+),
+daily_status AS (
+    -- Combine initial statuses with changes
+    SELECT
+        d.day,
+        COALESCE(rc.status, i.status) as status,
+        COALESCE(rc.user_id, i.user_id) as user_id
+    FROM
+        dates d
+    CROSS JOIN
+        initial_statuses i
+    LEFT JOIN
+        relevant_changes rc
+    ON
+        rc.day = d.day
+        AND rc.user_id = i.user_id
+)
+SELECT
+    day,
+    status,
+    COUNT(*) AS count
+FROM
+    daily_status
+WHERE
+    status IS NOT NULL
+GROUP BY
+    day,
+    status
+ORDER BY
+    day ASC,
+    status ASC;
