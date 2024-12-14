@@ -5664,7 +5664,10 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	return out, nil
 }
 
-func (q *FakeQuerier) GetUserStatusCountsByDay(ctx context.Context, arg database.GetUserStatusCountsByDayParams) ([]database.GetUserStatusCountsByDayRow, error) {
+func (q *FakeQuerier) GetUserStatusCountsByDay(_ context.Context, arg database.GetUserStatusCountsByDayParams) ([]database.GetUserStatusCountsByDayRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
