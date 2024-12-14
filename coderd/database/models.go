@@ -2907,6 +2907,14 @@ type UserLink struct {
 	Claims UserLinkClaims `db:"claims" json:"claims"`
 }
 
+// Tracks the history of user status changes
+type UserStatusChange struct {
+	ID        uuid.UUID  `db:"id" json:"id"`
+	UserID    uuid.UUID  `db:"user_id" json:"user_id"`
+	NewStatus UserStatus `db:"new_status" json:"new_status"`
+	ChangedAt time.Time  `db:"changed_at" json:"changed_at"`
+}
+
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
 type VisibleUser struct {
 	ID        uuid.UUID `db:"id" json:"id"`
