@@ -2825,6 +2825,21 @@ func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(arg0, arg1 any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserNotificationPreferences", reflect.TypeOf((*MockStore)(nil).GetUserNotificationPreferences), arg0, arg1)
 }
 
+// GetUserStatusCountsByDay mocks base method.
+func (m *MockStore) GetUserStatusCountsByDay(arg0 context.Context, arg1 database.GetUserStatusCountsByDayParams) ([]database.GetUserStatusCountsByDayRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserStatusCountsByDay", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserStatusCountsByDayRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserStatusCountsByDay indicates an expected call of GetUserStatusCountsByDay.
+func (mr *MockStoreMockRecorder) GetUserStatusCountsByDay(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatusCountsByDay", reflect.TypeOf((*MockStore)(nil).GetUserStatusCountsByDay), arg0, arg1)
+}
+
 // GetUserWorkspaceBuildParameters mocks base method.
 func (m *MockStore) GetUserWorkspaceBuildParameters(arg0 context.Context, arg1 database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	m.ctrl.T.Helper()
