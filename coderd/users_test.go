@@ -1526,6 +1526,7 @@ func TestUsersFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		// nolint:gocritic //Using system context is necessary to seed data in tests
 		orgMember, err := api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
 			OrganizationID: firstUser.OrganizationIDs[0],
 			UserID:         user1.ID,
@@ -1558,6 +1559,7 @@ func TestUsersFilter(t *testing.T) {
 		sdkUser2, err := client.UpdateUserStatus(ctx, user2.ID.String(), codersdk.UserStatusActive)
 		require.NoError(t, err)
 
+		// nolint:gocritic //Using system context is necessary to seed data in tests
 		orgMember, err = api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
 			OrganizationID: firstUser.OrganizationIDs[0],
 			UserID:         user2.ID,
@@ -1585,6 +1587,7 @@ func TestUsersFilter(t *testing.T) {
 		sdkUser3, err := client.UpdateUserStatus(ctx, user3.ID.String(), codersdk.UserStatusActive)
 		require.NoError(t, err)
 
+		// nolint:gocritic //Using system context is necessary to seed data in tests
 		orgMember, err = api.Database.InsertOrganizationMember(dbauthz.AsSystemRestricted(ctx), database.InsertOrganizationMemberParams{
 			OrganizationID: firstUser.OrganizationIDs[0],
 			UserID:         user3.ID,
