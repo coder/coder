@@ -289,8 +289,10 @@ Instead do one of the following:
     [AWS Secrets Manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret).
 
 - Place secrets in `TF_VAR_*` environment variables.
+
   - Provide the secrets to the relevant Provisioner Daemons and access them via
     Terraform variables with `sensitive = true`.
+
 - Use Coder parameters to accept secrets from end users at build time.
 
 Coder does not attempt to obscure the contents of template files from users
