@@ -3,7 +3,7 @@ import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";

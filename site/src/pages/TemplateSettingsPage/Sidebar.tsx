@@ -3,7 +3,7 @@ import SecurityIcon from "@mui/icons-material/LockOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Template } from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
+import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,

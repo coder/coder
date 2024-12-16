@@ -11,7 +11,7 @@ import type {
 	Template,
 	TemplateVersion,
 } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Margins } from "components/Margins/Margins";

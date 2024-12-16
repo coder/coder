@@ -1,6 +1,6 @@
 import { visuallyHidden } from "@mui/utils";
 import type { WorkspaceResource } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { type FC, useId } from "react";
 import { getResourceIconPath } from "utils/workspace";

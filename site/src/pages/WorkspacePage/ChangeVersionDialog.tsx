@@ -6,7 +6,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "components/Dialogs/Dialog";

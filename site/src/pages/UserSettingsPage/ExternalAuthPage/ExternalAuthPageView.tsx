@@ -20,7 +20,7 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, ExternalAvatar } from "components/Avatar/Avatar";
+import { Avatar, ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Loader } from "components/Loader/Loader";
 import {

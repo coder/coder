@@ -2,7 +2,7 @@ import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import {
 	HealthyBadge,

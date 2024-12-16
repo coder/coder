@@ -2,7 +2,7 @@ import { css, cx } from "@emotion/css";
 import { useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type { WorkspaceBuild } from "api/typesGenerated";
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/deprecated/Avatar/Avatar";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
 import { useClassName } from "hooks/useClassName";
 import type { FC } from "react";

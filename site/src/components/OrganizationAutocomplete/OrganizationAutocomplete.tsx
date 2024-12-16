@@ -5,7 +5,7 @@ import TextField from "@mui/material/TextField";
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import {

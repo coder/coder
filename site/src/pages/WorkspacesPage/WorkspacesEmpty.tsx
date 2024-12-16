@@ -1,7 +1,7 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import type { Template } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";

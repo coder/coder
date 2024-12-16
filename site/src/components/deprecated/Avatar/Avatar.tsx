@@ -40,6 +40,9 @@ const fitImageStyles = css`
   }
 `;
 
+/**
+ * @deprecated Use `Avatar` from `@components/Avatar` instead.
+ */
 export const Avatar: FC<AvatarProps> = ({
 	size = "md",
 	fitImage,
