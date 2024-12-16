@@ -1,6 +1,6 @@
 # Security - best practices
 
-December 17, 2024
+December 16, 2024
 
 ---
 
