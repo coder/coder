@@ -697,6 +697,11 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
+					"title": "Istio Integration",
+					"description": "Integrate Coder with Istio",
+					"path": "./admin/integrations/istio.md"
+				},
+				{
 					"title": "Island Secure Browser Integration",
 					"description": "Integrate Coder with Island's Secure Browser",
 					"path": "./admin/integrations/island.md"
@@ -756,6 +761,11 @@
 					"description": "Guides to help you make the most of your Coder experience",
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
+						{
+							"title": "Organizations - best practices",
+							"description": "How to make the best use of Coder Organizations",
+							"path": "./tutorials/best-practices/organizations.md"
+						},
 						{
 							"title": "Speed up your workspaces",
 							"description": "Speed up your Coder templates and workspaces",

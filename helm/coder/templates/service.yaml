@@ -35,6 +35,9 @@ spec:
   {{- with .Values.coder.service.externalTrafficPolicy }}
   externalTrafficPolicy: {{ . | quote }}
   {{- end }}
+  {{- with .Values.coder.service.loadBalancerClass }}
+  loadBalancerClass: {{ . | quote }}
+  {{- end }}
   {{- end }}
   selector:
     {{- include "coder.selectorLabels" . | nindent 4 }}

@@ -3829,6 +3829,48 @@ const docTemplate = `{
                     }
                 }
             },
+            "put": {
+                "security": [
+                    {
+                        "Authorization": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Replace user account",
+                "operationId": "scim-replace-user-status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Replace user request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.SCIMUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
@@ -9126,6 +9168,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active": {
+                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
                     "type": "boolean"
                 },
                 "emails": {

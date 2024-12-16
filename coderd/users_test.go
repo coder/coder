@@ -1005,22 +1005,24 @@ func TestUpdateUserProfile(t *testing.T) {
 		firstUser := coderdtest.CreateFirstUser(t, client)
 		numLogs++ // add an audit log for login
 
-		memberClient, memberUser := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
+		memberClient, _ := coderdtest.CreateAnotherUser(t, client, firstUser.OrganizationID)
 		numLogs++ // add an audit log for user creation
 
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
+		newUsername := coderdtest.RandomUsername(t)
+		newName := coderdtest.RandomName(t)
 		userProfile, err := memberClient.UpdateUserProfile(ctx, codersdk.Me, codersdk.UpdateUserProfileRequest{
-			Username: memberUser.Username + "1",
-			Name:     memberUser.Name + "1",
+			Username: newUsername,
+			Name:     newName,
 		})
 		numLogs++ // add an audit log for user update
 		numLogs++ // add an audit log for API key creation
 
 		require.NoError(t, err)
-		require.Equal(t, memberUser.Username+"1", userProfile.Username)
-		require.Equal(t, memberUser.Name+"1", userProfile.Name)
+		require.Equal(t, newUsername, userProfile.Username)
+		require.Equal(t, newName, userProfile.Name)
 
 		require.Len(t, auditor.AuditLogs(), numLogs)
 		require.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[numLogs-1].Action)

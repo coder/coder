@@ -69,7 +69,9 @@ export const GroupsPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>{pageTitle("Groups")}</title>
+				<title>
+					{pageTitle("Groups", organization.display_name || organization.name)}
+				</title>
 			</Helmet>
 
 			<Stack

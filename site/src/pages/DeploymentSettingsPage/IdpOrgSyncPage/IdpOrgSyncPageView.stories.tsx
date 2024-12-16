@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -46,5 +47,20 @@ export const MissingGroups: Story = {
 	args: {
 		...Default.args,
 		organizationSyncSettings: MockOrganizationSyncSettings,
+	},
+};
+
+export const AssignDefaultOrgWarningDialog: Story = {
+	args: {
+		organizationSyncSettings: MockOrganizationSyncSettings,
+		organizations: [MockOrganization, MockOrganization2],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("switch", {
+				name: "Assign Default Organization",
+			}),
+		);
 	},
 };

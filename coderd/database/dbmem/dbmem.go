@@ -1120,6 +1120,14 @@ func (q *FakeQuerier) getWorkspaceAgentScriptsByAgentIDsNoLock(ids []uuid.UUID) 
 	return scripts, nil
 }
 
+// getOwnerFromTags returns the lowercase owner from tags, matching SQL's COALESCE(tags ->> 'owner', ”)
+func getOwnerFromTags(tags map[string]string) string {
+	if owner, ok := tags["owner"]; ok {
+		return strings.ToLower(owner)
+	}
+	return ""
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -2773,6 +2781,63 @@ func (q *FakeQuerier) GetDeploymentWorkspaceStats(ctx context.Context) (database
 	return stat, nil
 }
 
+func (q *FakeQuerier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(_ context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	results := make([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, 0)
+	seen := make(map[string]struct{}) // Track unique combinations
+
+	for _, jobID := range provisionerJobIds {
+		var job database.ProvisionerJob
+		found := false
+		for _, j := range q.provisionerJobs {
+			if j.ID == jobID {
+				job = j
+				found = true
+				break
+			}
+		}
+		if !found {
+			continue
+		}
+
+		for _, daemon := range q.provisionerDaemons {
+			if daemon.OrganizationID != job.OrganizationID {
+				continue
+			}
+
+			if !tagsSubset(job.Tags, daemon.Tags) {
+				continue
+			}
+
+			provisionerMatches := false
+			for _, p := range daemon.Provisioners {
+				if p == job.Provisioner {
+					provisionerMatches = true
+					break
+				}
+			}
+			if !provisionerMatches {
+				continue
+			}
+
+			key := jobID.String() + "-" + daemon.ID.String()
+			if _, exists := seen[key]; exists {
+				continue
+			}
+			seen[key] = struct{}{}
+
+			results = append(results, database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{
+				JobID:             jobID,
+				ProvisionerDaemon: daemon,
+			})
+		}
+	}
+
+	return results, nil
+}
+
 func (q *FakeQuerier) GetExternalAuthLink(_ context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.ExternalAuthLink{}, err
@@ -3739,35 +3804,92 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
-	queuePosition := int64(1)
+	//	WITH pending_jobs AS (
+	//		SELECT
+	//			id, created_at
+	//		FROM
+	//			provisioner_jobs
+	//		WHERE
+	//			started_at IS NULL
+	//		AND
+	//			canceled_at IS NULL
+	//		AND
+	//			completed_at IS NULL
+	//		AND
+	//			error IS NULL
+	//	),
+	type pendingJobRow struct {
+		ID        uuid.UUID
+		CreatedAt time.Time
+	}
+	pendingJobs := make([]pendingJobRow, 0)
 	for _, job := range q.provisionerJobs {
-		for _, id := range ids {
-			if id == job.ID {
-				// clone the Tags before appending, since maps are reference types and
-				// we don't want the caller to be able to mutate the map we have inside
-				// dbmem!
-				job.Tags = maps.Clone(job.Tags)
-				job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
-					ProvisionerJob: job,
-				}
-				if !job.ProvisionerJob.StartedAt.Valid {
-					job.QueuePosition = queuePosition
-				}
-				jobs = append(jobs, job)
-				break
-			}
+		if job.StartedAt.Valid ||
+			job.CanceledAt.Valid ||
+			job.CompletedAt.Valid ||
+			job.Error.Valid {
+			continue
 		}
-		if !job.StartedAt.Valid {
-			queuePosition++
-		}
+		pendingJobs = append(pendingJobs, pendingJobRow{
+			ID:        job.ID,
+			CreatedAt: job.CreatedAt,
+		})
 	}
-	for _, job := range jobs {
-		if !job.ProvisionerJob.StartedAt.Valid {
-			// Set it to the max position!
-			job.QueueSize = queuePosition
-		}
+
+	//	queue_position AS (
+	//		SELECT
+	//			id,
+	//				ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+	//		FROM
+	//			pending_jobs
+	// 	),
+	slices.SortFunc(pendingJobs, func(a, b pendingJobRow) int {
+		c := a.CreatedAt.Compare(b.CreatedAt)
+		return c
+	})
+
+	queuePosition := make(map[uuid.UUID]int64)
+	for idx, pj := range pendingJobs {
+		queuePosition[pj.ID] = int64(idx + 1)
 	}
+
+	//	queue_size AS (
+	//		SELECT COUNT(*) AS count FROM pending_jobs
+	//	),
+	queueSize := len(pendingJobs)
+
+	//	SELECT
+	//		sqlc.embed(pj),
+	//		COALESCE(qp.queue_position, 0) AS queue_position,
+	//		COALESCE(qs.count, 0) AS queue_size
+	// 	FROM
+	//		provisioner_jobs pj
+	//	LEFT JOIN
+	//		queue_position qp ON pj.id = qp.id
+	//	LEFT JOIN
+	//		queue_size qs ON TRUE
+	//	WHERE
+	//		pj.id IN (...)
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
+	for _, job := range q.provisionerJobs {
+		if !slices.Contains(ids, job.ID) {
+			continue
+		}
+		// clone the Tags before appending, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		job.Tags = maps.Clone(job.Tags)
+		job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			//	sqlc.embed(pj),
+			ProvisionerJob: job,
+			//	COALESCE(qp.queue_position, 0) AS queue_position,
+			QueuePosition: queuePosition[job.ID],
+			//	COALESCE(qs.count, 0) AS queue_size
+			QueueSize: int64(queueSize),
+		}
+		jobs = append(jobs, job)
+	}
+
 	return jobs, nil
 }
 
@@ -8576,6 +8698,10 @@ func (q *FakeQuerier) OrganizationMembers(_ context.Context, arg database.Organi
 		tmp = append(tmp, database.OrganizationMembersRow{
 			OrganizationMember: organizationMember,
 			Username:           user.Username,
+			AvatarURL:          user.AvatarURL,
+			Name:               user.Name,
+			Email:              user.Email,
+			GlobalRoles:        user.RBACRoles,
 		})
 	}
 	return tmp, nil
@@ -10364,25 +10490,26 @@ func (q *FakeQuerier) UpsertOAuthSigningKey(_ context.Context, value string) err
 }
 
 func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.UpsertProvisionerDaemonParams) (database.ProvisionerDaemon, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
+	if err := validateDatabaseType(arg); err != nil {
 		return database.ProvisionerDaemon{}, err
 	}
 
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
-	for _, d := range q.provisionerDaemons {
-		if d.Name == arg.Name {
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeOrganization && arg.Tags[provisionersdk.TagOwner] != "" {
-				continue
-			}
-			if d.Tags[provisionersdk.TagScope] == provisionersdk.ScopeUser && arg.Tags[provisionersdk.TagOwner] != d.Tags[provisionersdk.TagOwner] {
-				continue
-			}
+
+	// Look for existing daemon using the same composite key as SQL
+	for i, d := range q.provisionerDaemons {
+		if d.OrganizationID == arg.OrganizationID &&
+			d.Name == arg.Name &&
+			getOwnerFromTags(d.Tags) == getOwnerFromTags(arg.Tags) {
 			d.Provisioners = arg.Provisioners
 			d.Tags = maps.Clone(arg.Tags)
-			d.Version = arg.Version
 			d.LastSeenAt = arg.LastSeenAt
+			d.Version = arg.Version
+			d.APIVersion = arg.APIVersion
+			d.OrganizationID = arg.OrganizationID
+			d.KeyID = arg.KeyID
+			q.provisionerDaemons[i] = d
 			return d, nil
 		}
 	}
@@ -10392,7 +10519,6 @@ func (q *FakeQuerier) UpsertProvisionerDaemon(_ context.Context, arg database.Up
 		Name:           arg.Name,
 		Provisioners:   arg.Provisioners,
 		Tags:           maps.Clone(arg.Tags),
-		ReplicaID:      uuid.NullUUID{},
 		LastSeenAt:     arg.LastSeenAt,
 		Version:        arg.Version,
 		APIVersion:     arg.APIVersion,
