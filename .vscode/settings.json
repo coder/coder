@@ -57,5 +57,6 @@
 	"[css][html][markdown][yaml]": {
 		"editor.defaultFormatter": "esbenp.prettier-vscode"
 	},
-	"typos.config": ".github/workflows/typos.toml"
+	"typos.config": ".github/workflows/typos.toml",
+	"codeQL.githubDatabase.update": "never"
 }

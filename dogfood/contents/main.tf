@@ -110,20 +110,20 @@ data "coder_workspace_tags" "tags" {
 }
 
 module "slackme" {
-  source           = "registry.coder.com/modules/slackme/coder"
+  source           = "dev.registry.coder.com/modules/slackme/coder"
   version          = ">= 1.0.0"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
-  source   = "registry.coder.com/modules/dotfiles/coder"
+  source   = "dev.registry.coder.com/modules/dotfiles/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
@@ -131,13 +131,13 @@ module "git-clone" {
 }
 
 module "personalize" {
-  source   = "registry.coder.com/modules/personalize/coder"
+  source   = "dev.registry.coder.com/modules/personalize/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
-  source                  = "registry.coder.com/modules/code-server/coder"
+  source                  = "dev.registry.coder.com/modules/code-server/coder"
   version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
@@ -145,7 +145,7 @@ module "code-server" {
 }
 
 module "jetbrains_gateway" {
-  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
   version        = ">= 1.0.0"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
@@ -156,20 +156,20 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source     = "registry.coder.com/modules/filebrowser/coder"
+  source     = "dev.registry.coder.com/modules/filebrowser/coder"
   version    = ">= 1.0.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
 
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
+  source   = "dev.registry.coder.com/modules/coder-login/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
-  source   = "registry.coder.com/modules/cursor/coder"
+  source   = "dev.registry.coder.com/modules/cursor/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
