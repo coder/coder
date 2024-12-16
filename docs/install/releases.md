@@ -63,7 +63,6 @@ pages.
 | 2.18.x       | December 03, 2024  | Mainline         |
 | 2.19.x       | January 07, 2024   | Not Released     |
 
-
 > **Tip**: We publish a
 > [`preview`](https://github.com/coder/coder/pkgs/container/coder-preview) image
 > `ghcr.io/coder/coder-preview` on each commit to the `main` branch. This can be
