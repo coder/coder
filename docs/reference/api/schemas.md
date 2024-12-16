@@ -6602,6 +6602,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
+		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
 		"resources": [
@@ -7300,6 +7305,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		},
 		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 	},
+	"matched_provisioners": {
+		"available": 0,
+		"count": 0,
+		"most_recently_seen": "2019-08-24T14:15:22Z"
+	},
 	"max_deadline": "2019-08-24T14:15:22Z",
 	"reason": "initiator",
 	"resources": [
@@ -7439,6 +7449,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `initiator_id`               | string                                                            | false    |              |             |
 | `initiator_name`             | string                                                            | false    |              |             |
 | `job`                        | [codersdk.ProvisionerJob](#codersdkprovisionerjob)                | false    |              |             |
+| `matched_provisioners`       | [codersdk.MatchedProvisioners](#codersdkmatchedprovisioners)      | false    |              |             |
 | `max_deadline`               | string                                                            | false    |              |             |
 | `reason`                     | [codersdk.BuildReason](#codersdkbuildreason)                      | false    |              |             |
 | `resources`                  | array of [codersdk.WorkspaceResource](#codersdkworkspaceresource) | false    |              |             |
@@ -7925,6 +7936,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"property2": "string"
 					},
 					"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+				},
+				"matched_provisioners": {
+					"available": 0,
+					"count": 0,
+					"most_recently_seen": "2019-08-24T14:15:22Z"
 				},
 				"max_deadline": "2019-08-24T14:15:22Z",
 				"reason": "initiator",

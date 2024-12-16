@@ -91,6 +91,11 @@ of the template will be used.
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
+		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
 		"resources": [
@@ -308,6 +313,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 				"property2": "string"
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
 		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
@@ -551,6 +561,11 @@ of the template will be used.
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
+		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
 		"resources": [
@@ -772,6 +787,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
 					},
 					"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 				},
+				"matched_provisioners": {
+					"available": 0,
+					"count": 0,
+					"most_recently_seen": "2019-08-24T14:15:22Z"
+				},
 				"max_deadline": "2019-08-24T14:15:22Z",
 				"reason": "initiator",
 				"resources": [
@@ -986,6 +1006,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
 				"property2": "string"
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
 		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",
@@ -1320,6 +1345,11 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
 				"property2": "string"
 			},
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+		},
+		"matched_provisioners": {
+			"available": 0,
+			"count": 0,
+			"most_recently_seen": "2019-08-24T14:15:22Z"
 		},
 		"max_deadline": "2019-08-24T14:15:22Z",
 		"reason": "initiator",

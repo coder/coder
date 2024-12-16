@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
@@ -213,12 +214,12 @@ func (b *Builder) Build(
 	authFunc func(action policy.Action, object rbac.Objecter) bool,
 	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	var err error
 	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
 	if err != nil {
-		return nil, nil, xerrors.Errorf("create audit baggage: %w", err)
+		return nil, nil, nil, xerrors.Errorf("create audit baggage: %w", err)
 	}
 
 	// Run the build in a transaction with RepeatableRead isolation, and retries.
@@ -227,16 +228,17 @@ func (b *Builder) Build(
 	// later reads are consistent with earlier ones.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
+	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
 		b.store = tx
-		workspaceBuild, provisionerJob, err = b.buildTx(authFunc)
+		workspaceBuild, provisionerJob, provisionerDaemons, err = b.buildTx(authFunc)
 		return err
 	})
 	if err != nil {
-		return nil, nil, xerrors.Errorf("build tx: %w", err)
+		return nil, nil, nil, xerrors.Errorf("build tx: %w", err)
 	}
-	return workspaceBuild, provisionerJob, nil
+	return workspaceBuild, provisionerJob, provisionerDaemons, nil
 }
 
 // buildTx contains the business logic of computing a new build.  Attributes of the new database objects are computed
@@ -246,35 +248,35 @@ func (b *Builder) Build(
 //
 // In order to utilize this cache, the functions that compute build attributes use a pointer receiver type.
 func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Objecter) bool) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	if authFunc != nil {
 		err := b.authorize(authFunc)
 		if err != nil {
-			return nil, nil, err
+			return nil, nil, nil, err
 		}
 	}
 	err := b.checkTemplateVersionMatchesTemplate()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	err = b.checkTemplateJobStatus()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 	err = b.checkRunningBuild()
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
 	template, err := b.getTemplate()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "failed to fetch template", err}
 	}
 
 	templateVersionJob, err := b.getTemplateVersionJob()
 	if err != nil {
-		return nil, nil, BuildError{
+		return nil, nil, nil, BuildError{
 			http.StatusInternalServerError, "failed to fetch template version job", err,
 		}
 	}
@@ -294,7 +296,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		LogLevel:         b.logLevel,
 	})
 	if err != nil {
-		return nil, nil, BuildError{
+		return nil, nil, nil, BuildError{
 			http.StatusInternalServerError,
 			"marshal provision job",
 			err,
@@ -302,12 +304,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	}
 	traceMetadataRaw, err := json.Marshal(tracing.MetadataFromContext(b.ctx))
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "marshal metadata", err}
 	}
 
 	tags, err := b.getProvisionerTags()
 	if err != nil {
-		return nil, nil, err // already wrapped BuildError
+		return nil, nil, nil, err // already wrapped BuildError
 	}
 
 	now := dbtime.Now()
@@ -329,20 +331,32 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		},
 	})
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "insert provisioner job", err}
+	}
+
+	// nolint:gocritic // The user performing this request may not have permission
+	// to read all provisioner daemons. We need to retrieve the eligible
+	// provisioner daemons for this job to show in the UI if there is no
+	// matching provisioner daemon.
+	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), []uuid.UUID{provisionerJob.ID})
+	if err != nil {
+		// NOTE: we do **not** want to fail a workspace build if we fail to
+		// retrieve provisioner daemons. This is just to show in the UI if there
+		// is no matching provisioner daemon for the job.
+		provisionerDaemons = []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}
 	}
 
 	templateVersionID, err := b.getTemplateVersionID()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute template version ID", err}
 	}
 	buildNum, err := b.getBuildNumber()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build number", err}
 	}
 	state, err := b.getState()
 	if err != nil {
-		return nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
+		return nil, nil, nil, BuildError{http.StatusInternalServerError, "compute build state", err}
 	}
 
 	var workspaceBuild database.WorkspaceBuild
@@ -393,10 +407,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		return nil
 	}, nil)
 	if err != nil {
-		return nil, nil, err
+		return nil, nil, nil, err
 	}
 
-	return &workspaceBuild, &provisionerJob, nil
+	return &workspaceBuild, &provisionerJob, provisionerDaemons, nil
 }
 
 func (b *Builder) getTemplate() (*database.Template, error) {

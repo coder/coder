@@ -593,8 +593,7 @@ func createWorkspace(
 			}},
 		})
 		return
-	}
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+	} else if !errors.Is(err, sql.ErrNoRows) {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: fmt.Sprintf("Internal error fetching workspace by name %q.", req.Name),
 			Detail:  err.Error(),
@@ -603,8 +602,9 @@ func createWorkspace(
 	}
 
 	var (
-		provisionerJob *database.ProvisionerJob
-		workspaceBuild *database.WorkspaceBuild
+		provisionerJob     *database.ProvisionerJob
+		workspaceBuild     *database.WorkspaceBuild
+		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		now := dbtime.Now()
@@ -645,7 +645,7 @@ func createWorkspace(
 			builder = builder.VersionID(req.TemplateVersionID)
 		}
 
-		workspaceBuild, provisionerJob, err = builder.Build(
+		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
 			db,
 			func(action policy.Action, object rbac.Objecter) bool {
@@ -655,6 +655,7 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
+
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
@@ -675,6 +676,7 @@ func createWorkspace(
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
+
 	auditReq.New = workspace.WorkspaceTable()
 
 	api.Telemetry.Report(&telemetry.Snapshot{
@@ -696,6 +698,7 @@ func createWorkspace(
 		[]database.WorkspaceAgentScript{},
 		[]database.WorkspaceAgentLogSource{},
 		database.TemplateVersion{},
+		provisionerDaemons,
 	)
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -1816,6 +1819,7 @@ func (api *API) workspaceData(ctx context.Context, workspaces []database.Workspa
 		data.scripts,
 		data.logSources,
 		data.templateVersions,
+		data.provisionerDaemons,
 	)
 	if err != nil {
 		return workspaceData{}, xerrors.Errorf("convert workspace builds: %w", err)
