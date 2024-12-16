@@ -63,7 +63,16 @@ type Story = StoryObj<typeof Workspace>;
 
 export const Running: Story = {
 	args: {
-		workspace: Mocks.MockWorkspace,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				matched_provisioners: {
+					count: 0,
+					available: 0,
+				},
+			},
+		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
 		buildInfo: Mocks.MockBuildInfo,
