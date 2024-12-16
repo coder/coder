@@ -128,7 +128,7 @@ requests to cluster/cloud APIs.
 
 If one of those credentials is compromised, the potential severity of the
 compromise depends on the permissions granted to the credentials, but will
-almost certainly include code execution inside the cluster since the whole
+almost certainly include code execution inside the cluster/cloud since the whole
 purpose of Coder is to deploy workspaces in the cluster/cloud that can run
 developer code.
 
@@ -184,7 +184,7 @@ the specific cluster/cloud they are for. This ensures that compromise of one
 Provisioner Daemon does not compromise all clusters/clouds.
 
 Deploy the provisioner daemon to the cloud and leverage infrastructure-provided
-credentials:
+credentials, if available:
 
 - [Service account tokens on Kubernetes](https://kubernetes.io/docs/tasks/configure-pod-container/configure-service-account/)
 - [IAM roles for EC2 on AWS](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/iam-roles-for-amazon-ec2.html)
@@ -376,7 +376,7 @@ Example constraints include:
 - Monitoring and/or auditing for suspicious activity such as cryptomining or
   exfiltration
 
-## Outbound network access
+### Outbound network access
 
 Identify network assets like production systems or highly confidential
 datastores and configure the network to limit access from Coder workspaces.
@@ -410,14 +410,14 @@ A non-exclusive list of network assets to consider:
   personally identifiable information)
 - Access to other clusters/clouds
 
-## Inbound network access
+### Inbound network access
 
 Coder manages inbound network access to your workspaces via a set of Wireguard
 encrypted tunnels. These tunnels are established by sending outbound packets, so
 on stateful firewalls, disable inbound connections to workspaces to ensure
 inbound connections are handled exclusively by the encrypted tunnels.
 
-## DERP
+#### DERP
 
 [DERP](https://tailscale.com/kb/1232/derp-servers) is a relay protocol developed
 by Tailscale.
