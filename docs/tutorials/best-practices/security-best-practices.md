@@ -23,7 +23,7 @@ credentials are stolen.
 ### User authentication
 
 Configure [OIDC authentication](../../admin/users/oidc-auth.md) against your
-organization’s Identity Provider (IdP), such as Okta, to allow single-sign on:
+organization’s Identity Provider (IdP), such as Okta, to allow single-sign on.
 
 1. Enable and require two-factor authentication in your identity provider.
 1. Enable [IdP Sync](../../admin/users/idp-sync.md) to manage users’ roles and
