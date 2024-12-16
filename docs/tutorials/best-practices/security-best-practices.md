@@ -1,12 +1,15 @@
-# Best Practices for Coder Security
+# Security - best practices
 
-December 30, 2024
+December 17, 2024
 
 ---
 
-This best practices guide is separated into parts to help you secure your Coder
-deployment through understanding each threat model, hardening authentication,
-and encryption.
+This best practices guide is separated into parts to help you secure aspects of
+your Coder deployment.
+
+Each section briefly introduces each threat model, then suggests steps or
+concepts to help implement security improvements such as authentication and
+encryption.
 
 As with any security guide, the steps and suggestions outlined in this document
 are not meant to be exhaustive and do not offer any guarantee.
@@ -277,16 +280,17 @@ in `.tfvars` or other files uploaded with the template.
 Instead do one of the following:
 
 - Store secrets in a central secrets manager.
-- Access the secrets at build time via a Terraform provider.
 
-  This can be through
-  [Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs)
-  or
-  [AWS Secrets Manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret).
+  - Access the secrets at build time via a Terraform provider.
+
+    This can be through
+    [Vault](https://registry.terraform.io/providers/hashicorp/vault/latest/docs)
+    or
+    [AWS Secrets Manager](https://registry.terraform.io/providers/hashicorp/aws/latest/docs/resources/secretsmanager_secret).
 
 - Place secrets in `TF_VAR_*` environment variables.
-- Provide the secrets to the relevant Provisioner Daemons and access them via
-  Terraform variables with `sensitive = true`.
+  - Provide the secrets to the relevant Provisioner Daemons and access them via
+    Terraform variables with `sensitive = true`.
 - Use Coder parameters to accept secrets from end users at build time.
 
 Coder does not attempt to obscure the contents of template files from users
