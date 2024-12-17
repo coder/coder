@@ -712,7 +712,12 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	}
 	varsM := make(map[string]string)
 	for _, tv := range tvs {
-		varsM[tv.Name] = tv.Value
+		// FIXME: do this in Terraform? This is a bit of a hack.
+		if tv.Value == "" {
+			varsM[tv.Name] = tv.DefaultValue
+		} else {
+			varsM[tv.Name] = tv.Value
+		}
 	}
 	parameterNames, parameterValues, err := b.getParameters()
 	if err != nil {

@@ -301,6 +301,14 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 			Key:   "is_debug_build",
 			Value: `data.coder_parameter.is_debug_build.value == "true" ? "in-debug-mode" : "no-debug"`,
 		},
+		{
+			Key:   "variable_tag",
+			Value: `var.tag`,
+		},
+		{
+			Key:   "another_variable_tag",
+			Value: `var.tag2`,
+		},
 	}
 
 	richParameters := []database.TemplateVersionParameter{
@@ -310,6 +318,11 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		{Name: "is_debug_build", Type: "bool", Description: "This is third parameter", Mutable: false, DefaultValue: "false", Options: json.RawMessage("[]")},
 		{Name: "number_of_apples", Type: "number", Description: "This is fourth parameter", Mutable: false, DefaultValue: "4", Options: json.RawMessage("[]")},
 		{Name: "number_of_oranges", Type: "number", Description: "This is fifth parameter", Mutable: false, DefaultValue: "6", Options: json.RawMessage("[]")},
+	}
+
+	templateVersionVariables := []database.TemplateVersionVariable{
+		{Name: "tag", Description: "This is a variable tag", TemplateVersionID: inactiveVersionID, Type: "string", DefaultValue: "default-value", Value: "my-value"},
+		{Name: "tag2", Description: "This is another variable tag", TemplateVersionID: inactiveVersionID, Type: "string", DefaultValue: "default-value-2", Value: ""},
 	}
 
 	buildParameters := []codersdk.WorkspaceBuildParameter{
@@ -326,7 +339,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(richParameters),
 		withLastBuildFound,
-		withTemplateVersionVariables(inactiveVersionID, nil),
+		withTemplateVersionVariables(inactiveVersionID, templateVersionVariables),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, workspaceTags),
@@ -334,16 +347,18 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 
 		// Outputs
 		expectProvisionerJob(func(job database.InsertProvisionerJobParams) {
-			asrt.Len(job.Tags, 10)
+			asrt.Len(job.Tags, 12)
 
 			expected := database.StringMap{
-				"actually_no":    "false",
-				"cluster_tag":    "best_developers",
-				"fruits_tag":     "10",
-				"is_debug_build": "in-debug-mode",
-				"project_tag":    "foobar-foobaz+12345",
-				"team_tag":       "godzilla",
-				"yes_or_no":      "true",
+				"actually_no":          "false",
+				"cluster_tag":          "best_developers",
+				"fruits_tag":           "10",
+				"is_debug_build":       "in-debug-mode",
+				"project_tag":          "foobar-foobaz+12345",
+				"team_tag":             "godzilla",
+				"yes_or_no":            "true",
+				"variable_tag":         "my-value",
+				"another_variable_tag": "default-value-2",
 
 				"scope":   "user",
 				"version": "inactive",
