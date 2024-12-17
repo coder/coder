@@ -15,13 +15,13 @@ import { AvatarData } from "components/AvatarData/AvatarData";
 import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { Paywall } from "components/Paywall/Paywall";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks";
+import { GroupAvatar } from "modules/groups/GroupAvatar/GroupAvatar";
 import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";

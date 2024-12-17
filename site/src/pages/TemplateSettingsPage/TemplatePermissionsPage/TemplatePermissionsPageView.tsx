@@ -20,7 +20,6 @@ import type {
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -31,6 +30,7 @@ import {
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { GroupAvatar } from "modules/groups/GroupAvatar/GroupAvatar";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {
