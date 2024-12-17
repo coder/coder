@@ -2422,7 +2422,7 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 }
 
 func (q *querier) GetUserStatusCountsByDay(ctx context.Context, arg database.GetUserStatusCountsByDayParams) ([]database.GetUserStatusCountsByDayRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
 		return nil, err
 	}
 	return q.db.GetUserStatusCountsByDay(ctx, arg)
