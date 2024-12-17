@@ -483,6 +483,7 @@ export interface DERPConfig {
 
 // From healthsdk/healthsdk.go
 export interface DERPHealthReport extends BaseReport {
+<<<<<<< HEAD
     readonly healthy: boolean;
     readonly regions: Record<number, DERPRegionReport | null>;
     // Invalid type, using 'any'. Might be a reference to any external package
@@ -490,10 +491,19 @@ export interface DERPHealthReport extends BaseReport {
     readonly netcheck?: any;
     readonly netcheck_err?: string;
     readonly netcheck_logs: readonly string[];
+=======
+	readonly healthy: boolean;
+	readonly regions: Record<number, DERPRegionReport | null>;
+	// external type "tailscale.com/net/netcheck.Report", to include this type the package must be explicitly included in the parsing
+	readonly netcheck?: unknown;
+	readonly netcheck_err?: string;
+	readonly netcheck_logs: readonly string[];
+>>>>>>> d41669774 (chore: remove apitypings specific go.mod)
 }
 
 // From healthsdk/healthsdk.go
 export interface DERPNodeReport {
+<<<<<<< HEAD
     readonly healthy: boolean;
     readonly severity: HealthSeverity;
     readonly warnings: readonly HealthMessage[];
@@ -511,6 +521,23 @@ export interface DERPNodeReport {
     readonly client_logs: readonly string[][];
     readonly client_errs: readonly string[][];
     readonly stun: STUNReport;
+=======
+	readonly healthy: boolean;
+	readonly severity: HealthSeverity;
+	readonly warnings: readonly HealthMessage[];
+	readonly error?: string;
+	// external type "tailscale.com/tailcfg.DERPNode", to include this type the package must be explicitly included in the parsing
+	readonly node: unknown | null;
+	// external type "tailscale.com/derp.ServerInfoMessage", to include this type the package must be explicitly included in the parsing
+	readonly node_info: unknown;
+	readonly can_exchange_messages: boolean;
+	readonly round_trip_ping: string;
+	readonly round_trip_ping_ms: number;
+	readonly uses_websocket: boolean;
+	readonly client_logs: readonly string[][];
+	readonly client_errs: readonly string[][];
+	readonly stun: STUNReport;
+>>>>>>> d41669774 (chore: remove apitypings specific go.mod)
 }
 
 // From codersdk/workspaceagents.go
@@ -521,6 +548,7 @@ export interface DERPRegion {
 
 // From healthsdk/healthsdk.go
 export interface DERPRegionReport {
+<<<<<<< HEAD
     readonly healthy: boolean;
     readonly severity: HealthSeverity;
     readonly warnings: readonly HealthMessage[];
@@ -529,6 +557,15 @@ export interface DERPRegionReport {
     // biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
     readonly region: any | null;
     readonly node_reports: readonly (DERPNodeReport | null)[];
+=======
+	readonly healthy: boolean;
+	readonly severity: HealthSeverity;
+	readonly warnings: readonly HealthMessage[];
+	readonly error?: string;
+	// external type "tailscale.com/tailcfg.DERPRegion", to include this type the package must be explicitly included in the parsing
+	readonly region: unknown | null;
+	readonly node_reports: readonly (DERPNodeReport | null)[];
+>>>>>>> d41669774 (chore: remove apitypings specific go.mod)
 }
 
 // From codersdk/deployment.go
