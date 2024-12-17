@@ -1784,7 +1784,6 @@ func TestUsersFilter(t *testing.T) {
 					if len(matched.Users[i].OrganizationIDs) == 0 {
 						matched.Users[i].OrganizationIDs = nil
 					}
-
 				}
 			}
 
