@@ -11,7 +11,7 @@ const meta: Meta = {
 	...generateMeta({
 		path: "/health/derp/regions/:regionId",
 		element: <DERPRegionPage />,
-		params: { regionId: firstRegionId },
+		params: { regionId: firstRegionId?.toString() || "" },
 	}),
 };
 

@@ -6,6 +6,7 @@ import (
 
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
+	"github.com/coder/guts/bindings/walk"
 	"github.com/coder/guts/config"
 )
 
@@ -33,7 +34,8 @@ func main() {
 		"github.com/coder/serpent": "Serpent",
 		"tailscale.com/derp":       "",
 		// Conflicting name "DERPRegion"
-		"tailscale.com/tailcfg": "Tail",
+		"tailscale.com/tailcfg":      "Tail",
+		"tailscale.com/net/netcheck": "Netcheck",
 	}
 	for pkg, prefix := range referencePackages {
 		err = gen.IncludeReference(pkg, prefix)
@@ -75,6 +77,7 @@ func TsMutations(ts *guts.Typescript) {
 		// Omitempty + null is just '?' in golang json marshal
 		// number?: number | null --> number?: number
 		config.SimplifyOmitEmpty,
+		SimplifyUndefinedUnionFields,
 	)
 }
 
@@ -84,6 +87,8 @@ func TypeMappings(gen *guts.GoParser) error {
 
 	gen.IncludeCustomDeclaration(map[string]guts.TypeOverride{
 		"github.com/coder/coder/v2/codersdk.NullTime": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordString)),
+		// opt.Bool can return 'null' if unset
+		"tailscale.com/types/opt.Bool": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordBoolean)),
 	})
 
 	err := gen.IncludeCustom(map[string]string{
@@ -143,4 +148,33 @@ func FixSerpentStruct(gen *guts.Typescript) {
 			})
 		}
 	})
+}
+
+// SimplifyUndefinedUnionFields converts 'foo: string | undefined' to 'foo?: string'
+func SimplifyUndefinedUnionFields(gen *guts.Typescript) {
+	gen.ForEach(func(key string, originalNode bindings.Node) {
+		walk.Walk(questionTokenWalker{}, originalNode)
+	})
+}
+
+type questionTokenWalker struct {
+}
+
+func (q questionTokenWalker) Visit(node bindings.Node) (w walk.Visitor) {
+	switch n := node.(type) {
+	case *bindings.PropertySignature:
+		isUnion, ok := n.Type.(*bindings.UnionType)
+		if !ok {
+			return q
+		}
+		for i, t := range isUnion.Types {
+			if keyword, ok := t.(*bindings.LiteralKeyword); ok && *keyword == bindings.KeywordUndefined {
+				n.QuestionToken = true
+				// Remove undefined
+				isUnion.Types = append(isUnion.Types[:i], isUnion.Types[i+1:]...)
+				break
+			}
+		}
+	}
+	return q
 }

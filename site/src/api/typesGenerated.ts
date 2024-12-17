@@ -494,8 +494,7 @@ export interface DERPHealthReport extends BaseReport {
 =======
 	readonly healthy: boolean;
 	readonly regions: Record<number, DERPRegionReport | null>;
-	// external type "tailscale.com/net/netcheck.Report", to include this type the package must be explicitly included in the parsing
-	readonly netcheck?: unknown;
+	readonly netcheck?: NetcheckReport;
 	readonly netcheck_err?: string;
 	readonly netcheck_logs: readonly string[];
 >>>>>>> d41669774 (chore: remove apitypings specific go.mod)
@@ -1039,6 +1038,29 @@ export interface MinimalUser {
     readonly id: string;
     readonly username: string;
     readonly avatar_url: string;
+}
+
+// From netcheck/netcheck.go
+export interface NetcheckReport {
+	readonly UDP: boolean;
+	readonly IPv6: boolean;
+	readonly IPv4: boolean;
+	readonly IPv6CanSend: boolean;
+	readonly IPv4CanSend: boolean;
+	readonly OSHasIPv6: boolean;
+	readonly ICMPv4: boolean;
+	readonly MappingVariesByDestIP: boolean | null;
+	readonly HairPinning: boolean | null;
+	readonly UPnP: boolean | null;
+	readonly PMP: boolean | null;
+	readonly PCP: boolean | null;
+	readonly PreferredDERP: number;
+	readonly RegionLatency: Record<number, number>;
+	readonly RegionV4Latency: Record<number, number>;
+	readonly RegionV6Latency: Record<number, number>;
+	readonly GlobalV4: string;
+	readonly GlobalV6: string;
+	readonly CaptivePortal: boolean | null;
 }
 
 // From codersdk/notifications.go
