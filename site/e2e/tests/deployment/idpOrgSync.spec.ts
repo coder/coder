@@ -5,7 +5,7 @@ import {
 	deleteOrganization,
 	setupApiCalls,
 } from "../../api";
-import { requiresLicense } from "../../helpers";
+import { randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
 test.describe("IdpOrgSyncPage", () => {
@@ -123,7 +123,9 @@ test.describe("IdpOrgSyncPage", () => {
 		requiresLicense();
 		await setupApiCalls(page);
 
-		await createOrganizationWithName("developers");
+		const orgName = randomName();
+
+		await createOrganizationWithName(orgName);
 
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -141,7 +143,7 @@ test.describe("IdpOrgSyncPage", () => {
 
 		// Select Coder organization from combobox
 		await orgSelector.click();
-		await page.getByRole("option", { name: "developers" }).click();
+		await page.getByRole("option", { name: orgName }).click();
 
 		// Add button should now be enabled
 		await expect(addButton).toBeEnabled();
@@ -152,12 +154,12 @@ test.describe("IdpOrgSyncPage", () => {
 		const newRow = page.getByTestId("idp-org-new-idp-org");
 		await expect(newRow).toBeVisible();
 		await expect(newRow.getByText("new-idp-org")).toBeVisible();
-		await expect(newRow.getByText("developers")).toBeVisible();
+		await expect(newRow.getByText(orgName)).toBeVisible();
 
 		await expect(
 			page.getByText("Organization sync settings updated."),
 		).toBeVisible();
 
-		await deleteOrganization("developers");
+		await deleteOrganization(orgName);
 	});
 });

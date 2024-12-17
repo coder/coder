@@ -26,9 +26,11 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -1515,6 +1517,73 @@ func TestUsersFilter(t *testing.T) {
 		users = append(users, user)
 	}
 
+	// Add users with different creation dates for testing date filters
+	for i := 0; i < 3; i++ {
+		// nolint:gocritic // Using system context is necessary to seed data in tests
+		user1, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("before%d@coder.com", i),
+			Username:  fmt.Sprintf("before%d", i),
+			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleMember},
+			CreatedAt: dbtime.Time(time.Date(2022, 12, 15+i, 12, 0, 0, 0, time.UTC)),
+		})
+		require.NoError(t, err)
+
+		// The expected timestamps must be parsed from strings to compare equal during `ElementsMatch`
+		sdkUser1 := db2sdk.User(user1, nil)
+		sdkUser1.CreatedAt, err = time.Parse(time.RFC3339, sdkUser1.CreatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser1.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser1.UpdatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser1.LastSeenAt, err = time.Parse(time.RFC3339, sdkUser1.LastSeenAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		users = append(users, sdkUser1)
+
+		// nolint:gocritic //Using system context is necessary to seed data in tests
+		user2, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("during%d@coder.com", i),
+			Username:  fmt.Sprintf("during%d", i),
+			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
+			CreatedAt: dbtime.Time(time.Date(2023, 1, 15+i, 12, 0, 0, 0, time.UTC)),
+		})
+		require.NoError(t, err)
+
+		sdkUser2 := db2sdk.User(user2, nil)
+		sdkUser2.CreatedAt, err = time.Parse(time.RFC3339, sdkUser2.CreatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser2.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser2.UpdatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser2.LastSeenAt, err = time.Parse(time.RFC3339, sdkUser2.LastSeenAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		users = append(users, sdkUser2)
+
+		// nolint:gocritic // Using system context is necessary to seed data in tests
+		user3, err := api.Database.InsertUser(dbauthz.AsSystemRestricted(ctx), database.InsertUserParams{
+			ID:        uuid.New(),
+			Email:     fmt.Sprintf("after%d@coder.com", i),
+			Username:  fmt.Sprintf("after%d", i),
+			LoginType: database.LoginTypeNone,
+			Status:    string(codersdk.UserStatusActive),
+			RBACRoles: []string{codersdk.RoleOwner},
+			CreatedAt: dbtime.Time(time.Date(2023, 2, 15+i, 12, 0, 0, 0, time.UTC)),
+		})
+		require.NoError(t, err)
+
+		sdkUser3 := db2sdk.User(user3, nil)
+		sdkUser3.CreatedAt, err = time.Parse(time.RFC3339, sdkUser3.CreatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser3.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser3.UpdatedAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		sdkUser3.LastSeenAt, err = time.Parse(time.RFC3339, sdkUser3.LastSeenAt.Format(time.RFC3339))
+		require.NoError(t, err)
+		users = append(users, sdkUser3)
+	}
+
 	// --- Setup done ---
 	testCases := []struct {
 		Name   string
@@ -1657,6 +1726,37 @@ func TestUsersFilter(t *testing.T) {
 				return u.LastSeenAt.Before(end) && u.LastSeenAt.After(start)
 			},
 		},
+		{
+			Name: "CreatedAtBefore",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.Before(end)
+			},
+		},
+		{
+			Name: "CreatedAtAfter",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				return u.CreatedAt.After(start)
+			},
+		},
+		{
+			Name: "CreatedAtRange",
+			Filter: codersdk.UsersRequest{
+				SearchQuery: `created_after:"2023-01-01T00:00:00Z" created_before:"2023-01-31T23:59:59Z"`,
+			},
+			FilterF: func(_ codersdk.UsersRequest, u codersdk.User) bool {
+				start := time.Date(2023, 1, 1, 0, 0, 0, 0, time.UTC)
+				end := time.Date(2023, 1, 31, 23, 59, 59, 0, time.UTC)
+				return u.CreatedAt.After(start) && u.CreatedAt.Before(end)
+			},
+		},
 	}
 
 	for _, c := range testCases {
@@ -1677,6 +1777,16 @@ func TestUsersFilter(t *testing.T) {
 					exp = append(exp, made)
 				}
 			}
+
+			// TODO: This can be removed with dbmem
+			if !dbtestutil.WillUsePostgres() {
+				for i := range matched.Users {
+					if len(matched.Users[i].OrganizationIDs) == 0 {
+						matched.Users[i].OrganizationIDs = nil
+					}
+				}
+			}
+
 			require.ElementsMatch(t, exp, matched.Users, "expected users returned")
 		})
 	}

@@ -49,6 +49,10 @@ export function requiresLicense() {
 	test.skip(!license);
 }
 
+export function requiresUnlicensed() {
+	test.skip(license.length > 0);
+}
+
 /**
  * requireTerraformProvisioner by default is enabled.
  */
