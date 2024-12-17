@@ -3106,46 +3106,41 @@ WITH dates AS (
             '1 day'::interval
         ) AS day
 ),
-initial_statuses AS (
-    -- Get the status of each user right before the start date
-    SELECT DISTINCT ON (user_id)
-        user_id,
-        new_status as status
-    FROM
-        user_status_changes
-    WHERE
-        changed_at < $1::timestamptz
-    ORDER BY
-        user_id,
-        changed_at DESC
+all_users AS (
+    -- Get all users who have had any status changes in or before the range
+    SELECT DISTINCT user_id
+    FROM user_status_changes
+    WHERE changed_at <= $2::timestamptz
 ),
-relevant_changes AS (
-    -- Get only the status changes within our date range
-    SELECT
-        date_trunc('day', changed_at)::date AS day,
+initial_statuses AS (
+    -- Get the status of each user right before each day
+    SELECT DISTINCT ON (user_id, day)
         user_id,
+        day,
         new_status as status
     FROM
-        user_status_changes
-    WHERE
-        changed_at >= $1::timestamptz
-        AND changed_at <= $2::timestamptz
+        all_users
+    CROSS JOIN
+        dates
+    LEFT JOIN LATERAL (
+        SELECT new_status, changed_at
+        FROM user_status_changes
+        WHERE user_status_changes.user_id = all_users.user_id
+        AND changed_at < day + interval '1 day'
+        ORDER BY changed_at DESC
+        LIMIT 1
+    ) changes ON true
+    WHERE changes.new_status IS NOT NULL
 ),
 daily_status AS (
-    -- Combine initial statuses with changes
     SELECT
         d.day,
-        COALESCE(rc.status, i.status) as status,
-        COALESCE(rc.user_id, i.user_id) as user_id
+        i.status,
+        i.user_id
     FROM
         dates d
-    CROSS JOIN
-        initial_statuses i
     LEFT JOIN
-        relevant_changes rc
-    ON
-        rc.day = d.day
-        AND rc.user_id = i.user_id
+        initial_statuses i ON i.day = d.day
 )
 SELECT
     day,
@@ -3169,9 +3164,9 @@ type GetUserStatusCountsByDayParams struct {
 }
 
 type GetUserStatusCountsByDayRow struct {
-	Day    time.Time  `db:"day" json:"day"`
-	Status UserStatus `db:"status" json:"status"`
-	Count  int64      `db:"count" json:"count"`
+	Day    time.Time      `db:"day" json:"day"`
+	Status NullUserStatus `db:"status" json:"status"`
+	Count  int64          `db:"count" json:"count"`
 }
 
 func (q *sqlQuerier) GetUserStatusCountsByDay(ctx context.Context, arg GetUserStatusCountsByDayParams) ([]GetUserStatusCountsByDayRow, error) {

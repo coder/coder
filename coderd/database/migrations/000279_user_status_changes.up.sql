@@ -7,7 +7,6 @@ CREATE TABLE user_status_changes (
 
 COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
-CREATE INDEX idx_user_status_changes_user_id ON user_status_changes(user_id);
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes(changed_at);
 
 INSERT INTO user_status_changes (
@@ -22,15 +21,17 @@ SELECT
 FROM users
 WHERE NOT deleted;
 
-CREATE FUNCTION record_user_status_change() RETURNS trigger AS $$
+CREATE OR REPLACE FUNCTION record_user_status_change() RETURNS trigger AS $$
 BEGIN
-    IF OLD.status IS DISTINCT FROM NEW.status THEN
+    IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
         INSERT INTO user_status_changes (
             user_id,
-            new_status
+            new_status,
+            changed_at
         ) VALUES (
             NEW.id,
-            NEW.status
+            NEW.status,
+            NEW.updated_at
         );
     END IF;
     RETURN NEW;
@@ -38,6 +39,6 @@ END;
 $$ LANGUAGE plpgsql;
 
 CREATE TRIGGER user_status_change_trigger
-    BEFORE UPDATE ON users
+    AFTER INSERT OR UPDATE ON users
     FOR EACH ROW
     EXECUTE FUNCTION record_user_status_change();
