@@ -55,7 +55,7 @@ pages.
 ## Release schedule
 
 | Release name | Release Date       | Status           |
-| ------------ | ------------------ | ---------------- |
+|--------------|--------------------|------------------|
 | 2.12.x       | June 04, 2024      | Not Supported    |
 | 2.13.x       | July 02, 2024      | Not Supported    |
 | 2.14.x       | August 06, 2024    | Not Supported    |
