@@ -1599,7 +1599,8 @@ CREATE TABLE workspace_apps (
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
-    hidden boolean DEFAULT false NOT NULL
+    hidden boolean DEFAULT false NOT NULL,
+    open_in character varying(64) DEFAULT 'slim-window'::character varying NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';

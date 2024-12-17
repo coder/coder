@@ -1509,6 +1509,7 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 					dur := time.Duration(protoAgent.GetConnectionTimeoutSeconds()) * time.Second
 					agentTimeouts[dur] = true
 				}
+
 				err = InsertWorkspaceResource(ctx, db, job.ID, workspaceBuild.Transition, protoResource, telemetrySnapshot)
 				if err != nil {
 					return xerrors.Errorf("insert provisioner job: %w", err)
@@ -2036,6 +2037,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 				DisplayOrder:         int32(app.Order),
 				Hidden:               app.Hidden,
+				OpenIn:				  app.OpenIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)

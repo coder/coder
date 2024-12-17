@@ -750,6 +750,8 @@ func (api *API) workspaceBuildsData(ctx context.Context, workspaceBuilds []datab
 		return workspaceBuildsData{}, err
 	}
 
+	api.Logger.Warn(ctx, "fetched apps", slog.F("apps", apps))
+
 	return workspaceBuildsData{
 		jobs:             jobs,
 		templateVersions: templateVersions,
