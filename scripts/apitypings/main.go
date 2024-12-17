@@ -59,7 +59,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("serialize: %v", err)
 	}
-	fmt.Println(output)
+	_, _ = fmt.Println(output)
 }
 
 func TsMutations(ts *guts.Typescript) {
