@@ -160,7 +160,7 @@ resource "kubernetes_job" "push_template_primary" {
   }
   wait_for_completion = true
 
-  depends_on = [ helm_release.provisionerd_primary ]
+  depends_on = [helm_release.provisionerd_primary]
 }
 
 resource "kubernetes_config_map" "template_europe" {
@@ -238,7 +238,7 @@ resource "kubernetes_job" "push_template_europe" {
   }
   wait_for_completion = true
 
-  depends_on = [ helm_release.provisionerd_europe ]
+  depends_on = [helm_release.provisionerd_europe]
 }
 
 resource "kubernetes_config_map" "template_asia" {
@@ -316,5 +316,5 @@ resource "kubernetes_job" "push_template_asia" {
   }
   wait_for_completion = true
 
-  depends_on = [ helm_release.provisionerd_asia ]
+  depends_on = [helm_release.provisionerd_asia]
 }

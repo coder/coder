@@ -1,5 +1,5 @@
 locals {
-  wait_baseline_duration = "60s"
+  wait_baseline_duration        = "60s"
   workspace_traffic_job_timeout = "420s"
   workspace_traffic_duration    = "300s"
   bytes_per_tick                = 1024

@@ -124,5 +124,5 @@ resource "helm_release" "provisionerd_primary" {
     deployment       = "primary",
   })]
 
-  depends_on = [ null_resource.license ]
+  depends_on = [null_resource.license]
 }

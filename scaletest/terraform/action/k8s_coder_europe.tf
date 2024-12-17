@@ -73,7 +73,7 @@ resource "helm_release" "coder_europe" {
     deployment       = "europe",
   })]
 
-  depends_on = [ null_resource.license ]
+  depends_on = [null_resource.license]
 }
 
 resource "helm_release" "provisionerd_europe" {
@@ -106,5 +106,5 @@ resource "helm_release" "provisionerd_europe" {
     deployment       = "europe",
   })]
 
-  depends_on = [ null_resource.license ]
+  depends_on = [null_resource.license]
 }

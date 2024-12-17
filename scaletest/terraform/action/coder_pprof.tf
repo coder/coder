@@ -1,14 +1,14 @@
 locals {
-    pprof_interval = "30s"
-    pprof_duration = "300s"
+  pprof_interval = "30s"
+  pprof_duration = "300s"
 }
 
 resource "local_file" "kubeconfig" {
   for_each = local.deployments
 
-  content  = templatefile("${path.module}/kubeconfig.tftpl", {
-    name           = google_container_cluster.cluster[each.key].name
-    endpoint       = "https://${google_container_cluster.cluster[each.key].endpoint}"
+  content = templatefile("${path.module}/kubeconfig.tftpl", {
+    name                   = google_container_cluster.cluster[each.key].name
+    endpoint               = "https://${google_container_cluster.cluster[each.key].endpoint}"
     cluster_ca_certificate = google_container_cluster.cluster[each.key].master_auth[0].cluster_ca_certificate
     access_token           = data.google_client_config.default.access_token
   })
@@ -18,7 +18,7 @@ resource "local_file" "kubeconfig" {
 resource "null_resource" "pprof" {
   provisioner "local-exec" {
     interpreter = ["/bin/bash", "-c"]
-    command = <<EOF
+    command     = <<EOF
 set -e
 
 pids=()
@@ -63,5 +63,5 @@ kill -INT $pprof_pid
 EOF
   }
 
-  depends_on = [time_sleep.wait_baseline, local_file.kubeconfig ]
+  depends_on = [time_sleep.wait_baseline, local_file.kubeconfig]
 }
