@@ -1,7 +1,7 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { Template, TemplateExample } from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
+import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import type { FC } from "react";
 
 export interface SelectedTemplateProps {

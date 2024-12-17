@@ -281,6 +281,9 @@ coder:
     # your cloud and specify it here in production to avoid accidental IP
     # address changes.
     loadBalancerIP: ""
+    # coder.service.loadBalancerClass -- The class name of the LoadBalancer. See:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#load-balancer-class
+    loadBalancerClass: ""
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}

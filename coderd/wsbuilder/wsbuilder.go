@@ -12,9 +12,9 @@ import (
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
-	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
 	"github.com/coder/coder/v2/provisionersdk"
 
 	"github.com/google/uuid"
@@ -64,6 +64,7 @@ type Builder struct {
 	templateVersion              *database.TemplateVersion
 	templateVersionJob           *database.ProvisionerJob
 	templateVersionParameters    *[]database.TemplateVersionParameter
+	templateVersionVariables     *[]database.TemplateVersionVariable
 	templateVersionWorkspaceTags *[]database.TemplateVersionWorkspaceTag
 	lastBuild                    *database.WorkspaceBuild
 	lastBuildErr                 *error
@@ -214,7 +215,7 @@ func (b *Builder) Build(
 	authFunc func(action policy.Action, object rbac.Objecter) bool,
 	auditBaggage audit.WorkspaceBuildBaggage,
 ) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, []database.ProvisionerDaemon, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	var err error
 	b.ctx, err = audit.BaggageToContext(ctx, auditBaggage)
@@ -228,7 +229,7 @@ func (b *Builder) Build(
 	// later reads are consistent with earlier ones.
 	var workspaceBuild *database.WorkspaceBuild
 	var provisionerJob *database.ProvisionerJob
-	var provisionerDaemons []database.ProvisionerDaemon
+	var provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	err = database.ReadModifyUpdate(store, func(tx database.Store) error {
 		var err error
 		b.store = tx
@@ -248,7 +249,7 @@ func (b *Builder) Build(
 //
 // In order to utilize this cache, the functions that compute build attributes use a pointer receiver type.
 func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Objecter) bool) (
-	*database.WorkspaceBuild, *database.ProvisionerJob, []database.ProvisionerDaemon, error,
+	*database.WorkspaceBuild, *database.ProvisionerJob, []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error,
 ) {
 	if authFunc != nil {
 		err := b.authorize(authFunc)
@@ -338,15 +339,12 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	// to read all provisioner daemons. We need to retrieve the eligible
 	// provisioner daemons for this job to show in the UI if there is no
 	// matching provisioner daemon.
-	provisionerDaemons, err := b.store.GetProvisionerDaemonsByOrganization(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), database.GetProvisionerDaemonsByOrganizationParams{
-		OrganizationID: template.OrganizationID,
-		WantTags:       provisionerJob.Tags,
-	})
+	provisionerDaemons, err := b.store.GetEligibleProvisionerDaemonsByProvisionerJobIDs(dbauthz.AsSystemReadProvisionerDaemons(b.ctx), []uuid.UUID{provisionerJob.ID})
 	if err != nil {
 		// NOTE: we do **not** want to fail a workspace build if we fail to
 		// retrieve provisioner daemons. This is just to show in the UI if there
 		// is no matching provisioner daemon for the job.
-		provisionerDaemons = []database.ProvisionerDaemon{}
+		provisionerDaemons = []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}
 	}
 
 	templateVersionID, err := b.getTemplateVersionID()
@@ -620,6 +618,22 @@ func (b *Builder) getTemplateVersionParameters() ([]database.TemplateVersionPara
 	return tvp, nil
 }
 
+func (b *Builder) getTemplateVersionVariables() ([]database.TemplateVersionVariable, error) {
+	if b.templateVersionVariables != nil {
+		return *b.templateVersionVariables, nil
+	}
+	tvID, err := b.getTemplateVersionID()
+	if err != nil {
+		return nil, xerrors.Errorf("get template version ID to get variables: %w", err)
+	}
+	tvs, err := b.store.GetTemplateVersionVariables(b.ctx, tvID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get template version %s variables: %w", tvID, err)
+	}
+	b.templateVersionVariables = &tvs
+	return tvs, nil
+}
+
 // verifyNoLegacyParameters verifies that initiator can't start the workspace build
 // if it uses legacy parameters (database.ParameterSchemas).
 func (b *Builder) verifyNoLegacyParameters() error {
@@ -681,17 +695,40 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		tags[name] = value
 	}
 
-	// Step 2: Mutate workspace tags
+	// Step 2: Mutate workspace tags:
+	// - Get workspace tags from the template version job
+	// - Get template version variables from the template version as they can be
+	//   referenced in workspace tags
+	// - Get parameters from the workspace build as they can also be referenced
+	//   in workspace tags
+	// - Evaluate workspace tags given the above inputs
 	workspaceTags, err := b.getTemplateVersionWorkspaceTags()
 	if err != nil {
 		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version workspace tags", err}
+	}
+	tvs, err := b.getTemplateVersionVariables()
+	if err != nil {
+		return nil, BuildError{http.StatusInternalServerError, "failed to fetch template version variables", err}
+	}
+	varsM := make(map[string]string)
+	for _, tv := range tvs {
+		// FIXME: do this in Terraform? This is a bit of a hack.
+		if tv.Value == "" {
+			varsM[tv.Name] = tv.DefaultValue
+		} else {
+			varsM[tv.Name] = tv.Value
+		}
 	}
 	parameterNames, parameterValues, err := b.getParameters()
 	if err != nil {
 		return nil, err // already wrapped BuildError
 	}
+	paramsM := make(map[string]string)
+	for i, name := range parameterNames {
+		paramsM[name] = parameterValues[i]
+	}
 
-	evalCtx := buildParametersEvalContext(parameterNames, parameterValues)
+	evalCtx := tfparse.BuildEvalContext(varsM, paramsM)
 	for _, workspaceTag := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
@@ -704,51 +741,13 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		}
 
 		// Do not use "val.AsString()" as it can panic
-		str, err := ctyValueString(val)
+		str, err := tfparse.CtyValueString(val)
 		if err != nil {
 			return nil, BuildError{http.StatusBadRequest, "failed to marshal cty.Value as string", err}
 		}
 		tags[workspaceTag.Key] = str
 	}
 	return tags, nil
-}
-
-func buildParametersEvalContext(names, values []string) *hcl.EvalContext {
-	m := map[string]cty.Value{}
-	for i, name := range names {
-		m[name] = cty.MapVal(map[string]cty.Value{
-			"value": cty.StringVal(values[i]),
-		})
-	}
-
-	if len(m) == 0 {
-		return nil // otherwise, panic: must not call MapVal with empty map
-	}
-
-	return &hcl.EvalContext{
-		Variables: map[string]cty.Value{
-			"data": cty.MapVal(map[string]cty.Value{
-				"coder_parameter": cty.MapVal(m),
-			}),
-		},
-	}
-}
-
-func ctyValueString(val cty.Value) (string, error) {
-	switch val.Type() {
-	case cty.Bool:
-		if val.True() {
-			return "true", nil
-		} else {
-			return "false", nil
-		}
-	case cty.Number:
-		return val.AsBigFloat().String(), nil
-	case cty.String:
-		return val.AsString(), nil
-	default:
-		return "", xerrors.Errorf("only primitive types are supported - bool, number, and string")
-	}
 }
 
 func (b *Builder) getTemplateVersionWorkspaceTags() ([]database.TemplateVersionWorkspaceTag, error) {

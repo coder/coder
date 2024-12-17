@@ -1,59 +1,73 @@
-import PauseIcon from "@mui/icons-material/PauseOutlined";
 import type { Meta, StoryObj } from "@storybook/react";
-import { Avatar, AvatarIcon } from "./Avatar";
+import { Avatar, AvatarFallback, AvatarImage } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {
 	title: "components/Avatar",
 	component: Avatar,
+	args: {
+		children: <AvatarImage src="https://github.com/kylecarbs.png" />,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof Avatar>;
 
-export const WithLetter: Story = {
+export const ImageLgSize: Story = {
+	args: { size: "lg" },
+};
+
+export const ImageDefaultSize: Story = {};
+
+export const ImageSmSize: Story = {
+	args: { size: "sm" },
+};
+
+export const IconLgSize: Story = {
 	args: {
-		children: "Coder",
+		size: "lg",
+		variant: "icon",
+		children: (
+			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
+		),
 	},
 };
 
-export const WithLetterXL = {
+export const IconDefaultSize: Story = {
 	args: {
-		children: "Coder",
-		size: "xl",
+		variant: "icon",
+		children: (
+			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
+		),
 	},
 };
 
-export const WithImage = {
+export const IconSmSize: Story = {
 	args: {
-		src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+		variant: "icon",
+		size: "sm",
+		children: (
+			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
+		),
 	},
 };
 
-export const WithImageXL = {
+export const FallbackLgSize: Story = {
 	args: {
-		src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
-		size: "xl",
+		size: "lg",
+
+		children: <AvatarFallback>AR</AvatarFallback>,
 	},
 };
 
-export const WithMuiIcon = {
+export const FallbackDefaultSize: Story = {
 	args: {
-		background: true,
-		children: <PauseIcon />,
+		children: <AvatarFallback>AR</AvatarFallback>,
 	},
 };
 
-export const WithMuiIconXL = {
+export const FallbackSmSize: Story = {
 	args: {
-		background: true,
-		children: <PauseIcon />,
-		size: "xl",
-	},
-};
-
-export const WithAvatarIcon = {
-	args: {
-		background: true,
-		children: <AvatarIcon src="/icon/database.svg" alt="Database" />,
+		size: "sm",
+		children: <AvatarFallback>AR</AvatarFallback>,
 	},
 };

@@ -115,6 +115,73 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectError: "",
 		},
 		{
+			name: "main.tf with parameter that has default value from dynamic value",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					variable "az" {
+						type    = string
+						default = "${""}${"a"}"
+					}
+					data "base" "ours" {
+						all = true
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = var.az
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectTags:  map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
+			expectError: "",
+		},
+		{
+			name: "main.tf with parameter that has default value from another parameter",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "base" "ours" {
+						all = true
+					}
+					data "coder_parameter" "az" {
+						type    = string
+						default = "${""}${"a"}"
+					}
+					data "coder_parameter" "az2" {
+					  name = "az"
+						type = "string"
+						default = data.coder_parameter.az.value
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform" = "kubernetes",
+							"cluster"  = "${"devel"}${"opers"}"
+							"region"   = var.region
+							"az"       = data.coder_parameter.az2.value
+						}
+					}`,
+			},
+			expectError: "Unknown variable; There is no variable named \"data\".",
+		},
+		{
 			name: "main.tf with multiple valid workspace tags",
 			files: map[string]string{
 				"main.tf": `

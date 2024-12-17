@@ -1,116 +1,94 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import MuiAvatar, {
-	type AvatarProps as MuiAvatarProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
-} from "@mui/material/Avatar";
-import { visuallyHidden } from "@mui/utils";
-import { type FC, useId } from "react";
-import { getExternalImageStylesFromUrl } from "theme/externalImages";
-
-export type AvatarProps = MuiAvatarProps & {
-	size?: "xs" | "sm" | "md" | "xl";
-	background?: boolean;
-	fitImage?: boolean;
-};
-
-const sizeStyles = {
-	xs: {
-		width: 16,
-		height: 16,
-		fontSize: 8,
-		fontWeight: 700,
-	},
-	sm: {
-		width: 24,
-		height: 24,
-		fontSize: 12,
-		fontWeight: 600,
-	},
-	md: {},
-	xl: {
-		width: 48,
-		height: 48,
-		fontSize: 24,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
-
-const fitImageStyles = css`
-  & .MuiAvatar-img {
-    object-fit: contain;
-  }
-`;
-
-export const Avatar: FC<AvatarProps> = ({
-	size = "md",
-	fitImage,
-	children,
-	background,
-	...muiProps
-}) => {
-	const fromName = !muiProps.src && typeof children === "string";
-
-	return (
-		<MuiAvatar
-			{...muiProps}
-			css={[
-				sizeStyles[size],
-				fitImage && fitImageStyles,
-				(theme) => ({
-					background:
-						background || fromName ? theme.palette.divider : undefined,
-					color: theme.palette.text.primary,
-				}),
-			]}
-		>
-			{typeof children === "string" ? firstLetter(children) : children}
-		</MuiAvatar>
-	);
-};
-
-export const ExternalAvatar: FC<AvatarProps> = (props) => {
-	const theme = useTheme();
-
-	return (
-		<Avatar
-			css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
-			{...props}
-		/>
-	);
-};
-
-type AvatarIconProps = {
-	src: string;
-	alt: string;
-};
-
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { type VariantProps, cva } from "class-variance-authority";
 /**
- * Use it to make an img element behaves like a MaterialUI Icon component
+ * Copied from shadc/ui on 12/16/2024
+ * @see {@link https://ui.shadcn.com/docs/components/avatar}
+ *
+ * This component was updated to support the variants and match the styles from
+ * the Figma design:
+ * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
  */
-export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
-	const hookId = useId();
-	const avatarId = `${hookId}-avatar`;
+import * as React from "react";
+import { cn } from "utils/cn";
 
-	// We use a `visuallyHidden` element instead of setting `alt` to avoid
-	// splatting the text out on the screen if the image fails to load.
-	return (
-		<>
-			<img
-				src={src}
-				alt=""
-				css={{ maxWidth: "50%" }}
-				aria-labelledby={avatarId}
-			/>
-			<div id={avatarId} css={{ ...visuallyHidden }}>
-				{alt}
-			</div>
-		</>
-	);
-};
+const avatarVariants = cva(
+	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
+	{
+		variants: {
+			size: {
+				lg: "h-10 w-10 rounded-[6px] text-sm font-medium",
+				default: "h-6 w-6 text-2xs",
+				sm: "h-[18px] w-[18px] text-[8px]",
+			},
+			variant: {
+				default: "",
+				icon: "",
+			},
+		},
+		defaultVariants: {
+			size: "default",
+		},
+		compoundVariants: [
+			{
+				size: "lg",
+				variant: "icon",
+				className: "p-[9px]",
+			},
+			{
+				size: "default",
+				variant: "icon",
+				className: "p-[3px]",
+			},
+			{
+				size: "sm",
+				variant: "icon",
+				className: "p-[2px]",
+			},
+		],
+	},
+);
 
-const firstLetter = (str: string): string => {
-	if (str.length > 0) {
-		return str[0].toLocaleUpperCase();
-	}
+export interface AvatarProps
+	extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
+		VariantProps<typeof avatarVariants> {}
 
-	return "";
-};
+const Avatar = React.forwardRef<
+	React.ElementRef<typeof AvatarPrimitive.Root>,
+	AvatarProps
+>(({ className, size, variant, ...props }, ref) => (
+	<AvatarPrimitive.Root
+		ref={ref}
+		className={cn(avatarVariants({ size, variant, className }))}
+		{...props}
+	/>
+));
+Avatar.displayName = AvatarPrimitive.Root.displayName;
+
+const AvatarImage = React.forwardRef<
+	React.ElementRef<typeof AvatarPrimitive.Image>,
+	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
+>(({ className, ...props }, ref) => (
+	<AvatarPrimitive.Image
+		ref={ref}
+		className={cn("aspect-square h-full w-full", className)}
+		{...props}
+	/>
+));
+AvatarImage.displayName = AvatarPrimitive.Image.displayName;
+
+const AvatarFallback = React.forwardRef<
+	React.ElementRef<typeof AvatarPrimitive.Fallback>,
+	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
+>(({ className, ...props }, ref) => (
+	<AvatarPrimitive.Fallback
+		ref={ref}
+		className={cn(
+			"flex h-full w-full items-center justify-center rounded-full",
+			className,
+		)}
+		{...props}
+	/>
+));
+AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
+
+export { Avatar, AvatarImage, AvatarFallback };

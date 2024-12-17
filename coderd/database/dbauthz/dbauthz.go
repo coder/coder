@@ -1568,6 +1568,10 @@ func (q *querier) GetDeploymentWorkspaceStats(ctx context.Context) (database.Get
 	return q.db.GetDeploymentWorkspaceStats(ctx)
 }
 
+func (q *querier) GetEligibleProvisionerDaemonsByProvisionerJobIDs(ctx context.Context, provisionerJobIds []uuid.UUID) ([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetEligibleProvisionerDaemonsByProvisionerJobIDs)(ctx, provisionerJobIds)
+}
+
 func (q *querier) GetExternalAuthLink(ctx context.Context, arg database.GetExternalAuthLinkParams) (database.ExternalAuthLink, error) {
 	return fetchWithAction(q.log, q.auth, policy.ActionReadPersonal, q.db.GetExternalAuthLink)(ctx, arg)
 }
@@ -4136,6 +4140,17 @@ func (q *querier) UpdateWorkspacesDormantDeletingAtByTemplateID(ctx context.Cont
 		return nil, err
 	}
 	return q.db.UpdateWorkspacesDormantDeletingAtByTemplateID(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspacesTTLByTemplateID(ctx context.Context, arg database.UpdateWorkspacesTTLByTemplateIDParams) error {
+	template, err := q.db.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return xerrors.Errorf("get template by id: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, template); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspacesTTLByTemplateID(ctx, arg)
 }
 
 func (q *querier) UpsertAnnouncementBanners(ctx context.Context, value string) error {

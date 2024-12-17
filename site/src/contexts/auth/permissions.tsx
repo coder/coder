@@ -21,6 +21,7 @@ export const checks = {
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
 	viewNotificationTemplate: "viewNotificationTemplate",
+	viewOrganizationIDPSyncSettings: "viewOrganizationIDPSyncSettings",
 } as const satisfies Record<string, string>;
 
 // Type expression seems a little redundant (`keyof typeof checks` has the same
@@ -149,6 +150,12 @@ export const permissionsToCheck = {
 	[checks.viewNotificationTemplate]: {
 		object: {
 			resource_type: "notification_template",
+		},
+		action: "read",
+	},
+	[checks.viewOrganizationIDPSyncSettings]: {
+		object: {
+			resource_type: "idpsync_settings",
 		},
 		action: "read",
 	},

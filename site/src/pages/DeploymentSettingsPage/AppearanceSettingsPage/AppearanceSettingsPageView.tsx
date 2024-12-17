@@ -8,12 +8,12 @@ import {
 	PremiumBadge,
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";

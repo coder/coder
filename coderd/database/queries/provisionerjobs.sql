@@ -50,23 +50,29 @@ WHERE
 	id = ANY(@ids :: uuid [ ]);
 
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH unstarted_jobs AS (
+WITH pending_jobs AS (
     SELECT
         id, created_at
     FROM
         provisioner_jobs
     WHERE
         started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
 ),
 queue_position AS (
     SELECT
         id,
         ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
     FROM
-        unstarted_jobs
+        pending_jobs
 ),
 queue_size AS (
-	SELECT COUNT(*) as count FROM unstarted_jobs
+	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
 	sqlc.embed(pj),

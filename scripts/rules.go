@@ -503,7 +503,7 @@ func noExecInAgent(m dsl.Matcher) {
 				!m.File().PkgPath.Matches("/agentexec") &&
 				!m.File().Name.Matches(`_test\.go$`),
 		).
-		Report("The agent and its subpackages should not use exec.Command or exec.CommandContext directly. Consider using agentexec.CommandContext instead.")
+		Report("The agent and its subpackages should not use exec.Command or exec.CommandContext directly. Consider using an agentexec.Execer instead.")
 }
 
 // noPTYInAgent ensures that packages under agent/ don't use pty.Command or
@@ -521,5 +521,5 @@ func noPTYInAgent(m dsl.Matcher) {
 				!m.File().PkgPath.Matches(`/agentexec`) &&
 				!m.File().Name.Matches(`_test\.go$`),
 		).
-		Report("The agent and its subpackages should not use pty.Command or pty.CommandContext directly. Consider using agentexec.PTYCommandContext instead.")
+		Report("The agent and its subpackages should not use pty.Command or pty.CommandContext directly. Consider using an agentexec.Execer instead.")
 }

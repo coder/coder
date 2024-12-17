@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@b74202f74b4346efdbce7801d187ec57b266bac8 # v1.27.3
+        uses: crate-ci/typos@d1c850b2b5d502763520c25fb4a6a1128ad99bd9 # v1.28.3
         with:
           config: .github/workflows/typos.toml
 
@@ -540,7 +540,7 @@ jobs:
     timeout-minutes: 25
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
         with:
           egress-policy: audit
 
@@ -630,11 +630,8 @@ jobs:
         working-directory: site
 
   test-e2e:
-    # test-e2e fails on 2-core 8GB runners, so we use the 4-core 16GB runner
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     needs: changes
-    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
-    timeout-minutes: 20
     strategy:
       fail-fast: false
       matrix:
@@ -643,6 +640,9 @@ jobs:
             name: test-e2e
           - premium: true
             name: test-e2e-premium
+    # Skip test-e2e on forks as they don't have access to CI secrets
+    if: (needs.changes.outputs.go == 'true' || needs.changes.outputs.ts == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main') && !(github.event.pull_request.head.repo.fork)
+    timeout-minutes: 20
     name: ${{ matrix.variant.name }}
     steps:
       - name: Harden Runner
@@ -666,6 +666,8 @@ jobs:
         name: make gen
 
       - run: pnpm build
+        env:
+          NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
         working-directory: site
 
       - run: pnpm playwright:install
@@ -747,7 +749,7 @@ jobs:
           # Prevent excessive build runs on minor version changes
           skip: "@(renovate/**|dependabot/**)"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
           # Avoid uploading single files, because that's very slow
           zip: true
@@ -774,7 +776,7 @@ jobs:
           workingDir: "./site"
           storybookBaseDir: "./site"
           # Run TurboSnap to trace file dependencies to related stories
-          # and tell chromatic to only take snapshots of relevent stories
+          # and tell chromatic to only take snapshots of relevant stories
           onlyChanged: true
           # Avoid uploading single files, because that's very slow
           zip: true
@@ -893,7 +895,7 @@ jobs:
     needs: changes
     # We always build the dylibs on Go changes to verify we're not merging unbuildable code,
     # but they need only be signed and uploaded on coder/coder main.
-    if: needs.changes.outputs.docs-only == 'false' || github.ref == 'refs/heads/main'
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-macos-latest' || 'macos-latest' }}
     steps:
       - name: Harden Runner
@@ -974,7 +976,7 @@ jobs:
       - changes
       - build-dylib
     if: github.ref == 'refs/heads/main' && needs.changes.outputs.docs-only == 'false' && !github.event.pull_request.head.repo.fork
-    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-22.04' }}
     permissions:
       packages: write # Needed to push images to ghcr.io
     env:
@@ -1144,7 +1146,7 @@ jobs:
           version: "2.2.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@206d64b64b0eba0a6e2f25113d044c31776ca8d6 # v2.2.2
+        uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
         with:
           cluster_name: dogfood-v2
           location: us-central1-a

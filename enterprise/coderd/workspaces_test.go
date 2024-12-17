@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -23,6 +25,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbfake"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	agplschedule "github.com/coder/coder/v2/coderd/schedule"
@@ -35,6 +38,7 @@ import (
 	"github.com/coder/coder/v2/enterprise/coderd/license"
 	"github.com/coder/coder/v2/enterprise/coderd/schedule"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
 )
@@ -1117,9 +1121,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			clock   = quartz.NewMock(t)
 		)
 
-		// Set the clock to 8AM Monday, 1st January, 2024 to keep
-		// this test deterministic.
-		clock.Set(time.Date(2024, 1, 1, 8, 0, 0, 0, time.UTC))
+		clock.Set(dbtime.Now())
 
 		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
 		client, user := coderdenttest.New(t, &coderdenttest.Options{
@@ -1129,7 +1131,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 				AutobuildStats:           statsCh,
 				Logger:                   &logger,
 				Clock:                    clock,
-				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+				TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, clock),
 			},
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{codersdk.FeatureAdvancedTemplateScheduling: 1},
@@ -1185,7 +1187,7 @@ func TestWorkspaceAutobuild(t *testing.T) {
 			}
 
 			// Ensure that there is a valid next start at and that is is after
-			// the preivous start.
+			// the previous start.
 			require.NotNil(t, ws.NextStartAt)
 			require.Greater(t, *ws.NextStartAt, next)
 
@@ -1418,6 +1420,182 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 
 		require.ErrorContains(t, err, "template does not allow user autostop")
 	})
+}
+
+// TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
+// This is an end-to-end-style test, meaning that we actually run the
+// real Terraform provisioner and validate that the workspace is created
+// successfully. The workspace itself does not specify any resources, and
+// this is fine.
+func TestWorkspaceTagsTerraform(t *testing.T) {
+	t.Parallel()
+
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+		%s
+	`
+
+	for _, tc := range []struct {
+		name string
+		// tags to apply to the external provisioner
+		provisionerTags map[string]string
+		// tags to apply to the create template version request
+		createTemplateVersionRequestTags map[string]string
+		// the coder_workspace_tags bit of main.tf.
+		// you can add more stuff here if you need
+		tfWorkspaceTags string
+	}{
+		{
+			name:            "no tags",
+			tfWorkspaceTags: ``,
+		},
+		{
+			name: "empty tags",
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}
+			`,
+		},
+		{
+			name:            "static tag",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
+		{
+			name:            "tag variable",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = var.foo
+					}
+				}`,
+		},
+		{
+			name:            "tag param",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:            "tag param with default from var",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					type = string
+					default = "bar"
+				}
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = var.foo
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:                             "override no tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags:                  ``,
+		},
+		{
+			name:                             "override empty tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}`,
+		},
+		{
+			name:                             "does not override static tag",
+			provisionerTags:                  map[string]string{"foo": "bar"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+			client, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					// We intentionally do not run a built-in provisioner daemon here.
+					IncludeProvisionerDaemon: false,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+			})
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+
+			// Creating a template as a template admin must succeed
+			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
+			tarBytes := testutil.CreateTar(t, templateFiles)
+			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+			require.NoError(t, err, "failed to upload file")
+			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:            testutil.GetRandomName(t),
+				FileID:          fi.ID,
+				StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+				Provisioner:     codersdk.ProvisionerTypeTerraform,
+				ProvisionerTags: tc.createTemplateVersionRequestTags,
+			})
+			require.NoError(t, err, "failed to create template version")
+			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+			// Creating a workspace as a non-privileged user must succeed
+			ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+				TemplateID: tpl.ID,
+				Name:       coderdtest.RandomUsername(t),
+			})
+			require.NoError(t, err, "failed to create workspace")
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+		})
+	}
 }
 
 // Blocked by autostart requirements
@@ -1764,6 +1942,214 @@ func TestAdminViewAllWorkspaces(t *testing.T) {
 	memberViewWorkspaces, err := memberView.Workspaces(ctx, codersdk.WorkspaceFilter{})
 	require.NoError(t, err, "(member) fetch workspaces")
 	require.Equal(t, 0, len(memberViewWorkspaces.Workspaces), "member in other org should see 0 workspaces")
+}
+
+func TestWorkspaceByOwnerAndName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("Matching Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		_ = coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		// Pending builds should show matching provisioners
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 1)
+
+		// Completed builds should not show matching provisioners, because no provisioner daemon can
+		// be eligible to process a job that is already completed.
+		completedBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		require.Equal(t, completedBuild.Status, codersdk.WorkspaceStatusRunning)
+		require.Equal(t, completedBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, completedBuild.MatchedProvisioners.Available, 0)
+
+		ws, err := client.WorkspaceByOwnerAndName(ctx, username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+
+		// Verify the workspace details
+		require.Equal(t, workspace.ID, ws.ID)
+		require.Equal(t, workspace.Name, ws.Name)
+		require.Equal(t, workspace.TemplateID, ws.TemplateID)
+		require.Equal(t, completedBuild.Status, ws.LatestBuild.Status)
+		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, ws.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// Verify that the provisioner daemon is registered in the database
+		//nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, 1, len(daemons))
+		require.Equal(t, provisionersdk.ScopeOrganization, daemons[0].Tags[provisionersdk.TagScope])
+	})
+
+	t.Run("No Matching Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		closer := coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		// nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, len(daemons), 1)
+
+		// Simulate a provisioner daemon failure:
+		err = closer.Close()
+		require.NoError(t, err)
+
+		// Simulate it's subsequent deletion from the database:
+
+		// nolint:gocritic // unit testing
+		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+			Name:           daemons[0].Name,
+			OrganizationID: daemons[0].OrganizationID,
+			Tags:           daemons[0].Tags,
+			Provisioners:   daemons[0].Provisioners,
+			Version:        daemons[0].Version,
+			APIVersion:     daemons[0].APIVersion,
+			KeyID:          daemons[0].KeyID,
+			// Simulate the passing of time such that the provisioner daemon is considered stale
+			// and will be deleted:
+			CreatedAt: time.Now().Add(-time.Hour * 24 * 8),
+			LastSeenAt: sql.NullTime{
+				Time:  time.Now().Add(-time.Hour * 24 * 8),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+		// nolint:gocritic // unit testing
+		err = db.DeleteOldProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+
+		// Create a workspace that will not be able to provision due to a lack of provisioner daemons:
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// nolint:gocritic // unit testing
+		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 0)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+	})
+
+	t.Run("Unavailable Provisioner", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		client, db, userResponse := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureExternalProvisionerDaemons: 1,
+				},
+			},
+		})
+		userSubject, _, err := httpmw.UserRBACSubject(ctx, db, userResponse.UserID, rbac.ExpandableScope(rbac.ScopeAll))
+		require.NoError(t, err)
+		user, err := client.User(ctx, userSubject.ID)
+		require.NoError(t, err)
+		username := user.Username
+
+		closer := coderdenttest.NewExternalProvisionerDaemon(t, client, userResponse.OrganizationID, map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+
+		version := coderdtest.CreateTemplateVersion(t, client, userResponse.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, userResponse.OrganizationID, version.ID)
+
+		// nolint:gocritic // unit testing
+		daemons, err := db.GetProvisionerDaemons(dbauthz.AsSystemRestricted(ctx))
+		require.NoError(t, err)
+		require.Equal(t, len(daemons), 1)
+
+		// Simulate a provisioner daemon failure:
+		err = closer.Close()
+		require.NoError(t, err)
+
+		// nolint:gocritic // unit testing
+		_, err = db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+			Name:           daemons[0].Name,
+			OrganizationID: daemons[0].OrganizationID,
+			Tags:           daemons[0].Tags,
+			Provisioners:   daemons[0].Provisioners,
+			Version:        daemons[0].Version,
+			APIVersion:     daemons[0].APIVersion,
+			KeyID:          daemons[0].KeyID,
+			// Simulate the passing of time such that the provisioner daemon, though not stale, has been
+			// has been inactive for a while:
+			CreatedAt: time.Now().Add(-time.Hour * 24 * 2),
+			LastSeenAt: sql.NullTime{
+				Time:  time.Now().Add(-time.Hour * 24 * 2),
+				Valid: true,
+			},
+		})
+		require.NoError(t, err)
+
+		// Create a workspace that will not be able to provision due to a lack of provisioner daemons:
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+
+		// nolint:gocritic // unit testing
+		_, err = client.WorkspaceByOwnerAndName(dbauthz.As(ctx, userSubject), username, workspace.Name, codersdk.WorkspaceOptions{})
+		require.NoError(t, err)
+		require.Equal(t, workspace.LatestBuild.Status, codersdk.WorkspaceStatusPending)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Count, 1)
+		require.Equal(t, workspace.LatestBuild.MatchedProvisioners.Available, 0)
+	})
 }
 
 func must[T any](value T, err error) T {

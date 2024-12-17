@@ -712,6 +712,24 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getOrganizationIdpSyncSettings =
+		async (): Promise<TypesGen.OrganizationSyncSettings> => {
+			const response = await this.axios.get<TypesGen.OrganizationSyncSettings>(
+				"/api/v2/settings/idpsync/organization",
+			);
+			return response.data;
+		};
+
+	patchOrganizationIdpSyncSettings = async (
+		data: TypesGen.OrganizationSyncSettings,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			"/api/v2/settings/idpsync/organization",
+			data,
+		);
+		return response.data;
+	};
+
 	/**
 	 * @param organization Can be the organization's ID or name
 	 */
@@ -1720,15 +1738,20 @@ class ApiMethods {
 			name: "",
 			add_users: [userId],
 			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 
 	removeMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
-			display_name: "",
 			add_users: [],
 			remove_users: [userId],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 
