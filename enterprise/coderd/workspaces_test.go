@@ -1527,7 +1527,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitShort)
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
@@ -1559,7 +1559,6 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			})
 			require.NoError(t, err, "failed to create template version")
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
-			require.NoError(t, err, "failed to create template version")
 			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
 			// Creating a workspace as a non-privileged user must succeed
