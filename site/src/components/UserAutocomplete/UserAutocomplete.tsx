@@ -6,7 +6,7 @@ import { getErrorMessage } from "api/errors";
 import { organizationMembers } from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { useDebouncedFunction } from "hooks/debounce";
 import {

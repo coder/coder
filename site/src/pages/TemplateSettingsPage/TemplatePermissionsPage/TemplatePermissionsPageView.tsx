@@ -17,7 +17,7 @@ import type {
 	TemplateRole,
 	TemplateUser,
 } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
