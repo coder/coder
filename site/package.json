@@ -50,6 +50,7 @@
 		"@mui/system": "5.16.7",
 		"@mui/utils": "5.16.6",
 		"@mui/x-tree-view": "7.18.0",
+		"@radix-ui/react-avatar": "1.1.2",
 		"@radix-ui/react-dialog": "1.1.2",
 		"@radix-ui/react-label": "2.1.0",
 		"@radix-ui/react-slider": "1.2.1",

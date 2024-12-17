@@ -111,12 +111,13 @@ export const Workspace: FC<WorkspaceProps> = ({
 	);
 
 	const workspaceRunning = workspace.latest_build.status === "running";
+	const workspacePending = workspace.latest_build.status === "pending";
 	const haveBuildLogs = (buildLogs ?? []).length > 0;
+	const shouldShowBuildLogs = haveBuildLogs && !workspaceRunning;
 	const provisionersHealthy =
-		(workspace.latest_build.matched_provisioners?.available ?? 0) > 0;
-	const shouldDisplayBuildLogs = haveBuildLogs && !workspaceRunning;
+		(workspace.latest_build.matched_provisioners?.available ?? 1) > 0;
 	const shouldShowProvisionerAlert =
-		!workspaceRunning && !haveBuildLogs && !provisionersHealthy;
+		workspacePending && !haveBuildLogs && !provisionersHealthy && !isRestarting;
 
 	return (
 		<div
@@ -244,7 +245,7 @@ export const Workspace: FC<WorkspaceProps> = ({
 						/>
 					)}
 
-					{shouldDisplayBuildLogs && (
+					{shouldShowBuildLogs && (
 						<WorkspaceBuildLogsSection logs={buildLogs} />
 					)}
 

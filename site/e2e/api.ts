@@ -28,7 +28,7 @@ export const getCurrentOrgId = async (): Promise<string> => {
 	return currentOrgId;
 };
 
-export const createUser = async (orgId: string) => {
+export const createUser = async (...orgIds: string[]) => {
 	const name = randomName();
 	const user = await API.createUser({
 		email: `${name}@coder.com`,
@@ -36,7 +36,7 @@ export const createUser = async (orgId: string) => {
 		name: name,
 		password: "s3cure&password!",
 		login_type: "password",
-		organization_ids: [orgId],
+		organization_ids: orgIds,
 		user_status: null,
 	});
 	return user;
@@ -91,6 +91,43 @@ export const createOrganizationSyncSettings = async () => {
 		organization_assign_default: true,
 	});
 	return settings;
+};
+
+export const createCustomRole = async (
+	orgId: string,
+	name: string,
+	displayName: string,
+) => {
+	const role = await API.createOrganizationRole(orgId, {
+		name,
+		display_name: displayName,
+		organization_id: orgId,
+		site_permissions: [],
+		organization_permissions: [
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "create",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "delete",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "read",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "update",
+			},
+		],
+		user_permissions: [],
+	});
+	return role;
 };
 
 export async function verifyConfigFlagBoolean(

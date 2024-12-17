@@ -1,19 +1,20 @@
 # Secrets
 
-<blockquote class="admonition note">
+Coder is open-minded about how you get your secrets into your workspaces. For
+more information about how to use secrets and other security tips, visit our
+guide to
+[security best practices](../../tutorials/best-practices/security-best-practices.md#secrets).
 
 This article explains how to use secrets in a workspace. To authenticate the
-workspace provisioner, see the [provisioners](../provisioners.md) documentation.
-
-</blockquote>
-
-Coder is open-minded about how you get your secrets into your workspaces.
+workspace provisioner, see the
+<a href="../provisioners.md#authentication">provisioners documentation</a>.
 
 ## Before you begin
 
-Your first attempt at secrets with Coder should be your local method. You can do
-everything you can locally and more with your Coder workspace, so whatever
-workflow and tools you already use to manage secrets may be brought over.
+Your first attempt to use secrets with Coder should be your local method. You
+can do everything you can locally and more with your Coder workspace, so
+whatever workflow and tools you already use to manage secrets may be brought
+over.
 
 Often, this workflow is simply:
 
@@ -113,3 +114,7 @@ workspace.
 
 Refer to our [HashiCorp Vault Integration](../integrations/vault.md) guide for
 more information on how to integrate HashiCorp Vault with Coder.
+
+## Next steps
+
+- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)

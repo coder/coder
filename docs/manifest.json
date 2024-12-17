@@ -762,6 +762,11 @@
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
 						{
+							"title": "Security - best practices",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
+						},
+						{
 							"title": "Organizations - best practices",
 							"description": "How to make the best use of Coder Organizations",
 							"path": "./tutorials/best-practices/organizations.md"
