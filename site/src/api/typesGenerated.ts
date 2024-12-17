@@ -526,10 +526,8 @@ export interface DERPNodeReport {
 	readonly severity: HealthSeverity;
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
-	// external type "tailscale.com/tailcfg.DERPNode", to include this type the package must be explicitly included in the parsing
-	readonly node: unknown | null;
-	// external type "tailscale.com/derp.ServerInfoMessage", to include this type the package must be explicitly included in the parsing
-	readonly node_info: unknown;
+	readonly node: TailDERPNode | null;
+	readonly node_info: ServerInfoMessage;
 	readonly can_exchange_messages: boolean;
 	readonly round_trip_ping: string;
 	readonly round_trip_ping_ms: number;
@@ -562,8 +560,7 @@ export interface DERPRegionReport {
 	readonly severity: HealthSeverity;
 	readonly warnings: readonly HealthMessage[];
 	readonly error?: string;
-	// external type "tailscale.com/tailcfg.DERPRegion", to include this type the package must be explicitly included in the parsing
-	readonly region: unknown | null;
+	readonly region: TailDERPRegion | null;
 	readonly node_reports: readonly (DERPNodeReport | null)[];
 >>>>>>> d41669774 (chore: remove apitypings specific go.mod)
 }
@@ -1692,6 +1689,12 @@ export type SerpentStruct<T> = T;
 // From serpent/option.go
 export type SerpentValueSource = string;
 
+// From derp/derp_client.go
+export interface ServerInfoMessage {
+	readonly TokenBucketBytesPerSecond: number;
+	readonly TokenBucketBytesBurst: number;
+}
+
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
     readonly type: ServerSentEventType;
@@ -1773,6 +1776,33 @@ export interface TLSConfig {
     readonly client_key_file: string;
     readonly supported_ciphers: string;
     readonly allow_insecure_ciphers: boolean;
+}
+
+// From tailcfg/derpmap.go
+export interface TailDERPNode {
+	readonly Name: string;
+	readonly RegionID: number;
+	readonly HostName: string;
+	readonly CertName?: string;
+	readonly IPv4?: string;
+	readonly IPv6?: string;
+	readonly STUNPort?: number;
+	readonly STUNOnly?: boolean;
+	readonly DERPPort?: number;
+	readonly InsecureForTests?: boolean;
+	readonly ForceHTTP?: boolean;
+	readonly STUNTestIP?: string;
+	readonly CanPort80?: boolean;
+}
+
+// From tailcfg/derpmap.go
+export interface TailDERPRegion {
+	readonly EmbeddedRelay: boolean;
+	readonly RegionID: number;
+	readonly RegionCode: string;
+	readonly RegionName: string;
+	readonly Avoid?: boolean;
+	readonly Nodes: readonly (TailDERPNode | null)[];
 }
 
 // From codersdk/deployment.go

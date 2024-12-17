@@ -31,6 +31,9 @@ func main() {
 	// We want the referenced types generated.
 	referencePackages := map[string]string{
 		"github.com/coder/serpent": "Serpent",
+		"tailscale.com/derp":       "",
+		// Conflicting name "DERPRegion"
+		"tailscale.com/tailcfg": "Tail",
 	}
 	for pkg, prefix := range referencePackages {
 		err = gen.IncludeReference(pkg, prefix)
