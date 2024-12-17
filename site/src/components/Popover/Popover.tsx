@@ -171,7 +171,6 @@ export const PopoverContent: FC<PopoverContentProps> = ({
 
 	return (
 		<MuiPopover
-			disablePortal
 			css={{
 				// When it is on hover mode, and the mode is moving from the trigger to
 				// the popover, if there is any space, the popover will be closed. I
