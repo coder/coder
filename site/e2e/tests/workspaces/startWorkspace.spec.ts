@@ -7,11 +7,15 @@ import {
 	stopWorkspace,
 	verifyParameters,
 } from "../../helpers";
-import { beforeCoderTest } from "../../hooks";
 import { firstBuildOption, secondBuildOption } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("start workspace with ephemeral parameters", async ({ page }) => {
 	const richParameters: RichParameter[] = [firstBuildOption, secondBuildOption];

@@ -1,8 +1,16 @@
 import { expect, test } from "@playwright/test";
-import { createTemplate, createWorkspace, requiresLicense } from "../helpers";
+import {
+	createTemplate,
+	createWorkspace,
+	login,
+	requiresLicense,
+} from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("inspecting and filtering audit logs", async ({ page }) => {
 	requiresLicense();

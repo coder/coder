@@ -20,8 +20,12 @@ import {
 	thirdParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+import { login } from "../../helpers";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("create workspace", async ({ page }) => {
 	const template = await createTemplate(page, {

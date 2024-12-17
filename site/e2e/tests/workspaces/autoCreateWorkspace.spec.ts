@@ -7,6 +7,13 @@ import {
 } from "../../helpers";
 import { emptyParameter } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("create workspace in auto mode", async ({ page }) => {
 	const richParameters: RichParameter[] = [

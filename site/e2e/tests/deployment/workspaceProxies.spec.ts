@@ -4,6 +4,13 @@ import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
 import { randomName, requiresLicense } from "../../helpers";
 import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
+import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("default proxy is online", async ({ page }) => {
 	requiresLicense();

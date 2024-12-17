@@ -1,10 +1,16 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
-import { createOrganization, createUser, requiresLicense } from "../helpers";
+import {
+	createOrganization,
+	createUser,
+	login,
+	requiresLicense,
+} from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
-	await beforeCoderTest(page);
+	beforeCoderTest(page);
+	await login(page);
 	await setupApiCalls(page);
 });
 

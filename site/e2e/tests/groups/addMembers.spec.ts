@@ -7,12 +7,17 @@ import {
 } from "../../api";
 import { requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("add members", async ({ page, baseURL }) => {
 	requiresLicense();
-	await setupApiCalls(page);
+
 	const orgId = await getCurrentOrgId();
 	const group = await createGroup(orgId);
 	const numberOfMembers = 3;

@@ -1,6 +1,5 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -19,7 +18,9 @@ import {
 	coderMain,
 	coderPort,
 	defaultOrganizationName,
+	email,
 	license,
+	password,
 	premiumTestsRequired,
 	prometheusPort,
 	requireTerraformTests,
@@ -58,6 +59,17 @@ export function requiresUnlicensed() {
  */
 export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
+}
+
+type LoginOptions = {
+	email: string;
+	password: string;
+};
+
+export async function login(page: Page, options?: LoginOptions) {
+	await page.getByLabel("Email").fill(options?.email || email);
+	await page.getByLabel("Password").fill(options?.password || password);
+	await page.getByRole("button", { name: "Sign In" }).click();
 }
 
 /**

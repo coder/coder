@@ -8,12 +8,17 @@ import {
 } from "../../api";
 import { requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("remove member", async ({ page, baseURL }) => {
 	requiresLicense();
-	await setupApiCalls(page);
+
 	const orgId = await getCurrentOrgId();
 	const [group, member] = await Promise.all([
 		createGroup(orgId),

@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
-import { requiresLicense } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
+import { login, requiresLicense } from "../../helpers";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("license was added successfully", async ({ page }) => {
 	requiresLicense();

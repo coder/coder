@@ -7,13 +7,17 @@ import {
 } from "../../api";
 import { randomName, requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test.describe("IdpOrgSyncPage", () => {
-	test.beforeEach(async ({ page }) => await beforeCoderTest(page));
-
 	test("add new IdP organization mapping with API", async ({ page }) => {
 		requiresLicense();
-		await setupApiCalls(page);
 
 		await createOrganizationSyncSettings();
 
@@ -38,7 +42,6 @@ test.describe("IdpOrgSyncPage", () => {
 
 	test("delete a IdP org to coder org mapping row", async ({ page }) => {
 		requiresLicense();
-		await setupApiCalls(page);
 		await createOrganizationSyncSettings();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -106,7 +109,6 @@ test.describe("IdpOrgSyncPage", () => {
 		page,
 	}) => {
 		requiresLicense();
-		await setupApiCalls(page);
 
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
@@ -121,7 +123,6 @@ test.describe("IdpOrgSyncPage", () => {
 
 	test("add new IdP organization mapping with UI", async ({ page }) => {
 		requiresLicense();
-		await setupApiCalls(page);
 
 		const orgName = randomName();
 

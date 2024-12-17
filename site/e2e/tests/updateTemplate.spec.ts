@@ -8,8 +8,12 @@ import {
 	updateTemplateSettings,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { login } from "../helpers";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("template update with new name redirects on successful submit", async ({
 	page,

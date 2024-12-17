@@ -8,7 +8,6 @@ import {
 	updateWorkspaceParameters,
 	verifyParameters,
 } from "../../helpers";
-import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,
 	firstParameter,
@@ -17,8 +16,13 @@ import {
 	sixthParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("update workspace, new optional, immutable parameter added", async ({
 	page,

@@ -2,8 +2,12 @@ import { expect, test } from "@playwright/test";
 import { createUser, getCurrentOrgId, setupApiCalls } from "../../api";
 import { requiresLicense } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 const DEFAULT_GROUP_NAME = "Everyone";
 

@@ -5,7 +5,7 @@ import { randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
-	await beforeCoderTest(page);
+	beforeCoderTest(page);
 	await setupApiCalls(page);
 });
 

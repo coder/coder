@@ -8,9 +8,16 @@ import {
 	verifyConfigFlagNumber,
 	verifyConfigFlagString,
 } from "../../api";
+import { beforeCoderTest } from "../../hooks";
+import { login } from "../../helpers";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("enabled security settings", async ({ page }) => {
-	await setupApiCalls(page);
 	const config = await API.getDeploymentConfig();
 
 	await page.goto("/deployment/security", { waitUntil: "domcontentloaded" });
