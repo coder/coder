@@ -3,7 +3,7 @@ import { useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type { WorkspaceBuild } from "api/typesGenerated";
 import { BuildIcon } from "components/BuildIcon/BuildIcon";
-import { Avatar, type AvatarProps } from "components/deprecated/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 import { useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 import { getDisplayWorkspaceBuildStatus } from "utils/workspace";
@@ -31,8 +31,8 @@ export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
 			badgeContent={<div></div>}
 			classes={{ badge: cx(classNames.badge, badgeType) }}
 		>
-			<Avatar background size={size}>
-				<BuildIcon transition={build.transition} />
+			<Avatar size={size}>
+				<BuildIcon transition={build.transition} className="w-full h-full" />
 			</Avatar>
 		</Badge>
 	);
@@ -46,5 +46,7 @@ const classNames = {
 		height: 8,
 		display: "block",
 		padding: 0,
+		right: 0,
+		bottom: 0,
 	}),
 };
