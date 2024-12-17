@@ -21,7 +21,7 @@ import {
 
 type TriggerMode = "hover" | "click";
 
-type TriggerRef = RefObject<HTMLElement>;
+type TriggerRef = RefObject<HTMLElement | null>;
 
 // Have to append ReactNode type to satisfy React's cloneElement function. It
 // has absolutely no bearing on what happens at runtime
@@ -146,6 +146,7 @@ export const PopoverTrigger: FC<PopoverTriggerProps> = (props) => {
 	return cloneElement(evaluatedChildren, {
 		...elementProps,
 		...(popover.mode === "click" ? clickProps : hoverProps),
+		// @ts-expect-error – maybe removed from types?
 		"aria-haspopup": true,
 		"aria-owns": popover.id,
 		"aria-expanded": popover.open,
