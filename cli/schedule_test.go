@@ -347,7 +347,7 @@ func TestScheduleOverride(t *testing.T) {
 
 	// When: we override the stop schedule
 	inv, root := clitest.New(t,
-		"schedule", "override-stop", ws[0].OwnerName+"/"+ws[0].Name, "10h",
+		"schedule", "extend", ws[0].OwnerName+"/"+ws[0].Name, "10h",
 	)
 
 	clitest.SetupConfig(t, ownerClient, root)
