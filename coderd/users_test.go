@@ -1530,7 +1530,8 @@ func TestUsersFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		sdkUser1 := db2sdk.User(user1, []uuid.UUID{})
+		// The expected timestamps must be parsed from strings to compare equal during `ElementsMatch`
+		sdkUser1 := db2sdk.User(user1, nil)
 		sdkUser1.CreatedAt, err = time.Parse(time.RFC3339, sdkUser1.CreatedAt.Format(time.RFC3339))
 		require.NoError(t, err)
 		sdkUser1.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser1.UpdatedAt.Format(time.RFC3339))
@@ -1551,7 +1552,7 @@ func TestUsersFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		sdkUser2 := db2sdk.User(user2, []uuid.UUID{})
+		sdkUser2 := db2sdk.User(user2, nil)
 		sdkUser2.CreatedAt, err = time.Parse(time.RFC3339, sdkUser2.CreatedAt.Format(time.RFC3339))
 		require.NoError(t, err)
 		sdkUser2.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser2.UpdatedAt.Format(time.RFC3339))
@@ -1572,7 +1573,7 @@ func TestUsersFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		sdkUser3 := db2sdk.User(user3, []uuid.UUID{})
+		sdkUser3 := db2sdk.User(user3, nil)
 		sdkUser3.CreatedAt, err = time.Parse(time.RFC3339, sdkUser3.CreatedAt.Format(time.RFC3339))
 		require.NoError(t, err)
 		sdkUser3.UpdatedAt, err = time.Parse(time.RFC3339, sdkUser3.UpdatedAt.Format(time.RFC3339))
