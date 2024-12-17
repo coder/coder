@@ -51,6 +51,13 @@ export const IconSmSize: Story = {
 	},
 };
 
+export const NonSquaredIcon: Story = {
+	args: {
+		variant: "icon",
+		children: <AvatarImage src="/icon/docker.png" />,
+	},
+};
+
 export const FallbackLgSize: Story = {
 	args: {
 		size: "lg",
