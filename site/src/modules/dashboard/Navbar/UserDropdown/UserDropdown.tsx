@@ -7,7 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";

@@ -6,7 +6,7 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { useFilterMenu } from "components/Filter/menu";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 interface TemplatesFilterProps {

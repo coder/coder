@@ -13,8 +13,8 @@ import {
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 interface SidebarProps {

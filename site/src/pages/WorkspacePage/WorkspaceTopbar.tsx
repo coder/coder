@@ -17,10 +17,10 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import type { FC } from "react";
 import { useQuery } from "react-query";

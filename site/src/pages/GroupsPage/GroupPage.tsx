@@ -45,7 +45,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";

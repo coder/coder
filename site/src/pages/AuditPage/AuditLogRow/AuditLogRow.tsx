@@ -9,7 +9,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";

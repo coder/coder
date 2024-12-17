@@ -4,8 +4,8 @@ import {
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
 
