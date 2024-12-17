@@ -1,3 +1,5 @@
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { type VariantProps, cva } from "class-variance-authority";
 /**
  * Copied from shadc/ui on 12/16/2024
  * @see {@link https://ui.shadcn.com/docs/components/avatar}
@@ -7,9 +9,7 @@
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
  */
 import * as React from "react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
 import { cn } from "utils/cn";
-import { cva, type VariantProps } from "class-variance-authority";
 
 const avatarVariants = cva(
 	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
