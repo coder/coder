@@ -94,7 +94,7 @@ resource "helm_release" "coder_primary" {
   })]
 }
 
-resource "helm_release" "provisionerd_chart" {
+resource "helm_release" "provisionerd_primary" {
   provider = helm.primary
 
   repository = local.coder_helm_repo
@@ -123,4 +123,6 @@ resource "helm_release" "provisionerd_chart" {
     mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
     deployment       = "primary",
   })]
+
+  depends_on = [ null_resource.license ]
 }

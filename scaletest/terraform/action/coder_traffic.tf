@@ -1,8 +1,19 @@
 locals {
-  workspace_traffic_job_timeout = "300s"
-  workspace_traffic_duration    = "60s"
+  wait_baseline_duration = "60s"
+  workspace_traffic_job_timeout = "420s"
+  workspace_traffic_duration    = "300s"
   bytes_per_tick                = 1024
   tick_interval                 = "100ms"
+}
+
+resource "time_sleep" "wait_baseline" {
+  depends_on = [
+    kubernetes_job.create_workspaces_primary,
+    kubernetes_job.create_workspaces_europe,
+    kubernetes_job.create_workspaces_asia,
+  ]
+
+  create_duration = local.wait_baseline_duration
 }
 
 resource "kubernetes_job" "workspace_traffic_primary" {
@@ -44,6 +55,7 @@ resource "kubernetes_job" "workspace_traffic_primary" {
             "exp",
             "scaletest",
             "workspace-traffic",
+            "--template=kubernetes-primary",
             "--concurrency=0",
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
@@ -64,7 +76,7 @@ resource "kubernetes_job" "workspace_traffic_primary" {
     create = local.workspace_traffic_job_timeout
   }
 
-  depends_on = [kubernetes_job.create_workspaces_primary]
+  depends_on = [time_sleep.wait_baseline]
 }
 
 resource "kubernetes_job" "workspace_traffic_europe" {
@@ -101,11 +113,12 @@ resource "kubernetes_job" "workspace_traffic_europe" {
           command = [
             "/opt/coder",
             "--verbose",
-            "--url=${local.deployments.primary.url}",
+            "--url=${local.deployments.europe.url}",
             "--token=${trimspace(data.local_file.api_key.content)}",
             "exp",
             "scaletest",
             "workspace-traffic",
+            "--template=kubernetes-europe",
             "--concurrency=0",
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
@@ -126,7 +139,7 @@ resource "kubernetes_job" "workspace_traffic_europe" {
     create = local.workspace_traffic_job_timeout
   }
 
-  depends_on = [kubernetes_job.create_workspaces_europe]
+  depends_on = [time_sleep.wait_baseline]
 }
 
 resource "kubernetes_job" "workspace_traffic_asia" {
@@ -163,11 +176,12 @@ resource "kubernetes_job" "workspace_traffic_asia" {
           command = [
             "/opt/coder",
             "--verbose",
-            "--url=${local.deployments.primary.url}",
+            "--url=${local.deployments.asia.url}",
             "--token=${trimspace(data.local_file.api_key.content)}",
             "exp",
             "scaletest",
             "workspace-traffic",
+            "--template=kubernetes-asia",
             "--concurrency=0",
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
@@ -188,5 +202,5 @@ resource "kubernetes_job" "workspace_traffic_asia" {
     create = local.workspace_traffic_job_timeout
   }
 
-  depends_on = [kubernetes_job.create_workspaces_asia]
+  depends_on = [time_sleep.wait_baseline]
 }
