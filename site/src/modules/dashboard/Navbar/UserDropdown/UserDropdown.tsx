@@ -35,7 +35,7 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					<div css={styles.badgeContainer}>
 						<Badge overlap="circular">
 							<UserAvatar
-								css={styles.avatar}
+								size="sm"
 								username={user.username}
 								avatarURL={user.avatar_url}
 							/>
@@ -87,11 +87,5 @@ const styles = {
 		alignItems: "center",
 		minWidth: 0,
 		maxWidth: 300,
-	},
-
-	avatar: {
-		width: BUTTON_SM_HEIGHT,
-		height: BUTTON_SM_HEIGHT,
-		fontSize: 16,
 	},
 } satisfies Record<string, Interpolation<Theme>>;

@@ -26,7 +26,7 @@ export const OrganizationSummaryPageView: FC<
 				<Stack direction="row" spacing={3} alignItems="center">
 					<UserAvatar
 						key={organization.id}
-						size="xl"
+						size="lg"
 						username={organization.display_name || organization.name}
 						avatarURL={organization.icon}
 					/>
