@@ -70,6 +70,9 @@ export const Avatar: FC<AvatarProps> = ({
 	);
 };
 
+/**
+ * @deprecated Use `Avatar` from `@components/Avatar` instead.
+ */
 export const ExternalAvatar: FC<AvatarProps> = (props) => {
 	const theme = useTheme();
 
@@ -88,6 +91,8 @@ type AvatarIconProps = {
 
 /**
  * Use it to make an img element behaves like a MaterialUI Icon component
+ *
+ * @deprecated Use `AvatarIcon` from `@components/Avatar` instead.
  */
 export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
 	const hookId = useId();
