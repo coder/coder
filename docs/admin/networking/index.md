@@ -11,7 +11,8 @@ Direct connections are as fast as connecting to the workspace outside of Coder.
 When NAT traversal fails, connections are relayed through the coder server. All
 user-workspace connections are end-to-end encrypted.
 
-[Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS networking logic.
+[Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
+networking logic.
 
 ## Requirements
 
@@ -128,7 +129,8 @@ but this can be disabled or changed for
 By default, your Coder server also runs a built-in DERP relay which can be used
 for both public and [offline deployments](../../install/offline.md).
 
-However, our Wireguard integration through Tailscale has graciously allowed us to use
+However, our Wireguard integration through Tailscale has graciously allowed us
+to use
 [their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers).
 You can launch `coder server` with Tailscale's DERPs like so:
 
