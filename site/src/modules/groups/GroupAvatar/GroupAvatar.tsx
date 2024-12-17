@@ -1,6 +1,11 @@
 import Group from "@mui/icons-material/Group";
 import Badge from "@mui/material/Badge";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 
@@ -19,8 +24,9 @@ export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
 			badgeContent={<Group />}
 			classes={{ badge }}
 		>
-			<Avatar background src={avatarURL}>
-				{name}
+			<Avatar size="lg">
+				<AvatarImage src={avatarURL} />
+				<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
 			</Avatar>
 		</Badge>
 	);
