@@ -7,11 +7,6 @@ import (
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
 	"github.com/coder/guts/config"
-
-	// Must import the packages we are trying to convert
-	// And include the ones we are referencing
-	_ "github.com/coder/coder/v2/codersdk"
-	_ "github.com/coder/serpent"
 )
 
 func main() {
