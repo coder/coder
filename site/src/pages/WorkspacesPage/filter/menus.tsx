@@ -1,5 +1,12 @@
 import { API } from "api/api";
-import type { WorkspaceStatus } from "api/typesGenerated";
+import type { Template, WorkspaceStatus } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	AvatarProps,
+	avatarLetters,
+} from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -10,7 +17,6 @@ import {
 	useFilterMenu,
 } from "components/Filter/menu";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
-import { TemplateAvatar } from "components/TemplateAvatar/TemplateAvatar";
 import type { FC } from "react";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
@@ -30,7 +36,7 @@ export const useTemplateFilterMenu = ({
 				return {
 					label: template.display_name || template.name,
 					value: template.name,
-					startIcon: <TemplateAvatar size="xs" template={template} />,
+					startIcon: <TemplateAvatar template={template} />,
 				} satisfies SelectFilterOption;
 			}
 			return null;
@@ -46,10 +52,21 @@ export const useTemplateFilterMenu = ({
 			return filteredTemplates.map((template) => ({
 				label: template.display_name || template.name,
 				value: template.name,
-				startIcon: <TemplateAvatar size="xs" template={template} />,
+				startIcon: <TemplateAvatar template={template} />,
 			}));
 		},
 	});
+};
+
+const TemplateAvatar: FC<{ template: Template }> = ({ template }) => {
+	return (
+		<Avatar size="sm" variant="icon">
+			<AvatarImage src={template.icon} />
+			<AvatarFallback>
+				{avatarLetters(template.display_name || template.name)}
+			</AvatarFallback>
+		</Avatar>
+	);
 };
 
 export type TemplateFilterMenu = ReturnType<typeof useTemplateFilterMenu>;
