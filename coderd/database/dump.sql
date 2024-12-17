@@ -421,13 +421,15 @@ CREATE FUNCTION record_user_status_change() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-    IF OLD.status IS DISTINCT FROM NEW.status THEN
+    IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
         INSERT INTO user_status_changes (
             user_id,
-            new_status
+            new_status,
+            changed_at
         ) VALUES (
             NEW.id,
-            NEW.status
+            NEW.status,
+            NEW.updated_at
         );
     END IF;
     RETURN NEW;
@@ -2261,7 +2263,7 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
-CREATE TRIGGER user_status_change_trigger BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
+CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
 
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
