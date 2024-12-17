@@ -2,6 +2,7 @@ import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
+import { Avatar, AvatarImage } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	HealthyBadge,
@@ -9,7 +10,6 @@ import {
 	NotReachableBadge,
 	NotRegisteredBadge,
 } from "components/Badges/Badges";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
 import { getLatencyColor } from "utils/latency";
@@ -49,12 +49,9 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 						}
 						avatar={
 							proxy.icon_url !== "" && (
-								<Avatar
-									size="sm"
-									src={proxy.icon_url}
-									variant="square"
-									fitImage
-								/>
+								<Avatar variant="icon" size="sm">
+									<AvatarImage src={proxy.icon_url} />
+								</Avatar>
 							)
 						}
 					/>

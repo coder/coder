@@ -4,6 +4,12 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
 import type { Group } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import {
 	Popover,
@@ -11,7 +17,6 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC } from "react";
 
 type GroupsCellProps = {
@@ -99,8 +104,11 @@ export const UserGroupsCell: FC<GroupsCellProps> = ({ userGroups }) => {
 												alignItems: "center",
 											}}
 										>
-											<Avatar size="xs" src={group.avatar_url} alt={groupName}>
-												{groupName}
+											<Avatar size="sm" variant="icon">
+												<AvatarImage src={group.avatar_url} />
+												<AvatarFallback>
+													{avatarLetter(groupName)}
+												</AvatarFallback>
 											</Avatar>
 
 											<span

@@ -6,6 +6,12 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	Topbar,
@@ -17,7 +23,6 @@ import {
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/Popover/Popover";
-import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
@@ -351,12 +356,10 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<ExternalAvatar
-								src={orgIconUrl}
-								title={orgName}
-								variant={isEmojiUrl(orgIconUrl) ? "square" : "circular"}
-								fitImage
-							/>
+							<Avatar variant="icon">
+								<AvatarImage src={orgIconUrl} />
+								<AvatarFallback>{avatarLetter(orgName)}</AvatarFallback>
+							</Avatar>
 						)
 					}
 					imgFallbackText={orgName}
@@ -418,12 +421,12 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<ExternalAvatar
-							src={templateIconUrl}
-							title={workspaceName}
-							variant={isEmojiUrl(templateIconUrl) ? "square" : "circular"}
-							fitImage
-						/>
+						<Avatar variant="icon">
+							<AvatarImage src={templateIconUrl} />
+							<AvatarFallback>
+								{avatarLetter(templateDisplayName)}
+							</AvatarFallback>
+						</Avatar>
 					}
 					imgFallbackText={templateDisplayName}
 				/>
@@ -446,6 +449,7 @@ const styles = {
 
 	breadcrumbSegment: {
 		display: "flex",
+		alignItems: "center",
 		flexFlow: "row nowrap",
 		gap: "8px",
 		maxWidth: "160px",

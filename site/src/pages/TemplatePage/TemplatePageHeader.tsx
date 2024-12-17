@@ -11,6 +11,12 @@ import type {
 	Template,
 	TemplateVersion,
 } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Margins } from "components/Margins/Margins";
@@ -29,7 +35,6 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -202,11 +207,10 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 				}
 			>
 				<Stack direction="row" spacing={3} alignItems="center">
-					{hasIcon ? (
-						<Avatar size="xl" src={template.icon} variant="square" fitImage />
-					) : (
-						<Avatar size="xl">{template.name}</Avatar>
-					)}
+					<Avatar size="lg" variant="icon">
+						<AvatarImage src={template.icon} />
+						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
+					</Avatar>
 
 					<div>
 						<Stack direction="row" alignItems="center" spacing={1}>

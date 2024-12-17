@@ -6,6 +6,12 @@ import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
+import {
 	FormFields,
 	FormFooter,
 	FormSection,
@@ -21,7 +27,6 @@ import { Pill } from "components/Pill/Pill";
 import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { type FormikContextType, useFormik } from "formik";
 import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName";
 import { type FC, useCallback, useEffect, useMemo, useState } from "react";
@@ -148,11 +153,10 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
 				<Stack direction="row" spacing={3} alignItems="center">
-					{template.icon !== "" ? (
-						<Avatar size="xl" src={template.icon} variant="square" fitImage />
-					) : (
-						<Avatar size="xl">{template.name}</Avatar>
-					)}
+					<Avatar variant="icon" size="lg">
+						<AvatarImage src={template.icon} />
+						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
+					</Avatar>
 
 					<div>
 						<PageHeaderTitle>

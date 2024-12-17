@@ -1,7 +1,12 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import type { Template, TemplateExample } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
-import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import type { FC } from "react";
 
 export interface SelectedTemplateProps {
@@ -16,13 +21,10 @@ export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 			css={styles.template}
 			alignItems="center"
 		>
-			<ExternalAvatar
-				variant={template.icon ? "square" : undefined}
-				fitImage={Boolean(template.icon)}
-				src={template.icon}
-			>
-				{template.name}
-			</ExternalAvatar>
+			<Avatar variant="icon">
+				<AvatarImage src={template.icon} />
+				<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
+			</Avatar>
 
 			<Stack direction="column" spacing={0}>
 				<span css={styles.templateName}>

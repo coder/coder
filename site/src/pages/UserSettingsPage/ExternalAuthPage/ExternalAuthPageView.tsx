@@ -20,6 +20,12 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -30,7 +36,6 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { Avatar, ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
@@ -151,15 +156,11 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		? externalAuth.authenticated
 		: (link?.authenticated ?? false);
 
-	let avatar = app.display_icon ? (
-		<ExternalAvatar
-			src={app.display_icon}
-			size="sm"
-			variant="square"
-			fitImage
-		/>
-	) : (
-		<Avatar>{name}</Avatar>
+	let avatar = (
+		<Avatar size="sm" variant="icon">
+			<AvatarImage src={app.display_icon} />
+			<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
+		</Avatar>
 	);
 
 	// If the link is authenticated and has a refresh token, show that it will automatically

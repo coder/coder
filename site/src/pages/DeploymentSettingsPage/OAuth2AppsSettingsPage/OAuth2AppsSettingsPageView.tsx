@@ -10,11 +10,11 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar, AvatarImage } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -102,7 +102,9 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 					title={app.name}
 					avatar={
 						Boolean(app.icon) && (
-							<Avatar src={app.icon} variant="square" fitImage />
+							<Avatar variant="icon">
+								<AvatarImage src={app.icon} />
+							</Avatar>
 						)
 					}
 				/>

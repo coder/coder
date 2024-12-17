@@ -3,6 +3,12 @@ import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
@@ -12,7 +18,6 @@ import {
 	PopoverTrigger,
 } from "components/Popover/Popover";
 import { SearchEmpty, searchStyles } from "components/Search/Search";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
@@ -140,18 +145,11 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 				alignItems: "center",
 			}}
 		>
-			<Avatar
-				src={template.icon}
-				fitImage
-				alt={template.display_name || "Coder template"}
-				css={{
-					width: `${ICON_SIZE}px`,
-					height: `${ICON_SIZE}px`,
-					fontSize: `${ICON_SIZE * 0.5}px`,
-					fontWeight: 700,
-				}}
-			>
-				{template.display_name || "-"}
+			<Avatar>
+				<AvatarImage src={template.icon} />
+				<AvatarFallback>
+					{avatarLetter(template.display_name || template.name)}
+				</AvatarFallback>
 			</Avatar>
 
 			<div
