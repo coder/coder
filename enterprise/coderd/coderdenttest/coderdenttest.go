@@ -7,6 +7,7 @@ import (
 	"crypto/tls"
 	"io"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -326,7 +327,7 @@ func NewExternalProvisionerDaemonTerraform(t testing.TB, client *codersdk.Client
 }
 
 // nolint // This function is a helper for tests and should not be linted.
-func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, ty codersdk.ProvisionerType) io.Closer {
+func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, provisionerType codersdk.ProvisionerType) io.Closer {
 	t.Helper()
 
 	entitlements, err := client.Entitlements(context.Background())
@@ -353,39 +354,44 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		<-serveDone
 	})
 
-	var serveFunc func()
-	switch ty {
+	switch provisionerType {
 	case codersdk.ProvisionerTypeTerraform:
-		serveFunc = func() {
+		// Ensure the Terraform binary is present in the path.
+		// If not, we fail this test rather than downloading it.
+		terraformPath, err := exec.LookPath("terraform")
+		require.NoError(t, err, "terraform binary not found in PATH")
+		t.Logf("using Terraform binary at %s", terraformPath)
+
+		go func() {
 			defer close(serveDone)
 			assert.NoError(t, terraform.Serve(ctx, &terraform.ServeOptions{
+				BinaryPath: terraformPath,
+				CachePath:  t.TempDir(),
 				ServeOptions: &provisionersdk.ServeOptions{
 					Listener:      provisionerSrv,
 					WorkDirectory: t.TempDir(),
 				},
 			}))
-		}
+		}()
 	case codersdk.ProvisionerTypeEcho:
-		serveFunc = func() {
+		go func() {
 			defer close(serveDone)
 			assert.NoError(t, echo.Serve(ctx, &provisionersdk.ServeOptions{
 				Listener:      provisionerSrv,
 				WorkDirectory: t.TempDir(),
 			}))
-		}
+		}()
 	default:
-		t.Fatalf("unsupported provisioner type: %s", ty)
+		t.Fatalf("unsupported provisioner type: %s", provisionerType)
 		return nil
 	}
-
-	go serveFunc()
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
 			Name:         t.Name(),
 			Organization: org,
-			Provisioners: []codersdk.ProvisionerType{ty},
+			Provisioners: []codersdk.ProvisionerType{provisionerType},
 			Tags:         tags,
 		})
 	}, &provisionerd.Options{
@@ -393,7 +399,7 @@ func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
-			string(ty): sdkproto.NewDRPCProvisionerClient(provisionerClient),
+			string(provisionerType): sdkproto.NewDRPCProvisionerClient(provisionerClient),
 		},
 	})
 	closer := coderdtest.NewProvisionerDaemonCloser(daemon)
