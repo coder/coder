@@ -386,7 +386,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				continue
 			}
 
-
 			var attrs agentAppAttributes
 			err = mapstructure.Decode(resource.AttributeValues, &attrs)
 			if err != nil {

@@ -2037,7 +2037,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 				DisplayOrder:         int32(app.Order),
 				Hidden:               app.Hidden,
-				OpenIn:				  app.OpenIn,
+				OpenIn:               app.OpenIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
