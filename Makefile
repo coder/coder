@@ -659,7 +659,8 @@ examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(sh
 	go run ./scripts/examplegen/main.go > examples/examples.gen.json
 
 coderd/rbac/object_gen.go: scripts/typegen/rbacobject.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
-	go run scripts/typegen/main.go rbac object > coderd/rbac/object_gen.go
+	go run scripts/typegen/main.go rbac object > /tmp/object_gen.go
+	mv /tmp/object_gen.go coderd/rbac/object_gen.go
 
 codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	# Do no overwrite codersdk/rbacresources_gen.go directly, as it would make the file empty, breaking
