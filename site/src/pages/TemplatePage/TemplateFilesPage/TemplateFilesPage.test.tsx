@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { http, HttpResponse } from "msw";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { RouterProvider, createMemoryRouter } from "react-router";
 import { MockTemplate } from "testHelpers/entities";
 import { server } from "testHelpers/server";
 import { TemplateLayout } from "../TemplateLayout";

@@ -9,7 +9,7 @@ import {
 } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider } from "react-router";
 import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";

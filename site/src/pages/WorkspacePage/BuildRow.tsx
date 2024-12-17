@@ -6,7 +6,7 @@ import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickable } from "hooks/useClickable";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import {
 	displayWorkspaceBuildDuration,
 	getDisplayWorkspaceBuildInitiatedBy,

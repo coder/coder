@@ -19,7 +19,7 @@ import { useManagementSettings } from "modules/management/ManagementSettingsLayo
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 

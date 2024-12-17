@@ -26,7 +26,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { docs } from "utils/docs";
 import { PermissionPillsList } from "./PermissionPillsList";
 

@@ -8,7 +8,7 @@ import {
 	useQuery,
 	useQueryClient,
 } from "react-query";
-import { type SetURLSearchParams, useSearchParams } from "react-router-dom";
+import { type SetURLSearchParams, useSearchParams } from "react-router";
 import { useEffectEvent } from "./hookPolyfills";
 
 const DEFAULT_RECORDS_PER_PAGE = 25;

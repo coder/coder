@@ -19,7 +19,7 @@ import { useTime } from "hooks/useTime";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import {
 	autostartDisplay,
 	autostopDisplay,

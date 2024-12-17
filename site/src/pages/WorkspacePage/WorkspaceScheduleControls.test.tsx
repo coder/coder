@@ -8,7 +8,7 @@ import dayjs from "dayjs";
 import { http, HttpResponse } from "msw";
 import type { FC } from "react";
 import { QueryClient, QueryClientProvider, useQuery } from "react-query";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { RouterProvider, createMemoryRouter } from "react-router";
 import { MockTemplate, MockWorkspace } from "testHelpers/entities";
 import { server } from "testHelpers/server";
 import { WorkspaceScheduleControls } from "./WorkspaceScheduleControls";

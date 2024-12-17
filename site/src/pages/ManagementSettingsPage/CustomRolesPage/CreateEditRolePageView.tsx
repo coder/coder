@@ -28,7 +28,7 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import { type ChangeEvent, type FC, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, nameValidator } from "utils/formUtils";
 import * as Yup from "yup";
 

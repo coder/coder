@@ -30,7 +30,7 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";

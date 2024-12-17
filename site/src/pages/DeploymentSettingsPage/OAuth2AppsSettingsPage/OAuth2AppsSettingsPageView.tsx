@@ -17,7 +17,7 @@ import { TableLoader } from "components/TableLoader/TableLoader";
 import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router";
 
 type OAuth2AppsSettingsProps = {
 	apps?: TypesGen.OAuth2ProviderApp[];

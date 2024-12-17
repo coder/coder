@@ -15,7 +15,7 @@ import {
 	Link as RouterLink,
 	useLocation,
 	useNavigate,
-} from "react-router-dom";
+} from "react-router";
 
 export const UsersLayout: FC = () => {
 	const { permissions } = useAuthenticated();

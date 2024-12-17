@@ -20,7 +20,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import type { FC, JSX } from "react";
 import { usePopover } from "components/deprecated/Popover/Popover";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 export const Language = {
 	accountLabel: "Account",

@@ -3,7 +3,7 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { CreateOrganizationPageView } from "./CreateOrganizationPageView";
 
 const CreateOrganizationPage: FC = () => {

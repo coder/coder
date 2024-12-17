@@ -5,7 +5,7 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {

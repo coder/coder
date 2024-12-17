@@ -28,7 +28,7 @@ import {
 	useLocation,
 	useNavigate,
 	useSearchParams,
-} from "react-router-dom";
+} from "react-router";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";

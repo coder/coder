@@ -8,7 +8,7 @@ import {
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
 import type { ComponentProps, FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
 

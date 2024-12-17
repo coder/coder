@@ -14,7 +14,7 @@ import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
 import { HealthIcon } from "./Content";

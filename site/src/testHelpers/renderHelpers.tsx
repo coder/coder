@@ -18,7 +18,7 @@ import {
 	type RouteObject,
 	RouterProvider,
 	createMemoryRouter,
-} from "react-router-dom";
+} from "react-router";
 import { MockUser } from "./entities";
 
 export function createTestQueryClient() {

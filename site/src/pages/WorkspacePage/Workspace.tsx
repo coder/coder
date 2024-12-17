@@ -11,7 +11,7 @@ import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAl
 import { AgentRow } from "modules/resources/AgentRow";
 import { WorkspaceTimings } from "modules/workspaces/WorkspaceTiming/WorkspaceTimings";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { HistorySidebar } from "./HistorySidebar";
 import { ResourceMetadata } from "./ResourceMetadata";
 import { ResourcesSidebar } from "./ResourcesSidebar";

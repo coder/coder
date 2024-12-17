@@ -22,7 +22,7 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { type FC, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link, useSearchParams } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 

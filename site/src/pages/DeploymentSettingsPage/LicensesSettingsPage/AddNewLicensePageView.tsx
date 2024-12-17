@@ -7,7 +7,7 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
 

@@ -5,7 +5,7 @@ import { SyntaxHighlighter } from "components/SyntaxHighlighter/SyntaxHighlighte
 import set from "lodash/set";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback, useMemo } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 import { TemplateFileTree } from "./TemplateFileTree";

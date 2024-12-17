@@ -4,7 +4,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { EditOAuth2AppPageView } from "./EditOAuth2AppPageView";
 

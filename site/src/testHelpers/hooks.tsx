@@ -19,7 +19,7 @@ import {
 	RouterProvider,
 	createMemoryRouter,
 	useLocation,
-} from "react-router-dom";
+} from "react-router";
 import {
 	type RenderWithAuthOptions,
 	createTestQueryClient,

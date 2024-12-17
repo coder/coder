@@ -12,7 +12,7 @@ import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import * as Yup from "yup";
 
