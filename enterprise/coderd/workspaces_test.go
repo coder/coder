@@ -1508,12 +1508,12 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			name:            "tag param with default from var",
 			provisionerTags: map[string]string{"foo": "bar"},
 			tfWorkspaceTags: `
-			  variable "foo" {
+				variable "foo" {
 					type = string
 					default = "bar"
 				}
-			  data "coder_parameter" "foo" {
-				  name = "foo"
+				data "coder_parameter" "foo" {
+					name = "foo"
 					type = "string"
 					default = var.foo
 				}
