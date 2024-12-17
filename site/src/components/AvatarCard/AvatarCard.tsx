@@ -1,5 +1,5 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import { Avatar } from "components/Avatar/Avatar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 type AvatarCardProps = {

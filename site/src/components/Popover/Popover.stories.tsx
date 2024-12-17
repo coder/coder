@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, screen, userEvent, waitFor, within } from "@storybook/test";
+import { Button } from "components/Button/Button";
 import { Popover, PopoverContent, PopoverTrigger } from "./Popover";
 
 const meta: Meta<typeof Popover> = {
@@ -17,15 +17,15 @@ Its wings are too small to get its fat little body off the ground. The bee, of c
 flies anyway because bees don't care what humans think is impossible.
 `;
 
-export const Example: Story = {
+export const Default: Story = {
 	args: {
 		children: (
-			<>
-				<PopoverTrigger>
-					<Button>Click here!</Button>
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button className="ml-20">Click here!</Button>
 				</PopoverTrigger>
 				<PopoverContent>{content}</PopoverContent>
-			</>
+			</Popover>
 		),
 	},
 	play: async ({ canvasElement, step }) => {
@@ -42,16 +42,16 @@ export const Example: Story = {
 	},
 };
 
-export const Horizontal: Story = {
+export const AlignStart: Story = {
 	args: {
 		children: (
-			<>
-				<PopoverTrigger>
-					<Button>Click here!</Button>
+			<Popover>
+				<PopoverTrigger asChild>
+					<Button className="ml-20">Click here!</Button>
 				</PopoverTrigger>
-				<PopoverContent horizontal="right">{content}</PopoverContent>
-			</>
+				<PopoverContent align="start">{content}</PopoverContent>
+			</Popover>
 		),
 	},
-	play: Example.play,
+	play: Default.play,
 };

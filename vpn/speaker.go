@@ -225,7 +225,7 @@ func (s *speaker[_, R, _]) newRPC() (uint64, chan R) {
 	defer s.mu.Unlock()
 	msgID := s.nextMsgID
 	s.nextMsgID++
-	c := make(chan R, 1)
+	c := make(chan R)
 	s.responseChans[msgID] = c
 	return msgID, c
 }

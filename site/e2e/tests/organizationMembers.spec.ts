@@ -1,7 +1,6 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
-import { expectUrl } from "../expectUrl";
-import { createUser, randomName, requiresLicense } from "../helpers";
+import { createOrganization, createUser, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
@@ -12,19 +11,12 @@ test.beforeEach(async ({ page }) => {
 test("add and remove organization member", async ({ page }) => {
 	requiresLicense();
 
-	// Create a new organization to test
-	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
-	const name = randomName();
-	await page.getByLabel("Slug").fill(name);
-	await page.getByLabel("Display name").fill(`Org ${name}`);
-	await page.getByLabel("Description").fill(`Org description ${name}`);
-	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: "Submit" }).click();
+	// Create a new organization
+	const { displayName } = await createOrganization(page);
 
 	// Navigate to members page
-	await expectUrl(page).toHavePathName(`/organizations/${name}`);
-	await expect(page.getByText("Organization created.")).toBeVisible();
 	await page.getByText("Members").click();
+	await expect(page).toHaveTitle(`Members - ${displayName} - Coder`);
 
 	// Add a user to the org
 	const personToAdd = await createUser(page);

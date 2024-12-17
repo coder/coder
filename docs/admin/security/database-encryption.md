@@ -185,3 +185,7 @@ To delete all encrypted data from your database, perform the following actions:
 - Decryption may fail if newly encrypted data is written while decryption is in
   progress. If this happens, ensure that all active coder instances are stopped,
   and retry.
+
+## Next steps
+
+- [Security - best practices](../../tutorials/best-practices/security-best-practices.md)

@@ -5865,23 +5865,29 @@ func (q *sqlQuerier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUI
 }
 
 const getProvisionerJobsByIDsWithQueuePosition = `-- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH unstarted_jobs AS (
+WITH pending_jobs AS (
     SELECT
         id, created_at
     FROM
         provisioner_jobs
     WHERE
         started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
 ),
 queue_position AS (
     SELECT
         id,
         ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
     FROM
-        unstarted_jobs
+        pending_jobs
 ),
 queue_size AS (
-	SELECT COUNT(*) as count FROM unstarted_jobs
+	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
 	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
@@ -10398,16 +10404,27 @@ WHERE
 			last_seen_at >= $6
 		ELSE true
 	END
+	-- Filter by created_at
+	AND CASE
+		WHEN $7 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at <= $7
+		ELSE true
+	END
+	AND CASE
+		WHEN $8 :: timestamp with time zone != '0001-01-01 00:00:00Z' THEN
+			created_at >= $8
+		ELSE true
+	END
 	-- End of filters
 
 	-- Authorize Filter clause will be injected below in GetAuthorizedUsers
 	-- @authorize_filter
 ORDER BY
 	-- Deterministic and consistent ordering of all users. This is to ensure consistent pagination.
-	LOWER(username) ASC OFFSET $7
+	LOWER(username) ASC OFFSET $9
 LIMIT
 	-- A null limit means "no limit", so 0 means return all
-	NULLIF($8 :: int, 0)
+	NULLIF($10 :: int, 0)
 `
 
 type GetUsersParams struct {
@@ -10417,6 +10434,8 @@ type GetUsersParams struct {
 	RbacRole       []string     `db:"rbac_role" json:"rbac_role"`
 	LastSeenBefore time.Time    `db:"last_seen_before" json:"last_seen_before"`
 	LastSeenAfter  time.Time    `db:"last_seen_after" json:"last_seen_after"`
+	CreatedBefore  time.Time    `db:"created_before" json:"created_before"`
+	CreatedAfter   time.Time    `db:"created_after" json:"created_after"`
 	OffsetOpt      int32        `db:"offset_opt" json:"offset_opt"`
 	LimitOpt       int32        `db:"limit_opt" json:"limit_opt"`
 }
@@ -10452,6 +10471,8 @@ func (q *sqlQuerier) GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUse
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)

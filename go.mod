@@ -67,6 +67,10 @@ replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145
 // which we use in the awsiamrds package.
 replace github.com/lib/pq => github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048
 
+// Removes an init() function that causes terminal sequences to be printed to the web terminal when
+// used in conjunction with agent-exec. See https://github.com/coder/coder/pull/15817
+replace github.com/charmbracelet/bubbletea => github.com/coder/bubbletea v1.2.2-0.20241212190825-007a1cdb2c41
+
 require (
 	cdr.dev/slog v1.6.2-0.20241112041820-0ec81e6e67bb
 	cloud.google.com/go/compute/metadata v0.5.2
@@ -174,7 +178,7 @@ require (
 	go.uber.org/atomic v1.11.0
 	go.uber.org/goleak v1.3.1-0.20240429205332-517bace7cc29
 	go4.org/netipx v0.0.0-20230728180743-ad4cb58a6516
-	golang.org/x/crypto v0.30.0
+	golang.org/x/crypto v0.31.0
 	golang.org/x/exp v0.0.0-20240808152545-0cdaa3abc0fa
 	golang.org/x/mod v0.22.0
 	golang.org/x/net v0.32.0
@@ -202,7 +206,7 @@ require go.uber.org/mock v0.5.0
 require (
 	github.com/cespare/xxhash v1.1.0
 	github.com/charmbracelet/bubbles v0.20.0
-	github.com/charmbracelet/bubbletea v1.2.1
+	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/lipgloss v1.0.0
 	github.com/coder/serpent v0.10.0
 	github.com/emersion/go-sasl v0.0.0-20200509203442-7bfe0ed36a21

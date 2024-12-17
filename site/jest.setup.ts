@@ -1,10 +1,10 @@
 import "@testing-library/jest-dom";
 import "jest-location-mock";
-import { cleanup } from "@testing-library/react";
 import crypto from "node:crypto";
-import { useMemo } from "react";
+import { cleanup } from "@testing-library/react";
 import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { useMemo } from "react";
 import { server } from "testHelpers/server";
 
 // useProxyLatency does some http requests to determine latency.

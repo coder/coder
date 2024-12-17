@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
-import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 export interface AvatarDataProps {

@@ -17,9 +17,9 @@ import Tooltip from "@mui/material/Tooltip";
 import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
-import { usePopover } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
 import type { FC, JSX } from "react";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import { Link } from "react-router-dom";
 
 export const Language = {
