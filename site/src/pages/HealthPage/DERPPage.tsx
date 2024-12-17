@@ -42,13 +42,12 @@ const flags: BooleanKeys<NetcheckReport>[] = [
 
 type BooleanKeys<T> = {
 	[K in keyof T]: T[K] extends boolean | null ? K : never;
-  }[keyof T];
-  
+}[keyof T];
 
 export const DERPPage: FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
-	const safeNetcheck = netcheck || {} as NetcheckReport;
+	const safeNetcheck = netcheck || ({} as NetcheckReport);
 	const theme = useTheme();
 
 	return (
