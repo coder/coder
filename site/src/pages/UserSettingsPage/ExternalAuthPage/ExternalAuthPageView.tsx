@@ -20,7 +20,6 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, ExternalAvatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/AvatarData/AvatarData";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -31,6 +30,7 @@ import {
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
+import { Avatar, ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
 import { useQuery } from "react-query";
