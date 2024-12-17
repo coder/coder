@@ -84,11 +84,7 @@ type agentAppAttributes struct {
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
 	Hidden      bool                       `mapstructure:"hidden"`
-<<<<<<< Updated upstream
 	OpenIn      string                     `mapstructure:"open_in"`
-=======
-	OpenIn string `mapstructure:"open_in"`
->>>>>>> Stashed changes
 }
 
 type agentEnvAttributes struct {
@@ -397,8 +393,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				return nil, xerrors.Errorf("decode app attributes: %w", err)
 			}
 
-			logger.Warn(ctx, "RESOUUUUURCE : ", slog.F("resource", attrs))
-
 			// Default to the resource name if none is set!
 			if attrs.Slug == "" {
 				attrs.Slug = resource.Name
@@ -460,11 +454,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
 						Hidden:       attrs.Hidden,
-<<<<<<< Updated upstream
 						OpenIn:       attrs.OpenIn,
-=======
-						OpenIn: 	  attrs.OpenIn,
->>>>>>> Stashed changes
 					})
 				}
 			}
