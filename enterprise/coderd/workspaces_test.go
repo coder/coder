@@ -1480,8 +1480,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			name:            "tag variable",
 			provisionerTags: map[string]string{"foo": "bar"},
 			tfWorkspaceTags: `
-			  variable "foo" {
-				  default = "bar"
+				variable "foo" {
+					default = "bar"
 				}
 				data "coder_workspace_tags" "tags" {
 					tags = {
@@ -1493,8 +1493,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			name:            "tag param",
 			provisionerTags: map[string]string{"foo": "bar"},
 			tfWorkspaceTags: `
-			  data "coder_parameter" "foo" {
-				  name = "foo"
+				data "coder_parameter" "foo" {
+					name = "foo"
 					type = "string"
 					default = "bar"
 				}
@@ -1509,7 +1509,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			provisionerTags: map[string]string{"foo": "bar"},
 			tfWorkspaceTags: `
 			  variable "foo" {
-					type = "string"
+					type = string
 					default = "bar"
 				}
 			  data "coder_parameter" "foo" {
