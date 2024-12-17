@@ -201,33 +201,33 @@ different organizations.
 This is illustrated in the below table:
 
 | Provisioner Tags                                                  | Job Tags                                                         | Same Org | Can Run Job? |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- | -------- | ------------ |
-| scope=organization owner=                                         | scope=organization owner=                                        | ✅       | ✅           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅       | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅       | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ✅           |
-| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅       | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅       | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅       | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅       | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅       | ✅           |
-| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ✅       | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ✅       | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ❌           |
-| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ✅       | ❌           |
-| scope=user owner=aaa                                              | scope=organization owner=                                        | ✅       | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ✅       | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa                                             | ✅       | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ✅       | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ✅       | ❌           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅       | ❌           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅       | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌       | ❌           |
+|-------------------------------------------------------------------|------------------------------------------------------------------|----------|--------------|
+| scope=organization owner=                                         | scope=organization owner=                                        | ✅        | ✅            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅        | ✅            |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅        | ✅            |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ✅            |
+| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅        | ✅            |
+| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ❌            |
+| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=organization owner=                                        | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ✅        | ❌            |
+| scope=organization owner=                                         | scope=user owner=aaa                                             | ✅        | ❌            |
+| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ✅        | ❌            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅        | ❌            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌        | ❌            |
 
 > **Note to maintainers:** to generate this table, run the following command and
 > copy the output:
 >
-> ```
+> ```go
 > go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
 > ```
 

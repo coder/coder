@@ -135,7 +135,7 @@ provisionerDaemon:
 nameOverride: "other-coder-provisioner"
 ```
 
-# Testing
+## Testing
 
 The test suite for this chart lives in `./tests/chart_test.go`.
 

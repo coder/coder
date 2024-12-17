@@ -1,13 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # tokens remove
 
 Delete a token
 
 Aliases:
 
-- delete
-- rm
+* delete
+* rm
 
 ## Usage
 

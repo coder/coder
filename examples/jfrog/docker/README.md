@@ -20,7 +20,7 @@ Edit the `Dockerfile` and run `coder templates push` to update workspaces.
 resource block. The `coder_app` resource is defined to access `code-server` through
 the dashboard UI over `localhost:13337`.
 
-# Next steps
+## Next steps
 
 Check out our [Docker](../../templates/docker/) template for a more fully featured Docker
 example.

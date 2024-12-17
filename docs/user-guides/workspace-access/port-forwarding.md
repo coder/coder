@@ -141,7 +141,7 @@ protocol configuration for each shared port individually.
 You can also access any port on the workspace and can configure the port
 protocol manually by appending a `s` to the port in the URL.
 
-```
+```console
 # Uses HTTP
 https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS

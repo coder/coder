@@ -4,7 +4,7 @@
   <span style="vertical-align:middle;">Author: </span>
   <a href="https://github.com/BrunoQuaresma" style="text-decoration: none; color: inherit; margin-bottom: 0px;">
     <span style="vertical-align:middle;">Bruno Quaresma</span>
-    <img src="https://avatars.githubusercontent.com/u/3165839?v=4" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://avatars.githubusercontent.com/u/3165839?v=4" alt="Bruno Quaresma" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 August 06, 2024
