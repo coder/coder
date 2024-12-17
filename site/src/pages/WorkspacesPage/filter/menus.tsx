@@ -4,8 +4,7 @@ import {
 	Avatar,
 	AvatarFallback,
 	AvatarImage,
-	AvatarProps,
-	avatarLetters,
+	avatarLetter,
 } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
@@ -63,7 +62,7 @@ const TemplateAvatar: FC<{ template: Template }> = ({ template }) => {
 		<Avatar size="sm" variant="icon">
 			<AvatarImage src={template.icon} />
 			<AvatarFallback>
-				{avatarLetters(template.display_name || template.name)}
+				{avatarLetter(template.display_name || template.name)}
 			</AvatarFallback>
 		</Avatar>
 	);
