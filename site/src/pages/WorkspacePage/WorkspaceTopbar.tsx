@@ -16,9 +16,9 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
+import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";

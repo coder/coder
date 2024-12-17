@@ -5,13 +5,13 @@ import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
 import type { Group } from "api/typesGenerated";
 import { OverflowY } from "components/OverflowY/OverflowY";
+import { Stack } from "components/Stack/Stack";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 
 type GroupsCellProps = {

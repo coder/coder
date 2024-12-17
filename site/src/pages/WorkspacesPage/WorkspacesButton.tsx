@@ -6,13 +6,13 @@ import type { Template } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
+import { SearchEmpty, searchStyles } from "components/Search/Search";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SearchEmpty, searchStyles } from "components/Search/Search";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
+} from "components/deprecated/Popover/Popover";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
