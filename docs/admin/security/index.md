@@ -1,4 +1,11 @@
-# Security Advisories
+# Security
+
+<children></children>
+
+For other security tips, visit our guide to
+[security best practices](../../tutorials/best-practices/security-best-practices.md).
+
+## Security Advisories
 
 > If you discover a vulnerability in Coder, please do not hesitate to report it
 > to us by following the instructions

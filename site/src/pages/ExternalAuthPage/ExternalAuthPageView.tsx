@@ -8,10 +8,10 @@ import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 export interface ExternalAuthPageViewProps {

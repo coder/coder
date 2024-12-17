@@ -11,7 +11,6 @@ import type {
 	Template,
 	TemplateVersion,
 } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Margins } from "components/Margins/Margins";
@@ -30,6 +29,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
