@@ -2,12 +2,12 @@ import ParameterIcon from "@mui/icons-material/CodeOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Workspace } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC } from "react";
 
 interface SidebarProps {

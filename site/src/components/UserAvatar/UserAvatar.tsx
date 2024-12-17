@@ -1,4 +1,4 @@
-import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/deprecated/Avatar/Avatar";
 import type { FC } from "react";
 
 export type UserAvatarProps = {

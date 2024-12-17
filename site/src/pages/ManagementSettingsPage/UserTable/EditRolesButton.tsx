@@ -128,7 +128,7 @@ export const EditRolesButton: FC<EditRolesButtonProps> = ({
 				</Tooltip>
 			</PopoverTrigger>
 
-			<PopoverContent classes={{ paper }}>
+			<PopoverContent classes={{ paper }} disablePortal={false}>
 				<fieldset
 					css={styles.fieldset}
 					disabled={isLoading}

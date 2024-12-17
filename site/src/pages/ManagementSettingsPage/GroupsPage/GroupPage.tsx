@@ -111,9 +111,10 @@ export const GroupPage: FC = () => {
 				{canUpdateGroup && (
 					<Stack direction="row" spacing={2}>
 						<Button
+							role="button"
+							component={RouterLink}
 							startIcon={<SettingsOutlined />}
 							to="settings"
-							component={RouterLink}
 						>
 							Settings
 						</Button>

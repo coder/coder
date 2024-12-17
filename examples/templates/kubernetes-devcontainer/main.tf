@@ -165,7 +165,7 @@ locals {
     # Use the docker gateway if the access URL is 127.0.0.1
     "ENVBUILDER_INIT_SCRIPT" : replace(coder_agent.main.init_script, "/localhost|127\\.0\\.0\\.1/", "host.docker.internal"),
     "ENVBUILDER_FALLBACK_IMAGE" : data.coder_parameter.fallback_image.value,
-    "ENVBUILDER_DOCKER_CONFIG_BASE64" : try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], ""),
+    "ENVBUILDER_DOCKER_CONFIG_BASE64" : base64encode(try(data.kubernetes_secret.cache_repo_dockerconfig_secret[0].data[".dockerconfigjson"], "")),
     "ENVBUILDER_PUSH_IMAGE" : var.cache_repo == "" ? "" : "true",
     "ENVBUILDER_INSECURE" : "${var.insecure_cache_repo}",
     # You may need to adjust this if you get an error regarding deleting files when building the workspace.
