@@ -58,6 +58,7 @@ func TestBuilder_NoOptions(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
@@ -113,6 +114,7 @@ func TestBuilder_Initiator(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
@@ -158,6 +160,7 @@ func TestBuilder_Baggage(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
@@ -195,6 +198,7 @@ func TestBuilder_Reason(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(nil),
 		withLastBuildFound,
+		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, nil),
@@ -232,6 +236,7 @@ func TestBuilder_ActiveVersion(t *testing.T) {
 		withTemplate,
 		withActiveVersion(nil),
 		withLastBuildNotFound,
+		withTemplateVersionVariables(activeVersionID, nil),
 		withParameterSchemas(activeJobID, nil),
 		withWorkspaceTags(activeVersionID, nil),
 		withProvisionerDaemons([]database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow{}),
@@ -321,6 +326,7 @@ func TestWorkspaceBuildWithTags(t *testing.T) {
 		withTemplate,
 		withInactiveVersion(richParameters),
 		withLastBuildFound,
+		withTemplateVersionVariables(inactiveVersionID, nil),
 		withRichParameters(nil),
 		withParameterSchemas(inactiveJobID, nil),
 		withWorkspaceTags(inactiveVersionID, workspaceTags),
@@ -459,6 +465,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 			withWorkspaceTags(inactiveVersionID, nil),
@@ -511,6 +518,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(nil),
 			withParameterSchemas(inactiveJobID, schemas),
 			withWorkspaceTags(inactiveVersionID, nil),
@@ -542,6 +550,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withInactiveVersion(richParameters),
 			withLastBuildFound,
+			withTemplateVersionVariables(inactiveVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(inactiveJobID, nil),
 			withWorkspaceTags(inactiveVersionID, nil),
@@ -593,6 +602,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
+			withTemplateVersionVariables(activeVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 			withWorkspaceTags(activeVersionID, nil),
@@ -655,6 +665,7 @@ func TestWorkspaceBuildWithRichParameters(t *testing.T) {
 			withTemplate,
 			withActiveVersion(version2params),
 			withLastBuildFound,
+			withTemplateVersionVariables(activeVersionID, nil),
 			withRichParameters(initialBuildParameters),
 			withParameterSchemas(activeJobID, nil),
 			withWorkspaceTags(activeVersionID, nil),
@@ -915,6 +926,18 @@ func withParameterSchemas(jobID uuid.UUID, schemas []database.ParameterSchema) f
 			Times(1)
 		if len(schemas) > 0 {
 			c.Return(schemas, nil)
+		} else {
+			c.Return(nil, sql.ErrNoRows)
+		}
+	}
+}
+
+func withTemplateVersionVariables(versionID uuid.UUID, params []database.TemplateVersionVariable) func(mTx *dbmock.MockStore) {
+	return func(mTx *dbmock.MockStore) {
+		c := mTx.EXPECT().GetTemplateVersionVariables(gomock.Any(), versionID).
+			Times(1)
+		if len(params) > 0 {
+			c.Return(params, nil)
 		} else {
 			c.Return(nil, sql.ErrNoRows)
 		}
