@@ -1523,6 +1523,32 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 					}
 				}`,
 		},
+		{
+			name:                             "override no tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags:                  ``,
+		},
+		{
+			name:                             "override empty tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}`,
+		},
+		{
+			name:                             "does not override static tag",
+			provisionerTags:                  map[string]string{"foo": "bar"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
