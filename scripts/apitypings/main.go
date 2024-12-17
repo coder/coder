@@ -6,7 +6,6 @@ import (
 
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
-	"github.com/coder/guts/bindings/walk"
 	"github.com/coder/guts/config"
 )
 
@@ -77,7 +76,6 @@ func TsMutations(ts *guts.Typescript) {
 		// Omitempty + null is just '?' in golang json marshal
 		// number?: number | null --> number?: number
 		config.SimplifyOmitEmpty,
-		SimplifyUndefinedUnionFields,
 	)
 }
 
@@ -148,33 +146,4 @@ func FixSerpentStruct(gen *guts.Typescript) {
 			})
 		}
 	})
-}
-
-// SimplifyUndefinedUnionFields converts 'foo: string | undefined' to 'foo?: string'
-func SimplifyUndefinedUnionFields(gen *guts.Typescript) {
-	gen.ForEach(func(key string, originalNode bindings.Node) {
-		walk.Walk(questionTokenWalker{}, originalNode)
-	})
-}
-
-type questionTokenWalker struct {
-}
-
-func (q questionTokenWalker) Visit(node bindings.Node) (w walk.Visitor) {
-	switch n := node.(type) {
-	case *bindings.PropertySignature:
-		isUnion, ok := n.Type.(*bindings.UnionType)
-		if !ok {
-			return q
-		}
-		for i, t := range isUnion.Types {
-			if keyword, ok := t.(*bindings.LiteralKeyword); ok && *keyword == bindings.KeywordUndefined {
-				n.QuestionToken = true
-				// Remove undefined
-				isUnion.Types = append(isUnion.Types[:i], isUnion.Types[i+1:]...)
-				break
-			}
-		}
-	}
-	return q
 }
