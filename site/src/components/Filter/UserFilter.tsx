@@ -26,7 +26,7 @@ export const useUserFilterMenu = ({
 					<UserAvatar
 						username={me.username}
 						avatarURL={me.avatar_url}
-						size="xs"
+						size="sm"
 					/>
 				),
 			},
@@ -48,7 +48,7 @@ export const useUserFilterMenu = ({
 						<UserAvatar
 							username={me.username}
 							avatarURL={me.avatar_url}
-							size="xs"
+							size="sm"
 						/>
 					),
 				};
@@ -64,7 +64,7 @@ export const useUserFilterMenu = ({
 						<UserAvatar
 							username={firstUser.username}
 							avatarURL={firstUser.avatar_url}
-							size="xs"
+							size="sm"
 						/>
 					),
 				};
@@ -80,7 +80,7 @@ export const useUserFilterMenu = ({
 					<UserAvatar
 						username={user.username}
 						avatarURL={user.avatar_url}
-						size="xs"
+						size="sm"
 					/>
 				),
 			}));

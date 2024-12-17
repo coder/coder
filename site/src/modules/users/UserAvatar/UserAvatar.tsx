@@ -1,19 +1,27 @@
-import { Avatar, type AvatarProps } from "components/deprecated/Avatar/Avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	type AvatarProps,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 export type UserAvatarProps = {
 	username: string;
 	avatarURL?: string;
-} & AvatarProps;
+	size?: AvatarProps["size"];
+};
 
 export const UserAvatar: FC<UserAvatarProps> = ({
 	username,
 	avatarURL,
-	...avatarProps
+	size,
 }) => {
 	return (
-		<Avatar background title={username} src={avatarURL} {...avatarProps}>
-			{username}
+		<Avatar size={size}>
+			<AvatarImage src={avatarURL} />
+			<AvatarFallback>{avatarLetter(username)}</AvatarFallback>
 		</Avatar>
 	);
 };

@@ -288,7 +288,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
 					<UserAvatar
-						size="xs"
+						size="sm"
 						username={ownerName}
 						avatarURL={ownerAvatarUrl}
 					/>
@@ -321,7 +321,11 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<UserAvatar size="xs" src={orgIconUrl ?? ""} username={orgName} />
+					<UserAvatar
+						size="sm"
+						avatarURL={orgIconUrl ?? ""}
+						username={orgName}
+					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>

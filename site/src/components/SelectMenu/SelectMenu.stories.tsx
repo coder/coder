@@ -25,7 +25,7 @@ const meta: Meta<typeof SelectMenu> = {
 			<SelectMenu>
 				<SelectMenuTrigger>
 					<SelectMenuButton
-						startIcon={<UserAvatar size="xs" username={selectedOpt} />}
+						startIcon={<UserAvatar size="sm" username={selectedOpt} />}
 					>
 						{selectedOpt}
 					</SelectMenuButton>
@@ -36,7 +36,7 @@ const meta: Meta<typeof SelectMenu> = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
 								<SelectMenuIcon>
-									<UserAvatar size="xs" username={o} />
+									<UserAvatar size="sm" username={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>
@@ -77,7 +77,7 @@ export const LongButtonText: Story = {
 				<SelectMenuTrigger>
 					<SelectMenuButton
 						css={{ width: 200 }}
-						startIcon={<UserAvatar size="xs" username={selectedOpt} />}
+						startIcon={<UserAvatar size="sm" username={selectedOpt} />}
 					>
 						{selectedOpt}
 					</SelectMenuButton>
@@ -88,7 +88,7 @@ export const LongButtonText: Story = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
 								<SelectMenuIcon>
-									<UserAvatar size="xs" username={o} />
+									<UserAvatar size="sm" username={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>
@@ -115,7 +115,7 @@ export const NoSelectedOption: Story = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o}>
 								<SelectMenuIcon>
-									<UserAvatar size="xs" username={o} />
+									<UserAvatar size="sm" username={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>
