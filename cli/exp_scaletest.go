@@ -9,6 +9,7 @@ import (
 	"io"
 	"math/rand"
 	"net/http"
+	"net/url"
 	"os"
 	"os/signal"
 	"strconv"
@@ -860,13 +861,14 @@ func (r *RootCmd) scaletestCreateWorkspaces() *serpent.Command {
 
 func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 	var (
-		tickInterval     time.Duration
-		bytesPerTick     int64
-		ssh              bool
-		useHostLogin     bool
-		app              string
-		template         string
-		targetWorkspaces string
+		tickInterval      time.Duration
+		bytesPerTick      int64
+		ssh               bool
+		useHostLogin      bool
+		app               string
+		template          string
+		targetWorkspaces  string
+		workspaceProxyURL string
 
 		client          = &codersdk.Client{}
 		tracingFlags    = &scaletestTracingFlags{}
@@ -1002,6 +1004,23 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 					return xerrors.Errorf("configure workspace app: %w", err)
 				}
 
+				var webClient *codersdk.Client
+				if workspaceProxyURL != "" {
+					u, err := url.Parse(workspaceProxyURL)
+					if err != nil {
+						return xerrors.Errorf("parse workspace proxy URL: %w", err)
+					}
+
+					webClient = codersdk.New(u)
+					webClient.HTTPClient = client.HTTPClient
+					webClient.SetSessionToken(client.SessionToken())
+
+					appConfig, err = createWorkspaceAppConfig(webClient, appHost.Host, app, ws, agent)
+					if err != nil {
+						return xerrors.Errorf("configure proxy workspace app: %w", err)
+					}
+				}
+
 				// Setup our workspace agent connection.
 				config := workspacetraffic.Config{
 					AgentID:      agent.ID,
@@ -1013,6 +1032,10 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 					SSH:          ssh,
 					Echo:         ssh,
 					App:          appConfig,
+				}
+
+				if webClient != nil {
+					config.WebClient = webClient
 				}
 
 				if err := config.Validate(); err != nil {
@@ -1107,6 +1130,13 @@ func (r *RootCmd) scaletestWorkspaceTraffic() *serpent.Command {
 			Default:     "false",
 			Description: "Connect as the currently logged in user.",
 			Value:       serpent.BoolOf(&useHostLogin),
+		},
+		{
+			Flag:        "workspace-proxy-url",
+			Env:         "CODER_SCALETEST_WORKSPACE_PROXY_URL",
+			Default:     "",
+			Description: "URL for workspace proxy to send web traffic to.",
+			Value:       serpent.StringOf(&workspaceProxyURL),
 		},
 	}
 
