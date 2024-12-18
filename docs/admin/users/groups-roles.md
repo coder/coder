@@ -31,7 +31,14 @@ Roles determine which actions users can take within the platform.
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
 
-## Custom Roles (Premium) (Beta)
+## Custom Roles
+
+<blockquote class="info">
+
+Custom roles are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Starting in v2.16.0, Premium Coder deployments can configure custom roles on the
 [Organization](./organizations.md) level. You can create and assign custom roles

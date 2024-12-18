@@ -22,7 +22,7 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
+import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
@@ -30,7 +30,6 @@ import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/Wo
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { isEmojiUrl } from "utils/appearance";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -239,9 +238,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
-						canUpdateSchedule={
-							canUpdateWorkspace && template.allow_user_autostop
-						}
+						canUpdateSchedule={canUpdateWorkspace}
 					/>
 					<WorkspaceNotifications
 						workspace={workspace}

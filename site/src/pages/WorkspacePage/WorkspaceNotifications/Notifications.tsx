@@ -7,7 +7,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
-} from "components/Popover/Popover";
+} from "components/deprecated/Popover/Popover";
 import type { FC, ReactNode } from "react";
 import type { ThemeRole } from "theme/roles";
 

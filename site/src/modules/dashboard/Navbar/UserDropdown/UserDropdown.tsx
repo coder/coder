@@ -6,10 +6,10 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
+} from "components/deprecated/Popover/Popover";
 import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
-import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
+import { navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 export interface UserDropdownProps {

@@ -4,7 +4,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { cn } from "utils/cn";
 import { isUUID } from "utils/uuid";

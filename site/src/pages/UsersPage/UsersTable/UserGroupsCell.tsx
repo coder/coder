@@ -11,12 +11,12 @@ import {
 	avatarLetter,
 } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
+import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 
 type GroupsCellProps = {

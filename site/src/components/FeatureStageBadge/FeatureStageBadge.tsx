@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { visuallyHidden } from "@mui/utils";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
+import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import type { FC, HTMLAttributes, ReactNode } from "react";
 import { docs } from "utils/docs";
 

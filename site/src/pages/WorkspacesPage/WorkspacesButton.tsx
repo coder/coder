@@ -12,12 +12,12 @@ import {
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
+import { SearchEmpty, searchStyles } from "components/Search/Search";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SearchEmpty, searchStyles } from "components/Search/Search";
+} from "components/deprecated/Popover/Popover";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
@@ -25,8 +25,6 @@ import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
 } from "react-router-dom";
-
-const ICON_SIZE = 18;
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 

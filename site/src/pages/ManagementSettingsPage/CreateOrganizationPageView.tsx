@@ -13,13 +13,13 @@ import {
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { docs } from "utils/docs";
