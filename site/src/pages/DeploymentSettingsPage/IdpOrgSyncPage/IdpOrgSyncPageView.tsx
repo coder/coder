@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -12,6 +11,14 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "components/Dialog/Dialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
 	HelpTooltip,
@@ -26,10 +33,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Switch } from "components/Switch/Switch";
-import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
 import { type FC, useState } from "react";
@@ -74,6 +77,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const organizationMappingCount = form.values.mapping
 		? Object.entries(form.values.mapping).length
 		: 0;
+	const [isDialogOpen, setIsDialogOpen] = useState(false);
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -136,11 +140,15 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
 										checked={form.values.organization_assign_default}
 										onCheckedChange={async (checked) => {
-											void form.setFieldValue(
-												"organization_assign_default",
-												checked,
-											);
-											form.handleSubmit();
+											if (!checked) {
+												setIsDialogOpen(true);
+											} else {
+												void form.setFieldValue(
+													"organization_assign_default",
+													checked,
+												);
+												form.handleSubmit();
+											}
 										}}
 									/>
 									<span className="flex flex-row items-center gap-1">
@@ -234,6 +242,36 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 					</div>
 				</fieldset>
 			</form>
+
+			<Dialog open={isDialogOpen} onOpenChange={setIsDialogOpen}>
+				<DialogContent className="flex flex-col gap-12 max-w-lg">
+					<DialogHeader className="flex flex-col gap-4">
+						<DialogTitle>
+							Switch off default organization assignment
+						</DialogTitle>
+						<DialogDescription>
+							Warning: This will remove all users from the default organization
+							unless otherwise specified in an organization mapping defined
+							below.
+						</DialogDescription>
+					</DialogHeader>
+					<DialogFooter className="flex flex-row">
+						<Button variant="outline" onClick={() => setIsDialogOpen(false)}>
+							Cancel
+						</Button>
+						<Button
+							onClick={() => {
+								void form.setFieldValue("organization_assign_default", false);
+								setIsDialogOpen(false);
+								form.handleSubmit();
+							}}
+							type="submit"
+						>
+							Confirm
+						</Button>
+					</DialogFooter>
+				</DialogContent>
+			</Dialog>
 		</div>
 	);
 };
@@ -318,31 +356,14 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	);
 };
 
-const TableLoader = () => {
-	return (
-		<TableLoaderSkeleton>
-			<TableRowSkeleton>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
-				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
-				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="10%" />
-				</TableCell>
-			</TableRowSkeleton>
-		</TableLoaderSkeleton>
-	);
-};
-
 export const AssignDefaultOrgHelpTooltip: FC = () => {
 	return (
 		<HelpTooltip>
 			<HelpTooltipTrigger />
 			<HelpTooltipContent>
 				<HelpTooltipText>
-					Disabling will remove all users from the default organization.
+					Disabling will remove all users from the default organization if a
+					mapping for the default organization is not defined.
 				</HelpTooltipText>
 			</HelpTooltipContent>
 		</HelpTooltip>

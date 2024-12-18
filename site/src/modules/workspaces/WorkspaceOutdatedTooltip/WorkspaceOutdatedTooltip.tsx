@@ -13,7 +13,7 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
-import { usePopover } from "components/Popover/Popover";
+import { usePopover } from "components/deprecated/Popover/Popover";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";

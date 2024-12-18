@@ -1199,6 +1199,10 @@ export const MockWorkspaceBuild: TypesGen.WorkspaceBuild = {
 	resources: [MockWorkspaceResource],
 	status: "running",
 	daily_cost: 20,
+	matched_provisioners: {
+		count: 1,
+		available: 1,
+	},
 };
 
 export const MockWorkspaceBuildAutostart: TypesGen.WorkspaceBuild = {
@@ -1322,6 +1326,9 @@ export const MockWorkspace: TypesGen.Workspace = {
 	automatic_updates: "never",
 	allow_renames: true,
 	favorite: false,
+	deleting_at: null,
+	dormant_at: null,
+	next_start_at: null,
 };
 
 export const MockFavoriteWorkspace: TypesGen.Workspace = {
@@ -3078,6 +3085,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: true,
 							CanSTUN: true,
+							Error: null,
 						},
 					},
 					{
@@ -3121,6 +3129,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: false,
 							CanSTUN: false,
+							Error: null,
 						},
 					},
 				],
@@ -3176,6 +3185,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: true,
 							CanSTUN: true,
+							Error: null,
 						},
 					},
 					{
@@ -3209,6 +3219,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: false,
 							CanSTUN: false,
+							Error: null,
 						},
 					},
 				],
@@ -3264,6 +3275,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: true,
 							CanSTUN: true,
+							Error: null,
 						},
 					},
 					{
@@ -3297,6 +3309,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: false,
 							CanSTUN: false,
+							Error: null,
 						},
 					},
 				],
@@ -3352,6 +3365,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: true,
 							CanSTUN: true,
+							Error: null,
 						},
 					},
 					{
@@ -3385,6 +3399,7 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						stun: {
 							Enabled: false,
 							CanSTUN: false,
+							Error: null,
 						},
 					},
 				],
@@ -3973,6 +3988,7 @@ export const MockOAuth2ProviderAppSecrets: TypesGen.OAuth2ProviderAppSecret[] =
 		{
 			id: "1",
 			client_secret_truncated: "foo",
+			last_used_at: null,
 		},
 		{
 			id: "1",

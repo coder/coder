@@ -13,6 +13,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
@@ -27,6 +28,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -208,6 +210,145 @@ func TestGetDeploymentWorkspaceAgentUsageStats(t *testing.T) {
 		require.Equal(t, int64(0), stats.SessionCountSSH)
 		require.Equal(t, int64(0), stats.SessionCountReconnectingPTY)
 		require.Equal(t, int64(0), stats.SessionCountJetBrains)
+	})
+}
+
+func TestGetEligibleProvisionerDaemonsByProvisionerJobIDs(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoJobsReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{})
+		require.NoError(t, err)
+		require.Empty(t, daemons)
+	})
+
+	t.Run("MatchesProvisionerType", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		matchingDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, matchingDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesOrganizationScope", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		})
+
+		orgDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "org-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "user-daemon",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeUser,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, orgDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesMultipleProvisioners", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Provisioner:    database.ProvisionerTypeEcho,
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-1",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemon2 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-2",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeEcho},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "daemon-3",
+			OrganizationID: org.ID,
+			Provisioners:   []database.ProvisionerType{database.ProvisionerTypeTerraform},
+			Tags: database.StringMap{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+			},
+		})
+
+		daemons, err := db.GetEligibleProvisionerDaemonsByProvisionerJobIDs(context.Background(), []uuid.UUID{job.ID})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+
+		daemonIDs := []uuid.UUID{daemons[0].ProvisionerDaemon.ID, daemons[1].ProvisionerDaemon.ID}
+		require.ElementsMatch(t, []uuid.UUID{daemon1.ID, daemon2.ID}, daemonIDs)
 	})
 }
 
@@ -1895,6 +2036,126 @@ func TestExpectOne(t *testing.T) {
 		_, err = database.ExpectOne(db.GetOrganizations(ctx, database.GetOrganizationsParams{}))
 		require.ErrorContains(t, err, "too many rows returned")
 	})
+}
+
+func TestGetProvisionerJobsByIDsWithQueuePosition(t *testing.T) {
+	t.Parallel()
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	db, _ := dbtestutil.NewDB(t)
+	now := dbtime.Now()
+	ctx := testutil.Context(t, testutil.WaitShort)
+
+	// Given the following provisioner jobs:
+	allJobs := []database.ProvisionerJob{
+		// Pending. This will be the last in the queue because
+		// it was created most recently.
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-time.Minute),
+			StartedAt:   sql.NullTime{},
+			CanceledAt:  sql.NullTime{},
+			CompletedAt: sql.NullTime{},
+			Error:       sql.NullString{},
+		}),
+
+		// Another pending. This will come first in the queue
+		// because it was created before the previous job.
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-2 * time.Minute),
+			StartedAt:   sql.NullTime{},
+			CanceledAt:  sql.NullTime{},
+			CompletedAt: sql.NullTime{},
+			Error:       sql.NullString{},
+		}),
+
+		// Running
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-3 * time.Minute),
+			StartedAt:   sql.NullTime{Valid: true, Time: now},
+			CanceledAt:  sql.NullTime{},
+			CompletedAt: sql.NullTime{},
+			Error:       sql.NullString{},
+		}),
+
+		// Succeeded
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-4 * time.Minute),
+			StartedAt:   sql.NullTime{Valid: true, Time: now},
+			CanceledAt:  sql.NullTime{},
+			CompletedAt: sql.NullTime{Valid: true, Time: now},
+			Error:       sql.NullString{},
+		}),
+
+		// Canceling
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-5 * time.Minute),
+			StartedAt:   sql.NullTime{},
+			CanceledAt:  sql.NullTime{Valid: true, Time: now},
+			CompletedAt: sql.NullTime{},
+			Error:       sql.NullString{},
+		}),
+
+		// Canceled
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-6 * time.Minute),
+			StartedAt:   sql.NullTime{},
+			CanceledAt:  sql.NullTime{Valid: true, Time: now},
+			CompletedAt: sql.NullTime{Valid: true, Time: now},
+			Error:       sql.NullString{},
+		}),
+
+		// Failed
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			CreatedAt:   now.Add(-7 * time.Minute),
+			StartedAt:   sql.NullTime{},
+			CanceledAt:  sql.NullTime{},
+			CompletedAt: sql.NullTime{},
+			Error:       sql.NullString{String: "failed", Valid: true},
+		}),
+	}
+
+	// Assert invariant: the jobs are in the expected order
+	require.Len(t, allJobs, 7, "expected 7 jobs")
+	for idx, status := range []database.ProvisionerJobStatus{
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusPending,
+		database.ProvisionerJobStatusRunning,
+		database.ProvisionerJobStatusSucceeded,
+		database.ProvisionerJobStatusCanceling,
+		database.ProvisionerJobStatusCanceled,
+		database.ProvisionerJobStatusFailed,
+	} {
+		require.Equal(t, status, allJobs[idx].JobStatus, "expected job %d to have status %s", idx, status)
+	}
+
+	var jobIDs []uuid.UUID
+	for _, job := range allJobs {
+		jobIDs = append(jobIDs, job.ID)
+	}
+
+	// When: we fetch the jobs by their IDs
+	actualJobs, err := db.GetProvisionerJobsByIDsWithQueuePosition(ctx, jobIDs)
+	require.NoError(t, err)
+	require.Len(t, actualJobs, len(allJobs), "should return all jobs")
+
+	// Then: the jobs should be returned in the correct order (by IDs in the input slice)
+	for idx, job := range actualJobs {
+		assert.EqualValues(t, allJobs[idx], job.ProvisionerJob)
+	}
+
+	// Then: the queue size should be set correctly
+	for _, job := range actualJobs {
+		assert.EqualValues(t, job.QueueSize, 2, "should have queue size 2")
+	}
+
+	// Then: the queue position should be set correctly:
+	var queuePositions []int64
+	for _, job := range actualJobs {
+		queuePositions = append(queuePositions, job.QueuePosition)
+	}
+	assert.EqualValues(t, []int64{2, 1, 0, 0, 0, 0, 0}, queuePositions, "expected queue positions to be set correctly")
 }
 
 func TestGroupRemovalTrigger(t *testing.T) {

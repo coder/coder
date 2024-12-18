@@ -42,7 +42,6 @@ interface OrganizationMembersPageViewProps {
 	isUpdatingMemberRoles: boolean;
 	me: User;
 	members: Array<OrganizationMemberTableEntry> | undefined;
-	groupsByUserId: GroupsByUserId | undefined;
 	addMember: (user: User) => Promise<void>;
 	removeMember: (member: OrganizationMemberWithUserData) => void;
 	updateMemberRoles: (
@@ -57,17 +56,28 @@ interface OrganizationMemberTableEntry extends OrganizationMemberWithUserData {
 
 export const OrganizationMembersPageView: FC<
 	OrganizationMembersPageViewProps
-> = (props) => {
+> = ({
+	allAvailableRoles,
+	canEditMembers,
+	error,
+	isAddingMember,
+	isUpdatingMemberRoles,
+	me,
+	members,
+	addMember,
+	removeMember,
+	updateMemberRoles,
+}) => {
 	return (
 		<div>
 			<SettingsHeader title="Members" />
 			<Stack>
-				{Boolean(props.error) && <ErrorAlert error={props.error} />}
+				{Boolean(error) && <ErrorAlert error={error} />}
 
-				{props.canEditMembers && (
+				{canEditMembers && (
 					<AddOrganizationMember
-						isLoading={props.isAddingMember}
-						onSubmit={props.addMember}
+						isLoading={isAddingMember}
+						onSubmit={addMember}
 					/>
 				)}
 
@@ -92,7 +102,7 @@ export const OrganizationMembersPageView: FC<
 							</TableRow>
 						</TableHead>
 						<TableBody>
-							{props.members?.map((member) => (
+							{members?.map((member) => (
 								<TableRow key={member.user_id}>
 									<TableCell>
 										<AvatarData
@@ -109,13 +119,13 @@ export const OrganizationMembersPageView: FC<
 									<UserRoleCell
 										inheritedRoles={member.global_roles}
 										roles={member.roles}
-										allAvailableRoles={props.allAvailableRoles}
+										allAvailableRoles={allAvailableRoles}
 										oidcRoleSyncEnabled={false}
-										isLoading={props.isUpdatingMemberRoles}
-										canEditUsers={props.canEditMembers}
+										isLoading={isUpdatingMemberRoles}
+										canEditUsers={canEditMembers}
 										onEditRoles={async (roles) => {
 											try {
-												await props.updateMemberRoles(member, roles);
+												await updateMemberRoles(member, roles);
 												displaySuccess("Roles updated successfully.");
 											} catch (error) {
 												displayError(
@@ -126,7 +136,7 @@ export const OrganizationMembersPageView: FC<
 									/>
 									<UserGroupsCell userGroups={member.groups} />
 									<TableCell>
-										{member.user_id !== props.me.id && props.canEditMembers && (
+										{member.user_id !== me.id && canEditMembers && (
 											<MoreMenu>
 												<MoreMenuTrigger>
 													<ThreeDotsButton />
@@ -134,7 +144,7 @@ export const OrganizationMembersPageView: FC<
 												<MoreMenuContent>
 													<MoreMenuItem
 														danger
-														onClick={() => props.removeMember(member)}
+														onClick={() => removeMember(member)}
 													>
 														Remove
 													</MoreMenuItem>

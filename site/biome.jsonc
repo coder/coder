@@ -1,6 +1,14 @@
 {
 	"files": {
-		"ignore": ["**/*Generated.ts"]
+		"ignore": [
+			"build/",
+			"node_modules/",
+			"out/",
+			"test-results/",
+			"e2e/**/*Generated.ts",
+			"src/api/*Generated.ts",
+			"pnpm-lock.yaml"
+		]
 	},
 	"linter": {
 		"rules": {
@@ -39,5 +47,6 @@
 				}
 			}
 		}
-	}
+	},
+	"$schema": "https://biomejs.dev/schemas/1.9.4/schema.json"
 }

@@ -2,12 +2,12 @@ import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type * as TypesGen from "api/typesGenerated";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+} from "components/deprecated/Popover/Popover";
 import { type FC, useState } from "react";
 import { BUTTON_SM_HEIGHT, navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";

@@ -35,7 +35,6 @@ import { pageTitle } from "utils/page";
 import { ChangeVersionDialog } from "./ChangeVersionDialog";
 import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
-import { WorkspaceBuildLogsSection } from "./WorkspaceBuildLogsSection";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
 
@@ -71,10 +70,10 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 	});
 
 	// Build logs
-	const shouldDisplayBuildLogs = workspace.latest_build.status !== "running";
+	const shouldStreamBuildLogs = workspace.latest_build.status !== "running";
 	const buildLogs = useWorkspaceBuildLogs(
 		workspace.latest_build.id,
-		shouldDisplayBuildLogs,
+		shouldStreamBuildLogs,
 	);
 
 	// Restart
@@ -278,11 +277,7 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				buildInfo={buildInfoQuery.data}
 				sshPrefix={sshPrefixQuery.data?.hostname_prefix}
 				template={template}
-				buildLogs={
-					shouldDisplayBuildLogs && (
-						<WorkspaceBuildLogsSection logs={buildLogs} />
-					)
-				}
+				buildLogs={buildLogs}
 				isOwner={isOwner}
 				timings={timingsQuery.data}
 			/>

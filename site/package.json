@@ -6,16 +6,16 @@
 	"license": "AGPL-3.0",
 	"scripts": {
 		"build": "NODE_ENV=production pnpm vite build",
-		"check": "biome check --error-on-warnings e2e/ src/",
-		"check:fix": "biome check --error-on-warnings --fix e2e/ src/",
+		"check": "biome check --error-on-warnings .",
+		"check:fix": "biome check --error-on-warnings --fix .",
 		"check:all": "pnpm check && pnpm test",
 		"chromatic": "chromatic",
 		"dev": "vite",
-		"format": "biome format --write e2e/ src/",
-		"format:check": "biome format e2e/ src/",
+		"format": "biome format --write .",
+		"format:check": "biome format .",
 		"lint": "pnpm run lint:check && pnpm run lint:types",
-		"lint:check": " biome lint --error-on-warnings e2e/ src/",
-		"lint:fix": " biome lint --error-on-warnings --write e2e/ src/",
+		"lint:check": " biome lint --error-on-warnings .",
+		"lint:fix": " biome lint --error-on-warnings --write .",
 		"lint:types": "tsc -p .",
 		"playwright:install": "playwright install --with-deps chromium",
 		"playwright:test": "playwright test --config=e2e/playwright.config.ts",
@@ -50,8 +50,10 @@
 		"@mui/system": "5.16.7",
 		"@mui/utils": "5.16.6",
 		"@mui/x-tree-view": "7.18.0",
+		"@radix-ui/react-avatar": "1.1.2",
 		"@radix-ui/react-dialog": "1.1.2",
 		"@radix-ui/react-label": "2.1.0",
+		"@radix-ui/react-popover": "1.1.3",
 		"@radix-ui/react-slider": "1.2.1",
 		"@radix-ui/react-slot": "1.1.0",
 		"@radix-ui/react-switch": "1.1.1",
@@ -115,7 +117,7 @@
 		"yup": "1.4.0"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "1.9.3",
+		"@biomejs/biome": "1.9.4",
 		"@chromatic-com/storybook": "3.2.2",
 		"@octokit/types": "12.3.0",
 		"@playwright/test": "1.47.2",
@@ -182,11 +184,7 @@
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
-	"browserslist": [
-		"chrome 110",
-		"firefox 111",
-		"safari 16.0"
-	],
+	"browserslist": ["chrome 110", "firefox 111", "safari 16.0"],
 	"resolutions": {
 		"optionator": "0.9.3",
 		"semver": "7.6.2"

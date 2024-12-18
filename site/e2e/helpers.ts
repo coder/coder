@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import * as fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -46,6 +47,10 @@ export function requiresLicense() {
 	}
 
 	test.skip(!license);
+}
+
+export function requiresUnlicensed() {
+	test.skip(license.length > 0);
 }
 
 /**
@@ -850,6 +855,7 @@ export const fillParameters = async (
 
 export const updateTemplate = async (
 	page: Page,
+	organization: string,
 	templateName: string,
 	responses?: EchoProvisionerResponses,
 ) => {
@@ -868,6 +874,8 @@ export const updateTemplate = async (
 			"-y",
 			"-d",
 			"-",
+			"-O",
+			organization,
 			templateName,
 		],
 		{
@@ -880,6 +888,7 @@ export const updateTemplate = async (
 	);
 
 	const uploaded = new Awaiter();
+
 	child.on("exit", (code) => {
 		if (code === 0) {
 			uploaded.done();
@@ -986,4 +995,71 @@ export async function openTerminalWindow(
 	await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
 
 	return terminal;
+}
+
+type UserValues = {
+	name: string;
+	username: string;
+	email: string;
+	password: string;
+};
+
+export async function createUser(
+	page: Page,
+	userValues: Partial<UserValues> = {},
+): Promise<UserValues> {
+	const returnTo = page.url();
+
+	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
+	await expect(page).toHaveTitle("Users - Coder");
+
+	await page.getByRole("button", { name: "Create user" }).click();
+	await expect(page).toHaveTitle("Create User - Coder");
+
+	const username = userValues.username ?? randomName();
+	const name = userValues.name ?? username;
+	const email = userValues.email ?? `${username}@coder.com`;
+	const password = userValues.password || "s3cure&password!";
+
+	await page.getByLabel("Username").fill(username);
+	if (name) {
+		await page.getByLabel("Full name").fill(name);
+	}
+	await page.getByLabel("Email").fill(email);
+	await page.getByLabel("Login Type").click();
+	await page.getByRole("option", { name: "Password", exact: false }).click();
+	// Using input[name=password] due to the select element utilizing 'password'
+	// as the label for the currently active option.
+	const passwordField = page.locator("input[name=password]");
+	await passwordField.fill(password);
+	await page.getByRole("button", { name: "Create user" }).click();
+	await expect(page.getByText("Successfully created user.")).toBeVisible();
+
+	await expect(page).toHaveTitle("Users - Coder");
+	await expect(page.locator("tr", { hasText: email })).toBeVisible();
+
+	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
+	return { name, username, email, password };
+}
+
+export async function createOrganization(page: Page): Promise<{
+	name: string;
+	displayName: string;
+	description: string;
+}> {
+	// Create a new organization to test
+	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
+	const name = randomName();
+	await page.getByLabel("Slug").fill(name);
+	const displayName = `Org ${name}`;
+	await page.getByLabel("Display name").fill(displayName);
+	const description = `Org description ${name}`;
+	await page.getByLabel("Description").fill(description);
+	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
+	await page.getByRole("button", { name: "Submit" }).click();
+
+	await expectUrl(page).toHavePathName(`/organizations/${name}`);
+	await expect(page.getByText("Organization created.")).toBeVisible();
+
+	return { name, displayName, description };
 }

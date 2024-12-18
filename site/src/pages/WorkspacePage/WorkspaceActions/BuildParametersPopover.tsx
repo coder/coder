@@ -17,13 +17,13 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
-} from "components/Popover/Popover";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useQuery } from "react-query";

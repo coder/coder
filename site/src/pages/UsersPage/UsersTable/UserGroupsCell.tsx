@@ -4,14 +4,14 @@ import List from "@mui/material/List";
 import ListItem from "@mui/material/ListItem";
 import TableCell from "@mui/material/TableCell";
 import type { Group } from "api/typesGenerated";
-import { Avatar } from "components/Avatar/Avatar";
 import { OverflowY } from "components/OverflowY/OverflowY";
+import { Stack } from "components/Stack/Stack";
+import { Avatar } from "components/deprecated/Avatar/Avatar";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 
 type GroupsCellProps = {
