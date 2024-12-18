@@ -193,7 +193,7 @@ const OrganizationSettingsNavigation: FC<
 	return (
 		<>
 			{active && (
-				<div className="flex flex-col gap-1 my-2 ml-11">
+				<div className="flex flex-col gap-1 my-2">
 					{organization.permissions.editOrganization && (
 						<SidebarNavSubItem end href={urlForSubpage(organization.name)}>
 							Settings
