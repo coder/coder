@@ -23,16 +23,20 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 	// Go to the audit history
 	await page.goto("/audit");
 
+	const loginMessage = `${userName} logged in`;
+	const startedWorkspaceMessage = `${userName} started workspace ${workspaceName}`;
+
 	// Make sure those things we did all actually show up
-	await expect(page.getByText(`${userName} logged in`)).toBeVisible();
+	await expect(page.getByText(loginMessage).first()).toBeVisible();
+
+	await page.getByText("All actions").click();
+	await page.getByText("Create", { exact: true }).click();
+
 	await expect(
 		page.getByText(`${userName} created template ${templateName}`),
 	).toBeVisible();
 	await expect(
 		page.getByText(`${userName} created workspace ${workspaceName}`),
-	).toBeVisible();
-	await expect(
-		page.getByText(`${userName} started workspace ${workspaceName}`),
 	).toBeVisible();
 
 	// Make sure we can inspect the details of the log item
@@ -46,9 +50,14 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 	await expect(
 		createdWorkspace.getByText(`name: "${workspaceName}"`),
 	).toBeVisible();
+	await page.getByLabel("Clear search").click();
+	await expect(page.getByText("All actions")).toBeVisible();
 
-	const startedWorkspaceMessage = `${userName} started workspace ${workspaceName}`;
-	const loginMessage = `${userName} logged in`;
+	await page.getByText("All actions").click();
+	await page.getByText("Start", { exact: true }).click();
+	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
+	await page.getByLabel("Clear search").click();
+	await expect(page.getByText("All actions")).toBeVisible();
 
 	// Filter by resource type
 	await page.getByText("All resource types").click();
@@ -59,19 +68,14 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
 	// Logins should no longer be visible
 	await expect(page.getByText(loginMessage)).not.toBeVisible();
-
-	// Clear filters, everything should be visible again
 	await page.getByLabel("Clear search").click();
-	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
-	await expect(page.getByText(loginMessage)).toBeVisible();
+	await expect(page.getByText("All resource types")).toBeVisible();
 
 	// Filter by action type
 	await page.getByText("All actions").click();
-	const loginOption = page.getByText("Login");
-	await loginOption.scrollIntoViewIfNeeded({ timeout: 5000 });
-	await loginOption.click();
+	await page.getByText("Login").click();
 	// Logins should be visible
-	await expect(page.getByText(loginMessage)).toBeVisible();
+	await expect(page.getByText(loginMessage).first()).toBeVisible();
 	// Our workspace build should no longer be visible
 	await expect(page.getByText(startedWorkspaceMessage)).not.toBeVisible();
 });

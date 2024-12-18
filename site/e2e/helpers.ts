@@ -67,9 +67,11 @@ type LoginOptions = {
 };
 
 export async function login(page: Page, options?: LoginOptions) {
+	await page.goto("/login");
 	await page.getByLabel("Email").fill(options?.email || email);
 	await page.getByLabel("Password").fill(options?.password || password);
 	await page.getByRole("button", { name: "Sign In" }).click();
+	await expectUrl(page).toHavePathName("/workspaces");
 }
 
 /**
