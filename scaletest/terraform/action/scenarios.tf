@@ -31,7 +31,7 @@ locals {
         machine_type  = "t2d-standard-4"
       }
       cloudsql = {
-        tier            = "db-custom-4-15360"
+        tier            = "db-f1-micro"
         max_connections = 500
       }
     }
@@ -81,7 +81,7 @@ locals {
         mem_limit     = "12Gi"
       }
       provisionerd = {
-        replicas    = 50
+        replicas    = 30
         cpu_request = "100m"
         mem_request = "256Mi"
         cpu_limit   = "1000m"
