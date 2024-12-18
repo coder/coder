@@ -16,7 +16,7 @@ import { InputGroup } from "components/InputGroup/InputGroup";
 import { SearchField } from "components/SearchField/SearchField";
 import { useDebouncedFunction } from "hooks/debounce";
 import { type FC, type ReactNode, useEffect, useRef, useState } from "react";
-import type { useSearchParams } from "react-router-dom";
+import type { useSearchParams } from "react-router";
 
 export type PresetFilter = {
 	name: string;

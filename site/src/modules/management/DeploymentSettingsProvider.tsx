@@ -6,7 +6,7 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { type FC, createContext, useContext } from "react";
 import { useQuery } from "react-query";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 
 export const DeploymentSettingsContext = createContext<
 	DeploymentSettingsValue | undefined

@@ -13,7 +13,7 @@ import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type FC, useRef, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { BUTTON_SM_HEIGHT } from "theme/constants";
 
 interface ProxyMenuProps {

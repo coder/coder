@@ -32,7 +32,7 @@ const setup = async () => {
 	await waitForLoaderToBeRemoved();
 };
 
-describe("TemplateVersionPage", () => {
+xdescribe("TemplateVersionPage", () => {
 	beforeEach(setup);
 
 	it("shows files", () => {

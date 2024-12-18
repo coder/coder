@@ -1,5 +1,5 @@
 import type { FC, ReactNode } from "react";
-import { Navigate } from "react-router-dom";
+import { Navigate } from "react-router";
 
 export interface RequirePermissionProps {
 	children?: ReactNode;

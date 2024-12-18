@@ -11,7 +11,7 @@ import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import type { ThemeRole } from "theme/roles";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";

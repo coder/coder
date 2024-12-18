@@ -9,7 +9,7 @@ import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 
 export interface VersionRowProps {
 	version: TemplateVersion;

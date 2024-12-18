@@ -7,7 +7,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { type FC, useState } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router";
 import { navHeight } from "theme/constants";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { ProxyMenu } from "./ProxyMenu";

@@ -1,5 +1,4 @@
 import fs from "node:fs";
-import path from "node:path";
 import type { CreateWorkspaceBuildRequest } from "api/typesGenerated";
 import { permissionsToCheck } from "contexts/auth/permissions";
 import { http, HttpResponse } from "msw";
@@ -334,7 +333,7 @@ export const handlers = [
 
 	http.get("/api/v2/files/:fileId", () => {
 		const fileBuffer = fs.readFileSync(
-			path.resolve(__dirname, "./templateFiles.tar"),
+			new URL("./templateFiles.tar", import.meta.url),
 		);
 
 		return HttpResponse.arrayBuffer(fileBuffer);

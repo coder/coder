@@ -19,7 +19,7 @@ import { useTime } from "hooks/useTime";
 import { getWorkspaceActivityStatus } from "modules/workspaces/activity";
 import { type FC, type ReactNode, forwardRef, useRef, useState } from "react";
 import { useMutation, useQueryClient } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import {
 	autostartDisplay,
 	autostopDisplay,
@@ -120,7 +120,7 @@ const AutostopDisplay: FC<AutostopDisplayProps> = ({
 	);
 	const deadlinePlusEnabled = maxDeadlineIncrease >= 1;
 	const deadlineMinusEnabled = maxDeadlineDecrease >= 1;
-	const deadlineUpdateTimeout = useRef<number>();
+	const deadlineUpdateTimeout = useRef<number | undefined>(undefined);
 	const lastStableDeadline = useRef<Dayjs>(deadline);
 
 	const updateWorkspaceDeadlineQueryData = (deadline: Dayjs) => {

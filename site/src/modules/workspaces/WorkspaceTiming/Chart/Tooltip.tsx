@@ -5,7 +5,7 @@ import MUITooltip, {
 	type TooltipProps as MUITooltipProps,
 } from "@mui/material/Tooltip";
 import type { FC, HTMLProps } from "react";
-import { Link, type LinkProps } from "react-router-dom";
+import { Link, type LinkProps } from "react-router";
 
 export type TooltipProps = MUITooltipProps;
 

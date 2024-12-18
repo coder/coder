@@ -15,7 +15,7 @@ import { useManagementSettings } from "modules/management/ManagementSettingsLayo
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";

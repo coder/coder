@@ -1,4 +1,3 @@
-import * as path from "node:path";
 import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
 import { type PluginOption, defineConfig } from "vite";
@@ -21,9 +20,9 @@ if (process.env.STATS !== undefined) {
 
 export default defineConfig({
 	plugins: plugins,
-	publicDir: path.resolve(__dirname, "./static"),
+	publicDir: "static/",
 	build: {
-		outDir: path.resolve(__dirname, "./out"),
+		outDir: "out/",
 		// We need to keep the /bin folder and GITKEEP files
 		emptyOutDir: false,
 		// 'hidden' works like true except that the corresponding sourcemap comments in the bundled files are suppressed
@@ -33,7 +32,6 @@ export default defineConfig({
 		"process.env": {
 			NODE_ENV: process.env.NODE_ENV,
 			STORYBOOK: process.env.STORYBOOK,
-			INSPECT_XSTATE: process.env.INSPECT_XSTATE,
 		},
 	},
 	server: {
@@ -83,15 +81,15 @@ export default defineConfig({
 	},
 	resolve: {
 		alias: {
-			api: path.resolve(__dirname, "./src/api"),
-			components: path.resolve(__dirname, "./src/components"),
-			contexts: path.resolve(__dirname, "./src/contexts"),
-			hooks: path.resolve(__dirname, "./src/hooks"),
-			modules: path.resolve(__dirname, "./src/modules"),
-			pages: path.resolve(__dirname, "./src/pages"),
-			testHelpers: path.resolve(__dirname, "./src/testHelpers"),
-			theme: path.resolve(__dirname, "./src/theme"),
-			utils: path.resolve(__dirname, "./src/utils"),
+			api: new URL("./src/api", import.meta.url).pathname,
+			components: new URL("./src/components", import.meta.url).pathname,
+			contexts: new URL("./src/contexts", import.meta.url).pathname,
+			hooks: new URL("./src/hooks", import.meta.url).pathname,
+			modules: new URL("./src/modules", import.meta.url).pathname,
+			pages: new URL("./src/pages", import.meta.url).pathname,
+			testHelpers: new URL("./src/testHelpers", import.meta.url).pathname,
+			theme: new URL("./src/theme", import.meta.url).pathname,
+			utils: new URL("./src/utils", import.meta.url).pathname,
 		},
 	},
 });

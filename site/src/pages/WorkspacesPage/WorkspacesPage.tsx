@@ -10,7 +10,7 @@ import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { BatchDeleteConfirmation } from "./BatchDeleteConfirmation";
 import { BatchUpdateConfirmation } from "./BatchUpdateConfirmation";
