@@ -9,7 +9,7 @@ import {
 	FormFields,
 	FormFooter,
 	FormSection,
-	HorizontalForm,
+	VerticalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
@@ -23,7 +23,9 @@ import {
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
+import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
+import { Link } from "react-router-dom";
 import { docs } from "utils/docs";
 import {
 	displayNameValidator,
@@ -67,105 +69,115 @@ export const CreateOrganizationPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<Stack>
+		<div className="flex flex-row gap-72 font-medium">
 			<div>
-				<SettingsHeader
-					title="New Organization"
-					description="Organize your deployment into multiple platform teams with unique provisioners, templates, groups, and members."
-				/>
-
-				{Boolean(error) && !isApiValidationError(error) && (
-					<div css={{ marginBottom: 32 }}>
-						<ErrorAlert error={error} />
-					</div>
-				)}
-
-				<Badges>
-					<Popover mode="hover">
-						{isEntitled && (
-							<PopoverTrigger>
-								<span>
-									<PremiumBadge />
-								</span>
-							</PopoverTrigger>
-						)}
-
-						<PopoverContent css={{ transform: "translateY(-28px)" }}>
-							<PopoverPaywall
-								message="Organizations"
-								description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-								documentationLink={docs("/admin/users/organizations")}
-							/>
-						</PopoverContent>
-					</Popover>
-				</Badges>
+				<Link
+					to="/organizations"
+					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
+				>
+					<ArrowLeft size={20} />
+					Go Back
+				</Link>
 			</div>
-
-			<ChooseOne>
-				<Cond condition={!isEntitled}>
-					<Paywall
-						message="Organizations"
-						description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
-						documentationLink={docs("/admin/users/organizations")}
+			<Stack>
+				<div>
+					<SettingsHeader
+						title="New Organization"
+						description="Organize your deployment into multiple platform teams with unique provisioners, templates, groups, and members."
 					/>
-				</Cond>
-				<Cond>
-					<HorizontalForm
-						onSubmit={form.handleSubmit}
-						aria-label="Organization settings form"
-					>
-						<FormSection
-							title="General info"
-							description="The name and description of the organization."
-						>
-							<fieldset
-								disabled={form.isSubmitting}
-								css={{
-									border: "unset",
-									padding: 0,
-									margin: 0,
-									width: "100%",
-								}}
-							>
-								<FormFields>
-									<TextField
-										{...getFieldHelpers("name")}
-										onChange={onChangeTrimmed(form)}
-										autoFocus
-										fullWidth
-										label="Slug"
-									/>
-									<TextField
-										{...getFieldHelpers("display_name")}
-										fullWidth
-										label="Display name"
-									/>
-									<TextField
-										{...getFieldHelpers("description")}
-										multiline
-										fullWidth
-										label="Description"
-										rows={2}
-									/>
-									<IconField
-										{...getFieldHelpers("icon")}
-										onChange={onChangeTrimmed(form)}
-										fullWidth
-										onPickEmoji={(value) => form.setFieldValue("icon", value)}
-									/>
-								</FormFields>
-							</fieldset>
-						</FormSection>
 
-						<FormFooter>
-							<Button type="submit" disabled={form.isSubmitting}>
-								{form.isSubmitting && <Spinner />}
-								Save
-							</Button>
-						</FormFooter>
-					</HorizontalForm>
-				</Cond>
-			</ChooseOne>
-		</Stack>
+					{Boolean(error) && !isApiValidationError(error) && (
+						<div css={{ marginBottom: 32 }}>
+							<ErrorAlert error={error} />
+						</div>
+					)}
+
+					<Badges>
+						<Popover mode="hover">
+							{isEntitled && (
+								<PopoverTrigger>
+									<span>
+										<PremiumBadge />
+									</span>
+								</PopoverTrigger>
+							)}
+
+							<PopoverContent css={{ transform: "translateY(-28px)" }}>
+								<PopoverPaywall
+									message="Organizations"
+									description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+									documentationLink={docs("/admin/users/organizations")}
+								/>
+							</PopoverContent>
+						</Popover>
+					</Badges>
+				</div>
+
+				<ChooseOne>
+					<Cond condition={!isEntitled}>
+						<Paywall
+							message="Organizations"
+							description="Create multiple organizations within a single Coder deployment, allowing several platform teams to operate with isolated users, templates, and distinct underlying infrastructure."
+							documentationLink={docs("/admin/users/organizations")}
+						/>
+					</Cond>
+					<Cond>
+						<VerticalForm
+							onSubmit={form.handleSubmit}
+							aria-label="Organization settings form"
+						>
+							<FormSection
+								title="General info"
+								description="The name and description of the organization."
+							>
+								<fieldset
+									disabled={form.isSubmitting}
+									css={{
+										border: "unset",
+										padding: 0,
+										margin: 0,
+										width: "100%",
+									}}
+								>
+									<FormFields>
+										<TextField
+											{...getFieldHelpers("name")}
+											onChange={onChangeTrimmed(form)}
+											autoFocus
+											fullWidth
+											label="Slug"
+										/>
+										<TextField
+											{...getFieldHelpers("display_name")}
+											fullWidth
+											label="Display name"
+										/>
+										<TextField
+											{...getFieldHelpers("description")}
+											multiline
+											fullWidth
+											label="Description"
+											rows={2}
+										/>
+										<IconField
+											{...getFieldHelpers("icon")}
+											onChange={onChangeTrimmed(form)}
+											fullWidth
+											onPickEmoji={(value) => form.setFieldValue("icon", value)}
+										/>
+									</FormFields>
+								</fieldset>
+							</FormSection>
+							<FormFooter>
+								<Button type="submit" disabled={form.isSubmitting}>
+									{form.isSubmitting && <Spinner />}
+									Save
+								</Button>
+							</FormFooter>
+						</VerticalForm>
+					</Cond>
+				</ChooseOne>
+			</Stack>
+		</div>
 	);
 };
