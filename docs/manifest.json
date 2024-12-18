@@ -1483,6 +1483,12 @@
 							"path": "./reference/agent-api/schemas.md"
 						}
 					]
+				},
+				{
+					"title": "Glossary",
+					"description": "A list of common terms",
+					"path": "./reference/glossary.mdx",
+					"icon_path": "./images/icons/notes.svg"
 				}
 			]
 		}
