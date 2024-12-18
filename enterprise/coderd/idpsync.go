@@ -93,15 +93,15 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	existing, err := api.IDPSync.GroupSyncSettings(ctx, org.ID, api.Database)
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 	aReq.Old = *existing
 
-	//nolint:gocritic // Requires system context to update runtime config
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err = api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, idpsync.GroupSyncSettings{
 		Field:             req.Field,
 		Mapping:           req.Mapping,
@@ -192,15 +192,15 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
-	existing, err := api.IDPSync.RoleSyncSettings(ctx, org.ID, api.Database)
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, api.Database)
 	if err != nil {
 		httpapi.InternalServerError(rw, err)
 		return
 	}
 	aReq.Old = *existing
 
-	//nolint:gocritic // Requires system context to update runtime config
-	sysCtx := dbauthz.AsSystemRestricted(ctx)
 	err = api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
 		Field:   req.Field,
 		Mapping: req.Mapping,
@@ -278,13 +278,6 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 		return
 	}
 
-	existing, err := api.IDPSync.OrganizationSyncSettings(ctx, api.Database)
-	if err != nil {
-		httpapi.InternalServerError(rw, err)
-		return
-	}
-	aReq.Old = *existing
-
 	var req codersdk.OrganizationSyncSettings
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
@@ -292,6 +285,13 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
 	err = api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
 		Field: req.Field,
 		// We do not check if the mappings point to actual organizations.
