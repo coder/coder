@@ -33,9 +33,11 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			case "http/1.0":
 			case "http/1.1":
 				extraWarnings.push(
-					`Requests to the proxy are using ${latency.nextHopProtocol}, the server might not support HTTP/2. ` +
+					`Requests to the proxy are using ${latency.nextHopProtocol}, ` +
+						`the server might not support HTTP/2. ` +
 						`For usability reasons, HTTP/2 or above is recommended. ` +
-						`Pages may fail to load if the web browser's concurrent connection limit is reached.`,
+						`Pages may fail to load if the web browser's concurrent ` +
+						`connection limit is reached.`,
 				);
 		}
 	}
