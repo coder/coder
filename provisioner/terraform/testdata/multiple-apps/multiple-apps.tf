@@ -18,6 +18,7 @@ resource "coder_app" "app1" {
   slug     = "app1"
   # subdomain should default to false.
   # subdomain = false
+  open_in  = "slim-window"
 }
 
 # app2 tests that subdomaincan be true, and that healthchecks work.
@@ -30,6 +31,7 @@ resource "coder_app" "app2" {
     interval  = 5
     threshold = 6
   }
+  open_in = "window"
 }
 
 # app3 tests that subdomain can explicitly be false.
@@ -37,6 +39,7 @@ resource "coder_app" "app3" {
   agent_id  = coder_agent.dev1.id
   slug      = "app3"
   subdomain = false
+  open_in   = "tab"
 }
 
 resource "null_resource" "dev" {

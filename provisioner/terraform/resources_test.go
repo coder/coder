@@ -182,6 +182,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
+							OpenIn:    "slim-window",
 						},
 						{
 							Slug:        "app2",
@@ -192,11 +193,13 @@ func TestConvertResources(t *testing.T) {
 								Interval:  5,
 								Threshold: 6,
 							},
+							OpenIn: "window",
 						},
 						{
 							Slug:        "app3",
 							DisplayName: "app3",
 							Subdomain:   false,
+							OpenIn:      "tab",
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
