@@ -666,7 +666,7 @@ func createWorkspace(
 		return err
 	}, nil)
 
-	api.notifyWorkspaceCreated(ctx, workspace)
+	api.notifyWorkspaceCreated(ctx, workspace, req.RichParameterValues)
 
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
@@ -740,6 +740,7 @@ func createWorkspace(
 func (api *API) notifyWorkspaceCreated(
 	ctx context.Context,
 	workspace database.Workspace,
+	parameters []codersdk.WorkspaceBuildParameter,
 ) {
 	log := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
@@ -761,6 +762,14 @@ func (api *API) notifyWorkspaceCreated(
 		return
 	}
 
+	buildParameters := make([]map[string]any, len(parameters))
+	for idx, parameter := range parameters {
+		buildParameters[idx] = map[string]any{
+			"name":  parameter.Name,
+			"value": parameter.Value,
+		}
+	}
+
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
@@ -772,22 +781,11 @@ func (api *API) notifyWorkspaceCreated(
 			"version":   version.Name,
 		},
 		map[string]any{
-			"workspace": map[string]any{
-				"id":   workspace.ID,
-				"name": workspace.Name,
-			},
-			"template": map[string]any{
-				"id":   template.ID,
-				"name": template.Name,
-			},
-			"template_version": map[string]any{
-				"id":   version.ID,
-				"name": version.Name,
-			},
-			"owner": map[string]any{
-				"id":   owner.ID,
-				"name": owner.Name,
-			},
+			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
+			"template":         map[string]any{"id": template.ID, "name": template.Name},
+			"template_version": map[string]any{"id": version.ID, "name": version.Name},
+			"owner":            map[string]any{"id": owner.ID, "name": owner.Name},
+			"parameters":       buildParameters,
 		},
 		"api-workspaces-create",
 		// Associate this notification with all the related entities
