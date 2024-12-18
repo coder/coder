@@ -10,6 +10,8 @@ import {
 import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
+test.describe.configure({ mode: "parallel" });
+
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page);

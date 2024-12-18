@@ -22,6 +22,8 @@ import {
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 
+test.describe.configure({ mode: "parallel" });
+
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page);

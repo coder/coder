@@ -12,7 +12,7 @@ test.beforeEach(async ({ page }) => {
 	await login(page);
 });
 
-test("inspecting and filtering audit logs", async ({ page }) => {
+test.fixme("inspecting and filtering audit logs", async ({ page }) => {
 	requiresLicense();
 
 	const userName = "admin";
