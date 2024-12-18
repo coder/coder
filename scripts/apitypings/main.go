@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"log"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
 	"github.com/coder/guts/config"
@@ -104,7 +106,7 @@ func TypeMappings(gen *guts.GoParser) error {
 		"encoding/json.RawMessage":                "map[string]string",
 	})
 	if err != nil {
-		return fmt.Errorf("include custom: %w", err)
+		return xerrors.Errorf("include custom: %w", err)
 	}
 
 	return nil
