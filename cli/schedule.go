@@ -232,8 +232,9 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 func (r *RootCmd) scheduleExtend() *serpent.Command {
 	client := new(codersdk.Client)
 	extendCmd := &serpent.Command{
-		Use:   "extend <workspace-name> <duration from now>",
-		Short: "Extend the stop time of a currently running workspace instance.",
+		Use:     "extend <workspace-name> <duration from now>",
+		Aliases: []string{"override-stop"},
+		Short:   "Extend the stop time of a currently running workspace instance.",
 		Long: scheduleExtendDescriptionLong + "\n" + FormatExamples(
 			Example{
 				Command: "coder schedule extend my-workspace 90m",

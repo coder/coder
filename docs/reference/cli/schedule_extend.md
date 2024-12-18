@@ -4,6 +4,10 @@
 
 Extend the stop time of a currently running workspace instance.
 
+Aliases:
+
+- override-stop
+
 ## Usage
 
 ```console
