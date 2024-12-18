@@ -15,7 +15,6 @@ import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Outlet, useParams } from "react-router-dom";
-import { OrganizationSidebar } from "./OrganizationSidebar";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -109,15 +108,10 @@ const OrganizationSettingsLayout: FC = () => {
 						</BreadcrumbList>
 					</Breadcrumb>
 					<hr className="h-px border-none bg-border" />
-					<div className="px-6 max-w-screen-2xl">
-						<div className="flex flex-row gap-12 py-10">
-							<OrganizationSidebar />
-							<main css={{ flexGrow: 1 }}>
-								<Suspense fallback={<Loader />}>
-									<Outlet />
-								</Suspense>
-							</main>
-						</div>
+					<div className="px-10 max-w-screen-2xl">
+						<Suspense fallback={<Loader />}>
+							<Outlet />
+						</Suspense>
 					</div>
 				</div>
 			</OrganizationSettingsContext.Provider>

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import {
 	MockNoPermissions,
 	MockOrganization,
@@ -14,7 +15,7 @@ const meta: Meta<typeof OrganizationSidebarView> = {
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },
 	args: {
-		activeOrganizationName: undefined,
+		activeOrganization: undefined,
 		organizations: [
 			{
 				...MockOrganization,
@@ -50,29 +51,50 @@ export const LoadingOrganizations: Story = {
 
 export const NoCreateOrg: Story = {
 	args: {
+		activeOrganization: MockOrganization,
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: "My Organization" }),
+		);
+	},
 };
 
 export const NoPermissions: Story = {
 	args: {
+		activeOrganization: MockOrganization,
 		permissions: MockNoPermissions,
 	},
 };
 
-export const SelectedOrgNoMatch: Story = {
+export const AllPermissions: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
-		organizations: [],
+		activeOrganization: MockOrganization,
+		organizations: [
+			{
+				...MockOrganization,
+				permissions: {
+					editOrganization: true,
+					editMembers: true,
+					editGroups: true,
+					auditOrganization: true,
+					assignOrgRole: true,
+					viewProvisioners: true,
+					viewIdpSyncSettings: true,
+				},
+			},
+		],
 	},
 };
 
 export const SelectedOrgAdmin: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: MockOrganization,
 		organizations: [
 			{
 				...MockOrganization,
@@ -90,7 +112,7 @@ export const SelectedOrgAdmin: Story = {
 
 export const SelectedOrgAuditor: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: MockOrganization,
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -111,7 +133,7 @@ export const SelectedOrgAuditor: Story = {
 
 export const SelectedOrgUserAdmin: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: MockOrganization,
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -132,6 +154,7 @@ export const SelectedOrgUserAdmin: Story = {
 
 export const MultiOrgAdminAndUserAdmin: Story = {
 	args: {
+		activeOrganization: MockOrganization,
 		organizations: [
 			{
 				...MockOrganization,
@@ -157,7 +180,7 @@ export const MultiOrgAdminAndUserAdmin: Story = {
 
 export const SelectedMultiOrgAdminAndUserAdmin: Story = {
 	args: {
-		activeOrganizationName: MockOrganization2.name,
+		activeOrganization: MockOrganization2,
 		organizations: [
 			{
 				...MockOrganization,
