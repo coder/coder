@@ -571,6 +571,33 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
+	t.Run("CreateSendsNotification", func(t *testing.T) {
+		t.Parallel()
+
+		enqueuer := notificationstest.FakeEnqueuer{}
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: &enqueuer})
+		user := coderdtest.CreateFirstUser(t, client)
+
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		var notif *notificationstest.FakeNotification
+		for _, n := range enqueuer.Sent() {
+			if n.TemplateID == notifications.TemplateWorkspaceCreated {
+				notif = n
+				break
+			}
+		}
+
+		assert.NotNil(t, notif)
+		assert.Equal(t, user.UserID, notif.UserID)
+		assert.Equal(t, notifications.TemplateWorkspaceCreated, notif.TemplateID)
+	})
+
 	t.Run("CreateWithAuditLogs", func(t *testing.T) {
 		t.Parallel()
 		auditor := audit.NewMock()
