@@ -165,7 +165,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 						<AvatarImage src={app.display_icon} />
 						<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
 					</Avatar>
-					{name}
+					<span className="font-semibold">{name}</span>
 					{/*
 					 * If the link is authenticated and has a refresh token, show that it will automatically
 					 * attempt to authenticate when the token expires.

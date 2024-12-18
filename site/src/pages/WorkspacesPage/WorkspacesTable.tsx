@@ -11,7 +11,12 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { visuallyHidden } from "@mui/utils";
 import type { Template, Workspace } from "api/typesGenerated";
-import { Avatar, AvatarFallback, AvatarImage } from "components/Avatar/Avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
@@ -188,7 +193,9 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											avatar={
 												<Avatar variant="icon">
 													<AvatarImage src={workspace.template_icon} />
-													<AvatarFallback>{workspace.name}</AvatarFallback>
+													<AvatarFallback>
+														{avatarLetter(workspace.name)}
+													</AvatarFallback>
 												</Avatar>
 											}
 										/>
