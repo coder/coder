@@ -42,6 +42,7 @@ test("app", async ({ context, page }) => {
 											url: `http://localhost:${addr.port}`,
 											displayName: appName,
 											order: 0,
+											openIn: "slim-window",
 										},
 									],
 									order: 0,
