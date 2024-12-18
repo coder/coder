@@ -8,7 +8,6 @@ package main
 
 import (
 	"flag"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -39,7 +38,7 @@ func TestGeneration(t *testing.T) {
 
 			gen, err := guts.NewGolangParser()
 			if err != nil {
-				log.Fatalf("new convert: %v", err)
+				require.NoError(t, err)
 			}
 			err = gen.IncludeGenerate("./" + dir)
 			require.NoError(t, err)
