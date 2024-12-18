@@ -7,8 +7,14 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, AvatarImage } from "components/Avatar/Avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
+import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import type { FC } from "react";
 
@@ -67,16 +73,13 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app, revoke }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`}>
 			<TableCell>
-				<AvatarData
-					title={app.name}
-					avatar={
-						Boolean(app.icon) && (
-							<Avatar variant="icon">
-								<AvatarImage src={app.icon} />
-							</Avatar>
-						)
-					}
-				/>
+				<Stack direction="row" spacing={1} alignItems="center">
+					<Avatar variant="icon">
+						<AvatarImage src={app.icon} />
+						<AvatarFallback>{avatarLetter(app.name)}</AvatarFallback>
+					</Avatar>
+					{app.name}
+				</Stack>
 			</TableCell>
 
 			<TableCell>

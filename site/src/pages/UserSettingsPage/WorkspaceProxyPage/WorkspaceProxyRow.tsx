@@ -2,7 +2,12 @@ import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { Avatar, AvatarImage } from "components/Avatar/Avatar";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	HealthyBadge,
@@ -42,26 +47,22 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			<TableRow key={proxy.name} data-testid={proxy.name}>
 				<TableCell className="name">
 					<AvatarData
-						title={
-							proxy.display_name && proxy.display_name.length > 0
-								? proxy.display_name
-								: proxy.name
-						}
+						src={proxy.icon_url}
+						title={proxy.display_name || proxy.name}
+						subtitle={proxy.path_app_url}
 						avatar={
-							proxy.icon_url !== "" && (
-								<Avatar variant="icon" size="sm">
-									<AvatarImage src={proxy.icon_url} />
-								</Avatar>
-							)
+							<Avatar variant="icon">
+								<AvatarImage src={proxy.icon_url} />
+								<AvatarFallback>
+									{avatarLetter(proxy.display_name || proxy.name)}
+								</AvatarFallback>
+							</Avatar>
 						}
 					/>
 				</TableCell>
 
-				<TableCell css={{ fontSize: 14 }} className="url">
-					{proxy.path_app_url}
-				</TableCell>
-				<TableCell css={{ fontSize: 14 }} className="status">
-					{statusBadge}
+				<TableCell className="status">
+					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
 					css={{
@@ -129,7 +130,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 			css={{
 				borderBottom: `1px solid ${theme.palette.divider}`,
 				backgroundColor: theme.palette.background.default,
-				padding: "16px 24px",
+				padding: "16px 64px",
 			}}
 		>
 			<div

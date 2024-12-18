@@ -15,7 +15,7 @@ export interface SelectedTemplateProps {
 
 export const SelectedTemplate: FC<SelectedTemplateProps> = ({ template }) => {
 	return (
-		<Stack direction="row" spacing={2} css={styles.template}>
+		<Stack direction="row" css={styles.template}>
 			<Avatar variant="icon" size="lg">
 				<AvatarImage src={template.icon} />
 				<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>

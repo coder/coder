@@ -187,7 +187,7 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 											}
 											avatar={
 												<Avatar variant="icon">
-													<AvatarImage>{workspace.template_icon}</AvatarImage>
+													<AvatarImage src={workspace.template_icon} />
 													<AvatarFallback>{workspace.name}</AvatarFallback>
 												</Avatar>
 											}

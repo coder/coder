@@ -1,4 +1,6 @@
+import { AvatarFallback, AvatarImage } from "@radix-ui/react-avatar";
 import type { Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	PageHeader,
 	PageHeaderSubtitle,
@@ -23,13 +25,13 @@ export const OrganizationSummaryPageView: FC<
 					paddingTop: 0,
 				}}
 			>
-				<Stack direction="row" spacing={3} alignItems="center">
-					<UserAvatar
-						key={organization.id}
-						size="lg"
-						username={organization.display_name || organization.name}
-						avatarURL={organization.icon}
-					/>
+				<Stack direction="row">
+					<Avatar key={organization.id} size="lg" variant="icon">
+						<AvatarImage src={organization.icon} />
+						<AvatarFallback>
+							{organization.display_name || organization.name}
+						</AvatarFallback>
+					</Avatar>
 					<div>
 						<PageHeaderTitle>
 							{organization.display_name || organization.name}

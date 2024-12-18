@@ -132,7 +132,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 														<AvatarGroup
 															max={10}
 															total={group.members.length}
-															css={{ justifyContent: "flex-end" }}
+															css={{ justifyContent: "flex-end", gap: 4 }}
 														>
 															{group.members.map((member) => (
 																<UserAvatar

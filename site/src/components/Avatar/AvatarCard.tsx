@@ -75,7 +75,7 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				)}
 			</div>
 
-			<Avatar>
+			<Avatar size="lg">
 				<AvatarImage src={imgUrl} alt={altText} />
 				<AvatarFallback>{avatarLetter(header)}</AvatarFallback>
 			</Avatar>

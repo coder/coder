@@ -35,7 +35,6 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 					<div css={styles.badgeContainer}>
 						<Badge overlap="circular">
 							<UserAvatar
-								size="sm"
 								username={user.username}
 								avatarURL={user.avatar_url}
 							/>

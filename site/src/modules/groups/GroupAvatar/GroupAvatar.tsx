@@ -1,12 +1,9 @@
-import Group from "@mui/icons-material/Group";
-import Badge from "@mui/material/Badge";
 import {
 	Avatar,
 	AvatarFallback,
 	AvatarImage,
 	avatarLetter,
 } from "components/Avatar/Avatar";
-import { type ClassName, useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 
 export interface GroupAvatarProps {
@@ -15,38 +12,10 @@ export interface GroupAvatarProps {
 }
 
 export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
-	const badge = useClassName(classNames.badge, []);
-
 	return (
-		<Badge
-			overlap="circular"
-			anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-			badgeContent={<Group />}
-			classes={{ badge }}
-		>
-			<Avatar size="lg">
-				<AvatarImage src={avatarURL} />
-				<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
-			</Avatar>
-		</Badge>
+		<Avatar>
+			<AvatarImage src={avatarURL} />
+			<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
+		</Avatar>
 	);
 };
-
-const classNames = {
-	badge: (css, theme) =>
-		css({
-			backgroundColor: theme.palette.background.paper,
-			border: `1px solid ${theme.palette.divider}`,
-			borderRadius: "100%",
-			width: 24,
-			height: 24,
-			display: "flex",
-			alignItems: "center",
-			justifyContent: "center",
-
-			"& svg": {
-				width: 14,
-				height: 14,
-			},
-		}),
-} satisfies Record<string, ClassName>;

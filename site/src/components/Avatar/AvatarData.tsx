@@ -47,9 +47,8 @@ export const AvatarData: FC<AvatarDataProps> = ({
 
 	return (
 		<Stack
-			spacing={1.5}
+			spacing={1}
 			direction="row"
-			alignItems="center"
 			css={{
 				minHeight: 40, // Make it predictable for the skeleton
 				width: "100%",

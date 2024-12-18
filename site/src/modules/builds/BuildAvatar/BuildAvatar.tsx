@@ -15,38 +15,18 @@ export interface BuildAvatarProps {
 
 export const BuildAvatar: FC<BuildAvatarProps> = ({ build, size }) => {
 	const theme = useTheme();
-	const { status, type } = getDisplayWorkspaceBuildStatus(theme, build);
-	const badgeType = useClassName(
-		(css, theme) => css({ backgroundColor: theme.roles[type].fill.solid }),
+	const { type } = getDisplayWorkspaceBuildStatus(theme, build);
+	const iconColor = useClassName(
+		(css, theme) => css({ color: theme.roles[type].fill.solid }),
 		[type],
 	);
 
 	return (
-		<Badge
-			role="status"
-			aria-label={status}
-			title={status}
-			overlap="circular"
-			anchorOrigin={{ vertical: "bottom", horizontal: "right" }}
-			badgeContent={<div></div>}
-			classes={{ badge: cx(classNames.badge, badgeType) }}
-		>
-			<Avatar size={size}>
-				<BuildIcon transition={build.transition} className="w-full h-full" />
-			</Avatar>
-		</Badge>
+		<Avatar size={size} variant="icon">
+			<BuildIcon
+				transition={build.transition}
+				className={`w-full h-full ${iconColor}`}
+			/>
+		</Avatar>
 	);
-};
-
-const classNames = {
-	badge: css({
-		borderRadius: "100%",
-		width: 8,
-		minWidth: 8,
-		height: 8,
-		display: "block",
-		padding: 0,
-		right: 0,
-		bottom: 0,
-	}),
 };

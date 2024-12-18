@@ -206,7 +206,7 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 					</>
 				}
 			>
-				<Stack direction="row" spacing={3} alignItems="center">
+				<Stack direction="row">
 					<Avatar size="lg" variant="icon">
 						<AvatarImage src={template.icon} />
 						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>

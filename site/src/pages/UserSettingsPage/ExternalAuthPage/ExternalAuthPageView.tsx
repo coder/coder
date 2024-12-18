@@ -35,6 +35,7 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
+import { Stack } from "components/Stack/Stack";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import type { ExternalAuthPollingState } from "pages/CreateWorkspacePage/CreateWorkspacePage";
 import { type FC, useCallback, useEffect, useState } from "react";
@@ -156,56 +157,43 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		? externalAuth.authenticated
 		: (link?.authenticated ?? false);
 
-	let avatar = (
-		<Avatar size="sm" variant="icon">
-			<AvatarImage src={app.display_icon} />
-			<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
-		</Avatar>
-	);
-
-	// If the link is authenticated and has a refresh token, show that it will automatically
-	// attempt to authenticate when the token expires.
-	if (link?.has_refresh_token && authenticated) {
-		avatar = (
-			<StyledBadge
-				anchorOrigin={{
-					vertical: "bottom",
-					horizontal: "right",
-				}}
-				color="default"
-				overlap="circular"
-				badgeContent={
-					<Tooltip
-						title="Authentication token will automatically refresh when expired."
-						placement="right"
-					>
-						<AutorenewIcon
-							sx={{
-								fontSize: "1em",
-							}}
-						/>
-					</Tooltip>
-				}
-			>
-				{avatar}
-			</StyledBadge>
-		);
-	}
-
 	return (
 		<TableRow key={app.id}>
 			<TableCell>
-				<AvatarData title={name} avatar={avatar} />
-				{link?.validate_error && (
-					<>
-						<span
-							css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+				<Stack direction="row" alignItems="center" spacing={1}>
+					<Avatar variant="icon">
+						<AvatarImage src={app.display_icon} />
+						<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
+					</Avatar>
+					{name}
+					{/*
+					 * If the link is authenticated and has a refresh token, show that it will automatically
+					 * attempt to authenticate when the token expires.
+					 */}
+					{link?.has_refresh_token && authenticated && (
+						<Tooltip
+							title="Authentication token will automatically refresh when expired."
+							placement="right"
 						>
-							Error:{" "}
+							<AutorenewIcon
+								sx={{
+									fontSize: "0.75rem",
+								}}
+							/>
+						</Tooltip>
+					)}
+
+					{link?.validate_error && (
+						<span>
+							<span
+								css={{ paddingLeft: "1em", color: theme.palette.error.light }}
+							>
+								Error:{" "}
+							</span>
+							{link?.validate_error}
 						</span>
-						{link?.validate_error}
-					</>
-				)}
+					)}
+				</Stack>
 			</TableCell>
 			<TableCell css={{ textAlign: "right" }}>
 				<LoadingButton

@@ -139,7 +139,7 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 				<AvatarGroup
 					max={10}
 					total={group.members.length}
-					css={{ justifyContent: "flex-end" }}
+					css={{ justifyContent: "flex-end", gap: 8 }}
 				>
 					{group.members.map((member) => (
 						<UserAvatar

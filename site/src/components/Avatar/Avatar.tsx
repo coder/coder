@@ -34,17 +34,17 @@ const avatarVariants = cva(
 			{
 				size: "lg",
 				variant: "icon",
-				className: "p-[9px]",
+				className: "p-2",
 			},
 			{
 				size: "default",
 				variant: "icon",
-				className: "p-[3px]",
+				className: "p-1",
 			},
 			{
 				size: "sm",
 				variant: "icon",
-				className: "p-[2px]",
+				className: "p-[3px]",
 			},
 		],
 	},

@@ -74,8 +74,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	return (
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
-				<Stack direction="row" alignItems="center" spacing={3}>
-					<BuildAvatar build={build} />
+				<Stack direction="row">
+					<BuildAvatar build={build} size="lg" />
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>

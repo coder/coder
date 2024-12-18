@@ -102,7 +102,7 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 					title={app.name}
 					avatar={
 						Boolean(app.icon) && (
-							<Avatar variant="icon">
+							<Avatar variant="icon" size="lg">
 								<AvatarImage src={app.icon} />
 							</Avatar>
 						)

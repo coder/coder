@@ -95,7 +95,7 @@ export const TopbarDivider: FC<HTMLAttributes<HTMLSpanElement>> = (props) => {
 
 export const TopbarAvatar: FC<{ src: string }> = ({ src }) => {
 	return (
-		<Avatar variant="icon">
+		<Avatar variant="icon" size="sm">
 			<AvatarImage src={src} />
 		</Avatar>
 	);

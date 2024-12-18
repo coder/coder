@@ -3,6 +3,12 @@ import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/Add";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import {
+	Avatar,
+	AvatarFallback,
+	AvatarImage,
+	avatarLetter,
+} from "components/Avatar/Avatar";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { Sidebar as BaseSidebar } from "components/Sidebar/Sidebar";
@@ -259,12 +265,12 @@ const OrganizationSettingsNavigation: FC<
 				active={active}
 				href={urlForSubpage(organization.name)}
 				icon={
-					<UserAvatar
-						key={organization.id}
-						size="sm"
-						username={organization.display_name}
-						avatarURL={organization.icon}
-					/>
+					<Avatar variant="icon">
+						<AvatarImage src={organization.icon} />
+						<AvatarFallback>
+							{avatarLetter(organization.display_name)}
+						</AvatarFallback>
+					</Avatar>
 				}
 			>
 				{organization.display_name}
