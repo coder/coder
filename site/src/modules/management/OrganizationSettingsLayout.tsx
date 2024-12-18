@@ -8,13 +8,13 @@ import {
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { OrganizationSidebar } from "./OrganizationSidebar";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
