@@ -14,6 +14,7 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { OrganizationSidebar } from "./OrganizationSidebar";
+import { UserAvatar } from "components/UserAvatar/UserAvatar";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -89,6 +90,12 @@ const OrganizationSettingsLayout: FC = () => {
 									<BreadcrumbSeparator />
 									<BreadcrumbItem>
 										<BreadcrumbPage className="text-content-primary">
+											<UserAvatar
+												key={organization.id}
+												size="xs"
+												username={organization.display_name}
+												avatarURL={organization.icon}
+											/>
 											{organization?.name}
 										</BreadcrumbPage>
 									</BreadcrumbItem>

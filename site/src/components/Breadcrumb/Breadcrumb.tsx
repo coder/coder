@@ -76,7 +76,7 @@ export const BreadcrumbPage = forwardRef<
 	<span
 		ref={ref}
 		aria-current="page"
-		className={cn("text-content-secondary", className)}
+		className={cn("flex items-center gap-2 text-content-secondary", className)}
 		{...props}
 	/>
 ));
