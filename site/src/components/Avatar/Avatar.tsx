@@ -16,9 +16,9 @@ const avatarVariants = cva(
 	{
 		variants: {
 			size: {
-				lg: "h-10 w-10 rounded-[6px] text-sm font-medium",
-				default: "h-6 w-6 text-2xs",
-				sm: "h-[18px] w-[18px] text-[8px]",
+				lg: "h-[--avatar-lg] w-[--avatar-lg] rounded-[6px] text-sm font-medium",
+				default: "h-[--avatar-default] w-[--avatar-default] text-2xs",
+				sm: "h-[--avatar-sm] w-[--avatar-sm] text-[8px]",
 			},
 			variant: {
 				default: "",
