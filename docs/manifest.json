@@ -1487,7 +1487,7 @@
 				{
 					"title": "Glossary",
 					"description": "A list of common terms",
-					"path": "./reference/glossary.mdx",
+					"path": "./reference/glossary.md",
 					"icon_path": "./images/icons/notes.svg"
 				}
 			]

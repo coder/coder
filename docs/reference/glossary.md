@@ -1,7 +1,6 @@
 ---
 title: Glossary
 description: A list of common terms.
-date: December 20, 2024
 ---
 
 ## A
@@ -14,9 +13,11 @@ date: December 20, 2024
 
 ### Access URL
 
-An IP address or URL for the Coder deployment. You can set the access URL to `https://coder.example.com` or anything else that works for your deployment.
+An IP address or URL for the Coder deployment. You can set the access URL to
+`https://coder.example.com` or anything else that works for your deployment.
 
-If an access URL is not specified, Coder will create a publicly accessible URL to reverse proxy your deployment for simple setup.
+If an access URL is not specified, Coder will create a publicly accessible URL
+to reverse proxy your deployment for simple setup.
 
 **Link:** [Setup - Access URL](../admin/setup/index.md#access-url)
 
@@ -30,13 +31,7 @@ If an access URL is not specified, Coder will create a publicly accessible URL t
 
 **Link:**
 
-## D
-
-## E
-
-## F
-
-## G
+## D E F G
 
 ## H
 
@@ -54,17 +49,7 @@ If an access URL is not specified, Coder will create a publicly accessible URL t
 
 **Link:**
 
-## J
-
-## K
-
-## L
-
-## M
-
-## N
-
-## O
+## J K L M N O
 
 ## P
 
@@ -112,8 +97,4 @@ If an access URL is not specified, Coder will create a publicly accessible URL t
 
 **Link:**
 
-## X
-
-## Y
-
-## Z
+## X Y Z
