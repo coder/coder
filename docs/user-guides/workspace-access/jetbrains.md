@@ -194,10 +194,16 @@ keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\
 
 ## Using an existing JetBrains installation in the workspace
 
+<blockquote class="info">
+
+This step must be done before configuring Gateway.
+
+</blockquote>
+
 If you would like to use an existing JetBrains IDE in a Coder workspace (or you
-are air-gapped, and cannot reach jetbrains.com), run the following script in the
+are air-gapped, and cannot reach `jetbrains.com`), run the following script in the
 JetBrains IDE directory to point the default Gateway directory to the IDE
-directory. This step must be done before configuring Gateway.
+directory.
 
 ```shell
 cd /opt/idea/bin
