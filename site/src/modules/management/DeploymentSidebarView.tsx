@@ -101,6 +101,11 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 						</div>
 					</SidebarNavItem>
 				)}
+				{permissions.viewOrganizationIDPSyncSettings && (
+					<SidebarNavItem href="idp-org-sync">
+						IdP Organization Sync
+					</SidebarNavItem>
+				)}
 				{!isPremium && <SidebarNavItem href="premium">Premium</SidebarNavItem>}
 			</div>
 		</div>
