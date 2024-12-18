@@ -44,7 +44,7 @@ resource "kubernetes_job" "create_workspaces_primary" {
             "create-workspaces",
             "--count=${local.scenarios[var.scenario].workspaces.count_per_deployment}",
             "--template=kubernetes-primary",
-            "--concurrency=${var.workspace_create_concurrency}",
+            "--concurrency=${local.scenarios[var.scenario].provisionerd.replicas}",
             "--no-cleanup"
           ]
         }
@@ -103,7 +103,7 @@ resource "kubernetes_job" "create_workspaces_europe" {
             "create-workspaces",
             "--count=${local.scenarios[var.scenario].workspaces.count_per_deployment}",
             "--template=kubernetes-europe",
-            "--concurrency=${var.workspace_create_concurrency}",
+            "--concurrency=${local.scenarios[var.scenario].provisionerd.replicas}",
             "--no-cleanup"
           ]
         }
@@ -162,7 +162,7 @@ resource "kubernetes_job" "create_workspaces_asia" {
             "create-workspaces",
             "--count=${local.scenarios[var.scenario].workspaces.count_per_deployment}",
             "--template=kubernetes-asia",
-            "--concurrency=${var.workspace_create_concurrency}",
+            "--concurrency=${local.scenarios[var.scenario].provisionerd.replicas}",
             "--no-cleanup"
           ]
         }
