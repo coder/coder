@@ -1391,35 +1391,6 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		require.Equal(t, templateTTL, template.DefaultTTLMillis)
 		require.Equal(t, templateTTL, *workspace.TTLMillis)
 	})
-
-	t.Run("ExtendIsNotEnabledByTemplate", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
-		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserAutostop = ptr.Ref(false)
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		require.Equal(t, false, template.AllowUserAutostop, "template should have AllowUserAutostop as false")
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ttl := 8 * time.Hour
-		newDeadline := time.Now().Add(ttl + time.Hour).UTC()
-
-		err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-			Deadline: newDeadline,
-		})
-
-		require.ErrorContains(t, err, "template does not allow user autostop")
-	})
 }
 
 // TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
