@@ -1,7 +1,7 @@
 locals {
-  wait_baseline_duration        = "60s"
-  workspace_traffic_job_timeout = "420s"
-  workspace_traffic_duration    = "300s"
+  wait_baseline_duration        = "10m"
+  workspace_traffic_job_timeout = "35m"
+  workspace_traffic_duration    = "30m"
   bytes_per_tick                = 1024
   tick_interval                 = "100ms"
 }
@@ -113,7 +113,8 @@ resource "kubernetes_job" "workspace_traffic_europe" {
           command = [
             "/opt/coder",
             "--verbose",
-            "--url=${local.deployments.europe.url}",
+            // change to "--url=${local.deployments.europe.url}" once workspace-traffic supports proxy targets
+            "--url=${local.deployments.primary.url}",
             "--token=${trimspace(data.local_file.api_key.content)}",
             "exp",
             "scaletest",
@@ -176,7 +177,8 @@ resource "kubernetes_job" "workspace_traffic_asia" {
           command = [
             "/opt/coder",
             "--verbose",
-            "--url=${local.deployments.asia.url}",
+            // change to "--url=${local.deployments.asia.url}" once workspace-traffic supports proxy targets
+            "--url=${local.deployments.primary.url}",
             "--token=${trimspace(data.local_file.api_key.content)}",
             "exp",
             "scaletest",

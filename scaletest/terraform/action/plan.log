@@ -1,0 +1,1772 @@
+random_password.coder_postgres_password: Refreshing state... [id=none]
+random_password.provisionerd_psk: Refreshing state... [id=none]
+random_password.prometheus_postgres_password: Refreshing state... [id=none]
+data.google_client_config.default: Reading...
+data.google_project.project: Reading...
+google_compute_address.coder["asia"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/asia-southeast1/addresses/d17-3-asia-coder]
+google_compute_address.coder["europe"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/europe-west1/addresses/d17-3-europe-coder]
+google_compute_address.coder["primary"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/us-east1/addresses/d17-3-primary-coder]
+data.google_client_config.default: Read complete after 1s [id=projects/<null>/regions/<null>/zones/<null>]
+data.google_project.project: Read complete after 1s [id=projects/sandbox-20241217-k7h9cj]
+google_project_service.api["stackdriver"]: Refreshing state... [id=sandbox-20241217-k7h9cj/stackdriver.googleapis.com]
+google_project_service.api["storage-api"]: Refreshing state... [id=sandbox-20241217-k7h9cj/storage-api.googleapis.com]
+google_project_service.api["servicemanagement"]: Refreshing state... [id=sandbox-20241217-k7h9cj/servicemanagement.googleapis.com]
+google_project_service.api["compute"]: Refreshing state... [id=sandbox-20241217-k7h9cj/compute.googleapis.com]
+google_project_service.api["logging"]: Refreshing state... [id=sandbox-20241217-k7h9cj/logging.googleapis.com]
+google_project_service.api["cloudtrace"]: Refreshing state... [id=sandbox-20241217-k7h9cj/cloudtrace.googleapis.com]
+google_project_service.api["monitoring"]: Refreshing state... [id=sandbox-20241217-k7h9cj/monitoring.googleapis.com]
+google_project_service.api["container"]: Refreshing state... [id=sandbox-20241217-k7h9cj/container.googleapis.com]
+google_project_service.api["sqladmin"]: Refreshing state... [id=sandbox-20241217-k7h9cj/sqladmin.googleapis.com]
+google_project_service.api["servicenetworking"]: Refreshing state... [id=sandbox-20241217-k7h9cj/servicenetworking.googleapis.com]
+data.google_compute_default_service_account.default: Reading...
+google_compute_network.vpc: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/global/networks/d17-3]
+cloudflare_record.coder["primary"]: Refreshing state... [id=21e416c5e43250da81de73b475f30f87]
+cloudflare_record.coder["europe"]: Refreshing state... [id=82fbe51332a53858d9f068f9c88d49db]
+cloudflare_record.coder["asia"]: Refreshing state... [id=f5c434e083f2f2cd06e750e8cf1541f9]
+google_compute_global_address.sql_peering: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/global/addresses/d17-3-sql-peering]
+google_compute_subnetwork.subnet["asia"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/asia-southeast1/subnetworks/d17-3-asia]
+google_compute_subnetwork.subnet["primary"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/us-east1/subnetworks/d17-3-primary]
+google_compute_subnetwork.subnet["europe"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/regions/europe-west1/subnetworks/d17-3-europe]
+data.google_compute_default_service_account.default: Read complete after 1s [id=projects/sandbox-20241217-k7h9cj/serviceAccounts/267709392779-compute@developer.gserviceaccount.com]
+google_service_networking_connection.private_vpc_connection: Refreshing state... [id=projects%2Fsandbox-20241217-k7h9cj%2Fglobal%2Fnetworks%2Fd17-3:servicenetworking.googleapis.com]
+google_container_cluster.cluster["europe"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/europe-west1-b/clusters/d17-3-europe]
+google_container_cluster.cluster["asia"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/asia-southeast1-a/clusters/d17-3-asia]
+google_container_cluster.cluster["primary"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/us-east1-c/clusters/d17-3-primary]
+google_sql_database_instance.db: Refreshing state... [id=d17-3-coder]
+google_sql_database.coder: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/instances/d17-3-coder/databases/d17-3-coder]
+google_sql_user.coder: Refreshing state... [id=d17-3-coder//d17-3-coder]
+google_sql_user.prometheus: Refreshing state... [id=d17-3-prometheus//d17-3-coder]
+google_container_node_pool.node_pool["primary_workspaces"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/us-east1-c/clusters/d17-3-primary/nodePools/workspaces]
+google_container_node_pool.node_pool["primary_misc"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/us-east1-c/clusters/d17-3-primary/nodePools/misc]
+google_container_node_pool.node_pool["asia_workspaces"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/asia-southeast1-a/clusters/d17-3-asia/nodePools/workspaces]
+google_container_node_pool.node_pool["europe_coder"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/europe-west1-b/clusters/d17-3-europe/nodePools/coder]
+google_container_node_pool.node_pool["asia_misc"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/asia-southeast1-a/clusters/d17-3-asia/nodePools/misc]
+google_container_node_pool.node_pool["europe_misc"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/europe-west1-b/clusters/d17-3-europe/nodePools/misc]
+google_container_node_pool.node_pool["primary_coder"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/us-east1-c/clusters/d17-3-primary/nodePools/coder]
+google_container_node_pool.node_pool["asia_coder"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/asia-southeast1-a/clusters/d17-3-asia/nodePools/coder]
+google_container_node_pool.node_pool["europe_workspaces"]: Refreshing state... [id=projects/sandbox-20241217-k7h9cj/locations/europe-west1-b/clusters/d17-3-europe/nodePools/workspaces]
+local_file.kubeconfig["asia"]: Refreshing state... [id=67e73f2cb69ccee72f709b6d867ef847d15801e2]
+local_file.kubeconfig["europe"]: Refreshing state... [id=f597afb96c32a7571ba3a81cc18f9f2c9fe50204]
+local_file.kubeconfig["primary"]: Refreshing state... [id=1caab4f9002954e4a59be717dab5487cd1096614]
+kubernetes_namespace.coder_primary: Refreshing state... [id=coder]
+local_file.kubernetes_template: Refreshing state... [id=619345fcc362d300d43b054926122573f0cfa82d]
+kubernetes_namespace.coder_europe: Refreshing state... [id=coder]
+kubernetes_namespace.coder_asia: Refreshing state... [id=coder]
+kubernetes_secret.provisionerd_psk_primary: Refreshing state... [id=coder/coder-provisioner-psk]
+kubernetes_config_map.template_primary: Refreshing state... [id=coder/coder-template]
+kubernetes_secret.provisionerd_psk_europe: Refreshing state... [id=coder/coder-provisioner-psk]
+kubernetes_config_map.template_europe: Refreshing state... [id=coder/coder-template]
+kubernetes_secret.provisionerd_psk_asia: Refreshing state... [id=coder/coder-provisioner-psk]
+kubernetes_config_map.template_asia: Refreshing state... [id=coder/coder-template]
+
+Terraform used the selected providers to generate the following execution
+plan. Resource actions are indicated with the following symbols:
+  + create
+-/+ destroy and then create replacement
+ <= read (data resources)
+
+Terraform will perform the following actions:
+
+  # data.http.coder_healthy will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "http" "coder_healthy" {
+      + body                 = (known after apply)
+      + id                   = (known after apply)
+      + response_body        = (known after apply)
+      + response_body_base64 = (known after apply)
+      + response_headers     = (known after apply)
+      + status_code          = (known after apply)
+      + url                  = "http://d17-3-scaletest.f0ssel.io"
+
+      + retry {
+          + attempts     = 30
+          + min_delay_ms = 10000
+        }
+    }
+
+  # data.local_file.api_key will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "local_file" "api_key" {
+      + content              = (known after apply)
+      + content_base64       = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + filename             = "./.coderv2/api_key"
+      + id                   = (known after apply)
+    }
+
+  # data.local_file.asia_proxy_token will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "local_file" "asia_proxy_token" {
+      + content              = (known after apply)
+      + content_base64       = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + filename             = "./.coderv2/asia_proxy_token"
+      + id                   = (known after apply)
+    }
+
+  # data.local_file.europe_proxy_token will be read during apply
+  # (depends on a resource or a module with changes pending)
+ <= data "local_file" "europe_proxy_token" {
+      + content              = (known after apply)
+      + content_base64       = (known after apply)
+      + content_base64sha256 = (known after apply)
+      + content_base64sha512 = (known after apply)
+      + content_md5          = (known after apply)
+      + content_sha1         = (known after apply)
+      + content_sha256       = (known after apply)
+      + content_sha512       = (known after apply)
+      + filename             = "./.coderv2/europe_proxy_token"
+      + id                   = (known after apply)
+    }
+
+  # helm_release.coder_asia will be created
+  + resource "helm_release" "coder_asia" {
+      + atomic                     = false
+      + chart                      = "coder"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-coder"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: true
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_ACCESS_URL"
+                      value: "http://d17-3-asia-scaletest.f0ssel.io"
+                    - name: CODER_PRIMARY_ACCESS_URL
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: CODER_PROXY_SESSION_TOKEN
+                      valueFrom:
+                        secretKeyRef:
+                          key: token
+                          name: "coder-proxy-token"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "3"
+                  resources:
+                    requests:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                    limits:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  service:
+                    enable: true
+                    sessionAffinity: None
+                    loadBalancerIP: "34.124.188.45"
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # helm_release.coder_europe will be created
+  + resource "helm_release" "coder_europe" {
+      + atomic                     = false
+      + chart                      = "coder"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-coder"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: true
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_ACCESS_URL"
+                      value: "http://d17-3-europe-scaletest.f0ssel.io"
+                    - name: CODER_PRIMARY_ACCESS_URL
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: CODER_PROXY_SESSION_TOKEN
+                      valueFrom:
+                        secretKeyRef:
+                          key: token
+                          name: "coder-proxy-token"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "3"
+                  resources:
+                    requests:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                    limits:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  service:
+                    enable: true
+                    sessionAffinity: None
+                    loadBalancerIP: "35.205.158.154"
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # helm_release.coder_primary will be created
+  + resource "helm_release" "coder_primary" {
+      + atomic                     = false
+      + chart                      = "coder"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-coder"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: false
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_ACCESS_URL"
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: "CODER_PG_CONNECTION_URL"
+                      valueFrom:
+                        secretKeyRef:
+                          name: "coder-db-url"
+                          key: url
+                    - name: "CODER_PROVISIONER_DAEMONS"
+                      value: "0"
+                    - name: CODER_PROVISIONER_DAEMON_PSK
+                      valueFrom:
+                        secretKeyRef:
+                          key: psk
+                          name: "coder-provisioner-psk"
+                    - name: "CODER_PROMETHEUS_COLLECT_AGENT_STATS"
+                      value: "true"
+                    - name: "CODER_PROMETHEUS_COLLECT_DB_METRICS"
+                      value: "true"
+                    - name: "CODER_PPROF_ENABLE"
+                      value: "true"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "3"
+                  resources:
+                    requests:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                    limits:
+                      cpu: "3000m"
+                      memory: "12Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  service:
+                    enable: true
+                    sessionAffinity: None
+                    loadBalancerIP: "34.23.114.144"
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # helm_release.provisionerd_asia will be created
+  + resource "helm_release" "provisionerd_asia" {
+      + atomic                     = false
+      + chart                      = "coder-provisioner"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-provisionerd"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: false
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_URL"
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: "CODER_PROVISIONERD_TAGS"
+                      value: "scope=organization,deployment=asia"
+                    - name: "CODER_PROVISIONER_DAEMON_NAME"
+                      value: "asia"
+                    - name: "CODER_CONFIG_DIR"
+                      value: "/tmp/config"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "30"
+                  resources:
+                    requests:
+                      cpu: "100m"
+                      memory: "512Mi"
+                    limits:
+                      cpu: "1000m"
+                      memory: "1Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # helm_release.provisionerd_europe will be created
+  + resource "helm_release" "provisionerd_europe" {
+      + atomic                     = false
+      + chart                      = "coder-provisioner"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-provisionerd"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: false
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_URL"
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: "CODER_PROVISIONERD_TAGS"
+                      value: "scope=organization,deployment=europe"
+                    - name: "CODER_PROVISIONER_DAEMON_NAME"
+                      value: "europe"
+                    - name: "CODER_CONFIG_DIR"
+                      value: "/tmp/config"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "30"
+                  resources:
+                    requests:
+                      cpu: "100m"
+                      memory: "512Mi"
+                    limits:
+                      cpu: "1000m"
+                      memory: "1Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # helm_release.provisionerd_primary will be created
+  + resource "helm_release" "provisionerd_primary" {
+      + atomic                     = false
+      + chart                      = "coder-provisioner"
+      + cleanup_on_fail            = false
+      + create_namespace           = false
+      + dependency_update          = false
+      + disable_crd_hooks          = false
+      + disable_openapi_validation = false
+      + disable_webhooks           = false
+      + force_update               = false
+      + id                         = (known after apply)
+      + lint                       = false
+      + manifest                   = (known after apply)
+      + max_history                = 0
+      + metadata                   = (known after apply)
+      + name                       = "d17-3-provisionerd"
+      + namespace                  = "coder"
+      + pass_credentials           = false
+      + recreate_pods              = false
+      + render_subchart_notes      = true
+      + replace                    = false
+      + repository                 = "https://helm.coder.com/v2"
+      + reset_values               = false
+      + reuse_values               = false
+      + skip_crds                  = false
+      + status                     = "deployed"
+      + timeout                    = 300
+      + values                     = [
+          + <<-EOT
+                coder:
+                  workspaceProxy: false
+                  affinity:
+                    nodeAffinity:
+                      requiredDuringSchedulingIgnoredDuringExecution:
+                        nodeSelectorTerms:
+                        - matchExpressions:
+                          - key: "cloud.google.com/gke-nodepool"
+                            operator: "In"
+                            values: ["coder"]
+                    podAntiAffinity:
+                      preferredDuringSchedulingIgnoredDuringExecution:
+                      - weight: 1
+                        podAffinityTerm:
+                          topologyKey: "kubernetes.io/hostname"
+                          labelSelector:
+                            matchExpressions:
+                            - key:      "app.kubernetes.io/instance"
+                              operator: "In"
+                              values:   ["d17-3-coder"]
+                  env:
+                    - name: "CODER_URL"
+                      value: "http://d17-3-scaletest.f0ssel.io"
+                    - name: "CODER_PROVISIONERD_TAGS"
+                      value: "scope=organization,deployment=primary"
+                    - name: "CODER_PROVISIONER_DAEMON_NAME"
+                      value: "primary"
+                    - name: "CODER_CONFIG_DIR"
+                      value: "/tmp/config"
+                    - name: "CODER_CACHE_DIRECTORY"
+                      value: "/tmp/coder"
+                    - name: "CODER_TELEMETRY_ENABLE"
+                      value: "false"
+                    - name: "CODER_LOGGING_HUMAN"
+                      value: "/dev/null"
+                    - name: "CODER_LOGGING_STACKDRIVER"
+                      value: "/dev/stderr"
+                    - name: "CODER_PROMETHEUS_ENABLE"
+                      value: "true"
+                    - name: "CODER_VERBOSE"
+                      value: "true"
+                    - name: "CODER_EXPERIMENTS"
+                      value: ""
+                    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+                      value: "true"
+                  image:
+                    repo: ghcr.io/coder/coder
+                    tag: latest
+                  replicaCount: "30"
+                  resources:
+                    requests:
+                      cpu: "100m"
+                      memory: "512Mi"
+                    limits:
+                      cpu: "1000m"
+                      memory: "1Gi"
+                  securityContext:
+                    readOnlyRootFilesystem: true
+                  volumeMounts:
+                  - mountPath: "/tmp"
+                    name: cache
+                    readOnly: false
+                  volumes:
+                  - emptyDir:
+                      sizeLimit: 1024Mi
+                    name: cache
+            EOT,
+        ]
+      + verify                     = false
+      + version                    = "2.18.1"
+      + wait                       = true
+      + wait_for_jobs              = false
+    }
+
+  # kubernetes_job.create_workspaces_asia will be created
+  + resource "kubernetes_job" "create_workspaces_asia" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-create-workspaces"
+            }
+          + name             = "d17-3-create-workspaces"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "600s"
+        }
+    }
+
+  # kubernetes_job.create_workspaces_europe will be created
+  + resource "kubernetes_job" "create_workspaces_europe" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-create-workspaces"
+            }
+          + name             = "d17-3-create-workspaces"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "600s"
+        }
+    }
+
+  # kubernetes_job.create_workspaces_primary will be created
+  + resource "kubernetes_job" "create_workspaces_primary" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-create-workspaces"
+            }
+          + name             = "d17-3-create-workspaces"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "600s"
+        }
+    }
+
+  # kubernetes_job.push_template_asia will be created
+  + resource "kubernetes_job" "push_template_asia" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-push-template"
+            }
+          + name             = "d17-3-push-template"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+
+                      + volume_mount {
+                          + mount_path        = "/home/coder/template/main.tf"
+                          + mount_propagation = "None"
+                          + name              = "coder-template"
+                          + read_only         = false
+                          + sub_path          = "main.tf"
+                        }
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+
+                  + volume {
+                      + name = "coder-template"
+
+                      + config_map {
+                          + default_mode = "0644"
+                          + name         = "coder-template"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+  # kubernetes_job.push_template_europe will be created
+  + resource "kubernetes_job" "push_template_europe" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-push-template"
+            }
+          + name             = "d17-3-push-template"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+
+                      + volume_mount {
+                          + mount_path        = "/home/coder/template/main.tf"
+                          + mount_propagation = "None"
+                          + name              = "coder-template"
+                          + read_only         = false
+                          + sub_path          = "main.tf"
+                        }
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+
+                  + volume {
+                      + name = "coder-template"
+
+                      + config_map {
+                          + default_mode = "0644"
+                          + name         = "coder-template"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+  # kubernetes_job.push_template_primary will be created
+  + resource "kubernetes_job" "push_template_primary" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-push-template"
+            }
+          + name             = "d17-3-push-template"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + resources (known after apply)
+
+                      + volume_mount {
+                          + mount_path        = "/home/coder/template/main.tf"
+                          + mount_propagation = "None"
+                          + name              = "coder-template"
+                          + read_only         = false
+                          + sub_path          = "main.tf"
+                        }
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+
+                  + volume {
+                      + name = "coder-template"
+
+                      + config_map {
+                          + default_mode = "0644"
+                          + name         = "coder-template"
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+  # kubernetes_job.workspace_traffic_asia will be created
+  + resource "kubernetes_job" "workspace_traffic_asia" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-workspace-traffic"
+            }
+          + name             = "d17-3-workspace-traffic"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + env {
+                          + name  = "CODER_SCALETEST_JOB_TIMEOUT"
+                          + value = "300s"
+                        }
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "420s"
+        }
+    }
+
+  # kubernetes_job.workspace_traffic_europe will be created
+  + resource "kubernetes_job" "workspace_traffic_europe" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-workspace-traffic"
+            }
+          + name             = "d17-3-workspace-traffic"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + env {
+                          + name  = "CODER_SCALETEST_JOB_TIMEOUT"
+                          + value = "300s"
+                        }
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "420s"
+        }
+    }
+
+  # kubernetes_job.workspace_traffic_primary will be created
+  + resource "kubernetes_job" "workspace_traffic_primary" {
+      + id                  = (known after apply)
+      + wait_for_completion = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + labels           = {
+              + "app.kubernetes.io/name" = "d17-3-workspace-traffic"
+            }
+          + name             = "d17-3-workspace-traffic"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+
+      + spec {
+          + backoff_limit   = 6
+          + completion_mode = (known after apply)
+          + completions     = 1
+          + parallelism     = 1
+
+          + selector (known after apply)
+
+          + template {
+              + metadata {
+                  + generation       = (known after apply)
+                  + name             = (known after apply)
+                  + resource_version = (known after apply)
+                  + uid              = (known after apply)
+                }
+              + spec {
+                  + automount_service_account_token  = true
+                  + dns_policy                       = "ClusterFirst"
+                  + enable_service_links             = true
+                  + host_ipc                         = false
+                  + host_network                     = false
+                  + host_pid                         = false
+                  + hostname                         = (known after apply)
+                  + node_name                        = (known after apply)
+                  + restart_policy                   = "Never"
+                  + scheduler_name                   = (known after apply)
+                  + service_account_name             = (known after apply)
+                  + share_process_namespace          = false
+                  + termination_grace_period_seconds = 30
+
+                  + affinity {
+                      + node_affinity {
+                          + required_during_scheduling_ignored_during_execution {
+                              + node_selector_term {
+                                  + match_expressions {
+                                      + key      = "cloud.google.com/gke-nodepool"
+                                      + operator = "In"
+                                      + values   = [
+                                          + "misc",
+                                        ]
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                  + container {
+                      + command                    = (known after apply)
+                      + image                      = "ghcr.io/coder/coder:latest"
+                      + image_pull_policy          = (known after apply)
+                      + name                       = "cli"
+                      + stdin                      = false
+                      + stdin_once                 = false
+                      + termination_message_path   = "/dev/termination-log"
+                      + termination_message_policy = (known after apply)
+                      + tty                        = false
+
+                      + env {
+                          + name  = "CODER_SCALETEST_JOB_TIMEOUT"
+                          + value = "300s"
+                        }
+
+                      + resources (known after apply)
+                    }
+
+                  + image_pull_secrets (known after apply)
+
+                  + readiness_gate (known after apply)
+                }
+            }
+        }
+
+      + timeouts {
+          + create = "420s"
+        }
+    }
+
+  # kubernetes_secret.coder_db will be created
+  + resource "kubernetes_secret" "coder_db" {
+      + data                           = (sensitive value)
+      + id                             = (known after apply)
+      + type                           = "Opaque"
+      + wait_for_service_account_token = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coder-db-url"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+    }
+
+  # kubernetes_secret.proxy_token_asia will be created
+  + resource "kubernetes_secret" "proxy_token_asia" {
+      + data                           = (sensitive value)
+      + id                             = (known after apply)
+      + type                           = "Opaque"
+      + wait_for_service_account_token = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coder-proxy-token"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+    }
+
+  # kubernetes_secret.proxy_token_europe will be created
+  + resource "kubernetes_secret" "proxy_token_europe" {
+      + data                           = (sensitive value)
+      + id                             = (known after apply)
+      + type                           = "Opaque"
+      + wait_for_service_account_token = true
+
+      + metadata {
+          + generation       = (known after apply)
+          + name             = "coder-proxy-token"
+          + namespace        = "coder"
+          + resource_version = (known after apply)
+          + uid              = (known after apply)
+        }
+    }
+
+  # local_file.kubeconfig["asia"] must be replaced
+-/+ resource "local_file" "kubeconfig" {
+      ~ content              = (sensitive value) # forces replacement
+      ~ content_base64sha256 = "ChsjhIZFYD1lrZUEY/t3R9IqIfitDSo0cZa+Ghi9TNw=" -> (known after apply)
+      ~ content_base64sha512 = "j6538ThzmjKMy2O+immgLHgisp84fXvGy6yPMclhqVioqFAq41+IX4tDkLxSljh3KgZLV0RHrFP95brgaT5kYw==" -> (known after apply)
+      ~ content_md5          = "252bb519143e7c3f6da69d5db4efd2c6" -> (known after apply)
+      ~ content_sha1         = "67e73f2cb69ccee72f709b6d867ef847d15801e2" -> (known after apply)
+      ~ content_sha256       = "0a1b23848645603d65ad950463fb7747d22a21f8ad0d2a347196be1a18bd4cdc" -> (known after apply)
+      ~ content_sha512       = "8fae77f138739a328ccb63be8a69a02c7822b29f387d7bc6cbac8f31c961a958a8a8502ae35f885f8b4390bc529638772a064b574447ac53fde5bae0693e6463" -> (known after apply)
+      ~ id                   = "67e73f2cb69ccee72f709b6d867ef847d15801e2" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+  # local_file.kubeconfig["europe"] must be replaced
+-/+ resource "local_file" "kubeconfig" {
+      ~ content              = (sensitive value) # forces replacement
+      ~ content_base64sha256 = "rp27dn0J7NB/0ic1w4bcTSpclDisikp+bKcqs0tulIo=" -> (known after apply)
+      ~ content_base64sha512 = "Hddg/XNvES9rSiesqQglLWvZgxhgJeRywZ1JcBx47RHwQuSsLsbWLBKArfDT/J/K5Datgi8BxwRNWDc6d1U7gQ==" -> (known after apply)
+      ~ content_md5          = "6adc0d8b5e215839d20e2e26771701bb" -> (known after apply)
+      ~ content_sha1         = "f597afb96c32a7571ba3a81cc18f9f2c9fe50204" -> (known after apply)
+      ~ content_sha256       = "ae9dbb767d09ecd07fd22735c386dc4d2a5c9438ac8a4a7e6ca72ab34b6e948a" -> (known after apply)
+      ~ content_sha512       = "1dd760fd736f112f6b4a27aca908252d6bd983186025e472c19d49701c78ed11f042e4ac2ec6d62c1280adf0d3fc9fcae436ad822f01c7044d58373a77553b81" -> (known after apply)
+      ~ id                   = "f597afb96c32a7571ba3a81cc18f9f2c9fe50204" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+  # local_file.kubeconfig["primary"] must be replaced
+-/+ resource "local_file" "kubeconfig" {
+      ~ content              = (sensitive value) # forces replacement
+      ~ content_base64sha256 = "lKpnFyQi6ZjtcWZ8ptAM8GTSkLDpv6HPJePk/MyM5H8=" -> (known after apply)
+      ~ content_base64sha512 = "v0awiiwAfQsnU446qMXxWv1ks529P/+0KEWtlsDO/1Hz+nv1lOV0r9tSFqIfIA8ka/uPOcXcGkBJ8NiRK5+kMA==" -> (known after apply)
+      ~ content_md5          = "fd30e86fee98342ae062c502021ed792" -> (known after apply)
+      ~ content_sha1         = "1caab4f9002954e4a59be717dab5487cd1096614" -> (known after apply)
+      ~ content_sha256       = "94aa67172422e998ed71667ca6d00cf064d290b0e9bfa1cf25e3e4fccc8ce47f" -> (known after apply)
+      ~ content_sha512       = "bf46b08a2c007d0b27538e3aa8c5f15afd64b39dbd3fffb42845ad96c0ceff51f3fa7bf594e574afdb5216a21f200f246bfb8f39c5dc1a4049f0d8912b9fa430" -> (known after apply)
+      ~ id                   = "1caab4f9002954e4a59be717dab5487cd1096614" -> (known after apply)
+        # (3 unchanged attributes hidden)
+    }
+
+  # null_resource.api_key will be created
+  + resource "null_resource" "api_key" {
+      + id = (known after apply)
+    }
+
+  # null_resource.asia_proxy_token will be created
+  + resource "null_resource" "asia_proxy_token" {
+      + id = (known after apply)
+    }
+
+  # null_resource.destroy_workspaces["asia"] will be created
+  + resource "null_resource" "destroy_workspaces" {
+      + id = (known after apply)
+    }
+
+  # null_resource.destroy_workspaces["europe"] will be created
+  + resource "null_resource" "destroy_workspaces" {
+      + id = (known after apply)
+    }
+
+  # null_resource.destroy_workspaces["primary"] will be created
+  + resource "null_resource" "destroy_workspaces" {
+      + id = (known after apply)
+    }
+
+  # null_resource.europe_proxy_token will be created
+  + resource "null_resource" "europe_proxy_token" {
+      + id = (known after apply)
+    }
+
+  # null_resource.license will be created
+  + resource "null_resource" "license" {
+      + id = (known after apply)
+    }
+
+  # null_resource.pprof["primary"] will be created
+  + resource "null_resource" "pprof" {
+      + id = (known after apply)
+    }
+
+  # time_sleep.wait_baseline will be created
+  + resource "time_sleep" "wait_baseline" {
+      + create_duration = "60s"
+      + id              = (known after apply)
+    }
+
+Plan: 30 to add, 0 to change, 3 to destroy.
+
+Do you want to perform these actions?
+  Terraform will perform the actions described above.
+  Only 'yes' will be accepted to approve.
+
+  Enter a value: 
+
+Interrupt received.
+Please wait for Terraform to exit or data loss may occur.
+Gracefully shutting down...
+

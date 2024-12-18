@@ -20,7 +20,7 @@ locals {
       workspaces = {
         count_per_deployment = 10
         nodepool_size        = 1
-        machine_type         = "t2d-standard-4"
+        machine_type         = "t2d-standard-8"
         cpu_request          = "100m"
         mem_request          = "128Mi"
         cpu_limit            = "100m"
@@ -31,7 +31,7 @@ locals {
         machine_type  = "t2d-standard-4"
       }
       cloudsql = {
-        tier            = "db-f1-micro"
+        tier            = "db-custom-4-15360"
         max_connections = 500
       }
     }
@@ -73,32 +73,32 @@ locals {
     large = {
       coder = {
         nodepool_size = 3
-        machine_type  = "t2d-standard-8"
+        machine_type  = "c2d-standard-8"
         replicas      = 3
-        cpu_request   = "1000m"
-        mem_request   = "6Gi"
-        cpu_limit     = "2000m"
+        cpu_request   = "3000m"
+        mem_request   = "12Gi"
+        cpu_limit     = "3000m"
         mem_limit     = "12Gi"
       }
       provisionerd = {
-        replicas    = 1
+        replicas    = 50
         cpu_request = "100m"
-        mem_request = "1Gi"
+        mem_request = "256Mi"
         cpu_limit   = "1000m"
         mem_limit   = "1Gi"
       }
       workspaces = {
-        count_per_deployment = 10
-        nodepool_size        = 1
-        machine_type         = "t2d-standard-8"
+        count_per_deployment = 700
+        nodepool_size        = 3
+        machine_type         = "c2d-standard-32"
         cpu_request          = "100m"
-        mem_request          = "128Mi"
+        mem_request          = "512Mi"
         cpu_limit            = "100m"
-        mem_limit            = "128Mi"
+        mem_limit            = "512Mi"
       }
       misc = {
         nodepool_size = 1
-        machine_type  = "t2d-standard-4"
+        machine_type  = "c2d-standard-32"
       }
       cloudsql = {
         tier            = "db-custom-2-7680"

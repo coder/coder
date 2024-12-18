@@ -1,5 +1,5 @@
 locals {
-  create_workspace_timeout = "600s"
+  create_workspace_timeout = "30m"
 }
 
 resource "kubernetes_job" "create_workspaces_primary" {
@@ -14,6 +14,7 @@ resource "kubernetes_job" "create_workspaces_primary" {
   }
   spec {
     completions = 1
+    backoff_limit = 0
     template {
       metadata {}
       spec {
@@ -72,6 +73,7 @@ resource "kubernetes_job" "create_workspaces_europe" {
   }
   spec {
     completions = 1
+    backoff_limit = 0
     template {
       metadata {}
       spec {
@@ -130,6 +132,7 @@ resource "kubernetes_job" "create_workspaces_asia" {
   }
   spec {
     completions = 1
+    backoff_limit = 0
     template {
       metadata {}
       spec {
