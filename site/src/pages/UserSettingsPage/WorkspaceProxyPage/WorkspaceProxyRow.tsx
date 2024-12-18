@@ -26,7 +26,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
 	let shouldShowMessages = false;
-	let extraWarnings: string[] = [];
+	const extraWarnings: string[] = [];
 	if (latency?.nextHopProtocol) {
 		switch (latency.nextHopProtocol) {
 			case "http/0.9":
@@ -34,8 +34,8 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			case "http/1.1":
 				extraWarnings.push(
 					`Requests to the proxy are using ${latency.nextHopProtocol}, and the server does not support HTTP/2. ` +
-					`For usability reasons, HTTP/2 or above is recommended. ` +
-					`Pages may fail to load if the web browser's concurrent connection limit is reached.`,
+						`For usability reasons, HTTP/2 or above is recommended. ` +
+						`Pages may fail to load if the web browser's concurrent connection limit is reached.`,
 				);
 		}
 	}
