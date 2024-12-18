@@ -16,6 +16,7 @@ export interface ProxyLatencyReport {
 	// at is when the latency was recorded.
 	at: Date;
 	// nextHopProtocol can determine if HTTP/2 is being used.
+	// https://developer.mozilla.org/docs/Web/API/PerformanceResourceTiming/nextHopProtocol
 	nextHopProtocol?: string;
 }
 
