@@ -1,28 +1,26 @@
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
-import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Outlet, useParams } from "react-router-dom";
-import { Sidebar } from "./Sidebar";
+import { OrganizationSidebar } from "./OrganizationSidebar";
 
-export const ManagementSettingsContext = createContext<
-	ManagementSettingsValue | undefined
+export const OrganizationSettingsContext = createContext<
+	OrganizationSettingsValue | undefined
 >(undefined);
 
-type ManagementSettingsValue = Readonly<{
+type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
 	organization?: Organization;
 }>;
 
-export const useManagementSettings = (): ManagementSettingsValue => {
-	const context = useContext(ManagementSettingsContext);
+export const useOrganizationSettings = (): OrganizationSettingsValue => {
+	const context = useContext(OrganizationSettingsContext);
 	if (!context) {
 		throw new Error(
-			"useManagementSettings should be used inside of ManagementSettingsLayout",
+			"useOrganizationSettings should be used inside of OrganizationSettingsLayout",
 		);
 	}
 
@@ -43,20 +41,15 @@ export const canEditOrganization = (
 	);
 };
 
-const ManagementSettingsLayout: FC = () => {
+const OrganizationSettingsLayout: FC = () => {
 	const { permissions } = useAuthenticated();
 	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
 
-	// The deployment settings page also contains users, audit logs, groups and
-	// organizations, so this page must be visible if you can see any of these.
-	const canViewDeploymentSettingsPage =
-		permissions.viewDeploymentValues ||
-		permissions.viewAllUsers ||
-		permissions.editAnyOrganization ||
-		permissions.viewAnyAuditLog;
+	const canViewOrganizationSettingsPage =
+		permissions.viewDeploymentValues || permissions.editAnyOrganization;
 
 	const organization =
 		organizations && orgName
@@ -64,26 +57,26 @@ const ManagementSettingsLayout: FC = () => {
 			: undefined;
 
 	return (
-		<RequirePermission isFeatureVisible={canViewDeploymentSettingsPage}>
-			<ManagementSettingsContext.Provider
+		<RequirePermission isFeatureVisible={canViewOrganizationSettingsPage}>
+			<OrganizationSettingsContext.Provider
 				value={{
 					organizations,
 					organization,
 				}}
 			>
-				<Margins>
-					<Stack css={{ padding: "48px 0" }} direction="row" spacing={6}>
-						<Sidebar />
+				<div className="px-10 max-w-screen-2xl">
+					<div className="flex flex-row gap-12 py-10">
+						<OrganizationSidebar />
 						<main css={{ flexGrow: 1 }}>
 							<Suspense fallback={<Loader />}>
 								<Outlet />
 							</Suspense>
 						</main>
-					</Stack>
-				</Margins>
-			</ManagementSettingsContext.Provider>
+					</div>
+				</div>
+			</OrganizationSettingsContext.Provider>
 		</RequirePermission>
 	);
 };
 
-export default ManagementSettingsLayout;
+export default OrganizationSettingsLayout;
