@@ -6,9 +6,9 @@ We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
 There are several ways to install Coder. Follow the steps on this page for a
-minimal installation of Coder or follow the
-[quickstart guide](../tutorials/quickstart.md) for a step-by-step guide on how
-to install and configure your first Coder deployment.
+minimal installation of Coder, or for a step-by-step guide on how
+to install and configure your first Coder deployment, follow the
+[quickstart guide](../tutorials/quickstart.md).
 
 For production deployments with 50+ users, we recommend
 [installing on Kubernetes](./kubernetes.md). Otherwise, you can install Coder on
