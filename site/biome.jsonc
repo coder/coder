@@ -7,7 +7,8 @@
 			"test-results/",
 			"e2e/**/*Generated.ts",
 			"src/api/*Generated.ts",
-			"pnpm-lock.yaml"
+			"pnpm-lock.yaml",
+			"storybook-static/"
 		]
 	},
 	"linter": {
