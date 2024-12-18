@@ -220,12 +220,6 @@ github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322 h1:m0lPZjlQ7vdVp
 github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322/go.mod h1:rOLFDDVKVFiDqZFXoteXc97YXx7kFi9kYqR+2ETPkLQ=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136 h1:0RgB61LcNs24WOxc3PBvygSNTQurm0PYPujJjLLOzs0=
 github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136/go.mod h1:VkD1P761nykiq75dz+4iFqIQIZka189tx1BQLOp0Skc=
-github.com/coder/guts v0.0.0-20241217133853-2db22e168cf9 h1:8BMfZ1kBP4As1gl5Fm1kT/PX/yE9EvxrbU/M+4sYWr0=
-github.com/coder/guts v0.0.0-20241217133853-2db22e168cf9/go.mod h1:SfmxjDaSfPjzKJ9mGU4sA/1OHU+u66uRfhFF+y4BARQ=
-github.com/coder/guts v0.0.0-20241217134542-eb67bc6472d0 h1:5P/Sry+tzvwVMLNXchSLa7FT89A5q0KboMCaPPB/1U0=
-github.com/coder/guts v0.0.0-20241217134542-eb67bc6472d0/go.mod h1:SfmxjDaSfPjzKJ9mGU4sA/1OHU+u66uRfhFF+y4BARQ=
-github.com/coder/guts v0.0.0-20241217135054-91872b97bcd2 h1:U3zzDzY9Hk6Cr6cVB1DUf9SdBINci12B6Xs1xWUp4gU=
-github.com/coder/guts v0.0.0-20241217135054-91872b97bcd2/go.mod h1:SfmxjDaSfPjzKJ9mGU4sA/1OHU+u66uRfhFF+y4BARQ=
 github.com/coder/guts v0.0.0-20241217141209-abb2d09b4aa5 h1:IFKvGmAZ0ziutzyhtkQ7kK+y7CEKobq5hNPacC9aHJs=
 github.com/coder/guts v0.0.0-20241217141209-abb2d09b4aa5/go.mod h1:SfmxjDaSfPjzKJ9mGU4sA/1OHU+u66uRfhFF+y4BARQ=
 github.com/coder/pq v1.10.5-0.20240813183442-0c420cb5a048 h1:3jzYUlGH7ZELIH4XggXhnTnP05FCYiAFeQpoN+gNR5I=
