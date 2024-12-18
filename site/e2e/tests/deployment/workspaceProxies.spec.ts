@@ -3,9 +3,9 @@ import { API } from "api/api";
 import { setupApiCalls } from "../../api";
 import { coderPort, workspaceProxyPort } from "../../constants";
 import { randomName, requiresLicense } from "../../helpers";
-import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
-import { beforeCoderTest } from "../../hooks";
 import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
+import { startWorkspaceProxy, stopWorkspaceProxy } from "../../proxy";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

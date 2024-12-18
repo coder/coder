@@ -6,8 +6,8 @@ import {
 	setupApiCalls,
 } from "../../api";
 import { randomName, requiresLicense } from "../../helpers";
-import { beforeCoderTest } from "../../hooks";
 import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

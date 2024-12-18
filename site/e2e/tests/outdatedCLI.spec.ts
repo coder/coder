@@ -4,11 +4,11 @@ import {
 	createTemplate,
 	createWorkspace,
 	downloadCoderVersion,
+	login,
 	sshIntoWorkspace,
 	startAgent,
 	stopAgent,
 	stopWorkspace,
-	login,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 

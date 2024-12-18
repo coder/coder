@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
-import { beforeCoderTest } from "../../hooks";
 import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

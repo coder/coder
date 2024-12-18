@@ -8,6 +8,8 @@ import {
 	updateWorkspaceParameters,
 	verifyParameters,
 } from "../../helpers";
+import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,
 	firstParameter,
@@ -16,8 +18,6 @@ import {
 	sixthParameter,
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
-import { beforeCoderTest } from "../../hooks";
-import { login } from "../../helpers";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

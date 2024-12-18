@@ -7,8 +7,8 @@ import {
 	verifyConfigFlagEntries,
 	verifyConfigFlagString,
 } from "../../api";
-import { beforeCoderTest } from "../../hooks";
 import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
