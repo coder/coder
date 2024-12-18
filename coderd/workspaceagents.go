@@ -20,7 +20,6 @@ import (
 	"golang.org/x/exp/slices"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -42,6 +41,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID
@@ -378,7 +378,7 @@ func (api *API) workspaceAgentLogs(rw http.ResponseWriter, r *http.Request) {
 
 	// Allow client to request no compression. This is useful for buggy
 	// clients or if there's a client/server incompatibility. This is
-	// needed with e.g. nhooyr/websocket and Safari (confirmed in 16.5).
+	// needed with e.g. coder/websocket and Safari (confirmed in 16.5).
 	//
 	// See:
 	// * https://github.com/nhooyr/websocket/issues/218
