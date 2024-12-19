@@ -1,6 +1,7 @@
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Badge from "@mui/material/Badge";
 import type * as TypesGen from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
 	Popover,
@@ -10,7 +11,6 @@ import {
 import { type FC, useState } from "react";
 import { navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
-import { Avatar } from "components/Avatar/Avatar";
 
 export interface UserDropdownProps {
 	user: TypesGen.User;

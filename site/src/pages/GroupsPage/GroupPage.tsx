@@ -20,6 +20,7 @@ import {
 } from "api/queries/groups";
 import type { Group, ReducedUser, User } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -45,7 +46,6 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { Avatar } from "components/Avatar/Avatar";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";

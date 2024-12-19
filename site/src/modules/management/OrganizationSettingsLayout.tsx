@@ -1,4 +1,5 @@
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -14,7 +15,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { Outlet, useParams } from "react-router-dom";
 import { OrganizationSidebar } from "./OrganizationSidebar";
-import { Avatar } from "components/Avatar/Avatar";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined

@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent, within } from "@storybook/test";
+import { Avatar } from "components/Avatar/Avatar";
 import { useState } from "react";
 import { withDesktopViewport } from "testHelpers/storybook";
 import {
@@ -8,7 +9,6 @@ import {
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "./SelectFilter";
-import { Avatar } from "components/Avatar/Avatar";
 
 const options: SelectFilterOption[] = Array.from({ length: 50 }, (_, i) => ({
 	startIcon: <Avatar fallback={`username ${i + 1}`} size="sm" />,

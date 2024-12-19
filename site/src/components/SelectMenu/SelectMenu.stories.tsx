@@ -1,6 +1,7 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
+import { Avatar } from "components/Avatar/Avatar";
 import { withDesktopViewport } from "testHelpers/storybook";
 import {
 	SelectMenu,
@@ -12,7 +13,6 @@ import {
 	SelectMenuSearch,
 	SelectMenuTrigger,
 } from "./SelectMenu";
-import { Avatar } from "components/Avatar/Avatar";
 
 const meta: Meta<typeof SelectMenu> = {
 	title: "components/SelectMenu",

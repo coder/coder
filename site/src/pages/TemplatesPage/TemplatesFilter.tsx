@@ -1,12 +1,12 @@
 import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { useFilterMenu } from "components/Filter/menu";
-import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 interface TemplatesFilterProps {

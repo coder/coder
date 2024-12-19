@@ -26,6 +26,7 @@ import {
 	ActiveUserChart,
 	ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -44,7 +45,6 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { Avatar } from "components/Avatar/Avatar";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,

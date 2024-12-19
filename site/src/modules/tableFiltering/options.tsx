@@ -8,6 +8,7 @@
  * the workspaces and audits page that have a risk of getting out of sync.
  */
 import { API } from "api/api";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -17,7 +18,6 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 // Organization helpers ////////////////////////////////////////////////////////

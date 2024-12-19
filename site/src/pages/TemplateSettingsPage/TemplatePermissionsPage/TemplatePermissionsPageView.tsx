@@ -17,6 +17,7 @@ import type {
 	TemplateRole,
 	TemplateUser,
 } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
@@ -36,7 +37,6 @@ import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "./UserOrGroupAutocomplete";
-import { Avatar } from "components/Avatar/Avatar";
 
 type AddTemplateUserOrGroupProps = {
 	templateID: string;
