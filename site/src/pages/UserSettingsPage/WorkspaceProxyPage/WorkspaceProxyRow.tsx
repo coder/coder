@@ -34,11 +34,11 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 			case "http/1.1":
 				extraWarnings.push(
 					// biome-ignore lint/style/useTemplate: easier to read short lines
-					`Requests to the proxy are using ${latency.nextHopProtocol}, ` +
-						"the server might not support HTTP/2. " +
+					`Requests to the proxy from current browser are using "${latency.nextHopProtocol}". ` +
+						"The proxy server might not support HTTP/2. " +
 						"For usability reasons, HTTP/2 or above is recommended. " +
 						"Pages may fail to load if the web browser's concurrent " +
-						"connection limit is reached.",
+						"connection limit per host is reached.",
 				);
 		}
 	}
@@ -134,7 +134,7 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
 				title={
 					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
 				}
-				messages={proxy.status?.report?.warnings.concat(extraWarnings)}
+				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
 	);
