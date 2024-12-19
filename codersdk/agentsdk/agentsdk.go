@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
@@ -25,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
