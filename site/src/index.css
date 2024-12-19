@@ -31,6 +31,10 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
+		--muted: 240, 6%, 90%;
+		--popover: 0, 0%, 98%;
+		--accent: 240, 5%, 96%;
+		--accent-foreground: 240, 10%, 4%;
 	}
 	.dark {
 		--content-primary: 0, 0%, 98%;
@@ -59,11 +63,20 @@
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
+		--muted: 240, 4%, 16%;
+		--popover: 240, 10%, 4%;
+		--accent: 240, 6%, 10%;
+		--accent-foreground: 0, 0%, 98%;
 	}
 }
 
 @layer base {
 	* {
-		@apply border-border;
+		/*
+		* TODO: Since we’re not using TailwindCSS preflight (check site/tailwind.config.js),
+		* we need to apply this reset manually. Eventually, we should enable preflight
+		* and remove the border-0 and border-solid styles.
+		*/
+		@apply border-border border-0 border-solid;
 	}
 }
