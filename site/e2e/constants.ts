@@ -1,5 +1,4 @@
 import * as path from "node:path";
-import { string } from "yup";
 
 export const coderMain = path.join(__dirname, "../../enterprise/cmd/coder");
 
