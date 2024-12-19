@@ -11,5 +11,11 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
+  -c, --column [created at|name|tags] (default: created at,name,tags)
+          Columns to display in table output.
+
+  -o, --output table|json (default: table)
+          Output format.
+
 ———
 Run `coder --help` for a list of global options.
