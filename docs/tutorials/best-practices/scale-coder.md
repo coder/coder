@@ -1,4 +1,4 @@
-# Scale Coder
+kl# Scale Coder
 
 December 20, 2024
 
@@ -61,45 +61,40 @@ For a more comprehensive overview, integrate metrics with an observability dashb
 
 ### Observability key metrics
 
+Configure alerting based on these metrics to ensure you surface problems before they affect the end-user experience.
+
 **CPU and Memory Utilization**
 
-- Monitor the utilization as a fraction of the available resources on the
-  instance. Its utilization will vary with use throughout the day and over the
-  course of the week. Monitor the trends, paying special attention to the daily
-  and weekly peak utilization. Use long-term trends to plan infrastructure
+- Monitor the utilization as a fraction of the available resources on the instance.
+
+  Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure
   upgrades.
 
 **Tail latency of Coder Server API requests**
 
-- Use the `coderd_api_request_latencies_seconds` metric.
-- High tail latency can indicate Coder Server or the PostgreSQL database is
-  being starved for resources.
+- High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
+
+  Use the `coderd_api_request_latencies_seconds` metric.
 
 **Tail latency of database queries**
 
-- Use the `coderd_db_query_latencies_seconds` metric.
 - High tail latency can indicate the PostgreSQL database is low in resources.
 
-Configure alerting based on these metrics to ensure you surface problems before
-end users notice them.
+  Use the `coderd_db_query_latencies_seconds` metric.
 
 ## Coder Server
 
 ### Locality
 
-If increased availability of the Coder API is a concern, deploy at least three
-instances. Spread the instances across nodes (e.g. via anti-affinity rules in
-Kubernetes), and/or in different availability zones of the same geographic
-region.
+To ensure increased availability of the Coder API, deploy at least three instances. Spread the instances across nodes with anti-affinity rules in
+Kubernetes or in different availability zones of the same geographic region.
 
-Do not deploy in different geographic regions. Coder Servers need to be able to
-communicate with one another directly with low latency, under 10ms. Note that
-this is for the availability of the Coder API – workspaces will not be fault
-tolerant unless they are explicitly built that way at the template level.
+Do not deploy in different geographic regions.
 
-Deploy Coder Server instances as geographically close to PostgreSQL as possible.
-Low-latency communication (under 10ms) with Postgres is essential for Coder
-Server's performance.
+Coder Servers need to be able to
+communicate with one another directly with low latency, under 10ms. Note that this is for the availability of the Coder API. Workspaces are not fault tolerant unless they are explicitly built that way at the template level.
+
+Deploy Coder Server instances as geographically close to PostgreSQL as possible. Low-latency communication (under 10ms) with Postgres is essential for Coder Server's performance.
 
 ### Scaling
 
