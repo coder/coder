@@ -1,13 +1,13 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioner keys create
+# provisioners keys create
 
 Create a new provisioner key
 
 ## Usage
 
 ```console
-coder provisioner keys create [flags] <name>
+coder provisioners keys create [flags] <name>
 ```
 
 ## Options

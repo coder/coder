@@ -648,6 +648,11 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	},
 	queue_position: 0,
 	queue_size: 0,
+	input: {
+		template_version_id: "test-template-version", // MockTemplateVersion.id
+	},
+	organization_id: MockOrganization.id,
+	type: "template_version_dry_run",
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {

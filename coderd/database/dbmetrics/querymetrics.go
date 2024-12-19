@@ -980,6 +980,13 @@ func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerDaemonsWithStatusByOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsWithStatusByOrganization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.GetProvisionerJobByID(ctx, id)
@@ -1005,6 +1012,13 @@ func (m queryMetricsStore) GetProvisionerJobsByIDsWithQueuePosition(ctx context.
 	start := time.Now()
 	r0, r1 := m.s.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 	m.queryLatencies.WithLabelValues("GetProvisionerJobsByIDsWithQueuePosition").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

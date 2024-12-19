@@ -1928,6 +1928,10 @@ func (q *querier) GetProvisionerDaemonsByOrganization(ctx context.Context, organ
 	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsByOrganization)(ctx, organizationID)
 }
 
+func (q *querier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerDaemonsWithStatusByOrganization)(ctx, arg)
+}
+
 func (q *querier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	job, err := q.db.GetProvisionerJobByID(ctx, id)
 	if err != nil {
@@ -1974,6 +1978,11 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 // TODO: we need to add a provisioner job resource
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
+}
+
+// TODO: we need to add a provisioner job resource
+func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	return q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type

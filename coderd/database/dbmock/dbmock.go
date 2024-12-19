@@ -2016,6 +2016,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerDaemonsByOrganization(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsByOrganization", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsByOrganization), arg0, arg1)
 }
 
+// GetProvisionerDaemonsWithStatusByOrganization mocks base method.
+func (m *MockStore) GetProvisionerDaemonsWithStatusByOrganization(arg0 context.Context, arg1 database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerDaemonsWithStatusByOrganization", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetProvisionerDaemonsWithStatusByOrganizationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerDaemonsWithStatusByOrganization indicates an expected call of GetProvisionerDaemonsWithStatusByOrganization.
+func (mr *MockStoreMockRecorder) GetProvisionerDaemonsWithStatusByOrganization(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsWithStatusByOrganization", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsWithStatusByOrganization), arg0, arg1)
+}
+
 // GetProvisionerJobByID mocks base method.
 func (m *MockStore) GetProvisionerJobByID(arg0 context.Context, arg1 uuid.UUID) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -2074,6 +2089,21 @@ func (m *MockStore) GetProvisionerJobsByIDsWithQueuePosition(arg0 context.Contex
 func (mr *MockStoreMockRecorder) GetProvisionerJobsByIDsWithQueuePosition(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByIDsWithQueuePosition", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByIDsWithQueuePosition), arg0, arg1)
+}
+
+// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner mocks base method.
+func (m *MockStore) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(arg0 context.Context, arg1 database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner indicates an expected call of GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner.
+func (mr *MockStoreMockRecorder) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner", reflect.TypeOf((*MockStore)(nil).GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner), arg0, arg1)
 }
 
 // GetProvisionerJobsCreatedAfter mocks base method.

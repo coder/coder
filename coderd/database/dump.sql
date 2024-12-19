@@ -137,6 +137,14 @@ CREATE TYPE port_share_protocol AS ENUM (
     'https'
 );
 
+CREATE TYPE provisioner_daemon_status AS ENUM (
+    'offline',
+    'idle',
+    'busy'
+);
+
+COMMENT ON TYPE provisioner_daemon_status IS 'The status of a provisioner daemon.';
+
 CREATE TYPE provisioner_job_status AS ENUM (
     'pending',
     'running',

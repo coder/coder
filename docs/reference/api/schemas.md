@@ -4189,10 +4189,110 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | » `[any property]` | string          | false    |              |             |
 | `version`          | string          | false    |              |             |
 
+## codersdk.ProvisionerDaemonJob
+
+```json
+{
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"status": "pending"
+}
+```
+
+### Properties
+
+| Name     | Type                                                           | Required | Restrictions | Description |
+| -------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `id`     | string                                                         | false    |              |             |
+| `status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+
+## codersdk.ProvisionerDaemonStatus
+
+```json
+"offline"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value     |
+| --------- |
+| `offline` |
+| `idle`    |
+| `busy`    |
+
+## codersdk.ProvisionerDaemonWithStatus
+
+```json
+{
+	"api_version": "string",
+	"created_at": "2019-08-24T14:15:22Z",
+	"current_job": {
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"status": "pending"
+	},
+	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+	"last_seen_at": "2019-08-24T14:15:22Z",
+	"name": "string",
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+	"previous_job": {
+		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"status": "pending"
+	},
+	"provisioners": ["string"],
+	"status": "offline",
+	"tags": {
+		"property1": "string",
+		"property2": "string"
+	},
+	"version": "string"
+}
+```
+
+### Properties
+
+| Name               | Type                                                                 | Required | Restrictions | Description |
+| ------------------ | -------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `api_version`      | string                                                               | false    |              |             |
+| `created_at`       | string                                                               | false    |              |             |
+| `current_job`      | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |             |
+| `id`               | string                                                               | false    |              |             |
+| `key_id`           | string                                                               | false    |              |             |
+| `last_seen_at`     | string                                                               | false    |              |             |
+| `name`             | string                                                               | false    |              |             |
+| `organization_id`  | string                                                               | false    |              |             |
+| `previous_job`     | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |             |
+| `provisioners`     | array of string                                                      | false    |              |             |
+| `status`           | [codersdk.ProvisionerDaemonStatus](#codersdkprovisionerdaemonstatus) | false    |              |             |
+| `tags`             | object                                                               | false    |              |             |
+| » `[any property]` | string                                                               | false    |              |             |
+| `version`          | string                                                               | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value     |
+| -------- | --------- |
+| `status` | `offline` |
+| `status` | `idle`    |
+| `status` | `busy`    |
+
 ## codersdk.ProvisionerJob
 
 ```json
 {
+	"available_workers": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 	"canceled_at": "2019-08-24T14:15:22Z",
 	"completed_at": "2019-08-24T14:15:22Z",
 	"created_at": "2019-08-24T14:15:22Z",
@@ -4200,6 +4300,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	"error_code": "REQUIRED_TEMPLATE_VARIABLES",
 	"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+	"input": {
+		"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+		"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+	},
+	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 	"queue_position": 0,
 	"queue_size": 0,
 	"started_at": "2019-08-24T14:15:22Z",
@@ -4208,28 +4313,33 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"property1": "string",
 		"property2": "string"
 	},
+	"type": "template_version_import",
 	"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description |
-| ------------------ | -------------------------------------------------------------- | -------- | ------------ | ----------- |
-| `canceled_at`      | string                                                         | false    |              |             |
-| `completed_at`     | string                                                         | false    |              |             |
-| `created_at`       | string                                                         | false    |              |             |
-| `error`            | string                                                         | false    |              |             |
-| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
-| `file_id`          | string                                                         | false    |              |             |
-| `id`               | string                                                         | false    |              |             |
-| `queue_position`   | integer                                                        | false    |              |             |
-| `queue_size`       | integer                                                        | false    |              |             |
-| `started_at`       | string                                                         | false    |              |             |
-| `status`           | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `tags`             | object                                                         | false    |              |             |
-| » `[any property]` | string                                                         | false    |              |             |
-| `worker_id`        | string                                                         | false    |              |             |
+| Name                | Type                                                           | Required | Restrictions | Description |
+| ------------------- | -------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `available_workers` | array of string                                                | false    |              |             |
+| `canceled_at`       | string                                                         | false    |              |             |
+| `completed_at`      | string                                                         | false    |              |             |
+| `created_at`        | string                                                         | false    |              |             |
+| `error`             | string                                                         | false    |              |             |
+| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
+| `file_id`           | string                                                         | false    |              |             |
+| `id`                | string                                                         | false    |              |             |
+| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)   | false    |              |             |
+| `organization_id`   | string                                                         | false    |              |             |
+| `queue_position`    | integer                                                        | false    |              |             |
+| `queue_size`        | integer                                                        | false    |              |             |
+| `started_at`        | string                                                         | false    |              |             |
+| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `tags`              | object                                                         | false    |              |             |
+| » `[any property]`  | string                                                         | false    |              |             |
+| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)     | false    |              |             |
+| `worker_id`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4242,6 +4352,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `status`     | `canceling`                   |
 | `status`     | `canceled`                    |
 | `status`     | `failed`                      |
+
+## codersdk.ProvisionerJobInput
+
+```json
+{
+	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+	"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+}
+```
+
+### Properties
+
+| Name                  | Type   | Required | Restrictions | Description |
+| --------------------- | ------ | -------- | ------------ | ----------- |
+| `template_version_id` | string | false    |              |             |
+| `workspace_build_id`  | string | false    |              |             |
 
 ## codersdk.ProvisionerJobLog
 
@@ -4296,6 +4422,22 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `canceled`  |
 | `failed`    |
 | `unknown`   |
+
+## codersdk.ProvisionerJobType
+
+```json
+"template_version_import"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                      |
+| -------------------------- |
+| `template_version_import`  |
+| `workspace_build`          |
+| `template_version_dry_run` |
 
 ## codersdk.ProvisionerKey
 
@@ -5573,6 +5715,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	},
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"job": {
+		"available_workers": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 		"canceled_at": "2019-08-24T14:15:22Z",
 		"completed_at": "2019-08-24T14:15:22Z",
 		"created_at": "2019-08-24T14:15:22Z",
@@ -5580,6 +5723,11 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
 		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"input": {
+			"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+			"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+		},
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 		"queue_position": 0,
 		"queue_size": 0,
 		"started_at": "2019-08-24T14:15:22Z",
@@ -5588,6 +5736,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 			"property1": "string",
 			"property2": "string"
 		},
+		"type": "template_version_import",
 		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 	},
 	"matched_provisioners": {
@@ -6585,6 +6734,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
 		"initiator_name": "string",
 		"job": {
+			"available_workers": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 			"canceled_at": "2019-08-24T14:15:22Z",
 			"completed_at": "2019-08-24T14:15:22Z",
 			"created_at": "2019-08-24T14:15:22Z",
@@ -6592,6 +6742,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
 			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
 			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"input": {
+				"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+				"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+			},
+			"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 			"queue_position": 0,
 			"queue_size": 0,
 			"started_at": "2019-08-24T14:15:22Z",
@@ -6600,6 +6755,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"property1": "string",
 				"property2": "string"
 			},
+			"type": "template_version_import",
 			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 		},
 		"matched_provisioners": {
@@ -7290,6 +7446,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
 	"initiator_name": "string",
 	"job": {
+		"available_workers": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 		"canceled_at": "2019-08-24T14:15:22Z",
 		"completed_at": "2019-08-24T14:15:22Z",
 		"created_at": "2019-08-24T14:15:22Z",
@@ -7297,6 +7454,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
 		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+		"input": {
+			"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+			"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+		},
+		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 		"queue_position": 0,
 		"queue_size": 0,
 		"started_at": "2019-08-24T14:15:22Z",
@@ -7305,6 +7467,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 			"property1": "string",
 			"property2": "string"
 		},
+		"type": "template_version_import",
 		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 	},
 	"matched_provisioners": {
@@ -7922,6 +8085,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 				"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
 				"initiator_name": "string",
 				"job": {
+					"available_workers": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
 					"canceled_at": "2019-08-24T14:15:22Z",
 					"completed_at": "2019-08-24T14:15:22Z",
 					"created_at": "2019-08-24T14:15:22Z",
@@ -7929,6 +8093,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 					"error_code": "REQUIRED_TEMPLATE_VARIABLES",
 					"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
 					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+					"input": {
+						"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+						"workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+					},
+					"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
 					"queue_position": 0,
 					"queue_size": 0,
 					"started_at": "2019-08-24T14:15:22Z",
@@ -7937,6 +8106,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 						"property1": "string",
 						"property2": "string"
 					},
+					"type": "template_version_import",
 					"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 				},
 				"matched_provisioners": {

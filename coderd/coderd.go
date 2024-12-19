@@ -1007,6 +1007,12 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Route("/provisionerdaemons", func(r chi.Router) {
+					r.Get("/", api.provisionerDaemons)
+				})
+				r.Route("/provisionerjobs", func(r chi.Router) {
+					r.Get("/", api.provisionerJobs)
+				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {
