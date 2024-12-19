@@ -36,7 +36,9 @@ coder:
     - name: "CODER_PROVISIONERD_TAGS"
       value: "scope=organization,deployment=${deployment}"
     - name: "CODER_PROVISIONER_DAEMON_NAME"
-      value: "${deployment}"
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
     - name: "CODER_CONFIG_DIR"
       value: "/tmp/config"
     %{~ endif ~}
