@@ -51,7 +51,10 @@ export const LoadingOrganizations: Story = {
 
 export const NoCreateOrg: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: { createOrganization: false },
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -67,14 +70,28 @@ export const NoCreateOrg: Story = {
 
 export const NoPermissions: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: MockNoPermissions,
+		},
 		permissions: MockNoPermissions,
 	},
 };
 
 export const AllPermissions: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: true,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: true,
+				assignOrgRole: true,
+				viewProvisioners: true,
+				viewIdpSyncSettings: true,
+			},
+		},
 		organizations: [
 			{
 				...MockOrganization,
@@ -94,7 +111,16 @@ export const AllPermissions: Story = {
 
 export const SelectedOrgAdmin: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: true,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: true,
+				assignOrgRole: true,
+			},
+		},
 		organizations: [
 			{
 				...MockOrganization,
@@ -112,7 +138,15 @@ export const SelectedOrgAdmin: Story = {
 
 export const SelectedOrgAuditor: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: false,
+				editMembers: false,
+				editGroups: false,
+				auditOrganization: true,
+			},
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -133,7 +167,15 @@ export const SelectedOrgAuditor: Story = {
 
 export const SelectedOrgUserAdmin: Story = {
 	args: {
-		activeOrganization: MockOrganization,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: false,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: false,
+			},
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -141,58 +183,6 @@ export const SelectedOrgUserAdmin: Story = {
 		organizations: [
 			{
 				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: false,
-				},
-			},
-		],
-	},
-};
-
-export const MultiOrgAdminAndUserAdmin: Story = {
-	args: {
-		activeOrganization: MockOrganization,
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: false,
-					editGroups: false,
-					auditOrganization: true,
-				},
-			},
-			{
-				...MockOrganization2,
-				permissions: {
-					editOrganization: false,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: false,
-				},
-			},
-		],
-	},
-};
-
-export const SelectedMultiOrgAdminAndUserAdmin: Story = {
-	args: {
-		activeOrganization: MockOrganization2,
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: false,
-					editGroups: false,
-					auditOrganization: true,
-				},
-			},
-			{
-				...MockOrganization2,
 				permissions: {
 					editOrganization: false,
 					editMembers: true,
