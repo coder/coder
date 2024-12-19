@@ -25,13 +25,13 @@ To deploy workspaces as DigitalOcean Droplets, you'll need:
 - Remove the following sections from the `main.tf` file if you don't want to
   associate your workspaces with a project:
 
-  - `variable "step2_do_project_id"`
+  - `variable "do_project_id"`
   - `resource "digitalocean_project_resources" "project"`
 
 - **Optional:** DigitalOcean SSH key ID (obtain via the `doctl` CLI by running
   `doctl compute ssh-key list`)
 
-- Note that this is only required for Fedora images to work.
+	- Note that this is only required for Fedora images to work.
 
 ### Authentication
 
