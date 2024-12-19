@@ -45,7 +45,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -288,12 +288,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 		<TableRow key={member.id}>
 			<TableCell width="59%">
 				<AvatarData
-					avatar={
-						<UserAvatar
-							username={member.username}
-							avatarURL={member.avatar_url}
-						/>
-					}
+					avatar={<Avatar fallback={member.username} src={member.avatar_url} />}
 					title={member.username}
 					subtitle={member.email}
 				/>

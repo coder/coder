@@ -20,7 +20,6 @@ import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
 import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import type { FC } from "react";
 import { useQuery } from "react-query";
@@ -284,11 +283,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<UserAvatar
-						size="sm"
-						username={ownerName}
-						avatarURL={ownerAvatarUrl}
-					/>
+					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</PopoverTrigger>
@@ -318,11 +313,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<UserAvatar
-						size="sm"
-						avatarURL={orgIconUrl ?? ""}
-						username={orgName}
-					/>
+					<Avatar size="sm" src={orgIconUrl ?? ""} fallback={orgName} />
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>
@@ -379,7 +370,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<TopbarAvatar src={templateIconUrl} />
+					<TopbarAvatar src={templateIconUrl} fallback={templateDisplayName} />
 					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
 						{workspaceName}
 					</span>

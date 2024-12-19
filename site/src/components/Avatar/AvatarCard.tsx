@@ -5,7 +5,6 @@ import type { FC, ReactNode } from "react";
 type AvatarCardProps = {
 	header: string;
 	imgUrl: string;
-	altText: string;
 	subtitle?: ReactNode;
 	maxWidth?: number | "none";
 };
@@ -13,7 +12,6 @@ type AvatarCardProps = {
 export const AvatarCard: FC<AvatarCardProps> = ({
 	header,
 	imgUrl,
-	altText,
 	subtitle,
 	maxWidth = "none",
 }) => {
@@ -69,7 +67,7 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				)}
 			</div>
 
-			<Avatar size="lg" src={imgUrl} alt={altText} fallback={header} />
+			<Avatar size="lg" src={imgUrl} fallback={header} />
 		</div>
 	);
 };

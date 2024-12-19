@@ -30,13 +30,13 @@ import {
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { GroupAvatar } from "modules/groups/GroupAvatar/GroupAvatar";
 import { type FC, useState } from "react";
 import { getGroupSubtitle } from "utils/groups";
 import {
 	UserOrGroupAutocomplete,
 	type UserOrGroupAutocompleteValue,
 } from "./UserOrGroupAutocomplete";
+import { Avatar } from "components/Avatar/Avatar";
 
 type AddTemplateUserOrGroupProps = {
 	templateID: string;
@@ -257,9 +257,9 @@ export const TemplatePermissionsPageView: FC<
 											<TableCell>
 												<AvatarData
 													avatar={
-														<GroupAvatar
-															name={group.display_name || group.name}
-															avatarURL={group.avatar_url}
+														<Avatar
+															fallback={group.display_name || group.name}
+															src={group.avatar_url}
 														/>
 													}
 													title={group.display_name || group.name}

@@ -23,16 +23,16 @@ const avatarVariants = cva(
 		variants: {
 			size: {
 				lg: "h-[--avatar-lg] w-[--avatar-lg] rounded-[6px] text-sm font-medium",
-				default: "h-[--avatar-default] w-[--avatar-default] text-2xs",
+				md: "h-[--avatar-default] w-[--avatar-default] text-2xs",
 				sm: "h-[--avatar-sm] w-[--avatar-sm] text-[8px]",
 			},
 			variant: {
-				default: "",
-				icon: "",
+				default: null,
+				icon: null,
 			},
 		},
 		defaultVariants: {
-			size: "default",
+			size: "md",
 		},
 		compoundVariants: [
 			{
@@ -41,7 +41,7 @@ const avatarVariants = cva(
 				className: "p-2",
 			},
 			{
-				size: "default",
+				size: "md",
 				variant: "icon",
 				className: "p-1",
 			},
@@ -57,42 +57,36 @@ const avatarVariants = cva(
 export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
-		alt?: string;
+
 		fallback?: string;
 	};
 
 const Avatar = React.forwardRef<
 	React.ElementRef<typeof AvatarPrimitive.Root>,
 	AvatarProps
->(
-	(
-		{ className, size, variant, src, alt, fallback, children, ...props },
-		ref,
-	) => {
-		const theme = useTheme();
+>(({ className, size, variant, src, fallback, children, ...props }, ref) => {
+	const theme = useTheme();
 
-		return (
-			<AvatarPrimitive.Root
-				ref={ref}
-				className={cn(avatarVariants({ size, variant, className }))}
-				{...props}
-			>
-				<AvatarPrimitive.Image
-					src={src}
-					className="aspect-square h-full w-full object-contain"
-					css={getExternalImageStylesFromUrl(theme.externalImages, src)}
-					alt={alt}
-				/>
-				{fallback && (
-					<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-						{fallback.charAt(0).toUpperCase()}
-					</AvatarPrimitive.Fallback>
-				)}
-				{children}
-			</AvatarPrimitive.Root>
-		);
-	},
-);
+	return (
+		<AvatarPrimitive.Root
+			ref={ref}
+			className={cn(avatarVariants({ size, variant, className }))}
+			{...props}
+		>
+			<AvatarPrimitive.Image
+				src={src}
+				className="aspect-square h-full w-full object-contain"
+				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+			/>
+			{fallback && (
+				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+					{fallback.charAt(0).toUpperCase()}
+				</AvatarPrimitive.Fallback>
+			)}
+			{children}
+		</AvatarPrimitive.Root>
+	);
+});
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
 export { Avatar };

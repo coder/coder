@@ -7,10 +7,10 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
+import { Avatar } from "components/Avatar/Avatar";
 
 export interface UserDropdownProps {
 	user: TypesGen.User;
@@ -34,9 +34,10 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 				<button css={styles.button} data-testid="user-dropdown-trigger">
 					<div css={styles.badgeContainer}>
 						<Badge overlap="circular">
-							<UserAvatar
-								username={user.username}
-								avatarURL={user.avatar_url}
+							<Avatar
+								fallback={user.username}
+								src={user.avatar_url}
+								size="lg"
 							/>
 						</Badge>
 						<DropdownArrow

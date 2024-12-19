@@ -44,7 +44,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,
@@ -316,10 +316,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div
@@ -387,10 +384,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div

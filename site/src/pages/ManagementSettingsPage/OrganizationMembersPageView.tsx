@@ -28,7 +28,7 @@ import {
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -107,9 +107,9 @@ export const OrganizationMembersPageView: FC<
 									<TableCell>
 										<AvatarData
 											avatar={
-												<UserAvatar
-													username={member.username}
-													avatarURL={member.avatar_url}
+												<Avatar
+													fallback={member.username}
+													src={member.avatar_url}
 												/>
 											}
 											title={member.name || member.username}

@@ -54,7 +54,6 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 							<Grid item key={group.id} xs={1}>
 								<AvatarCard
 									imgUrl={group.avatar_url}
-									altText={group.display_name || group.name}
 									header={group.display_name || group.name}
 									subtitle={
 										showOrganizations ? (

@@ -16,7 +16,7 @@ export const ImageLgSize: Story = {
 	args: { size: "lg" },
 };
 
-export const ImageDefaultSize: Story = {};
+export const ImageMdSize: Story = {};
 
 export const ImageSmSize: Story = {
 	args: { size: "sm" },
@@ -30,7 +30,7 @@ export const IconLgSize: Story = {
 	},
 };
 
-export const IconDefaultSize: Story = {
+export const IconMdSize: Story = {
 	args: {
 		variant: "icon",
 		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
@@ -60,7 +60,7 @@ export const FallbackLgSize: Story = {
 	},
 };
 
-export const FallbackDefaultSize: Story = {
+export const FallbackMdSize: Story = {
 	args: {
 		src: "",
 		fallback: "Adriana Rodrigues",

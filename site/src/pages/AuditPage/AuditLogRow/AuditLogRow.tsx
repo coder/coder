@@ -9,7 +9,7 @@ import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
@@ -90,9 +90,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<UserAvatar
-								username={auditLog.user?.username ?? "?"}
-								avatarURL={auditLog.user?.avatar_url}
+							<Avatar
+								fallback={auditLog.user?.username ?? "?"}
+								src={auditLog.user?.avatar_url}
 							/>
 
 							<Stack

@@ -1,7 +1,6 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
 import { userEvent, within } from "@storybook/test";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { withDesktopViewport } from "testHelpers/storybook";
 import {
 	SelectMenu,
@@ -13,6 +12,7 @@ import {
 	SelectMenuSearch,
 	SelectMenuTrigger,
 } from "./SelectMenu";
+import { Avatar } from "components/Avatar/Avatar";
 
 const meta: Meta<typeof SelectMenu> = {
 	title: "components/SelectMenu",
@@ -25,7 +25,7 @@ const meta: Meta<typeof SelectMenu> = {
 			<SelectMenu>
 				<SelectMenuTrigger>
 					<SelectMenuButton
-						startIcon={<UserAvatar size="sm" username={selectedOpt} />}
+						startIcon={<Avatar size="sm" fallback={selectedOpt} />}
 					>
 						{selectedOpt}
 					</SelectMenuButton>
@@ -36,7 +36,7 @@ const meta: Meta<typeof SelectMenu> = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
 								<SelectMenuIcon>
-									<UserAvatar size="sm" username={o} />
+									<Avatar size="sm" fallback={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>
@@ -77,7 +77,7 @@ export const LongButtonText: Story = {
 				<SelectMenuTrigger>
 					<SelectMenuButton
 						css={{ width: 200 }}
-						startIcon={<UserAvatar size="sm" username={selectedOpt} />}
+						startIcon={<Avatar size="sm" fallback={selectedOpt} />}
 					>
 						{selectedOpt}
 					</SelectMenuButton>
@@ -88,7 +88,7 @@ export const LongButtonText: Story = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o} selected={o === selectedOpt}>
 								<SelectMenuIcon>
-									<UserAvatar size="sm" username={o} />
+									<Avatar size="sm" fallback={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>
@@ -115,7 +115,7 @@ export const NoSelectedOption: Story = {
 						{opts.map((o) => (
 							<SelectMenuItem key={o}>
 								<SelectMenuIcon>
-									<UserAvatar size="sm" username={o} />
+									<Avatar size="sm" fallback={o} />
 								</SelectMenuIcon>
 								{o}
 							</SelectMenuItem>

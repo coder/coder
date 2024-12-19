@@ -14,7 +14,7 @@ import {
 	SidebarNavItem,
 } from "components/Sidebar/Sidebar";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 interface SidebarProps {
@@ -29,9 +29,7 @@ export const Sidebar: FC<SidebarProps> = ({ user }) => {
 	return (
 		<BaseSidebar>
 			<SidebarHeader
-				avatar={
-					<UserAvatar username={user.username} avatarURL={user.avatar_url} />
-				}
+				avatar={<Avatar fallback={user.username} src={user.avatar_url} />}
 				title={user.username}
 				subtitle={user.email}
 			/>

@@ -19,9 +19,9 @@ export const SmSize: Story = {
 	},
 };
 
-export const DefaultSize: Story = {
+export const MdSize: Story = {
 	args: {
-		size: "default",
+		size: "md",
 	},
 };
 

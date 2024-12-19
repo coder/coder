@@ -20,8 +20,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { GroupAvatar } from "modules/groups/GroupAvatar/GroupAvatar";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -117,9 +116,9 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 													<TableCell>
 														<AvatarData
 															avatar={
-																<GroupAvatar
-																	name={group.display_name || group.name}
-																	avatarURL={group.avatar_url}
+																<Avatar
+																	fallback={group.display_name || group.name}
+																	src={group.avatar_url}
 																/>
 															}
 															title={group.display_name || group.name}
@@ -135,10 +134,10 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 															css={{ justifyContent: "flex-end", gap: 4 }}
 														>
 															{group.members.map((member) => (
-																<UserAvatar
+																<Avatar
 																	key={member.username}
-																	username={member.username}
-																	avatarURL={member.avatar_url}
+																	fallback={member.username}
+																	src={member.avatar_url}
 																/>
 															))}
 														</AvatarGroup>

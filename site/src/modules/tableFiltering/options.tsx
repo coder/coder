@@ -17,7 +17,7 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 // Organization helpers ////////////////////////////////////////////////////////
@@ -39,11 +39,11 @@ export const useOrganizationsFilterMenu = ({
 						label: organization.display_name || organization.name,
 						value: organization.name,
 						startIcon: (
-							<UserAvatar
+							<Avatar
 								key={organization.id}
 								size="sm"
-								username={organization.display_name || organization.name}
-								avatarURL={organization.icon}
+								fallback={organization.display_name || organization.name}
+								src={organization.icon}
 							/>
 						),
 					};
@@ -74,11 +74,11 @@ export const useOrganizationsFilterMenu = ({
 					label: organization.display_name || organization.name,
 					value: organization.name,
 					startIcon: (
-						<UserAvatar
+						<Avatar
 							key={organization.id}
 							size="sm"
-							username={organization.display_name || organization.name}
-							avatarURL={organization.icon}
+							fallback={organization.display_name || organization.name}
+							src={organization.icon}
 						/>
 					),
 				}));

@@ -40,7 +40,7 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	return (
 		<>
 			<TableRow key={proxy.name} data-testid={proxy.name}>
-				<TableCell className="name">
+				<TableCell className="summary">
 					<AvatarData
 						src={proxy.icon_url}
 						title={proxy.display_name || proxy.name}

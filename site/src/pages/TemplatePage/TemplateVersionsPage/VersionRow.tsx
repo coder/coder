@@ -7,7 +7,7 @@ import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
-import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 
@@ -49,9 +49,9 @@ export const VersionRow: FC<VersionRowProps> = ({
 					justifyContent="space-between"
 				>
 					<Stack direction="row" alignItems="center">
-						<UserAvatar
-							username={version.created_by.username}
-							avatarURL={version.created_by.avatar_url}
+						<Avatar
+							fallback={version.created_by.username}
+							src={version.created_by.avatar_url}
 						/>
 						<Stack
 							css={styles.versionSummary}
