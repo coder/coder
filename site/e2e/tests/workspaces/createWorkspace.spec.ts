@@ -94,12 +94,10 @@ test("create workspace with default and required parameters", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-	const workspaceName = await createWorkspace(
-		page,
-		template,
+	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
-	);
+	});
 	await verifyParameters(page, workspaceName, richParameters, [
 		// user values:
 		...buildParameters,
@@ -126,12 +124,10 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 		echoResponsesWithParameters(richParameters),
 	);
 
-	const workspaceName = await createWorkspace(
-		page,
-		template,
+	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
-	);
+	});
 	await verifyParameters(page, workspaceName, richParameters, buildParameters);
 });
 

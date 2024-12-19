@@ -30,7 +30,7 @@ test("add and remove a group", async ({ page }) => {
 	requiresLicense();
 
 	const orgName = defaultOrganizationName;
-	const templateName = await createTemplate(page, undefined, orgName);
+	const templateName = await createTemplate(page);
 	const groupName = await createGroup(page);
 
 	await page.goto(

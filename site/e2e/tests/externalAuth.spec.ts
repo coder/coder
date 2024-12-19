@@ -104,7 +104,7 @@ test("successful external auth from workspace", async ({ page }) => {
 		]),
 	);
 
-	await createWorkspace(page, templateName, [], [], gitAuth.webProvider);
+	await createWorkspace(page, templateName, { useExternalAuth: true });
 });
 
 const ghUser: Endpoints["GET /user"]["response"]["data"] = {
