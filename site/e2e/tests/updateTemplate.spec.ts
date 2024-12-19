@@ -7,9 +7,15 @@ import {
 	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
+import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("template update with new name redirects on successful submit", async ({
 	page,

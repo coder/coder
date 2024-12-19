@@ -5,8 +5,17 @@ import {
 	createWorkspace,
 	echoResponsesWithParameters,
 } from "../../helpers";
+import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
 import { emptyParameter } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
+
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("create workspace in auto mode", async ({ page }) => {
 	const richParameters: RichParameter[] = [

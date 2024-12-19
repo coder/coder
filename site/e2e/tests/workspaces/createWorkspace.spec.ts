@@ -8,6 +8,7 @@ import {
 	requireTerraformProvisioner,
 	verifyParameters,
 } from "../../helpers";
+import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,
@@ -21,7 +22,12 @@ import {
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("create workspace", async ({ page }) => {
 	const template = await createTemplate(page, {

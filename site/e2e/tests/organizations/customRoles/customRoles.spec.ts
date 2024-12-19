@@ -6,17 +6,22 @@ import {
 	setupApiCalls,
 } from "../../../api";
 import {
+	login,
 	randomName,
 	requiresLicense,
 	requiresUnlicensed,
 } from "../../../helpers";
 import { beforeCoderTest } from "../../../hooks";
 
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
+
 test.describe("CustomRolesPage", () => {
-	test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+	requiresLicense();
 
 	test("create custom role and cancel edit changes", async ({ page }) => {
-		requiresLicense();
 		await setupApiCalls(page);
 
 		const org = await createOrganizationWithName(randomName());
@@ -50,7 +55,6 @@ test.describe("CustomRolesPage", () => {
 	});
 
 	test("create custom role, edit role and save changes", async ({ page }) => {
-		requiresLicense();
 		await setupApiCalls(page);
 
 		const org = await createOrganizationWithName(randomName());
@@ -101,7 +105,6 @@ test.describe("CustomRolesPage", () => {
 	test("displays built-in role without edit/delete options", async ({
 		page,
 	}) => {
-		requiresLicense();
 		await setupApiCalls(page);
 
 		const org = await createOrganizationWithName(randomName());
@@ -122,7 +125,6 @@ test.describe("CustomRolesPage", () => {
 	});
 
 	test("create custom role with UI", async ({ page }) => {
-		requiresLicense();
 		await setupApiCalls(page);
 
 		const org = await createOrganizationWithName(randomName());
@@ -162,7 +164,6 @@ test.describe("CustomRolesPage", () => {
 	});
 
 	test("delete custom role", async ({ page }) => {
-		requiresLicense();
 		await setupApiCalls(page);
 
 		const org = await createOrganizationWithName(randomName());
