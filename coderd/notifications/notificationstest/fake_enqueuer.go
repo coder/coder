@@ -97,3 +97,16 @@ func (f *FakeEnqueuer) Sent() []*FakeNotification {
 	defer f.mu.Unlock()
 	return append([]*FakeNotification{}, f.sent...)
 }
+
+func (f *FakeEnqueuer) SentWithTemplateID(id uuid.UUID) []*FakeNotification {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+
+	sent := []*FakeNotification{}
+	for _, notif := range f.sent {
+		if notif.TemplateID == id {
+			sent = append(sent, notif)
+		}
+	}
+	return sent
+}
