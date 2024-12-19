@@ -1,16 +1,15 @@
+/**
+ * Copied from shadc/ui on 12/19/2024
+ * @see {@link https://ui.shadcn.com/docs/components/dropdown-menu}
+ *
+ * This component was updated to match the styles from the Figma design:
+ * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
+ */
 import type { Meta, StoryObj } from "@storybook/react";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
-	DropdownMenuGroup,
 	DropdownMenuItem,
-	DropdownMenuLabel,
-	DropdownMenuPortal,
-	DropdownMenuSeparator,
-	DropdownMenuShortcut,
-	DropdownMenuSub,
-	DropdownMenuSubContent,
-	DropdownMenuSubTrigger,
 	DropdownMenuTrigger,
 } from "./DropdownMenu";
 import { Button } from "components/Button/Button";
