@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"maps"
 	"net"
 	"strings"
 	"testing"
@@ -248,12 +249,18 @@ func WorkspaceAgentScriptTiming(t testing.TB, db database.Store, orig database.W
 func Workspace(t testing.TB, db database.Store, orig database.WorkspaceTable) database.WorkspaceTable {
 	t.Helper()
 
+	var defOrgID uuid.UUID
+	if orig.OrganizationID == uuid.Nil {
+		defOrg, _ := db.GetDefaultOrganization(genCtx)
+		defOrgID = defOrg.ID
+	}
+
 	workspace, err := db.InsertWorkspace(genCtx, database.InsertWorkspaceParams{
 		ID:                takeFirst(orig.ID, uuid.New()),
 		OwnerID:           takeFirst(orig.OwnerID, uuid.New()),
 		CreatedAt:         takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:         takeFirst(orig.UpdatedAt, dbtime.Now()),
-		OrganizationID:    takeFirst(orig.OrganizationID, uuid.New()),
+		OrganizationID:    takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
 		TemplateID:        takeFirst(orig.TemplateID, uuid.New()),
 		LastUsedAt:        takeFirst(orig.LastUsedAt, dbtime.Now()),
 		Name:              takeFirst(orig.Name, testutil.GetRandomName(t)),
@@ -556,13 +563,15 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 
 	jobID := takeFirst(orig.ID, uuid.New())
+
 	// Always set some tags to prevent Acquire from grabbing jobs it should not.
+	tags := maps.Clone(orig.Tags)
 	if !orig.StartedAt.Time.IsZero() {
-		if orig.Tags == nil {
-			orig.Tags = make(database.StringMap)
+		if tags == nil {
+			tags = make(database.StringMap)
 		}
 		// Make sure when we acquire the job, we only get this one.
-		orig.Tags[jobID.String()] = "true"
+		tags[jobID.String()] = "true"
 	}
 
 	job, err := db.InsertProvisionerJob(genCtx, database.InsertProvisionerJobParams{
@@ -576,7 +585,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		FileID:         takeFirst(orig.FileID, uuid.New()),
 		Type:           takeFirst(orig.Type, database.ProvisionerJobTypeWorkspaceBuild),
 		Input:          takeFirstSlice(orig.Input, []byte("{}")),
-		Tags:           orig.Tags,
+		Tags:           tags,
 		TraceMetadata:  pqtype.NullRawMessage{},
 	})
 	require.NoError(t, err, "insert job")
@@ -588,9 +597,9 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		job, err = db.AcquireProvisionerJob(genCtx, database.AcquireProvisionerJobParams{
 			StartedAt:       orig.StartedAt,
 			OrganizationID:  job.OrganizationID,
-			Types:           []database.ProvisionerType{database.ProvisionerTypeEcho},
-			ProvisionerTags: must(json.Marshal(orig.Tags)),
-			WorkerID:        uuid.NullUUID{},
+			Types:           []database.ProvisionerType{job.Provisioner},
+			ProvisionerTags: must(json.Marshal(tags)),
+			WorkerID:        takeFirst(orig.WorkerID, uuid.NullUUID{}),
 		})
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
@@ -598,7 +607,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {
-		err := db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
+		err = db.UpdateProvisionerJobWithCompleteByID(genCtx, database.UpdateProvisionerJobWithCompleteByIDParams{
 			ID:          jobID,
 			UpdatedAt:   job.UpdatedAt,
 			CompletedAt: orig.CompletedAt,
@@ -608,7 +617,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		require.NoError(t, err)
 	}
 	if !orig.CanceledAt.Time.IsZero() {
-		err := db.UpdateProvisionerJobWithCancelByID(genCtx, database.UpdateProvisionerJobWithCancelByIDParams{
+		err = db.UpdateProvisionerJobWithCancelByID(genCtx, database.UpdateProvisionerJobWithCancelByIDParams{
 			ID:          jobID,
 			CanceledAt:  orig.CanceledAt,
 			CompletedAt: orig.CompletedAt,
@@ -617,7 +626,7 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 	}
 
 	job, err = db.GetProvisionerJobByID(genCtx, jobID)
-	require.NoError(t, err)
+	require.NoError(t, err, "get job: %s", jobID.String())
 
 	return job
 }

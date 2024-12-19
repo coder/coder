@@ -35,6 +35,9 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -42,6 +45,11 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -50,6 +58,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
@@ -230,6 +239,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -237,6 +249,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -245,6 +262,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
@@ -868,6 +886,9 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -875,6 +896,11 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -883,6 +909,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
@@ -1136,6 +1163,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
@@ -1143,6 +1173,11 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input": {
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -1151,6 +1186,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
         "property1": "string",
         "property2": "string"
       },
+      "type": "template_version_import",
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
     "matched_provisioners": {
@@ -1312,6 +1348,7 @@ Status Code **200**
 | `» initiator_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» initiator_name`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» job`                          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» available_workers`           | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» canceled_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» completed_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1319,12 +1356,17 @@ Status Code **200**
 | `»» error_code`                  | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» file_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_version_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_build_id`         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» organization_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_position`              | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_size`                  | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                      | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» tags`                        | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» type`                        | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»» worker_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» matched_provisioners`         | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»» available`                   | integer                                                                                                | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped.                                                                            |
@@ -1439,6 +1481,9 @@ Status Code **200**
 | `status`                  | `canceling`                   |
 | `status`                  | `canceled`                    |
 | `status`                  | `failed`                      |
+| `type`                    | `template_version_import`     |
+| `type`                    | `workspace_build`             |
+| `type`                    | `template_version_dry_run`    |
 | `reason`                  | `initiator`                   |
 | `reason`                  | `autostart`                   |
 | `reason`                  | `autostop`                    |
@@ -1542,6 +1587,9 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -1549,6 +1597,11 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -1557,6 +1610,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
