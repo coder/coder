@@ -3749,6 +3749,112 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	return daemons, nil
 }
 
+func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	/*
+		-- name: GetProvisionerDaemonsWithStatusByOrganization :many
+		SELECT
+			sqlc.embed(pd),
+			CASE
+				WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+				THEN 'offline'
+				ELSE CASE
+					WHEN current_job.id IS NOT NULL THEN 'busy'
+					ELSE 'idle'
+				END
+			END::provisioner_daemon_status AS status,
+			-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
+			current_job.id AS current_job_id,
+			current_job.job_status AS current_job_status,
+			previous_job.id AS previous_job_id,
+			previous_job.job_status AS previous_job_status
+		FROM
+			provisioner_daemons pd
+		LEFT JOIN
+			provisioner_jobs current_job ON (
+				current_job.worker_id = pd.id
+				AND current_job.completed_at IS NULL
+			)
+		LEFT JOIN
+			provisioner_jobs previous_job ON (
+				previous_job.id = (
+					SELECT
+						id
+					FROM
+						provisioner_jobs
+					WHERE
+						worker_id = pd.id
+						AND completed_at IS NOT NULL
+					ORDER BY
+						completed_at DESC
+					LIMIT 1
+				)
+			)
+		WHERE
+			pd.organization_id = @organization_id::uuid
+			AND (COALESCE(array_length(@ids::uuid[], 1), 1) > 0 OR pd.id = ANY(@ids::uuid[]))
+			AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset));
+	*/
+	var rows []database.GetProvisionerDaemonsWithStatusByOrganizationRow
+	for _, daemon := range q.provisionerDaemons {
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, daemon.ID) {
+			continue
+		}
+		if len(arg.Tags) > 0 && !tagsSubset(arg.Tags, daemon.Tags) {
+			continue
+		}
+
+		var status database.ProvisionerDaemonStatus
+		if daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
+			status = database.ProvisionerDaemonStatusOffline
+		} else {
+			for _, job := range q.provisionerJobs {
+				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+					if !job.CompletedAt.Valid {
+						status = database.ProvisionerDaemonStatusIdle
+					} else {
+						status = database.ProvisionerDaemonStatusBusy
+					}
+					break
+				}
+			}
+		}
+
+		var currentJob, previousJob database.ProvisionerJob
+		for _, job := range q.provisionerJobs {
+			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
+				if currentJob.ID == uuid.Nil || !job.CompletedAt.Valid {
+					currentJob = job
+				}
+				if job.CompletedAt.Valid && job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
+					previousJob = job
+				}
+			}
+		}
+
+		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
+			ProvisionerDaemon: daemon,
+			Status:            status,
+			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
+			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+		})
+	}
+
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -3891,6 +3997,109 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	}
 
 	return jobs, nil
+}
+
+func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(_ context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	/*
+			-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+		WITH unstarted_jobs AS (
+		    SELECT
+		        id, created_at
+		    FROM
+		        provisioner_jobs
+		    WHERE
+		        started_at IS NULL
+		),
+		queue_position AS (
+		    SELECT
+		        id,
+		        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+		    FROM
+		        unstarted_jobs
+		),
+		queue_size AS (
+			SELECT COUNT(*) AS count FROM unstarted_jobs
+		)
+		SELECT
+			sqlc.embed(pj),
+		    COALESCE(qp.queue_position, 0) AS queue_position,
+		    COALESCE(qs.count, 0) AS queue_size,
+			array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
+		FROM
+			provisioner_jobs pj
+		LEFT JOIN
+			queue_position qp ON qp.id = pj.id
+		LEFT JOIN
+			queue_size qs ON TRUE
+		LEFT JOIN
+			provisioner_daemons pd ON (
+				-- See AcquireProvisionerJob.
+				pj.started_at IS NULL
+				AND pj.organization_id = pd.organization_id
+				AND pj.provisioner = ANY(pd.provisioners)
+				AND provisioner_tagset_contains(pd.tags, pj.tags)
+			)
+		WHERE
+			(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
+			AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 1) > 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+		GROUP BY
+			pj.id,
+			qp.queue_position,
+			qs.count
+		ORDER BY
+			pj.created_at DESC
+		LIMIT
+			sqlc.narg('limit')::int;
+	*/
+	var rows []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+	var queuedJobs []database.ProvisionerJob
+	for _, job := range q.provisionerJobs {
+		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
+			continue
+		}
+		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
+			continue
+		}
+
+		if job.JobStatus == database.ProvisionerJobStatusPending {
+			queuedJobs = append(queuedJobs, job)
+		}
+		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
+			ProvisionerJob: job,
+		}
+		rows = append(rows, row)
+	}
+	slices.SortFunc(queuedJobs, func(a, b database.ProvisionerJob) int {
+		return a.CreatedAt.Compare(b.CreatedAt)
+	})
+	for i := range rows {
+		queuePosition := slices.IndexFunc(queuedJobs, func(job database.ProvisionerJob) bool {
+			return job.ID == rows[i].ProvisionerJob.ID
+		})
+		if queuePosition >= 0 {
+			rows[i].QueuePosition = int64(queuePosition + 1)
+			rows[i].QueueSize = int64(len(queuedJobs))
+
+			for _, daemon := range q.provisionerDaemons {
+				job := rows[i].ProvisionerJob
+				if daemon.OrganizationID == job.OrganizationID &&
+					slices.Contains(daemon.Provisioners, job.Provisioner) &&
+					tagsSubset(job.Tags, daemon.Tags) {
+					rows[i].AvailableWorkers = append(rows[i].AvailableWorkers, daemon.ID)
+				}
+			}
+		}
+	}
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {

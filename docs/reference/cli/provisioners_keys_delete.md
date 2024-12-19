@@ -1,20 +1,28 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioner keys list
+# provisioners keys delete
 
-List provisioner keys in an organization
+Delete a provisioner key
 
 Aliases:
 
-- ls
+- rm
 
 ## Usage
 
 ```console
-coder provisioner keys list [flags]
+coder provisioners keys delete [flags] <name>
 ```
 
 ## Options
+
+### -y, --yes
+
+|      |                   |
+| ---- | ----------------- |
+| Type | <code>bool</code> |
+
+Bypass prompts.
 
 ### -O, --org
 
