@@ -54,6 +54,7 @@ export const NonSquaredIcon: Story = {
 
 export const FallbackLgSize: Story = {
 	args: {
+		src: "",
 		size: "lg",
 		fallback: "Adriana Rodrigues",
 	},
@@ -61,12 +62,14 @@ export const FallbackLgSize: Story = {
 
 export const FallbackDefaultSize: Story = {
 	args: {
+		src: "",
 		fallback: "Adriana Rodrigues",
 	},
 };
 
 export const FallbackSmSize: Story = {
 	args: {
+		src: "",
 		size: "sm",
 		fallback: "Adriana Rodrigues",
 	},
