@@ -4,7 +4,7 @@ import { withDashboardProvider } from "testHelpers/storybook";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
 
 const meta: Meta<typeof DeploymentSidebarView> = {
-	title: "modules/management/SidebarView",
+	title: "modules/management/DeploymentSidebarView",
 	component: DeploymentSidebarView,
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },
