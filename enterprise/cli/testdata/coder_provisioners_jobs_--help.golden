@@ -1,0 +1,14 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder provisioners jobs
+
+  View and manage provisioner jobs
+
+  Aliases: job
+
+SUBCOMMANDS:
+    list    List provisioner jobs
+
+———
+Run `coder --help` for a list of global options.

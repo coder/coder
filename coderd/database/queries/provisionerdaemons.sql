@@ -39,6 +39,7 @@ SELECT
 			ELSE 'idle'
 		END
 	END::provisioner_daemon_status AS status,
+	pk.name AS type,
 	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
 	current_job.id AS current_job_id,
 	current_job.job_status AS current_job_status,
@@ -46,6 +47,8 @@ SELECT
 	previous_job.job_status AS previous_job_status
 FROM
 	provisioner_daemons pd
+JOIN
+	provisioner_keys pk ON pk.id = pd.key_id
 LEFT JOIN
 	provisioner_jobs current_job ON (
 		current_job.worker_id = pd.id

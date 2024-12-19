@@ -40,7 +40,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			cliui.JSONFormat(),
 		)
 		status []string
-		limit  int64 = 50
+		limit  int64
 	)
 
 	cmd := &serpent.Command{
@@ -107,6 +107,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			FlagShorthand: "l",
 			Env:           "CODER_PROVISIONER_JOB_LIST_LIMIT",
 			Description:   "Limit the number of jobs returned.",
+			Default:       "50",
 			Value:         serpent.Int64Of(&limit),
 		},
 	}...)
