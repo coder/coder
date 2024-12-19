@@ -156,9 +156,10 @@ func (RootCmd) promptExample() *serpent.Command {
 					multiSelectValues, multiSelectError = cliui.MultiSelect(inv, cliui.MultiSelectOptions{
 						Message: "Select some things:",
 						Options: []string{
-							"Code", "Chair", "Whale", "Diamond", "Carrot",
+							"Code", "Chairs", "Whale", "Diamond", "Carrot",
 						},
-						Defaults: []string{"Code"},
+						Defaults:          []string{"Code"},
+						EnableCustomInput: true,
 					})
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "%q are nice choices.\n", strings.Join(multiSelectValues, ", "))
