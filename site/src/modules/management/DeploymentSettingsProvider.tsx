@@ -31,12 +31,11 @@ const DeploymentSettingsProvider: FC = () => {
 	const { permissions } = useAuthenticated();
 	const deploymentConfigQuery = useQuery(deploymentConfig());
 
-	// The deployment settings page also contains users, audit logs, groups and
-	// organizations, so this page must be visible if you can see any of these.
+	// The deployment settings page also contains users, audit logs, and groups
+	// so this page must be visible if you can see any of these.
 	const canViewDeploymentSettingsPage =
 		permissions.viewDeploymentValues ||
 		permissions.viewAllUsers ||
-		permissions.editAnyOrganization ||
 		permissions.viewAnyAuditLog;
 
 	// Not a huge problem to unload the content in the event of an error,

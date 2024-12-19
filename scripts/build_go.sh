@@ -142,6 +142,25 @@ if [[ "$agpl" == 1 ]]; then
 	# a flag to control AGPL vs. enterprise behavior.
 	ldflags+=(-X "'github.com/coder/coder/v2/buildinfo.agpl=true'")
 fi
+cgo=0
+if [[ "$dylib" == 1 ]]; then
+	if [[ "$os" != "darwin" ]]; then
+		error "dylib builds are not supported on $os"
+	fi
+	cgo=1
+	build_args+=("-buildmode=c-shared")
+	SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
+	export SDKROOT
+	bin_ident="com.coder.Coder-Desktop.VPN.dylib"
+
+	plist_file=$(mktemp)
+	trap 'rm -f "$plist_file"' EXIT
+	# CFBundleShortVersionString must be in the format /[0-9]+.[0-9]+.[0-9]+/
+	# CFBundleVersion can be in any format
+	BUNDLE_IDENTIFIER="$bin_ident" VERSION_STRING="$version" SHORT_VERSION_STRING=$(echo "$version" | grep -oE '^[0-9]+\.[0-9]+\.[0-9]+') \
+		execrelative envsubst <"$(realpath ./vpn/dylib/info.plist.tmpl)" >"$plist_file"
+	ldflags+=("-extldflags '-sectcreate __TEXT __info_plist $plist_file'")
+fi
 build_args+=(-ldflags "${ldflags[*]}")
 
 # Disable optimizations if building a binary for debuggers.
@@ -175,18 +194,8 @@ cmd_path="./enterprise/cmd/coder"
 if [[ "$agpl" == 1 ]]; then
 	cmd_path="./cmd/coder"
 fi
-
-cgo=0
 if [[ "$dylib" == 1 ]]; then
-	if [[ "$os" != "darwin" ]]; then
-		error "dylib builds are not supported on $os"
-	fi
-	cgo=1
 	cmd_path="./vpn/dylib/lib.go"
-	build_args+=("-buildmode=c-shared")
-	SDKROOT="$(xcrun --sdk macosx --show-sdk-path)"
-	export SDKROOT
-	bin_ident="com.coder.vpn"
 fi
 
 goexp=""

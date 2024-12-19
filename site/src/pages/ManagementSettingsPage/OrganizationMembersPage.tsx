@@ -15,7 +15,7 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -52,7 +52,8 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organization } = useManagementSettings();
+	const { organizations } = useOrganizationSettings();
+	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
 	const [memberToDelete, setMemberToDelete] =

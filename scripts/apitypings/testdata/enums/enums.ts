@@ -4,6 +4,6 @@
 export type Enum = "bar" | "baz" | "foo" | "qux";
 
 // From codersdk/enums.go
-export type EnumSliceType = Enum[];
+export type EnumSliceType = readonly Enum[];
 
 export const Enums: Enum[] = ["bar", "baz", "foo", "qux"];
