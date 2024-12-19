@@ -18,12 +18,12 @@ import {
 	coderMain,
 	coderPort,
 	defaultOrganizationName,
-	users,
+	defaultPassword,
 	license,
 	premiumTestsRequired,
 	prometheusPort,
 	requireTerraformTests,
-	defaultPassword,
+	users,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {

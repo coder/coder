@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { users } from "../constants";
 import {
 	createTemplate,
 	createWorkspace,
@@ -6,7 +7,6 @@ import {
 	requiresLicense,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
-import { users } from "../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
