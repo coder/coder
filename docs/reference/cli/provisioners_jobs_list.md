@@ -31,6 +31,7 @@ Filter by job status.
 | ----------- | ---------------------------------------------- |
 | Type        | <code>int</code>                               |
 | Environment | <code>$CODER_PROVISIONER_JOB_LIST_LIMIT</code> |
+| Default     | <code>50</code>                                |
 
 Limit the number of jobs returned.
 
