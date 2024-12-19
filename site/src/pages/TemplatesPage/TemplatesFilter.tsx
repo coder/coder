@@ -6,7 +6,7 @@ import {
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { useFilterMenu } from "components/Filter/menu";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 interface TemplatesFilterProps {
@@ -68,7 +68,7 @@ const orgOption = (org: Organization): SelectFilterOption => ({
 	startIcon: (
 		<UserAvatar
 			key={org.id}
-			size="xs"
+			size="sm"
 			username={org.display_name}
 			avatarURL={org.icon}
 		/>

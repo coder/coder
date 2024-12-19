@@ -1,13 +1,13 @@
 import { cx } from "@emotion/css";
 import AddIcon from "@mui/icons-material/Add";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavSubItem,
 } from "components/Sidebar/Sidebar";
 import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { Permissions } from "contexts/auth/permissions";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -128,11 +128,10 @@ const OrganizationSettingsNavigation: FC<
 				active={active}
 				href={urlForSubpage(organization.name)}
 				icon={
-					<UserAvatar
-						key={organization.id}
-						size="sm"
-						username={organization.display_name}
-						avatarURL={organization.icon}
+					<Avatar
+						variant="icon"
+						src={organization.icon}
+						fallback={organization.display_name}
 					/>
 				}
 			>

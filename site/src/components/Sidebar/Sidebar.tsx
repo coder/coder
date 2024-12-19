@@ -28,7 +28,7 @@ export const SidebarHeader: FC<SidebarHeaderProps> = ({
 	linkTo,
 }) => {
 	return (
-		<Stack direction="row" alignItems="center" css={styles.info}>
+		<Stack direction="row" spacing={1} css={styles.info}>
 			{avatar}
 			<div
 				css={{

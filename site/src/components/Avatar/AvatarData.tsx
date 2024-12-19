@@ -1,6 +1,6 @@
 import { useTheme } from "@emotion/react";
+import { Avatar } from "components/Avatar/Avatar";
 import { Stack } from "components/Stack/Stack";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 export interface AvatarDataProps {
@@ -29,17 +29,17 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	const theme = useTheme();
 	if (!avatar) {
 		avatar = (
-			<Avatar background src={src}>
-				{(typeof title === "string" ? title : imgFallbackText) || "-"}
-			</Avatar>
+			<Avatar
+				src={src}
+				fallback={(typeof title === "string" ? title : imgFallbackText) || "-"}
+			/>
 		);
 	}
 
 	return (
 		<Stack
-			spacing={1.5}
+			spacing={1}
 			direction="row"
-			alignItems="center"
 			css={{
 				minHeight: 40, // Make it predictable for the skeleton
 				width: "100%",

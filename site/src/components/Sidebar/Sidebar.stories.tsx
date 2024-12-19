@@ -4,7 +4,7 @@ import SecurityIcon from "@mui/icons-material/LockOutlined";
 import AccountIcon from "@mui/icons-material/Person";
 import VpnKeyOutlined from "@mui/icons-material/VpnKeyOutlined";
 import type { Meta, StoryObj } from "@storybook/react";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { Sidebar, SidebarHeader, SidebarNavItem } from "./Sidebar";
 
 const meta: Meta<typeof Sidebar> = {

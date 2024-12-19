@@ -17,7 +17,7 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 // Organization helpers ////////////////////////////////////////////////////////
@@ -41,7 +41,7 @@ export const useOrganizationsFilterMenu = ({
 						startIcon: (
 							<UserAvatar
 								key={organization.id}
-								size="xs"
+								size="sm"
 								username={organization.display_name || organization.name}
 								avatarURL={organization.icon}
 							/>
@@ -76,7 +76,7 @@ export const useOrganizationsFilterMenu = ({
 					startIcon: (
 						<UserAvatar
 							key={organization.id}
-							size="xs"
+							size="sm"
 							username={organization.display_name || organization.name}
 							avatarURL={organization.icon}
 						/>

@@ -4,7 +4,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import { templaceACLAvailable } from "api/queries/templates";
 import type { Group, ReducedUser } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import { type ChangeEvent, type FC, useState } from "react";
 import { useQuery } from "react-query";

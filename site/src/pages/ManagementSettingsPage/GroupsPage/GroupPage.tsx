@@ -24,7 +24,7 @@ import type {
 	ReducedUser,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
@@ -44,7 +44,7 @@ import {
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";

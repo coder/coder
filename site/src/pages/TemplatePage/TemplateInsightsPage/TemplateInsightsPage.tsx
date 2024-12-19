@@ -35,7 +35,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import {
 	addHours,
 	addWeeks,
@@ -45,6 +44,7 @@ import {
 	subDays,
 } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import {
 	type FC,

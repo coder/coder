@@ -6,8 +6,8 @@ import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { UserAvatar } from "modules/users/UserAvatar/UserAvatar";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
 
