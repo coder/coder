@@ -104,7 +104,7 @@ const OrganizationsSettingsNavigation: FC<
 					<Button
 						variant="outline"
 						aria-expanded={popoverOpen}
-						className="w-60 justify-between p-2 h-10"
+						className="w-60 justify-between p-2 h-11"
 					>
 						<div className="flex flex-row gap-2 items-center p-2">
 							{activeOrganization && (
@@ -116,13 +116,13 @@ const OrganizationsSettingsNavigation: FC<
 							)}
 							{activeOrganization?.display_name || activeOrganization?.name}
 						</div>
-						<ChevronDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+						<ChevronDown />
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command>
 						<CommandList>
-							<CommandGroup>
+							<CommandGroup className="pb-2">
 								{organizations.map((organization) => (
 									<Link
 										key={organization.id}
@@ -146,8 +146,8 @@ const OrganizationsSettingsNavigation: FC<
 								))}
 								{permissions.createOrganization && (
 									<>
-										<hr className="h-px border-none bg-border" />
-										<Button variant="subtle" className="w-full">
+										<hr className="h-px my-2 border-none bg-border -mx-2" />
+										<Button variant="subtle" className="w-full h-8">
 											<a
 												href="/organizations/new"
 												className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
