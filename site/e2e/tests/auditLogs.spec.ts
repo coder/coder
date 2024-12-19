@@ -9,6 +9,8 @@ import {
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
+test.describe.configure({ mode: "parallel" });
+
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
 	await login(page, users.auditor);
@@ -27,7 +29,20 @@ async function resetSearch(page: Page) {
 	await expect(page.getByText("All users")).not.toBeVisible();
 }
 
-test("inspecting and filtering audit logs", async ({ page }) => {
+test("logins are logged", async ({ page }) => {
+	requiresLicense();
+
+	// Go to the audit history
+	await page.goto("/audit");
+
+	const user = currentUser(page);
+	const loginMessage = `${user.username} logged in`;
+	// Make sure those things we did all actually show up
+	await resetSearch(page);
+	await expect(page.getByText(loginMessage).first()).toBeVisible();
+});
+
+test("creating templates and workspaces is logged", async ({ page }) => {
 	requiresLicense();
 
 	// Do some stuff that should show up in the audit logs
@@ -38,17 +53,17 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 	await page.goto("/audit");
 
 	const user = currentUser(page);
-	const loginMessage = `${user.username} logged in`;
-	const startedWorkspaceMessage = `${user.username} started workspace ${workspaceName}`;
 
 	// Make sure those things we did all actually show up
 	await resetSearch(page);
-	await expect(page.getByText(loginMessage).first()).toBeVisible();
 	await expect(
 		page.getByText(`${user.username} created template ${templateName}`),
 	).toBeVisible();
 	await expect(
 		page.getByText(`${user.username} created workspace ${workspaceName}`),
+	).toBeVisible();
+	await expect(
+		page.getByText(`${user.username} started workspace ${workspaceName}`),
 	).toBeVisible();
 
 	// Make sure we can inspect the details of the log item
@@ -62,8 +77,21 @@ test("inspecting and filtering audit logs", async ({ page }) => {
 	await expect(
 		createdWorkspace.getByText(`name: "${workspaceName}"`),
 	).toBeVisible();
+});
 
-	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
+test("inspecting and filtering audit logs", async ({ page }) => {
+	requiresLicense();
+
+	// Do some stuff that should show up in the audit logs
+	const templateName = await createTemplate(page);
+	const workspaceName = await createWorkspace(page, templateName);
+
+	// Go to the audit history
+	await page.goto("/audit");
+
+	const user = currentUser(page);
+	const loginMessage = `${user.username} logged in`;
+	const startedWorkspaceMessage = `${user.username} started workspace ${workspaceName}`;
 
 	// Filter by resource type
 	await resetSearch(page);
