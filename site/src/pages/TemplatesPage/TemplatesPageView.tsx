@@ -12,8 +12,9 @@ import TableRow from "@mui/material/TableRow";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
 import type { useFilter } from "components/Filter/Filter";
 import {
@@ -36,7 +37,6 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
@@ -110,16 +110,14 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 		>
 			<TableCell>
 				<AvatarData
-					title={
-						template.display_name.length > 0
-							? template.display_name
-							: template.name
-					}
+					title={template.display_name || template.name}
 					subtitle={template.description}
 					avatar={
-						hasIcon && (
-							<ExternalAvatar variant="square" fitImage src={template.icon} />
-						)
+						<Avatar
+							variant="icon"
+							src={template.icon}
+							fallback={template.display_name || template.name}
+						/>
 					}
 				/>
 			</TableCell>

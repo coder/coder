@@ -2,14 +2,14 @@ import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	HealthyBadge,
 	NotHealthyBadge,
 	NotReachableBadge,
 	NotRegisteredBadge,
 } from "components/Badges/Badges";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import type { FC, ReactNode } from "react";
 import { getLatencyColor } from "utils/latency";
@@ -40,31 +40,23 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	return (
 		<>
 			<TableRow key={proxy.name} data-testid={proxy.name}>
-				<TableCell className="name">
+				<TableCell className="summary">
 					<AvatarData
-						title={
-							proxy.display_name && proxy.display_name.length > 0
-								? proxy.display_name
-								: proxy.name
-						}
+						src={proxy.icon_url}
+						title={proxy.display_name || proxy.name}
+						subtitle={proxy.path_app_url}
 						avatar={
-							proxy.icon_url !== "" && (
-								<Avatar
-									size="sm"
-									src={proxy.icon_url}
-									variant="square"
-									fitImage
-								/>
-							)
+							<Avatar
+								variant="icon"
+								src={proxy.icon_url}
+								fallback={proxy.display_name || proxy.name}
+							/>
 						}
 					/>
 				</TableCell>
 
-				<TableCell css={{ fontSize: 14 }} className="url">
-					{proxy.path_app_url}
-				</TableCell>
-				<TableCell css={{ fontSize: 14 }} className="status">
-					{statusBadge}
+				<TableCell className="status">
+					<div className="flex items-center justify-end">{statusBadge}</div>
 				</TableCell>
 				<TableCell
 					css={{
@@ -132,7 +124,7 @@ const ProxyMessagesList: FC<ProxyMessagesListProps> = ({ title, messages }) => {
 			css={{
 				borderBottom: `1px solid ${theme.palette.divider}`,
 				backgroundColor: theme.palette.background.default,
-				padding: "16px 24px",
+				padding: "16px 64px",
 			}}
 		>
 			<div

@@ -217,7 +217,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</div>
 
 					<TopbarData>
-						<TopbarAvatar src={template.icon} />
+						<TopbarAvatar
+							src={template.icon}
+							fallback={template.display_name || template.name}
+						/>
 						<RouterLink
 							to={templateLink}
 							css={{

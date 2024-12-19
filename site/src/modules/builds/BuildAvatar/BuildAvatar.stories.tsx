@@ -13,27 +13,21 @@ const meta: Meta<typeof BuildAvatar> = {
 export default meta;
 type Story = StoryObj<typeof BuildAvatar>;
 
-export const XSSize: Story = {
-	args: {
-		size: "xs",
-	},
-};
-
-export const SMSize: Story = {
+export const SmSize: Story = {
 	args: {
 		size: "sm",
 	},
 };
 
-export const MDSize: Story = {
+export const MdSize: Story = {
 	args: {
 		size: "md",
 	},
 };
 
-export const XLSize: Story = {
+export const LgSize: Story = {
 	args: {
-		size: "xl",
+		size: "lg",
 	},
 };
 

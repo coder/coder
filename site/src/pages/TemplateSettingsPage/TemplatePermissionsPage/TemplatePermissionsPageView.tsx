@@ -17,10 +17,10 @@ import type {
 	TemplateRole,
 	TemplateUser,
 } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -257,9 +257,9 @@ export const TemplatePermissionsPageView: FC<
 											<TableCell>
 												<AvatarData
 													avatar={
-														<GroupAvatar
-															name={group.display_name || group.name}
-															avatarURL={group.avatar_url}
+														<Avatar
+															fallback={group.display_name || group.name}
+															src={group.avatar_url}
 														/>
 													}
 													title={group.display_name || group.name}

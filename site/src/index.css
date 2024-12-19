@@ -31,6 +31,10 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
+
+		--avatar-lg: 2.5rem;
+		--avatar-default: 1.5rem;
+		--avatar-sm: 1.125rem;
 	}
 	.dark {
 		--content-primary: 0, 0%, 98%;

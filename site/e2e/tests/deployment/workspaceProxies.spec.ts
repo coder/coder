@@ -50,19 +50,16 @@ test("custom proxy is online", async ({ page }) => {
 		waitUntil: "domcontentloaded",
 	});
 
-	const workspaceProxy = page.locator("table.MuiTable-root tr", {
+	const proxyRow = page.locator("table.MuiTable-root tr", {
 		hasText: proxyName,
 	});
 
-	const workspaceProxyName = workspaceProxy.locator("td.name span");
-	const workspaceProxyURL = workspaceProxy.locator("td.url");
-	const workspaceProxyStatus = workspaceProxy.locator("td.status span");
+	const summary = proxyRow.locator(".summary");
+	const status = proxyRow.locator(".status");
 
-	await expect(workspaceProxyName).toHaveText(proxyName);
-	await expect(workspaceProxyURL).toHaveText(
-		`http://127.0.0.1:${workspaceProxyPort}`,
-	);
-	await expect(workspaceProxyStatus).toHaveText("Healthy");
+	await expect(summary).toHaveText(proxyName);
+	await expect(summary).toHaveText(`http://127.0.0.1:${workspaceProxyPort}`);
+	await expect(status).toHaveText("Healthy");
 
 	// Tear down the proxy
 	await stopWorkspaceProxy(proxyServer);
@@ -82,13 +79,13 @@ const waitUntilWorkspaceProxyIsHealthy = async (
 	while (retries < maxRetries) {
 		await page.reload();
 
-		const workspaceProxy = page.locator("table.MuiTable-root tr", {
+		const proxyRow = page.locator("table.MuiTable-root tr", {
 			hasText: proxyName,
 		});
-		const workspaceProxyStatus = workspaceProxy.locator("td.status span");
+		const status = proxyRow.locator(".status");
 
 		try {
-			await expect(workspaceProxyStatus).toHaveText("Healthy", {
+			await expect(status).toHaveText("Healthy", {
 				timeout: 1_000,
 			});
 			return; // healthy!

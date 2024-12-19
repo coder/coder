@@ -16,7 +16,8 @@ import type {
 	User,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import {
 	MoreMenu,
@@ -28,7 +29,6 @@ import {
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { UserGroupsCell } from "pages/UsersPage/UsersTable/UserGroupsCell";
 import { type FC, useState } from "react";
 import { TableColumnHelpTooltip } from "./UserTable/TableColumnHelpTooltip";
@@ -107,9 +107,9 @@ export const OrganizationMembersPageView: FC<
 									<TableCell>
 										<AvatarData
 											avatar={
-												<UserAvatar
-													username={member.username}
-													avatarURL={member.avatar_url}
+												<Avatar
+													fallback={member.username}
+													src={member.avatar_url}
 												/>
 											}
 											title={member.name || member.username}

@@ -1,5 +1,3 @@
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
-import { type VariantProps, cva } from "class-variance-authority";
 /**
  * Copied from shadc/ui on 12/16/2024
  * @see {@link https://ui.shadcn.com/docs/components/avatar}
@@ -7,8 +5,16 @@ import { type VariantProps, cva } from "class-variance-authority";
  * This component was updated to support the variants and match the styles from
  * the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
+ *
+ * It was also simplified to make usage easier and reduce boilerplate.
+ * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
+
+import { useTheme } from "@emotion/react";
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { type VariantProps, cva } from "class-variance-authority";
 import * as React from "react";
+import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
 
 const avatarVariants = cva(
@@ -16,79 +22,71 @@ const avatarVariants = cva(
 	{
 		variants: {
 			size: {
-				lg: "h-10 w-10 rounded-[6px] text-sm font-medium",
-				default: "h-6 w-6 text-2xs",
-				sm: "h-[18px] w-[18px] text-[8px]",
+				lg: "h-[--avatar-lg] w-[--avatar-lg] rounded-[6px] text-sm font-medium",
+				md: "h-[--avatar-default] w-[--avatar-default] text-2xs",
+				sm: "h-[--avatar-sm] w-[--avatar-sm] text-[8px]",
 			},
 			variant: {
-				default: "",
-				icon: "",
+				default: null,
+				icon: null,
 			},
 		},
 		defaultVariants: {
-			size: "default",
+			size: "md",
 		},
 		compoundVariants: [
 			{
 				size: "lg",
 				variant: "icon",
-				className: "p-[9px]",
+				className: "p-2",
 			},
 			{
-				size: "default",
+				size: "md",
 				variant: "icon",
-				className: "p-[3px]",
+				className: "p-1",
 			},
 			{
 				size: "sm",
 				variant: "icon",
-				className: "p-[2px]",
+				className: "p-[3px]",
 			},
 		],
 	},
 );
 
-export interface AvatarProps
-	extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
-		VariantProps<typeof avatarVariants> {}
+export type AvatarProps = AvatarPrimitive.AvatarProps &
+	VariantProps<typeof avatarVariants> & {
+		src?: string;
+
+		fallback?: string;
+	};
 
 const Avatar = React.forwardRef<
 	React.ElementRef<typeof AvatarPrimitive.Root>,
 	AvatarProps
->(({ className, size, variant, ...props }, ref) => (
-	<AvatarPrimitive.Root
-		ref={ref}
-		className={cn(avatarVariants({ size, variant, className }))}
-		{...props}
-	/>
-));
+>(({ className, size, variant, src, fallback, children, ...props }, ref) => {
+	const theme = useTheme();
+
+	return (
+		<AvatarPrimitive.Root
+			ref={ref}
+			className={cn(avatarVariants({ size, variant, className }))}
+			{...props}
+		>
+			<AvatarPrimitive.Image
+				src={src}
+				className="aspect-square h-full w-full object-contain"
+				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+			/>
+			{fallback && (
+				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+					{fallback.charAt(0).toUpperCase()}
+				</AvatarPrimitive.Fallback>
+			)}
+			{children}
+		</AvatarPrimitive.Root>
+	);
+});
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const AvatarImage = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Image>,
-	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => (
-	<AvatarPrimitive.Image
-		ref={ref}
-		className={cn("aspect-square h-full w-full", className)}
-		{...props}
-	/>
-));
-AvatarImage.displayName = AvatarPrimitive.Image.displayName;
-
-const AvatarFallback = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Fallback>,
-	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-	<AvatarPrimitive.Fallback
-		ref={ref}
-		className={cn(
-			"flex h-full w-full items-center justify-center rounded-full",
-			className,
-		)}
-		{...props}
-	/>
-));
-AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
-
-export { Avatar, AvatarImage, AvatarFallback };
+export { Avatar };
