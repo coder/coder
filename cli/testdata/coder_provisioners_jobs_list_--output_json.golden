@@ -1,42 +1,42 @@
 [
   {
-    "id": "[version job ID]",
-    "created_at": "[timestamp]",
-    "started_at": "[timestamp]",
-    "completed_at": "[timestamp]",
+    "id": "==========[version job ID]==========",
+    "created_at": "====[timestamp]=====",
+    "started_at": "====[timestamp]=====",
+    "completed_at": "====[timestamp]=====",
     "status": "succeeded",
-    "worker_id": "[workspace build worker ID]",
-    "file_id": "[workspace build file ID]",
+    "worker_id": "====[workspace build worker ID]=====",
+    "file_id": "=====[workspace build file ID]======",
     "tags": {
       "owner": "",
       "scope": "organization"
     },
     "queue_position": 0,
     "queue_size": 0,
-    "organization_id": "[first org ID]",
+    "organization_id": "===========[first org ID]===========",
     "input": {
-      "template_version_id": "[version ID]"
+      "template_version_id": "============[version ID]============"
     },
     "type": "template_version_import",
     "organization_name": "Coder"
   },
   {
-    "id": "[workspace build job ID]",
-    "created_at": "[timestamp]",
-    "started_at": "[timestamp]",
-    "completed_at": "[timestamp]",
+    "id": "======[workspace build job ID]======",
+    "created_at": "====[timestamp]=====",
+    "started_at": "====[timestamp]=====",
+    "completed_at": "====[timestamp]=====",
     "status": "succeeded",
-    "worker_id": "[workspace build worker ID]",
-    "file_id": "[workspace build file ID]",
+    "worker_id": "====[workspace build worker ID]=====",
+    "file_id": "=====[workspace build file ID]======",
     "tags": {
       "owner": "",
       "scope": "organization"
     },
     "queue_position": 0,
     "queue_size": 0,
-    "organization_id": "[first org ID]",
+    "organization_id": "===========[first org ID]===========",
     "input": {
-      "workspace_build_id": "[workspace build ID]"
+      "workspace_build_id": "========[workspace build ID]========"
     },
     "type": "workspace_build",
     "organization_name": "Coder"
