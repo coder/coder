@@ -865,6 +865,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 		threshold: 0,
 	},
 	hidden: false,
+	open_in: "slim-window",
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {
