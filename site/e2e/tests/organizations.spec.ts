@@ -29,6 +29,10 @@ test("create and delete organization", async ({ page }) => {
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
 	await expect(page.getByText("Organization created.")).toBeVisible();
 
+	await page.goto(`/organizations/${name}/settings`, {
+		waitUntil: "domcontentloaded",
+	});
+
 	const newName = randomName();
 	await page.getByLabel("Slug").fill(newName);
 	await page.getByLabel("Description").fill(`Org description ${newName}`);
@@ -37,6 +41,12 @@ test("create and delete organization", async ({ page }) => {
 	// Expect to be redirected when renaming the organization
 	await expectUrl(page).toHavePathName(`/organizations/${newName}`);
 	await expect(page.getByText("Organization settings updated.")).toBeVisible();
+
+	await page.goto(`/organizations/${newName}/settings`, {
+		waitUntil: "domcontentloaded",
+	});
+	// Expect to be redirected when renaming the organization
+	await expectUrl(page).toHavePathName(`/organizations/${newName}/settings`);
 
 	await page.getByRole("button", { name: "Delete this organization" }).click();
 	const dialog = page.getByTestId("dialog");
