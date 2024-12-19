@@ -21,7 +21,7 @@ test("add and remove organization member", async ({ page }) => {
 	const { displayName } = await createOrganization(page);
 
 	// Navigate to members page
-	await page.getByText("Members").click();
+	await page.getByRole("link", { name: "Members" }).click();
 	await expect(page).toHaveTitle(`Members - ${displayName} - Coder`);
 
 	// Add a user to the org
