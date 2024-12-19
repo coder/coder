@@ -6,14 +6,14 @@
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=656-2354&t=CiGt5le3yJEwMH4M-0}
  */
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
+import { Button } from "components/Button/Button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
 	DropdownMenuTrigger,
 } from "./DropdownMenu";
-import { Button } from "components/Button/Button";
-import { userEvent, within } from "@storybook/test";
 
 const meta: Meta<typeof DropdownMenu> = {
 	title: "components/DropdownMenu",
