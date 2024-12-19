@@ -12,7 +12,7 @@ import TableRow from "@mui/material/TableRow";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, TemplateExample } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { Avatar, AvatarImage } from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
@@ -117,11 +117,11 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 					}
 					subtitle={template.description}
 					avatar={
-						hasIcon && (
-							<Avatar variant="icon">
-								<AvatarImage src={template.icon} />
-							</Avatar>
-						)
+						<Avatar
+							variant="icon"
+							src={template.icon}
+							fallback={template.name}
+						/>
 					}
 				/>
 			</TableCell>

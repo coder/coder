@@ -6,12 +6,7 @@ import CircularProgress from "@mui/material/CircularProgress";
 import TextField from "@mui/material/TextField";
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import type { DialogProps } from "components/Dialogs/Dialog";
@@ -93,12 +88,10 @@ export const ChangeVersionDialog: FC<ChangeVersionDialogProps> = ({
 										<li {...props}>
 											<AvatarData
 												avatar={
-													<Avatar>
-														<AvatarImage src={option.created_by.avatar_url} />
-														<AvatarFallback>
-															{avatarLetter(option.name)}
-														</AvatarFallback>
-													</Avatar>
+													<Avatar
+														src={option.created_by.avatar_url}
+														fallback={option.name}
+													/>
 												}
 												title={
 													<Stack

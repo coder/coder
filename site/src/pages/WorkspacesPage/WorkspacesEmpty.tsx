@@ -1,12 +1,7 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
 import Button from "@mui/material/Button";
 import type { Template } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
@@ -127,10 +122,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 								})}
 							>
 								<div css={{ flexShrink: 0, paddingTop: 4 }}>
-									<Avatar variant="icon" size="sm">
-										<AvatarImage src={t.icon} />
-										<AvatarFallback>{avatarLetter(t.name)}</AvatarFallback>
-									</Avatar>
+									<Avatar variant="icon" src={t.icon} fallback={t.name} />
 								</div>
 
 								<div css={{ width: "100%", minWidth: "0" }}>

@@ -5,12 +5,7 @@ import TextField from "@mui/material/TextField";
 import { checkAuthorization } from "api/queries/authCheck";
 import { organizations } from "api/queries/organizations";
 import type { AuthorizationCheck, Organization } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import {
@@ -137,10 +132,7 @@ export const OrganizationAutocomplete: FC<OrganizationAutocompleteProps> = ({
 						...params.InputProps,
 						onChange: debouncedInputOnChange,
 						startAdornment: value && (
-							<Avatar size="sm">
-								<AvatarImage src={value.icon} />
-								<AvatarFallback>{avatarLetter(value.name)}</AvatarFallback>
-							</Avatar>
+							<Avatar size="sm" src={value.icon} fallback={value.name} />
 						),
 						endAdornment: (
 							<>

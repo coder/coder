@@ -2,12 +2,7 @@ import { useTheme } from "@emotion/react";
 import TableCell from "@mui/material/TableCell";
 import TableRow from "@mui/material/TableRow";
 import type { Region, WorkspaceProxy } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	HealthyBadge,
@@ -51,12 +46,11 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 						title={proxy.display_name || proxy.name}
 						subtitle={proxy.path_app_url}
 						avatar={
-							<Avatar variant="icon">
-								<AvatarImage src={proxy.icon_url} />
-								<AvatarFallback>
-									{avatarLetter(proxy.display_name || proxy.name)}
-								</AvatarFallback>
-							</Avatar>
+							<Avatar
+								variant="icon"
+								src={proxy.icon_url}
+								fallback={proxy.display_name || proxy.name}
+							/>
 						}
 					/>
 				</TableCell>

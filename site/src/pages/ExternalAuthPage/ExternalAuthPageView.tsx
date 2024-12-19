@@ -8,12 +8,7 @@ import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
@@ -96,12 +91,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									<Avatar>
-										<AvatarImage src={install.account.avatar_url} />
-										<AvatarFallback>
-											{avatarLetter(install.account.login)}
-										</AvatarFallback>
-									</Avatar>
+									<Avatar
+										src={install.account.avatar_url}
+										fallback={install.account.login}
+									/>
 								</Link>
 							</Tooltip>
 						);

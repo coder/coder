@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Avatar, AvatarFallback, AvatarImage } from "./Avatar";
+import { Avatar } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {
 	title: "components/Avatar",
 	component: Avatar,
 	args: {
-		children: <AvatarImage src="https://github.com/kylecarbs.png" />,
+		src: "https://github.com/kylecarbs.png",
 	},
 };
 
@@ -26,18 +26,14 @@ export const IconLgSize: Story = {
 	args: {
 		size: "lg",
 		variant: "icon",
-		children: (
-			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
-		),
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
 export const IconDefaultSize: Story = {
 	args: {
 		variant: "icon",
-		children: (
-			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
-		),
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
@@ -45,36 +41,33 @@ export const IconSmSize: Story = {
 	args: {
 		variant: "icon",
 		size: "sm",
-		children: (
-			<AvatarImage src="https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png" />
-		),
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
 export const NonSquaredIcon: Story = {
 	args: {
 		variant: "icon",
-		children: <AvatarImage src="/icon/docker.png" />,
+		src: "/icon/docker.png",
 	},
 };
 
 export const FallbackLgSize: Story = {
 	args: {
 		size: "lg",
-
-		children: <AvatarFallback>AR</AvatarFallback>,
+		fallback: "Adriana Rodrigues",
 	},
 };
 
 export const FallbackDefaultSize: Story = {
 	args: {
-		children: <AvatarFallback>AR</AvatarFallback>,
+		fallback: "Adriana Rodrigues",
 	},
 };
 
 export const FallbackSmSize: Story = {
 	args: {
 		size: "sm",
-		children: <AvatarFallback>AR</AvatarFallback>,
+		fallback: "Adriana Rodrigues",
 	},
 };

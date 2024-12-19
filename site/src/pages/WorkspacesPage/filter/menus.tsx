@@ -1,11 +1,6 @@
 import { API } from "api/api";
 import type { Template, WorkspaceStatus } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -59,12 +54,12 @@ export const useTemplateFilterMenu = ({
 
 const TemplateAvatar: FC<{ template: Template }> = ({ template }) => {
 	return (
-		<Avatar size="sm" variant="icon">
-			<AvatarImage src={template.icon} />
-			<AvatarFallback>
-				{avatarLetter(template.display_name || template.name)}
-			</AvatarFallback>
-		</Avatar>
+		<Avatar
+			size="sm"
+			variant="icon"
+			src={template.icon}
+			fallback={template.display_name || template.name}
+		/>
 	);
 };
 

@@ -1,6 +1,3 @@
-import { useTheme } from "@emotion/react";
-import * as AvatarPrimitive from "@radix-ui/react-avatar";
-import { type VariantProps, cva } from "class-variance-authority";
 /**
  * Copied from shadc/ui on 12/16/2024
  * @see {@link https://ui.shadcn.com/docs/components/avatar}
@@ -8,7 +5,14 @@ import { type VariantProps, cva } from "class-variance-authority";
  * This component was updated to support the variants and match the styles from
  * the Figma design:
  * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
+ *
+ * It was also simplified to make usage easier and reduce boilerplate.
+ * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
  */
+
+import { useTheme } from "@emotion/react";
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { type VariantProps, cva } from "class-variance-authority";
 import * as React from "react";
 import { getExternalImageStylesFromUrl } from "theme/externalImages";
 import { cn } from "utils/cn";
@@ -50,56 +54,38 @@ const avatarVariants = cva(
 	},
 );
 
-export interface AvatarProps
-	extends React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Root>,
-		VariantProps<typeof avatarVariants> {}
+export type AvatarProps = Omit<AvatarPrimitive.AvatarProps, "children"> &
+	VariantProps<typeof avatarVariants> & {
+		src?: string;
+		alt?: string;
+		fallback?: string;
+	};
 
 const Avatar = React.forwardRef<
 	React.ElementRef<typeof AvatarPrimitive.Root>,
 	AvatarProps
->(({ className, size, variant, ...props }, ref) => (
-	<AvatarPrimitive.Root
-		ref={ref}
-		className={cn(avatarVariants({ size, variant, className }))}
-		{...props}
-	/>
-));
-Avatar.displayName = AvatarPrimitive.Root.displayName;
-
-const AvatarImage = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Image>,
-	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Image>
->(({ className, ...props }, ref) => {
+>(({ className, size, variant, alt, fallback, ...props }, ref) => {
 	const theme = useTheme();
 
 	return (
-		<AvatarPrimitive.Image
+		<AvatarPrimitive.Root
 			ref={ref}
-			className={cn("aspect-square h-full w-full object-contain", className)}
-			css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+			className={cn(avatarVariants({ size, variant, className }))}
 			{...props}
-		/>
+		>
+			<AvatarPrimitive.Image
+				className="aspect-square h-full w-full object-contain"
+				css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+				alt={alt}
+			/>
+			{fallback && (
+				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+					{fallback.charAt(0).toUpperCase()}
+				</AvatarPrimitive.Fallback>
+			)}
+		</AvatarPrimitive.Root>
 	);
 });
-AvatarImage.displayName = AvatarPrimitive.Image.displayName;
+Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const AvatarFallback = React.forwardRef<
-	React.ElementRef<typeof AvatarPrimitive.Fallback>,
-	React.ComponentPropsWithoutRef<typeof AvatarPrimitive.Fallback>
->(({ className, ...props }, ref) => (
-	<AvatarPrimitive.Fallback
-		ref={ref}
-		className={cn(
-			"flex h-full w-full items-center justify-center rounded-full",
-			className,
-		)}
-		{...props}
-	/>
-));
-AvatarFallback.displayName = AvatarPrimitive.Fallback.displayName;
-
-function avatarLetter(str: string): string {
-	return str.charAt(0).toUpperCase();
-}
-
-export { Avatar, AvatarImage, AvatarFallback, avatarLetter };
+export { Avatar };

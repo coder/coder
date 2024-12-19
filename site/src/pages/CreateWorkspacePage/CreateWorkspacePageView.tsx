@@ -5,12 +5,7 @@ import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	FormFields,
 	FormFooter,
@@ -153,10 +148,12 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		<Margins size="medium">
 			<PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
 				<Stack direction="row">
-					<Avatar variant="icon" size="lg">
-						<AvatarImage src={template.icon} />
-						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
-					</Avatar>
+					<Avatar
+						variant="icon"
+						size="lg"
+						src={template.icon}
+						fallback={template.name}
+					/>
 
 					<div>
 						<PageHeaderTitle>

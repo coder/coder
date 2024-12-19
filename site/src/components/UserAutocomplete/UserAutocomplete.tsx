@@ -6,12 +6,7 @@ import { getErrorMessage } from "api/errors";
 import { organizationMembers } from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import {
@@ -175,10 +170,11 @@ const InnerAutocomplete = <T extends SelectedUser>({
 						...params.InputProps,
 						onChange: debouncedInputOnChange,
 						startAdornment: value && (
-							<Avatar size="sm">
-								<AvatarImage src={value.avatar_url} />
-								<AvatarFallback>{avatarLetter(value.username)}</AvatarFallback>
-							</Avatar>
+							<Avatar
+								size="sm"
+								src={value.avatar_url}
+								fallback={value.username}
+							/>
 						),
 						endAdornment: (
 							<>

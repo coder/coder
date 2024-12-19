@@ -11,12 +11,7 @@ import type {
 	Template,
 	TemplateVersion,
 } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { Margins } from "components/Margins/Margins";
@@ -207,10 +202,12 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 				}
 			>
 				<Stack direction="row">
-					<Avatar size="lg" variant="icon">
-						<AvatarImage src={template.icon} />
-						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
-					</Avatar>
+					<Avatar
+						size="lg"
+						variant="icon"
+						src={template.icon}
+						fallback={template.name}
+					/>
 
 					<div>
 						<Stack direction="row" alignItems="center" spacing={1}>

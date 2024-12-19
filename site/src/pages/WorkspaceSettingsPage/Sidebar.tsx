@@ -2,12 +2,7 @@ import ParameterIcon from "@mui/icons-material/CodeOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Workspace } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
@@ -25,10 +20,11 @@ export const Sidebar: FC<SidebarProps> = ({ username, workspace }) => {
 		<BaseSidebar>
 			<SidebarHeader
 				avatar={
-					<Avatar variant="icon">
-						<AvatarImage>{workspace.template_icon}</AvatarImage>
-						<AvatarFallback>{avatarLetter(workspace.name)}</AvatarFallback>
-					</Avatar>
+					<Avatar
+						variant="icon"
+						src={workspace.template_icon}
+						fallback={workspace.name}
+					/>
 				}
 				title={workspace.name}
 				linkTo={`/@${username}/${workspace.name}`}

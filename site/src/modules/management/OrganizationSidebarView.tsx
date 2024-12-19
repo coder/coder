@@ -1,12 +1,7 @@
 import { cx } from "@emotion/css";
 import AddIcon from "@mui/icons-material/Add";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import {
 	Sidebar as BaseSidebar,
@@ -133,12 +128,11 @@ const OrganizationSettingsNavigation: FC<
 				active={active}
 				href={urlForSubpage(organization.name)}
 				icon={
-					<Avatar variant="icon">
-						<AvatarImage src={organization.icon} />
-						<AvatarFallback>
-							{avatarLetter(organization.display_name)}
-						</AvatarFallback>
-					</Avatar>
+					<Avatar
+						variant="icon"
+						src={organization.icon}
+						fallback={organization.display_name}
+					/>
 				}
 			>
 				{organization.display_name}

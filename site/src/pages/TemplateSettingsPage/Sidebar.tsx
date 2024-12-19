@@ -3,12 +3,7 @@ import SecurityIcon from "@mui/icons-material/LockOutlined";
 import GeneralIcon from "@mui/icons-material/SettingsOutlined";
 import ScheduleIcon from "@mui/icons-material/TimerOutlined";
 import type { Template } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Sidebar as BaseSidebar,
 	SidebarHeader,
@@ -28,10 +23,7 @@ export const Sidebar: FC<SidebarProps> = ({ template }) => {
 		<BaseSidebar>
 			<SidebarHeader
 				avatar={
-					<Avatar variant="icon">
-						<AvatarImage src={template.icon} />
-						<AvatarFallback>{avatarLetter(template.name)}</AvatarFallback>
-					</Avatar>
+					<Avatar variant="icon" src={template.icon} fallback={template.name} />
 				}
 				title={template.display_name || template.name}
 				linkTo={getLink(

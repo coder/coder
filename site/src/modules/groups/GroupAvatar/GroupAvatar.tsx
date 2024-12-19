@@ -1,9 +1,4 @@
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 export interface GroupAvatarProps {
@@ -12,10 +7,5 @@ export interface GroupAvatarProps {
 }
 
 export const GroupAvatar: FC<GroupAvatarProps> = ({ name, avatarURL }) => {
-	return (
-		<Avatar>
-			<AvatarImage src={avatarURL} />
-			<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
-		</Avatar>
-	);
+	return <Avatar src={avatarURL} fallback={name} />;
 };

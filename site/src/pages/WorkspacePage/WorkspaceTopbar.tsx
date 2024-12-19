@@ -6,12 +6,7 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	Topbar,
@@ -353,10 +348,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<Avatar variant="icon">
-								<AvatarImage src={orgIconUrl} />
-								<AvatarFallback>{avatarLetter(orgName)}</AvatarFallback>
-							</Avatar>
+							<Avatar variant="icon" src={orgIconUrl} fallback={orgName} />
 						)
 					}
 					imgFallbackText={orgName}
@@ -418,12 +410,11 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<Avatar variant="icon">
-							<AvatarImage src={templateIconUrl} />
-							<AvatarFallback>
-								{avatarLetter(templateDisplayName)}
-							</AvatarFallback>
-						</Avatar>
+						<Avatar
+							variant="icon"
+							src={templateIconUrl}
+							fallback={templateDisplayName}
+						/>
 					}
 					imgFallbackText={templateDisplayName}
 				/>

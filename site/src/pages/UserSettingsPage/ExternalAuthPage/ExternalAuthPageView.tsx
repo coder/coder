@@ -20,12 +20,7 @@ import type {
 	ListUserExternalAuthResponse,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { Loader } from "components/Loader/Loader";
 import {
@@ -161,10 +156,7 @@ const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 		<TableRow key={app.id}>
 			<TableCell>
 				<Stack direction="row" alignItems="center" spacing={1}>
-					<Avatar variant="icon">
-						<AvatarImage src={app.display_icon} />
-						<AvatarFallback>{avatarLetter(name)}</AvatarFallback>
-					</Avatar>
+					<Avatar variant="icon" src={app.display_icon} fallback={name} />
 					<span className="font-semibold">{name}</span>
 					{/*
 					 * If the link is authenticated and has a refresh token, show that it will automatically

@@ -3,12 +3,7 @@ import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
@@ -143,12 +138,11 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 				alignItems: "center",
 			}}
 		>
-			<Avatar>
-				<AvatarImage src={template.icon} />
-				<AvatarFallback>
-					{avatarLetter(template.display_name || template.name)}
-				</AvatarFallback>
-			</Avatar>
+			<Avatar
+				variant="icon"
+				src={template.icon}
+				fallback={template.display_name || template.name}
+			/>
 
 			<div
 				css={(theme) => ({

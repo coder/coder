@@ -1,17 +1,11 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 type AvatarCardProps = {
 	header: string;
 	imgUrl: string;
 	altText: string;
-
 	subtitle?: ReactNode;
 	maxWidth?: number | "none";
 };
@@ -75,10 +69,7 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				)}
 			</div>
 
-			<Avatar size="lg">
-				<AvatarImage src={imgUrl} alt={altText} />
-				<AvatarFallback>{avatarLetter(header)}</AvatarFallback>
-			</Avatar>
+			<Avatar size="lg" src={imgUrl} alt={altText} fallback={header} />
 		</div>
 	);
 };

@@ -1,10 +1,4 @@
-import {
-	Avatar,
-	AvatarFallback,
-	AvatarImage,
-	type AvatarProps,
-	avatarLetter,
-} from "components/Avatar/Avatar";
+import { Avatar, type AvatarProps } from "components/Avatar/Avatar";
 import type { FC } from "react";
 
 export type UserAvatarProps = {
@@ -18,10 +12,5 @@ export const UserAvatar: FC<UserAvatarProps> = ({
 	avatarURL,
 	size,
 }) => {
-	return (
-		<Avatar size={size}>
-			<AvatarImage src={avatarURL} />
-			<AvatarFallback>{avatarLetter(username)}</AvatarFallback>
-		</Avatar>
-	);
+	return <Avatar size={size} src={avatarURL} fallback={username} />;
 };
