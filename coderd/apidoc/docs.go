@@ -12479,6 +12479,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "key_name": {
+                    "type": "string"
+                },
                 "last_seen_at": {
                     "type": "string",
                     "format": "date-time"

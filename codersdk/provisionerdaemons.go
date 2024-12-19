@@ -64,6 +64,7 @@ type ProvisionerDaemon struct {
 
 type ProvisionerDaemonWithStatus struct {
 	ProvisionerDaemon `table:"provisioner daemon,recursive_inline"`
+	KeyName           string                  `json:"key_name" table:"key name"`
 	Status            ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
 	CurrentJob        *ProvisionerDaemonJob   `json:"current_job" table:"current job,recursive"`
 	PreviousJob       *ProvisionerDaemonJob   `json:"previous_job" table:"previous job,recursive"`
