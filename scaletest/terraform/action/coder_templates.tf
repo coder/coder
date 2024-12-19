@@ -1,88 +1,108 @@
 resource "local_file" "kubernetes_template" {
   filename = "${path.module}/.coderv2/templates/kubernetes/main.tf"
   content  = <<EOF
-    terraform {
-      required_providers {
-        coder = {
-          source  = "coder/coder"
-          version = "~> 0.23.0"
+terraform {
+  required_providers {
+    coder = {
+      source  = "coder/coder"
+      version = "~> 0.23.0"
+    }
+    kubernetes = {
+      source  = "hashicorp/kubernetes"
+      version = "~> 2.30"
+    }
+  }
+}
+
+provider "coder" {}
+
+provider "kubernetes" {
+  config_path = null # always use host
+}
+
+data "coder_workspace" "me" {}
+data "coder_workspace_owner" "me" {}
+
+resource "coder_agent" "main" {
+  os                     = "linux"
+  arch                   = "amd64"
+}
+
+resource "coder_script" "websocat" {
+  agent_id     = coder_agent.main.id
+  display_name = "websocat"
+  script       = <<EOF2
+curl -sSL -o /tmp/websocat https://github.com/vi/websocat/releases/download/v1.12.0/websocat.x86_64-unknown-linux-musl
+chmod +x /tmp/websocat
+
+/tmp/websocat --exit-on-eof --binary ws-l:127.0.0.1:1234 mirror:
+EOF2
+  run_on_start = true
+}
+
+resource "coder_app" "wsecho" {
+  agent_id     = coder_agent.main.id
+  slug         = "wsec"
+  display_name = "WebSocket Echo"
+  url          = "http://localhost:1234"
+  share        = "authenticated"
+}
+
+resource "kubernetes_pod" "main" {
+  count = data.coder_workspace.me.start_count
+  metadata {
+    name      = "coder-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
+    namespace = "${local.coder_namespace}"
+    labels = {
+      "app.kubernetes.io/name"     = "coder-workspace"
+      "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
+    }
+  }
+  spec {
+    security_context {
+      run_as_user = "1000"
+      fs_group    = "1000"
+    }
+    container {
+      name              = "dev"
+      image             = "${var.workspace_image}"
+      image_pull_policy = "Always"
+      command           = ["sh", "-c", coder_agent.main.init_script]
+      security_context {
+        run_as_user = "1000"
+      }
+      env {
+        name  = "CODER_AGENT_TOKEN"
+        value = coder_agent.main.token
+      }
+      resources {
+        requests = {
+          "cpu"    = "${local.scenarios[var.scenario].workspaces.cpu_request}"
+          "memory" = "${local.scenarios[var.scenario].workspaces.mem_request}"
         }
-        kubernetes = {
-          source  = "hashicorp/kubernetes"
-          version = "~> 2.30"
+        limits = {
+          "cpu"    = "${local.scenarios[var.scenario].workspaces.cpu_limit}"
+          "memory" = "${local.scenarios[var.scenario].workspaces.mem_limit}"
         }
       }
     }
 
-    provider "coder" {}
-
-    provider "kubernetes" {
-      config_path = null # always use host
-    }
-
-    data "coder_workspace" "me" {}
-    data "coder_workspace_owner" "me" {}
-
-    resource "coder_agent" "main" {
-      os                     = "linux"
-      arch                   = "amd64"
-    }
-
-    resource "kubernetes_pod" "main" {
-      count = data.coder_workspace.me.start_count
-      metadata {
-        name      = "coder-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
-        namespace = "${local.coder_namespace}"
-        labels = {
-          "app.kubernetes.io/name"     = "coder-workspace"
-          "app.kubernetes.io/instance" = "coder-workspace-$${lower(data.coder_workspace_owner.me.name)}-$${lower(data.coder_workspace.me.name)}"
-        }
-      }
-      spec {
-        security_context {
-          run_as_user = "1000"
-          fs_group    = "1000"
-        }
-        container {
-          name              = "dev"
-          image             = "${var.workspace_image}"
-          image_pull_policy = "Always"
-          command           = ["sh", "-c", coder_agent.main.init_script]
-          security_context {
-            run_as_user = "1000"
-          }
-          env {
-            name  = "CODER_AGENT_TOKEN"
-            value = coder_agent.main.token
-          }
-          resources {
-            requests = {
-              "cpu"    = "${local.scenarios[var.scenario].workspaces.cpu_request}"
-              "memory" = "${local.scenarios[var.scenario].workspaces.mem_request}"
-            }
-            limits = {
-              "cpu"    = "${local.scenarios[var.scenario].workspaces.cpu_limit}"
-              "memory" = "${local.scenarios[var.scenario].workspaces.mem_limit}"
-            }
-          }
-        }
-
-        affinity {
-          node_affinity {
-            required_during_scheduling_ignored_during_execution {
-              node_selector_term {
-                match_expressions {
-                  key = "cloud.google.com/gke-nodepool"
-                  operator = "In"
-                  values = ["${google_container_node_pool.node_pool["primary_workspaces"].name}","${google_container_node_pool.node_pool["europe_workspaces"].name}","${google_container_node_pool.node_pool["asia_workspaces"].name}"]
-                }
-              }
+    affinity {
+      node_affinity {
+        required_during_scheduling_ignored_during_execution {
+          node_selector_term {
+            match_expressions {
+              key = "cloud.google.com/gke-nodepool"
+              operator = "In"
+              values = ["${google_container_node_pool.node_pool["primary_workspaces"].name}","${google_container_node_pool.node_pool["europe_workspaces"].name}","${google_container_node_pool.node_pool["asia_workspaces"].name}"]
             }
           }
         }
       }
     }
-  EOF
+  }
+}
+EOF
 }
 
 resource "kubernetes_config_map" "template_primary" {

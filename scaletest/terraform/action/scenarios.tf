@@ -75,9 +75,9 @@ locals {
         nodepool_size = 3
         machine_type  = "c2d-standard-8"
         replicas      = 3
-        cpu_request   = "3000m"
+        cpu_request   = "4000m"
         mem_request   = "12Gi"
-        cpu_limit     = "3000m"
+        cpu_limit     = "4000m"
         mem_limit     = "12Gi"
       }
       provisionerd = {
@@ -88,13 +88,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        count_per_deployment = 700
+        count_per_deployment = 100
         nodepool_size        = 3
         machine_type         = "c2d-standard-32"
         cpu_request          = "100m"
-        mem_request          = "512Mi"
+        mem_request          = "128Mi"
         cpu_limit            = "100m"
-        mem_limit            = "512Mi"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
