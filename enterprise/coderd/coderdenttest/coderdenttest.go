@@ -121,6 +121,8 @@ func NewWithAPI(t *testing.T, options *Options) (
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = coderdtest.NewProvisionerDaemon(t, coderAPI.AGPL)
+		// Wait for provisioner daemons to be connected befroe continuing
+		coderdtest.AwaitProvisionerDaemonsConnected(t, coderAPI.AGPL)
 	}
 
 	t.Cleanup(func() {

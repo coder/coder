@@ -559,6 +559,8 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, "test", options.ProvisionerDaemonTags)
+		// Wait for the provisioner daemon to be ready before continuing.
+		AwaitProvisionerDaemonsConnected(t, coderAPI)
 	}
 	client := codersdk.New(serverURL)
 	t.Cleanup(func() {
@@ -568,6 +570,36 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 		client.HTTPClient.CloseIdleConnections()
 	})
 	return client, provisionerCloser, coderAPI
+}
+
+// AwaitProvisionerDaemonsConnected waits for the provisioner daemon to connect.
+func AwaitProvisionerDaemonsConnected(t testing.TB, api *coderd.API) {
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	defer cancel()
+	for {
+		select {
+		case <-ctx.Done():
+			t.Fatal("provisioner daemon did not connect in time")
+		case <-time.After(testutil.IntervalFast):
+			// nolint:gocritic // used for testing only
+			daemons, err := api.Database.GetProvisionerDaemons(dbauthz.AsSystemReadProvisionerDaemons(ctx))
+			if err != nil {
+				if errors.Is(err, sql.ErrNoRows) {
+					t.Logf("no provisioner daemons found yet")
+					continue
+				}
+				require.NoError(t, err)
+			}
+			if len(daemons) == 0 {
+				t.Logf("no provisioner daemons found yet")
+				continue
+			}
+			for _, daemon := range daemons {
+				t.Logf("found provisioner daemon %q", daemon.Name)
+			}
+			return
+		}
+	}
 }
 
 // ProvisionerdCloser wraps a provisioner daemon as an io.Closer that can be called multiple times
