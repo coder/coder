@@ -70,7 +70,10 @@ resource "helm_release" "coder_asia" {
     mem_request      = local.scenarios[var.scenario].coder.mem_request,
     cpu_limit        = local.scenarios[var.scenario].coder.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].coder.mem_limit,
+    deployment       = "asia",
   })]
+
+  depends_on = [null_resource.license]
 }
 
 resource "helm_release" "provisionerd_asia" {
@@ -82,12 +85,12 @@ resource "helm_release" "provisionerd_asia" {
   version    = var.provisionerd_chart_version
   namespace  = kubernetes_namespace.coder_asia.metadata.0.name
   values = [templatefile("${path.module}/coder_helm_values.tftpl", {
-    workspace_proxy  = false,
-    provisionerd     = true,
-    primary_url      = null,
-    proxy_token      = null,
-    db_secret        = null,
-    ip_address       = null,
+    workspace_proxy = false,
+    provisionerd = true,
+    primary_url = null,
+    proxy_token = null,
+    db_secret = null,
+    ip_address = null,
     provisionerd_psk = kubernetes_secret.provisionerd_psk_asia.metadata.0.name,
     access_url       = local.deployments.primary.url,
     node_pool        = google_container_node_pool.node_pool["asia_coder"].name,
@@ -100,5 +103,8 @@ resource "helm_release" "provisionerd_asia" {
     mem_request      = local.scenarios[var.scenario].provisionerd.mem_request,
     cpu_limit        = local.scenarios[var.scenario].provisionerd.cpu_limit,
     mem_limit        = local.scenarios[var.scenario].provisionerd.mem_limit,
+    deployment       = "asia",
   })]
+
+  depends_on = [null_resource.license]
 }
