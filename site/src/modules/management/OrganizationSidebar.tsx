@@ -26,6 +26,7 @@ export const OrganizationSidebar: FC = () => {
 		organization?: string;
 	};
 
+	const organization = organizations?.find((o) => o.name === organizationName);
 	const orgPermissionsQuery = useQuery(
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
@@ -49,7 +50,7 @@ export const OrganizationSidebar: FC = () => {
 
 	return (
 		<OrganizationSidebarView
-			activeOrganizationName={organizationName}
+			activeOrganization={organization}
 			organizations={editableOrgs}
 			permissions={permissions}
 		/>

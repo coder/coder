@@ -89,7 +89,7 @@ const OrganizationSettingsPage: FC = () => {
 						organizationId: organization.id,
 						req: values,
 					});
-				navigate(`/organizations/${updatedOrganization.name}`);
+				navigate(`/organizations/${updatedOrganization.name}/settings`);
 				displaySuccess("Organization settings updated.");
 			}}
 			onDeleteOrganization={() => {
