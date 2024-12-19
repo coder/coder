@@ -9,14 +9,9 @@ import { findSessionToken, randomName } from "./helpers";
 let currentOrgId: string;
 
 export const setupApiCalls = async (page: Page) => {
-	try {
-		const token = await findSessionToken(page);
-		API.setSessionToken(token);
-	} catch {
-		// If this fails, we have an unauthenticated client.
-	}
-
 	API.setHost(`http://127.0.0.1:${coderPort}`);
+	const token = await findSessionToken(page);
+	API.setSessionToken(token);
 };
 
 export const getCurrentOrgId = async (): Promise<string> => {

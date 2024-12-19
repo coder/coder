@@ -1,14 +1,13 @@
 import { expect, test } from "@playwright/test";
 import { API } from "api/api";
 import { Language } from "pages/CreateUserPage/CreateUserForm";
-import { setupApiCalls } from "./api";
-import * as constants from "./constants";
-import { expectUrl } from "./expectUrl";
-import { storageState } from "./playwright.config";
+import { coderPort, license, premiumTestsRequired, users } from "../constants";
+import { expectUrl } from "../expectUrl";
+import { createUser } from "../helpers";
 
 test("setup deployment", async ({ page }) => {
 	await page.goto("/", { waitUntil: "domcontentloaded" });
-	await setupApiCalls(page);
+	API.setHost(`http://127.0.0.1:${coderPort}`);
 	const exists = await API.hasFirstUser();
 	// First user already exists, abort early. All tests execute this as a dependency,
 	// if you run multiple tests in the UI, this will fail unless we check this.
@@ -17,28 +16,35 @@ test("setup deployment", async ({ page }) => {
 	}
 
 	// Setup first user
-	await page.getByLabel(Language.usernameLabel).fill(constants.username);
-	await page.getByLabel(Language.emailLabel).fill(constants.email);
-	await page.getByLabel(Language.passwordLabel).fill(constants.password);
+	await page.getByLabel(Language.usernameLabel).fill(users.admin.username);
+	await page.getByLabel(Language.emailLabel).fill(users.admin.email);
+	await page.getByLabel(Language.passwordLabel).fill(users.admin.password);
 	await page.getByTestId("create").click();
 
 	await expectUrl(page).toHavePathName("/workspaces");
-	await page.context().storageState({ path: storageState });
-
 	await page.getByTestId("button-select-template").isVisible();
 
+	for (const user of Object.values(users)) {
+		// Already created as first user
+		if (user.username === "admin") {
+			continue;
+		}
+
+		await createUser(page, user);
+	}
+
 	// Setup license
-	if (constants.premiumTestsRequired || constants.license) {
+	if (premiumTestsRequired || license) {
 		// Make sure that we have something that looks like a real license
-		expect(constants.license).toBeTruthy();
-		expect(constants.license.length).toBeGreaterThan(92); // the signature alone should be this long
-		expect(constants.license.split(".").length).toBe(3); // otherwise it's invalid
+		expect(license).toBeTruthy();
+		expect(license.length).toBeGreaterThan(92); // the signature alone should be this long
+		expect(license.split(".").length).toBe(3); // otherwise it's invalid
 
 		await page.goto("/deployment/licenses", { waitUntil: "domcontentloaded" });
 		await expect(page).toHaveTitle("License Settings - Coder");
 
 		await page.getByText("Add a license").click();
-		await page.getByRole("textbox").fill(constants.license);
+		await page.getByRole("textbox").fill(license);
 		await page.getByText("Upload License").click();
 
 		await expect(
