@@ -631,6 +631,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		assert.NoError(t, err)
 	}()
 
+	connectedCh := make(chan struct{})
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
 	}, &provisionerd.Options{
@@ -640,7 +641,12 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
+		InitConnectionCh: connectedCh,
 	})
+	// Wait for the provisioner daemon to connect before continuing.
+	// Users of this function tend to assume that the provisioner is connected
+	// and ready to use when that may not strictly be the case.
+	<-connectedCh
 	closer := NewProvisionerDaemonCloser(daemon)
 	t.Cleanup(func() {
 		_ = closer.Close()
