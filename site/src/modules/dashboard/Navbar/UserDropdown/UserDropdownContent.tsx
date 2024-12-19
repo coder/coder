@@ -18,8 +18,8 @@ import type * as TypesGen from "api/typesGenerated";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
-import type { FC, JSX } from "react";
 import { usePopover } from "components/deprecated/Popover/Popover";
+import type { FC, JSX } from "react";
 import { Link } from "react-router";
 
 export const Language = {
