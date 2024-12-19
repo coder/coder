@@ -54,7 +54,7 @@ const avatarVariants = cva(
 	},
 );
 
-export type AvatarProps = Omit<AvatarPrimitive.AvatarProps, "children"> &
+export type AvatarProps = AvatarPrimitive.AvatarProps &
 	VariantProps<typeof avatarVariants> & {
 		src?: string;
 		alt?: string;
@@ -64,28 +64,35 @@ export type AvatarProps = Omit<AvatarPrimitive.AvatarProps, "children"> &
 const Avatar = React.forwardRef<
 	React.ElementRef<typeof AvatarPrimitive.Root>,
 	AvatarProps
->(({ className, size, variant, alt, fallback, ...props }, ref) => {
-	const theme = useTheme();
+>(
+	(
+		{ className, size, variant, src, alt, fallback, children, ...props },
+		ref,
+	) => {
+		const theme = useTheme();
 
-	return (
-		<AvatarPrimitive.Root
-			ref={ref}
-			className={cn(avatarVariants({ size, variant, className }))}
-			{...props}
-		>
-			<AvatarPrimitive.Image
-				className="aspect-square h-full w-full object-contain"
-				css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
-				alt={alt}
-			/>
-			{fallback && (
-				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
-					{fallback.charAt(0).toUpperCase()}
-				</AvatarPrimitive.Fallback>
-			)}
-		</AvatarPrimitive.Root>
-	);
-});
+		return (
+			<AvatarPrimitive.Root
+				ref={ref}
+				className={cn(avatarVariants({ size, variant, className }))}
+				{...props}
+			>
+				<AvatarPrimitive.Image
+					src={src}
+					className="aspect-square h-full w-full object-contain"
+					css={getExternalImageStylesFromUrl(theme.externalImages, src)}
+					alt={alt}
+				/>
+				{fallback && (
+					<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+						{fallback.charAt(0).toUpperCase()}
+					</AvatarPrimitive.Fallback>
+				)}
+				{children}
+			</AvatarPrimitive.Root>
+		);
+	},
+);
 Avatar.displayName = AvatarPrimitive.Root.displayName;
 
 export { Avatar };
