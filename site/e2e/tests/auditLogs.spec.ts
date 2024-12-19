@@ -1,8 +1,9 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 import { users } from "../constants";
 import {
 	createTemplate,
 	createWorkspace,
+	currentUser,
 	login,
 	requiresLicense,
 } from "../helpers";
@@ -13,10 +14,22 @@ test.beforeEach(async ({ page }) => {
 	await login(page, users.auditor);
 });
 
-test.skip("inspecting and filtering audit logs", async ({ page }) => {
+async function resetSearch(page: Page) {
+	const clearButton = page.getByLabel("Clear search");
+	if (await clearButton.isVisible()) {
+		await clearButton.click();
+	}
+
+	// Filter by the auditor test user to prevent race conditions
+	const user = currentUser(page);
+	await expect(page.getByText("All users")).toBeVisible();
+	await page.getByPlaceholder("Search...").fill(`username:${user.username}`);
+	await expect(page.getByText("All users")).not.toBeVisible();
+}
+
+test("inspecting and filtering audit logs", async ({ page }) => {
 	requiresLicense();
 
-	const userName = "admin";
 	// Do some stuff that should show up in the audit logs
 	const templateName = await createTemplate(page);
 	const workspaceName = await createWorkspace(page, templateName);
@@ -24,21 +37,23 @@ test.skip("inspecting and filtering audit logs", async ({ page }) => {
 	// Go to the audit history
 	await page.goto("/audit");
 
+	const user = currentUser(page);
+	const loginMessage = `${user.username} logged in`;
+	const startedWorkspaceMessage = `${user.username} started workspace ${workspaceName}`;
+
 	// Make sure those things we did all actually show up
-	await expect(page.getByText(`${userName} logged in`)).toBeVisible();
+	await resetSearch(page);
+	await expect(page.getByText(loginMessage).first()).toBeVisible();
 	await expect(
-		page.getByText(`${userName} created template ${templateName}`),
+		page.getByText(`${user.username} created template ${templateName}`),
 	).toBeVisible();
 	await expect(
-		page.getByText(`${userName} created workspace ${workspaceName}`),
-	).toBeVisible();
-	await expect(
-		page.getByText(`${userName} started workspace ${workspaceName}`),
+		page.getByText(`${user.username} created workspace ${workspaceName}`),
 	).toBeVisible();
 
 	// Make sure we can inspect the details of the log item
 	const createdWorkspace = page.locator(".MuiTableRow-root", {
-		hasText: `${userName} created workspace ${workspaceName}`,
+		hasText: `${user.username} created workspace ${workspaceName}`,
 	});
 	await createdWorkspace.getByLabel("open-dropdown").click();
 	await expect(
@@ -48,10 +63,10 @@ test.skip("inspecting and filtering audit logs", async ({ page }) => {
 		createdWorkspace.getByText(`name: "${workspaceName}"`),
 	).toBeVisible();
 
-	const startedWorkspaceMessage = `${userName} started workspace ${workspaceName}`;
-	const loginMessage = `${userName} logged in`;
+	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
 
 	// Filter by resource type
+	await resetSearch(page);
 	await page.getByText("All resource types").click();
 	const workspaceBuildsOption = page.getByText("Workspace Build");
 	await workspaceBuildsOption.scrollIntoViewIfNeeded({ timeout: 5000 });
@@ -60,19 +75,15 @@ test.skip("inspecting and filtering audit logs", async ({ page }) => {
 	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
 	// Logins should no longer be visible
 	await expect(page.getByText(loginMessage)).not.toBeVisible();
-
-	// Clear filters, everything should be visible again
 	await page.getByLabel("Clear search").click();
-	await expect(page.getByText(startedWorkspaceMessage)).toBeVisible();
-	await expect(page.getByText(loginMessage)).toBeVisible();
+	await expect(page.getByText("All resource types")).toBeVisible();
 
 	// Filter by action type
+	await resetSearch(page);
 	await page.getByText("All actions").click();
-	const loginOption = page.getByText("Login");
-	await loginOption.scrollIntoViewIfNeeded({ timeout: 5000 });
-	await loginOption.click();
+	await page.getByText("Login", { exact: true }).click();
 	// Logins should be visible
-	await expect(page.getByText(loginMessage)).toBeVisible();
+	await expect(page.getByText(loginMessage).first()).toBeVisible();
 	// Our workspace build should no longer be visible
 	await expect(page.getByText(startedWorkspaceMessage)).not.toBeVisible();
 });
