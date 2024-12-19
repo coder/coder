@@ -70,6 +70,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		}
 		return codersdk.ProvisionerDaemonWithStatus{
 			ProvisionerDaemon: pd,
+			KeyName:           dbDaemon.KeyName,
 			Status:            codersdk.ProvisionerDaemonStatus(dbDaemon.Status),
 			CurrentJob:        currentJob,
 			PreviousJob:       previousJob,

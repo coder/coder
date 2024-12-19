@@ -1370,6 +1370,7 @@ export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = ["busy", "id
 
 // From codersdk/provisionerdaemons.go
 export interface ProvisionerDaemonWithStatus extends ProvisionerDaemon {
+    readonly key_name: string;
     readonly status: ProvisionerDaemonStatus;
     readonly current_job: ProvisionerDaemonJob | null;
     readonly previous_job: ProvisionerDaemonJob | null;

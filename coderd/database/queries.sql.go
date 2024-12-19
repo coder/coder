@@ -5415,7 +5415,7 @@ SELECT
 			ELSE 'idle'
 		END
 	END::provisioner_daemon_status AS status,
-	pk.name AS type,
+	pk.name AS key_name,
 	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
 	current_job.id AS current_job_id,
 	current_job.job_status AS current_job_status,
@@ -5461,7 +5461,7 @@ type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
 	ProvisionerDaemon ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
 	Status            ProvisionerDaemonStatus  `db:"status" json:"status"`
-	Type              string                   `db:"type" json:"type"`
+	KeyName           string                   `db:"key_name" json:"key_name"`
 	CurrentJobID      uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
 	CurrentJobStatus  NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
 	PreviousJobID     uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
@@ -5495,7 +5495,7 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 			&i.ProvisionerDaemon.OrganizationID,
 			&i.ProvisionerDaemon.KeyID,
 			&i.Status,
-			&i.Type,
+			&i.KeyName,
 			&i.CurrentJobID,
 			&i.CurrentJobStatus,
 			&i.PreviousJobID,

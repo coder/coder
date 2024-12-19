@@ -4244,6 +4244,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 	},
 	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 	"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+	"key_name": "string",
 	"last_seen_at": "2019-08-24T14:15:22Z",
 	"name": "string",
 	"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
@@ -4270,6 +4271,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `current_job`      | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |             |
 | `id`               | string                                                               | false    |              |             |
 | `key_id`           | string                                                               | false    |              |             |
+| `key_name`         | string                                                               | false    |              |             |
 | `last_seen_at`     | string                                                               | false    |              |             |
 | `name`             | string                                                               | false    |              |             |
 | `organization_id`  | string                                                               | false    |              |             |
