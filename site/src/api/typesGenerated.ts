@@ -1548,15 +1548,9 @@ export interface ResolveAutostartResponse {
 }
 
 // From codersdk/audit.go
-export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "license" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy";
+export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "idp_sync_settings_group" | "idp_sync_settings_organization" | "idp_sync_settings_role" | "license" | "notification_template" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "organization_member" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy";
 
-// From codersdk/audit.go
-export const ResourceTypeNotificationTemplate = "notification_template";
-
-// From codersdk/audit.go
-export const ResourceTypeOrganizationMember = "organization_member";
-
-export const ResourceTypes: ResourceType[] = ["api_key", "convert_login", "custom_role", "git_ssh_key", "group", "health_settings", "license", "notifications_settings", "oauth2_provider_app", "oauth2_provider_app_secret", "organization", "template", "template_version", "user", "workspace", "workspace_build", "workspace_proxy"];
+export const ResourceTypes: ResourceType[] = ["api_key", "convert_login", "custom_role", "git_ssh_key", "group", "health_settings", "idp_sync_settings_group", "idp_sync_settings_organization", "idp_sync_settings_role", "license", "notification_template", "notifications_settings", "oauth2_provider_app", "oauth2_provider_app_secret", "organization", "organization_member", "template", "template_version", "user", "workspace", "workspace_build", "workspace_proxy"];
 
 // From codersdk/client.go
 export interface Response {

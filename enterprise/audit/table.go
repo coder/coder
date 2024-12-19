@@ -5,8 +5,10 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -286,6 +288,23 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"method":         ActionTrack,
 		"kind":           ActionTrack,
 	},
+	&idpsync.OrganizationSyncSettings{}: {
+		"field":          ActionTrack,
+		"mapping":        ActionTrack,
+		"assign_default": ActionTrack,
+	},
+	&idpsync.GroupSyncSettings{}: {
+		"field":                      ActionTrack,
+		"mapping":                    ActionTrack,
+		"regex_filter":               ActionTrack,
+		"auto_create_missing_groups": ActionTrack,
+		// Configured in env vars
+		"legacy_group_name_mapping": ActionIgnore,
+	},
+	&idpsync.RoleSyncSettings{}: {
+		"field":   ActionTrack,
+		"mapping": ActionTrack,
+	},
 }
 
 // auditMap converts a map of struct pointers to a map of struct names as
@@ -335,6 +354,7 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 			// This field is explicitly ignored.
 			continue
 		}
+		jsonTag = strings.TrimSuffix(jsonTag, ",omitempty")
 		if _, ok := fcpy[jsonTag]; !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Audit table entry missing action for field %q in type %q\nPlease update the auditable resource types in: %s\n", d.FieldType.Name, name, self())
 			//nolint:revive

@@ -6,6 +6,8 @@ import (
 
 	"github.com/google/uuid"
 
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -56,6 +58,16 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+
+	aReq, commitAudit := audit.InitRequest[idpsync.GroupSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
@@ -83,7 +95,14 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, idpsync.GroupSyncSettings{
+	existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, idpsync.GroupSyncSettings{
 		Field:             req.Field,
 		Mapping:           req.Mapping,
 		RegexFilter:       req.RegexFilter,
@@ -101,6 +120,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupSyncSettings{
 		Field:             settings.Field,
 		Mapping:           settings.Mapping,
@@ -151,6 +171,16 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+
+	aReq, commitAudit := audit.InitRequest[idpsync.RoleSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
@@ -164,7 +194,14 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
+	existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
 		Field:   req.Field,
 		Mapping: req.Mapping,
 	})
@@ -179,6 +216,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RoleSyncSettings{
 		Field:   settings.Field,
 		Mapping: settings.Mapping,
@@ -226,6 +264,14 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @Router /settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.OrganizationSyncSettings](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings) {
 		httpapi.Forbidden(rw)
@@ -239,7 +285,14 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
+	existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
 		Field: req.Field,
 		// We do not check if the mappings point to actual organizations.
 		Mapping:       req.Mapping,
@@ -256,6 +309,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
 		Field:         settings.Field,
 		Mapping:       settings.Mapping,
