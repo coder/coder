@@ -13,59 +13,53 @@ operating smoothly with a high number of active users and workspaces.
 Observability is one of the most important aspects to a scalable Coder
 deployment.
 
-Identify potential bottlenecks before they negatively affect the end-user
-experience. It will also allow you to empirically verify that modifications you
-make to your deployment to increase capacity have their intended effects.
+[Monitor your Coder deployment](../../admin/monitoring/index.md) with log output and metrics to identify potential bottlenecks before they negatively affect the end-user experience and measure the effects of modifications you make to your deployment.
 
-- Capture log output from Coder Server instances and external provisioner
+**Log output**
+
+- Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server instances and external provisioner
   daemons and store them in a searchable log store.
-
-  - For example: Loki, CloudWatch Logs, etc.
 
   - Retain logs for a minimum of thirty days, ideally ninety days. This allows
     you to look back to see when anomalous behaviors began.
 
-- Metrics:
+**Metrics**
 
-  - Capture infrastructure metrics like CPU, memory, open files, and network I/O
-    for all Coder Server, external provisioner daemon, workspace proxy, and
-    PostgreSQL instances.
+- Capture infrastructure metrics like CPU, memory, open files, and network I/O for all Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
 
-  - Capture metrics from Coder Server and external provisioner daemons via
-    Prometheus.
+### Capture Coder server metrics with Prometheus
 
-    - On Coder Server
+To capture metrics from Coder Server and external provisioner daemons with [Prometheus](../../admin/integrations/prometheus.md):
 
-      - Enable Prometheus metrics:
+1. Enable Prometheus metrics:
 
-        ```yaml
-        CODER_PROMETHEUS_ENABLE=true
-        ```
+   ```yaml
+   CODER_PROMETHEUS_ENABLE=true
+   ```
 
-      - Enable database metrics:
+1. Enable database metrics:
 
-        ```yaml
-        CODER_PROMETHEUS_COLLECT_DB_METRICS=true
-        ```
+   ```yaml
+   CODER_PROMETHEUS_COLLECT_DB_METRICS=true
+   ```
 
-      - Configure agent stats to avoid large cardinality:
+1. Configure agent stats to avoid large cardinality:
 
-        ```yaml
-        CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
-        ```
+   ```yaml
+   CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
+   ```
 
-        - To disable Agent stats:
+  - To disable agent stats:
 
-          ```yaml
-          CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
-          ```
+     ```yaml
+     CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
+     ```
 
-  - Retain metric time series for at least six months. This allows you to see
-    performance trends relative to user growth.
+Retain metric time series for at least six months. This allows you to see performance trends relative to user growth.
 
-  - Integrate metrics with an observability dashboard, for example, Grafana.
+For a more comprehensive overview, integrate metrics with an observability dashboard, for example, [Grafana](../../admin/monitoring/index.md).
 
-### Key metrics
+### Observability key metrics
 
 **CPU and Memory Utilization**
 
