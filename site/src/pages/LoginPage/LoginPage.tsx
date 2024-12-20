@@ -3,7 +3,6 @@ import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router";
 import { getApplicationName } from "utils/appearance";
@@ -77,9 +76,8 @@ export const LoginPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Sign in to {applicationName}</title>
-			</Helmet>
+			<title>Sign in to {applicationName}</title>
+
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
 				error={signInError ?? redirectError}

@@ -17,7 +17,6 @@ import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -65,11 +64,9 @@ const OrganizationMembersPage: FC = () => {
 	}
 
 	const helmet = organization && (
-		<Helmet>
-			<title>
-				{pageTitle("Members", organization.display_name || organization.name)}
-			</title>
-		</Helmet>
+		<title>
+			{pageTitle("Members", organization.display_name || organization.name)}
+		</title>
 	);
 
 	return (

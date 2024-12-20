@@ -12,7 +12,6 @@ import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, Link as RouterLink, useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -68,11 +67,9 @@ export const GroupsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>
-					{pageTitle("Groups", organization.display_name || organization.name)}
-				</title>
-			</Helmet>
+			<title>
+				{pageTitle("Groups", organization.display_name || organization.name)}
+			</title>
 
 			<Stack
 				alignItems="baseline"

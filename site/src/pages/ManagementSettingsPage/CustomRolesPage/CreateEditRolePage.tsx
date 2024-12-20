@@ -10,7 +10,6 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -45,13 +44,11 @@ export const CreateEditRolePage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>
-					{pageTitle(
-						role !== undefined ? "Edit Custom Role" : "Create Custom Role",
-					)}
-				</title>
-			</Helmet>
+			<title>
+				{pageTitle(
+					role !== undefined ? "Edit Custom Role" : "Create Custom Role",
+				)}
+			</title>
 
 			<CreateEditRolePageView
 				role={role}

@@ -9,7 +9,6 @@ import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
 import { Stack } from "components/Stack/Stack";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { getStaticBuildInfo } from "utils/buildInfo";
 
 const fetchDynamicallyImportedModuleError =
@@ -48,9 +47,8 @@ export const RuntimeErrorState: FC<RuntimeErrorStateProps> = ({ error }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Something went wrong...</title>
-			</Helmet>
+			<title>Something went wrong...</title>
+
 			{checkingError ? (
 				<Loader fullscreen />
 			) : (

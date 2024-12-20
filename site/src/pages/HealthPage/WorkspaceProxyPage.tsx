@@ -5,7 +5,6 @@ import Tooltip from "@mui/material/Tooltip";
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { pageTitle } from "utils/page";
@@ -28,9 +27,7 @@ export const WorkspaceProxyPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Workspace Proxy - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Workspace Proxy - Health")}</title>
 
 			<Header>
 				<HeaderTitle>

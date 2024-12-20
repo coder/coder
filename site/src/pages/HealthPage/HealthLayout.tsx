@@ -12,7 +12,6 @@ import { type ClassName, useClassName } from "hooks/useClassName";
 import kebabCase from "lodash/fp/kebabCase";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { type FC, Suspense } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { NavLink, Outlet } from "react-router";
 import { createDayString } from "utils/createDayString";
@@ -44,9 +43,7 @@ export const HealthLayout: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Health")}</title>
 
 			{healthStatus ? (
 				<DashboardFullPage>

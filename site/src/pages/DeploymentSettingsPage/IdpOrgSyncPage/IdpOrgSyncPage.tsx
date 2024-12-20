@@ -12,7 +12,6 @@ import { SquareArrowOutUpRight } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
@@ -51,9 +50,7 @@ export const IdpOrgSyncPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Organization IdP Sync")}</title>
-			</Helmet>
+			<title>{pageTitle("Organization IdP Sync")}</title>
 
 			<div className="flex flex-col gap-12">
 				<header className="flex flex-row items-baseline justify-between">

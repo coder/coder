@@ -26,7 +26,7 @@ import {
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
-import React, { StrictMode } from "react";
+import { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";

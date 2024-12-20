@@ -46,7 +46,6 @@ import {
 import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Link as RouterLink, useNavigate, useParams } from "react-router";
 import { isEveryoneGroup } from "utils/groups";
@@ -72,13 +71,9 @@ export const GroupPage: FC = () => {
 	const canUpdateGroup = permissions ? permissions.canUpdateGroup : false;
 
 	const helmet = (
-		<Helmet>
-			<title>
-				{pageTitle(
-					(groupData?.display_name || groupData?.name) ?? "Loading...",
-				)}
-			</title>
-		</Helmet>
+		<title>
+			{pageTitle((groupData?.display_name || groupData?.name) ?? "Loading...")}
+		</title>
 	);
 
 	if (groupQuery.error) {

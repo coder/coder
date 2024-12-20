@@ -4,7 +4,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -24,11 +23,7 @@ export const GroupSettingsPage: FC = () => {
 		navigate(`/organizations/${organization}/groups/${groupName}`);
 	};
 
-	const helmet = (
-		<Helmet>
-			<title>{pageTitle("Settings Group")}</title>
-		</Helmet>
-	);
+	const helmet = <title>{pageTitle("Settings Group")}</title>;
 
 	if (groupQuery.error) {
 		return <ErrorAlert error={groupQuery.error} />;

@@ -7,7 +7,6 @@ import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationsFilterMenu } from "modules/tableFiltering/options";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useActionFilterMenu, useResourceTypeFilterMenu } from "./AuditFilter";
@@ -69,9 +68,7 @@ const AuditPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Audit")}</title>
-			</Helmet>
+			<title>{pageTitle("Audit")}</title>
 
 			<AuditPageView
 				auditLogs={auditsQuery.data?.audit_logs}

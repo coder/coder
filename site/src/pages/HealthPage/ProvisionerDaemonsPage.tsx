@@ -2,7 +2,6 @@ import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { Provisioner } from "modules/provisioners/Provisioner";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
@@ -20,9 +19,7 @@ export const ProvisionerDaemonsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Provisioner Daemons - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Provisioner Daemons - Health")}</title>
 
 			<Header>
 				<HeaderTitle>

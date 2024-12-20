@@ -30,7 +30,6 @@ import {
 } from "modules/notifications/utils";
 import { type FC, Fragment } from "react";
 import { useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -92,9 +91,8 @@ export const NotificationsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Notifications Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Notifications Settings")}</title>
+
 			<Section
 				title="Notifications"
 				description="Control which notifications you receive."

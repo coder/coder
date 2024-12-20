@@ -2,14 +2,11 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { getErrorMessage } from "api/errors";
 import { requestOneTimePassword } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { Link as RouterLink } from "react-router";
 import { getApplicationName } from "utils/appearance";
@@ -20,9 +17,7 @@ const RequestOTPPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>Reset Password - {applicationName}</title>
 
 			<main css={styles.root}>
 				<CustomLogo css={styles.logo} />

@@ -5,7 +5,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { pageTitle } from "utils/page";
 import { AppearanceSettingsPageView } from "./AppearanceSettingsPageView";
@@ -38,9 +37,7 @@ const AppearanceSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Appearance Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Appearance Settings")}</title>
 
 			<AppearanceSettingsPageView
 				appearance={appearance}

@@ -4,7 +4,6 @@ import { availableExperiments, experiments } from "api/queries/experiments";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
@@ -26,9 +25,8 @@ const GeneralSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("General Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("General Settings")}</title>
+
 			<GeneralSettingsPageView
 				deploymentOptions={deploymentConfig.options}
 				deploymentDAUs={deploymentDAUsQuery.data}

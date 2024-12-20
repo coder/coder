@@ -10,7 +10,6 @@ import { EmptyState } from "components/EmptyState/EmptyState";
 import { Loader } from "components/Loader/Loader";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { docs } from "utils/docs";
@@ -61,9 +60,7 @@ const WorkspaceParametersPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(workspace.name, "Parameters")}</title>
-			</Helmet>
+			<title>{pageTitle(workspace.name, "Parameters")}</title>
 
 			<WorkspaceParametersPageView
 				workspace={workspace}

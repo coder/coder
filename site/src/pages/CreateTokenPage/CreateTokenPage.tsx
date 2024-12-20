@@ -7,7 +7,6 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -89,9 +88,8 @@ export const CreateTokenPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Create Token")}</title>
-			</Helmet>
+			<title>{pageTitle("Create Token")}</title>
+
 			{tokenFetchFailed && <ErrorAlert error={tokenFetchError} />}
 			<FullPageHorizontalForm
 				title="Create Token"

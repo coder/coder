@@ -3,7 +3,6 @@ import type { TemplateVersion } from "api/typesGenerated";
 import { FullPageHorizontalForm } from "components/FullPageForm/FullPageHorizontalForm";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
 import { useNavigate, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -46,9 +45,7 @@ const CreateTemplatePage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Create Template")}</title>
-			</Helmet>
+			<title>{pageTitle("Create Template")}</title>
 
 			<FullPageHorizontalForm title="Create Template" onCancel={onCancel}>
 				{searchParams.has("fromTemplate") ? (

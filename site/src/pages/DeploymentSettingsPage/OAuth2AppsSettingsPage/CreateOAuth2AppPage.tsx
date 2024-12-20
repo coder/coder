@@ -1,7 +1,6 @@
 import { postApp } from "api/queries/oauth2";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -14,9 +13,7 @@ const CreateOAuth2AppPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("New OAuth2 Application")}</title>
-			</Helmet>
+			<title>{pageTitle("New OAuth2 Application")}</title>
 
 			<CreateOAuth2AppPageView
 				isUpdating={postAppMutation.isLoading}

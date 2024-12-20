@@ -1,6 +1,5 @@
 import { getApps } from "api/queries/oauth2";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import OAuth2AppsSettingsPageView from "./OAuth2AppsSettingsPageView";
@@ -10,9 +9,8 @@ const OAuth2AppsSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("OAuth2 Applications")}</title>
-			</Helmet>
+			<title>{pageTitle("OAuth2 Applications")}</title>
+
 			<OAuth2AppsSettingsPageView
 				apps={appsQuery.data}
 				isLoading={appsQuery.isLoading}

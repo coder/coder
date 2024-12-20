@@ -8,7 +8,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { getErrorMessage } from "api/errors";
-import type { GroupsByUserId } from "api/queries/groups";
 import type {
 	Group,
 	OrganizationMemberWithUserData,

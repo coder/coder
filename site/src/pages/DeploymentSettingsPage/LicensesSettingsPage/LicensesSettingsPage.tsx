@@ -4,7 +4,6 @@ import { entitlements, refreshEntitlements } from "api/queries/entitlements";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -68,9 +67,8 @@ const LicensesSettingsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("License Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("License Settings")}</title>
+
 			<LicensesSettingsPageView
 				showConfetti={confettiOn}
 				isLoading={isLoading}

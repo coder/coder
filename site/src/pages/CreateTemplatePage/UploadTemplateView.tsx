@@ -7,7 +7,6 @@ import {
 } from "api/queries/templates";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useMutation, useQuery } from "react-query";
 import { useNavigate } from "react-router";

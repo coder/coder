@@ -12,7 +12,6 @@ import { RichParameterInput } from "components/RichParameterInput/RichParameterI
 import { useClipboard } from "hooks/useClipboard";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { getInitialRichParameterValues } from "utils/richParameters";
@@ -30,9 +29,8 @@ const TemplateEmbedPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			<TemplateEmbedPageView
 				template={template}
 				templateParameters={templateParameters?.filter(
@@ -92,9 +90,8 @@ export const TemplateEmbedPageView: FC<TemplateEmbedPageViewProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name)}</title>
-			</Helmet>
+			<title>{pageTitle(template.name)}</title>
+
 			{!buttonValues || !templateParameters ? (
 				<Loader />
 			) : (

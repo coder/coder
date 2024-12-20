@@ -12,7 +12,6 @@ import type {
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { Link, useOutletContext, useParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import { pageTitle } from "utils/page";
@@ -41,9 +40,7 @@ export const DERPRegionPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(region!.RegionName, "Health")}</title>
-			</Helmet>
+			<title>{pageTitle(region!.RegionName, "Health")}</title>
 
 			<Header>
 				<hgroup>

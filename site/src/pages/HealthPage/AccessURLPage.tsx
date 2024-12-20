@@ -1,6 +1,5 @@
 import type { HealthcheckReport } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { Helmet } from "react-helmet-async";
 import { useOutletContext } from "react-router";
 import { pageTitle } from "utils/page";
 import {
@@ -21,9 +20,7 @@ export const AccessURLPage = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Access URL - Health")}</title>
-			</Helmet>
+			<title>{pageTitle("Access URL - Health")}</title>
 
 			<Header>
 				<HeaderTitle>

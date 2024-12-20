@@ -1,9 +1,7 @@
 import { authMethods, createUser } from "api/queries/users";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Margins } from "components/Margins/Margins";
-import { useDebouncedFunction } from "hooks/debounce";
-import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
+import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -21,9 +19,7 @@ export const CreateUserPage: FC = () => {
 
 	return (
 		<Margins>
-			<Helmet>
-				<title>{pageTitle("Create User")}</title>
-			</Helmet>
+			<title>{pageTitle("Create User")}</title>
 
 			<CreateUserForm
 				error={createUserMutation.error}

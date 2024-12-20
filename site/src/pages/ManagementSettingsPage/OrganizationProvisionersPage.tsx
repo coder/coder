@@ -5,7 +5,6 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { useParams } from "react-router";
 import { pageTitle } from "utils/page";
@@ -27,11 +26,10 @@ const OrganizationProvisionersPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>
-					{pageTitle("Members", organization.display_name || organization.name)}
-				</title>
-			</Helmet>
+			<title>
+				{pageTitle("Members", organization.display_name || organization.name)}
+			</title>
+
 			<OrganizationProvisionersPageView
 				showPaywall={!entitlements.features.multiple_organizations.enabled}
 				error={provisionersQuery.error}

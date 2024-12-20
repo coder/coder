@@ -28,7 +28,6 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
@@ -215,19 +214,17 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
-				<link
-					rel="alternate icon"
-					type="image/png"
-					href={`/favicons/${favicon}-${faviconTheme}.png`}
-				/>
-				<link
-					rel="icon"
-					type="image/svg+xml"
-					href={`/favicons/${favicon}-${faviconTheme}.svg`}
-				/>
-			</Helmet>
+			<title>{pageTitle(`${workspace.owner_name}/${workspace.name}`)}</title>
+			<link
+				rel="alternate icon"
+				type="image/png"
+				href={`/favicons/${favicon}-${faviconTheme}.png`}
+			/>
+			<link
+				rel="icon"
+				type="image/svg+xml"
+				href={`/favicons/${favicon}-${faviconTheme}.svg`}
+			/>
 
 			<Workspace
 				permissions={permissions}
