@@ -32,7 +32,7 @@ export const Language = {
 	templates: "Templates",
 	users: "Users",
 	audit: "Audit Logs",
-	deployment: "Settings",
+	deployment: "Deployment",
 };
 
 interface NavItemsProps {
