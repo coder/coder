@@ -20,7 +20,7 @@ import { generateWorkspaceName } from "modules/workspaces/generateWorkspaceName"
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { pageTitle } from "utils/page";
 import type { AutofillBuildParameter } from "utils/richParameters";
 import { paramsUsedToCreateWorkspace } from "utils/workspace";

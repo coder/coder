@@ -34,7 +34,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import type { FC } from "react";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import { ExportPolicyButton } from "./ExportPolicyButton";

@@ -12,7 +12,7 @@ import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
 import type { FC } from "react";
 import Confetti from "react-confetti";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { LicenseCard } from "./LicenseCard";
 
 type Props = {

@@ -40,7 +40,7 @@ import { ExternalAvatar } from "components/deprecated/Avatar/Avatar";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {

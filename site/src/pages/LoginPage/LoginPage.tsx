@@ -5,7 +5,7 @@ import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Navigate, useLocation, useNavigate } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { retrieveRedirect } from "utils/redirect";
 import { sendDeploymentEvent } from "utils/telemetry";

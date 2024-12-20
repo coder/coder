@@ -33,7 +33,7 @@ import { Avatar } from "components/deprecated/Avatar/Avatar";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {

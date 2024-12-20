@@ -19,8 +19,8 @@ import { CopyButton } from "components/CopyButton/CopyButton";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { Stack } from "components/Stack/Stack";
 import { usePopover } from "components/deprecated/Popover/Popover";
-import type { FC } from "react";
-import { Link } from "react-router-dom";
+import type { FC, JSX } from "react";
+import { Link } from "react-router";
 
 export const Language = {
 	accountLabel: "Account",

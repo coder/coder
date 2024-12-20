@@ -69,6 +69,3 @@ afterEach(() => {
 
 // Clean up after the tests are finished.
 afterAll(() => server.close());
-
-// biome-ignore lint/complexity/noUselessEmptyExport: This is needed because we are compiling under `--isolatedModules`
-export {};

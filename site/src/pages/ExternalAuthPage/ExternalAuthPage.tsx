@@ -11,7 +11,7 @@ import { Welcome } from "components/Welcome/Welcome";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { FC } from "react";
 import { useQuery, useQueryClient } from "react-query";
-import { useParams, useSearchParams } from "react-router-dom";
+import { useParams, useSearchParams } from "react-router";
 import ExternalAuthPageView from "./ExternalAuthPageView";
 
 const ExternalAuthPage: FC = () => {

@@ -4,7 +4,7 @@ import Button from "@mui/material/Button";
 import type { APIKeyWithOwner } from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import { type FC, useState } from "react";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { Section } from "../Section";
 import { ConfirmDeleteDialog } from "./ConfirmDeleteDialog";
 import { TokensPageView } from "./TokensPageView";
