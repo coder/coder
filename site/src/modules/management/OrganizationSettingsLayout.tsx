@@ -8,6 +8,7 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
@@ -81,8 +82,12 @@ const OrganizationSettingsLayout: FC = () => {
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
-								<BreadcrumbLink href="/organizations">
+								<BreadcrumbLink
+									href="/organizations"
+									className="flex items-center gap-2"
+								>
 									Organizations
+									<FeatureStageBadge contentType="beta" size="sm" />
 								</BreadcrumbLink>
 							</BreadcrumbItem>
 							{organization && (
