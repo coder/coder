@@ -10,6 +10,7 @@ import {
 	stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { AppOpenIn } from "../provisionerGenerated";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
@@ -46,7 +47,7 @@ test("app", async ({ context, page }) => {
 											url: `http://localhost:${addr.port}`,
 											displayName: appName,
 											order: 0,
-											openIn: "slim-window",
+											openIn: AppOpenIn.SLIM_WINDOW,
 										},
 									],
 									order: 0,
