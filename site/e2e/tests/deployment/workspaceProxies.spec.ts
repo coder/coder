@@ -18,15 +18,12 @@ test("default proxy is online", async ({ page }) => {
 		`table.MuiTable-root tr[data-testid="primary"]`,
 	);
 
-	const workspaceProxyName = workspaceProxyPrimary.locator(".name");
-	const workspaceProxyURL = workspaceProxyPrimary.locator(".url");
-	const workspaceProxyStatus = workspaceProxyPrimary.locator(".status");
+	const summary = workspaceProxyPrimary.locator(".summary");
+	const status = workspaceProxyPrimary.locator(".status");
 
-	await expect(workspaceProxyName).toContainText("Default");
-	await expect(workspaceProxyURL).toContainText(
-		`http://localhost:${coderPort}`,
-	);
-	await expect(workspaceProxyStatus).toContainText("Healthy");
+	await expect(summary).toContainText("Default");
+	await expect(summary).toContainText(`http://localhost:${coderPort}`);
+	await expect(status).toContainText("Healthy");
 });
 
 test("custom proxy is online", async ({ page }) => {
