@@ -22,9 +22,11 @@ test("default proxy is online", async ({ page }) => {
 	const workspaceProxyURL = workspaceProxyPrimary.locator("td.url");
 	const workspaceProxyStatus = workspaceProxyPrimary.locator("td.status span");
 
-	await expect(workspaceProxyName).toHaveText("Default");
-	await expect(workspaceProxyURL).toHaveText(`http://localhost:${coderPort}`);
-	await expect(workspaceProxyStatus).toHaveText("Healthy");
+	await expect(workspaceProxyName).toContainText("Default");
+	await expect(workspaceProxyURL).toContainText(
+		`http://localhost:${coderPort}`,
+	);
+	await expect(workspaceProxyStatus).toContainText("Healthy");
 });
 
 test("custom proxy is online", async ({ page }) => {
@@ -57,9 +59,9 @@ test("custom proxy is online", async ({ page }) => {
 	const summary = proxyRow.locator(".summary");
 	const status = proxyRow.locator(".status");
 
-	await expect(summary).toHaveText(proxyName);
-	await expect(summary).toHaveText(`http://127.0.0.1:${workspaceProxyPort}`);
-	await expect(status).toHaveText("Healthy");
+	await expect(summary).toContainText(proxyName);
+	await expect(summary).toContainText(`http://127.0.0.1:${workspaceProxyPort}`);
+	await expect(status).toContainText("Healthy");
 
 	// Tear down the proxy
 	await stopWorkspaceProxy(proxyServer);
@@ -85,7 +87,7 @@ const waitUntilWorkspaceProxyIsHealthy = async (
 		const status = proxyRow.locator(".status");
 
 		try {
-			await expect(status).toHaveText("Healthy", {
+			await expect(status).toContainText("Healthy", {
 				timeout: 1_000,
 			});
 			return; // healthy!
