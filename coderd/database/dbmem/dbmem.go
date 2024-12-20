@@ -3815,36 +3815,50 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.
 		}
 
 		var status database.ProvisionerDaemonStatus
-		if daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
+		if !daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
 			status = database.ProvisionerDaemonStatusOffline
 		} else {
+			var currentJob *database.ProvisionerJob
 			for _, job := range q.provisionerJobs {
-				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
-					if !job.CompletedAt.Valid {
-						status = database.ProvisionerDaemonStatusIdle
-					} else {
-						status = database.ProvisionerDaemonStatusBusy
-					}
+				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID && !job.CompletedAt.Valid {
+					currentJob = &job
 					break
 				}
+			}
+
+			if currentJob != nil {
+				status = database.ProvisionerDaemonStatusBusy
+			} else {
+				status = database.ProvisionerDaemonStatusIdle
 			}
 		}
 
 		var currentJob, previousJob database.ProvisionerJob
 		for _, job := range q.provisionerJobs {
-			if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID {
-				if currentJob.ID == uuid.Nil || !job.CompletedAt.Valid {
-					currentJob = job
-				}
-				if job.CompletedAt.Valid && job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
-					previousJob = job
-				}
+			if job.WorkerID.Valid && job.WorkerID.UUID != daemon.ID {
+				continue
+			}
+
+			if !job.CompletedAt.Valid {
+				currentJob = job
+			} else if job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
+				previousJob = job
+			}
+		}
+
+		// Get the provisioner key name
+		var keyName string
+		for _, key := range q.provisionerKeys {
+			if key.ID == daemon.KeyID {
+				keyName = key.Name
+				break
 			}
 		}
 
 		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
 			ProvisionerDaemon: daemon,
 			Status:            status,
+			KeyName:           keyName,
 			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
 			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
 			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
@@ -4009,7 +4023,7 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 	defer q.mutex.RUnlock()
 
 	/*
-			-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+		-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 		WITH unstarted_jobs AS (
 		    SELECT
 		        id, created_at
