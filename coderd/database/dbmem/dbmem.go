@@ -3980,58 +3980,6 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 
 	/*
 		-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
-		WITH unstarted_jobs AS (
-		    SELECT
-		        id, created_at
-		    FROM
-		        provisioner_jobs
-		    WHERE
-		        started_at IS NULL
-		),
-		queue_position AS (
-		    SELECT
-		        id,
-		        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
-		    FROM
-		        unstarted_jobs
-		),
-		queue_size AS (
-			SELECT COUNT(*) AS count FROM unstarted_jobs
-		)
-		SELECT
-			sqlc.embed(pj),
-		    COALESCE(qp.queue_position, 0) AS queue_position,
-		    COALESCE(qs.count, 0) AS queue_size,
-			array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
-		FROM
-			provisioner_jobs pj
-		LEFT JOIN
-			queue_position qp ON qp.id = pj.id
-		LEFT JOIN
-			queue_size qs ON TRUE
-		LEFT JOIN
-			provisioner_daemons pd ON (
-				-- See AcquireProvisionerJob.
-				pj.started_at IS NULL
-				AND pj.organization_id = pd.organization_id
-				AND pj.provisioner = ANY(pd.provisioners)
-				AND provisioner_tagset_contains(pd.tags, pj.tags)
-			)
-		WHERE
-			(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
-			AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 1) > 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
-		GROUP BY
-			pj.id,
-			qp.queue_position,
-			qs.count
-		ORDER BY
-			pj.created_at DESC
-		LIMIT
-			sqlc.narg('limit')::int;
-
-		AMENDED QUERY:
-
-		-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
 		WITH pending_jobs AS (
 			SELECT
 				id, created_at
