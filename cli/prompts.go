@@ -41,6 +41,15 @@ func (RootCmd) promptExample() *serpent.Command {
 			Default:     "",
 			Value:       serpent.StringArrayOf(&multiSelectValues),
 		}
+
+		enableCustomInput       bool
+		enableCustomInputOption = serpent.Option{
+			Name:        "enable-custom-input",
+			Description: "Enable custom input option in multi-select.",
+			Required:    false,
+			Flag:        "enable-custom-input",
+			Value:       serpent.BoolOf(&enableCustomInput),
+		}
 	)
 	cmd := &serpent.Command{
 		Use:   "prompt-example",
@@ -159,12 +168,12 @@ func (RootCmd) promptExample() *serpent.Command {
 							"Code", "Chairs", "Whale", "Diamond", "Carrot",
 						},
 						Defaults:          []string{"Code"},
-						EnableCustomInput: true,
+						EnableCustomInput: enableCustomInput,
 					})
 				}
 				_, _ = fmt.Fprintf(inv.Stdout, "%q are nice choices.\n", strings.Join(multiSelectValues, ", "))
 				return multiSelectError
-			}, useThingsOption),
+			}, useThingsOption, enableCustomInputOption),
 			promptCmd("rich-parameter", func(inv *serpent.Invocation) error {
 				value, err := cliui.RichSelect(inv, cliui.RichSelectOptions{
 					Options: []codersdk.TemplateVersionParameterOption{

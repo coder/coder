@@ -378,7 +378,7 @@ type multiSelectModel struct {
 	message           string
 	canceled          bool
 	selected          bool
-	isInputMode       bool   // New field to track if we're adding a custom option
+	isCustomInputMode bool   // New field to track if we're adding a custom option
 	customInput       string // New field to store custom input
 	enableCustomInput bool   // New field to control whether custom input is allowed
 }
@@ -391,7 +391,7 @@ func (multiSelectModel) Init() tea.Cmd {
 func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	var cmd tea.Cmd
 
-	if m.isInputMode {
+	if m.isCustomInputMode {
 		return m.handleCustomInputMode(msg)
 	}
 
@@ -409,7 +409,7 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		case tea.KeyEnter:
 			// Switch to custom input mode if we're on the "+ Add custom value:" option
 			if m.enableCustomInput && m.cursor == len(m.filteredOptions()) {
-				m.isInputMode = true
+				m.isCustomInputMode = true
 				return m, nil
 			}
 			if len(m.options) != 0 {
@@ -427,8 +427,7 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, nil
 
 		case tea.KeyUp:
-			options := m.filteredOptions()
-			maxIndex := len(options)
+			maxIndex := m.getMaxIndex()
 			if m.cursor > 0 {
 				m.cursor--
 			} else {
@@ -436,8 +435,7 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			}
 
 		case tea.KeyDown:
-			options := m.filteredOptions()
-			maxIndex := len(options)
+			maxIndex := m.getMaxIndex()
 			if m.cursor < maxIndex {
 				m.cursor++
 			} else {
@@ -473,6 +471,16 @@ func (m multiSelectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	return m, cmd
 }
 
+func (m multiSelectModel) getMaxIndex() int {
+	options := m.filteredOptions()
+	if m.enableCustomInput {
+		// Include the "+ Add custom value" entry
+		return len(options)
+	}
+	// Includes only the actual options
+	return len(options) - 1
+}
+
 // handleCustomInputMode manages keyboard interactions when in custom input mode
 func (m *multiSelectModel) handleCustomInputMode(msg tea.Msg) (tea.Model, tea.Cmd) {
 	keyMsg, ok := msg.(tea.KeyMsg)
@@ -499,15 +507,44 @@ func (m *multiSelectModel) handleCustomInputMode(msg tea.Msg) (tea.Model, tea.Cm
 
 // handleCustomInputSubmission processes the submission of custom input
 func (m *multiSelectModel) handleCustomInputSubmission() (tea.Model, tea.Cmd) {
-	if m.customInput != "" {
-		m.options = append(m.options, &multiSelectOption{
-			option: m.customInput,
-			chosen: true,
-		})
+	if m.customInput == "" {
+		m.isCustomInputMode = false
+		return m, nil
 	}
-	// Reset input state regardless of whether input was empty
+
+	// Clear search to ensure option is visible and cursor points to the new option
+	m.search.SetValue("")
+
+	// Check for duplicates
+	for i, opt := range m.options {
+		if strings.EqualFold(opt.option, m.customInput) {
+			// If the option exists but isn't chosen, select it
+			if !opt.chosen {
+				opt.chosen = true
+			}
+
+			// Point cursor to the new option
+			m.cursor = i
+
+			// Reset custom input mode to disabled
+			m.isCustomInputMode = false
+			m.customInput = ""
+			return m, nil
+		}
+	}
+
+	// Add new unique option
+	m.options = append(m.options, &multiSelectOption{
+		option: m.customInput,
+		chosen: true,
+	})
+
+	// Point cursor to the newly added option
+	m.cursor = len(m.options) - 1
+
+	// Reset custom input mode to disabled
 	m.customInput = ""
-	m.isInputMode = false
+	m.isCustomInputMode = false
 	return m, nil
 }
 
@@ -531,7 +568,7 @@ func (m multiSelectModel) View() string {
 		return s.String()
 	}
 
-	if m.isInputMode {
+	if m.isCustomInputMode {
 		_, _ = s.WriteString(fmt.Sprintf("%s\nEnter custom value: %s\n", msg, m.customInput))
 		return s.String()
 	}
