@@ -31,8 +31,6 @@
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
-		--accent: 240, 5%, 96%;
-		--accent-foreground: 240, 10%, 4%;
 	}
 	.dark {
 		--content-primary: 0, 0%, 98%;
