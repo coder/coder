@@ -1,4 +1,5 @@
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -8,7 +9,6 @@ import {
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -90,11 +90,11 @@ const OrganizationSettingsLayout: FC = () => {
 									<BreadcrumbSeparator />
 									<BreadcrumbItem>
 										<BreadcrumbPage className="text-content-primary">
-											<UserAvatar
+											<Avatar
 												key={organization.id}
-												size="xs"
-												username={organization.display_name}
-												avatarURL={organization.icon}
+												size="sm"
+												fallback={organization.display_name}
+												src={organization.icon}
 											/>
 											{organization?.name}
 										</BreadcrumbPage>

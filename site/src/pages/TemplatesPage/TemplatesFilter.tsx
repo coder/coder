@@ -1,12 +1,12 @@
 import { API } from "api/api";
 import type { Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Filter, MenuSkeleton, type useFilter } from "components/Filter/Filter";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 } from "components/Filter/SelectFilter";
 import { useFilterMenu } from "components/Filter/menu";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 interface TemplatesFilterProps {
@@ -66,11 +66,6 @@ const orgOption = (org: Organization): SelectFilterOption => ({
 	label: org.display_name || org.name,
 	value: org.name,
 	startIcon: (
-		<UserAvatar
-			key={org.id}
-			size="xs"
-			username={org.display_name}
-			avatarURL={org.icon}
-		/>
+		<Avatar key={org.id} size="sm" fallback={org.display_name} src={org.icon} />
 	),
 });
