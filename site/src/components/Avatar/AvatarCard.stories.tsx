@@ -13,7 +13,6 @@ export const WithImage: Story = {
 	args: {
 		header: "Coder",
 		imgUrl: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
-		altText: "Coder",
 		subtitle: "56 members",
 	},
 };

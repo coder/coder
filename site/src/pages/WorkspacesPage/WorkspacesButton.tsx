@@ -3,11 +3,11 @@ import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
 import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
 import { SearchEmpty, searchStyles } from "components/Search/Search";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import {
 	Popover,
 	PopoverContent,
@@ -20,8 +20,6 @@ import {
 	Link as RouterLink,
 	type LinkProps as RouterLinkProps,
 } from "react-router-dom";
-
-const ICON_SIZE = 18;
 
 type TemplatesQuery = UseQueryResult<Template[]>;
 
@@ -141,18 +139,10 @@ const WorkspaceResultsRow: FC<WorkspaceResultsRowProps> = ({ template }) => {
 			}}
 		>
 			<Avatar
+				variant="icon"
 				src={template.icon}
-				fitImage
-				alt={template.display_name || "Coder template"}
-				css={{
-					width: `${ICON_SIZE}px`,
-					height: `${ICON_SIZE}px`,
-					fontSize: `${ICON_SIZE * 0.5}px`,
-					fontWeight: 700,
-				}}
-			>
-				{template.display_name || "-"}
-			</Avatar>
+				fallback={template.display_name || template.name}
+			/>
 
 			<div
 				css={(theme) => ({
