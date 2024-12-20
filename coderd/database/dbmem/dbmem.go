@@ -3876,10 +3876,17 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
+	if ids == nil {
+		ids = []uuid.UUID{}
+	}
+	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, ids)
+}
+
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	//	WITH pending_jobs AS (
 	//		SELECT
 	//			id, created_at
@@ -3948,7 +3955,7 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	//		pj.id IN (...)
 	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
 	for _, job := range q.provisionerJobs {
-		if !slices.Contains(ids, job.ID) {
+		if ids != nil && !slices.Contains(ids, job.ID) {
 			continue
 		}
 		// clone the Tags before appending, since maps are reference types and
@@ -3969,7 +3976,7 @@ func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(_ context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return nil, err
@@ -4035,9 +4042,15 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		LIMIT
 			sqlc.narg('limit')::int;
 	*/
+	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
 	var rows []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
-	var queuedJobs []database.ProvisionerJob
-	for _, job := range q.provisionerJobs {
+	for _, rowQP := range rowsWithQueuePosition {
+		job := rowQP.ProvisionerJob
+
 		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
 			continue
 		}
@@ -4045,34 +4058,19 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			continue
 		}
 
-		if job.JobStatus == database.ProvisionerJobStatusPending {
-			queuedJobs = append(queuedJobs, job)
-		}
 		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
-			ProvisionerJob: job,
+			ProvisionerJob: rowQP.ProvisionerJob,
+			QueuePosition:  rowQP.QueuePosition,
+			QueueSize:      rowQP.QueueSize,
 		}
-		rows = append(rows, row)
-	}
-	slices.SortFunc(queuedJobs, func(a, b database.ProvisionerJob) int {
-		return a.CreatedAt.Compare(b.CreatedAt)
-	})
-	for i := range rows {
-		queuePosition := slices.IndexFunc(queuedJobs, func(job database.ProvisionerJob) bool {
-			return job.ID == rows[i].ProvisionerJob.ID
-		})
-		if queuePosition >= 0 {
-			rows[i].QueuePosition = int64(queuePosition + 1)
-			rows[i].QueueSize = int64(len(queuedJobs))
-
-			for _, daemon := range q.provisionerDaemons {
-				job := rows[i].ProvisionerJob
-				if daemon.OrganizationID == job.OrganizationID &&
-					slices.Contains(daemon.Provisioners, job.Provisioner) &&
-					tagsSubset(job.Tags, daemon.Tags) {
-					rows[i].AvailableWorkers = append(rows[i].AvailableWorkers, daemon.ID)
-				}
+		for _, daemon := range q.provisionerDaemons {
+			if daemon.OrganizationID == job.OrganizationID &&
+				slices.Contains(daemon.Provisioners, job.Provisioner) &&
+				tagsSubset(job.Tags, daemon.Tags) {
+				row.AvailableWorkers = append(row.AvailableWorkers, daemon.ID)
 			}
 		}
+		rows = append(rows, row)
 	}
 
 	return rows, nil

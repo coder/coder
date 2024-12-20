@@ -599,7 +599,6 @@ func ProvisionerJob(t testing.TB, db database.Store, ps pubsub.Pubsub, orig data
 		require.NoError(t, err)
 		// There is no easy way to make sure we acquire the correct job.
 		require.Equal(t, jobID, job.ID, "acquired incorrect job")
-		fmt.Printf("%#v\n", job)
 	}
 
 	if !orig.CompletedAt.Time.IsZero() || orig.Error.String != "" {

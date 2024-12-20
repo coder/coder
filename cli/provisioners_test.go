@@ -22,19 +22,25 @@ func TestProvisioners(t *testing.T) {
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
-		IncludeProvisionerDaemon: true,
+		IncludeProvisionerDaemon: false,
 		Database:                 db,
 		Pubsub:                   ps,
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
 	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
+	// Create initial resources with a running provisioner.
+	firstProvisioner := coderdtest.NewProvisionerDaemon(t, coderdAPI)
+	defer firstProvisioner.Close()
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+	// Stop the provisioner so it doesn't grab jobs.
+	firstProvisioner.Close()
 
 	// Create a provisioner that's working on a job.
 	pd1 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
@@ -52,6 +58,7 @@ func TestProvisioners(t *testing.T) {
 		WorkerID:  uuid.NullUUID{UUID: pd1.ID, Valid: true},
 		Input:     json.RawMessage(`{"workspace_build_id":"` + wb1ID.String() + `"}`),
 		StartedAt: sql.NullTime{Time: coderdAPI.Clock.Now(), Valid: true},
+		Tags:      database.StringMap{"owner": "", "scope": "organization"},
 	})
 	dbgen.WorkspaceBuild(t, coderdAPI.Database, database.WorkspaceBuild{
 		ID:                wb1ID,
@@ -78,11 +85,30 @@ func TestProvisioners(t *testing.T) {
 		Input:       json.RawMessage(`{"workspace_build_id":"` + wb2ID.String() + `"}`),
 		StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-2 * time.Hour), Valid: true},
 		CompletedAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
+		Tags:        database.StringMap{"owner": "", "scope": "organization"},
 	})
 	dbgen.WorkspaceBuild(t, coderdAPI.Database, database.WorkspaceBuild{
 		ID:                wb2ID,
 		JobID:             job2.ID,
 		WorkspaceID:       w2.ID,
+		TemplateVersionID: version.ID,
+	})
+
+	// Create a pending job.
+	w3 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
+		OwnerID:    memberUser.ID,
+		TemplateID: template.ID,
+	})
+	wb3ID := uuid.MustParse("00000000-0000-0000-bbbb-000000000003")
+	job3 := dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
+		ID:    uuid.MustParse("00000000-0000-0000-cccc-000000000003"),
+		Input: json.RawMessage(`{"workspace_build_id":"` + wb3ID.String() + `"}`),
+		Tags:  database.StringMap{"owner": "", "scope": "organization"},
+	})
+	dbgen.WorkspaceBuild(t, coderdAPI.Database, database.WorkspaceBuild{
+		ID:                wb3ID,
+		JobID:             job3.ID,
+		WorkspaceID:       w3.ID,
 		TemplateVersionID: version.ID,
 	})
 
