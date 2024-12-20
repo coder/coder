@@ -13373,7 +13373,7 @@ type InsertWorkspaceAppParams struct {
 	Health               WorkspaceAppHealth `db:"health" json:"health"`
 	DisplayOrder         int32              `db:"display_order" json:"display_order"`
 	Hidden               bool               `db:"hidden" json:"hidden"`
-	OpenIn               string             `db:"open_in" json:"open_in"`
+	OpenIn               WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceApp(ctx context.Context, arg InsertWorkspaceAppParams) (WorkspaceApp, error) {

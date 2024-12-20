@@ -22,6 +22,13 @@ export enum AppSharingLevel {
 	UNRECOGNIZED = -1,
 }
 
+export enum AppOpenIn {
+	WINDOW = 0,
+	SLIM_WINDOW = 1,
+	TAB = 2,
+	UNRECOGNIZED = -1,
+}
+
 /** WorkspaceTransition is the desired outcome of a build */
 export enum WorkspaceTransition {
 	START = 0,
@@ -196,7 +203,7 @@ export interface App {
 	external: boolean;
 	order: number;
 	hidden: boolean;
-	openIn: string;
+	openIn: AppOpenIn;
 }
 
 /** Healthcheck represents configuration for checking for app readiness. */
@@ -756,8 +763,8 @@ export const App = {
 		if (message.hidden === true) {
 			writer.uint32(88).bool(message.hidden);
 		}
-		if (message.openIn !== "") {
-			writer.uint32(98).string(message.openIn);
+		if (message.openIn !== 0) {
+			writer.uint32(96).int32(message.openIn);
 		}
 		return writer;
 	},
