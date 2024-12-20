@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionersdk"
@@ -55,7 +56,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
-		Status:         convertSlice([]database.ProvisionerJobStatus(nil), status),
+		Status:         slice.ToStringEnums[database.ProvisionerJobStatus](status),
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 	})
 	if err != nil {
@@ -75,13 +76,6 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		job.AvailableWorkers = dbJob.AvailableWorkers
 		return job
 	}))
-}
-
-func convertSlice[D, S ~string](dstType []D, src []S) []D {
-	for _, item := range src {
-		dstType = append(dstType, D(item))
-	}
-	return dstType
 }
 
 // Returns provisioner logs based on query parameters.

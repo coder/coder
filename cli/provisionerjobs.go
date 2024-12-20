@@ -6,6 +6,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -59,7 +60,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			}
 
 			jobs, err := client.OrganizationProvisionerJobs(ctx, org.ID, &codersdk.OrganizationProvisionerJobsOptions{
-				Status: convertSlice([]codersdk.ProvisionerJobStatus{}, status),
+				Status: slice.ToStringEnums[codersdk.ProvisionerJobStatus](status),
 				Limit:  int(limit),
 			})
 			if err != nil {
@@ -100,7 +101,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			FlagShorthand: "s",
 			Env:           "CODER_PROVISIONER_JOB_LIST_STATUS",
 			Description:   "Filter by job status.",
-			Value:         serpent.EnumArrayOf(&status, convertSlice([]string{}, codersdk.ProvisionerJobStatusEnums())...),
+			Value:         serpent.EnumArrayOf(&status, slice.ToStrings(codersdk.ProvisionerJobStatusEnums())...),
 		},
 		{
 			Flag:          "limit",
@@ -116,11 +117,4 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
-}
-
-func convertSlice[D, S ~string](dstType []D, src []S) []D {
-	for _, item := range src {
-		dstType = append(dstType, D(item))
-	}
-	return dstType
 }
