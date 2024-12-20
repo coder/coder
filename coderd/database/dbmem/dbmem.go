@@ -3758,50 +3758,6 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	/*
-		-- name: GetProvisionerDaemonsWithStatusByOrganization :many
-		SELECT
-			sqlc.embed(pd),
-			CASE
-				WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
-				THEN 'offline'
-				ELSE CASE
-					WHEN current_job.id IS NOT NULL THEN 'busy'
-					ELSE 'idle'
-				END
-			END::provisioner_daemon_status AS status,
-			-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
-			current_job.id AS current_job_id,
-			current_job.job_status AS current_job_status,
-			previous_job.id AS previous_job_id,
-			previous_job.job_status AS previous_job_status
-		FROM
-			provisioner_daemons pd
-		LEFT JOIN
-			provisioner_jobs current_job ON (
-				current_job.worker_id = pd.id
-				AND current_job.completed_at IS NULL
-			)
-		LEFT JOIN
-			provisioner_jobs previous_job ON (
-				previous_job.id = (
-					SELECT
-						id
-					FROM
-						provisioner_jobs
-					WHERE
-						worker_id = pd.id
-						AND completed_at IS NOT NULL
-					ORDER BY
-						completed_at DESC
-					LIMIT 1
-				)
-			)
-		WHERE
-			pd.organization_id = @organization_id::uuid
-			AND (COALESCE(array_length(@ids::uuid[], 1), 1) > 0 OR pd.id = ANY(@ids::uuid[]))
-			AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset));
-	*/
 	var rows []database.GetProvisionerDaemonsWithStatusByOrganizationRow
 	for _, daemon := range q.provisionerDaemons {
 		if daemon.OrganizationID != arg.OrganizationID {
@@ -4046,6 +4002,64 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			sqlc.embed(pj),
 		    COALESCE(qp.queue_position, 0) AS queue_position,
 		    COALESCE(qs.count, 0) AS queue_size,
+			array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
+		FROM
+			provisioner_jobs pj
+		LEFT JOIN
+			queue_position qp ON qp.id = pj.id
+		LEFT JOIN
+			queue_size qs ON TRUE
+		LEFT JOIN
+			provisioner_daemons pd ON (
+				-- See AcquireProvisionerJob.
+				pj.started_at IS NULL
+				AND pj.organization_id = pd.organization_id
+				AND pj.provisioner = ANY(pd.provisioners)
+				AND provisioner_tagset_contains(pd.tags, pj.tags)
+			)
+		WHERE
+			(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
+			AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 1) > 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+		GROUP BY
+			pj.id,
+			qp.queue_position,
+			qs.count
+		ORDER BY
+			pj.created_at DESC
+		LIMIT
+			sqlc.narg('limit')::int;
+
+		AMENDED QUERY:
+
+		-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+		WITH pending_jobs AS (
+			SELECT
+				id, created_at
+			FROM
+				provisioner_jobs
+			WHERE
+				started_at IS NULL
+			AND
+				canceled_at IS NULL
+			AND
+				completed_at IS NULL
+			AND
+				error IS NULL
+		),
+		queue_position AS (
+			SELECT
+				id,
+				ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+			FROM
+				pending_jobs
+		),
+		queue_size AS (
+			SELECT COUNT(*) AS count FROM pending_jobs
+		)
+		SELECT
+			sqlc.embed(pj),
+			COALESCE(qp.queue_position, 0) AS queue_position,
+			COALESCE(qs.count, 0) AS queue_size,
 			array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
 		FROM
 			provisioner_jobs pj
