@@ -195,7 +195,7 @@ func (m selectModel) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.cursor > 0 {
 				m.cursor--
 			} else {
-				m.cursor = len(options)
+				m.cursor = len(options) - 1
 			}
 
 		case tea.KeyDown:
@@ -378,9 +378,9 @@ type multiSelectModel struct {
 	message           string
 	canceled          bool
 	selected          bool
-	isCustomInputMode bool   // New field to track if we're adding a custom option
-	customInput       string // New field to store custom input
-	enableCustomInput bool   // New field to control whether custom input is allowed
+	isCustomInputMode bool   // track if we're adding a custom option
+	customInput       string // store custom input
+	enableCustomInput bool   // control whether custom input is allowed
 }
 
 func (multiSelectModel) Init() tea.Cmd {
