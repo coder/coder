@@ -26,12 +26,30 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 	// All users can see healthy/unhealthy, some can see more.
 	let statusBadge = <ProxyStatus proxy={proxy} />;
 	let shouldShowMessages = false;
+	const extraWarnings: string[] = [];
+	if (latency?.nextHopProtocol) {
+		switch (latency.nextHopProtocol) {
+			case "http/0.9":
+			case "http/1.0":
+			case "http/1.1":
+				extraWarnings.push(
+					// biome-ignore lint/style/useTemplate: easier to read short lines
+					`Requests to the proxy from current browser are using "${latency.nextHopProtocol}". ` +
+						"The proxy server might not support HTTP/2. " +
+						"For usability reasons, HTTP/2 or above is recommended. " +
+						"Pages may fail to load if the web browser's concurrent " +
+						"connection limit per host is reached.",
+				);
+		}
+	}
+
 	if ("status" in proxy) {
 		const wsproxy = proxy as WorkspaceProxy;
 		statusBadge = <DetailedProxyStatus proxy={wsproxy} />;
 		shouldShowMessages = Boolean(
 			(wsproxy.status?.report?.warnings &&
 				wsproxy.status?.report?.warnings.length > 0) ||
+				extraWarnings.length > 0 ||
 				(wsproxy.status?.report?.errors &&
 					wsproxy.status?.report?.errors.length > 0),
 		);
@@ -76,7 +94,10 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 						colSpan={4}
 						css={{ padding: "0 !important", borderBottom: 0 }}
 					>
-						<ProxyMessagesRow proxy={proxy as WorkspaceProxy} />
+						<ProxyMessagesRow
+							proxy={proxy as WorkspaceProxy}
+							extraWarnings={extraWarnings}
+						/>
 					</TableCell>
 				</TableRow>
 			)}
@@ -86,9 +107,13 @@ export const ProxyRow: FC<ProxyRowProps> = ({ proxy, latency }) => {
 
 interface ProxyMessagesRowProps {
 	proxy: WorkspaceProxy;
+	extraWarnings: string[];
 }
 
-const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
+const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({
+	proxy,
+	extraWarnings,
+}) => {
 	const theme = useTheme();
 
 	return (
@@ -101,7 +126,7 @@ const ProxyMessagesRow: FC<ProxyMessagesRowProps> = ({ proxy }) => {
 				title={
 					<span css={{ color: theme.palette.warning.light }}>Warnings</span>
 				}
-				messages={proxy.status?.report?.warnings}
+				messages={[...(proxy.status?.report?.warnings ?? []), ...extraWarnings]}
 			/>
 		</>
 	);
