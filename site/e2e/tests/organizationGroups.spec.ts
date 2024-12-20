@@ -23,7 +23,7 @@ test("create group", async ({ page }) => {
 	await page.goto(`/organizations/${org.name}`);
 
 	// Navigate to groups page
-	await page.getByText("Groups").click();
+	await page.getByRole("link", { name: "Groups" }).click();
 	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
 
 	// Create a new group
