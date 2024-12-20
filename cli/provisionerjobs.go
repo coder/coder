@@ -28,7 +28,7 @@ func (r *RootCmd) provisionerJobs() *serpent.Command {
 func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	type provisionerJobRow struct {
 		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline"`
-		OrganizaitonName        string `json:"organization_name" table:"organization"`
+		OrganizationName        string `json:"organization_name" table:"organization"`
 		Queue                   string `json:"-" table:"queue"`
 	}
 
@@ -75,7 +75,7 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 			for _, job := range jobs {
 				row := provisionerJobRow{
 					ProvisionerJob:   job,
-					OrganizaitonName: org.HumanName(),
+					OrganizationName: org.HumanName(),
 				}
 				if job.Status == codersdk.ProvisionerJobPending {
 					row.Queue = fmt.Sprintf("%d/%d", job.QueuePosition, job.QueueSize)
