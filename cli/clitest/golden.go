@@ -128,7 +128,7 @@ func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements m
 // equality check.
 func normalizeGoldenFile(t *testing.T, byt []byte) []byte {
 	// Replace any timestamps with a placeholder.
-	byt = timestampRegex.ReplaceAll(byt, []byte("[timestamp]"))
+	byt = timestampRegex.ReplaceAll(byt, []byte(pad("[timestamp]", 20)))
 
 	homeDir, err := os.UserHomeDir()
 	require.NoError(t, err)
@@ -202,21 +202,31 @@ func prepareTestData(t *testing.T) (*codersdk.Client, map[string]string) {
 	workspaceBuild := coderdtest.AwaitWorkspaceBuildJobCompleted(t, rootClient, workspace.LatestBuild.ID)
 
 	replacements := map[string]string{
-		firstUser.UserID.String():            "[first user ID]",
-		secondUser.ID.String():               "[second user ID]",
-		firstUser.OrganizationID.String():    "[first org ID]",
-		version.ID.String():                  "[version ID]",
-		version.Name:                         "[version name]",
-		version.Job.ID.String():              "[version job ID]",
-		version.Job.FileID.String():          "[version file ID]",
-		version.Job.WorkerID.String():        "[version worker ID]",
-		template.ID.String():                 "[template ID]",
-		workspace.ID.String():                "[workspace ID]",
-		workspaceBuild.ID.String():           "[workspace build ID]",
-		workspaceBuild.Job.ID.String():       "[workspace build job ID]",
-		workspaceBuild.Job.FileID.String():   "[workspace build file ID]",
-		workspaceBuild.Job.WorkerID.String(): "[workspace build worker ID]",
+		firstUser.UserID.String():            pad("[first user ID]", 36),
+		secondUser.ID.String():               pad("[second user ID]", 36),
+		firstUser.OrganizationID.String():    pad("[first org ID]", 36),
+		version.ID.String():                  pad("[version ID]", 36),
+		version.Name:                         pad("[version name]", 36),
+		version.Job.ID.String():              pad("[version job ID]", 36),
+		version.Job.FileID.String():          pad("[version file ID]", 36),
+		version.Job.WorkerID.String():        pad("[version worker ID]", 36),
+		template.ID.String():                 pad("[template ID]", 36),
+		workspace.ID.String():                pad("[workspace ID]", 36),
+		workspaceBuild.ID.String():           pad("[workspace build ID]", 36),
+		workspaceBuild.Job.ID.String():       pad("[workspace build job ID]", 36),
+		workspaceBuild.Job.FileID.String():   pad("[workspace build file ID]", 36),
+		workspaceBuild.Job.WorkerID.String(): pad("[workspace build worker ID]", 36),
 	}
 
 	return rootClient, replacements
+}
+
+func pad(s string, n int) string {
+	if len(s) >= n {
+		return s
+	}
+	n -= len(s)
+	pre := n / 2
+	post := n - pre
+	return strings.Repeat("=", pre) + s + strings.Repeat("=", post)
 }

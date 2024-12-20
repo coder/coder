@@ -8,10 +8,10 @@ import Tooltip from "@mui/material/Tooltip";
 import type { ApiErrorResponse } from "api/errors";
 import type { ExternalAuth, ExternalAuthDevice } from "api/typesGenerated";
 import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Avatar } from "components/Avatar/Avatar";
 import { CopyButton } from "components/CopyButton/CopyButton";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 export interface ExternalAuthPageViewProps {
@@ -76,7 +76,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 			</p>
 
 			{externalAuth.installations.length > 0 && (
-				<div css={styles.authorizedInstalls}>
+				<div
+					css={styles.authorizedInstalls}
+					className="flex gap-2 items-center"
+				>
 					{externalAuth.installations.map((install) => {
 						if (!install.account) {
 							return;
@@ -88,9 +91,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									<Avatar size="sm" src={install.account.avatar_url}>
-										{install.account.login}
-									</Avatar>
+									<Avatar
+										src={install.account.avatar_url}
+										fallback={install.account.login}
+									/>
 								</Link>
 							</Tooltip>
 						);

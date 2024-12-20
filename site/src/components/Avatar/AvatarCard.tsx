@@ -1,13 +1,10 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import { Avatar } from "components/deprecated/Avatar/Avatar";
+import { Avatar } from "components/Avatar/Avatar";
 import type { FC, ReactNode } from "react";
 
 type AvatarCardProps = {
 	header: string;
 	imgUrl: string;
-	altText: string;
-	background?: boolean;
-
 	subtitle?: ReactNode;
 	maxWidth?: number | "none";
 };
@@ -15,8 +12,6 @@ type AvatarCardProps = {
 export const AvatarCard: FC<AvatarCardProps> = ({
 	header,
 	imgUrl,
-	altText,
-	background,
 	subtitle,
 	maxWidth = "none",
 }) => {
@@ -72,9 +67,7 @@ export const AvatarCard: FC<AvatarCardProps> = ({
 				)}
 			</div>
 
-			<Avatar background={background} src={imgUrl} alt={altText} size="md">
-				{header}
-			</Avatar>
+			<Avatar size="lg" src={imgUrl} fallback={header} />
 		</div>
 	);
 };

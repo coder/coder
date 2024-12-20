@@ -5,11 +5,11 @@ import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
@@ -90,9 +90,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<UserAvatar
-								username={auditLog.user?.username ?? "?"}
-								avatarURL={auditLog.user?.avatar_url}
+							<Avatar
+								fallback={auditLog.user?.username ?? "?"}
+								src={auditLog.user?.avatar_url}
 							/>
 
 							<Stack
