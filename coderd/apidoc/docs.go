@@ -2955,7 +2955,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                                "$ref": "#/definitions/codersdk.ProvisionerDaemonWithStatus"
                             }
                         }
                     }
