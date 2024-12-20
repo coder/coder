@@ -517,7 +517,7 @@ func (m *multiSelectModel) handleCustomInputSubmission() (tea.Model, tea.Cmd) {
 
 	// Check for duplicates
 	for i, opt := range m.options {
-		if strings.EqualFold(opt.option, m.customInput) {
+		if opt.option == m.customInput {
 			// If the option exists but isn't chosen, select it
 			if !opt.chosen {
 				opt.chosen = true
