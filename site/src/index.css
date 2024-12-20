@@ -68,11 +68,6 @@
 
 @layer base {
 	* {
-		/*
-		* TODO: Since we’re not using TailwindCSS preflight (check site/tailwind.config.js),
-		* we need to apply this reset manually. Eventually, we should enable preflight
-		* and remove the border-0 and border-solid styles.
-		*/
-		@apply border-border border-0 border-solid;
+		@apply border-border;
 	}
 }
