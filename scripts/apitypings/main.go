@@ -4,14 +4,11 @@ import (
 	"fmt"
 	"log"
 
+	"golang.org/x/xerrors"
+
 	"github.com/coder/guts"
 	"github.com/coder/guts/bindings"
 	"github.com/coder/guts/config"
-
-	// Must import the packages we are trying to convert
-	// And include the ones we are referencing
-	_ "github.com/coder/coder/v2/codersdk"
-	_ "github.com/coder/serpent"
 )
 
 func main() {
@@ -36,6 +33,10 @@ func main() {
 	// We want the referenced types generated.
 	referencePackages := map[string]string{
 		"github.com/coder/serpent": "Serpent",
+		"tailscale.com/derp":       "",
+		// Conflicting name "DERPRegion"
+		"tailscale.com/tailcfg":      "Tail",
+		"tailscale.com/net/netcheck": "Netcheck",
 	}
 	for pkg, prefix := range referencePackages {
 		err = gen.IncludeReference(pkg, prefix)
@@ -60,7 +61,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("serialize: %v", err)
 	}
-	fmt.Println(output)
+	_, _ = fmt.Println(output)
 }
 
 func TsMutations(ts *guts.Typescript) {
@@ -86,6 +87,8 @@ func TypeMappings(gen *guts.GoParser) error {
 
 	gen.IncludeCustomDeclaration(map[string]guts.TypeOverride{
 		"github.com/coder/coder/v2/codersdk.NullTime": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordString)),
+		// opt.Bool can return 'null' if unset
+		"tailscale.com/types/opt.Bool": config.OverrideNullable(config.OverrideLiteral(bindings.KeywordBoolean)),
 	})
 
 	err := gen.IncludeCustom(map[string]string{
@@ -103,7 +106,7 @@ func TypeMappings(gen *guts.GoParser) error {
 		"encoding/json.RawMessage":                "map[string]string",
 	})
 	if err != nil {
-		return fmt.Errorf("include custom: %w", err)
+		return xerrors.Errorf("include custom: %w", err)
 	}
 
 	return nil

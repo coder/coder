@@ -1194,9 +1194,9 @@
 							"path": "reference/cli/schedule.md"
 						},
 						{
-							"title": "schedule override-stop",
-							"description": "Override the stop time of a currently running workspace instance.",
-							"path": "reference/cli/schedule_override-stop.md"
+							"title": "schedule extend",
+							"description": "Extend the stop time of a currently running workspace instance.",
+							"path": "reference/cli/schedule_extend.md"
 						},
 						{
 							"title": "schedule show",

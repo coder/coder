@@ -1,14 +1,16 @@
 import { organizationsPermissions } from "api/queries/organizations";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import {
 	canEditOrganization,
-	useManagementSettings,
-} from "modules/management/ManagementSettingsLayout";
+	useOrganizationSettings,
+} from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useLocation, useParams } from "react-router-dom";
-import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
+import { useParams } from "react-router-dom";
+import {
+	OrganizationSidebarView,
+	type OrganizationWithPermissions,
+} from "./OrganizationSidebarView";
 
 /**
  * A combined deployment settings and organization menu.
@@ -17,10 +19,9 @@ import { type OrganizationWithPermissions, SidebarView } from "./SidebarView";
  * disabled or not licensed, this is the wrong sidebar to use.  See
  * DeploySettingsPage/Sidebar instead.
  */
-export const Sidebar: FC = () => {
-	const location = useLocation();
+export const OrganizationSidebar: FC = () => {
 	const { permissions } = useAuthenticated();
-	const { organizations } = useManagementSettings();
+	const { organizations } = useOrganizationSettings();
 	const { organization: organizationName } = useParams() as {
 		organization?: string;
 	};
@@ -47,11 +48,7 @@ export const Sidebar: FC = () => {
 		});
 
 	return (
-		<SidebarView
-			// Both activeSettings and activeOrganizationName could be be falsey if
-			// the user is on /organizations but has no editable organizations to
-			// which we can redirect.
-			activeSettings={location.pathname.startsWith("/deployment")}
+		<OrganizationSidebarView
 			activeOrganizationName={organizationName}
 			organizations={editableOrgs}
 			permissions={permissions}

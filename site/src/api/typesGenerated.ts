@@ -485,9 +485,7 @@ export interface DERPConfig {
 export interface DERPHealthReport extends BaseReport {
     readonly healthy: boolean;
     readonly regions: Record<number, DERPRegionReport | null>;
-    // Invalid type, using 'any'. Might be a reference to any external package
-    // biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
-    readonly netcheck?: any;
+    readonly netcheck?: NetcheckReport;
     readonly netcheck_err?: string;
     readonly netcheck_logs: readonly string[];
 }
@@ -498,12 +496,8 @@ export interface DERPNodeReport {
     readonly severity: HealthSeverity;
     readonly warnings: readonly HealthMessage[];
     readonly error?: string;
-    // Invalid type, using 'any'. Might be a reference to any external package
-    // biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
-    readonly node: any | null;
-    // Invalid type, using 'any'. Might be a reference to any external package
-    // biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
-    readonly node_info: any;
+    readonly node: TailDERPNode | null;
+    readonly node_info: ServerInfoMessage;
     readonly can_exchange_messages: boolean;
     readonly round_trip_ping: string;
     readonly round_trip_ping_ms: number;
@@ -525,9 +519,7 @@ export interface DERPRegionReport {
     readonly severity: HealthSeverity;
     readonly warnings: readonly HealthMessage[];
     readonly error?: string;
-    // Invalid type, using 'any'. Might be a reference to any external package
-    // biome-ignore lint lint/complexity/noUselessTypeConstraint: ignore linter
-    readonly region: any | null;
+    readonly region: TailDERPRegion | null;
     readonly node_reports: readonly (DERPNodeReport | null)[];
 }
 
@@ -1005,6 +997,29 @@ export interface MinimalUser {
     readonly id: string;
     readonly username: string;
     readonly avatar_url: string;
+}
+
+// From netcheck/netcheck.go
+export interface NetcheckReport {
+    readonly UDP: boolean;
+    readonly IPv6: boolean;
+    readonly IPv4: boolean;
+    readonly IPv6CanSend: boolean;
+    readonly IPv4CanSend: boolean;
+    readonly OSHasIPv6: boolean;
+    readonly ICMPv4: boolean;
+    readonly MappingVariesByDestIP: boolean | null;
+    readonly HairPinning: boolean | null;
+    readonly UPnP: boolean | null;
+    readonly PMP: boolean | null;
+    readonly PCP: boolean | null;
+    readonly PreferredDERP: number;
+    readonly RegionLatency: Record<number, number>;
+    readonly RegionV4Latency: Record<number, number>;
+    readonly RegionV6Latency: Record<number, number>;
+    readonly GlobalV4: string;
+    readonly GlobalV6: string;
+    readonly CaptivePortal: boolean | null;
 }
 
 // From codersdk/notifications.go
@@ -1655,6 +1670,12 @@ export type SerpentStruct<T> = T;
 // From serpent/option.go
 export type SerpentValueSource = string;
 
+// From derp/derp_client.go
+export interface ServerInfoMessage {
+    readonly TokenBucketBytesPerSecond: number;
+    readonly TokenBucketBytesBurst: number;
+}
+
 // From codersdk/serversentevents.go
 export interface ServerSentEvent {
     readonly type: ServerSentEventType;
@@ -1736,6 +1757,33 @@ export interface TLSConfig {
     readonly client_key_file: string;
     readonly supported_ciphers: string;
     readonly allow_insecure_ciphers: boolean;
+}
+
+// From tailcfg/derpmap.go
+export interface TailDERPNode {
+    readonly Name: string;
+    readonly RegionID: number;
+    readonly HostName: string;
+    readonly CertName?: string;
+    readonly IPv4?: string;
+    readonly IPv6?: string;
+    readonly STUNPort?: number;
+    readonly STUNOnly?: boolean;
+    readonly DERPPort?: number;
+    readonly InsecureForTests?: boolean;
+    readonly ForceHTTP?: boolean;
+    readonly STUNTestIP?: string;
+    readonly CanPort80?: boolean;
+}
+
+// From tailcfg/derpmap.go
+export interface TailDERPRegion {
+    readonly EmbeddedRelay: boolean;
+    readonly RegionID: number;
+    readonly RegionCode: string;
+    readonly RegionName: string;
+    readonly Avoid?: boolean;
+    readonly Nodes: readonly (TailDERPNode | null)[];
 }
 
 // From codersdk/deployment.go

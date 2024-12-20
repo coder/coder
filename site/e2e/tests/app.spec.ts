@@ -4,13 +4,17 @@ import { test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
+	login,
 	startAgent,
 	stopAgent,
 	stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("app", async ({ context, page }) => {
 	test.setTimeout(75_000);

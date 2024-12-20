@@ -10,7 +10,7 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
@@ -24,7 +24,7 @@ export const GroupsPage: FC = () => {
 		organization: string;
 	};
 	const groupsQuery = useQuery(groupsByOrganization(organizationName));
-	const { organizations } = useManagementSettings();
+	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
