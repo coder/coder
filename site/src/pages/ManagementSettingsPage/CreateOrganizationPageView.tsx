@@ -5,16 +5,14 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "components/Badges/Badges";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
+	Form,
 	FormFields,
 	FormFooter,
 	FormSection,
-	VerticalForm,
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
@@ -67,8 +65,8 @@ export const CreateOrganizationPageView: FC<
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
-		<div className="flex flex-row gap-72 font-medium">
-			<div>
+		<div className="flex flex-row font-medium">
+			<div className="absolute top-40 left-12">
 				<Link
 					to="/organizations"
 					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
@@ -77,13 +75,8 @@ export const CreateOrganizationPageView: FC<
 					Go Back
 				</Link>
 			</div>
-			<Stack>
-				<div>
-					<SettingsHeader
-						title="New Organization"
-						description="Organize your deployment into multiple platform teams with unique provisioners, templates, groups, and members."
-					/>
-
+			<div className="flex flex-col gap-4 max-w-2xl mx-auto">
+				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
 						<div css={{ marginBottom: 32 }}>
 							<ErrorAlert error={error} />
@@ -109,6 +102,14 @@ export const CreateOrganizationPageView: FC<
 							</PopoverContent>
 						</Popover>
 					</Badges>
+
+					<header className="flex flex-col gap-2 items-center">
+						<h1 className="text-3xl font-bold m-0">New Organization</h1>
+						<p className="max-w-md text-sm text-content-secondary text-center">
+							Organize your deployment into multiple platform teams with unique
+							provisioners, templates, groups, and members.
+						</p>
+					</header>
 				</div>
 
 				<ChooseOne>
@@ -120,14 +121,12 @@ export const CreateOrganizationPageView: FC<
 						/>
 					</Cond>
 					<Cond>
-						<VerticalForm
+						<Form
+							direction="vertical"
 							onSubmit={form.handleSubmit}
 							aria-label="Organization settings form"
 						>
-							<FormSection
-								title="General info"
-								description="The name and description of the organization."
-							>
+							<FormSection title="" description="">
 								<fieldset
 									disabled={form.isSubmitting}
 									css={{
@@ -167,10 +166,10 @@ export const CreateOrganizationPageView: FC<
 								</fieldset>
 							</FormSection>
 							<FormFooter isLoading={form.isSubmitting} />
-						</VerticalForm>
+						</Form>
 					</Cond>
 				</ChooseOne>
-			</Stack>
+			</div>
 		</div>
 	);
 };
