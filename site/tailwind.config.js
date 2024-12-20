@@ -52,16 +52,6 @@ module.exports = {
 					4: "hsl(var(--chart-4))",
 					5: "hsl(var(--chart-5))",
 				},
-				muted: {
-					DEFAULT: "hsl(var(--muted))",
-				},
-				popover: {
-					DEFAULT: "hsl(var(--popover))",
-				},
-				accent: {
-					DEFAULT: "hsl(var(--accent))",
-					foreground: "hsl(var(--accent-foreground))",
-				},
 			},
 		},
 	},
