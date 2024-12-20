@@ -313,7 +313,12 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<Avatar size="sm" src={orgIconUrl ?? ""} fallback={orgName} />
+					<Avatar
+						size="sm"
+						variant="icon"
+						src={orgIconUrl}
+						fallback={orgName}
+					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>
