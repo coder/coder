@@ -18,9 +18,9 @@ test("default proxy is online", async ({ page }) => {
 		`table.MuiTable-root tr[data-testid="primary"]`,
 	);
 
-	const workspaceProxyName = workspaceProxyPrimary.locator("td.name span");
-	const workspaceProxyURL = workspaceProxyPrimary.locator("td.url");
-	const workspaceProxyStatus = workspaceProxyPrimary.locator("td.status span");
+	const workspaceProxyName = workspaceProxyPrimary.locator(".name");
+	const workspaceProxyURL = workspaceProxyPrimary.locator(".url");
+	const workspaceProxyStatus = workspaceProxyPrimary.locator(".status");
 
 	await expect(workspaceProxyName).toContainText("Default");
 	await expect(workspaceProxyURL).toContainText(
