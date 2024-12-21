@@ -28,7 +28,7 @@ For example, running 30 provisioner containers will allow 30 users to start
 workspaces at the same time.
 
 Provisioners are started with the
-[`coder provisioner start`](../reference/cli/provisioner_start.md) command in
+[`coder provisioner start`](../reference/cli/provisioners_start.md) command in
 the [full Coder binary](https://github.com/coder/coder/releases). Keep reading
 to learn how to start provisioners via Docker, Kubernetes, Systemd, etc.
 
@@ -235,7 +235,7 @@ This is illustrated in the below table:
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#-t---tag) when
+[`-tag=scope=<scope>`](../reference/cli/provisioners_start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
 [Template Admin](./users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
@@ -245,7 +245,7 @@ There are two exceptions:
 - [Built-in provisioners](../reference/cli/server.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#--psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisioners_start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
