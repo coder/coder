@@ -12937,7 +12937,12 @@ const docTemplate = `{
                 "organization",
                 "oauth2_provider_app",
                 "oauth2_provider_app_secret",
-                "custom_role"
+                "custom_role",
+                "organization_member",
+                "notification_template",
+                "idp_sync_settings_organization",
+                "idp_sync_settings_group",
+                "idp_sync_settings_role"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -12956,7 +12961,12 @@ const docTemplate = `{
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
                 "ResourceTypeOAuth2ProviderAppSecret",
-                "ResourceTypeCustomRole"
+                "ResourceTypeCustomRole",
+                "ResourceTypeOrganizationMember",
+                "ResourceTypeNotificationTemplate",
+                "ResourceTypeIdpSyncSettingsOrganization",
+                "ResourceTypeIdpSyncSettingsGroup",
+                "ResourceTypeIdpSyncSettingsRole"
             ]
         },
         "codersdk.Response": {
