@@ -9796,6 +9796,33 @@ func (q *sqlQuerier) InsertTemplateVersionWorkspaceTag(ctx context.Context, arg 
 	return i, err
 }
 
+const disableForeignKeysAndTriggers = `-- name: DisableForeignKeysAndTriggers :exec
+DO $$
+DECLARE
+    table_record record;
+BEGIN
+    FOR table_record IN 
+        SELECT table_schema, table_name 
+        FROM information_schema.tables 
+        WHERE table_schema NOT IN ('pg_catalog', 'information_schema')
+        AND table_type = 'BASE TABLE'
+    LOOP
+        EXECUTE format('ALTER TABLE %I.%I DISABLE TRIGGER ALL', 
+                    table_record.table_schema, 
+                    table_record.table_name);
+    END LOOP;
+END;
+$$
+`
+
+// Disable foreign keys and triggers for all tables.
+// Deprecated: disable foreign keys was created to aid in migrating off
+// of the test-only in-memory database. Do not use this in new code.
+func (q *sqlQuerier) DisableForeignKeysAndTriggers(ctx context.Context) error {
+	_, err := q.db.ExecContext(ctx, disableForeignKeysAndTriggers)
+	return err
+}
+
 const getUserLinkByLinkedID = `-- name: GetUserLinkByLinkedID :one
 SELECT
 	user_links.user_id, user_links.login_type, user_links.linked_id, user_links.oauth_access_token, user_links.oauth_refresh_token, user_links.oauth_expiry, user_links.oauth_access_token_key_id, user_links.oauth_refresh_token_key_id, user_links.claims
