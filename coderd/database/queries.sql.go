@@ -3094,6 +3094,104 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
+const getUserStatusCountsByDay = `-- name: GetUserStatusCountsByDay :many
+WITH dates AS (
+    -- Generate a series of dates between start and end
+    SELECT
+        day::date
+    FROM
+        generate_series(
+            date_trunc('day', $1::timestamptz),
+            date_trunc('day', $2::timestamptz),
+            '1 day'::interval
+        ) AS day
+),
+all_users AS (
+    -- Get all users who have had any status changes in or before the range
+    SELECT DISTINCT user_id
+    FROM user_status_changes
+    WHERE changed_at <= $2::timestamptz
+),
+initial_statuses AS (
+    -- Get the status of each user right before each day
+    SELECT DISTINCT ON (user_id, day)
+        user_id,
+        day,
+        new_status as status
+    FROM
+        all_users
+    CROSS JOIN
+        dates
+    LEFT JOIN LATERAL (
+        SELECT new_status, changed_at
+        FROM user_status_changes
+        WHERE user_status_changes.user_id = all_users.user_id
+        AND changed_at < day + interval '1 day'
+        ORDER BY changed_at DESC
+        LIMIT 1
+    ) changes ON true
+    WHERE changes.new_status IS NOT NULL
+),
+daily_status AS (
+    SELECT
+        d.day,
+        i.status,
+        i.user_id
+    FROM
+        dates d
+    LEFT JOIN
+        initial_statuses i ON i.day = d.day
+)
+SELECT
+    day,
+    status,
+    COUNT(*) AS count
+FROM
+    daily_status
+WHERE
+    status IS NOT NULL
+GROUP BY
+    day,
+    status
+ORDER BY
+    day ASC,
+    status ASC
+`
+
+type GetUserStatusCountsByDayParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetUserStatusCountsByDayRow struct {
+	Day    time.Time      `db:"day" json:"day"`
+	Status NullUserStatus `db:"status" json:"status"`
+	Count  int64          `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetUserStatusCountsByDay(ctx context.Context, arg GetUserStatusCountsByDayParams) ([]GetUserStatusCountsByDayRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStatusCountsByDay, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserStatusCountsByDayRow
+	for rows.Next() {
+		var i GetUserStatusCountsByDayRow
+		if err := rows.Scan(&i.Day, &i.Status, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
 WITH
 	latest_start AS (
