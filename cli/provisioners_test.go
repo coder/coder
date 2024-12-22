@@ -31,7 +31,7 @@ func TestProvisioners(t *testing.T) {
 
 	// Create initial resources with a running provisioner.
 	firstProvisioner := coderdtest.NewProvisionerDaemon(t, coderdAPI)
-	defer firstProvisioner.Close()
+	t.Cleanup(func() { _ = firstProvisioner.Close() })
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
