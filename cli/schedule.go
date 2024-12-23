@@ -46,7 +46,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
   * 2m   (2 minutes)
   * 2    (2 minutes)
 `
-	scheduleOverrideDescriptionLong = `
+	scheduleExtendDescriptionLong = `
   * The new stop time is calculated from *now*.
   * The new stop time must be at least 30 minutes in the future.
   * The workspace template may restrict the maximum workspace runtime.
@@ -56,7 +56,7 @@ When enabling scheduled stop, enter a duration in one of the following formats:
 func (r *RootCmd) schedules() *serpent.Command {
 	scheduleCmd := &serpent.Command{
 		Annotations: workspaceCommand,
-		Use:         "schedule { show | start | stop | override } <workspace>",
+		Use:         "schedule { show | start | stop | extend } <workspace>",
 		Short:       "Schedule automated start and stop times for workspaces",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
@@ -65,7 +65,7 @@ func (r *RootCmd) schedules() *serpent.Command {
 			r.scheduleShow(),
 			r.scheduleStart(),
 			r.scheduleStop(),
-			r.scheduleOverride(),
+			r.scheduleExtend(),
 		},
 	}
 
@@ -229,14 +229,15 @@ func (r *RootCmd) scheduleStop() *serpent.Command {
 	}
 }
 
-func (r *RootCmd) scheduleOverride() *serpent.Command {
+func (r *RootCmd) scheduleExtend() *serpent.Command {
 	client := new(codersdk.Client)
-	overrideCmd := &serpent.Command{
-		Use:   "override-stop <workspace-name> <duration from now>",
-		Short: "Override the stop time of a currently running workspace instance.",
-		Long: scheduleOverrideDescriptionLong + "\n" + FormatExamples(
+	extendCmd := &serpent.Command{
+		Use:     "extend <workspace-name> <duration from now>",
+		Aliases: []string{"override-stop"},
+		Short:   "Extend the stop time of a currently running workspace instance.",
+		Long: scheduleExtendDescriptionLong + "\n" + FormatExamples(
 			Example{
-				Command: "coder schedule override-stop my-workspace 90m",
+				Command: "coder schedule extend my-workspace 90m",
 			},
 		),
 		Middleware: serpent.Chain(
@@ -244,7 +245,7 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 			r.InitClient(client),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			overrideDuration, err := parseDuration(inv.Args[1])
+			extendDuration, err := parseDuration(inv.Args[1])
 			if err != nil {
 				return err
 			}
@@ -259,7 +260,7 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 				loc = time.UTC // best effort
 			}
 
-			if overrideDuration < 29*time.Minute {
+			if extendDuration < 29*time.Minute {
 				_, _ = fmt.Fprintf(
 					inv.Stdout,
 					"Please specify a duration of at least 30 minutes.\n",
@@ -267,7 +268,7 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 				return nil
 			}
 
-			newDeadline := time.Now().In(loc).Add(overrideDuration)
+			newDeadline := time.Now().In(loc).Add(extendDuration)
 			if err := client.PutExtendWorkspace(inv.Context(), workspace.ID, codersdk.PutExtendWorkspaceRequest{
 				Deadline: newDeadline,
 			}); err != nil {
@@ -281,7 +282,7 @@ func (r *RootCmd) scheduleOverride() *serpent.Command {
 			return displaySchedule(updated, inv.Stdout)
 		},
 	}
-	return overrideCmd
+	return extendCmd
 }
 
 func displaySchedule(ws codersdk.Workspace, out io.Writer) error {

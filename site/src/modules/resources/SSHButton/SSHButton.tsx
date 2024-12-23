@@ -7,12 +7,12 @@ import {
 	HelpTooltipLinksGroup,
 	HelpTooltipText,
 } from "components/HelpTooltip/HelpTooltip";
+import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import type { FC } from "react";
 import { docs } from "utils/docs";

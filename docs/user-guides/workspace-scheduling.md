@@ -49,7 +49,14 @@ Workspaces will automatically shut down after a period of inactivity. This can
 be configured at the template level, but is visible in the autostop description
 for your workspace.
 
-## Autostop requirement (enterprise) (premium)
+## Autostop requirement
+
+<blockquote class="info">
+
+Autostop requirement is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Licensed template admins may enforce a required stop for workspaces to apply
 updates or undergo maintenance. These stops ignore any active connections or
@@ -61,7 +68,14 @@ and specified quiet hours (see below).
 > Admins: See the template schedule settings for more information on configuring
 > Autostop Requirement.
 
-### User quiet hours (enterprise) (premium)
+### User quiet hours
+
+<blockquote class="info">
+
+User quiet hours are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
@@ -99,7 +113,14 @@ Let's say that both are set to 5 hours. When either your workspace autostarts or
 you sign in, you will have confidence that the only condition for shutdown is 5
 hours of inactivity.
 
-## Dormancy (enterprise) (premium)
+## Dormancy
+
+<blockquote class="info">
+
+Dormancy is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Dormancy automatically deletes workspaces which remain unused for long
 durations. Template admins configure an inactivity period after which your

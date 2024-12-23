@@ -1,6 +1,5 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import * as fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
@@ -19,10 +18,12 @@ import {
 	coderMain,
 	coderPort,
 	defaultOrganizationName,
+	defaultPassword,
 	license,
 	premiumTestsRequired,
 	prometheusPort,
 	requireTerraformTests,
+	users,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {
@@ -60,28 +61,75 @@ export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
 }
 
+type LoginOptions = {
+	username: string;
+	email: string;
+	password: string;
+};
+
+export async function login(page: Page, options: LoginOptions = users.admin) {
+	const ctx = page.context();
+	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
+	(ctx as any)[Symbol.for("currentUser")] = undefined;
+	await ctx.clearCookies();
+	await page.goto("/login");
+	await page.getByLabel("Email").fill(options.email);
+	await page.getByLabel("Password").fill(options.password);
+	await page.getByRole("button", { name: "Sign In" }).click();
+	await expectUrl(page).toHavePathName("/workspaces");
+	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
+	(ctx as any)[Symbol.for("currentUser")] = options;
+}
+
+export function currentUser(page: Page): LoginOptions {
+	const ctx = page.context();
+	// biome-ignore lint/suspicious/noExplicitAny: get the current user
+	const user = (ctx as any)[Symbol.for("currentUser")];
+
+	if (!user) {
+		throw new Error("page context does not have a user. did you call `login`?");
+	}
+
+	return user;
+}
+
+type CreateWorkspaceOptions = {
+	richParameters?: RichParameter[];
+	buildParameters?: WorkspaceBuildParameter[];
+	useExternalAuth?: boolean;
+};
+
 /**
  * createWorkspace creates a workspace for a template. It does not wait for it
  * to be running, but it does navigate to the page.
  */
 export const createWorkspace = async (
 	page: Page,
-	templateName: string,
-	richParameters: RichParameter[] = [],
-	buildParameters: WorkspaceBuildParameter[] = [],
-	useExternalAuthProvider: string | undefined = undefined,
+	template: string | { organization: string; name: string },
+	options: CreateWorkspaceOptions = {},
 ): Promise<string> => {
-	await page.goto(`/templates/${templateName}/workspace`, {
+	const {
+		richParameters = [],
+		buildParameters = [],
+		useExternalAuth,
+	} = options;
+
+	const templatePath =
+		typeof template === "string"
+			? template
+			: `${template.organization}/${template.name}`;
+
+	await page.goto(`/templates/${templatePath}/workspace`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/templates/${templateName}/workspace`);
+	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	if (useExternalAuthProvider !== undefined) {
+	if (useExternalAuth) {
 		// Create a new context for the popup which will be created when clicking the button
 		const popupPromise = page.waitForEvent("popup");
 
@@ -101,7 +149,9 @@ export const createWorkspace = async (
 
 	await page.getByTestId("form-submit").click();
 
-	await expectUrl(page).toHavePathName(`/@admin/${name}`);
+	const user = currentUser(page);
+
+	await expectUrl(page).toHavePathName(`/@${user.username}/${name}`);
 
 	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -214,6 +264,12 @@ export const createTemplate = async (
 	const orgPicker = page.getByLabel("Belongs to *");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
+		if (orgName !== defaultOrganizationName) {
+			throw new Error(
+				`No provisioners registered for ${orgName}, creating this template will fail`,
+			);
+		}
+
 		await orgPicker.click();
 		await page.getByText(orgName, { exact: true }).click();
 	}
@@ -659,8 +715,9 @@ const createTemplateVersionTar = async (
 	);
 };
 
-export const randomName = () => {
-	return randomUUID().slice(0, 8);
+export const randomName = (annotation?: string) => {
+	const base = randomUUID().slice(0, 8);
+	return annotation ? `${annotation}-${base}` : base;
 };
 
 /**
@@ -1002,6 +1059,7 @@ type UserValues = {
 	username: string;
 	email: string;
 	password: string;
+	roles: string[];
 };
 
 export async function createUser(
@@ -1019,7 +1077,8 @@ export async function createUser(
 	const username = userValues.username ?? randomName();
 	const name = userValues.name ?? username;
 	const email = userValues.email ?? `${username}@coder.com`;
-	const password = userValues.password || "s3cure&password!";
+	const password = userValues.password || defaultPassword;
+	const roles = userValues.roles ?? [];
 
 	await page.getByLabel("Username").fill(username);
 	if (name) {
@@ -1036,10 +1095,18 @@ export async function createUser(
 	await expect(page.getByText("Successfully created user.")).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
-	await expect(page.locator("tr", { hasText: email })).toBeVisible();
+	const addedRow = page.locator("tr", { hasText: email });
+	await expect(addedRow).toBeVisible();
+
+	// Give them a role
+	await addedRow.getByLabel("Edit user roles").click();
+	for (const role of roles) {
+		await page.getByText(role, { exact: true }).click();
+	}
+	await page.mouse.click(10, 10); // close the popover by clicking outside of it
 
 	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
-	return { name, username, email, password };
+	return { name, username, email, password, roles };
 }
 
 export async function createOrganization(page: Page): Promise<{

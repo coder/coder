@@ -24,7 +24,7 @@ locals {
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
-  repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
+  repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
@@ -110,6 +110,7 @@ data "coder_workspace_tags" "tags" {
 }
 
 module "slackme" {
+  count            = data.coder_workspace.me.start_count
   source           = "dev.registry.coder.com/modules/slackme/coder"
   version          = ">= 1.0.0"
   agent_id         = coder_agent.dev.id
@@ -117,12 +118,14 @@ module "slackme" {
 }
 
 module "dotfiles" {
+  count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/dotfiles/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
+  count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/git-clone/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
@@ -131,12 +134,14 @@ module "git-clone" {
 }
 
 module "personalize" {
+  count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/personalize/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
+  count                   = data.coder_workspace.me.start_count
   source                  = "dev.registry.coder.com/modules/code-server/coder"
   version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
@@ -145,6 +150,7 @@ module "code-server" {
 }
 
 module "jetbrains_gateway" {
+  count          = data.coder_workspace.me.start_count
   source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
   version        = ">= 1.0.0"
   agent_id       = coder_agent.dev.id
@@ -156,6 +162,7 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
+  count      = data.coder_workspace.me.start_count
   source     = "dev.registry.coder.com/modules/filebrowser/coder"
   version    = ">= 1.0.0"
   agent_id   = coder_agent.dev.id
@@ -163,12 +170,14 @@ module "filebrowser" {
 }
 
 module "coder-login" {
+  count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/coder-login/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
+  count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/cursor/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id

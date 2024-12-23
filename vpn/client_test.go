@@ -12,7 +12,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"nhooyr.io/websocket"
 	"tailscale.com/net/dns"
 	"tailscale.com/tailcfg"
 
@@ -24,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/coder/v2/vpn"
+	"github.com/coder/websocket"
 )
 
 func TestClient_WorkspaceUpdates(t *testing.T) {
