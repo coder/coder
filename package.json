@@ -5,7 +5,7 @@
 	"packageManager": "pnpm@9.14.4",
 	"scripts": {
 		"format-docs": "markdown-table-formatter $(find docs -name '*.md') *.md",
-		"lint-docs": "markdownlint-cli2 --fix $(find docs -name '*.md'),*.md",
+		"lint-docs": "markdownlint-cli2 --fix $(find docs -name '*.md') *.md",
 		"storybook": "pnpm run -C site/ storybook"
 	},
 	"devDependencies": {
