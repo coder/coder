@@ -2,13 +2,14 @@ import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
-import { linkToAuditing, linkToUsers } from "modules/navigation";
+import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { NavLink } from "react-router-dom";
 
@@ -52,7 +53,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 						/>
 					}
 				>
-					Administration
+					Admin settings
 				</Button>
 			</PopoverTrigger>
 
@@ -81,7 +82,6 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
 	canViewOrganizations,
-	canViewAllUsers,
 	canViewAuditLog,
 	canViewHealth,
 }) => {
@@ -98,7 +98,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					css={styles.menuItem}
 					onClick={onPopoverClose}
 				>
-					Settings
+					Deployment
 				</MenuItem>
 			)}
 			{canViewOrganizations && (
@@ -109,16 +109,7 @@ const DeploymentDropdownContent: FC<DeploymentDropdownProps> = ({
 					onClick={onPopoverClose}
 				>
 					Organizations
-				</MenuItem>
-			)}
-			{canViewAllUsers && (
-				<MenuItem
-					component={NavLink}
-					to={linkToUsers}
-					css={styles.menuItem}
-					onClick={onPopoverClose}
-				>
-					Users
+					<FeatureStageBadge contentType="beta" size="sm" showTooltip={false} />
 				</MenuItem>
 			)}
 			{canViewAuditLog && (

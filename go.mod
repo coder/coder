@@ -77,7 +77,7 @@ require (
 	github.com/acarl005/stripansi v0.0.0-20180116102854-5a71ef0e047d
 	github.com/adrg/xdg v0.5.0
 	github.com/ammario/tlru v0.4.0
-	github.com/andybalholm/brotli v1.1.0
+	github.com/andybalholm/brotli v1.1.1
 	github.com/armon/circbuf v0.0.0-20190214190532-5111143e8da2
 	github.com/awalterschulze/gographviz v2.0.3+incompatible
 	github.com/aws/smithy-go v1.22.1
@@ -127,7 +127,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/validator/v10 v10.23.0
 	github.com/gofrs/flock v0.12.0
-	github.com/gohugoio/hugo v0.139.4
+	github.com/gohugoio/hugo v0.140.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
@@ -140,7 +140,7 @@ require (
 	github.com/hashicorp/go-version v1.7.0
 	github.com/hashicorp/hc-install v0.9.0
 	github.com/hashicorp/terraform-config-inspect v0.0.0-20211115214459-90acf1ca460f
-	github.com/hashicorp/terraform-json v0.23.0
+	github.com/hashicorp/terraform-json v0.24.0
 	github.com/hashicorp/yamux v0.1.2
 	github.com/hinshun/vt10x v0.0.0-20220301184237-5011da428d02
 	github.com/imulab/go-scim/pkg/v2 v2.2.0
@@ -149,12 +149,12 @@ require (
 	github.com/justinas/nosurf v1.1.1
 	github.com/kballard/go-shellquote v0.0.0-20180428030007-95032a82bc51
 	github.com/kirsle/configdir v0.0.0-20170128060238-e45d2f54772f
-	github.com/klauspost/compress v1.17.9
+	github.com/klauspost/compress v1.17.11
 	github.com/lib/pq v1.10.9
 	github.com/mattn/go-isatty v0.0.20
 	github.com/mitchellh/go-wordwrap v1.0.1
 	github.com/mitchellh/mapstructure v1.5.1-0.20231216201459-8508981c8b6c
-	github.com/moby/moby v27.3.1+incompatible
+	github.com/moby/moby v27.4.1+incompatible
 	github.com/mocktools/go-smtp-mock/v2 v2.4.0
 	github.com/muesli/termenv v0.15.3-0.20240618155329-98d742f6907a
 	github.com/natefinch/atomic v1.0.1
@@ -180,7 +180,7 @@ require (
 	github.com/tidwall/gjson v1.18.0
 	github.com/u-root/u-root v0.14.0
 	github.com/unrolled/secure v1.17.0
-	github.com/valyala/fasthttp v1.56.0
+	github.com/valyala/fasthttp v1.58.0
 	github.com/wagslane/go-password-validator v0.3.0
 	go.mozilla.org/pkcs7 v0.9.0
 	go.nhat.io/otelsql v0.14.0
@@ -204,7 +204,7 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.28.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.213.0
+	google.golang.org/api v0.214.0
 	google.golang.org/grpc v1.69.2
 	google.golang.org/protobuf v1.36.0
 	gopkg.in/DataDog/dd-trace-go.v1 v1.69.0
