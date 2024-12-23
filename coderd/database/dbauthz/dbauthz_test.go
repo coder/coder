@@ -1708,8 +1708,8 @@ func (s *MethodTestSuite) TestUser() {
 			rbac.ResourceTemplate.InOrg(orgID), policy.ActionRead,
 		)
 	}))
-	s.Run("GetUserStatusCountsByDay", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(database.GetUserStatusCountsByDayParams{
+	s.Run("GetUserStatusChanges", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.GetUserStatusChangesParams{
 			StartTime: time.Now().Add(-time.Hour * 24 * 30),
 			EndTime:   time.Now(),
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
