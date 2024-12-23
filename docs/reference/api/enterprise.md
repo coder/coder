@@ -2335,26 +2335,30 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 
 ```json
 {
-	"active": true,
-	"emails": [
-		{
-			"display": "string",
-			"primary": true,
-			"type": "string",
-			"value": "user@example.com"
-		}
-	],
-	"groups": [null],
-	"id": "string",
-	"meta": {
-		"resourceType": "string"
-	},
-	"name": {
-		"familyName": "string",
-		"givenName": "string"
-	},
-	"schemas": ["string"],
-	"userName": "string"
+  "active": true,
+  "emails": [
+    {
+      "display": "string",
+      "primary": true,
+      "type": "string",
+      "value": "user@example.com"
+    }
+  ],
+  "groups": [
+    null
+  ],
+  "id": "string",
+  "meta": {
+    "resourceType": "string"
+  },
+  "name": {
+    "familyName": "string",
+    "givenName": "string"
+  },
+  "schemas": [
+    "string"
+  ],
+  "userName": "string"
 }
 ```
 
@@ -2371,25 +2375,27 @@ curl -X PUT http://coder-server:8080/api/v2/scim/v2/Users/{id} \
 
 ```json
 {
-	"avatar_url": "http://example.com",
-	"created_at": "2019-08-24T14:15:22Z",
-	"email": "user@example.com",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"last_seen_at": "2019-08-24T14:15:22Z",
-	"login_type": "",
-	"name": "string",
-	"organization_ids": ["497f6eca-6276-4993-bfeb-53cbbbba6f08"],
-	"roles": [
-		{
-			"display_name": "string",
-			"name": "string",
-			"organization_id": "string"
-		}
-	],
-	"status": "active",
-	"theme_preference": "string",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"username": "string"
+  "avatar_url": "http://example.com",
+  "created_at": "2019-08-24T14:15:22Z",
+  "email": "user@example.com",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "last_seen_at": "2019-08-24T14:15:22Z",
+  "login_type": "",
+  "name": "string",
+  "organization_ids": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "roles": [
+    {
+      "display_name": "string",
+      "name": "string",
+      "organization_id": "string"
+    }
+  ],
+  "status": "active",
+  "theme_preference": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "username": "string"
 }
 ```
 
