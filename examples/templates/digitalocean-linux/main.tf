@@ -39,8 +39,8 @@ variable "do_admin_ssh_key" {
 
       $ doctl compute ssh-key list
   EOF
-  sensitive = true
-  default = 0
+  sensitive   = true
+  default     = 0
 
   validation {
     condition     = var.do_admin_ssh_key >= 0
