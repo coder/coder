@@ -13,23 +13,30 @@ operating smoothly with a high number of active users and workspaces.
 Observability is one of the most important aspects to a scalable Coder
 deployment.
 
-[Monitor your Coder deployment](../../admin/monitoring/index.md) with log output and metrics to identify potential bottlenecks before they negatively affect the end-user experience and measure the effects of modifications you make to your deployment.
+[Monitor your Coder deployment](../../admin/monitoring/index.md) with log output
+and metrics to identify potential bottlenecks before they negatively affect the
+end-user experience and measure the effects of modifications you make to your
+deployment.
 
 **Log output**
 
-- Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server instances and external provisioner
-  daemons and store them in a searchable log store.
+- Capture log output from Loki, CloudWatch logs, and other tools on your Coder
+  Server instances and external provisioner daemons and store them in a
+  searchable log store.
 
   - Retain logs for a minimum of thirty days, ideally ninety days. This allows
     you to look back to see when anomalous behaviors began.
 
 **Metrics**
 
-- Capture infrastructure metrics like CPU, memory, open files, and network I/O for all Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
+- Capture infrastructure metrics like CPU, memory, open files, and network I/O
+  for all Coder Server, external provisioner daemon, workspace proxy, and
+  PostgreSQL instances.
 
 ### Capture Coder server metrics with Prometheus
 
-To capture metrics from Coder Server and external provisioner daemons with [Prometheus](../../admin/integrations/prometheus.md):
+To capture metrics from Coder Server and external provisioner daemons with
+[Prometheus](../../admin/integrations/prometheus.md):
 
 1. Enable Prometheus metrics:
 
@@ -49,30 +56,36 @@ To capture metrics from Coder Server and external provisioner daemons with [Prom
    CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
    ```
 
-  - To disable agent stats:
+- To disable agent stats:
 
-     ```yaml
-     CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
-     ```
+  ```yaml
+  CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
+  ```
 
-Retain metric time series for at least six months. This allows you to see performance trends relative to user growth.
+Retain metric time series for at least six months. This allows you to see
+performance trends relative to user growth.
 
-For a more comprehensive overview, integrate metrics with an observability dashboard, for example, [Grafana](../../admin/monitoring/index.md).
+For a more comprehensive overview, integrate metrics with an observability
+dashboard, for example, [Grafana](../../admin/monitoring/index.md).
 
 ### Observability key metrics
 
-Configure alerting based on these metrics to ensure you surface problems before they affect the end-user experience.
+Configure alerting based on these metrics to ensure you surface problems before
+they affect the end-user experience.
 
 **CPU and Memory Utilization**
 
-- Monitor the utilization as a fraction of the available resources on the instance.
+- Monitor the utilization as a fraction of the available resources on the
+  instance.
 
-  Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure
-  upgrades.
+  Utilization will vary with use throughout the course of a day, week, and
+  longer timelines. Monitor trends and pay special attention to the daily and
+  weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
 
 **Tail latency of Coder Server API requests**
 
-- High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
+- High tail latency can indicate Coder Server or the PostgreSQL database is low
+  on resources.
 
   Use the `coderd_api_request_latencies_seconds` metric.
 
@@ -86,15 +99,20 @@ Configure alerting based on these metrics to ensure you surface problems before 
 
 ### Locality
 
-To ensure increased availability of the Coder API, deploy at least three instances. Spread the instances across nodes with anti-affinity rules in
+To ensure increased availability of the Coder API, deploy at least three
+instances. Spread the instances across nodes with anti-affinity rules in
 Kubernetes or in different availability zones of the same geographic region.
 
 Do not deploy in different geographic regions.
 
-Coder Servers need to be able to
-communicate with one another directly with low latency, under 10ms. Note that this is for the availability of the Coder API. Workspaces are not fault tolerant unless they are explicitly built that way at the template level.
+Coder Servers need to be able to communicate with one another directly with low
+latency, under 10ms. Note that this is for the availability of the Coder API.
+Workspaces are not fault tolerant unless they are explicitly built that way at
+the template level.
 
-Deploy Coder Server instances as geographically close to PostgreSQL as possible. Low-latency communication (under 10ms) with Postgres is essential for Coder Server's performance.
+Deploy Coder Server instances as geographically close to PostgreSQL as possible.
+Low-latency communication (under 10ms) with Postgres is essential for Coder
+Server's performance.
 
 ### Scaling
 
