@@ -2882,6 +2882,34 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ----- | ------ | -------- | ------------ | ----------- |
 | `key` | string | false    |              |             |
 
+## codersdk.GetUserStatusChangesResponse
+
+```json
+{
+	"status_counts": {
+		"property1": [
+			{
+				"count": 10,
+				"date": "2019-08-24T14:15:22Z"
+			}
+		],
+		"property2": [
+			{
+				"count": 10,
+				"date": "2019-08-24T14:15:22Z"
+			}
+		]
+	}
+}
+```
+
+### Properties
+
+| Name               | Type                                                                      | Required | Restrictions | Description |
+| ------------------ | ------------------------------------------------------------------------- | -------- | ------------ | ----------- |
+| `status_counts`    | object                                                                    | false    |              |             |
+| » `[any property]` | array of [codersdk.UserStatusChangeCount](#codersdkuserstatuschangecount) | false    |              |             |
+
 ## codersdk.GetUsersResponse
 
 ```json
@@ -6486,6 +6514,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `active`    |
 | `dormant`   |
 | `suspended` |
+
+## codersdk.UserStatusChangeCount
+
+```json
+{
+	"count": 10,
+	"date": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+| ------- | ------- | -------- | ------------ | ----------- |
+| `count` | integer | false    |              |             |
+| `date`  | string  | false    |              |             |
 
 ## codersdk.ValidateUserPasswordRequest
 

@@ -2255,7 +2255,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
 }
 
-func TestGetUserStatusCountsByDay(t *testing.T) {
+func TestGetUserStatusChanges(t *testing.T) {
 	t.Parallel()
 
 	t.Run("No Users", func(t *testing.T) {
@@ -2266,7 +2266,7 @@ func TestGetUserStatusCountsByDay(t *testing.T) {
 		end := dbtime.Now()
 		start := end.Add(-30 * 24 * time.Hour)
 
-		counts, err := db.GetUserStatusCountsByDay(ctx, database.GetUserStatusCountsByDayParams{
+		counts, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
 			StartTime: start,
 			EndTime:   end,
 		})
@@ -2316,22 +2316,16 @@ func TestGetUserStatusCountsByDay(t *testing.T) {
 				})
 
 				// Query for the last 30 days
-				counts, err := db.GetUserStatusCountsByDay(ctx, database.GetUserStatusCountsByDayParams{
+				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
 					StartTime: createdAt,
 					EndTime:   now,
 				})
 				require.NoError(t, err)
-				require.NotEmpty(t, counts, "should return results")
+				require.NotEmpty(t, userStatusChanges, "should return results")
 
-				// We should have an entry for each day, all with 1 user in the specified status
-				require.Len(t, counts, 30, "should have 30 days of data")
-				for _, count := range counts {
-					if count.Status.Valid && count.Status.UserStatus == tc.status {
-						require.Equal(t, int64(1), count.Count, "should have 1 %s user", tc.status)
-					} else {
-						require.Equal(t, int64(0), count.Count, "should have 0 users for other statuses")
-					}
-				}
+				// We should have an entry for each status change
+				require.Len(t, userStatusChanges, 1, "should have 1 status change")
+				require.Equal(t, userStatusChanges[0].NewStatus, tc.status, "should have the correct status")
 			})
 		}
 	})
@@ -2417,39 +2411,17 @@ func TestGetUserStatusCountsByDay(t *testing.T) {
 				require.NoError(t, err)
 
 				// Query for the last 5 days
-				counts, err := db.GetUserStatusCountsByDay(ctx, database.GetUserStatusCountsByDayParams{
+				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
 					StartTime: createdAt,
 					EndTime:   now,
 				})
 				require.NoError(t, err)
-				require.NotEmpty(t, counts, "should return results")
+				require.NotEmpty(t, userStatusChanges, "should return results")
 
-				// We should have entries for each day
-				require.Len(t, counts, 6, "should have 6 days of data")
-
-				// Helper to get count for a specific day and status
-				getCount := func(day time.Time, status database.UserStatus) int64 {
-					day = day.Truncate(24 * time.Hour)
-					for _, c := range counts {
-						if c.Day.Truncate(24*time.Hour).Equal(day) && c.Status.Valid && c.Status.UserStatus == status {
-							return c.Count
-						}
-					}
-					return 0
-				}
-
-				// First 2 days should show initial status
-				require.Equal(t, int64(1), getCount(createdAt, tc.initialStatus), "day 1 should be %s", tc.initialStatus)
-				require.Equal(t, int64(1), getCount(createdAt.Add(24*time.Hour), tc.initialStatus), "day 2 should be %s", tc.initialStatus)
-
-				// Remaining days should show target status
-				for i := 2; i < 6; i++ {
-					dayTime := createdAt.Add(time.Duration(i) * 24 * time.Hour)
-					require.Equal(t, int64(1), getCount(dayTime, tc.targetStatus),
-						"day %d should be %s", i+1, tc.targetStatus)
-					require.Equal(t, int64(0), getCount(dayTime, tc.initialStatus),
-						"day %d should have no %s users", i+1, tc.initialStatus)
-				}
+				// We should have an entry for each status change, including the initial status
+				require.Len(t, userStatusChanges, 2, "should have 2 status changes")
+				require.Equal(t, userStatusChanges[0].NewStatus, tc.initialStatus, "should have the initial status")
+				require.Equal(t, userStatusChanges[1].NewStatus, tc.targetStatus, "should have the target status")
 			})
 		}
 	})
@@ -2652,50 +2624,23 @@ func TestGetUserStatusCountsByDay(t *testing.T) {
 				require.NoError(t, err)
 
 				// Query for the last 5 days
-				counts, err := db.GetUserStatusCountsByDay(ctx, database.GetUserStatusCountsByDayParams{
+				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
 					StartTime: createdAt,
 					EndTime:   now,
 				})
 				require.NoError(t, err)
-				require.NotEmpty(t, counts)
+				require.NotEmpty(t, userStatusChanges)
 
-				// Helper to get count for a specific day and status
-				getCount := func(day time.Time, status database.UserStatus) int64 {
-					day = day.Truncate(24 * time.Hour)
-					for _, c := range counts {
-						if c.Day.Truncate(24*time.Hour).Equal(day) && c.Status.Valid && c.Status.UserStatus == status {
-							return c.Count
-						}
-					}
-					return 0
-				}
-
-				// Check initial period (days 0-1)
-				for i := 0; i < 2; i++ {
-					dayTime := createdAt.Add(time.Duration(i) * 24 * time.Hour)
-					for status, expectedCount := range tc.expectedCounts["initial"] {
-						require.Equal(t, expectedCount, getCount(dayTime, status),
-							"day %d should have %d %s users", i+1, expectedCount, status)
-					}
-				}
-
-				// Check between transitions (days 2-3)
-				for i := 2; i < 4; i++ {
-					dayTime := createdAt.Add(time.Duration(i) * 24 * time.Hour)
-					for status, expectedCount := range tc.expectedCounts["between"] {
-						require.Equal(t, expectedCount, getCount(dayTime, status),
-							"day %d should have %d %s users", i+1, expectedCount, status)
-					}
-				}
-
-				// Check final period (days 4-5)
-				for i := 4; i < 6; i++ {
-					dayTime := createdAt.Add(time.Duration(i) * 24 * time.Hour)
-					for status, expectedCount := range tc.expectedCounts["final"] {
-						require.Equal(t, expectedCount, getCount(dayTime, status),
-							"day %d should have %d %s users", i+1, expectedCount, status)
-					}
-				}
+				// We should have an entry with the correct status changes for each user, including the initial status
+				require.Len(t, userStatusChanges, 4, "should have 4 status changes")
+				require.Equal(t, userStatusChanges[0].UserID, user1.ID, "should have the first user")
+				require.Equal(t, userStatusChanges[0].NewStatus, tc.user1Transition.from, "should have the first user's initial status")
+				require.Equal(t, userStatusChanges[1].UserID, user1.ID, "should have the first user")
+				require.Equal(t, userStatusChanges[1].NewStatus, tc.user1Transition.to, "should have the first user's target status")
+				require.Equal(t, userStatusChanges[2].UserID, user2.ID, "should have the second user")
+				require.Equal(t, userStatusChanges[2].NewStatus, tc.user2Transition.from, "should have the second user's initial status")
+				require.Equal(t, userStatusChanges[3].UserID, user2.ID, "should have the second user")
+				require.Equal(t, userStatusChanges[3].NewStatus, tc.user2Transition.to, "should have the second user's target status")
 			})
 		}
 	})

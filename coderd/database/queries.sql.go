@@ -3094,91 +3094,35 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
-const getUserStatusCountsByDay = `-- name: GetUserStatusCountsByDay :many
-WITH dates AS (
-    -- Generate a series of dates between start and end
-    SELECT
-        day::date
-    FROM
-        generate_series(
-            date_trunc('day', $1::timestamptz),
-            date_trunc('day', $2::timestamptz),
-            '1 day'::interval
-        ) AS day
-),
-all_users AS (
-    -- Get all users who have had any status changes in or before the range
-    SELECT DISTINCT user_id
-    FROM user_status_changes
-    WHERE changed_at <= $2::timestamptz
-),
-initial_statuses AS (
-    -- Get the status of each user right before each day
-    SELECT DISTINCT ON (user_id, day)
-        user_id,
-        day,
-        new_status as status
-    FROM
-        all_users
-    CROSS JOIN
-        dates
-    LEFT JOIN LATERAL (
-        SELECT new_status, changed_at
-        FROM user_status_changes
-        WHERE user_status_changes.user_id = all_users.user_id
-        AND changed_at < day + interval '1 day'
-        ORDER BY changed_at DESC
-        LIMIT 1
-    ) changes ON true
-    WHERE changes.new_status IS NOT NULL
-),
-daily_status AS (
-    SELECT
-        d.day,
-        i.status,
-        i.user_id
-    FROM
-        dates d
-    LEFT JOIN
-        initial_statuses i ON i.day = d.day
-)
+const GetUserStatusChanges = `-- name: GetUserStatusChanges :many
 SELECT
-    day,
-    status,
-    COUNT(*) AS count
-FROM
-    daily_status
-WHERE
-    status IS NOT NULL
-GROUP BY
-    day,
-    status
-ORDER BY
-    day ASC,
-    status ASC
+	id, user_id, new_status, changed_at
+FROM user_status_changes
+WHERE changed_at >= $1::timestamptz
+	AND changed_at < $2::timestamptz
+ORDER BY changed_at
 `
 
-type GetUserStatusCountsByDayParams struct {
+type GetUserStatusChangesParams struct {
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
-type GetUserStatusCountsByDayRow struct {
-	Day    time.Time      `db:"day" json:"day"`
-	Status NullUserStatus `db:"status" json:"status"`
-	Count  int64          `db:"count" json:"count"`
-}
-
-func (q *sqlQuerier) GetUserStatusCountsByDay(ctx context.Context, arg GetUserStatusCountsByDayParams) ([]GetUserStatusCountsByDayRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserStatusCountsByDay, arg.StartTime, arg.EndTime)
+func (q *sqlQuerier) GetUserStatusChanges(ctx context.Context, arg GetUserStatusChangesParams) ([]UserStatusChange, error) {
+	rows, err := q.db.QueryContext(ctx, GetUserStatusChanges, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetUserStatusCountsByDayRow
+	var items []UserStatusChange
 	for rows.Next() {
-		var i GetUserStatusCountsByDayRow
-		if err := rows.Scan(&i.Day, &i.Status, &i.Count); err != nil {
+		var i UserStatusChange
+		if err := rows.Scan(
+			&i.ID,
+			&i.UserID,
+			&i.NewStatus,
+			&i.ChangedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3488,7 +3432,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO 
+INSERT INTO
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3497,7 +3441,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES 
+VALUES
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -6372,7 +6316,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND 
+AND
     lower(name) = lower($2)
 `
 
@@ -6488,10 +6432,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND 
+AND
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND 
+AND
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -8177,7 +8121,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE 
+UPDATE
 	tailnet_peers
 SET
 	status = $2
@@ -12763,7 +12707,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT
