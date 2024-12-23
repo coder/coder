@@ -282,3 +282,34 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 	var result TemplateInsightsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
+
+type GetUserStatusChangesResponse struct {
+	StatusCounts map[UserStatus][]UserStatusChangeCount `json:"status_counts"`
+}
+
+type UserStatusChangeCount struct {
+	Date  time.Time `json:"date" format:"date-time"`
+	Count int64     `json:"count" example:"10"`
+}
+
+type GetUserStatusChangesRequest struct {
+	Offset time.Time `json:"offset" format:"date-time"`
+}
+
+func (c *Client) GetUserStatusChanges(ctx context.Context, req GetUserStatusChangesRequest) (GetUserStatusChangesResponse, error) {
+	qp := url.Values{}
+	qp.Add("offset", req.Offset.Format(insightsTimeLayout))
+
+	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts-over-time?%s", qp.Encode())
+	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
+	if err != nil {
+		return GetUserStatusChangesResponse{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return GetUserStatusChangesResponse{}, ReadBodyAsError(resp)
+	}
+	var result GetUserStatusChangesResponse
+	return result, json.NewDecoder(resp.Body).Decode(&result)
+}

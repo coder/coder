@@ -292,6 +292,73 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
+// @Summary Get insights about user status counts over time
+// @ID get-insights-about-user-status-counts-over-time
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Insights
+// @Param tz_offset query int true "Time-zone offset (e.g. -2)"
+// @Success 200 {object} codersdk.GetUserStatusChangesResponse
+// @Router /insights/user-status-counts-over-time [get]
+func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	p := httpapi.NewQueryParamParser()
+	vals := r.URL.Query()
+	tzOffset := p.Int(vals, 0, "tz_offset")
+	p.ErrorExcessParams(vals)
+
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Query parameters have invalid values.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	loc := time.FixedZone("", tzOffset*3600)
+	// If the time is 14:01 or 14:31, we still want to include all the
+	// data between 14:00 and 15:00. Our rollups buckets are 30 minutes
+	// so this works nicely. It works just as well for 23:59 as well.
+	nextHourInLoc := time.Now().In(loc).Truncate(time.Hour).Add(time.Hour)
+	// Always return 60 days of data (2 months).
+	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
+
+	rows, err := api.Database.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+		StartTime: sixtyDaysAgo,
+		EndTime:   nextHourInLoc,
+	})
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching user status counts over time.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	resp := codersdk.GetUserStatusChangesResponse{
+		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
+	}
+
+	slices.SortFunc(rows, func(a, b database.UserStatusChange) int {
+		return a.ChangedAt.Compare(b.ChangedAt)
+	})
+
+	for _, row := range rows {
+		date := row.ChangedAt.Truncate(24 * time.Hour)
+		status := codersdk.UserStatus(row.NewStatus)
+		if _, ok := resp.StatusCounts[status]; !ok {
+			resp.StatusCounts[status] = make([]codersdk.UserStatusChangeCount, 0)
+		}
+		resp.StatusCounts[status] = append(resp.StatusCounts[status], codersdk.UserStatusChangeCount{
+			Date:  date,
+			Count: 1,
+		})
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, resp)
+}
+
 // @Summary Get insights about templates
 // @ID get-insights-about-templates
 // @Security CoderSessionToken

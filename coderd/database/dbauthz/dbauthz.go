@@ -2413,11 +2413,11 @@ func (q *querier) GetUserNotificationPreferences(ctx context.Context, userID uui
 	return q.db.GetUserNotificationPreferences(ctx, userID)
 }
 
-func (q *querier) GetUserStatusCountsByDay(ctx context.Context, arg database.GetUserStatusCountsByDayParams) ([]database.GetUserStatusCountsByDayRow, error) {
+func (q *querier) GetUserStatusChanges(ctx context.Context, arg database.GetUserStatusChangesParams) ([]database.UserStatusChange, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceUser); err != nil {
 		return nil, err
 	}
-	return q.db.GetUserStatusCountsByDay(ctx, arg)
+	return q.db.GetUserStatusChanges(ctx, arg)
 }
 
 func (q *querier) GetUserWorkspaceBuildParameters(ctx context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {

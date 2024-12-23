@@ -772,65 +772,10 @@ FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
 
--- name: GetUserStatusCountsByDay :many
-WITH dates AS (
-    -- Generate a series of dates between start and end
-    SELECT
-        day::date
-    FROM
-        generate_series(
-            date_trunc('day', @start_time::timestamptz),
-            date_trunc('day', @end_time::timestamptz),
-            '1 day'::interval
-        ) AS day
-),
-all_users AS (
-    -- Get all users who have had any status changes in or before the range
-    SELECT DISTINCT user_id
-    FROM user_status_changes
-    WHERE changed_at <= @end_time::timestamptz
-),
-initial_statuses AS (
-    -- Get the status of each user right before each day
-    SELECT DISTINCT ON (user_id, day)
-        user_id,
-        day,
-        new_status as status
-    FROM
-        all_users
-    CROSS JOIN
-        dates
-    LEFT JOIN LATERAL (
-        SELECT new_status, changed_at
-        FROM user_status_changes
-        WHERE user_status_changes.user_id = all_users.user_id
-        AND changed_at < day + interval '1 day'
-        ORDER BY changed_at DESC
-        LIMIT 1
-    ) changes ON true
-    WHERE changes.new_status IS NOT NULL
-),
-daily_status AS (
-    SELECT
-        d.day,
-        i.status,
-        i.user_id
-    FROM
-        dates d
-    LEFT JOIN
-        initial_statuses i ON i.day = d.day
-)
+-- name: GetUserStatusChanges :many
 SELECT
-    day,
-    status,
-    COUNT(*) AS count
-FROM
-    daily_status
-WHERE
-    status IS NOT NULL
-GROUP BY
-    day,
-    status
-ORDER BY
-    day ASC,
-    status ASC;
+	*
+FROM user_status_changes
+WHERE changed_at >= @start_time::timestamptz
+	AND changed_at < @end_time::timestamptz
+ORDER BY changed_at;
