@@ -2826,10 +2826,10 @@ func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(arg0, arg1 any) 
 }
 
 // GetUserStatusChanges mocks base method.
-func (m *MockStore) GetUserStatusChanges(arg0 context.Context, arg1 database.GetUserStatusChangesParams) ([]database.UserStatusChange, error) {
+func (m *MockStore) GetUserStatusChanges(arg0 context.Context, arg1 database.GetUserStatusChangesParams) ([]database.GetUserStatusChangesRow, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetUserStatusChanges", arg0, arg1)
-	ret0, _ := ret[0].([]database.UserStatusChange)
+	ret0, _ := ret[0].([]database.GetUserStatusChangesRow)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
