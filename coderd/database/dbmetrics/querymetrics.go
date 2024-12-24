@@ -1337,6 +1337,13 @@ func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, u
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetUserStatusChanges(ctx context.Context, arg database.GetUserStatusChangesParams) ([]database.GetUserStatusChangesRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserStatusChanges(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserStatusChanges").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetUserWorkspaceBuildParameters(ctx context.Context, ownerID database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetUserWorkspaceBuildParameters(ctx, ownerID)

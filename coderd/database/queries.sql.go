@@ -3094,6 +3094,104 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
+const getUserStatusChanges = `-- name: GetUserStatusChanges :many
+WITH dates AS (
+    SELECT generate_series(
+        date_trunc('day', $1::timestamptz),
+        date_trunc('day', $2::timestamptz),
+        '1 day'::interval
+    )::timestamptz AS date
+),
+latest_status_before_range AS (
+    -- Get the last status change for each user before our date range
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        new_status,
+        changed_at
+    FROM user_status_changes
+    WHERE changed_at < (SELECT MIN(date) FROM dates)
+    ORDER BY user_id, changed_at DESC
+),
+all_status_changes AS (
+    -- Combine status changes before and during our range
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM latest_status_before_range
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM user_status_changes
+    WHERE changed_at < $2::timestamptz
+),
+daily_counts AS (
+    SELECT
+        d.date,
+        asc1.new_status,
+        -- For each date and status, count users whose most recent status change
+        -- (up to that date) matches this status
+        COUNT(*) FILTER (
+            WHERE asc1.changed_at = (
+                SELECT MAX(changed_at)
+                FROM all_status_changes asc2
+                WHERE asc2.user_id = asc1.user_id
+                AND asc2.changed_at <= d.date
+            )
+        )::bigint AS count
+    FROM dates d
+    CROSS JOIN all_status_changes asc1
+    GROUP BY d.date, asc1.new_status
+)
+SELECT
+    date::timestamptz AS date,
+    new_status AS status,
+    count
+FROM daily_counts
+WHERE count > 0
+ORDER BY
+    status ASC,
+    date ASC
+`
+
+type GetUserStatusChangesParams struct {
+	StartTime time.Time `db:"start_time" json:"start_time"`
+	EndTime   time.Time `db:"end_time" json:"end_time"`
+}
+
+type GetUserStatusChangesRow struct {
+	Date   time.Time  `db:"date" json:"date"`
+	Status UserStatus `db:"status" json:"status"`
+	Count  int64      `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetUserStatusChanges(ctx context.Context, arg GetUserStatusChangesParams) ([]GetUserStatusChangesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStatusChanges, arg.StartTime, arg.EndTime)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetUserStatusChangesRow
+	for rows.Next() {
+		var i GetUserStatusChangesRow
+		if err := rows.Scan(&i.Date, &i.Status, &i.Count); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const upsertTemplateUsageStats = `-- name: UpsertTemplateUsageStats :exec
 WITH
 	latest_start AS (

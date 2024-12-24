@@ -771,3 +771,66 @@ SELECT
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
+
+-- name: GetUserStatusChanges :many
+WITH dates AS (
+    SELECT generate_series(
+        date_trunc('day', @start_time::timestamptz),
+        date_trunc('day', @end_time::timestamptz),
+        '1 day'::interval
+    )::timestamptz AS date
+),
+latest_status_before_range AS (
+    -- Get the last status change for each user before our date range
+    SELECT DISTINCT ON (user_id)
+        user_id,
+        new_status,
+        changed_at
+    FROM user_status_changes
+    WHERE changed_at < (SELECT MIN(date) FROM dates)
+    ORDER BY user_id, changed_at DESC
+),
+all_status_changes AS (
+    -- Combine status changes before and during our range
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM latest_status_before_range
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM user_status_changes
+    WHERE changed_at < @end_time::timestamptz
+),
+daily_counts AS (
+    SELECT
+        d.date,
+        asc1.new_status,
+        -- For each date and status, count users whose most recent status change
+        -- (up to that date) matches this status
+        COUNT(*) FILTER (
+            WHERE asc1.changed_at = (
+                SELECT MAX(changed_at)
+                FROM all_status_changes asc2
+                WHERE asc2.user_id = asc1.user_id
+                AND asc2.changed_at <= d.date
+            )
+        )::bigint AS count
+    FROM dates d
+    CROSS JOIN all_status_changes asc1
+    GROUP BY d.date, asc1.new_status
+)
+SELECT
+    date::timestamptz AS date,
+    new_status AS status,
+    count
+FROM daily_counts
+WHERE count > 0
+ORDER BY
+    status ASC,
+    date ASC;

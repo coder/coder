@@ -1,14 +1,15 @@
 import AlertTitle from "@mui/material/AlertTitle";
-import LinearProgress from "@mui/material/LinearProgress";
 import type {
 	DAUsResponse,
-	Entitlements,
 	Experiments,
+	GetUserStatusChangesResponse,
 	SerpentOption,
 } from "api/typesGenerated";
 import {
 	ActiveUserChart,
 	ActiveUsersTitle,
+	type DataSeries,
+	UserStatusTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -24,7 +25,8 @@ export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
 	deploymentDAUs?: DAUsResponse;
 	deploymentDAUsError: unknown;
-	entitlements: Entitlements | undefined;
+	userStatusCountsOverTime?: GetUserStatusChangesResponse;
+	activeUserLimit?: number;
 	readonly invalidExperiments: Experiments | string[];
 	readonly safeExperiments: Experiments | string[];
 };
@@ -33,16 +35,29 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 	deploymentOptions,
 	deploymentDAUs,
 	deploymentDAUsError,
-	entitlements,
+	userStatusCountsOverTime,
+	activeUserLimit,
 	safeExperiments,
 	invalidExperiments,
 }) => {
-	const licenseUtilizationPercentage =
-		entitlements?.features?.user_limit?.actual &&
-		entitlements?.features?.user_limit?.limit
-			? entitlements.features.user_limit.actual /
-				entitlements.features.user_limit.limit
-			: undefined;
+	const colors: Record<string, string> = {
+		active: "green",
+		dormant: "grey",
+		deleted: "red",
+	};
+	let series: DataSeries[] = [];
+	if (userStatusCountsOverTime?.status_counts) {
+		series = Object.entries(userStatusCountsOverTime.status_counts).map(
+			([status, counts]) => ({
+				label: status,
+				data: counts.map((count) => ({
+					date: count.date.toString(),
+					amount: count.count,
+				})),
+				color: colors[status],
+			}),
+		);
+	}
 	return (
 		<>
 			<SettingsHeader
@@ -54,42 +69,21 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 				{Boolean(deploymentDAUsError) && (
 					<ErrorAlert error={deploymentDAUsError} />
 				)}
-				{deploymentDAUs && (
-					<div css={{ marginBottom: 24, height: 200 }}>
-						<ChartSection title={<ActiveUsersTitle interval="day" />}>
-							<ActiveUserChart data={deploymentDAUs.entries} interval="day" />
-						</ChartSection>
-					</div>
-				)}
-				{licenseUtilizationPercentage && (
-					<ChartSection title="License Utilization">
-						<LinearProgress
-							variant="determinate"
-							value={Math.min(licenseUtilizationPercentage * 100, 100)}
-							color={
-								licenseUtilizationPercentage < 0.9
-									? "primary"
-									: licenseUtilizationPercentage < 1
-										? "warning"
-										: "error"
-							}
-							css={{
-								height: 24,
-								borderRadius: 4,
-								marginBottom: 8,
-							}}
+				{series.length && (
+					<ChartSection title={<UserStatusTitle interval="day" />}>
+						<ActiveUserChart
+							series={series}
+							userLimit={activeUserLimit}
+							interval="day"
 						/>
-						<span
-							css={{
-								fontSize: "0.75rem",
-								display: "block",
-								textAlign: "right",
-							}}
-						>
-							{Math.round(licenseUtilizationPercentage * 100)}% used (
-							{entitlements!.features.user_limit.actual}/
-							{entitlements!.features.user_limit.limit} users)
-						</span>
+					</ChartSection>
+				)}
+				{deploymentDAUs && (
+					<ChartSection title={<ActiveUsersTitle interval="day" />}>
+						<ActiveUserChart
+							series={[{ label: "Daily", data: deploymentDAUs.entries }]}
+							interval="day"
+						/>
 					</ChartSection>
 				)}
 				{invalidExperiments.length > 0 && (
