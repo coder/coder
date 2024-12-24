@@ -1072,6 +1072,7 @@ func TestWorkspaceProxyWorkspaceApps_BlockDirect(t *testing.T) {
 			SDKClient:      client,
 			FirstUser:      user,
 			PathAppBaseURL: proxyAPI.Options.AccessURL,
+			BlockDirect:    true,
 			FlushStats:     flushStats,
 		}
 	})
