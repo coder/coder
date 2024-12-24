@@ -5680,17 +5680,18 @@ func (q *FakeQuerier) GetUserStatusChanges(_ context.Context, arg database.GetUs
 		if change.ChangedAt.Before(arg.StartTime) || change.ChangedAt.After(arg.EndTime) {
 			continue
 		}
+		date := time.Date(change.ChangedAt.Year(), change.ChangedAt.Month(), change.ChangedAt.Day(), 0, 0, 0, 0, time.UTC)
 		if !slices.ContainsFunc(result, func(r database.GetUserStatusChangesRow) bool {
-			return r.ChangedAt.Equal(change.ChangedAt) && r.NewStatus == change.NewStatus
+			return r.Status == change.NewStatus && r.Date.Equal(date)
 		}) {
 			result = append(result, database.GetUserStatusChangesRow{
-				NewStatus: change.NewStatus,
-				ChangedAt: change.ChangedAt,
-				Count:     1,
+				Status: change.NewStatus,
+				Date:   date,
+				Count:  1,
 			})
 		} else {
 			for i, r := range result {
-				if r.ChangedAt.Equal(change.ChangedAt) && r.NewStatus == change.NewStatus {
+				if r.Status == change.NewStatus && r.Date.Equal(date) {
 					result[i].Count++
 					break
 				}

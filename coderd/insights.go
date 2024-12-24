@@ -341,12 +341,12 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 	}
 
 	for _, row := range rows {
-		status := codersdk.UserStatus(row.NewStatus)
+		status := codersdk.UserStatus(row.Status)
 		if _, ok := resp.StatusCounts[status]; !ok {
 			resp.StatusCounts[status] = make([]codersdk.UserStatusChangeCount, 0)
 		}
 		resp.StatusCounts[status] = append(resp.StatusCounts[status], codersdk.UserStatusChangeCount{
-			Date:  row.ChangedAt,
+			Date:  row.Date,
 			Count: row.Count,
 		})
 	}
