@@ -138,8 +138,8 @@ func (r *RootCmd) provisionerKeysList() *serpent.Command {
 		},
 	}
 
-	cmd.Options = serpent.OptionSet{}
 	orgContext.AttachOptions(cmd)
+	formatter.AttachOptions(&cmd.Options)
 
 	return cmd
 }

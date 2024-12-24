@@ -1,20 +1,15 @@
 package cli
 
-import "github.com/coder/serpent"
+import (
+	"github.com/coder/serpent"
+)
 
 func (r *RootCmd) provisionerDaemons() *serpent.Command {
-	cmd := &serpent.Command{
-		Use:   "provisioner",
-		Short: "Manage provisioner daemons",
-		Handler: func(inv *serpent.Invocation) error {
-			return inv.Command.HelpHandler(inv)
-		},
-		Aliases: []string{"provisioners"},
-		Children: []*serpent.Command{
-			r.provisionerDaemonStart(),
-			r.provisionerKeys(),
-		},
-	}
+	cmd := r.RootCmd.Provisioners()
+	cmd.AddSubcommands(
+		r.provisionerDaemonStart(),
+		r.provisionerKeys(),
+	)
 
 	return cmd
 }

@@ -114,6 +114,8 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 		),
 		Handler: func(inv *serpent.Invocation) error {
 			var closers closers
+			defer closers.Close()
+
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, topCancel := context.WithCancel(inv.Context())
