@@ -948,7 +948,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
 
 ### --postgres-auth
 
@@ -959,7 +959,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 | YAML        | <code>pgAuth</code>              |
 | Default     | <code>password</code>            |
 
-Type of auth to use when connecting to postgres.
+Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
 ### --secure-auth-cookie
 
