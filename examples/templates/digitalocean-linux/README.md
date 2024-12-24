@@ -24,7 +24,7 @@ To deploy workspaces as DigitalOcean Droplets, you'll need:
   - Remove the following sections from the `main.tf` file if you don't want to
     associate your workspaces with a project:
 
-    - `variable "do_project_id"`
+    - `variable "project_uuid"`
     - `resource "digitalocean_project_resources" "project"`
 
 - **Optional:** DigitalOcean SSH key ID (obtain via the `doctl` CLI by running
@@ -34,9 +34,9 @@ To deploy workspaces as DigitalOcean Droplets, you'll need:
 
 ### Authentication
 
-This template assumes that `coderd` is run in an environment that is authenticated with Digital Ocean.
+This template assumes that the Coder Provisioner is run in an environment that is authenticated with Digital Ocean.
 
-Obtain a [Digital Ocean Personal Access Token](https://cloud.digitalocean.com/account/api/tokens) and set the `DIGITALOCEAN_TOKEN` environment variable to the access token before starting `coderd`.
+Obtain a [Digital Ocean Personal Access Token](https://cloud.digitalocean.com/account/api/tokens) and set the `DIGITALOCEAN_TOKEN` environment variable to the access token.
 For other ways to authenticate [consult the Terraform provider's docs](https://registry.terraform.io/providers/digitalocean/digitalocean/latest/docs).
 
 ## Architecture

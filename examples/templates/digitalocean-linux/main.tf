@@ -11,7 +11,7 @@ terraform {
 
 provider "coder" {}
 
-variable "do_project_id" {
+variable "project_uuid" {
   type        = string
   description = <<-EOF
     DigitalOcean project ID
@@ -22,16 +22,16 @@ variable "do_project_id" {
 
   validation {
     # make sure length of alphanumeric string is 36 (UUIDv4 size)
-    condition     = length(var.do_project_id) == 36
+    condition     = length(var.project_uuid) == 36
     error_message = "Invalid Digital Ocean Project ID."
   }
 
 }
 
-variable "do_admin_ssh_key" {
+variable "ssh_key_id" {
   type        = number
   description = <<-EOF
-    Enter admin SSH key ID (some Droplet images require an SSH key to be set):
+    DigitalOcean SSH key ID (some Droplet images require an SSH key to be set):
 
     Can be set to "0" for no key.
 
@@ -43,7 +43,7 @@ variable "do_admin_ssh_key" {
   default     = 0
 
   validation {
-    condition     = var.do_admin_ssh_key >= 0
+    condition     = var.ssh_key_id >= 0
     error_message = "Invalid Digital Ocean SSH key ID, a number is required."
   }
 }
@@ -291,11 +291,11 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
-  ssh_keys = var.do_admin_ssh_key > 0 ? [var.do_admin_ssh_key] : []
+  ssh_keys = var.ssh_key_id > 0 ? [var.ssh_key_id] : []
 }
 
 resource "digitalocean_project_resources" "project" {
-  project = var.do_project_id
+  project = var.project_uuid
   # Workaround for terraform plan when using count.
   resources = length(digitalocean_droplet.workspace) > 0 ? [
     digitalocean_volume.home_volume.urn,
