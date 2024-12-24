@@ -959,7 +959,7 @@ URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded f
 | YAML        | <code>pgAuth</code>              |
 | Default     | <code>password</code>            |
 
-Type of auth to use when connecting to postgres.
+Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
 ### --secure-auth-cookie
 

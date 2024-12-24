@@ -2292,7 +2292,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Auth",
-			Description: "Type of auth to use when connecting to postgres.",
+			Description: "Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.",
 			Flag:        "postgres-auth",
 			Env:         "CODER_PG_AUTH",
 			Default:     "password",
