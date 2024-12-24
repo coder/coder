@@ -2258,6 +2258,10 @@ func TestGroupRemovalTrigger(t *testing.T) {
 func TestGetUserStatusChanges(t *testing.T) {
 	t.Parallel()
 
+	now := dbtime.Now()
+	createdAt := now.Add(-5 * 24 * time.Hour)                           // 5 days ago
+	firstTransitionTime := createdAt.Add(2 * 24 * time.Hour)            // 3 days ago
+	secondTransitionTime := firstTransitionTime.Add(2 * 24 * time.Hour) // 1 days ago
 	t.Run("No Users", func(t *testing.T) {
 		t.Parallel()
 		db, _ := dbtestutil.NewDB(t)
@@ -2307,8 +2311,6 @@ func TestGetUserStatusChanges(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				// Create a user that's been in the specified status for the past 30 days
-				now := dbtime.Now()
-				createdAt := now.Add(-29 * 24 * time.Hour)
 				dbgen.User(t, db, database.User{
 					Status:    tc.status,
 					CreatedAt: createdAt,
@@ -2324,8 +2326,10 @@ func TestGetUserStatusChanges(t *testing.T) {
 				require.NotEmpty(t, userStatusChanges, "should return results")
 
 				// We should have an entry for each status change
-				require.Len(t, userStatusChanges, 1, "should have 1 status change")
-				require.Equal(t, userStatusChanges[0].NewStatus, tc.status, "should have the correct status")
+				require.Len(t, userStatusChanges, 5, "should have 1 user * 5 days = 5 rows")
+				for _, row := range userStatusChanges {
+					require.Equal(t, row.NewStatus, tc.status, "should have the correct status")
+				}
 			})
 		}
 	})
@@ -2393,8 +2397,6 @@ func TestGetUserStatusChanges(t *testing.T) {
 				ctx := testutil.Context(t, testutil.WaitShort)
 
 				// Create a user that starts with initial status
-				now := dbtime.Now()
-				createdAt := now.Add(-5 * 24 * time.Hour) // 5 days ago
 				user := dbgen.User(t, db, database.User{
 					Status:    tc.initialStatus,
 					CreatedAt: createdAt,
@@ -2402,11 +2404,10 @@ func TestGetUserStatusChanges(t *testing.T) {
 				})
 
 				// After 2 days, change status to target status
-				statusChangeTime := createdAt.Add(2 * 24 * time.Hour)
 				user, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 					ID:        user.ID,
 					Status:    tc.targetStatus,
-					UpdatedAt: statusChangeTime,
+					UpdatedAt: firstTransitionTime,
 				})
 				require.NoError(t, err)
 
@@ -2418,10 +2419,15 @@ func TestGetUserStatusChanges(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, userStatusChanges, "should return results")
 
-				// We should have an entry for each status change, including the initial status
-				require.Len(t, userStatusChanges, 2, "should have 2 status changes")
-				require.Equal(t, userStatusChanges[0].NewStatus, tc.initialStatus, "should have the initial status")
-				require.Equal(t, userStatusChanges[1].NewStatus, tc.targetStatus, "should have the target status")
+				// We should have an entry for each status (active, dormant, suspended) for each day
+				require.Len(t, userStatusChanges, 5, "should have 1 user * 5 days = 5 rows")
+				for _, row := range userStatusChanges {
+					if row.ChangedAt.Before(firstTransitionTime) {
+						require.Equal(t, row.NewStatus, tc.initialStatus, "should have the initial status")
+					} else {
+						require.Equal(t, row.NewStatus, tc.targetStatus, "should have the target status")
+					}
+				}
 			})
 		}
 	})
@@ -2606,20 +2612,18 @@ func TestGetUserStatusChanges(t *testing.T) {
 				})
 
 				// First transition at 2 days
-				user1TransitionTime := createdAt.Add(2 * 24 * time.Hour)
 				user1, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 					ID:        user1.ID,
 					Status:    tc.user1Transition.to,
-					UpdatedAt: user1TransitionTime,
+					UpdatedAt: firstTransitionTime,
 				})
 				require.NoError(t, err)
 
 				// Second transition at 4 days
-				user2TransitionTime := createdAt.Add(4 * 24 * time.Hour)
 				user2, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
 					ID:        user2.ID,
 					Status:    tc.user2Transition.to,
-					UpdatedAt: user2TransitionTime,
+					UpdatedAt: secondTransitionTime,
 				})
 				require.NoError(t, err)
 
@@ -2631,16 +2635,17 @@ func TestGetUserStatusChanges(t *testing.T) {
 				require.NoError(t, err)
 				require.NotEmpty(t, userStatusChanges)
 
-				// We should have an entry with the correct status changes for each user, including the initial status
-				require.Len(t, userStatusChanges, 4, "should have 4 status changes")
-				require.Equal(t, userStatusChanges[0].UserID, user1.ID, "should have the first user")
-				require.Equal(t, userStatusChanges[0].NewStatus, tc.user1Transition.from, "should have the first user's initial status")
-				require.Equal(t, userStatusChanges[1].UserID, user1.ID, "should have the first user")
-				require.Equal(t, userStatusChanges[1].NewStatus, tc.user1Transition.to, "should have the first user's target status")
-				require.Equal(t, userStatusChanges[2].UserID, user2.ID, "should have the second user")
-				require.Equal(t, userStatusChanges[2].NewStatus, tc.user2Transition.from, "should have the second user's initial status")
-				require.Equal(t, userStatusChanges[3].UserID, user2.ID, "should have the second user")
-				require.Equal(t, userStatusChanges[3].NewStatus, tc.user2Transition.to, "should have the second user's target status")
+				// Expected counts before, between and after the transitions should match:
+				for _, row := range userStatusChanges {
+					switch {
+					case row.ChangedAt.Before(firstTransitionTime):
+						require.Equal(t, row.Count, tc.expectedCounts["initial"][row.NewStatus], "should have the correct count before the first transition")
+					case row.ChangedAt.Before(secondTransitionTime):
+						require.Equal(t, row.Count, tc.expectedCounts["between"][row.NewStatus], "should have the correct count between the transitions")
+					case row.ChangedAt.Before(now):
+						require.Equal(t, row.Count, tc.expectedCounts["final"][row.NewStatus], "should have the correct count after the second transition")
+					}
+				}
 			})
 		}
 	})
