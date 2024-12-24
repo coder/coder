@@ -25,7 +25,7 @@ If you have questions that aren't explicitly covered by this guide, consult the
 following third-party references:
 
 | **Type of guidance** | **Third-party reference**                                                              |
-| -------------------- | -------------------------------------------------------------------------------------- |
+|----------------------|----------------------------------------------------------------------------------------|
 | Spelling             | [Merriam-Webster.com](https://www.merriam-webster.com/)                                |
 | Style - nontechnical | [The Chicago Manual of Style](https://www.chicagomanualofstyle.org/home.html)          |
 | Style - technical    | [Microsoft Writing Style Guide](https://docs.microsoft.com/en-us/style-guide/welcome/) |

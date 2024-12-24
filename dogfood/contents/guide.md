@@ -21,12 +21,12 @@ The following explains how to do certain things related to dogfooding.
 
 ### Run Coder in your Coder Workspace
 
-1.  Clone the Git repo
+1. Clone the Git repo
     `[https://github.com/coder/coder](https://github.com/coder/coder)` and `cd`
     into it
-2.  Run `sudo apt update` and then `sudo apt install -y netcat`
+2. Run `sudo apt update` and then `sudo apt install -y netcat`
     - skip this step if using the `coder` template
-3.  Run `make bin`
+3. Run `make bin`
 
     <aside>
     💡 If you run into the following error:
@@ -49,20 +49,20 @@ The following explains how to do certain things related to dogfooding.
     8. Try `make bin` again.
     </aside>
 
-4.  Run `./scripts/develop.sh` which will start _two_ separate processes:
+4. Run `./scripts/develop.sh` which will start _two_ separate processes:
     1. `[http://localhost:3000](http://localhost:3000)` — backend API server
        👈 Backend devs will want to talk to this
     2. `[http://localhost:8080](http://localhost:8080)` — Node.js dev server
        👈 Frontend devs will want to talk to this
-5.  Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return
+5. Ensure that you’re logged in: `./scripts/coder-dev.sh list` — should return
     no workspace. If this returns an error, double-check the output of running
     `scripts/develop.sh`.
-6.  A template named `docker-amd64` (or `docker-arm64` if you’re on ARM) will
+6. A template named `docker-amd64` (or `docker-arm64` if you’re on ARM) will
     have automatically been created for you. If you just want to create a
     workspace quickly, you can run
     `./scripts/coder-dev.sh create myworkspace -t docker-amd64` and this will
     get you going quickly!
-7.  To create your own template, you can do:
+7. To create your own template, you can do:
     `./scripts/coder-dev.sh templates init` and choose your preferred option.
     For example, choosing “Develop in Docker” will create a new folder `docker`
     that contains the bare bones for starting a Docker workspace template. Then,
@@ -75,7 +75,7 @@ The following explains how to do certain things related to dogfooding.
 
 ## Troubleshooting
 
-### My Docker containers keep failing and I have no idea what's going on!
+### My Docker containers keep failing and I have no idea what's going on
 
 ```console
 ✔ Queued [236ms]

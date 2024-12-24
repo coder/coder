@@ -7,7 +7,7 @@ editing operations on a remote server.
 
 To connect to your workspace first run:
 
-```
+```shell
 coder config-ssh
 ```
 

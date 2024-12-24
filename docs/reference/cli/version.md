@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # version
 
 Show coder version
@@ -15,7 +14,7 @@ coder version [flags]
 ### -o, --output
 
 |         |                         |
-| ------- | ----------------------- |
+|---------|-------------------------|
 | Type    | <code>text\|json</code> |
 | Default | <code>text</code>       |
 

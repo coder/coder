@@ -53,15 +53,15 @@ variables, you can employ a straightforward solution:
 
 1. Create a `terraform.tfvars` file in in the template directory:
 
-```tf
-coder_image = newimage:tag
-```
+   ```tf
+   coder_image = newimage:tag
+   ```
 
-2. Push the new template revision using Coder CLI:
+1. Push the new template revision using Coder CLI:
 
-```
-coder templates push my-template -y # no need to use --var
-```
+   ```shell
+   coder templates push my-template -y # no need to use --var
+   ```
 
 This file serves as a mechanism to override the template settings for variables.
 It can be stored in the repository for easy access and reference. Coder CLI

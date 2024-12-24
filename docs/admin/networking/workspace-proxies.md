@@ -14,11 +14,11 @@ connecting with their workspace over SSH, a workspace app, port forwarding, etc.
 Dashboard connections and API calls (e.g. the workspaces list) are not served
 over workspace proxies.
 
-# Deploy a workspace proxy
+## Deploy a workspace proxy
 
-Each workspace proxy should be a unique instance. At no point should 2 workspace
-proxy instances share the same authentication token. They only require port 443
-to be open and are expected to have network connectivity to the coderd
+Each workspace proxy should be a unique instance. At no point should two
+workspace proxy instances share the same authentication token. They only require
+port 443 to be open and are expected to have network connectivity to the coderd
 dashboard. Workspace proxies **do not** make any database connections.
 
 Workspace proxies can be used in the browser by navigating to the user

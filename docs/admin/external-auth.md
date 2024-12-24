@@ -49,7 +49,7 @@ GitHub provider).
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
 
    | Name          | Permission   | Description                                            |
-   | ------------- | ------------ | ------------------------------------------------------ |
+   |---------------|--------------|--------------------------------------------------------|
    | Contents      | Read & Write | Grants access to code and commit statuses.             |
    | Pull requests | Read & Write | Grants access to create and update pull requests.      |
    | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
@@ -150,7 +150,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
 The Redirect URI for Gitea should be
-https://coder.company.org/external-auth/gitea/callback
+`https://coder.company.org/external-auth/gitea/callback`.
 
 ## Self-managed git providers
 
