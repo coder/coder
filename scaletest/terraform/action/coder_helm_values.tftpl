@@ -34,7 +34,11 @@ coder:
     - name: "CODER_URL"
       value: "${access_url}"
     - name: "CODER_PROVISIONERD_TAGS"
-      value: "scope=organization"
+      value: "scope=organization,deployment=${deployment}"
+    - name: "CODER_PROVISIONER_DAEMON_NAME"
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
     - name: "CODER_CONFIG_DIR"
       value: "/tmp/config"
     %{~ endif ~}
@@ -75,6 +79,8 @@ coder:
     - name: "CODER_EXPERIMENTS"
       value: "${experiments}"
     - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+      value: "true"
+    - name: "CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS"
       value: "true"
   image:
     repo: ${image_repo}

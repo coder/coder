@@ -18,12 +18,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-4"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 10
+        nodepool_size        = 1
+        machine_type         = "t2d-standard-8"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
@@ -52,12 +53,13 @@ locals {
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-8"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 10
+        nodepool_size        = 1
+        machine_type         = "t2d-standard-8"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
@@ -71,31 +73,32 @@ locals {
     large = {
       coder = {
         nodepool_size = 3
-        machine_type  = "t2d-standard-8"
+        machine_type  = "c2d-standard-8"
         replicas      = 3
-        cpu_request   = "1000m"
-        mem_request   = "6Gi"
-        cpu_limit     = "2000m"
+        cpu_request   = "4000m"
+        mem_request   = "12Gi"
+        cpu_limit     = "4000m"
         mem_limit     = "12Gi"
       }
       provisionerd = {
-        replicas    = 1
+        replicas    = 30
         cpu_request = "100m"
-        mem_request = "1Gi"
+        mem_request = "256Mi"
         cpu_limit   = "1000m"
         mem_limit   = "1Gi"
       }
       workspaces = {
-        nodepool_size = 1
-        machine_type  = "t2d-standard-8"
-        cpu_request   = "100m"
-        mem_request   = "128Mi"
-        cpu_limit     = "100m"
-        mem_limit     = "128Mi"
+        count_per_deployment = 100
+        nodepool_size        = 3
+        machine_type         = "c2d-standard-32"
+        cpu_request          = "100m"
+        mem_request          = "128Mi"
+        cpu_limit            = "100m"
+        mem_limit            = "128Mi"
       }
       misc = {
         nodepool_size = 1
-        machine_type  = "t2d-standard-4"
+        machine_type  = "c2d-standard-32"
       }
       cloudsql = {
         tier            = "db-custom-2-7680"
