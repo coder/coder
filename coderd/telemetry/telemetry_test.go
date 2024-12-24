@@ -59,6 +59,7 @@ func TestTelemetry(t *testing.T) {
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
+			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 		})
 		group := dbgen.Group(t, db, database.Group{})
 		_ = dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})

@@ -15069,6 +15069,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "open_in": {
+                    "type": "string"
+                },
                 "sharing_level": {
                     "enum": [
                         "owner",

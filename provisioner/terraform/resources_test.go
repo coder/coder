@@ -182,6 +182,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
+							OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
@@ -192,11 +193,13 @@ func TestConvertResources(t *testing.T) {
 								Interval:  5,
 								Threshold: 6,
 							},
+							OpenIn: proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app3",
 							DisplayName: "app3",
 							Subdomain:   false,
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -217,10 +220,12 @@ func TestConvertResources(t *testing.T) {
 						{
 							Slug:        "app1",
 							DisplayName: "app1",
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
 							DisplayName: "app2",
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -243,6 +248,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
+							OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
@@ -253,6 +259,7 @@ func TestConvertResources(t *testing.T) {
 								Interval:  5,
 								Threshold: 6,
 							},
+							OpenIn: proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -271,6 +278,7 @@ func TestConvertResources(t *testing.T) {
 							Slug:        "app3",
 							DisplayName: "app3",
 							Subdomain:   false,
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -454,6 +462,7 @@ func TestConvertResources(t *testing.T) {
 								Slug:        "code-server",
 								DisplayName: "code-server",
 								Url:         "http://localhost:13337?folder=/home/coder",
+								OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 							},
 						},
 						Auth:                     &proto.Agent_Token{},

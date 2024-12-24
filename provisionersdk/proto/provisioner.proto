@@ -163,6 +163,12 @@ message Script {
 	string log_path = 9;
 }
 
+enum AppOpenIn {
+    WINDOW = 0;
+    SLIM_WINDOW = 1;
+    TAB = 2;
+}
+
 // App represents a dev-accessible application on the workspace.
 message App {
     // slug is the unique identifier for the app, usually the name from the
@@ -178,6 +184,7 @@ message App {
     bool external = 9;
     int64 order = 10;
     bool hidden = 11;
+    AppOpenIn open_in = 12;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
