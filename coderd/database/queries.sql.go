@@ -3096,11 +3096,11 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 
 const getUserStatusChanges = `-- name: GetUserStatusChanges :many
 WITH dates AS (
-    SELECT generate_series(
+    SELECT (generate_series(
         date_trunc('day', $1::timestamptz),
         date_trunc('day', $2::timestamptz),
         '1 day'::interval
-    )::timestamptz AS date
+    ) AT TIME ZONE (extract(timezone FROM $1::timestamptz)::text || ' minutes'))::timestamptz AS date
 ),
 latest_status_before_range AS (
     -- Get the last status change for each user before our date range
