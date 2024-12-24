@@ -688,12 +688,15 @@ site/src/api/countriesGenerated.ts: scripts/typegen/countries.tstmpl scripts/typ
 
 docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
+	./scripts/pnpm_install.sh
+	pnpm exec markdownlint-cli2 --fix ./docs/admin/integrations/prometheus.md
+	pnpm exec markdown-table-formatter ./docs/admin/integrations/prometheus.md
 
 docs/reference/cli/index.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	./scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix "./docs/reference/cli/*.md"
-	pnpm exec markdown-table-formatter "./docs/reference/cli/*.md"
+	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
+	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm exec biome format --write ../docs/manifest.json
@@ -701,14 +704,14 @@ docs/reference/cli/index.md: scripts/clidocgen/main.go examples/examples.gen.jso
 docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
 	./scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix "./docs/admin/security/audit-logs.md"
-	pnpm exec markdown-table-formatter "./docs/admin/security/audit-logs.md"
+	pnpm exec markdownlint-cli2 --fix ./docs/admin/security/audit-logs.md
+	pnpm exec markdown-table-formatter ./docs/admin/security/audit-logs.md
 
 coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
 	./scripts/pnpm_install.sh
-	pnpm exec markdownlint-cli2 --fix "./docs/reference/api/*.md"
-	pnpm exec markdown-table-formatter "./docs/reference/api/*.md"
+	pnpm exec markdownlint-cli2 --fix ./docs/reference/api/*.md
+	pnpm exec markdown-table-formatter ./docs/reference/api/*.md
 	cd site
 	../scripts/pnpm_install.sh
 	pnpm exec biome format --write ../docs/manifest.json ../coderd/apidoc/swagger.json
