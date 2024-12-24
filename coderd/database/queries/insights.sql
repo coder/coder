@@ -774,11 +774,11 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 
 -- name: GetUserStatusChanges :many
 WITH dates AS (
-    SELECT generate_series(
+    SELECT (generate_series(
         date_trunc('day', @start_time::timestamptz),
         date_trunc('day', @end_time::timestamptz),
         '1 day'::interval
-    )::timestamptz AS date
+    ) AT TIME ZONE (extract(timezone FROM @start_time::timestamptz)::text || ' minutes'))::timestamptz AS date
 ),
 latest_status_before_range AS (
     -- Get the last status change for each user before our date range
