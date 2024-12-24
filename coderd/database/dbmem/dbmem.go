@@ -5666,7 +5666,7 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	return out, nil
 }
 
-func (q *FakeQuerier) GetUserStatusChanges(_ context.Context, arg database.GetUserStatusChangesParams) ([]database.UserStatusChange, error) {
+func (q *FakeQuerier) GetUserStatusChanges(_ context.Context, arg database.GetUserStatusChangesParams) ([]database.GetUserStatusChangesRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5675,12 +5675,27 @@ func (q *FakeQuerier) GetUserStatusChanges(_ context.Context, arg database.GetUs
 		return nil, err
 	}
 
-	result := make([]database.UserStatusChange, 0)
+	result := make([]database.GetUserStatusChangesRow, 0)
 	for _, change := range q.userStatusChanges {
 		if change.ChangedAt.Before(arg.StartTime) || change.ChangedAt.After(arg.EndTime) {
 			continue
 		}
-		result = append(result, change)
+		if !slices.ContainsFunc(result, func(r database.GetUserStatusChangesRow) bool {
+			return r.ChangedAt.Equal(change.ChangedAt) && r.NewStatus == change.NewStatus
+		}) {
+			result = append(result, database.GetUserStatusChangesRow{
+				NewStatus: change.NewStatus,
+				ChangedAt: change.ChangedAt,
+				Count:     1,
+			})
+		} else {
+			for i, r := range result {
+				if r.ChangedAt.Equal(change.ChangedAt) && r.NewStatus == change.NewStatus {
+					result[i].Count++
+					break
+				}
+			}
+		}
 	}
 
 	return result, nil

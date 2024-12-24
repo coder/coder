@@ -3094,13 +3094,40 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
-const GetUserStatusChanges = `-- name: GetUserStatusChanges :many
+const getUserStatusChanges = `-- name: GetUserStatusChanges :many
+WITH last_status_per_day AS (
+    -- First get the last status change for each user for each day
+    SELECT DISTINCT ON (date_trunc('day', changed_at), user_id)
+        date_trunc('day', changed_at)::timestamptz AS date,
+        new_status,
+        user_id
+    FROM user_status_changes
+    WHERE changed_at >= $1::timestamptz
+        AND changed_at < $2::timestamptz
+    ORDER BY
+        date_trunc('day', changed_at),
+        user_id,
+        changed_at DESC  -- This ensures we get the last status for each day
+),
+daily_counts AS (
+    -- Then count unique users per status per day
+    SELECT
+        date,
+        new_status,
+        COUNT(*) AS count
+    FROM last_status_per_day
+    GROUP BY
+        date,
+        new_status
+)
 SELECT
-	id, user_id, new_status, changed_at
-FROM user_status_changes
-WHERE changed_at >= $1::timestamptz
-	AND changed_at < $2::timestamptz
-ORDER BY changed_at
+    date::timestamptz AS changed_at,
+    new_status,
+    count::bigint
+FROM daily_counts
+ORDER BY
+    new_status ASC,
+    date ASC
 `
 
 type GetUserStatusChangesParams struct {
@@ -3108,21 +3135,22 @@ type GetUserStatusChangesParams struct {
 	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
-func (q *sqlQuerier) GetUserStatusChanges(ctx context.Context, arg GetUserStatusChangesParams) ([]UserStatusChange, error) {
-	rows, err := q.db.QueryContext(ctx, GetUserStatusChanges, arg.StartTime, arg.EndTime)
+type GetUserStatusChangesRow struct {
+	ChangedAt time.Time  `db:"changed_at" json:"changed_at"`
+	NewStatus UserStatus `db:"new_status" json:"new_status"`
+	Count     int64      `db:"count" json:"count"`
+}
+
+func (q *sqlQuerier) GetUserStatusChanges(ctx context.Context, arg GetUserStatusChangesParams) ([]GetUserStatusChangesRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStatusChanges, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []UserStatusChange
+	var items []GetUserStatusChangesRow
 	for rows.Next() {
-		var i UserStatusChange
-		if err := rows.Scan(
-			&i.ID,
-			&i.UserID,
-			&i.NewStatus,
-			&i.ChangedAt,
-		); err != nil {
+		var i GetUserStatusChangesRow
+		if err := rows.Scan(&i.ChangedAt, &i.NewStatus, &i.Count); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -3432,7 +3460,7 @@ func (q *sqlQuerier) GetJFrogXrayScanByWorkspaceAndAgentID(ctx context.Context, 
 }
 
 const upsertJFrogXrayScanByWorkspaceAndAgentID = `-- name: UpsertJFrogXrayScanByWorkspaceAndAgentID :exec
-INSERT INTO
+INSERT INTO 
 	jfrog_xray_scans (
 		agent_id,
 		workspace_id,
@@ -3441,7 +3469,7 @@ INSERT INTO
 		medium,
 		results_url
 	)
-VALUES
+VALUES 
 	($1, $2, $3, $4, $5, $6)
 ON CONFLICT (agent_id, workspace_id)
 DO UPDATE SET critical = $3, high = $4, medium = $5, results_url = $6
@@ -6316,7 +6344,7 @@ FROM
     provisioner_keys
 WHERE
     organization_id = $1
-AND
+AND 
     lower(name) = lower($2)
 `
 
@@ -6432,10 +6460,10 @@ WHERE
 AND
     -- exclude reserved built-in key
     id != '00000000-0000-0000-0000-000000000001'::uuid
-AND
+AND 
     -- exclude reserved user-auth key
     id != '00000000-0000-0000-0000-000000000002'::uuid
-AND
+AND 
     -- exclude reserved psk key
     id != '00000000-0000-0000-0000-000000000003'::uuid
 `
@@ -8121,7 +8149,7 @@ func (q *sqlQuerier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUI
 }
 
 const updateTailnetPeerStatusByCoordinator = `-- name: UpdateTailnetPeerStatusByCoordinator :exec
-UPDATE
+UPDATE 
 	tailnet_peers
 SET
 	status = $2
@@ -12692,7 +12720,7 @@ WITH agent_stats AS (
 		coalesce((PERCENTILE_CONT(0.95) WITHIN GROUP (ORDER BY connection_median_latency_ms)), -1)::FLOAT AS workspace_connection_latency_95
 	 FROM workspace_agent_stats
 	-- The greater than 0 is to support legacy agents that don't report connection_median_latency_ms.
-	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0
+	WHERE workspace_agent_stats.created_at > $1 AND connection_median_latency_ms > 0 
 	GROUP BY user_id, agent_id, workspace_id, template_id
 ), latest_agent_stats AS (
 	SELECT

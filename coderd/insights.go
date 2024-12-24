@@ -340,19 +340,14 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
 	}
 
-	slices.SortFunc(rows, func(a, b database.UserStatusChange) int {
-		return a.ChangedAt.Compare(b.ChangedAt)
-	})
-
 	for _, row := range rows {
-		date := row.ChangedAt.Truncate(24 * time.Hour)
 		status := codersdk.UserStatus(row.NewStatus)
 		if _, ok := resp.StatusCounts[status]; !ok {
 			resp.StatusCounts[status] = make([]codersdk.UserStatusChangeCount, 0)
 		}
 		resp.StatusCounts[status] = append(resp.StatusCounts[status], codersdk.UserStatusChangeCount{
-			Date:  date,
-			Count: 1,
+			Date:  row.ChangedAt,
+			Count: row.Count,
 		})
 	}
 

@@ -773,9 +773,36 @@ JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.wor
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
 
 -- name: GetUserStatusChanges :many
+WITH last_status_per_day AS (
+    -- First get the last status change for each user for each day
+    SELECT DISTINCT ON (date_trunc('day', changed_at), user_id)
+        date_trunc('day', changed_at)::timestamptz AS date,
+        new_status,
+        user_id
+    FROM user_status_changes
+    WHERE changed_at >= @start_time::timestamptz
+        AND changed_at < @end_time::timestamptz
+    ORDER BY
+        date_trunc('day', changed_at),
+        user_id,
+        changed_at DESC  -- This ensures we get the last status for each day
+),
+daily_counts AS (
+    -- Then count unique users per status per day
+    SELECT
+        date,
+        new_status,
+        COUNT(*) AS count
+    FROM last_status_per_day
+    GROUP BY
+        date,
+        new_status
+)
 SELECT
-	*
-FROM user_status_changes
-WHERE changed_at >= @start_time::timestamptz
-	AND changed_at < @end_time::timestamptz
-ORDER BY changed_at;
+    date::timestamptz AS changed_at,
+    new_status,
+    count::bigint
+FROM daily_counts
+ORDER BY
+    new_status ASC,
+    date ASC;
