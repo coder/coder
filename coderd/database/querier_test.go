@@ -2328,7 +2328,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 				// We should have an entry for each status change
 				require.Len(t, userStatusChanges, 5, "should have 1 user * 5 days = 5 rows")
 				for _, row := range userStatusChanges {
-					require.Equal(t, row.NewStatus, tc.status, "should have the correct status")
+					require.Equal(t, row.Status, tc.status, "should have the correct status")
 				}
 			})
 		}
@@ -2422,10 +2422,10 @@ func TestGetUserStatusChanges(t *testing.T) {
 				// We should have an entry for each status (active, dormant, suspended) for each day
 				require.Len(t, userStatusChanges, 5, "should have 1 user * 5 days = 5 rows")
 				for _, row := range userStatusChanges {
-					if row.ChangedAt.Before(firstTransitionTime) {
-						require.Equal(t, row.NewStatus, tc.initialStatus, "should have the initial status")
+					if row.Date.Before(firstTransitionTime) {
+						require.Equal(t, row.Status, tc.initialStatus, "should have the initial status")
 					} else {
-						require.Equal(t, row.NewStatus, tc.targetStatus, "should have the target status")
+						require.Equal(t, row.Status, tc.targetStatus, "should have the target status")
 					}
 				}
 			})
@@ -2638,12 +2638,12 @@ func TestGetUserStatusChanges(t *testing.T) {
 				// Expected counts before, between and after the transitions should match:
 				for _, row := range userStatusChanges {
 					switch {
-					case row.ChangedAt.Before(firstTransitionTime):
-						require.Equal(t, row.Count, tc.expectedCounts["initial"][row.NewStatus], "should have the correct count before the first transition")
-					case row.ChangedAt.Before(secondTransitionTime):
-						require.Equal(t, row.Count, tc.expectedCounts["between"][row.NewStatus], "should have the correct count between the transitions")
-					case row.ChangedAt.Before(now):
-						require.Equal(t, row.Count, tc.expectedCounts["final"][row.NewStatus], "should have the correct count after the second transition")
+					case row.Date.Before(firstTransitionTime):
+						require.Equal(t, row.Count, tc.expectedCounts["initial"][row.Status], "should have the correct count before the first transition")
+					case row.Date.Before(secondTransitionTime):
+						require.Equal(t, row.Count, tc.expectedCounts["between"][row.Status], "should have the correct count between the transitions")
+					case row.Date.Before(now):
+						require.Equal(t, row.Count, tc.expectedCounts["final"][row.Status], "should have the correct count after the second transition")
 					}
 				}
 			})
