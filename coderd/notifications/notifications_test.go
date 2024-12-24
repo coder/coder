@@ -1034,6 +1034,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceCreated",
+			id:   notifications.TemplateWorkspaceCreated,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"template":  "bobby-template",
+					"version":   "alpha",
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:

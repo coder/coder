@@ -3,16 +3,13 @@ import {
 	organizationsPermissions,
 	updateOrganization,
 } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import {
-	canEditOrganization,
-	useManagementSettings,
-} from "modules/management/ManagementSettingsLayout";
+import { canEditOrganization } from "modules/management/OrganizationSettingsLayout";
+import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
@@ -23,7 +20,7 @@ const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization?: string;
 	};
-	const { organizations } = useManagementSettings();
+	const { organizations } = useOrganizationSettings();
 	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();

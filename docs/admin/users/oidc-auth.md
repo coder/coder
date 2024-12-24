@@ -130,7 +130,14 @@ your Coder deployment:
 CODER_DISABLE_PASSWORD_AUTH=true
 ```
 
-## SCIM (enterprise) (premium)
+## SCIM
+
+<blockquote class="info">
+
+SCIM is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Coder supports user provisioning and deprovisioning via SCIM 2.0 with header
 authentication. Upon deactivation, users are

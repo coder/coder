@@ -4,14 +4,14 @@ import MenuItem, { type MenuItemProps } from "@mui/material/MenuItem";
 import MenuList, { type MenuListProps } from "@mui/material/MenuList";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
-import {
 	SearchField,
 	type SearchFieldProps,
 } from "components/SearchField/SearchField";
+import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/deprecated/Popover/Popover";
 import {
 	Children,
 	type FC,

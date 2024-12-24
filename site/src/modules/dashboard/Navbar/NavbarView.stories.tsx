@@ -27,7 +27,7 @@ export const ForAdmin: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Administration" }),
+			canvas.getByRole("button", { name: "Admin settings" }),
 		);
 	},
 };
@@ -44,7 +44,7 @@ export const ForAuditor: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Administration" }),
+			canvas.getByRole("button", { name: "Admin settings" }),
 		);
 	},
 };
@@ -61,7 +61,7 @@ export const ForOrgAdmin: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Administration" }),
+			canvas.getByRole("button", { name: "Admin settings" }),
 		);
 	},
 };

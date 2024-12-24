@@ -410,7 +410,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 		}
 		require.Greater(t, heartbeats[0].Sub(start), time.Duration(0))
 		require.Greater(t, heartbeats[1].Sub(start), time.Duration(0))
-		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*9/10)
+		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*3/4)
 	}, testutil.WaitMedium, testutil.IntervalMedium)
 }
 

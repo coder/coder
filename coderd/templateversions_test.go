@@ -172,8 +172,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 		require.Equal(t, provisionersdk.ScopeOrganization, version.Job.Tags[provisionersdk.TagScope])
 		if assert.Equal(t, version.Job.Status, codersdk.ProvisionerJobPending) {
 			assert.NotNil(t, version.MatchedProvisioners)
-			assert.Equal(t, version.MatchedProvisioners.Available, 1)
-			assert.Equal(t, version.MatchedProvisioners.Count, 1)
+			assert.Equal(t, 1, version.MatchedProvisioners.Available)
+			assert.Equal(t, 1, version.MatchedProvisioners.Count)
 			assert.True(t, version.MatchedProvisioners.MostRecentlySeen.Valid)
 		}
 
