@@ -1,6 +1,6 @@
 # JetBrains IDEs
 
-We support JetBrains IDEs using
+Coder supports JetBrains IDEs using
 [Gateway](https://www.jetbrains.com/remote-development/gateway/). The following
 IDEs are supported for remote development:
 
@@ -16,11 +16,11 @@ IDEs are supported for remote development:
 ## JetBrains Gateway
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
-a JetBrains IDE without even downloading one. Visit the
-[JetBrains website](https://www.jetbrains.com/remote-development/gateway/) to
+a JetBrains IDE without downloading one. Visit the
+[JetBrains Gateway website](https://www.jetbrains.com/remote-development/gateway/) to
 learn more about Gateway.
 
-Gateway can connect to a Coder workspace by using Coder's Gateway plugin or
+Gateway can connect to a Coder workspace using Coder's Gateway plugin or
 manually setting up an SSH connection.
 
 ### How to use the plugin
@@ -75,8 +75,8 @@ manually setting up an SSH connection.
 
 ### Update a Coder plugin version
 
-1. Click the gear icon at the bottom left of the Gateway home screen and then
-   "Settings"
+1. Click the gear icon at the bottom left of the Gateway home screen, then
+   **Settings**.
 
 1. In the **Marketplace** tab within Plugins, enter Coder and if a newer plugin
    release is available, click **Update** then **OK**:
@@ -93,31 +93,42 @@ Failed to configure connection to https://coder.internal.enterprise/: PKIX path 
 ```
 
 To resolve this issue, you will need to add Coder's certificate to the Java
-trust store present on your local machine. Here is the default location of the
-trust store for each OS:
+trust store present on your local machine:
 
-```console
-# Linux
+<div class="tabs">
+
+#### Linux
+
+```none
 <Gateway installation directory>/jbr/lib/security/cacerts
-
-# macOS
-<Gateway installation directory>/jbr/lib/security/cacerts
-/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
-
-# Windows
-C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts
-%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
 ```
 
-To add the certificate to the keystore, you can use the `keytool` utility that
-ships with Java:
+Use the `keytool` utility that ships with Java:
 
-```console
+```shell
 keytool -import -alias coder -file <certificate> -keystore /path/to/trust/store
 ```
 
-You can use `keytool` that ships with the JetBrains Gateway installation.
-Windows example:
+#### macOS
+
+```none
+<Gateway installation directory>/jbr/lib/security/cacerts
+/Library/Application Support/JetBrains/Toolbox/apps/JetBrainsGateway/ch-0/<app-id>/JetBrains Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts # Path for Toolbox installation
+```
+
+Use the `keytool` included in the JetBrains Gateway installation:
+
+```shell
+keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
+```
+
+#### Windows
+
+```none
+C:\Program Files (x86)\<Gateway installation directory>\jre\lib\security\cacerts\%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts # Path for Toolbox installation
+```
+
+Use the `keytool` included in the JetBrains Gateway installation:
 
 ```powershell
 & 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jbr/bin/keytool.exe' 'C:\Program Files\JetBrains\JetBrains Gateway <version>/jre/lib/security/cacerts' -import -alias coder -file <cert>
@@ -126,11 +137,8 @@ Windows example:
 & '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
 ```
 
-macOS example:
 
-```shell
-keytool -import -alias coder -file cacert.pem -keystore /Applications/JetBrains\ Gateway.app/Contents/jbr/Contents/Home/lib/security/cacerts
-```
+</div>
 
 ## Manually Configuring A JetBrains Gateway Connection
 
