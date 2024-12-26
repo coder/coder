@@ -13,6 +13,7 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type FC, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { sortProxiesByLatency } from "./proxyUtils";
 
 interface ProxyMenuProps {
 	proxyContextValue: ProxyContextValue;
@@ -163,15 +164,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 					]}
 
 				{proxyContextValue.proxies &&
-					[...proxyContextValue.proxies]
-						.sort((a, b) => {
-							const latencyA =
-								latencies?.[a.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
-							const latencyB =
-								latencies?.[b.id]?.latencyMS ?? Number.POSITIVE_INFINITY;
-							return latencyA - latencyB;
-						})
-						.map((proxy) => (
+					sortProxiesByLatency(proxyContextValue.proxies, latencies).map(
+						(proxy) => (
 							<MenuItem
 								key={proxy.id}
 								selected={proxy.id === selectedProxy?.id}
@@ -215,7 +209,8 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 									/>
 								</div>
 							</MenuItem>
-						))}
+						),
+					)}
 
 				<Divider />
 

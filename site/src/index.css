@@ -70,4 +70,10 @@
 	* {
 		@apply border-border;
 	}
+
+	/** Related to https://github.com/radix-ui/primitives/issues/3251 */
+	html body[data-scroll-locked] {
+    --removed-body-scroll-bar-size: 0 !important;
+    margin-right: 0 !important;
+  }
 }
