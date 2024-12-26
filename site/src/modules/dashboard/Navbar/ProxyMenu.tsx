@@ -1,6 +1,4 @@
 import { useTheme } from "@emotion/react";
-import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutlined";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import Menu from "@mui/material/Menu";
 import MenuItem from "@mui/material/MenuItem";
@@ -15,7 +13,6 @@ import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { type FC, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { BUTTON_SM_HEIGHT } from "theme/constants";
 
 interface ProxyMenuProps {
 	proxyContextValue: ProxyContextValue;
@@ -63,7 +60,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 		return (
 			<Skeleton
 				width="110px"
-				height={BUTTON_SM_HEIGHT}
+				height={40}
 				css={{ borderRadius: 6, transform: "none" }}
 			/>
 		);
