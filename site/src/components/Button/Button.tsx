@@ -51,9 +51,12 @@ export const Button: FC<ButtonProps> = forwardRef<
 	const Comp = asChild ? Slot : "button";
 	return (
 		<Comp
-			className={cn(buttonVariants({ variant, size, className }))}
 			ref={ref}
 			{...props}
+			className={cn(buttonVariants({ variant, size, className }))}
+			type={
+				props.type === undefined && Comp === "button" ? "button" : props.type
+			}
 		/>
 	);
 });

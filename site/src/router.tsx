@@ -22,6 +22,7 @@ import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
+import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
@@ -365,7 +366,10 @@ const groupsRouter = () => {
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
-		<Route element={<RoutesWithSuspense />}>
+		<Route
+			element={<RoutesWithSuspense />}
+			errorElement={<GlobalErrorBoundary />}
+		>
 			<Route path="login" element={<LoginPage />} />
 			<Route path="setup" element={<SetupPage />} />
 			<Route path="reset-password">

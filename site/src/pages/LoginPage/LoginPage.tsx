@@ -2,7 +2,7 @@ import { buildInfo } from "api/queries/buildInfo";
 import { authMethods } from "api/queries/users";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
@@ -12,6 +12,11 @@ import { sendDeploymentEvent } from "utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 export const LoginPage: FC = () => {
+	const [blowUp, setBlowUp] = useState(true);
+	if (blowUp) {
+		throw new Error("Blah");
+	}
+
 	const location = useLocation();
 	const {
 		isLoading,
@@ -80,6 +85,9 @@ export const LoginPage: FC = () => {
 			<Helmet>
 				<title>Sign in to {applicationName}</title>
 			</Helmet>
+			<button type="button" onClick={() => setBlowUp(true)}>
+				Blow up
+			</button>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
 				error={signInError ?? redirectError}
