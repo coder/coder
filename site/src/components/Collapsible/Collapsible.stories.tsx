@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { Button } from "components/Button/Button";
+import { ChevronsUpDown } from "lucide-react";
 import {
 	Collapsible,
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "./Collapsible";
-import { ChevronsUpDown } from "lucide-react";
-import { Button } from "components/Button/Button";
 
 const meta: Meta<typeof Collapsible> = {
 	title: "components/Collapsible",
