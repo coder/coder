@@ -81,6 +81,8 @@ export const App: FC = () => {
 	return (
 		<StrictMode>
 			<AppProviders>
+				{/* If you're wondering where the global error boundary is,
+				    it's connected to the router */}
 				<RouterProvider router={router} />
 			</AppProviders>
 		</StrictMode>
