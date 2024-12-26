@@ -53,7 +53,7 @@ export const Button: FC<ButtonProps> = forwardRef<
 		<Comp
 			ref={ref}
 			{...props}
-			className={cn(buttonVariants({ variant, size, className }))}
+			className={cn(buttonVariants({ variant, size }), className)}
 			type={
 				props.type === undefined && Comp === "button" ? "button" : props.type
 			}
