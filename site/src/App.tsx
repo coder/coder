@@ -10,7 +10,6 @@ import {
 import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
 import { RouterProvider } from "react-router-dom";
-import { ErrorBoundary } from "./components/ErrorBoundary/ErrorBoundary";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
@@ -81,11 +80,9 @@ export const AppProviders: FC<AppProvidersProps> = ({
 export const App: FC = () => {
 	return (
 		<StrictMode>
-			<ErrorBoundary>
-				<AppProviders>
-					<RouterProvider router={router} />
-				</AppProviders>
-			</ErrorBoundary>
+			<AppProviders>
+				<RouterProvider router={router} />
+			</AppProviders>
 		</StrictMode>
 	);
 };

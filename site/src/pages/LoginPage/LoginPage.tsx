@@ -12,11 +12,6 @@ import { sendDeploymentEvent } from "utils/telemetry";
 import { LoginPageView } from "./LoginPageView";
 
 export const LoginPage: FC = () => {
-	const [blowUp, setBlowUp] = useState(true);
-	if (blowUp) {
-		throw new Error("Blah");
-	}
-
 	const location = useLocation();
 	const {
 		isLoading,
@@ -85,9 +80,6 @@ export const LoginPage: FC = () => {
 			<Helmet>
 				<title>Sign in to {applicationName}</title>
 			</Helmet>
-			<button type="button" onClick={() => setBlowUp(true)}>
-				Blow up
-			</button>
 			<LoginPageView
 				authMethods={authMethodsQuery.data}
 				error={signInError ?? redirectError}
