@@ -48,16 +48,27 @@ func TestDeploymentInsights(t *testing.T) {
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	logger := testutil.Logger(t)
 	rollupEvents := make(chan dbrollup.Event)
+	statsInterval := 500 * time.Millisecond
+	// Speed up the test by controlling batch size and interval.
+	batcher, closeBatcher, err := workspacestats.NewBatcher(context.Background(),
+		workspacestats.BatcherWithLogger(logger.Named("batcher").Leveled(slog.LevelDebug)),
+		workspacestats.BatcherWithStore(db),
+		workspacestats.BatcherWithBatchSize(1),
+		workspacestats.BatcherWithInterval(statsInterval),
+	)
+	require.NoError(t, err)
+	defer closeBatcher()
 	client := coderdtest.New(t, &coderdtest.Options{
 		Database:                  db,
 		Pubsub:                    ps,
 		Logger:                    &logger,
 		IncludeProvisionerDaemon:  true,
-		AgentStatsRefreshInterval: time.Millisecond * 100,
+		AgentStatsRefreshInterval: statsInterval,
+		StatsBatcher:              batcher,
 		DatabaseRolluper: dbrollup.New(
 			logger.Named("dbrollup").Leveled(slog.LevelDebug),
 			db,
-			dbrollup.WithInterval(time.Millisecond*100),
+			dbrollup.WithInterval(statsInterval/2),
 			dbrollup.WithEventChannel(rollupEvents),
 		),
 	})
@@ -76,7 +87,7 @@ func TestDeploymentInsights(t *testing.T) {
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
-	ctx := testutil.Context(t, testutil.WaitLong)
+	ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 	// Pre-check, no  permission issues.
 	daus, err := client.DeploymentDAUs(ctx, codersdk.TimezoneOffsetHour(clientTz))
@@ -108,6 +119,13 @@ func TestDeploymentInsights(t *testing.T) {
 	err = sess.Start("cat")
 	require.NoError(t, err)
 
+	select {
+	case <-ctx.Done():
+		require.Fail(t, "timed out waiting for initial rollup event", ctx.Err())
+	case ev := <-rollupEvents:
+		require.True(t, ev.Init, "want init event")
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -120,6 +138,7 @@ func TestDeploymentInsights(t *testing.T) {
 		if len(daus.Entries) > 0 && daus.Entries[len(daus.Entries)-1].Amount > 0 {
 			break
 		}
+		t.Logf("waiting for deployment daus to update: %+v", daus)
 	}
 }
 

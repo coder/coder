@@ -15,13 +15,13 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Pill } from "components/Pill/Pill";
+import { Stack } from "components/Stack/Stack";
+import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { Stack } from "components/Stack/Stack";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+} from "components/deprecated/Popover/Popover";
 import { type FC, useState } from "react";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";

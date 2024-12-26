@@ -446,7 +446,8 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
-# Type of auth to use when connecting to postgres.
+# Type of auth to use when connecting to postgres. For AWS RDS, using IAM
+# authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
 # A URL to an external Terms of Service that must be accepted by users when

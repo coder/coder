@@ -9,7 +9,7 @@
 # certificate.
 #
 # For the Coder CLI, the binary_identifier should be "com.coder.cli".
-# For the CoderVPN `.dylib`, the binary_identifier should be "com.coder.vpn".
+# For the CoderVPN `.dylib`, the binary_identifier should be "com.coder.Coder-Desktop.VPN.dylib".
 #
 # You can check if a binary is signed by running the following command on a Mac:
 #   codesign -dvv path/to/binary

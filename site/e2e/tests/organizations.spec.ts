@@ -1,11 +1,12 @@
 import { expect, test } from "@playwright/test";
 import { setupApiCalls } from "../api";
 import { expectUrl } from "../expectUrl";
-import { randomName, requiresLicense } from "../helpers";
+import { login, randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
 test.beforeEach(async ({ page }) => {
-	await beforeCoderTest(page);
+	beforeCoderTest(page);
+	await login(page);
 	await setupApiCalls(page);
 });
 
