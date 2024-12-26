@@ -131,11 +131,10 @@ const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
 			{isRouteErrorResponse(error) ? (
 				<>
 					<h2 className="text-base font-bold text-content-primary m-0">
-						HTTP error code {error.status}
+						HTTP {error.status} - {error.statusText}
 					</h2>
-					<p className="pb-4 leading-5 m-0">{error.statusText}</p>
 					<pre className="m-0 py-2 px-0 overflow-x-auto text-xs">
-						<code>{serializeDataAsJson(error.data)}</code>
+						<code data-testid="code">{serializeDataAsJson(error.data)}</code>
 					</pre>
 				</>
 			) : (
@@ -143,10 +142,12 @@ const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
 					<h2 className="text-base font-bold text-content-primary m-0">
 						{error.name}
 					</h2>
-					<p className="pb-4 leading-5 m-0">{error.message}</p>
+					<p data-testid="description" className="pb-4 leading-5 m-0">
+						{error.message}
+					</p>
 					{error.stack && (
 						<pre className="m-0 py-2 px-0 overflow-x-auto text-xs">
-							<code>{error.stack}</code>
+							<code data-testid="code">{error.stack}</code>
 						</pre>
 					)}
 				</>
