@@ -11,13 +11,13 @@ import type { Interpolation } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { Button } from "components/Button/Button";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import {
+	type ErrorResponse,
 	isRouteErrorResponse,
 	useLocation,
 	useRouteError,
-	type ErrorResponse,
 } from "react-router-dom";
 
 const errorPageTitle = "Something went wrong";

@@ -1,8 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { GlobalErrorBoundaryInner } from "./GlobalErrorBoundary";
+import { expect, userEvent } from "@storybook/test";
 import { within } from "@testing-library/react";
 import type { ErrorResponse } from "react-router-dom";
-import { expect, userEvent } from "@storybook/test";
+import { GlobalErrorBoundaryInner } from "./GlobalErrorBoundary";
 
 /**
  * React Router ErrorResponses have a "hidden" internal field that RR uses to

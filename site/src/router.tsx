@@ -1,3 +1,4 @@
+import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Suspense, lazy } from "react";
 import {
@@ -22,7 +23,6 @@ import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
-import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 
 // Lazy load pages
 // - Pages that are secondary, not in the main navigation or not usually accessed
