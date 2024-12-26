@@ -1,15 +1,12 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import Badge from "@mui/material/Badge";
+import { useTheme } from "@emotion/react";
 import type * as TypesGen from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
 import { type FC, useState } from "react";
-import { navHeight } from "theme/constants";
 import { UserDropdownContent } from "./UserDropdownContent";
 
 export interface UserDropdownProps {
@@ -31,20 +28,11 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 	return (
 		<Popover open={open} onOpenChange={setOpen}>
 			<PopoverTrigger>
-				<button css={styles.button} data-testid="user-dropdown-trigger">
-					<div css={styles.badgeContainer}>
-						<Badge overlap="circular">
-							<Avatar
-								fallback={user.username}
-								src={user.avatar_url}
-								size="lg"
-							/>
-						</Badge>
-						<DropdownArrow
-							color={theme.experimental.l2.fill.solid}
-							close={open}
-						/>
-					</div>
+				<button
+					type="button"
+					className="bg-transparent border-0 cursor-pointer p-0"
+				>
+					<Avatar fallback={user.username} src={user.avatar_url} size="lg" />
 				</button>
 			</PopoverTrigger>
 
@@ -68,24 +56,3 @@ export const UserDropdown: FC<UserDropdownProps> = ({
 		</Popover>
 	);
 };
-
-const styles = {
-	button: css`
-    background: none;
-    border: 0;
-    cursor: pointer;
-    height: ${navHeight}px;
-    padding: 12px 0;
-
-    &:hover {
-      background-color: transparent;
-    }
-  `,
-
-	badgeContainer: {
-		display: "flex",
-		alignItems: "center",
-		minWidth: 0,
-		maxWidth: 300,
-	},
-} satisfies Record<string, Interpolation<Theme>>;

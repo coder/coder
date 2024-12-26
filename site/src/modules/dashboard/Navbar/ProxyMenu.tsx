@@ -8,6 +8,7 @@ import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { DropdownMenuButton } from "components/DropdownMenu/DropdownMenu";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
@@ -70,14 +71,10 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 
 	return (
 		<>
-			<Button
+			<DropdownMenuButton
 				ref={buttonRef}
 				onClick={() => setIsOpen(true)}
-				size="small"
-				endIcon={<KeyboardArrowDownOutlined />}
-				css={{
-					"& .MuiSvgIcon-root": { fontSize: 14 },
-				}}
+				size="lg"
 			>
 				<span css={{ ...visuallyHidden }}>
 					Latency for {selectedProxy?.display_name ?? "your region"}
@@ -107,7 +104,7 @@ export const ProxyMenu: FC<ProxyMenuProps> = ({ proxyContextValue }) => {
 				) : (
 					"Select Proxy"
 				)}
-			</Button>
+			</DropdownMenuButton>
 
 			<Menu
 				open={isOpen}

@@ -13,7 +13,8 @@ export const buttonVariants = cva(
 	text-sm font-semibold font-medium  cursor-pointer
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
-	[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,
+	[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0
+	px-3 py-2`,
 	{
 		variants: {
 			variant: {
@@ -26,9 +27,11 @@ export const buttonVariants = cva(
 				warning:
 					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
 			},
+
 			size: {
-				default: "h-9 px-3 py-2",
-				sm: "h-8 px-2 text-xs",
+				lg: "h-10",
+				default: "h-9",
+				sm: "h-8 px-2 py-1.5 text-xs",
 			},
 		},
 		defaultVariants: {
@@ -44,16 +47,16 @@ export interface ButtonProps
 	asChild?: boolean;
 }
 
-export const Button: FC<ButtonProps> = forwardRef<
-	HTMLButtonElement,
-	ButtonProps
->(({ className, variant, size, asChild = false, ...props }, ref) => {
-	const Comp = asChild ? Slot : "button";
-	return (
-		<Comp
-			className={cn(buttonVariants({ variant, size, className }))}
-			ref={ref}
-			{...props}
-		/>
-	);
-});
+export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
+	({ className, variant, size, asChild = false, ...props }, ref) => {
+		const Comp = asChild ? Slot : "button";
+		return (
+			<Comp
+				className={cn(buttonVariants({ variant, size, className }))}
+				ref={ref}
+				{...props}
+			/>
+		);
+	},
+);
+Button.displayName = "Button";

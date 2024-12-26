@@ -2,6 +2,7 @@ import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
+import { DropdownMenuButton } from "components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Popover,
@@ -43,18 +44,7 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button
-					size="small"
-					endIcon={
-						<DropdownArrow
-							color={theme.experimental.l2.fill.solid}
-							close={false}
-							margin={false}
-						/>
-					}
-				>
-					Admin settings
-				</Button>
+				<DropdownMenuButton size="lg">Admin settings</DropdownMenuButton>
 			</PopoverTrigger>
 
 			<PopoverContent

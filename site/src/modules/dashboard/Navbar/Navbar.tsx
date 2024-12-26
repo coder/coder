@@ -37,6 +37,7 @@ export const Navbar: FC = () => {
 			canViewHealth={canViewHealth}
 			canViewAuditLog={canViewAuditLog}
 			proxyContextValue={proxyContextValue}
+			docsHref={appearance.docs_url}
 		/>
 	);
 };
