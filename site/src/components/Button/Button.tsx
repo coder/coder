@@ -26,12 +26,14 @@ export const buttonVariants = cva(
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
 				warning:
 					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
+				ghost: "bg-transparent border-0 hover:bg-surface-secondary",
 			},
 
 			size: {
 				lg: "h-10",
 				default: "h-9",
 				sm: "h-8 px-2 py-1.5 text-xs",
+				icon: "h-10 w-10",
 			},
 		},
 		defaultVariants: {

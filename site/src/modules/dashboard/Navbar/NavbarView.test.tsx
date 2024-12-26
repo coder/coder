@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import { NavbarView, Language as navLanguage } from "./NavbarView";
+import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
 	proxy: {
@@ -36,7 +36,7 @@ describe("NavbarView", () => {
 				canViewAuditLog
 			/>,
 		);
-		const workspacesLink = await screen.findByText(navLanguage.workspaces);
+		const workspacesLink = await screen.findByText("Workspaces");
 		expect((workspacesLink as HTMLAnchorElement).href).toContain("/workspaces");
 	});
 
@@ -54,7 +54,7 @@ describe("NavbarView", () => {
 				canViewAuditLog
 			/>,
 		);
-		const templatesLink = await screen.findByText(navLanguage.templates);
+		const templatesLink = await screen.findByText("Templates");
 		expect((templatesLink as HTMLAnchorElement).href).toContain("/templates");
 	});
 
@@ -74,7 +74,7 @@ describe("NavbarView", () => {
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
-		const auditLink = await screen.findByText(navLanguage.audit);
+		const auditLink = await screen.findByText("Audit Logs");
 		expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
 	});
 
@@ -94,9 +94,7 @@ describe("NavbarView", () => {
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
-		const deploymentSettingsLink = await screen.findByText(
-			navLanguage.deployment,
-		);
+		const deploymentSettingsLink = await screen.findByText("Deployment");
 		expect((deploymentSettingsLink as HTMLAnchorElement).href).toContain(
 			"/deployment/general",
 		);

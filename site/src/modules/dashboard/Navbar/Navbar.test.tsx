@@ -7,7 +7,6 @@ import {
 	MockMemberPermissions,
 } from "testHelpers/entities";
 import { server } from "testHelpers/server";
-import { Language } from "./NavbarView";
 
 /**
  * The LicenseBanner, mounted above the AppRouter, fetches entitlements. Thus, to test their
@@ -26,7 +25,7 @@ describe("Navbar", () => {
 		await userEvent.click(deploymentMenu);
 		await waitFor(
 			() => {
-				const link = screen.getByText(Language.audit);
+				const link = screen.getByText("Audit Logs");
 				expect(link).toBeDefined();
 			},
 			{ timeout: 2000 },
@@ -41,7 +40,7 @@ describe("Navbar", () => {
 		await userEvent.click(deploymentMenu);
 		await waitFor(
 			() => {
-				const link = screen.queryByText(Language.audit);
+				const link = screen.queryByText("Audit Logs");
 				expect(link).toBe(null);
 			},
 			{ timeout: 2000 },
