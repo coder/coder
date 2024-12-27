@@ -234,5 +234,5 @@ export const DropdownMenuButton = forwardRef<
 DropdownMenuButton.displayName = "DropdownMenuButton";
 
 export const DropdownMenuChevronDown: FC = () => {
-	return <ChevronDownIcon className="text-content-primary" />;
+	return <ChevronDownIcon className="text-content-primary !size-icon-xs" />;
 };
