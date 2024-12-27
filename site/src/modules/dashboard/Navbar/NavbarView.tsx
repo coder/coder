@@ -158,7 +158,11 @@ const MobileMenu: FC<MobileMenuProps> = ({
 					variant="ghost"
 					className="ml-auto md:hidden [&_svg]:size-6"
 				>
-					{open ? <XIcon /> : <MenuIcon />}
+					{open ? (
+						<XIcon className="size-icon-lg" />
+					) : (
+						<MenuIcon className="size-icon-lg" />
+					)}
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent
@@ -410,7 +414,6 @@ const UserSettingsSub: FC<UserSettingsSubProps> = ({
 					<Link to="/settings/account">Account</Link>
 				</DropdownMenuItem>
 				<DropdownMenuItem
-					asChild
 					className={cn(
 						mobileDropdownItemClassNames.default,
 						mobileDropdownItemClassNames.sub,
