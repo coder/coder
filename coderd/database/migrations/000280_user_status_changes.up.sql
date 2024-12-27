@@ -21,6 +21,16 @@ SELECT
 FROM users
 WHERE NOT deleted;
 
+CREATE TABLE user_deleted (
+    id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    user_id uuid NOT NULL REFERENCES users(id),
+    deleted_at timestamptz NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+COMMENT ON TABLE user_deleted IS 'Tracks when users were deleted';
+
+CREATE INDEX idx_user_deleted_deleted_at ON user_deleted(deleted_at);
+
 CREATE OR REPLACE FUNCTION record_user_status_change() RETURNS trigger AS $$
 BEGIN
     IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
@@ -34,6 +44,17 @@ BEGIN
             NEW.updated_at
         );
     END IF;
+
+    IF OLD.deleted = FALSE AND NEW.deleted = TRUE THEN
+        INSERT INTO user_deleted (
+            user_id,
+            deleted_at
+        ) VALUES (
+            NEW.id,
+            NEW.updated_at
+        );
+    END IF;
+
     RETURN NEW;
 END;
 $$ LANGUAGE plpgsql;

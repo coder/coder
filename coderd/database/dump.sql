@@ -432,6 +432,17 @@ BEGIN
             NEW.updated_at
         );
     END IF;
+
+    IF OLD.deleted = FALSE AND NEW.deleted = TRUE THEN
+        INSERT INTO user_deleted (
+            user_id,
+            deleted_at
+        ) VALUES (
+            NEW.id,
+            NEW.updated_at
+        );
+    END IF;
+
     RETURN NEW;
 END;
 $$;
@@ -1390,6 +1401,14 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE user_deleted (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE user_deleted IS 'Tracks when users were deleted';
+
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
     login_type login_type NOT NULL,
@@ -2001,6 +2020,9 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
 
@@ -2116,6 +2138,8 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
 
 CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
@@ -2385,6 +2409,9 @@ ALTER TABLE ONLY templates
 
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
