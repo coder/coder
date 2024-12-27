@@ -812,13 +812,19 @@ daily_counts AS (
         d.date,
         asc1.new_status,
         -- For each date and status, count users whose most recent status change
-        -- (up to that date) matches this status
+        -- (up to that date) matches this status AND who weren't deleted by that date
         COUNT(*) FILTER (
             WHERE asc1.changed_at = (
                 SELECT MAX(changed_at)
                 FROM all_status_changes asc2
                 WHERE asc2.user_id = asc1.user_id
                 AND asc2.changed_at <= d.date
+            )
+            AND NOT EXISTS (
+                SELECT 1
+                FROM user_deleted ud
+                WHERE ud.user_id = asc1.user_id
+                AND ud.deleted_at <= d.date
             )
         )::bigint AS count
     FROM dates d
