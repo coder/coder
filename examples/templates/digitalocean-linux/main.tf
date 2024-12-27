@@ -9,30 +9,29 @@ terraform {
   }
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
-variable "step1_do_project_id" {
+variable "project_uuid" {
   type        = string
   description = <<-EOF
-    Enter project ID
+    DigitalOcean project ID
 
       $ doctl projects list
   EOF
   sensitive   = true
 
   validation {
-    # make sure length of alphanumeric string is 36
-    condition     = length(var.step1_do_project_id) == 36
+    # make sure length of alphanumeric string is 36 (UUIDv4 size)
+    condition     = length(var.project_uuid) == 36
     error_message = "Invalid Digital Ocean Project ID."
   }
 
 }
 
-variable "step2_do_admin_ssh_key" {
+variable "ssh_key_id" {
   type        = number
   description = <<-EOF
-    Enter admin SSH key ID (some Droplet images require an SSH key to be set):
+    DigitalOcean SSH key ID (some Droplet images require an SSH key to be set):
 
     Can be set to "0" for no key.
 
@@ -41,9 +40,10 @@ variable "step2_do_admin_ssh_key" {
       $ doctl compute ssh-key list
   EOF
   sensitive   = true
+  default     = 0
 
   validation {
-    condition     = var.step2_do_admin_ssh_key >= 0
+    condition     = var.ssh_key_id >= 0
     error_message = "Invalid Digital Ocean SSH key ID, a number is required."
   }
 }
@@ -264,6 +264,38 @@ resource "coder_agent" "main" {
   }
 }
 
+# See https://registry.coder.com/modules/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
+}
+
+# See https://registry.coder.com/modules/jetbrains-gateway
+module "jetbrains_gateway" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+
+  # JetBrains IDEs to make available for the user to select
+  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  default        = "IU"
+
+  # Default folder to open when starting a JetBrains IDE
+  folder = "/home/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  order      = 2
+}
+
 resource "digitalocean_volume" "home_volume" {
   region                   = data.coder_parameter.region.value
   name                     = "coder-${data.coder_workspace.me.id}-home"
@@ -291,11 +323,11 @@ resource "digitalocean_droplet" "workspace" {
     coder_agent_token = coder_agent.main.token
   })
   # Required to provision Fedora.
-  ssh_keys = var.step2_do_admin_ssh_key > 0 ? [var.step2_do_admin_ssh_key] : []
+  ssh_keys = var.ssh_key_id > 0 ? [var.ssh_key_id] : []
 }
 
 resource "digitalocean_project_resources" "project" {
-  project = var.step1_do_project_id
+  project = var.project_uuid
   # Workaround for terraform plan when using count.
   resources = length(digitalocean_droplet.workspace) > 0 ? [
     digitalocean_volume.home_volume.urn,
