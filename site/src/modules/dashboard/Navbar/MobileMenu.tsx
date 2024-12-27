@@ -34,22 +34,33 @@ const itemStyles = {
 	open: "text-content-primary",
 };
 
-type MobileMenuProps = {
+type MobileMenuProps = MobileMenuPermissions & {
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	docsHref: string;
 	onSignOut: () => void;
+	isDefaultOpen?: boolean; // Useful for storybook
+};
+
+type MobileMenuPermissions = {
+	canViewDeployment: boolean;
+	canViewOrganizations: boolean;
+	canViewAuditLog: boolean;
+	canViewHealth: boolean;
 };
 
 export const MobileMenu: FC<MobileMenuProps> = ({
+	isDefaultOpen,
 	proxyContextValue,
 	user,
 	supportLinks,
 	docsHref,
 	onSignOut,
+	...permissions
 }) => {
-	const [open, setOpen] = useState(false);
+	const [open, setOpen] = useState(isDefaultOpen);
+	const hasSomePermission = Object.values(permissions).some((p) => p);
 
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
@@ -75,8 +86,13 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 				sideOffset={17}
 			>
 				<ProxySettingsSub proxyContextValue={proxyContextValue} />
-				<DropdownMenuSeparator />
-				<AdminSettingsSub />
+
+				{hasSomePermission && (
+					<>
+						<DropdownMenuSeparator />
+						<AdminSettingsSub {...permissions} />
+					</>
+				)}
 				<DropdownMenuSeparator />
 				<DropdownMenuItem asChild className={itemStyles.default}>
 					<a href={docsHref} target="_blank" rel="noreferrer norefereer">
@@ -186,7 +202,12 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 	);
 };
 
-const AdminSettingsSub: FC = () => {
+const AdminSettingsSub: FC<MobileMenuPermissions> = ({
+	canViewDeployment,
+	canViewOrganizations,
+	canViewAuditLog,
+	canViewHealth,
+}) => {
 	const [open, setOpen] = useState(false);
 
 	return (
@@ -206,37 +227,45 @@ const AdminSettingsSub: FC = () => {
 				</DropdownMenuItem>
 			</CollapsibleTrigger>
 			<CollapsibleContent>
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/deployment/general">Deployment</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/organizations">
-						Organizations
-						<FeatureStageBadge
-							contentType="beta"
-							size="sm"
-							showTooltip={false}
-						/>
-					</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/audit">Audit logs</Link>
-				</DropdownMenuItem>
-				<DropdownMenuItem
-					asChild
-					className={cn(itemStyles.default, itemStyles.sub)}
-				>
-					<Link to="/health">Healthcheck</Link>
-				</DropdownMenuItem>
+				{canViewDeployment && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/deployment/general">Deployment</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewOrganizations && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/organizations">
+							Organizations
+							<FeatureStageBadge
+								contentType="beta"
+								size="sm"
+								showTooltip={false}
+							/>
+						</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewAuditLog && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/audit">Audit logs</Link>
+					</DropdownMenuItem>
+				)}
+				{canViewHealth && (
+					<DropdownMenuItem
+						asChild
+						className={cn(itemStyles.default, itemStyles.sub)}
+					>
+						<Link to="/health">Healthcheck</Link>
+					</DropdownMenuItem>
+				)}
 			</CollapsibleContent>
 		</Collapsible>
 	);

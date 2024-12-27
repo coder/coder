@@ -1,7 +1,5 @@
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import MenuItem from "@mui/material/MenuItem";
-import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { DropdownMenuButton } from "components/DropdownMenu/DropdownMenu";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
@@ -17,7 +15,6 @@ import { NavLink } from "react-router-dom";
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
-	canViewAllUsers: boolean;
 	canViewAuditLog: boolean;
 	canViewHealth: boolean;
 }
@@ -25,7 +22,6 @@ interface DeploymentDropdownProps {
 export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	canViewDeployment,
 	canViewOrganizations,
-	canViewAllUsers,
 	canViewAuditLog,
 	canViewHealth,
 }) => {
@@ -35,7 +31,6 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 		!canViewAuditLog &&
 		!canViewOrganizations &&
 		!canViewDeployment &&
-		!canViewAllUsers &&
 		!canViewHealth
 	) {
 		return null;
@@ -60,7 +55,6 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 				<DeploymentDropdownContent
 					canViewDeployment={canViewDeployment}
 					canViewOrganizations={canViewOrganizations}
-					canViewAllUsers={canViewAllUsers}
 					canViewAuditLog={canViewAuditLog}
 					canViewHealth={canViewHealth}
 				/>

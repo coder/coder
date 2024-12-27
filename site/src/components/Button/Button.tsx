@@ -26,7 +26,8 @@ export const buttonVariants = cva(
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
 				warning:
 					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
-				ghost: "bg-transparent border-0 hover:bg-surface-secondary",
+				ghost:
+					"text-content-primary bg-transparent border-0 hover:bg-surface-secondary",
 			},
 
 			size: {

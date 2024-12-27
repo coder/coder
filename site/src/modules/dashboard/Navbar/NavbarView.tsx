@@ -19,7 +19,6 @@ export interface NavbarViewProps {
 	onSignOut: () => void;
 	canViewDeployment: boolean;
 	canViewOrganizations: boolean;
-	canViewAllUsers: boolean;
 	canViewAuditLog: boolean;
 	canViewHealth: boolean;
 	proxyContextValue?: ProxyContextValue;
@@ -40,7 +39,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 	onSignOut,
 	canViewDeployment,
 	canViewOrganizations,
-	canViewAllUsers,
 	canViewHealth,
 	canViewAuditLog,
 	proxyContextValue,
@@ -66,7 +64,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					canViewAuditLog={canViewAuditLog}
 					canViewOrganizations={canViewOrganizations}
 					canViewDeployment={canViewDeployment}
-					canViewAllUsers={canViewAllUsers}
 					canViewHealth={canViewHealth}
 				/>
 
@@ -95,6 +92,10 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				supportLinks={supportLinks}
 				docsHref={docsHref}
 				onSignOut={onSignOut}
+				canViewAuditLog={canViewAuditLog}
+				canViewOrganizations={canViewOrganizations}
+				canViewDeployment={canViewDeployment}
+				canViewHealth={canViewHealth}
 			/>
 		</div>
 	);
