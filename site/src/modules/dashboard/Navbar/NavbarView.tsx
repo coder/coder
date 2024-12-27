@@ -4,11 +4,11 @@ import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import type { FC } from "react";
 import { NavLink, useLocation } from "react-router-dom";
+import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
+import { MobileMenu } from "./MobileMenu";
 import { ProxyMenu } from "./ProxyMenu";
 import { UserDropdown } from "./UserDropdown/UserDropdown";
-import { cn } from "utils/cn";
-import { MobileMenu } from "./MobileMenu";
 
 export interface NavbarViewProps {
 	logo_url?: string;

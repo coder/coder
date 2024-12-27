@@ -1,6 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { fn, userEvent, within } from "@storybook/test";
+import { PointerEventsCheckLevel } from "@testing-library/user-event";
+import type { FC } from "react";
 import { chromaticWithTablet } from "testHelpers/chromatic";
-import { MobileMenu } from "./MobileMenu";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,
@@ -9,9 +11,7 @@ import {
 	MockUser2,
 	MockWorkspaceProxies,
 } from "testHelpers/entities";
-import { fn, userEvent, within } from "@storybook/test";
-import { PointerEventsCheckLevel } from "@testing-library/user-event";
-import type { FC } from "react";
+import { MobileMenu } from "./MobileMenu";
 
 const meta: Meta<typeof MobileMenu> = {
 	title: "modules/dashboard/MobileMenu",

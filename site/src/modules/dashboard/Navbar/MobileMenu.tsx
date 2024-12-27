@@ -1,15 +1,11 @@
 import type * as TypesGen from "api/typesGenerated";
-import type { ProxyContextValue } from "contexts/ProxyContext";
-import { useState, type FC } from "react";
-import { Link } from "react-router-dom";
-import { cn } from "utils/cn";
+import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
 import {
-	ChevronRightIcon,
-	CircleHelpIcon,
-	MenuIcon,
-	XIcon,
-} from "lucide-react";
+	Collapsible,
+	CollapsibleContent,
+	CollapsibleTrigger,
+} from "components/Collapsible/Collapsible";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -17,16 +13,20 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "components/DropdownMenu/DropdownMenu";
-import { Avatar } from "components/Avatar/Avatar";
-import { Latency } from "components/Latency/Latency";
-import {
-	Collapsible,
-	CollapsibleContent,
-	CollapsibleTrigger,
-} from "components/Collapsible/Collapsible";
-import { sortProxiesByLatency } from "./proxyUtils";
-import { displayError } from "components/GlobalSnackbar/utils";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { Latency } from "components/Latency/Latency";
+import type { ProxyContextValue } from "contexts/ProxyContext";
+import {
+	ChevronRightIcon,
+	CircleHelpIcon,
+	MenuIcon,
+	XIcon,
+} from "lucide-react";
+import { type FC, useState } from "react";
+import { Link } from "react-router-dom";
+import { cn } from "utils/cn";
+import { sortProxiesByLatency } from "./proxyUtils";
 
 const itemStyles = {
 	default: "px-9 h-10 no-underline",

@@ -31,7 +31,6 @@ describe("NavbarView", () => {
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
@@ -49,7 +48,6 @@ describe("NavbarView", () => {
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
@@ -67,7 +65,6 @@ describe("NavbarView", () => {
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
@@ -87,7 +84,6 @@ describe("NavbarView", () => {
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
