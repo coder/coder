@@ -26,7 +26,7 @@ data "coder_workspace_tags" "custom_workspace_tags" {
 }
 ```
 
-**Legend**
+### Legend
 
 - `zone` - static tag value set to `developers`
 - `runtime` - supported by the string-type `coder_parameter` to select
@@ -115,7 +115,7 @@ raw queries on-the-fly without processing the entire Terraform template. This
 evaluation is simpler but also limited in terms of available functions,
 variables, and references to other resources.
 
-**Supported syntax**
+#### Supported syntax
 
 - Static string: `foobar_tag = "foobaz"`
 - Formatted string: `foobar_tag = "foobaz ${data.coder_parameter.foobaz.value}"`
@@ -125,7 +125,7 @@ variables, and references to other resources.
 - Condition:
   `cache = data.coder_parameter.feature_cache_enabled.value == "true" ? "with-cache" : "no-cache"`
 
-**Not supported**
+#### Not supported
 
 - Function calls: `try(var.foo, "default")`
 - Resources: `compute_instance.dev.name`

@@ -5,6 +5,8 @@
 IDP sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
 
+## Group Sync
+
 </blockquote>
 
 If your OpenID Connect provider supports group claims, you can configure Coder
@@ -22,7 +24,7 @@ There are two ways you can configure group sync:
 
 <div class="tabs">
 
-## Server Flags
+### Server Flags
 
 1. Confirm that your OIDC provider is sending claims.
 
@@ -96,7 +98,7 @@ OIDC provider will be added to the `myCoderGroupName` group in Coder.
 [azure-gids]:
 	https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
-## Runtime (Organizations)
+### Runtime (Organizations)
 
 <blockquote class="admonition note">
 
@@ -212,7 +214,7 @@ Users who are not in a matching group will see the following error:
 
 <Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
-## Role sync
+## Role Sync
 
 <blockquote class="info">
 
@@ -236,7 +238,7 @@ You must have a Premium license with Organizations enabled to use this.
 
 <div class="tabs">
 
-## Server Flags
+### Server Flags
 
 1. Confirm that your OIDC provider is sending a roles claim by logging in with
    OIDC and visiting the following URL with an `Owner` account:
@@ -273,7 +275,7 @@ You must have a Premium license with Organizations enabled to use this.
 One role from your identity provider can be mapped to many roles in Coder. The
 example above maps to two roles in Coder.
 
-## Runtime (Organizations)
+### Runtime (Organizations)
 
 For deployments with multiple [organizations](./organizations.md), you can
 configure role sync at the organization level. In future Coder versions, you

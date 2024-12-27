@@ -11000,7 +11000,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "regex": {
-                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
+                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for https://github.com\u003e:'\nAnd sending it to the Coder server to match against the Regex.",
                     "type": "string"
                 },
                 "scopes": {
@@ -12832,11 +12832,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "path_app_url": {
-                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. \u003chttps://us.example.com\u003e",
                     "type": "string"
                 },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. \u003c*.us.example.com\u003e\nE.g. \u003c*--suffix.au.example.com\u003e\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }
@@ -15370,7 +15370,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "path_app_url": {
-                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. \u003chttps://us.example.com\u003e",
                     "type": "string"
                 },
                 "status": {
@@ -15389,7 +15389,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. \u003c*.us.example.com\u003e\nE.g. \u003c*--suffix.au.example.com\u003e\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }

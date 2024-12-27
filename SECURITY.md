@@ -18,7 +18,7 @@ the community that helped make this product possible.
 
 ## Where should I report security issues?
 
-Please report security issues to security@coder.com, providing all relevant
+Please report security issues to <security@coder.com>, providing all relevant
 information. The more details you provide, the easier it will be for us to
 triage and fix the issue.
 

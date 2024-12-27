@@ -2890,7 +2890,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for "https://github.com":' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for <https://github.com>>:' And sending it to the Coder server to match against the Regex.|
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|
@@ -4805,15 +4805,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                       |
-|---------------------|---------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `display_name`      | string  | false    |              |                                                                                                                                                                                   |
-| `healthy`           | boolean | false    |              |                                                                                                                                                                                   |
-| `icon_url`          | string  | false    |              |                                                                                                                                                                                   |
-| `id`                | string  | false    |              |                                                                                                                                                                                   |
-| `name`              | string  | false    |              |                                                                                                                                                                                   |
-| `path_app_url`      | string  | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                     |
-| `wildcard_hostname` | string  | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. *.us.example.com E.g.*--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
+| Name                | Type    | Required | Restrictions | Description                                                                                                                                                                            |
+|---------------------|---------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `display_name`      | string  | false    |              |                                                                                                                                                                                        |
+| `healthy`           | boolean | false    |              |                                                                                                                                                                                        |
+| `icon_url`          | string  | false    |              |                                                                                                                                                                                        |
+| `id`                | string  | false    |              |                                                                                                                                                                                        |
+| `name`              | string  | false    |              |                                                                                                                                                                                        |
+| `path_app_url`      | string  | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. <https://us.example.com>                                                        |
+| `wildcard_hostname` | string  | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. <*.us.example.com> E.g. <*--suffix.au.example.com> Optional. Does not need to be on the same domain as PathAppURL. |
 
 ## codersdk.RegionsResponse-codersdk_Region
 
@@ -7900,22 +7900,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 
 ### Properties
 
-| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                       |
-|---------------------|----------------------------------------------------------------|----------|--------------|-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
-| `created_at`        | string                                                         | false    |              |                                                                                                                                                                                   |
-| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                   |
-| `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                                   |
-| `derp_only`         | boolean                                                        | false    |              |                                                                                                                                                                                   |
-| `display_name`      | string                                                         | false    |              |                                                                                                                                                                                   |
-| `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                   |
-| `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                   |
-| `id`                | string                                                         | false    |              |                                                                                                                                                                                   |
-| `name`              | string                                                         | false    |              |                                                                                                                                                                                   |
-| `path_app_url`      | string                                                         | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. https://us.example.com                                                     |
-| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.     |
-| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                                   |
-| `version`           | string                                                         | false    |              |                                                                                                                                                                                   |
-| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. *.us.example.com E.g.*--suffix.au.example.com Optional. Does not need to be on the same domain as PathAppURL. |
+| Name                | Type                                                           | Required | Restrictions | Description                                                                                                                                                                            |
+|---------------------|----------------------------------------------------------------|----------|--------------|----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`        | string                                                         | false    |              |                                                                                                                                                                                        |
+| `deleted`           | boolean                                                        | false    |              |                                                                                                                                                                                        |
+| `derp_enabled`      | boolean                                                        | false    |              |                                                                                                                                                                                        |
+| `derp_only`         | boolean                                                        | false    |              |                                                                                                                                                                                        |
+| `display_name`      | string                                                         | false    |              |                                                                                                                                                                                        |
+| `healthy`           | boolean                                                        | false    |              |                                                                                                                                                                                        |
+| `icon_url`          | string                                                         | false    |              |                                                                                                                                                                                        |
+| `id`                | string                                                         | false    |              |                                                                                                                                                                                        |
+| `name`              | string                                                         | false    |              |                                                                                                                                                                                        |
+| `path_app_url`      | string                                                         | false    |              | Path app URL is the URL to the base path for path apps. Optional unless wildcard_hostname is set. E.g. <https://us.example.com>                                                        |
+| `status`            | [codersdk.WorkspaceProxyStatus](#codersdkworkspaceproxystatus) | false    |              | Status is the latest status check of the proxy. This will be empty for deleted proxies. This value can be used to determine if a workspace proxy is healthy and ready to use.          |
+| `updated_at`        | string                                                         | false    |              |                                                                                                                                                                                        |
+| `version`           | string                                                         | false    |              |                                                                                                                                                                                        |
+| `wildcard_hostname` | string                                                         | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. <*.us.example.com> E.g. <*--suffix.au.example.com> Optional. Does not need to be on the same domain as PathAppURL. |
 
 ## codersdk.WorkspaceProxyStatus
 
@@ -9650,7 +9650,7 @@ Zero means unspecified. There might be a limit, but the client need not try to r
 
 ### Properties
 
-*None*
+None
 
 ## netcheck.Report
 
@@ -9745,7 +9745,7 @@ If zero, TokenSource implementations will reuse the same token forever and Refre
 
 ### Properties
 
-*None*
+None
 
 ## serpent.Annotations
 
@@ -9894,7 +9894,7 @@ If zero, TokenSource implementations will reuse the same token forever and Refre
 
 ### Properties
 
-*None*
+None
 
 ## serpent.Struct-array_codersdk_ExternalAuthConfig
 
@@ -10192,7 +10192,7 @@ RegionIDs in range 900-999 are reserved for end users to run their own DERP node
 
 ### Properties
 
-*None*
+None
 
 ## workspaceapps.AccessMethod
 

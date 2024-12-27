@@ -332,8 +332,8 @@ One thing we figured out that was slowing down our tests was the use of `ByRole`
 queries because of how it calculates the role attribute for every element on the
 `screen`. You can read more about it on the links below:
 
-- https://stackoverflow.com/questions/69711888/react-testing-library-getbyrole-is-performing-extremely-slowly
-- https://github.com/testing-library/dom-testing-library/issues/552#issuecomment-625172052
+- <https://stackoverflow.com/questions/69711888/react-testing-library-getbyrole-is-performing-extremely-slowly>
+- <https://github.com/testing-library/dom-testing-library/issues/552#issuecomment-625172052>
 
 Even with `ByRole` having performance issues we still want to use it but for
 that, we have to scope the "querying" area by using the `within` command. So

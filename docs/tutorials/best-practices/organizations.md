@@ -115,18 +115,18 @@ within an organization. Custom roles can be applied to the default organization.
 
 Some examples of custom roles that can be created:
 
-**Provisioner Admin**
+### Provisioner Admin
 
 - The user can deploy provisioners but not manage templates. This may be useful
   if automation is used to create and update templates in the organization.
 
-**Template Editor**
+### Template Editor
 
 - Inverse of provisioner admin: User can manage templates but not deploy
   provisioners. This may be useful if the provisioner and template are deployed
   via automation and users are allowed to edit them.
 
-**Template Pusher**
+### Template Pusher
 
 - A system account that can push new templates from a git repo but cannot manage
   users or delete templates.

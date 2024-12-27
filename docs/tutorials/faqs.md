@@ -10,7 +10,7 @@ For other community resources, see our
 
 ## How do I add a Premium trial license?
 
-Visit https://coder.com/trial or contact
+Visit <https://coder.com/trial> or contact
 
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
 
@@ -139,7 +139,7 @@ coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
 ```
 
 > Even `coder server` which creates a reverse proxy, will let you use
-> http://localhost to access Coder from a browser.
+> <http://localhost> to access Coder from a browser.
 
 ## I updated a template, and an existing workspace based on that template fails to start
 
@@ -473,7 +473,7 @@ or VM/VPS doesn't have the proper C libraries to run the VS Code Server. For
 instance, Alpine is not supported at all. If so, you need to find a container
 image or supported OS for the VS Code Server. For more information on OS
 prerequisites for Linux, please look at the VSCode docs.
-https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
+<https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
 ## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
