@@ -2883,6 +2883,13 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 }
 
+// Tracks when users were deleted
+type UserDeleted struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+}
+
 type UserLink struct {
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LoginType         LoginType `db:"login_type" json:"login_type"`
