@@ -2157,6 +2157,10 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 
 	err = migrations.Up(sqlDB)
 	if err != nil {
+		// Checks for database schema version mismatch
+		if errors.Is(err, os.ErrNotExist) && strings.Contains(err.Error(), "no migration found for version") {
+			return nil, xerrors.New("Current database schema requires a newer version of Coder!")
+		}
 		return nil, xerrors.Errorf("migrate up: %w", err)
 	}
 	// The default is 0 but the request will fail with a 500 if the DB
