@@ -73,6 +73,13 @@ You can now add the following code to any template. This will add a button to th
 data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
 	id = "<USER_DEFINED_ID>"
 }
+
+# Github Example (CODER_EXTERNAL_AUTH_0_ID="github-auth")
+# makes a github authentication token available at data.coder_external_auth.github.access_token
+data "coder_external_auth" "github" {
+   id = "github-auth"
+}
+
 ```
 
 Inside your terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
