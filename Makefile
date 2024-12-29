@@ -537,7 +537,8 @@ gen: \
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
-	coderd/database/pubsub/psmock/psmock.go
+	coderd/database/pubsub/psmock/psmock.go \
+	fmt
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
