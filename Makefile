@@ -422,7 +422,7 @@ fmt/go:
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
-	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
+	go run mvdan.cc/gofumpt@v0.4.0 -w -l $(GO_SRC_FILES)
 .PHONY: fmt/go
 
 fmt/ts:
@@ -642,8 +642,6 @@ vpn/vpn.pb.go: vpn/vpn.proto
 site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
 	go run -C ./scripts/apitypings main.go > $@
-	(cd ./site && npx biome format --write ./src/api/typesGenerated.ts)
-	./scripts/pnpm_install.sh
 
 site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site

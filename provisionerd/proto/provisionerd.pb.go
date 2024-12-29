@@ -7,11 +7,12 @@
 package proto
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	proto "github.com/coder/coder/v2/provisionersdk/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -1734,43 +1735,45 @@ func file_provisionerd_proto_provisionerd_proto_rawDescGZIP() []byte {
 	return file_provisionerd_proto_provisionerd_proto_rawDescData
 }
 
-var file_provisionerd_proto_provisionerd_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_provisionerd_proto_provisionerd_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
-var file_provisionerd_proto_provisionerd_proto_goTypes = []interface{}{
-	(LogSource)(0),                             // 0: provisionerd.LogSource
-	(*Empty)(nil),                              // 1: provisionerd.Empty
-	(*AcquiredJob)(nil),                        // 2: provisionerd.AcquiredJob
-	(*FailedJob)(nil),                          // 3: provisionerd.FailedJob
-	(*CompletedJob)(nil),                       // 4: provisionerd.CompletedJob
-	(*Log)(nil),                                // 5: provisionerd.Log
-	(*UpdateJobRequest)(nil),                   // 6: provisionerd.UpdateJobRequest
-	(*UpdateJobResponse)(nil),                  // 7: provisionerd.UpdateJobResponse
-	(*CommitQuotaRequest)(nil),                 // 8: provisionerd.CommitQuotaRequest
-	(*CommitQuotaResponse)(nil),                // 9: provisionerd.CommitQuotaResponse
-	(*CancelAcquire)(nil),                      // 10: provisionerd.CancelAcquire
-	(*AcquiredJob_WorkspaceBuild)(nil),         // 11: provisionerd.AcquiredJob.WorkspaceBuild
-	(*AcquiredJob_TemplateImport)(nil),         // 12: provisionerd.AcquiredJob.TemplateImport
-	(*AcquiredJob_TemplateDryRun)(nil),         // 13: provisionerd.AcquiredJob.TemplateDryRun
-	nil,                                        // 14: provisionerd.AcquiredJob.TraceMetadataEntry
-	(*FailedJob_WorkspaceBuild)(nil),           // 15: provisionerd.FailedJob.WorkspaceBuild
-	(*FailedJob_TemplateImport)(nil),           // 16: provisionerd.FailedJob.TemplateImport
-	(*FailedJob_TemplateDryRun)(nil),           // 17: provisionerd.FailedJob.TemplateDryRun
-	(*CompletedJob_WorkspaceBuild)(nil),        // 18: provisionerd.CompletedJob.WorkspaceBuild
-	(*CompletedJob_TemplateImport)(nil),        // 19: provisionerd.CompletedJob.TemplateImport
-	(*CompletedJob_TemplateDryRun)(nil),        // 20: provisionerd.CompletedJob.TemplateDryRun
-	nil,                                        // 21: provisionerd.UpdateJobRequest.WorkspaceTagsEntry
-	(proto.LogLevel)(0),                        // 22: provisioner.LogLevel
-	(*proto.TemplateVariable)(nil),             // 23: provisioner.TemplateVariable
-	(*proto.VariableValue)(nil),                // 24: provisioner.VariableValue
-	(*proto.RichParameterValue)(nil),           // 25: provisioner.RichParameterValue
-	(*proto.ExternalAuthProvider)(nil),         // 26: provisioner.ExternalAuthProvider
-	(*proto.Metadata)(nil),                     // 27: provisioner.Metadata
-	(*proto.Timing)(nil),                       // 28: provisioner.Timing
-	(*proto.Resource)(nil),                     // 29: provisioner.Resource
-	(*proto.Module)(nil),                       // 30: provisioner.Module
-	(*proto.RichParameter)(nil),                // 31: provisioner.RichParameter
-	(*proto.ExternalAuthProviderResource)(nil), // 32: provisioner.ExternalAuthProviderResource
-}
+var (
+	file_provisionerd_proto_provisionerd_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
+	file_provisionerd_proto_provisionerd_proto_msgTypes  = make([]protoimpl.MessageInfo, 21)
+	file_provisionerd_proto_provisionerd_proto_goTypes   = []interface{}{
+		(LogSource)(0),                             // 0: provisionerd.LogSource
+		(*Empty)(nil),                              // 1: provisionerd.Empty
+		(*AcquiredJob)(nil),                        // 2: provisionerd.AcquiredJob
+		(*FailedJob)(nil),                          // 3: provisionerd.FailedJob
+		(*CompletedJob)(nil),                       // 4: provisionerd.CompletedJob
+		(*Log)(nil),                                // 5: provisionerd.Log
+		(*UpdateJobRequest)(nil),                   // 6: provisionerd.UpdateJobRequest
+		(*UpdateJobResponse)(nil),                  // 7: provisionerd.UpdateJobResponse
+		(*CommitQuotaRequest)(nil),                 // 8: provisionerd.CommitQuotaRequest
+		(*CommitQuotaResponse)(nil),                // 9: provisionerd.CommitQuotaResponse
+		(*CancelAcquire)(nil),                      // 10: provisionerd.CancelAcquire
+		(*AcquiredJob_WorkspaceBuild)(nil),         // 11: provisionerd.AcquiredJob.WorkspaceBuild
+		(*AcquiredJob_TemplateImport)(nil),         // 12: provisionerd.AcquiredJob.TemplateImport
+		(*AcquiredJob_TemplateDryRun)(nil),         // 13: provisionerd.AcquiredJob.TemplateDryRun
+		nil,                                        // 14: provisionerd.AcquiredJob.TraceMetadataEntry
+		(*FailedJob_WorkspaceBuild)(nil),           // 15: provisionerd.FailedJob.WorkspaceBuild
+		(*FailedJob_TemplateImport)(nil),           // 16: provisionerd.FailedJob.TemplateImport
+		(*FailedJob_TemplateDryRun)(nil),           // 17: provisionerd.FailedJob.TemplateDryRun
+		(*CompletedJob_WorkspaceBuild)(nil),        // 18: provisionerd.CompletedJob.WorkspaceBuild
+		(*CompletedJob_TemplateImport)(nil),        // 19: provisionerd.CompletedJob.TemplateImport
+		(*CompletedJob_TemplateDryRun)(nil),        // 20: provisionerd.CompletedJob.TemplateDryRun
+		nil,                                        // 21: provisionerd.UpdateJobRequest.WorkspaceTagsEntry
+		(proto.LogLevel)(0),                        // 22: provisioner.LogLevel
+		(*proto.TemplateVariable)(nil),             // 23: provisioner.TemplateVariable
+		(*proto.VariableValue)(nil),                // 24: provisioner.VariableValue
+		(*proto.RichParameterValue)(nil),           // 25: provisioner.RichParameterValue
+		(*proto.ExternalAuthProvider)(nil),         // 26: provisioner.ExternalAuthProvider
+		(*proto.Metadata)(nil),                     // 27: provisioner.Metadata
+		(*proto.Timing)(nil),                       // 28: provisioner.Timing
+		(*proto.Resource)(nil),                     // 29: provisioner.Resource
+		(*proto.Module)(nil),                       // 30: provisioner.Module
+		(*proto.RichParameter)(nil),                // 31: provisioner.RichParameter
+		(*proto.ExternalAuthProviderResource)(nil), // 32: provisioner.ExternalAuthProviderResource
+	}
+)
 var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
 	11, // 0: provisionerd.AcquiredJob.workspace_build:type_name -> provisionerd.AcquiredJob.WorkspaceBuild
 	12, // 1: provisionerd.AcquiredJob.template_import:type_name -> provisionerd.AcquiredJob.TemplateImport

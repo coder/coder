@@ -7,11 +7,12 @@
 package vpn
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -1884,34 +1885,36 @@ func file_vpn_vpn_proto_rawDescGZIP() []byte {
 	return file_vpn_vpn_proto_rawDescData
 }
 
-var file_vpn_vpn_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
-var file_vpn_vpn_proto_msgTypes = make([]protoimpl.MessageInfo, 21)
-var file_vpn_vpn_proto_goTypes = []interface{}{
-	(Log_Level)(0),                              // 0: vpn.Log.Level
-	(Workspace_Status)(0),                       // 1: vpn.Workspace.Status
-	(*RPC)(nil),                                 // 2: vpn.RPC
-	(*ManagerMessage)(nil),                      // 3: vpn.ManagerMessage
-	(*TunnelMessage)(nil),                       // 4: vpn.TunnelMessage
-	(*Log)(nil),                                 // 5: vpn.Log
-	(*GetPeerUpdate)(nil),                       // 6: vpn.GetPeerUpdate
-	(*PeerUpdate)(nil),                          // 7: vpn.PeerUpdate
-	(*Workspace)(nil),                           // 8: vpn.Workspace
-	(*Agent)(nil),                               // 9: vpn.Agent
-	(*NetworkSettingsRequest)(nil),              // 10: vpn.NetworkSettingsRequest
-	(*NetworkSettingsResponse)(nil),             // 11: vpn.NetworkSettingsResponse
-	(*StartRequest)(nil),                        // 12: vpn.StartRequest
-	(*StartResponse)(nil),                       // 13: vpn.StartResponse
-	(*StopRequest)(nil),                         // 14: vpn.StopRequest
-	(*StopResponse)(nil),                        // 15: vpn.StopResponse
-	(*Log_Field)(nil),                           // 16: vpn.Log.Field
-	(*NetworkSettingsRequest_DNSSettings)(nil),  // 17: vpn.NetworkSettingsRequest.DNSSettings
-	(*NetworkSettingsRequest_IPv4Settings)(nil), // 18: vpn.NetworkSettingsRequest.IPv4Settings
-	(*NetworkSettingsRequest_IPv6Settings)(nil), // 19: vpn.NetworkSettingsRequest.IPv6Settings
-	(*NetworkSettingsRequest_IPv4Settings_IPv4Route)(nil), // 20: vpn.NetworkSettingsRequest.IPv4Settings.IPv4Route
-	(*NetworkSettingsRequest_IPv6Settings_IPv6Route)(nil), // 21: vpn.NetworkSettingsRequest.IPv6Settings.IPv6Route
-	(*StartRequest_Header)(nil),                           // 22: vpn.StartRequest.Header
-	(*timestamppb.Timestamp)(nil),                         // 23: google.protobuf.Timestamp
-}
+var (
+	file_vpn_vpn_proto_enumTypes = make([]protoimpl.EnumInfo, 2)
+	file_vpn_vpn_proto_msgTypes  = make([]protoimpl.MessageInfo, 21)
+	file_vpn_vpn_proto_goTypes   = []interface{}{
+		(Log_Level)(0),                              // 0: vpn.Log.Level
+		(Workspace_Status)(0),                       // 1: vpn.Workspace.Status
+		(*RPC)(nil),                                 // 2: vpn.RPC
+		(*ManagerMessage)(nil),                      // 3: vpn.ManagerMessage
+		(*TunnelMessage)(nil),                       // 4: vpn.TunnelMessage
+		(*Log)(nil),                                 // 5: vpn.Log
+		(*GetPeerUpdate)(nil),                       // 6: vpn.GetPeerUpdate
+		(*PeerUpdate)(nil),                          // 7: vpn.PeerUpdate
+		(*Workspace)(nil),                           // 8: vpn.Workspace
+		(*Agent)(nil),                               // 9: vpn.Agent
+		(*NetworkSettingsRequest)(nil),              // 10: vpn.NetworkSettingsRequest
+		(*NetworkSettingsResponse)(nil),             // 11: vpn.NetworkSettingsResponse
+		(*StartRequest)(nil),                        // 12: vpn.StartRequest
+		(*StartResponse)(nil),                       // 13: vpn.StartResponse
+		(*StopRequest)(nil),                         // 14: vpn.StopRequest
+		(*StopResponse)(nil),                        // 15: vpn.StopResponse
+		(*Log_Field)(nil),                           // 16: vpn.Log.Field
+		(*NetworkSettingsRequest_DNSSettings)(nil),  // 17: vpn.NetworkSettingsRequest.DNSSettings
+		(*NetworkSettingsRequest_IPv4Settings)(nil), // 18: vpn.NetworkSettingsRequest.IPv4Settings
+		(*NetworkSettingsRequest_IPv6Settings)(nil), // 19: vpn.NetworkSettingsRequest.IPv6Settings
+		(*NetworkSettingsRequest_IPv4Settings_IPv4Route)(nil), // 20: vpn.NetworkSettingsRequest.IPv4Settings.IPv4Route
+		(*NetworkSettingsRequest_IPv6Settings_IPv6Route)(nil), // 21: vpn.NetworkSettingsRequest.IPv6Settings.IPv6Route
+		(*StartRequest_Header)(nil),                           // 22: vpn.StartRequest.Header
+		(*timestamppb.Timestamp)(nil),                         // 23: google.protobuf.Timestamp
+	}
+)
 var file_vpn_vpn_proto_depIdxs = []int32{
 	2,  // 0: vpn.ManagerMessage.rpc:type_name -> vpn.RPC
 	6,  // 1: vpn.ManagerMessage.get_peer_update:type_name -> vpn.GetPeerUpdate

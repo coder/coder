@@ -7,13 +7,14 @@
 package proto
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	proto "github.com/coder/coder/v2/tailnet/proto"
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -3179,58 +3180,60 @@ func file_agent_proto_agent_proto_rawDescGZIP() []byte {
 	return file_agent_proto_agent_proto_rawDescData
 }
 
-var file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
-var file_agent_proto_agent_proto_msgTypes = make([]protoimpl.MessageInfo, 36)
-var file_agent_proto_agent_proto_goTypes = []interface{}{
-	(AppHealth)(0),                                // 0: coder.agent.v2.AppHealth
-	(WorkspaceApp_SharingLevel)(0),                // 1: coder.agent.v2.WorkspaceApp.SharingLevel
-	(WorkspaceApp_Health)(0),                      // 2: coder.agent.v2.WorkspaceApp.Health
-	(Stats_Metric_Type)(0),                        // 3: coder.agent.v2.Stats.Metric.Type
-	(Lifecycle_State)(0),                          // 4: coder.agent.v2.Lifecycle.State
-	(Startup_Subsystem)(0),                        // 5: coder.agent.v2.Startup.Subsystem
-	(Log_Level)(0),                                // 6: coder.agent.v2.Log.Level
-	(Timing_Stage)(0),                             // 7: coder.agent.v2.Timing.Stage
-	(Timing_Status)(0),                            // 8: coder.agent.v2.Timing.Status
-	(*WorkspaceApp)(nil),                          // 9: coder.agent.v2.WorkspaceApp
-	(*WorkspaceAgentScript)(nil),                  // 10: coder.agent.v2.WorkspaceAgentScript
-	(*WorkspaceAgentMetadata)(nil),                // 11: coder.agent.v2.WorkspaceAgentMetadata
-	(*Manifest)(nil),                              // 12: coder.agent.v2.Manifest
-	(*GetManifestRequest)(nil),                    // 13: coder.agent.v2.GetManifestRequest
-	(*ServiceBanner)(nil),                         // 14: coder.agent.v2.ServiceBanner
-	(*GetServiceBannerRequest)(nil),               // 15: coder.agent.v2.GetServiceBannerRequest
-	(*Stats)(nil),                                 // 16: coder.agent.v2.Stats
-	(*UpdateStatsRequest)(nil),                    // 17: coder.agent.v2.UpdateStatsRequest
-	(*UpdateStatsResponse)(nil),                   // 18: coder.agent.v2.UpdateStatsResponse
-	(*Lifecycle)(nil),                             // 19: coder.agent.v2.Lifecycle
-	(*UpdateLifecycleRequest)(nil),                // 20: coder.agent.v2.UpdateLifecycleRequest
-	(*BatchUpdateAppHealthRequest)(nil),           // 21: coder.agent.v2.BatchUpdateAppHealthRequest
-	(*BatchUpdateAppHealthResponse)(nil),          // 22: coder.agent.v2.BatchUpdateAppHealthResponse
-	(*Startup)(nil),                               // 23: coder.agent.v2.Startup
-	(*UpdateStartupRequest)(nil),                  // 24: coder.agent.v2.UpdateStartupRequest
-	(*Metadata)(nil),                              // 25: coder.agent.v2.Metadata
-	(*BatchUpdateMetadataRequest)(nil),            // 26: coder.agent.v2.BatchUpdateMetadataRequest
-	(*BatchUpdateMetadataResponse)(nil),           // 27: coder.agent.v2.BatchUpdateMetadataResponse
-	(*Log)(nil),                                   // 28: coder.agent.v2.Log
-	(*BatchCreateLogsRequest)(nil),                // 29: coder.agent.v2.BatchCreateLogsRequest
-	(*BatchCreateLogsResponse)(nil),               // 30: coder.agent.v2.BatchCreateLogsResponse
-	(*GetAnnouncementBannersRequest)(nil),         // 31: coder.agent.v2.GetAnnouncementBannersRequest
-	(*GetAnnouncementBannersResponse)(nil),        // 32: coder.agent.v2.GetAnnouncementBannersResponse
-	(*BannerConfig)(nil),                          // 33: coder.agent.v2.BannerConfig
-	(*WorkspaceAgentScriptCompletedRequest)(nil),  // 34: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
-	(*WorkspaceAgentScriptCompletedResponse)(nil), // 35: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
-	(*Timing)(nil),                                // 36: coder.agent.v2.Timing
-	(*WorkspaceApp_Healthcheck)(nil),              // 37: coder.agent.v2.WorkspaceApp.Healthcheck
-	(*WorkspaceAgentMetadata_Result)(nil),         // 38: coder.agent.v2.WorkspaceAgentMetadata.Result
-	(*WorkspaceAgentMetadata_Description)(nil),    // 39: coder.agent.v2.WorkspaceAgentMetadata.Description
-	nil,                        // 40: coder.agent.v2.Manifest.EnvironmentVariablesEntry
-	nil,                        // 41: coder.agent.v2.Stats.ConnectionsByProtoEntry
-	(*Stats_Metric)(nil),       // 42: coder.agent.v2.Stats.Metric
-	(*Stats_Metric_Label)(nil), // 43: coder.agent.v2.Stats.Metric.Label
-	(*BatchUpdateAppHealthRequest_HealthUpdate)(nil), // 44: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
-	(*durationpb.Duration)(nil),                      // 45: google.protobuf.Duration
-	(*proto.DERPMap)(nil),                            // 46: coder.tailnet.v2.DERPMap
-	(*timestamppb.Timestamp)(nil),                    // 47: google.protobuf.Timestamp
-}
+var (
+	file_agent_proto_agent_proto_enumTypes = make([]protoimpl.EnumInfo, 9)
+	file_agent_proto_agent_proto_msgTypes  = make([]protoimpl.MessageInfo, 36)
+	file_agent_proto_agent_proto_goTypes   = []interface{}{
+		(AppHealth)(0),                                // 0: coder.agent.v2.AppHealth
+		(WorkspaceApp_SharingLevel)(0),                // 1: coder.agent.v2.WorkspaceApp.SharingLevel
+		(WorkspaceApp_Health)(0),                      // 2: coder.agent.v2.WorkspaceApp.Health
+		(Stats_Metric_Type)(0),                        // 3: coder.agent.v2.Stats.Metric.Type
+		(Lifecycle_State)(0),                          // 4: coder.agent.v2.Lifecycle.State
+		(Startup_Subsystem)(0),                        // 5: coder.agent.v2.Startup.Subsystem
+		(Log_Level)(0),                                // 6: coder.agent.v2.Log.Level
+		(Timing_Stage)(0),                             // 7: coder.agent.v2.Timing.Stage
+		(Timing_Status)(0),                            // 8: coder.agent.v2.Timing.Status
+		(*WorkspaceApp)(nil),                          // 9: coder.agent.v2.WorkspaceApp
+		(*WorkspaceAgentScript)(nil),                  // 10: coder.agent.v2.WorkspaceAgentScript
+		(*WorkspaceAgentMetadata)(nil),                // 11: coder.agent.v2.WorkspaceAgentMetadata
+		(*Manifest)(nil),                              // 12: coder.agent.v2.Manifest
+		(*GetManifestRequest)(nil),                    // 13: coder.agent.v2.GetManifestRequest
+		(*ServiceBanner)(nil),                         // 14: coder.agent.v2.ServiceBanner
+		(*GetServiceBannerRequest)(nil),               // 15: coder.agent.v2.GetServiceBannerRequest
+		(*Stats)(nil),                                 // 16: coder.agent.v2.Stats
+		(*UpdateStatsRequest)(nil),                    // 17: coder.agent.v2.UpdateStatsRequest
+		(*UpdateStatsResponse)(nil),                   // 18: coder.agent.v2.UpdateStatsResponse
+		(*Lifecycle)(nil),                             // 19: coder.agent.v2.Lifecycle
+		(*UpdateLifecycleRequest)(nil),                // 20: coder.agent.v2.UpdateLifecycleRequest
+		(*BatchUpdateAppHealthRequest)(nil),           // 21: coder.agent.v2.BatchUpdateAppHealthRequest
+		(*BatchUpdateAppHealthResponse)(nil),          // 22: coder.agent.v2.BatchUpdateAppHealthResponse
+		(*Startup)(nil),                               // 23: coder.agent.v2.Startup
+		(*UpdateStartupRequest)(nil),                  // 24: coder.agent.v2.UpdateStartupRequest
+		(*Metadata)(nil),                              // 25: coder.agent.v2.Metadata
+		(*BatchUpdateMetadataRequest)(nil),            // 26: coder.agent.v2.BatchUpdateMetadataRequest
+		(*BatchUpdateMetadataResponse)(nil),           // 27: coder.agent.v2.BatchUpdateMetadataResponse
+		(*Log)(nil),                                   // 28: coder.agent.v2.Log
+		(*BatchCreateLogsRequest)(nil),                // 29: coder.agent.v2.BatchCreateLogsRequest
+		(*BatchCreateLogsResponse)(nil),               // 30: coder.agent.v2.BatchCreateLogsResponse
+		(*GetAnnouncementBannersRequest)(nil),         // 31: coder.agent.v2.GetAnnouncementBannersRequest
+		(*GetAnnouncementBannersResponse)(nil),        // 32: coder.agent.v2.GetAnnouncementBannersResponse
+		(*BannerConfig)(nil),                          // 33: coder.agent.v2.BannerConfig
+		(*WorkspaceAgentScriptCompletedRequest)(nil),  // 34: coder.agent.v2.WorkspaceAgentScriptCompletedRequest
+		(*WorkspaceAgentScriptCompletedResponse)(nil), // 35: coder.agent.v2.WorkspaceAgentScriptCompletedResponse
+		(*Timing)(nil),                                // 36: coder.agent.v2.Timing
+		(*WorkspaceApp_Healthcheck)(nil),              // 37: coder.agent.v2.WorkspaceApp.Healthcheck
+		(*WorkspaceAgentMetadata_Result)(nil),         // 38: coder.agent.v2.WorkspaceAgentMetadata.Result
+		(*WorkspaceAgentMetadata_Description)(nil),    // 39: coder.agent.v2.WorkspaceAgentMetadata.Description
+		nil,                        // 40: coder.agent.v2.Manifest.EnvironmentVariablesEntry
+		nil,                        // 41: coder.agent.v2.Stats.ConnectionsByProtoEntry
+		(*Stats_Metric)(nil),       // 42: coder.agent.v2.Stats.Metric
+		(*Stats_Metric_Label)(nil), // 43: coder.agent.v2.Stats.Metric.Label
+		(*BatchUpdateAppHealthRequest_HealthUpdate)(nil), // 44: coder.agent.v2.BatchUpdateAppHealthRequest.HealthUpdate
+		(*durationpb.Duration)(nil),                      // 45: google.protobuf.Duration
+		(*proto.DERPMap)(nil),                            // 46: coder.tailnet.v2.DERPMap
+		(*timestamppb.Timestamp)(nil),                    // 47: google.protobuf.Timestamp
+	}
+)
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
 	37, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck

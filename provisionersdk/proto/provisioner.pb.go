@@ -7,11 +7,12 @@
 package proto
 
 import (
+	reflect "reflect"
+	sync "sync"
+
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
-	reflect "reflect"
-	sync "sync"
 )
 
 const (
@@ -3412,49 +3413,51 @@ func file_provisionersdk_proto_provisioner_proto_rawDescGZIP() []byte {
 	return file_provisionersdk_proto_provisioner_proto_rawDescData
 }
 
-var file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
-var file_provisionersdk_proto_provisioner_proto_msgTypes = make([]protoimpl.MessageInfo, 34)
-var file_provisionersdk_proto_provisioner_proto_goTypes = []interface{}{
-	(LogLevel)(0),                        // 0: provisioner.LogLevel
-	(AppSharingLevel)(0),                 // 1: provisioner.AppSharingLevel
-	(WorkspaceTransition)(0),             // 2: provisioner.WorkspaceTransition
-	(TimingState)(0),                     // 3: provisioner.TimingState
-	(*Empty)(nil),                        // 4: provisioner.Empty
-	(*TemplateVariable)(nil),             // 5: provisioner.TemplateVariable
-	(*RichParameterOption)(nil),          // 6: provisioner.RichParameterOption
-	(*RichParameter)(nil),                // 7: provisioner.RichParameter
-	(*RichParameterValue)(nil),           // 8: provisioner.RichParameterValue
-	(*VariableValue)(nil),                // 9: provisioner.VariableValue
-	(*Log)(nil),                          // 10: provisioner.Log
-	(*InstanceIdentityAuth)(nil),         // 11: provisioner.InstanceIdentityAuth
-	(*ExternalAuthProviderResource)(nil), // 12: provisioner.ExternalAuthProviderResource
-	(*ExternalAuthProvider)(nil),         // 13: provisioner.ExternalAuthProvider
-	(*Agent)(nil),                        // 14: provisioner.Agent
-	(*DisplayApps)(nil),                  // 15: provisioner.DisplayApps
-	(*Env)(nil),                          // 16: provisioner.Env
-	(*Script)(nil),                       // 17: provisioner.Script
-	(*App)(nil),                          // 18: provisioner.App
-	(*Healthcheck)(nil),                  // 19: provisioner.Healthcheck
-	(*Resource)(nil),                     // 20: provisioner.Resource
-	(*Module)(nil),                       // 21: provisioner.Module
-	(*Metadata)(nil),                     // 22: provisioner.Metadata
-	(*Config)(nil),                       // 23: provisioner.Config
-	(*ParseRequest)(nil),                 // 24: provisioner.ParseRequest
-	(*ParseComplete)(nil),                // 25: provisioner.ParseComplete
-	(*PlanRequest)(nil),                  // 26: provisioner.PlanRequest
-	(*PlanComplete)(nil),                 // 27: provisioner.PlanComplete
-	(*ApplyRequest)(nil),                 // 28: provisioner.ApplyRequest
-	(*ApplyComplete)(nil),                // 29: provisioner.ApplyComplete
-	(*Timing)(nil),                       // 30: provisioner.Timing
-	(*CancelRequest)(nil),                // 31: provisioner.CancelRequest
-	(*Request)(nil),                      // 32: provisioner.Request
-	(*Response)(nil),                     // 33: provisioner.Response
-	(*Agent_Metadata)(nil),               // 34: provisioner.Agent.Metadata
-	nil,                                  // 35: provisioner.Agent.EnvEntry
-	(*Resource_Metadata)(nil),            // 36: provisioner.Resource.Metadata
-	nil,                                  // 37: provisioner.ParseComplete.WorkspaceTagsEntry
-	(*timestamppb.Timestamp)(nil),        // 38: google.protobuf.Timestamp
-}
+var (
+	file_provisionersdk_proto_provisioner_proto_enumTypes = make([]protoimpl.EnumInfo, 4)
+	file_provisionersdk_proto_provisioner_proto_msgTypes  = make([]protoimpl.MessageInfo, 34)
+	file_provisionersdk_proto_provisioner_proto_goTypes   = []interface{}{
+		(LogLevel)(0),                        // 0: provisioner.LogLevel
+		(AppSharingLevel)(0),                 // 1: provisioner.AppSharingLevel
+		(WorkspaceTransition)(0),             // 2: provisioner.WorkspaceTransition
+		(TimingState)(0),                     // 3: provisioner.TimingState
+		(*Empty)(nil),                        // 4: provisioner.Empty
+		(*TemplateVariable)(nil),             // 5: provisioner.TemplateVariable
+		(*RichParameterOption)(nil),          // 6: provisioner.RichParameterOption
+		(*RichParameter)(nil),                // 7: provisioner.RichParameter
+		(*RichParameterValue)(nil),           // 8: provisioner.RichParameterValue
+		(*VariableValue)(nil),                // 9: provisioner.VariableValue
+		(*Log)(nil),                          // 10: provisioner.Log
+		(*InstanceIdentityAuth)(nil),         // 11: provisioner.InstanceIdentityAuth
+		(*ExternalAuthProviderResource)(nil), // 12: provisioner.ExternalAuthProviderResource
+		(*ExternalAuthProvider)(nil),         // 13: provisioner.ExternalAuthProvider
+		(*Agent)(nil),                        // 14: provisioner.Agent
+		(*DisplayApps)(nil),                  // 15: provisioner.DisplayApps
+		(*Env)(nil),                          // 16: provisioner.Env
+		(*Script)(nil),                       // 17: provisioner.Script
+		(*App)(nil),                          // 18: provisioner.App
+		(*Healthcheck)(nil),                  // 19: provisioner.Healthcheck
+		(*Resource)(nil),                     // 20: provisioner.Resource
+		(*Module)(nil),                       // 21: provisioner.Module
+		(*Metadata)(nil),                     // 22: provisioner.Metadata
+		(*Config)(nil),                       // 23: provisioner.Config
+		(*ParseRequest)(nil),                 // 24: provisioner.ParseRequest
+		(*ParseComplete)(nil),                // 25: provisioner.ParseComplete
+		(*PlanRequest)(nil),                  // 26: provisioner.PlanRequest
+		(*PlanComplete)(nil),                 // 27: provisioner.PlanComplete
+		(*ApplyRequest)(nil),                 // 28: provisioner.ApplyRequest
+		(*ApplyComplete)(nil),                // 29: provisioner.ApplyComplete
+		(*Timing)(nil),                       // 30: provisioner.Timing
+		(*CancelRequest)(nil),                // 31: provisioner.CancelRequest
+		(*Request)(nil),                      // 32: provisioner.Request
+		(*Response)(nil),                     // 33: provisioner.Response
+		(*Agent_Metadata)(nil),               // 34: provisioner.Agent.Metadata
+		nil,                                  // 35: provisioner.Agent.EnvEntry
+		(*Resource_Metadata)(nil),            // 36: provisioner.Resource.Metadata
+		nil,                                  // 37: provisioner.ParseComplete.WorkspaceTagsEntry
+		(*timestamppb.Timestamp)(nil),        // 38: google.protobuf.Timestamp
+	}
+)
 var file_provisionersdk_proto_provisioner_proto_depIdxs = []int32{
 	6,  // 0: provisioner.RichParameter.options:type_name -> provisioner.RichParameterOption
 	0,  // 1: provisioner.Log.level:type_name -> provisioner.LogLevel
