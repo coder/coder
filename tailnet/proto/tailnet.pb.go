@@ -2630,6 +2630,7 @@ var (
 		(*wrapperspb.FloatValue)(nil),               // 40: google.protobuf.FloatValue
 	}
 )
+
 var file_tailnet_proto_tailnet_proto_depIdxs = []int32{
 	21, // 0: coder.tailnet.v2.DERPMap.home_params:type_name -> coder.tailnet.v2.DERPMap.HomeParams
 	23, // 1: coder.tailnet.v2.DERPMap.regions:type_name -> coder.tailnet.v2.DERPMap.RegionsEntry

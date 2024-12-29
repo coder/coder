@@ -1774,6 +1774,7 @@ var (
 		(*proto.ExternalAuthProviderResource)(nil), // 32: provisioner.ExternalAuthProviderResource
 	}
 )
+
 var file_provisionerd_proto_provisionerd_proto_depIdxs = []int32{
 	11, // 0: provisionerd.AcquiredJob.workspace_build:type_name -> provisionerd.AcquiredJob.WorkspaceBuild
 	12, // 1: provisionerd.AcquiredJob.template_import:type_name -> provisionerd.AcquiredJob.TemplateImport

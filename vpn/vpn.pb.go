@@ -1915,6 +1915,7 @@ var (
 		(*timestamppb.Timestamp)(nil),                         // 23: google.protobuf.Timestamp
 	}
 )
+
 var file_vpn_vpn_proto_depIdxs = []int32{
 	2,  // 0: vpn.ManagerMessage.rpc:type_name -> vpn.RPC
 	6,  // 1: vpn.ManagerMessage.get_peer_update:type_name -> vpn.GetPeerUpdate

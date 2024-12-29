@@ -3234,6 +3234,7 @@ var (
 		(*timestamppb.Timestamp)(nil),                    // 47: google.protobuf.Timestamp
 	}
 )
+
 var file_agent_proto_agent_proto_depIdxs = []int32{
 	1,  // 0: coder.agent.v2.WorkspaceApp.sharing_level:type_name -> coder.agent.v2.WorkspaceApp.SharingLevel
 	37, // 1: coder.agent.v2.WorkspaceApp.healthcheck:type_name -> coder.agent.v2.WorkspaceApp.Healthcheck
