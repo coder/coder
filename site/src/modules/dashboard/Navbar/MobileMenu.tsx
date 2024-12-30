@@ -34,6 +34,13 @@ const itemStyles = {
 	open: "text-content-primary",
 };
 
+type MobileMenuPermissions = {
+	canViewDeployment: boolean;
+	canViewOrganizations: boolean;
+	canViewAuditLog: boolean;
+	canViewHealth: boolean;
+};
+
 type MobileMenuProps = MobileMenuPermissions & {
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
@@ -41,13 +48,6 @@ type MobileMenuProps = MobileMenuPermissions & {
 	docsHref: string;
 	onSignOut: () => void;
 	isDefaultOpen?: boolean; // Useful for storybook
-};
-
-type MobileMenuPermissions = {
-	canViewDeployment: boolean;
-	canViewOrganizations: boolean;
-	canViewAuditLog: boolean;
-	canViewHealth: boolean;
 };
 
 export const MobileMenu: FC<MobileMenuProps> = ({
@@ -136,7 +136,7 @@ const ProxySettingsSub: FC<ProxySettingsSubProps> = ({ proxyContextValue }) => {
 					}}
 				>
 					Workspace proxy settings:
-					<span className="leading-[0px] flex items-center gap-1">
+					<span className="leading-none flex items-center gap-1">
 						<img
 							className="w-4 h-4"
 							src={selectedProxy.icon_url}

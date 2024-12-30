@@ -23,13 +23,7 @@ describe("Navbar", () => {
 		render(<App />);
 		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
-		await waitFor(
-			() => {
-				const link = screen.getByText("Audit Logs");
-				expect(link).toBeDefined();
-			},
-			{ timeout: 2000 },
-		);
+		await screen.findByText("Audit Logs");
 	});
 
 	it("does not show Audit Log link when not entitled", async () => {
@@ -40,8 +34,7 @@ describe("Navbar", () => {
 		await userEvent.click(deploymentMenu);
 		await waitFor(
 			() => {
-				const link = screen.queryByText("Audit Logs");
-				expect(link).toBe(null);
+				expect(screen.queryByText("Audit Logs")).not.toBeInTheDocument();
 			},
 			{ timeout: 2000 },
 		);
@@ -63,8 +56,7 @@ describe("Navbar", () => {
 		render(<App />);
 		await waitFor(
 			() => {
-				const link = screen.queryByText("Deployment");
-				expect(link).toBe(null);
+				expect(screen.queryByText("Deployment")).not.toBeInTheDocument();
 			},
 			{ timeout: 2000 },
 		);
