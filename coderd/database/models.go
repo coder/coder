@@ -517,7 +517,8 @@ func (ns NullGroupSource) Value() (driver.Value, error) {
 
 func (e GroupSource) Valid() bool {
 	switch e {
-	case GroupSourceUser, GroupSourceOidc:
+	case GroupSourceUser,
+		GroupSourceOidc:
 		return true
 	}
 	return false
@@ -1731,7 +1732,8 @@ func (ns NullTailnetStatus) Value() (driver.Value, error) {
 
 func (e TailnetStatus) Valid() bool {
 	switch e {
-	case TailnetStatusOk, TailnetStatusLost:
+	case TailnetStatusOk,
+		TailnetStatusLost:
 		return true
 	}
 	return false

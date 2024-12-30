@@ -417,7 +417,7 @@ RESET := $(shell tput sgr0 2>/dev/null)
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
-GO_FMT_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' ! -name '*.pb.go')
+GO_FMT_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -exec sh -c 'grep -L "DO NOT EDIT" "{}" 2>/dev/null || true' \;)
 
 fmt/go:
 	go mod tidy
@@ -513,9 +513,7 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go
 
-
-# all gen targets should be added here and to gen/mark-fresh
-gen: \
+GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
@@ -540,36 +538,15 @@ gen: \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
+
+# all gen targets should be added here and to gen/mark-fresh
+gen: $(GEN_FILES)
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
-	files="\
-		tailnet/proto/tailnet.pb.go \
-		agent/proto/agent.pb.go \
-		provisionersdk/proto/provisioner.pb.go \
-		provisionerd/proto/provisionerd.pb.go \
-		vpn/vpn.pb.go \
-		coderd/database/dump.sql \
-		$(DB_GEN_FILES) \
-		site/src/api/typesGenerated.ts \
-		coderd/rbac/object_gen.go \
-		codersdk/rbacresources_gen.go \
-		site/src/api/rbacresourcesGenerated.ts \
-		site/src/api/countriesGenerated.ts \
-		docs/admin/integrations/prometheus.md \
-		docs/reference/cli/index.md \
-		docs/admin/security/audit-logs.md \
-		coderd/apidoc/swagger.json \
-		.prettierignore.include \
-		.prettierignore \
-		site/e2e/provisionerGenerated.ts \
-		site/src/theme/icons.json \
-		examples/examples.gen.json \
-		$(TAILNETTEST_MOCKS) \
-		coderd/database/pubsub/psmock/psmock.go \
-		"
+	files="$(GEN_FILES)"
 
 	for file in $$files; do
 		echo "$$file"
