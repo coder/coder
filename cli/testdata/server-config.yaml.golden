@@ -90,11 +90,11 @@ networking:
     # (default: <unset>, type: string)
     clientKeyFile: ""
     # Specify specific TLS ciphers that allowed to be used. See
-    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
+    # <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75>.
     # (default: <unset>, type: string-array)
     tlsCiphers: []
     # By default, only ciphers marked as 'secure' are allowed to be used. See
-    # https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
+    # <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95>.
     # (default: false, type: bool)
     tlsAllowInsecureCiphers: false
     # Controls if the 'Strict-Transport-Security' header is set on all static file
@@ -157,11 +157,11 @@ networking:
     # (default: <unset>, type: bool)
     forceWebSockets: false
     # URL to fetch a DERP mapping on startup. See:
-    # https://tailscale.com/kb/1118/custom-derp-servers/.
+    # <https://tailscale.com/kb/1118/custom-derp-servers/>.
     # (default: <unset>, type: string)
     url: ""
     # Path to read a DERP mapping from. See:
-    # https://tailscale.com/kb/1118/custom-derp-servers/.
+    # <https://tailscale.com/kb/1118/custom-derp-servers/>.
     # (default: <unset>, type: string)
     configPath: ""
   # Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip,
@@ -217,7 +217,7 @@ introspection:
   tracing:
     # Whether application tracing data is collected. It exports to a backend
     # configured by environment variables. See:
-    # https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
+    # <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md>.
     # (default: <unset>, type: bool)
     enable: false
     # Enables capturing of logs as events in traces. This is useful for debugging, but
@@ -459,8 +459,8 @@ termsOfServiceURL: ""
 # (default: ed25519, type: string)
 sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
-# (default: https://coder.com/docs/templates/troubleshooting, type: url)
-agentFallbackTroubleshootingURL: https://coder.com/docs/templates/troubleshooting
+# (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
+agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -485,8 +485,8 @@ client:
   # (default: <unset>, type: string-array)
   sshConfigOptions: []
   # The upgrade message to display to users when a client/server mismatch is
-  # detected. By default it instructs users to update using 'curl -L
-  # https://coder.com/install.sh | sh'.
+  # detected. By default it instructs users to update using `curl -L
+  # https://coder.com/install.sh | sh`.
   # (default: <unset>, type: string)
   cliUpgradeMessage: ""
   # The renderer to use when opening a web terminal. Valid values are 'canvas',
@@ -499,9 +499,9 @@ supportLinks: []
 # External Authentication providers.
 # (default: <unset>, type: struct[[]codersdk.ExternalAuthConfig])
 externalAuthProviders: []
-# Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
+# Hostname of HTTPS server that runs <https://github.com/coder/wgtunnel>. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
-# "tunnel.example.com".
+# <tunnel.example.com>.
 # (default: <unset>, type: string)
 wgtunnelHost: ""
 # Allow users to set quiet hours schedules each day for workspaces to avoid
