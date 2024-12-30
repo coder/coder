@@ -8,13 +8,12 @@ import { forwardRef } from "react";
 import { cn } from "utils/cn";
 
 export const buttonVariants = cva(
-	`inline-flex items-center justify-center gap-2 whitespace-nowrap
+	`inline-flex items-center justify-center gap-1 whitespace-nowrap
 	border-solid rounded-md transition-colors
 	text-sm font-semibold font-medium  cursor-pointer no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
-	[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0
-	px-3 py-2`,
+	[&_svg]:pointer-events-none [&_svg]:shrink-0`,
 	{
 		variants: {
 			variant: {
@@ -26,20 +25,16 @@ export const buttonVariants = cva(
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
 				warning:
 					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
-				ghost:
-					"text-content-primary bg-transparent border-0 hover:bg-surface-secondary",
 			},
 
 			size: {
-				lg: "h-10",
-				default: "h-9",
-				sm: "h-8 px-2 py-1.5 text-xs",
-				icon: "h-10 w-10",
+				lg: "h-10 px-3 py-2 [&_svg]:size-icon-lg",
+				sm: "h-[30px] px-2 py-1.5 text-xs font-semibold [&_svg]:size-icon-sm",
 			},
 		},
 		defaultVariants: {
 			variant: "default",
-			size: "default",
+			size: "lg",
 		},
 	},
 );
