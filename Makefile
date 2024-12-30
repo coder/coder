@@ -417,8 +417,6 @@ RESET := $(shell tput sgr0 2>/dev/null)
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
-GO_FMT_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -exec sh -c 'grep -L "DO NOT EDIT" "{}" 2>/dev/null || true' \;)
-
 fmt/go:
 	go mod tidy
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
