@@ -1530,6 +1530,37 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 					}
 				}`,
 		},
+		{
+			name:            "locals",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				locals {
+					tagFoo = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo": local.tagFoo
+					}
+				}
+			`,
+		},
+		{
+			name:            "var default from local",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				locals {
+					tagFoo = "bar"
+				}
+				variable "foo" {
+					default = local.tagFoo
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						foo: var.foo
+					}
+				}
+			`,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {

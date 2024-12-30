@@ -425,7 +425,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					}
 					variable "region" {
 						type    = string
-						default = "region.us"
+						default = "us"
 					}
 					data "coder_parameter" "unrelated" {
 						name    = "unrelated"
@@ -435,7 +435,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
-						default = "az.a"
+						default = "a"
 					}
 					data "coder_workspace_tags" "tags" {
 						tags = {
@@ -545,6 +545,42 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 				}`,
 			},
 			expectTags: map[string]string{"foo": "bar", "a": "1"},
+		},
+		{
+			name: "main.tf with locals as default values",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					locals {
+						defaults = {
+							az = "a"
+						}
+					}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "base" "ours" {
+						all = true
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = local.defaults.az
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = var.region
+							"az"        = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 	} {
 		tc := tc
