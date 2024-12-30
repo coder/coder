@@ -50,6 +50,7 @@ func (*RootCmd) resetPassword() *serpent.Command {
 			if err != nil {
 				return xerrors.Errorf("dial postgres: %w", err)
 			}
+			defer sqlDB.Close()
 
 			db := database.New(sqlDB)
 
