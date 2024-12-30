@@ -8,6 +8,11 @@ module.exports = {
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
+			size: {
+				"icon-lg": "1.5rem",
+				"icon-sm": "1.125rem",
+				"icon-xs": "0.875rem",
+			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
 				sm: ["0.875rem", "1.5rem"],

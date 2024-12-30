@@ -109,7 +109,7 @@ const OrganizationSettingsLayout: FC = () => {
 						</BreadcrumbList>
 					</Breadcrumb>
 					<hr className="h-px border-none bg-border" />
-					<div className="px-10 max-w-screen-2xl">
+					<div className="px-6 max-w-screen-2xl">
 						<div className="flex flex-row gap-12 py-10">
 							<OrganizationSidebar />
 							<main css={{ flexGrow: 1 }}>
