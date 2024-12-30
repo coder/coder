@@ -27,6 +27,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
@@ -327,6 +328,15 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	previousWorkspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching latest workspace build",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
 	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
 		Initiator(apiKey.UserID).
 		RichParameterValues(createBuild.RichParameterValues).
@@ -420,12 +430,91 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If this workspace build has a different template version ID to the previous build
+	// we can assume it has just been updated.
+	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
+		api.notifyWorkspaceUpdated(ctx, workspace.ID)
+	}
+
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
 	})
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
+}
+
+func (api *API) notifyWorkspaceUpdated(ctx context.Context, workspaceID uuid.UUID) {
+	log := api.Logger.With(slog.F("workspace_id", workspaceID))
+
+	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch workspace for workspace update notification", slog.Error(err))
+		return
+	}
+
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch template for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+		return
+	}
+
+	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch template version for workspace update notification", slog.F("template_version_id", template.ActiveVersionID), slog.Error(err))
+		return
+	}
+
+	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch latest workspace build for workspace update notification", slog.Error(err))
+		return
+	}
+
+	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, build.ID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch workspace build parameters for workspace update notification", slog.Error(err))
+		return
+	}
+
+	buildParameters := make([]map[string]any, len(parameters))
+	for idx, parameter := range parameters {
+		buildParameters[idx] = map[string]any{
+			"name":  parameter.Name,
+			"value": parameter.Value,
+		}
+	}
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateWorkspaceManuallyUpdated,
+		map[string]string{
+			"organization": template.OrganizationName,
+			"workspace":    workspace.Name,
+			"template":     template.Name,
+			"version":      version.Name,
+		},
+		map[string]any{
+			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
+			"template":         map[string]any{"id": template.ID, "name": template.Name},
+			"template_version": map[string]any{"id": version.ID, "name": version.Name},
+			"owner":            map[string]any{"id": owner.ID, "name": owner.Name},
+			"parameters":       buildParameters,
+		},
+		"api-workspaces-updated",
+		// Associate this notification with all the related entities
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+	); err != nil {
+		log.Warn(ctx, "failed to notify of workspace update", slog.Error(err))
+	}
 }
 
 // @Summary Cancel workspace build
