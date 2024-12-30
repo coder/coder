@@ -76,7 +76,7 @@ func (s *scaletestTracingFlags) attach(opts *serpent.OptionSet) {
 		serpent.Option{
 			Flag:        "trace",
 			Env:         "CODER_SCALETEST_TRACE",
-			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md>.",
 			Value:       serpent.BoolOf(&s.traceEnable),
 		},
 		serpent.Option{

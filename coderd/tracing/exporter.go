@@ -23,7 +23,7 @@ import (
 // TracerOpts specifies which telemetry exporters should be configured.
 type TracerOpts struct {
 	// Default exports to a backend configured by environment variables. See:
-	// https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md
+	// <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md>
 	Default bool
 	// DataDog exports traces and profiles to the local DataDog daemon.
 	DataDog bool
