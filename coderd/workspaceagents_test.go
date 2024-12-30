@@ -20,7 +20,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/timestamppb"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -50,6 +49,7 @@ import (
 	"github.com/coder/coder/v2/tailnet/tailnettest"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 func TestWorkspaceAgent(t *testing.T) {

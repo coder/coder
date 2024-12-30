@@ -11,7 +11,6 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
@@ -98,14 +97,10 @@ const OAuth2AppRow: FC<OAuth2AppRowProps> = ({ app }) => {
 	return (
 		<TableRow key={app.id} data-testid={`app-${app.id}`} {...clickableProps}>
 			<TableCell>
-				<AvatarData
-					title={app.name}
-					avatar={
-						Boolean(app.icon) && (
-							<Avatar src={app.icon} variant="square" fitImage />
-						)
-					}
-				/>
+				<Stack direction="row" spacing={1}>
+					<Avatar variant="icon" src={app.icon} fallback={app.name} />
+					<span className="font-semibold">{app.name}</span>
+				</Stack>
 			</TableCell>
 
 			<TableCell>

@@ -15,7 +15,8 @@ permissions:
 
 jobs:
   check-docs:
-    runs-on: ubuntu-latest
+    # later versions of Ubuntu have disabled unprivileged user namespaces, which are required by the action
+    runs-on: ubuntu-22.04
     permissions:
       pull-requests: write # required to post PR review comments by the action
     steps:

@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
 )
 
 // Heartbeat loops to ping a WebSocket to keep it alive.

@@ -9,14 +9,9 @@ import { findSessionToken, randomName } from "./helpers";
 let currentOrgId: string;
 
 export const setupApiCalls = async (page: Page) => {
-	try {
-		const token = await findSessionToken(page);
-		API.setSessionToken(token);
-	} catch {
-		// If this fails, we have an unauthenticated client.
-	}
-
 	API.setHost(`http://127.0.0.1:${coderPort}`);
+	const token = await findSessionToken(page);
+	API.setSessionToken(token);
 };
 
 export const getCurrentOrgId = async (): Promise<string> => {
@@ -91,6 +86,43 @@ export const createOrganizationSyncSettings = async () => {
 		organization_assign_default: true,
 	});
 	return settings;
+};
+
+export const createCustomRole = async (
+	orgId: string,
+	name: string,
+	displayName: string,
+) => {
+	const role = await API.createOrganizationRole(orgId, {
+		name,
+		display_name: displayName,
+		organization_id: orgId,
+		site_permissions: [],
+		organization_permissions: [
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "create",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "delete",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "read",
+			},
+			{
+				negate: false,
+				resource_type: "organization_member",
+				action: "update",
+			},
+		],
+		user_permissions: [],
+	});
+	return role;
 };
 
 export async function verifyConfigFlagBoolean(

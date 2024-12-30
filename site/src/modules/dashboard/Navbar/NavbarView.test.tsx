@@ -56,25 +56,6 @@ describe("NavbarView", () => {
 		expect((templatesLink as HTMLAnchorElement).href).toContain("/templates");
 	});
 
-	it("users nav link has the correct href", async () => {
-		renderWithAuth(
-			<NavbarView
-				proxyContextValue={proxyContextValue}
-				user={MockUser}
-				onSignOut={noop}
-				canViewDeployment
-				canViewOrganizations
-				canViewAllUsers
-				canViewHealth
-				canViewAuditLog
-			/>,
-		);
-		const deploymentMenu = await screen.findByText("Administration");
-		await userEvent.click(deploymentMenu);
-		const userLink = await screen.findByText(navLanguage.users);
-		expect((userLink as HTMLAnchorElement).href).toContain("/users");
-	});
-
 	it("audit nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
@@ -88,7 +69,7 @@ describe("NavbarView", () => {
 				canViewAuditLog
 			/>,
 		);
-		const deploymentMenu = await screen.findByText("Administration");
+		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
 		const auditLink = await screen.findByText(navLanguage.audit);
 		expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
@@ -107,7 +88,7 @@ describe("NavbarView", () => {
 				canViewAuditLog
 			/>,
 		);
-		const deploymentMenu = await screen.findByText("Administration");
+		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
 		const deploymentSettingsLink = await screen.findByText(
 			navLanguage.deployment,

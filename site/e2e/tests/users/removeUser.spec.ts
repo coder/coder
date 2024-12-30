@@ -1,11 +1,15 @@
 import { expect, test } from "@playwright/test";
 import { createUser, getCurrentOrgId, setupApiCalls } from "../../api";
+import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("remove user", async ({ page, baseURL }) => {
-	await setupApiCalls(page);
 	const orgId = await getCurrentOrgId();
 	const user = await createUser(orgId);
 

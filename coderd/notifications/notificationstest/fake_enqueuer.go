@@ -92,8 +92,31 @@ func (f *FakeEnqueuer) Clear() {
 	f.sent = nil
 }
 
-func (f *FakeEnqueuer) Sent() []*FakeNotification {
+func (f *FakeEnqueuer) Sent(matchers ...func(*FakeNotification) bool) []*FakeNotification {
 	f.mu.Lock()
 	defer f.mu.Unlock()
-	return append([]*FakeNotification{}, f.sent...)
+
+	sent := []*FakeNotification{}
+	for _, notif := range f.sent {
+		// Check this notification matches all given matchers
+		matches := true
+		for _, matcher := range matchers {
+			if !matcher(notif) {
+				matches = false
+				break
+			}
+		}
+
+		if matches {
+			sent = append(sent, notif)
+		}
+	}
+
+	return sent
+}
+
+func WithTemplateID(id uuid.UUID) func(*FakeNotification) bool {
+	return func(n *FakeNotification) bool {
+		return n.TemplateID == id
+	}
 }

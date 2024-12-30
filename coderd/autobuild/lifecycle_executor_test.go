@@ -274,7 +274,7 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 			}
 
 			if tc.expectNotification {
-				sent := enqueuer.Sent()
+				sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutoUpdated))
 				require.Len(t, sent, 1)
 				require.Equal(t, sent[0].UserID, workspace.OwnerID)
 				require.Contains(t, sent[0].Targets, workspace.TemplateID)
@@ -285,7 +285,8 @@ func TestExecutorAutostartTemplateUpdated(t *testing.T) {
 				require.Equal(t, "autobuild", sent[0].Labels["initiator"])
 				require.Equal(t, "autostart", sent[0].Labels["reason"])
 			} else {
-				require.Empty(t, enqueuer.Sent())
+				sent := enqueuer.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceAutoUpdated))
+				require.Empty(t, sent)
 			}
 		})
 	}

@@ -1,8 +1,10 @@
 package coderd_test
 
 import (
+	"bytes"
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"sync/atomic"
 	"testing"
@@ -1389,35 +1391,182 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 		require.Equal(t, templateTTL, template.DefaultTTLMillis)
 		require.Equal(t, templateTTL, *workspace.TTLMillis)
 	})
+}
 
-	t.Run("ExtendIsNotEnabledByTemplate", func(t *testing.T) {
-		t.Parallel()
-		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
-		client := coderdtest.New(t, &coderdtest.Options{
-			IncludeProvisionerDaemon: true,
-			TemplateScheduleStore:    schedule.NewEnterpriseTemplateScheduleStore(agplUserQuietHoursScheduleStore(), notifications.NewNoopEnqueuer(), logger, nil),
+// TestWorkspaceTagsTerraform tests that a workspace can be created with tags.
+// This is an end-to-end-style test, meaning that we actually run the
+// real Terraform provisioner and validate that the workspace is created
+// successfully. The workspace itself does not specify any resources, and
+// this is fine.
+func TestWorkspaceTagsTerraform(t *testing.T) {
+	t.Parallel()
+
+	mainTfTemplate := `
+		terraform {
+			required_providers {
+				coder = {
+					source = "coder/coder"
+				}
+			}
+		}
+		provider "coder" {}
+		data "coder_workspace" "me" {}
+		data "coder_workspace_owner" "me" {}
+		%s
+	`
+
+	for _, tc := range []struct {
+		name string
+		// tags to apply to the external provisioner
+		provisionerTags map[string]string
+		// tags to apply to the create template version request
+		createTemplateVersionRequestTags map[string]string
+		// the coder_workspace_tags bit of main.tf.
+		// you can add more stuff here if you need
+		tfWorkspaceTags string
+	}{
+		{
+			name:            "no tags",
+			tfWorkspaceTags: ``,
+		},
+		{
+			name: "empty tags",
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}
+			`,
+		},
+		{
+			name:            "static tag",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
+		{
+			name:            "tag variable",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = var.foo
+					}
+				}`,
+		},
+		{
+			name:            "tag param",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = "bar"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:            "tag param with default from var",
+			provisionerTags: map[string]string{"foo": "bar"},
+			tfWorkspaceTags: `
+				variable "foo" {
+					type = string
+					default = "bar"
+				}
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = var.foo
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
+		{
+			name:                             "override no tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags:                  ``,
+		},
+		{
+			name:                             "override empty tags",
+			provisionerTags:                  map[string]string{"foo": "baz"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {}
+				}`,
+		},
+		{
+			name:                             "does not override static tag",
+			provisionerTags:                  map[string]string{"foo": "bar"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
+			tfWorkspaceTags: `
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = "bar"
+					}
+				}`,
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitSuperLong)
+
+			client, owner := coderdenttest.New(t, &coderdenttest.Options{
+				Options: &coderdtest.Options{
+					// We intentionally do not run a built-in provisioner daemon here.
+					IncludeProvisionerDaemon: false,
+				},
+				LicenseOptions: &coderdenttest.LicenseOptions{
+					Features: license.Features{
+						codersdk.FeatureExternalProvisionerDaemons: 1,
+					},
+				},
+			})
+			templateAdmin, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.RoleTemplateAdmin())
+			member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
+
+			// Creating a template as a template admin must succeed
+			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
+			tarBytes := testutil.CreateTar(t, templateFiles)
+			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
+			require.NoError(t, err, "failed to upload file")
+			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
+				Name:            testutil.GetRandomName(t),
+				FileID:          fi.ID,
+				StorageMethod:   codersdk.ProvisionerStorageMethodFile,
+				Provisioner:     codersdk.ProvisionerTypeTerraform,
+				ProvisionerTags: tc.createTemplateVersionRequestTags,
+			})
+			require.NoError(t, err, "failed to create template version")
+			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
+			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
+
+			// Creating a workspace as a non-privileged user must succeed
+			ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+				TemplateID: tpl.ID,
+				Name:       coderdtest.RandomUsername(t),
+			})
+			require.NoError(t, err, "failed to create workspace")
+			coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
 		})
-		user := coderdtest.CreateFirstUser(t, client)
-		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
-		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID, func(ctr *codersdk.CreateTemplateRequest) {
-			ctr.AllowUserAutostop = ptr.Ref(false)
-		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
-		require.Equal(t, false, template.AllowUserAutostop, "template should have AllowUserAutostop as false")
-
-		ctx := testutil.Context(t, testutil.WaitShort)
-		ttl := 8 * time.Hour
-		newDeadline := time.Now().Add(ttl + time.Hour).UTC()
-
-		err := client.PutExtendWorkspace(ctx, workspace.ID, codersdk.PutExtendWorkspaceRequest{
-			Deadline: newDeadline,
-		})
-
-		require.ErrorContains(t, err, "template does not allow user autostop")
-	})
+	}
 }
 
 // Blocked by autostart requirements

@@ -5,6 +5,7 @@ import type {
 	HealthMessage,
 	HealthSeverity,
 	HealthcheckReport,
+	NetcheckReport,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import type { FC } from "react";
@@ -24,7 +25,7 @@ import {
 import { DismissWarningButton } from "./DismissWarningButton";
 import { healthyColor } from "./healthyColor";
 
-const flags = [
+const flags: BooleanKeys<NetcheckReport>[] = [
 	"UDP",
 	"IPv6",
 	"IPv4",
@@ -39,9 +40,14 @@ const flags = [
 	"PCP",
 ];
 
+type BooleanKeys<T> = {
+	[K in keyof T]: T[K] extends boolean | null ? K : never;
+}[keyof T];
+
 export const DERPPage: FC = () => {
 	const { derp } = useOutletContext<HealthcheckReport>();
 	const { netcheck, regions, netcheck_logs: logs } = derp;
+	const safeNetcheck = netcheck || ({} as NetcheckReport);
 	const theme = useTheme();
 
 	return (
@@ -75,7 +81,7 @@ export const DERPPage: FC = () => {
 					<SectionLabel>Flags</SectionLabel>
 					<div css={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
 						{flags.map((flag) => (
-							<BooleanPill key={flag} value={netcheck[flag]}>
+							<BooleanPill key={flag} value={safeNetcheck[flag]}>
 								{flag}
 							</BooleanPill>
 						))}
@@ -94,6 +100,7 @@ export const DERPPage: FC = () => {
 								if (a.region && b.region) {
 									return a.region.RegionName.localeCompare(b.region.RegionName);
 								}
+								return 0;
 							})
 							.map(({ severity, region }) => {
 								return (
@@ -111,10 +118,10 @@ export const DERPPage: FC = () => {
 											/>
 										}
 										component={Link}
-										to={`/health/derp/regions/${region.RegionID}`}
-										key={region.RegionID}
+										to={`/health/derp/regions/${region!.RegionID}`}
+										key={region!.RegionID}
 									>
-										{region.RegionName}
+										{region!.RegionName}
 									</Button>
 								);
 							})}
