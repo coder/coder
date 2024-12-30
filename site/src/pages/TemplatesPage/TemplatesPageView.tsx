@@ -1,7 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import Button from "@mui/material/Button";
+import MuiButton from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -40,7 +39,7 @@ import {
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -50,6 +49,8 @@ import {
 import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
+import { Button } from "components/Button/Button";
+import { PlusIcon } from "lucide-react";
 
 export const Language = {
 	developerCount: (activeCount: number): string => {
@@ -154,7 +155,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 				{template.deprecated ? (
 					<DeprecatedBadge />
 				) : (
-					<Button
+					<MuiButton
 						size="small"
 						css={styles.actionButton}
 						className="actionButton"
@@ -166,7 +167,7 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 						}}
 					>
 						Create Workspace
-					</Button>
+					</MuiButton>
 				)}
 			</TableCell>
 		</TableRow>
@@ -195,14 +196,11 @@ export const TemplatesPageView: FC<TemplatesPageViewProps> = ({
 	const navigate = useNavigate();
 
 	const createTemplateAction = showOrganizations ? (
-		<Button
-			startIcon={<AddIcon />}
-			variant="contained"
-			onClick={() => {
-				navigate("/starter-templates");
-			}}
-		>
-			Create Template
+		<Button asChild size="lg">
+			<Link to="/starter-templates">
+				<PlusIcon />
+				New template
+			</Link>
 		</Button>
 	) : (
 		<CreateTemplateButton onNavigate={navigate} />
