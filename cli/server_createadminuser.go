@@ -72,7 +72,7 @@ func (r *RootCmd) newCreateAdminUserCommand() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, newUserDBURL)
+			sqlDB, err := ConnectToPostgres(ctx, logger, false, sqlDriver, newUserDBURL)
 			if err != nil {
 				return xerrors.Errorf("connect to postgres: %w", err)
 			}

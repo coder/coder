@@ -697,7 +697,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -2090,7 +2090,12 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (sqlDB *sql.DB, err error) {
+// ConnectToPostgres takes a control flag "migrate". If true, `migrations.Up` will be applied
+// to the database, potentially making schema changes.
+// If set to false, no database changes will be applied, however the migration version
+// will be checked. If the database is not fully up to date with its migrations, then
+// an error will be returned.
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, migrate bool, driver string, dbURL string) (sqlDB *sql.DB, err error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
 	// Try to connect for 30 seconds.
@@ -2155,7 +2160,11 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	}
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
-	err = migrations.Up(sqlDB)
+	if migrate {
+		err = migrations.Up(sqlDB)
+	} else {
+		err = migrations.EnsureClean(sqlDB)
+	}
 	if err != nil {
 		return nil, xerrors.Errorf("migrate up: %w", err)
 	}
@@ -2561,7 +2570,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 	return inv.SignalNotifyContext(ctx, sig...)
 }
 
-func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
@@ -2574,7 +2583,7 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	sqlDB, err := ConnectToPostgres(ctx, logger, true, sqlDriver, dbURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}

@@ -1836,7 +1836,7 @@ func TestConnectToPostgres(t *testing.T) {
 	dbURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
 
-	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
+	sqlDB, err := cli.ConnectToPostgres(ctx, log, true, "postgres", dbURL)
 	require.NoError(t, err)
 	t.Cleanup(func() {
 		_ = sqlDB.Close()
