@@ -2095,6 +2095,7 @@ func IsLocalhost(host string) bool {
 // If set to false, no database changes will be applied, however the migration version
 // will be checked. If the database is not fully up to date with its migrations, then
 // an error will be returned.
+// nolint:revive // 'migrate' is a control flag.
 func ConnectToPostgres(ctx context.Context, logger slog.Logger, migrate bool, driver string, dbURL string) (sqlDB *sql.DB, err error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
