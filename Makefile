@@ -417,12 +417,14 @@ RESET := $(shell tput sgr0 2>/dev/null)
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
+GO_FMT_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' -exec sh -c 'grep -L "DO NOT EDIT" "{}" 2>/dev/null || true' \;)
+
 fmt/go:
 	go mod tidy
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
-	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
+	go run mvdan.cc/gofumpt@v0.4.0 -w -l $(GO_FMT_FILES)
 .PHONY: fmt/go
 
 fmt/ts:
@@ -511,9 +513,7 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go
 
-
-# all gen targets should be added here and to gen/mark-fresh
-gen: \
+GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
@@ -538,6 +538,9 @@ gen: \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
+
+# all gen targets should be added here and to gen/mark-fresh
+gen: $(GEN_FILES)
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
