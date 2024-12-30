@@ -546,7 +546,31 @@ gen: $(GEN_FILES)
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
-	files="$(GEN_FILES)"
+	files="\
+		tailnet/proto/tailnet.pb.go \
+		agent/proto/agent.pb.go \
+		provisionersdk/proto/provisioner.pb.go \
+		provisionerd/proto/provisionerd.pb.go \
+		vpn/vpn.pb.go \
+		coderd/database/dump.sql \
+		$(DB_GEN_FILES) \
+		site/src/api/typesGenerated.ts \
+		coderd/rbac/object_gen.go \
+		codersdk/rbacresources_gen.go \
+		site/src/api/rbacresourcesGenerated.ts \
+		site/src/api/countriesGenerated.ts \
+		docs/admin/integrations/prometheus.md \
+		docs/reference/cli/index.md \
+		docs/admin/security/audit-logs.md \
+		coderd/apidoc/swagger.json \
+		.prettierignore.include \
+		.prettierignore \
+		site/e2e/provisionerGenerated.ts \
+		site/src/theme/icons.json \
+		examples/examples.gen.json \
+		$(TAILNETTEST_MOCKS) \
+		coderd/database/pubsub/psmock/psmock.go \
+		"
 
 	for file in $$files; do
 		echo "$$file"
