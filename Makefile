@@ -417,12 +417,14 @@ RESET := $(shell tput sgr0 2>/dev/null)
 fmt: fmt/ts fmt/go fmt/terraform fmt/shfmt fmt/prettier
 .PHONY: fmt
 
+GO_FMT_FILES := $(shell find . $(FIND_EXCLUSIONS) -type f -name '*.go' ! -name '*.pb.go')
+
 fmt/go:
 	go mod tidy
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
-	go run mvdan.cc/gofumpt@v0.4.0 -w -l $(GO_SRC_FILES)
+	go run mvdan.cc/gofumpt@v0.4.0 -w -l $(GO_FMT_FILES)
 .PHONY: fmt/go
 
 fmt/ts:
@@ -537,8 +539,7 @@ gen: \
 	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
-	coderd/database/pubsub/psmock/psmock.go \
-	fmt
+	coderd/database/pubsub/psmock/psmock.go
 .PHONY: gen
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is

@@ -7,14 +7,13 @@
 package proto
 
 import (
-	reflect "reflect"
-	sync "sync"
-
 	protoreflect "google.golang.org/protobuf/reflect/protoreflect"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 	durationpb "google.golang.org/protobuf/types/known/durationpb"
 	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 	wrapperspb "google.golang.org/protobuf/types/known/wrapperspb"
+	reflect "reflect"
+	sync "sync"
 )
 
 const (
@@ -2583,54 +2582,51 @@ func file_tailnet_proto_tailnet_proto_rawDescGZIP() []byte {
 	return file_tailnet_proto_tailnet_proto_rawDescData
 }
 
-var (
-	file_tailnet_proto_tailnet_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
-	file_tailnet_proto_tailnet_proto_msgTypes  = make([]protoimpl.MessageInfo, 32)
-	file_tailnet_proto_tailnet_proto_goTypes   = []interface{}{
-		(CoordinateResponse_PeerUpdate_Kind)(0),     // 0: coder.tailnet.v2.CoordinateResponse.PeerUpdate.Kind
-		(IPFields_IPClass)(0),                       // 1: coder.tailnet.v2.IPFields.IPClass
-		(TelemetryEvent_Status)(0),                  // 2: coder.tailnet.v2.TelemetryEvent.Status
-		(TelemetryEvent_ClientType)(0),              // 3: coder.tailnet.v2.TelemetryEvent.ClientType
-		(Workspace_Status)(0),                       // 4: coder.tailnet.v2.Workspace.Status
-		(*DERPMap)(nil),                             // 5: coder.tailnet.v2.DERPMap
-		(*StreamDERPMapsRequest)(nil),               // 6: coder.tailnet.v2.StreamDERPMapsRequest
-		(*Node)(nil),                                // 7: coder.tailnet.v2.Node
-		(*RefreshResumeTokenRequest)(nil),           // 8: coder.tailnet.v2.RefreshResumeTokenRequest
-		(*RefreshResumeTokenResponse)(nil),          // 9: coder.tailnet.v2.RefreshResumeTokenResponse
-		(*CoordinateRequest)(nil),                   // 10: coder.tailnet.v2.CoordinateRequest
-		(*CoordinateResponse)(nil),                  // 11: coder.tailnet.v2.CoordinateResponse
-		(*IPFields)(nil),                            // 12: coder.tailnet.v2.IPFields
-		(*Netcheck)(nil),                            // 13: coder.tailnet.v2.Netcheck
-		(*TelemetryEvent)(nil),                      // 14: coder.tailnet.v2.TelemetryEvent
-		(*TelemetryRequest)(nil),                    // 15: coder.tailnet.v2.TelemetryRequest
-		(*TelemetryResponse)(nil),                   // 16: coder.tailnet.v2.TelemetryResponse
-		(*WorkspaceUpdatesRequest)(nil),             // 17: coder.tailnet.v2.WorkspaceUpdatesRequest
-		(*WorkspaceUpdate)(nil),                     // 18: coder.tailnet.v2.WorkspaceUpdate
-		(*Workspace)(nil),                           // 19: coder.tailnet.v2.Workspace
-		(*Agent)(nil),                               // 20: coder.tailnet.v2.Agent
-		(*DERPMap_HomeParams)(nil),                  // 21: coder.tailnet.v2.DERPMap.HomeParams
-		(*DERPMap_Region)(nil),                      // 22: coder.tailnet.v2.DERPMap.Region
-		nil,                                         // 23: coder.tailnet.v2.DERPMap.RegionsEntry
-		nil,                                         // 24: coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
-		(*DERPMap_Region_Node)(nil),                 // 25: coder.tailnet.v2.DERPMap.Region.Node
-		nil,                                         // 26: coder.tailnet.v2.Node.DerpLatencyEntry
-		nil,                                         // 27: coder.tailnet.v2.Node.DerpForcedWebsocketEntry
-		(*CoordinateRequest_UpdateSelf)(nil),        // 28: coder.tailnet.v2.CoordinateRequest.UpdateSelf
-		(*CoordinateRequest_Disconnect)(nil),        // 29: coder.tailnet.v2.CoordinateRequest.Disconnect
-		(*CoordinateRequest_Tunnel)(nil),            // 30: coder.tailnet.v2.CoordinateRequest.Tunnel
-		(*CoordinateRequest_ReadyForHandshake)(nil), // 31: coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
-		(*CoordinateResponse_PeerUpdate)(nil),       // 32: coder.tailnet.v2.CoordinateResponse.PeerUpdate
-		nil,                                         // 33: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
-		nil,                                         // 34: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
-		(*Netcheck_NetcheckIP)(nil),                 // 35: coder.tailnet.v2.Netcheck.NetcheckIP
-		(*TelemetryEvent_P2PEndpoint)(nil),          // 36: coder.tailnet.v2.TelemetryEvent.P2PEndpoint
-		(*timestamppb.Timestamp)(nil),               // 37: google.protobuf.Timestamp
-		(*durationpb.Duration)(nil),                 // 38: google.protobuf.Duration
-		(*wrapperspb.BoolValue)(nil),                // 39: google.protobuf.BoolValue
-		(*wrapperspb.FloatValue)(nil),               // 40: google.protobuf.FloatValue
-	}
-)
-
+var file_tailnet_proto_tailnet_proto_enumTypes = make([]protoimpl.EnumInfo, 5)
+var file_tailnet_proto_tailnet_proto_msgTypes = make([]protoimpl.MessageInfo, 32)
+var file_tailnet_proto_tailnet_proto_goTypes = []interface{}{
+	(CoordinateResponse_PeerUpdate_Kind)(0),     // 0: coder.tailnet.v2.CoordinateResponse.PeerUpdate.Kind
+	(IPFields_IPClass)(0),                       // 1: coder.tailnet.v2.IPFields.IPClass
+	(TelemetryEvent_Status)(0),                  // 2: coder.tailnet.v2.TelemetryEvent.Status
+	(TelemetryEvent_ClientType)(0),              // 3: coder.tailnet.v2.TelemetryEvent.ClientType
+	(Workspace_Status)(0),                       // 4: coder.tailnet.v2.Workspace.Status
+	(*DERPMap)(nil),                             // 5: coder.tailnet.v2.DERPMap
+	(*StreamDERPMapsRequest)(nil),               // 6: coder.tailnet.v2.StreamDERPMapsRequest
+	(*Node)(nil),                                // 7: coder.tailnet.v2.Node
+	(*RefreshResumeTokenRequest)(nil),           // 8: coder.tailnet.v2.RefreshResumeTokenRequest
+	(*RefreshResumeTokenResponse)(nil),          // 9: coder.tailnet.v2.RefreshResumeTokenResponse
+	(*CoordinateRequest)(nil),                   // 10: coder.tailnet.v2.CoordinateRequest
+	(*CoordinateResponse)(nil),                  // 11: coder.tailnet.v2.CoordinateResponse
+	(*IPFields)(nil),                            // 12: coder.tailnet.v2.IPFields
+	(*Netcheck)(nil),                            // 13: coder.tailnet.v2.Netcheck
+	(*TelemetryEvent)(nil),                      // 14: coder.tailnet.v2.TelemetryEvent
+	(*TelemetryRequest)(nil),                    // 15: coder.tailnet.v2.TelemetryRequest
+	(*TelemetryResponse)(nil),                   // 16: coder.tailnet.v2.TelemetryResponse
+	(*WorkspaceUpdatesRequest)(nil),             // 17: coder.tailnet.v2.WorkspaceUpdatesRequest
+	(*WorkspaceUpdate)(nil),                     // 18: coder.tailnet.v2.WorkspaceUpdate
+	(*Workspace)(nil),                           // 19: coder.tailnet.v2.Workspace
+	(*Agent)(nil),                               // 20: coder.tailnet.v2.Agent
+	(*DERPMap_HomeParams)(nil),                  // 21: coder.tailnet.v2.DERPMap.HomeParams
+	(*DERPMap_Region)(nil),                      // 22: coder.tailnet.v2.DERPMap.Region
+	nil,                                         // 23: coder.tailnet.v2.DERPMap.RegionsEntry
+	nil,                                         // 24: coder.tailnet.v2.DERPMap.HomeParams.RegionScoreEntry
+	(*DERPMap_Region_Node)(nil),                 // 25: coder.tailnet.v2.DERPMap.Region.Node
+	nil,                                         // 26: coder.tailnet.v2.Node.DerpLatencyEntry
+	nil,                                         // 27: coder.tailnet.v2.Node.DerpForcedWebsocketEntry
+	(*CoordinateRequest_UpdateSelf)(nil),        // 28: coder.tailnet.v2.CoordinateRequest.UpdateSelf
+	(*CoordinateRequest_Disconnect)(nil),        // 29: coder.tailnet.v2.CoordinateRequest.Disconnect
+	(*CoordinateRequest_Tunnel)(nil),            // 30: coder.tailnet.v2.CoordinateRequest.Tunnel
+	(*CoordinateRequest_ReadyForHandshake)(nil), // 31: coder.tailnet.v2.CoordinateRequest.ReadyForHandshake
+	(*CoordinateResponse_PeerUpdate)(nil),       // 32: coder.tailnet.v2.CoordinateResponse.PeerUpdate
+	nil,                                         // 33: coder.tailnet.v2.Netcheck.RegionV4LatencyEntry
+	nil,                                         // 34: coder.tailnet.v2.Netcheck.RegionV6LatencyEntry
+	(*Netcheck_NetcheckIP)(nil),                 // 35: coder.tailnet.v2.Netcheck.NetcheckIP
+	(*TelemetryEvent_P2PEndpoint)(nil),          // 36: coder.tailnet.v2.TelemetryEvent.P2PEndpoint
+	(*timestamppb.Timestamp)(nil),               // 37: google.protobuf.Timestamp
+	(*durationpb.Duration)(nil),                 // 38: google.protobuf.Duration
+	(*wrapperspb.BoolValue)(nil),                // 39: google.protobuf.BoolValue
+	(*wrapperspb.FloatValue)(nil),               // 40: google.protobuf.FloatValue
+}
 var file_tailnet_proto_tailnet_proto_depIdxs = []int32{
 	21, // 0: coder.tailnet.v2.DERPMap.home_params:type_name -> coder.tailnet.v2.DERPMap.HomeParams
 	23, // 1: coder.tailnet.v2.DERPMap.regions:type_name -> coder.tailnet.v2.DERPMap.RegionsEntry
