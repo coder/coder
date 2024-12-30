@@ -1,6 +1,6 @@
 import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
 import MenuItem from "@mui/material/MenuItem";
-import { DropdownMenuButton } from "components/DropdownMenu/DropdownMenu";
+import { Button } from "components/Button/Button";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Popover,
@@ -8,6 +8,7 @@ import {
 	PopoverTrigger,
 	usePopover,
 } from "components/deprecated/Popover/Popover";
+import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
 import { NavLink } from "react-router-dom";
@@ -39,7 +40,10 @@ export const DeploymentDropdown: FC<DeploymentDropdownProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<DropdownMenuButton size="lg">Admin settings</DropdownMenuButton>
+				<Button variant="outline" size="lg">
+					Admin settings
+					<ChevronDownIcon className="text-content-primary !size-icon-xs" />
+				</Button>
 			</PopoverTrigger>
 
 			<PopoverContent

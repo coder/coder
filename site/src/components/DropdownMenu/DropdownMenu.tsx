@@ -216,23 +216,3 @@ export const DropdownMenuShortcut = ({
 	);
 };
 DropdownMenuShortcut.displayName = "DropdownMenuShortcut";
-
-export interface DropdownMenuButtonProps
-	extends ComponentPropsWithoutRef<typeof Button> {}
-
-export const DropdownMenuButton = forwardRef<
-	HTMLButtonElement,
-	DropdownMenuButtonProps
->(({ children, ...props }, ref) => {
-	return (
-		<Button ref={ref} variant="outline" {...props}>
-			{children}
-			<DropdownMenuChevronDown />
-		</Button>
-	);
-});
-DropdownMenuButton.displayName = "DropdownMenuButton";
-
-export const DropdownMenuChevronDown: FC = () => {
-	return <ChevronDownIcon className="text-content-primary !size-icon-xs" />;
-};
