@@ -6,15 +6,15 @@ import Skeleton from "@mui/material/Skeleton";
 import { visuallyHidden } from "@mui/utils";
 import type * as TypesGen from "api/typesGenerated";
 import { Abbr } from "components/Abbr/Abbr";
+import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Latency } from "components/Latency/Latency";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { ChevronDownIcon } from "lucide-react";
 import { type FC, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { sortProxiesByLatency } from "./proxyUtils";
-import { Button } from "components/Button/Button";
-import { ChevronDownIcon } from "lucide-react";
 
 interface ProxyMenuProps {
 	proxyContextValue: ProxyContextValue;
