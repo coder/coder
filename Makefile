@@ -702,18 +702,33 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 
 update-golden-files: \
 	cli/testdata/.gen-golden \
-	helm/coder/tests/testdata/.gen-golden \
-	helm/provisioner/tests/testdata/.gen-golden \
-	enterprise/cli/testdata/.gen-golden \
-	enterprise/tailnet/testdata/.gen-golden \
-	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
 	coderd/notifications/.gen-golden \
-	provisioner/terraform/testdata/.gen-golden
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden
 .PHONY: update-golden-files
 
+clean/golden-files:
+	find . -type f -name '.gen-golden' -delete
+	find \
+		cli/testdata \
+		coderd/notifications/testdata \
+		coderd/testdata \
+		enterprise/cli/testdata \
+		enterprise/tailnet/testdata \
+		helm/coder/tests/testdata \
+		helm/provisioner/tests/testdata \
+		provisioner/terraform/testdata \
+		tailnet/testdata \
+		-type f -name '*.golden' -delete
+.PHONY: clean/golden-files
+
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
-	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples)" -update
+	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
 	touch "$@"
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)

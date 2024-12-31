@@ -271,6 +271,12 @@ jobs:
         # coderd/rbac/object_gen.go:1:1: syntax error: package statement must be first
         run: "make --output-sync -B gen"
 
+      - name: make update-golden-files
+        # As above, skip `-j` flag.
+        run: |
+          make clean/golden-files
+          make --output-sync -B update-golden-files
+
       - name: Check for unstaged files
         run: ./scripts/check_unstaged.sh
 
