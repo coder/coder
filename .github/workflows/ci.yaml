@@ -272,9 +272,9 @@ jobs:
         run: "make --output-sync -B gen"
 
       - name: make update-golden-files
-        # As above, skip `-j` flag.
         run: |
           make clean/golden-files
+          # As above, skip `-j` flag.
           make --output-sync -B update-golden-files
 
       - name: Check for unstaged files
