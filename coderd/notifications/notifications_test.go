@@ -1057,6 +1057,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"organization": "bobby-organization",
+					"initiator":    "bobby",
 					"workspace":    "bobby-workspace",
 					"template":     "bobby-template",
 					"version":      "alpha",

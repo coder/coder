@@ -434,7 +434,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	// If this workspace build has a different template version ID to the previous build
 	// we can assume it has just been updated.
 	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
-		api.notifyWorkspaceUpdated(ctx, workspace.ID)
+		api.notifyWorkspaceUpdated(ctx, apiKey.UserID, workspace, createBuild.RichParameterValues)
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
@@ -445,14 +445,13 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusCreated, apiBuild)
 }
 
-func (api *API) notifyWorkspaceUpdated(ctx context.Context, workspaceID uuid.UUID) {
-	log := api.Logger.With(slog.F("workspace_id", workspaceID))
-
-	workspace, err := api.Database.GetWorkspaceByID(ctx, workspaceID)
-	if err != nil {
-		log.Warn(ctx, "failed to fetch workspace for workspace update notification", slog.Error(err))
-		return
-	}
+func (api *API) notifyWorkspaceUpdated(
+	ctx context.Context,
+	initiatorID uuid.UUID,
+	workspace database.Workspace,
+	parameters []codersdk.WorkspaceBuildParameter,
+) {
+	log := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
 	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
@@ -460,27 +459,21 @@ func (api *API) notifyWorkspaceUpdated(ctx context.Context, workspaceID uuid.UUI
 		return
 	}
 
+	version, err := api.Database.GetTemplateVersionByID(ctx, workspace.TemplateID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch template version for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
+		return
+	}
+
+	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("initiator_id", initiatorID), slog.Error(err))
+		return
+	}
+
 	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
-		return
-	}
-
-	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
-	if err != nil {
-		log.Warn(ctx, "failed to fetch template version for workspace update notification", slog.F("template_version_id", template.ActiveVersionID), slog.Error(err))
-		return
-	}
-
-	build, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil {
-		log.Warn(ctx, "failed to fetch latest workspace build for workspace update notification", slog.Error(err))
-		return
-	}
-
-	parameters, err := api.Database.GetWorkspaceBuildParameters(ctx, build.ID)
-	if err != nil {
-		log.Warn(ctx, "failed to fetch workspace build parameters for workspace update notification", slog.Error(err))
 		return
 	}
 
@@ -499,6 +492,7 @@ func (api *API) notifyWorkspaceUpdated(ctx context.Context, workspaceID uuid.UUI
 		notifications.TemplateWorkspaceManuallyUpdated,
 		map[string]string{
 			"organization": template.OrganizationName,
+			"initiator":    initiator.Name,
 			"workspace":    workspace.Name,
 			"template":     template.Name,
 			"version":      version.Name,

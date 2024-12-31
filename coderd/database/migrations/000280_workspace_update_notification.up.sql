@@ -5,16 +5,26 @@ VALUES (
 	'Workspace Manually Updated',
 	E'Workspace ''{{.Labels.workspace}}'' has been manually updated',
 	E'Hello {{.UserName}},\n\n'||
-		E'Your workspace **{{.Labels.workspace}}** has been manually updated to template version **{{.Labels.version}}**.',
+		E'A new workspace build has been manually created for your workspace **{{.Labels.workspace}}** by **{{.Labels.initiator}}** to update it to version **{{.Labels.version}}** of template **{{.Labels.template}}**.',
     'Workspace Events',
 	'[
 		{
-			"label": "See workspace",
+			"label": "View workspace",
 			"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}"
 		},
 		{
-			"label": "See template version",
+			"label": "View template version",
 			"url": "{{base_url}}/templates/{{.Labels.organization}}/{{.Labels.template}}/versions/{{.Labels.version}}"
 		}
 	]'::jsonb
 );
+
+UPDATE notification_templates
+SET
+	actions = '[
+		{
+			"label": "View workspace",
+			"url": "{{base_url}}/@{{.UserUsername}}/{{.Labels.workspace}}"
+		}
+	]'::jsonb
+WHERE id = '281fdf73-c6d6-4cbb-8ff5-888baf8a2fff';
