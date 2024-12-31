@@ -200,6 +200,8 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 			case codersdk.NullTime:
 				if val.Valid {
 					v = val.Time.Format(time.RFC3339)
+				} else {
+					v = nil
 				}
 			case *int64:
 				if val != nil {
@@ -215,6 +217,8 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				nilPtr := vv.Kind() == reflect.Ptr && vv.IsNil()
 				if val != nil && !nilPtr {
 					v = val.String()
+				} else if nilPtr {
+					v = nil
 				}
 			}
 
