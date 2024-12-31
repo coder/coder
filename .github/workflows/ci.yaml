@@ -274,6 +274,9 @@ jobs:
       - name: make update-golden-files
         run: |
           make clean/golden-files
+          # Notifications require DB, we could start a DB instance here but
+          # let's just restore for now.
+          git checkout -- coderd/notifications/testdata/rendered-templates
           # As above, skip `-j` flag.
           make --output-sync -B update-golden-files
 
