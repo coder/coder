@@ -14,7 +14,7 @@ import (
 func (r *RootCmd) provisionerJobs() *serpent.Command {
 	cmd := &serpent.Command{
 		Use:   "jobs",
-		Short: "View and manage provisioner jobs.",
+		Short: "View and manage provisioner jobs",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},

@@ -2,7 +2,7 @@
 
 # provisioners jobs
 
-View and manage provisioner jobs.
+View and manage provisioner jobs
 
 Aliases:
 

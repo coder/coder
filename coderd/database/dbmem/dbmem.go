@@ -3861,34 +3861,37 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 		}
 
 		var status database.ProvisionerDaemonStatus
+		var currentJob database.ProvisionerJob
 		if !daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
 			status = database.ProvisionerDaemonStatusOffline
 		} else {
-			var currentJob *database.ProvisionerJob
 			for _, job := range q.provisionerJobs {
-				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID && !job.CompletedAt.Valid {
-					currentJob = &job
+				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID && !job.CompletedAt.Valid && !job.Error.Valid {
+					currentJob = job
 					break
 				}
 			}
 
-			if currentJob != nil {
+			if currentJob.ID != uuid.Nil {
 				status = database.ProvisionerDaemonStatusBusy
 			} else {
 				status = database.ProvisionerDaemonStatusIdle
 			}
 		}
 
-		var currentJob, previousJob database.ProvisionerJob
+		var previousJob database.ProvisionerJob
 		for _, job := range q.provisionerJobs {
-			if job.WorkerID.Valid && job.WorkerID.UUID != daemon.ID {
+			if !job.WorkerID.Valid || job.WorkerID.UUID != daemon.ID {
 				continue
 			}
 
-			if !job.CompletedAt.Valid {
-				currentJob = job
-			} else if job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
-				previousJob = job
+			if job.StartedAt.Valid ||
+				job.CanceledAt.Valid ||
+				job.CompletedAt.Valid ||
+				job.Error.Valid {
+				if job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
+					previousJob = job
+				}
 			}
 		}
 
@@ -3911,6 +3914,10 @@ func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Co
 			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
 		})
 	}
+
+	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
+		return slice.Ascending(a.ProvisionerDaemon.Name, b.ProvisionerDaemon.Name)
+	})
 
 	return rows, nil
 }
@@ -4063,15 +4070,28 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			QueuePosition:  rowQP.QueuePosition,
 			QueueSize:      rowQP.QueueSize,
 		}
-		for _, daemon := range q.provisionerDaemons {
-			if daemon.OrganizationID == job.OrganizationID &&
-				slices.Contains(daemon.Provisioners, job.Provisioner) &&
-				tagsSubset(job.Tags, daemon.Tags) {
-				row.AvailableWorkers = append(row.AvailableWorkers, daemon.ID)
+		if row.QueuePosition > 0 {
+			var availableWorkers []database.ProvisionerDaemon
+			for _, daemon := range q.provisionerDaemons {
+				if daemon.OrganizationID == job.OrganizationID &&
+					slices.Contains(daemon.Provisioners, job.Provisioner) &&
+					tagsSubset(job.Tags, daemon.Tags) {
+					availableWorkers = append(availableWorkers, daemon)
+				}
+			}
+			slices.SortFunc(availableWorkers, func(a, b database.ProvisionerDaemon) int {
+				return a.CreatedAt.Compare(b.CreatedAt)
+			})
+			for _, worker := range availableWorkers {
+				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
 			}
 		}
 		rows = append(rows, row)
 	}
+
+	slices.SortFunc(rows, func(a, b database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) int {
+		return b.ProvisionerJob.CreatedAt.Compare(a.ProvisionerJob.CreatedAt)
+	})
 
 	return rows, nil
 }

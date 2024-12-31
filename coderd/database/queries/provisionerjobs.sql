@@ -116,21 +116,27 @@ SELECT
 	sqlc.embed(pj),
     COALESCE(qp.queue_position, 0) AS queue_position,
     COALESCE(qs.count, 0) AS queue_size,
-	array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
+	-- Use subquery to utilize ORDER BY in array_agg since it cannot be
+	-- combined with FILTER.
+	(
+		SELECT
+			-- Order for stable output.
+			array_agg(pd.id ORDER BY pd.created_at ASC)::uuid[]
+		FROM
+			provisioner_daemons pd
+		WHERE
+			-- See AcquireProvisionerJob.
+			pj.started_at IS NULL
+			AND pj.organization_id = pd.organization_id
+			AND pj.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags, pj.tags)
+	) AS available_workers
 FROM
 	provisioner_jobs pj
 LEFT JOIN
 	queue_position qp ON qp.id = pj.id
 LEFT JOIN
 	queue_size qs ON TRUE
-LEFT JOIN
-	provisioner_daemons pd ON (
-		-- See AcquireProvisionerJob.
-		pj.started_at IS NULL
-		AND pj.organization_id = pd.organization_id
-		AND pj.provisioner = ANY(pd.provisioners)
-		AND provisioner_tagset_contains(pd.tags, pj.tags)
-	)
 WHERE
 	(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
 	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 1) > 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))

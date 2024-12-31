@@ -1145,7 +1145,7 @@
 						},
 						{
 							"title": "provisioners jobs",
-							"description": "View and manage provisioner jobs.",
+							"description": "View and manage provisioner jobs",
 							"path": "reference/cli/provisioners_jobs.md"
 						},
 						{
