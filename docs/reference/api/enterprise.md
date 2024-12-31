@@ -3179,7 +3179,7 @@ Status Code **200**
 | `»»» status`           | [codersdk.ProxyHealthStatus](schemas.md#codersdkproxyhealthstatus)       | false    |              |                                                                                                                                                                                        |
 | `»» updated_at`        | string(date-time)                                                        | false    |              |                                                                                                                                                                                        |
 | `»» version`           | string                                                                   | false    |              |                                                                                                                                                                                        |
-| `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. <*.us.example.com> E.g. <*--suffix.au.example.com> Optional. Does not need to be on the same domain as PathAppURL. |
+| `»» wildcard_hostname` | string                                                                   | false    |              | Wildcard hostname is the wildcard hostname for subdomain apps. E.g. `*.us.example.com` E.g. `*--suffix.au.example.com` Optional. Does not need to be on the same domain as PathAppURL. |
 
 #### Enumerated Values
 

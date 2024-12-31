@@ -197,8 +197,8 @@ type Region struct {
 	PathAppURL string `json:"path_app_url" table:"url"`
 
 	// WildcardHostname is the wildcard hostname for subdomain apps.
-	// E.g. <*.us.example.com>
-	// E.g. <*--suffix.au.example.com>
+	// E.g. `*.us.example.com`
+	// E.g. `*--suffix.au.example.com`
 	// Optional. Does not need to be on the same domain as PathAppURL.
 	WildcardHostname string `json:"wildcard_hostname" table:"wildcard hostname"`
 }
