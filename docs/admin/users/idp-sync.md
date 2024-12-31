@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD024 -->
 # IDP Sync
 
 <blockquote class="info">
@@ -94,9 +95,6 @@ coder:
 
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
-
-[azure-gids]:
-	https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
 ## Runtime (Organizations)
 
