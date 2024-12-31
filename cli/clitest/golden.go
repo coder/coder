@@ -11,7 +11,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
@@ -96,32 +95,32 @@ ExtractCommandPathsLoop:
 
 // TestGoldenFile will test the given bytes slice input against the
 // golden file with the given file name, optionally using the given replacements.
-func TestGoldenFile(t *testing.T, fileName string, got []byte, replacements map[string]string) {
-	t.Helper()
-
-	if len(got) == 0 {
+func TestGoldenFile(t *testing.T, fileName string, actual []byte, replacements map[string]string) {
+	if len(actual) == 0 {
 		t.Fatal("no output")
 	}
 
 	for k, v := range replacements {
-		got = bytes.ReplaceAll(got, []byte(k), []byte(v))
+		actual = bytes.ReplaceAll(actual, []byte(k), []byte(v))
 	}
 
-	got = normalizeGoldenFile(t, got)
+	actual = normalizeGoldenFile(t, actual)
 	goldenPath := filepath.Join("testdata", strings.ReplaceAll(fileName, " ", "_")+".golden")
 	if *UpdateGoldenFiles {
 		t.Logf("update golden file for: %q: %s", fileName, goldenPath)
-		err := os.WriteFile(goldenPath, got, 0o600)
+		err := os.WriteFile(goldenPath, actual, 0o600)
 		require.NoError(t, err, "update golden file")
 	}
 
-	want, err := os.ReadFile(goldenPath)
+	expected, err := os.ReadFile(goldenPath)
 	require.NoError(t, err, "read golden file, run \"make update-golden-files\" and commit the changes")
 
-	want = normalizeGoldenFile(t, want)
-	if diff := cmp.Diff(string(want), string(got)); diff != "" {
-		require.Failf(t, "golden file mismatch, run \"make update-golden-files\", verify and commit the changes", "%s: diff (-want +got)\n%s", goldenPath, diff)
-	}
+	expected = normalizeGoldenFile(t, expected)
+	require.Equal(
+		t, string(expected), string(actual),
+		"golden file mismatch: %s, run \"make update-golden-files\", verify and commit the changes",
+		goldenPath,
+	)
 }
 
 // normalizeGoldenFile replaces any strings that are system or timing dependent
