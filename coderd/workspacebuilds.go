@@ -330,8 +330,9 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 	previousWorkspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+		api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching latest workspace build",
+			Message: "Internal error fetching previous workspace build",
 			Detail:  err.Error(),
 		})
 		return
