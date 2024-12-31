@@ -459,7 +459,7 @@ func (api *API) notifyWorkspaceUpdated(
 		return
 	}
 
-	version, err := api.Database.GetTemplateVersionByID(ctx, workspace.TemplateID)
+	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch template version for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		return
