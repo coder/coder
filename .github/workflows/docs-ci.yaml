@@ -5,15 +5,15 @@ on:
     branches:
       - main
     paths:
-      - docs/**
-      - **.md
-      - .github/workflows/docs-ci.yaml
+      - "docs/**"
+      - "**.md"
+      - ".github/workflows/docs-ci.yaml"
 
   pull_request:
     paths:
-      - docs/**
-      - **.md
-      - .github/workflows/docs-ci.yaml
+      - "docs/**"
+      - "**.md"
+      - ".github/workflows/docs-ci.yaml"
 
 jobs:
   docs:
@@ -30,7 +30,7 @@ jobs:
         with:
           files: |
             docs/**
-            README.md
+            **.md
           separator: ","
 
       - name: lint
