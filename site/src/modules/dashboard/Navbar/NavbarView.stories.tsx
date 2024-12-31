@@ -11,7 +11,6 @@ const meta: Meta<typeof NavbarView> = {
 	component: NavbarView,
 	args: {
 		user: MockUser,
-		canViewAllUsers: true,
 		canViewAuditLog: true,
 		canViewDeployment: true,
 		canViewHealth: true,
@@ -35,7 +34,6 @@ export const ForAdmin: Story = {
 export const ForAuditor: Story = {
 	args: {
 		user: MockUser2,
-		canViewAllUsers: false,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -52,7 +50,6 @@ export const ForAuditor: Story = {
 export const ForOrgAdmin: Story = {
 	args: {
 		user: MockUser2,
-		canViewAllUsers: false,
 		canViewAuditLog: true,
 		canViewDeployment: false,
 		canViewHealth: false,
@@ -69,7 +66,6 @@ export const ForOrgAdmin: Story = {
 export const ForMember: Story = {
 	args: {
 		user: MockUser2,
-		canViewAllUsers: false,
 		canViewAuditLog: false,
 		canViewDeployment: false,
 		canViewHealth: false,
