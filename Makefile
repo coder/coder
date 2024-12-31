@@ -543,6 +543,9 @@ GEN_FILES := \
 gen: $(GEN_FILES)
 .PHONY: gen
 
+gen/db: $(DB_GEN_FILES)
+.PHONY: gen/db
+
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
