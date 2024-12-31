@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioners list
+# provisioner list
 
 List provisioner daemons in an organization
 
@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder provisioners list [flags]
+coder provisioner list [flags]
 ```
 
 ## Options

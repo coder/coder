@@ -56,20 +56,20 @@ func TestCommandHelp(t *testing.T) {
 			Cmd:  []string{"users", "list"},
 		},
 		clitest.CommandHelpCase{
-			Name: "coder provisioners list",
-			Cmd:  []string{"provisioners", "list"},
+			Name: "coder provisioner list",
+			Cmd:  []string{"provisioner", "list"},
 		},
 		clitest.CommandHelpCase{
-			Name: "coder provisioners list --output json",
-			Cmd:  []string{"provisioners", "list", "--output", "json"},
+			Name: "coder provisioner list --output json",
+			Cmd:  []string{"provisioner", "list", "--output", "json"},
 		},
 		clitest.CommandHelpCase{
-			Name: "coder provisioners jobs list",
-			Cmd:  []string{"provisioners", "jobs", "list"},
+			Name: "coder provisioner jobs list",
+			Cmd:  []string{"provisioner", "jobs", "list"},
 		},
 		clitest.CommandHelpCase{
-			Name: "coder provisioners jobs list --output json",
-			Cmd:  []string{"provisioners", "jobs", "list", "--output", "json"},
+			Name: "coder provisioner jobs list --output json",
+			Cmd:  []string{"provisioner", "jobs", "list", "--output", "json"},
 		},
 	))
 }

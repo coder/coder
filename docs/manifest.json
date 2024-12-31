@@ -1139,49 +1139,49 @@
 							"path": "reference/cli/port-forward.md"
 						},
 						{
-							"title": "provisioners",
+							"title": "provisioner",
 							"description": "View and manage provisioner daemons and jobs",
-							"path": "reference/cli/provisioners.md"
+							"path": "reference/cli/provisioner.md"
 						},
 						{
-							"title": "provisioners jobs",
+							"title": "provisioner jobs",
 							"description": "View and manage provisioner jobs",
-							"path": "reference/cli/provisioners_jobs.md"
+							"path": "reference/cli/provisioner_jobs.md"
 						},
 						{
-							"title": "provisioners jobs list",
+							"title": "provisioner jobs list",
 							"description": "List provisioner jobs",
-							"path": "reference/cli/provisioners_jobs_list.md"
+							"path": "reference/cli/provisioner_jobs_list.md"
 						},
 						{
-							"title": "provisioners keys",
+							"title": "provisioner keys",
 							"description": "Manage provisioner keys",
-							"path": "reference/cli/provisioners_keys.md"
+							"path": "reference/cli/provisioner_keys.md"
 						},
 						{
-							"title": "provisioners keys create",
+							"title": "provisioner keys create",
 							"description": "Create a new provisioner key",
-							"path": "reference/cli/provisioners_keys_create.md"
+							"path": "reference/cli/provisioner_keys_create.md"
 						},
 						{
-							"title": "provisioners keys delete",
+							"title": "provisioner keys delete",
 							"description": "Delete a provisioner key",
-							"path": "reference/cli/provisioners_keys_delete.md"
+							"path": "reference/cli/provisioner_keys_delete.md"
 						},
 						{
-							"title": "provisioners keys list",
+							"title": "provisioner keys list",
 							"description": "List provisioner keys in an organization",
-							"path": "reference/cli/provisioners_keys_list.md"
+							"path": "reference/cli/provisioner_keys_list.md"
 						},
 						{
-							"title": "provisioners list",
+							"title": "provisioner list",
 							"description": "List provisioner daemons in an organization",
-							"path": "reference/cli/provisioners_list.md"
+							"path": "reference/cli/provisioner_list.md"
 						},
 						{
-							"title": "provisioners start",
+							"title": "provisioner start",
 							"description": "Run a provisioner daemon",
-							"path": "reference/cli/provisioners_start.md"
+							"path": "reference/cli/provisioner_start.md"
 						},
 						{
 							"title": "publickey",

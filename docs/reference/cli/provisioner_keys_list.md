@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioners keys list
+# provisioner keys list
 
 List provisioner keys in an organization
 
@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder provisioners keys list [flags]
+coder provisioner keys list [flags]
 ```
 
 ## Options

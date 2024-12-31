@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioners keys delete
+# provisioner keys delete
 
 Delete a provisioner key
 
@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder provisioners keys delete [flags] <name>
+coder provisioner keys delete [flags] <name>
 ```
 
 ## Options

@@ -1,6 +1,6 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioners jobs list
+# provisioner jobs list
 
 List provisioner jobs
 
@@ -11,7 +11,7 @@ Aliases:
 ## Usage
 
 ```console
-coder provisioners jobs list [flags]
+coder provisioner jobs list [flags]
 ```
 
 ## Options

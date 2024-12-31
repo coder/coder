@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder provisioners list [flags]
+  coder provisioner list [flags]
 
   List provisioner daemons in an organization
 

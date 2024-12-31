@@ -1,13 +1,13 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
 
-# provisioners start
+# provisioner start
 
 Run a provisioner daemon
 
 ## Usage
 
 ```console
-coder provisioners start [flags]
+coder provisioner start [flags]
 ```
 
 ## Options

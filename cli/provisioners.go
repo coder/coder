@@ -12,12 +12,12 @@ import (
 
 func (r *RootCmd) Provisioners() *serpent.Command {
 	cmd := &serpent.Command{
-		Use:   "provisioners",
+		Use:   "provisioner",
 		Short: "View and manage provisioner daemons and jobs",
 		Handler: func(inv *serpent.Invocation) error {
 			return inv.Command.HelpHandler(inv)
 		},
-		Aliases: []string{"provisioner"},
+		Aliases: []string{"provisioners"},
 		Children: []*serpent.Command{
 			r.provisionerList(),
 			r.provisionerJobs(),

@@ -1,7 +1,7 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder provisioners jobs list [flags]
+  coder provisioner jobs list [flags]
 
   List provisioner jobs
 
