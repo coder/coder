@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import { userEvent, within, expect, waitFor } from "@storybook/test";
 import {
 	MockNoPermissions,
 	MockOrganization,
@@ -63,7 +63,10 @@ export const NoCreateOrg: Story = {
 	play: async ({ canvasElement }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "My Organization" }),
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+		await waitFor(() =>
+			expect(canvas.queryByText("Create Organization")).not.toBeInTheDocument(),
 		);
 	},
 };
