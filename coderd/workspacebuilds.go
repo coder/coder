@@ -335,10 +335,10 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		provisionerDaemons     []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 
-	err := api.Database.InTx(func(database.Store) error {
+	err := api.Database.InTx(func(tx database.Store) error {
 		var err error
 
-		previousWorkspaceBuild, err = api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		previousWorkspaceBuild, err = tx.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
 		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
 			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
 			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
@@ -379,7 +379,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
 			ctx,
-			api.Database,
+			tx,
 			func(action policy.Action, object rbac.Objecter) bool {
 				return api.Authorize(r, action, object)
 			},
