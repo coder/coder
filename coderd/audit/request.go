@@ -136,7 +136,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 // noID can be used for resources that do not have an uuid.
 // An example is singleton configuration resources.
 // 51A51C = "Static"
-var noID, _ = uuid.Parse("51A51C00-0000-0000-0000-000000000000")
+var noID = uuid.MustParse("51A51C00-0000-0000-0000-000000000000")
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
