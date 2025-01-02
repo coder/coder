@@ -299,8 +299,8 @@ importers:
         specifier: 8.4.6
         version: 8.4.6(storybook@8.4.6(prettier@3.4.1))
       '@storybook/preview-api':
-        specifier: 8.4.6
-        version: 8.4.6(storybook@8.4.6(prettier@3.4.1))
+        specifier: 8.4.7
+        version: 8.4.7(storybook@8.4.6(prettier@3.4.1))
       '@storybook/react':
         specifier: 8.4.6
         version: 8.4.6(@storybook/test@8.4.6(storybook@8.4.6(prettier@3.4.1)))(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1))(typescript@5.6.3)
@@ -438,7 +438,7 @@ importers:
         version: 8.4.6(prettier@3.4.1)
       storybook-addon-remix-react-router:
         specifier: 3.0.2
-        version: 3.0.2(@storybook/blocks@8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1)))(@storybook/channels@8.1.11)(@storybook/components@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/preview-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/theming@8.4.6(storybook@8.4.6(prettier@3.4.1)))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
+        version: 3.0.2(@storybook/blocks@8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1)))(@storybook/channels@8.1.11)(@storybook/components@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/preview-api@8.4.7(storybook@8.4.6(prettier@3.4.1)))(@storybook/theming@8.4.6(storybook@8.4.6(prettier@3.4.1)))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1)
       storybook-react-context:
         specifier: 0.7.0
         version: 0.7.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1))
@@ -2497,6 +2497,11 @@ packages:
 
   '@storybook/preview-api@8.4.6':
     resolution: {integrity: sha512-LbD+lR1FGvWaJBXteVx5xdgs1x1D7tyidBg2CsW2ex+cP0iJ176JgjPfutZxlWOfQnhfRYNnJ3WKoCIfxFOTKA==}
+    peerDependencies:
+      storybook: ^8.2.0 || ^8.3.0-0 || ^8.4.0-0 || ^8.5.0-0 || ^8.6.0-0
+
+  '@storybook/preview-api@8.4.7':
+    resolution: {integrity: sha512-0QVQwHw+OyZGHAJEXo6Knx+6/4er7n2rTDE5RYJ9F2E2Lg42E19pfdLlq2Jhoods2Xrclo3wj6GWR//Ahi39Eg==}
     peerDependencies:
       storybook: ^8.2.0 || ^8.3.0-0 || ^8.4.0-0 || ^8.5.0-0 || ^8.6.0-0
 
@@ -8480,6 +8485,10 @@ snapshots:
     dependencies:
       storybook: 8.4.6(prettier@3.4.1)
 
+  '@storybook/preview-api@8.4.7(storybook@8.4.6(prettier@3.4.1))':
+    dependencies:
+      storybook: 8.4.6(prettier@3.4.1)
+
   '@storybook/react-dom-shim@8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1))':
     dependencies:
       react: 18.3.1
@@ -12314,14 +12323,14 @@ snapshots:
     dependencies:
       internal-slot: 1.0.6
 
-  storybook-addon-remix-react-router@3.0.2(@storybook/blocks@8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1)))(@storybook/channels@8.1.11)(@storybook/components@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/preview-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/theming@8.4.6(storybook@8.4.6(prettier@3.4.1)))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
+  storybook-addon-remix-react-router@3.0.2(@storybook/blocks@8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1)))(@storybook/channels@8.1.11)(@storybook/components@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/core-events@8.1.11)(@storybook/manager-api@8.4.6(storybook@8.4.6(prettier@3.4.1)))(@storybook/preview-api@8.4.7(storybook@8.4.6(prettier@3.4.1)))(@storybook/theming@8.4.6(storybook@8.4.6(prettier@3.4.1)))(react-dom@18.3.1(react@18.3.1))(react-router-dom@6.26.2(react-dom@18.3.1(react@18.3.1))(react@18.3.1))(react@18.3.1):
     dependencies:
       '@storybook/blocks': 8.4.6(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1))
       '@storybook/channels': 8.1.11
       '@storybook/components': 8.4.6(storybook@8.4.6(prettier@3.4.1))
       '@storybook/core-events': 8.1.11
       '@storybook/manager-api': 8.4.6(storybook@8.4.6(prettier@3.4.1))
-      '@storybook/preview-api': 8.4.6(storybook@8.4.6(prettier@3.4.1))
+      '@storybook/preview-api': 8.4.7(storybook@8.4.6(prettier@3.4.1))
       '@storybook/theming': 8.4.6(storybook@8.4.6(prettier@3.4.1))
       compare-versions: 6.1.0
       react-inspector: 6.0.2(react@18.3.1)
@@ -12332,7 +12341,7 @@ snapshots:
 
   storybook-react-context@0.7.0(react-dom@18.3.1(react@18.3.1))(react@18.3.1)(storybook@8.4.6(prettier@3.4.1)):
     dependencies:
-      '@storybook/preview-api': 8.4.6(storybook@8.4.6(prettier@3.4.1))
+      '@storybook/preview-api': 8.4.7(storybook@8.4.6(prettier@3.4.1))
       react: 18.3.1
       react-dom: 18.3.1(react@18.3.1)
     transitivePeerDependencies:
