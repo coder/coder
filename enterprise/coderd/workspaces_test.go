@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"database/sql"
-	"fmt"
 	"net/http"
 	"runtime"
 	"sync/atomic"
@@ -1406,7 +1405,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		t.Parallel()
 	}
 
-	mainTfTemplate := `
+	providersTf := `
 		terraform {
 			required_providers {
 				coder = {
@@ -1414,152 +1413,185 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}
 			}
 		}
-		provider "coder" {}
+		provider "coder" {}`
+	dataTf := `
 		data "coder_workspace" "me" {}
-		data "coder_workspace_owner" "me" {}
-		data "coder_parameter" "unrelated" {
-			name    = "unrelated"
-			type    = "list(string)"
-			default = jsonencode(["a", "b"])
-		}
-		%s
-	`
-
+		data "coder_workspace_owner" "me" {}`
 	for _, tc := range []struct {
 		name string
 		// tags to apply to the external provisioner
 		provisionerTags map[string]string
 		// tags to apply to the create template version request
 		createTemplateVersionRequestTags map[string]string
-		// the coder_workspace_tags bit of main.tf.
-		// you can add more stuff here if you need
-		tfWorkspaceTags string
+		// files to add to the template
+		files map[string]string
 	}{
 		{
-			name:            "no tags",
-			tfWorkspaceTags: ``,
+			name: "no tags",
+			files: map[string]string{
+				"main.tf":      ``,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name: "empty tags",
-			tfWorkspaceTags: `
-				data "coder_workspace_tags" "tags" {
-					tags = {}
-				}
-			`,
+			files: map[string]string{
+				"main.tf": `
+					data "coder_workspace_tags" "tags" {
+						tags = {}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "static tag",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo" = "bar"
-					}
-				}`,
+			files: map[string]string{
+				"main.tf": `
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo" = "bar"
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "tag variable",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				variable "foo" {
-					default = "bar"
-				}
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo" = var.foo
+			files: map[string]string{
+				"main.tf": `
+					variable "foo" {
+						default = "bar"
 					}
-				}`,
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo" = var.foo
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "tag param",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				data "coder_parameter" "foo" {
-					name = "foo"
-					type = "string"
-					default = "bar"
-				}
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo" = data.coder_parameter.foo.value
+			files: map[string]string{
+				"main.tf": `
+					data "coder_parameter" "foo" {
+						name = "foo"
+						type = "string"
+						default = "bar"
 					}
-				}`,
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo" = data.coder_parameter.foo.value
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "tag param with default from var",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				variable "foo" {
-					type = string
-					default = "bar"
-				}
-				data "coder_parameter" "foo" {
-					name = "foo"
-					type = "string"
-					default = var.foo
-				}
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo" = data.coder_parameter.foo.value
+			files: map[string]string{
+				"main.tf": `
+					variable "foo" {
+						type = string
+						default = "bar"
 					}
-				}`,
+					data "coder_parameter" "foo" {
+						name = "foo"
+						type = "string"
+						default = var.foo
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo" = data.coder_parameter.foo.value
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:                             "override no tags",
 			provisionerTags:                  map[string]string{"foo": "baz"},
 			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
-			tfWorkspaceTags:                  ``,
+			files: map[string]string{
+				"main.tf":      ``,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:                             "override empty tags",
 			provisionerTags:                  map[string]string{"foo": "baz"},
 			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
-			tfWorkspaceTags: `
-				data "coder_workspace_tags" "tags" {
-					tags = {}
-				}`,
+			files: map[string]string{
+				"main.tf": `
+					data "coder_workspace_tags" "tags" {
+						tags = {}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:                             "does not override static tag",
 			provisionerTags:                  map[string]string{"foo": "bar"},
 			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
-			tfWorkspaceTags: `
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo" = "bar"
-					}
-				}`,
+			files: map[string]string{
+				"main.tf": `
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo" = "bar"
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "locals",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				locals {
-					tagFoo = "bar"
-				}
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						"foo": local.tagFoo
+			files: map[string]string{
+				"main.tf": `
+					locals {
+						tagFoo = "bar"
 					}
-				}
-			`,
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"foo": local.tagFoo
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 		{
 			name:            "var default from local",
 			provisionerTags: map[string]string{"foo": "bar"},
-			tfWorkspaceTags: `
-				locals {
-					tagFoo = "bar"
-				}
-				variable "foo" {
-					default = local.tagFoo
-				}
-				data "coder_workspace_tags" "tags" {
-					tags = {
-						foo: var.foo
+			files: map[string]string{
+				"main.tf": `
+					locals {
+						tagFoo = "bar"
 					}
-				}
-			`,
+					variable "foo" {
+						default = local.tagFoo
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							foo: var.foo
+						}
+					}`,
+				"providers.tf": providersTf,
+				"data.tf":      dataTf,
+			},
 		},
 	} {
 		tc := tc
@@ -1586,8 +1618,7 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			_ = coderdenttest.NewExternalProvisionerDaemonTerraform(t, client, owner.OrganizationID, tc.provisionerTags)
 
 			// Creating a template as a template admin must succeed
-			templateFiles := map[string]string{"main.tf": fmt.Sprintf(mainTfTemplate, tc.tfWorkspaceTags)}
-			tarBytes := testutil.CreateTar(t, templateFiles)
+			tarBytes := testutil.CreateTar(t, tc.files)
 			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
 			require.NoError(t, err, "failed to upload file")
 			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
