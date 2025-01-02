@@ -12,9 +12,6 @@ importers:
 
   .:
     dependencies:
-      '@alwaysmeticulous/recorder-loader':
-        specifier: 2.137.0
-        version: 2.137.0
       '@emoji-mart/data':
         specifier: 1.2.1
         version: 1.2.1
@@ -479,9 +476,6 @@ packages:
   '@alloc/quick-lru@5.2.0':
     resolution: {integrity: sha512-UrcABB+4bUrFABwbluTIBErXwvbsU/V7TZWfmbgJfbkwiBuziS9gxdODUyuiecfdGQ85jglMW6juS3+z5TsKLw==}
     engines: {node: '>=10'}
-
-  '@alwaysmeticulous/recorder-loader@2.137.0':
-    resolution: {integrity: sha512-ux/xGYCNsOe8BzquEg7k7YSNJiw/0Sg2Pd/7fppYiVr5xEefpPeIhh3qwuupZgx6sB2t5KpKQdodNWVmGeyh/w==}
 
   '@ampproject/remapping@2.3.0':
     resolution: {integrity: sha512-30iZtAPgz+LTIYoeivqYo853f02jBYSd5uGnGpkFV0M3xOt9aN73erkgYAmZU43x4VfqcnLxW9Kpg3R5LC4YYw==}
@@ -6382,8 +6376,6 @@ snapshots:
   '@adobe/css-tools@4.4.0': {}
 
   '@alloc/quick-lru@5.2.0': {}
-
-  '@alwaysmeticulous/recorder-loader@2.137.0': {}
 
   '@ampproject/remapping@2.3.0':
     dependencies:
