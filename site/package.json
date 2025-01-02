@@ -112,7 +112,7 @@
 		"semver": "7.6.2",
 		"tailwind-merge": "2.5.4",
 		"tailwindcss-animate": "1.0.7",
-		"tzdata": "1.0.40",
+		"tzdata": "1.0.42",
 		"ua-parser-js": "1.0.33",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
 		"undici": "6.19.7",
