@@ -5,7 +5,7 @@
  */
 
 import isChromatic from "chromatic/*";
-import { cva, type VariantProps } from "class-variance-authority";
+import { type VariantProps, cva } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "utils/cn";
 
@@ -54,7 +54,6 @@ export function Spinner({
 
 				return (
 					<rect
-						// biome-ignore lint/suspicious/noArrayIndexKey: This is a static array
 						key={i}
 						x="11.5"
 						y="3"

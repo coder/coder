@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Spinner } from "./Spinner";
 import { PlusIcon } from "lucide-react";
+import { Spinner } from "./Spinner";
 
 const meta: Meta<typeof Spinner> = {
 	title: "components/Spinner",
