@@ -4,10 +4,10 @@
  * https://v0.dev/ help.
  */
 
+import isChromatic from "chromatic/isChromatic";
 import { type VariantProps, cva } from "class-variance-authority";
 import type { ReactNode } from "react";
 import { cn } from "utils/cn";
-import isChromatic from "chromatic/isChromatic";
 
 const leaves = 8;
 
