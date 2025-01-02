@@ -345,3 +345,17 @@ The
 [`release/experimental`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Arelease%2Fexperimental)
 label can be used to move the note to the bottom of the release notes under a
 separate title.
+
+## Troubleshooting
+
+### Nix on macOS: `error: creating directory`
+
+On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
+`nix-shell` to fail to build or run `coder`. If you encounter
+`error: creating directory` when you attempt to run, build, or test, add a
+`mkdir` line to your `.envrc`:
+
+```shell
+use nix
+mkdir -p "$TMPDIR"
+```
