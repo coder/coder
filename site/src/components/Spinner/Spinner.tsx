@@ -55,11 +55,11 @@ export function Spinner({
 				return (
 					<rect
 						key={i}
-						x="11.5"
-						y="3"
-						width="1.5"
-						height="4"
-						rx="0.5"
+						x="10.9"
+						y="2"
+						width="2"
+						height="5.5"
+						rx="1"
 						// 0.8 = leaves * 0.1
 						className={
 							isChromatic() ? "" : "animate-[loading_0.8s_ease-in-out_infinite]"
