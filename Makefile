@@ -387,14 +387,24 @@ $(foreach chart,$(charts),build/$(chart)_helm_$(VERSION).tgz): build/%_helm_$(VE
 		--chart $* \
 		--output "$@"
 
-site/out/index.html: site/package.json $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
+node_modules/.installed: package.json
+	./scripts/pnpm_install.sh
+
+offlinedocs/node_modules/.installed: offlinedocs/package.json
+	cd offlinedocs
+	../scripts/pnpm_install.sh
+
+site/node_modules/.installed: site/package.json
+	cd site
+	../scripts/pnpm_install.sh
+
+site/out/index.html: site/package.json site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
-	../scripts/pnpm_install.sh
 	pnpm build
 
-offlinedocs/out/index.html: $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
+offlinedocs/out/index.html: offlinedocs/node_modules/.installed $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
 	cd offlinedocs
 	../scripts/pnpm_install.sh
 	pnpm export
@@ -425,7 +435,7 @@ fmt/go:
 	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
 .PHONY: fmt/go
 
-fmt/ts:
+fmt/ts: site/node_modules/.installed
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/ts$(RESET)"
 	cd site
 # Avoid writing files in CI to reduce file write activity
@@ -468,7 +478,7 @@ lint/site-icons:
 	./scripts/check_site_icons.sh
 .PHONY: lint/site-icons
 
-lint/ts:
+lint/ts: site/node_modules/.installed
 	cd site
 	pnpm lint
 .PHONY: lint/ts
@@ -643,14 +653,12 @@ site/src/api/typesGenerated.ts: $(wildcard scripts/apitypings/*) $(shell find ./
 	# -C sets the directory for the go run command
 	go run -C ./scripts/apitypings main.go > $@
 
-site/e2e/provisionerGenerated.ts: provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
+site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
 	cd site
-	../scripts/pnpm_install.sh
 	pnpm run gen:provisioner
 
-site/src/theme/icons.json: $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
+site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
-	./scripts/pnpm_install.sh
 	pnpm -C site/ exec biome format --write src/theme/icons.json
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
@@ -674,24 +682,20 @@ site/src/api/rbacresourcesGenerated.ts: scripts/typegen/codersdk.gotmpl scripts/
 site/src/api/countriesGenerated.ts: scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
 
-docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
+docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
-	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/admin/integrations/prometheus.md
 
-docs/reference/cli/index.md: scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
+docs/reference/cli/index.md: node_modules/.installed scripts/clidocgen/main.go examples/examples.gen.json $(GO_SRC_FILES)
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
-	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/reference/cli/index.md ./docs/reference/cli/*.md ./docs/manifest.json
 
-docs/admin/security/audit-logs.md: coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
+docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
 	go run scripts/auditdocgen/main.go
-	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/admin/security/audit-logs.md
 
-coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
+coderd/apidoc/swagger.json: node_modules/.installed $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) -type f) $(wildcard coderd/*.go) $(wildcard enterprise/coderd/*.go) $(wildcard codersdk/*.go) $(wildcard enterprise/wsproxy/wsproxysdk/*.go) $(DB_GEN_FILES) .swaggo docs/manifest.json coderd/rbac/object_gen.go
 	./scripts/apidocgen/generate.sh
-	./scripts/pnpm_install.sh
 	pnpm exec prettier --write ./docs/reference/api ./docs/manifest.json ./coderd/apidoc/swagger.json
 
 update-golden-files: \
@@ -874,5 +878,5 @@ test-clean:
 .PHONY: test-clean
 
 .PHONY: test-e2e
-test-e2e:
+test-e2e: site/node_modules/.installed
 	cd ./site && DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
