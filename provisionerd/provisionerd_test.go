@@ -70,8 +70,11 @@ func TestProvisionerd(t *testing.T) {
 			close(done)
 		})
 		completeChan := make(chan struct{})
+		var completed sync.Once
 		closer := createProvisionerd(t, func(ctx context.Context) (proto.DRPCProvisionerDaemonClient, error) {
-			defer close(completeChan)
+			completed.Do(func() {
+				defer close(completeChan)
+			})
 			return nil, xerrors.New("an error")
 		}, provisionerd.LocalProvisioners{})
 		require.Condition(t, closedWithin(completeChan, testutil.WaitShort))
