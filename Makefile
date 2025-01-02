@@ -553,6 +553,9 @@ GEN_FILES := \
 gen: $(GEN_FILES)
 .PHONY: gen
 
+gen/db: $(DB_GEN_FILES)
+.PHONY: gen/db
+
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
 gen/mark-fresh:
@@ -723,7 +726,6 @@ update-golden-files: \
 	cli/testdata/.gen-golden \
 	helm/coder/tests/testdata/.gen-golden \
 	helm/provisioner/tests/testdata/.gen-golden \
-	scripts/ci-report/testdata/.gen-golden \
 	enterprise/cli/testdata/.gen-golden \
 	enterprise/tailnet/testdata/.gen-golden \
 	tailnet/testdata/.gen-golden \
@@ -773,10 +775,6 @@ provisioner/terraform/testdata/version:
 		./provisioner/terraform/testdata/generate.sh
 	fi
 .PHONY: provisioner/terraform/testdata/version
-
-scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
-	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update
-	touch "$@"
 
 test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
