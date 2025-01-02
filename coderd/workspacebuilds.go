@@ -385,7 +385,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
-
 		return err
 	}, nil)
 	var buildErr wsbuilder.BuildError
