@@ -7,10 +7,12 @@
  */
 
 import * as DropdownMenuPrimitive from "@radix-ui/react-dropdown-menu";
-import { Check, ChevronRight, Circle } from "lucide-react";
+import { Button } from "components/Button/Button";
+import { Check, ChevronDownIcon, ChevronRight, Circle } from "lucide-react";
 import {
 	type ComponentPropsWithoutRef,
 	type ElementRef,
+	type FC,
 	type HTMLAttributes,
 	forwardRef,
 } from "react";
@@ -196,7 +198,7 @@ export const DropdownMenuSeparator = forwardRef<
 >(({ className, ...props }, ref) => (
 	<DropdownMenuPrimitive.Separator
 		ref={ref}
-		className={cn(["-mx-1 my-1 h-px bg-border"], className)}
+		className={cn(["-mx-1 my-3 h-px bg-border"], className)}
 		{...props}
 	/>
 ));
