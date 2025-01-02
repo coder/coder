@@ -1,5 +1,6 @@
 package authz
-import future.keywords
+import rego.v1
+
 # A great playground: https://play.openpolicyagent.org/
 # Helpful cli commands to debug.
 # opa eval --format=pretty 'data.authz.allow' -d policy.rego  -i input.json
@@ -29,12 +30,12 @@ import future.keywords
 
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
-bool_flip(b) = flipped {
+bool_flip(b) = flipped if {
     b
     flipped = false
 }
 
-bool_flip(b) = flipped {
+bool_flip(b) = flipped if {
     not b
     flipped = true
 }
@@ -43,17 +44,17 @@ bool_flip(b) = flipped {
 #  -1: {false, true} or {false}
 #   0: {}
 #   1: {true}
-number(set) = c {
+number(set) = c if {
 	count(set) == 0
     c := 0
 }
 
-number(set) = c {
+number(set) = c if {
 	false in set
     c := -1
 }
 
-number(set) = c {
+number(set) = c if {
 	not false in set
 	set[_]
     c := 1
@@ -67,7 +68,7 @@ site := site_allow(input.subject.roles)
 default scope_site := 0
 scope_site := site_allow([input.subject.scope])
 
-site_allow(roles) := num {
+site_allow(roles) := num if {
 	# allow is a set of boolean values without duplicates.
 	allow := { x |
 		# Iterate over all site permissions in all roles
@@ -102,7 +103,7 @@ scope_org := org_allow([input.scope])
 # The reason we calculate this for all orgs, and not just the input.object.org_owner
 # is that sometimes the input.object.org_owner is unknown. In those cases
 # we have a list of org_ids that can we use in a SQL 'WHERE' clause.
-org_allow_set(roles) := allow_set {
+org_allow_set(roles) := allow_set if {
 	allow_set := { id: num |
 		id := org_members[_]
 		set := { x |
@@ -115,7 +116,7 @@ org_allow_set(roles) := allow_set {
 	}
 }
 
-org_allow(roles) := num {
+org_allow(roles) := num if {
 	# If the object has "any_org" set to true, then use the other
 	# org_allow block.
 	not input.object.any_org
@@ -135,7 +136,7 @@ org_allow(roles) := num {
 # This is useful for UI elements when we want to conclude, "Can the user create
 # a new template in any organization?"
 # It is easier than iterating over every organization the user is apart of.
-org_allow(roles) := num {
+org_allow(roles) := num if {
 	input.object.any_org # if this is false, this code block is not used
 	allow := org_allow_set(roles)
 
@@ -159,24 +160,24 @@ org_allow(roles) := num {
 
 # 'org_mem' is set to true if the user is an org member
 # If 'any_org' is set to true, use the other block to determine org membership.
-org_mem := true {
+org_mem := true if {
 	not input.object.any_org
 	input.object.org_owner != ""
 	input.object.org_owner in org_members
 }
 
-org_mem := true {
+org_mem := true if {
 	input.object.any_org
 	count(org_members) > 0
 }
 
-org_ok {
+org_ok if {
 	org_mem
 }
 
 # If the object has no organization, then the user is also considered part of
 # the non-existent org.
-org_ok {
+org_ok if {
 	input.object.org_owner == ""
 	not input.object.any_org
 }
@@ -188,7 +189,7 @@ user := user_allow(input.subject.roles)
 default user_scope := 0
 scope_user := user_allow([input.scope])
 
-user_allow(roles) := num {
+user_allow(roles) := num if {
     input.object.owner != ""
     input.subject.id = input.object.owner
 	allow := { x |
@@ -202,11 +203,11 @@ user_allow(roles) := num {
 
 # Scope allow_list is a list of resource IDs explicitly allowed by the scope.
 # If the list is '*', then all resources are allowed.
-scope_allow_list {
+scope_allow_list if {
 	"*" in input.subject.scope.allow_list
 }
 
-scope_allow_list {
+scope_allow_list if {
 	# If the wildcard is listed in the allow_list, we do not care about the
 	# object.id. This line is included to prevent partial compilations from
 	# ever needing to include the object.id.
@@ -226,16 +227,16 @@ scope_allow_list {
 # Allow query:
 #	 data.authz.role_allow = true data.authz.scope_allow = true
 
-role_allow {
+role_allow if {
 	site = 1
 }
 
-role_allow {
+role_allow if {
 	not site = -1
 	org = 1
 }
 
-role_allow {
+role_allow if {
 	not site = -1
 	not org = -1
 	# If we are not a member of an org, and the object has an org, then we are
@@ -244,18 +245,18 @@ role_allow {
 	user = 1
 }
 
-scope_allow {
+scope_allow if {
 	scope_allow_list
 	scope_site = 1
 }
 
-scope_allow {
+scope_allow if {
 	scope_allow_list
 	not scope_site = -1
 	scope_org = 1
 }
 
-scope_allow {
+scope_allow if {
 	scope_allow_list
 	not scope_site = -1
 	not scope_org = -1
@@ -266,7 +267,7 @@ scope_allow {
 }
 
 # ACL for users
-acl_allow {
+acl_allow if {
 	# Should you have to be a member of the org too?
 	perms := input.object.acl_user_list[input.subject.id]
 	# Either the input action or wildcard
@@ -274,7 +275,7 @@ acl_allow {
 }
 
 # ACL for groups
-acl_allow {
+acl_allow if {
 	# If there is no organization owner, the object cannot be owned by an
 	# org_scoped team.
 	org_mem
@@ -285,7 +286,7 @@ acl_allow {
 }
 
 # ACL for 'all_users' special group
-acl_allow {
+acl_allow if {
 	org_mem
 	perms := input.object.acl_group_list[input.object.org_owner]
 	[input.action, "*"][_] in perms
@@ -296,13 +297,13 @@ acl_allow {
 # The role or the ACL must allow the action. Scopes can be used to limit,
 # so scope_allow must always be true.
 
-allow {
+allow if {
 	role_allow
 	scope_allow
 }
 
 # ACL list must also have the scope_allow to pass
-allow {
+allow if {
 	acl_allow
 	scope_allow
 }
