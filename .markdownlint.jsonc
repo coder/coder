@@ -21,5 +21,7 @@
 	// docs/reference/api/templates.md
 	// docs/reference/cli/server.md
 
-	"MD056": false // Table column count
+	"MD056": false // Table column count: Some of the auto-generated tables have issues. TODO: This is probably because of splitting cell content to multiple lines.
+	// docs/reference/api/schema.md
+	// docs/reference/api/templates.md
 }
