@@ -4777,25 +4777,30 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 
 #### Enumerated Values
 
-| Value                        |
-| ---------------------------- |
-| `template`                   |
-| `template_version`           |
-| `user`                       |
-| `workspace`                  |
-| `workspace_build`            |
-| `git_ssh_key`                |
-| `api_key`                    |
-| `group`                      |
-| `license`                    |
-| `convert_login`              |
-| `health_settings`            |
-| `notifications_settings`     |
-| `workspace_proxy`            |
-| `organization`               |
-| `oauth2_provider_app`        |
-| `oauth2_provider_app_secret` |
-| `custom_role`                |
+| Value                            |
+| -------------------------------- |
+| `template`                       |
+| `template_version`               |
+| `user`                           |
+| `workspace`                      |
+| `workspace_build`                |
+| `git_ssh_key`                    |
+| `api_key`                        |
+| `group`                          |
+| `license`                        |
+| `convert_login`                  |
+| `health_settings`                |
+| `notifications_settings`         |
+| `workspace_proxy`                |
+| `organization`                   |
+| `oauth2_provider_app`            |
+| `oauth2_provider_app_secret`     |
+| `custom_role`                    |
+| `organization_member`            |
+| `notification_template`          |
+| `idp_sync_settings_organization` |
+| `idp_sync_settings_group`        |
+| `idp_sync_settings_role`         |
 
 ## codersdk.Response
 

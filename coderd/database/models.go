@@ -1524,25 +1524,28 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization            ResourceType = "organization"
-	ResourceTypeTemplate                ResourceType = "template"
-	ResourceTypeTemplateVersion         ResourceType = "template_version"
-	ResourceTypeUser                    ResourceType = "user"
-	ResourceTypeWorkspace               ResourceType = "workspace"
-	ResourceTypeGitSshKey               ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                  ResourceType = "api_key"
-	ResourceTypeGroup                   ResourceType = "group"
-	ResourceTypeWorkspaceBuild          ResourceType = "workspace_build"
-	ResourceTypeLicense                 ResourceType = "license"
-	ResourceTypeWorkspaceProxy          ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin            ResourceType = "convert_login"
-	ResourceTypeHealthSettings          ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole              ResourceType = "custom_role"
-	ResourceTypeOrganizationMember      ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate    ResourceType = "notification_template"
+	ResourceTypeOrganization                ResourceType = "organization"
+	ResourceTypeTemplate                    ResourceType = "template"
+	ResourceTypeTemplateVersion             ResourceType = "template_version"
+	ResourceTypeUser                        ResourceType = "user"
+	ResourceTypeWorkspace                   ResourceType = "workspace"
+	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                      ResourceType = "api_key"
+	ResourceTypeGroup                       ResourceType = "group"
+	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
+	ResourceTypeLicense                     ResourceType = "license"
+	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                ResourceType = "convert_login"
+	ResourceTypeHealthSettings              ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                  ResourceType = "custom_role"
+	ResourceTypeOrganizationMember          ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1600,7 +1603,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
 		ResourceTypeNotificationsSettings,
-		ResourceTypeNotificationTemplate:
+		ResourceTypeNotificationTemplate,
+		ResourceTypeIdpSyncSettingsOrganization,
+		ResourceTypeIdpSyncSettingsGroup,
+		ResourceTypeIdpSyncSettingsRole:
 		return true
 	}
 	return false
@@ -1627,6 +1633,9 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOrganizationMember,
 		ResourceTypeNotificationsSettings,
 		ResourceTypeNotificationTemplate,
+		ResourceTypeIdpSyncSettingsOrganization,
+		ResourceTypeIdpSyncSettingsGroup,
+		ResourceTypeIdpSyncSettingsRole,
 	}
 }
 
