@@ -1,0 +1,23 @@
+// Example markdownlint configuration with all properties set to their default value
+{
+	"MD010": { "spaces_per_tab": 4}, // No hard tabs: we use 4 spaces per tab
+
+	"MD013": false, // Line length: we are not following a strict line lnegth in markdown files
+
+	"MD024": { "siblings_only": true }, // Multiple headings with the same content:
+
+	"MD033": false, // Inline HTML: we use it in some places
+
+	"MD041": false, // First line in file should be a top level heading: All of our changelogs do not start with a top level heading
+	// TODO: We need to update /home/coder/repos/coder/coder/scripts/release/generate_release_notes.sh to generate changelogs that follow this rule
+
+	"MD052": false, // Image reference: docs/reference/cli/server.md#L628 is not a valid reference
+
+	"MD055": false, // Table pipe style: Some of the generated tables do not have ending pipes
+	// docs/admin/security/audit-logs.md
+	// docs/reference/api/schema.md
+	// docs/reference/api/templates.md
+	// docs/reference/cli/server.md
+
+	"MD056": false // Table column count
+}

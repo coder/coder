@@ -36,44 +36,44 @@ The process of setting up a Teams workflow consists of three key steps:
 
    ```json
    {
-   	"type": "object",
-   	"properties": {
-   		"_version": {
-   			"type": "string"
-   		},
-   		"payload": {
-   			"type": "object",
-   			"properties": {
-   				"_version": {
-   					"type": "string"
-   				},
-   				"user_email": {
-   					"type": "string"
-   				},
-   				"actions": {
-   					"type": "array",
-   					"items": {
-   						"type": "object",
-   						"properties": {
-   							"label": {
-   								"type": "string"
-   							},
-   							"url": {
-   								"type": "string"
-   							}
-   						},
-   						"required": ["label", "url"]
-   					}
-   				}
-   			}
-   		},
-   		"title": {
-   			"type": "string"
-   		},
-   		"body": {
-   			"type": "string"
-   		}
-   	}
+       "type": "object",
+       "properties": {
+           "_version": {
+               "type": "string"
+           },
+           "payload": {
+               "type": "object",
+               "properties": {
+                   "_version": {
+                       "type": "string"
+                   },
+                   "user_email": {
+                       "type": "string"
+                   },
+                   "actions": {
+                       "type": "array",
+                       "items": {
+                           "type": "object",
+                           "properties": {
+                               "label": {
+                                   "type": "string"
+                               },
+                               "url": {
+                                   "type": "string"
+                               }
+                           },
+                           "required": ["label", "url"]
+                       }
+                   }
+               }
+           },
+           "title": {
+               "type": "string"
+           },
+           "body": {
+               "type": "string"
+           }
+       }
    }
    ```
 
@@ -95,31 +95,31 @@ The process of setting up a Teams workflow consists of three key steps:
 
    ```json
    {
-   	"$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
-   	"type": "AdaptiveCard",
-   	"version": "1.0",
-   	"body": [
-   		{
-   			"type": "Image",
-   			"url": "https://coder.com/coder-logo-horizontal.png",
-   			"height": "40px",
-   			"altText": "Coder",
-   			"horizontalAlignment": "center"
-   		},
-   		{
-   			"type": "TextBlock",
-   			"text": "**@{replace(body('Parse_JSON')?['title'], '"', '\"')}**"
-   		},
-   		{
-   			"type": "TextBlock",
-   			"text": "@{replace(body('Parse_JSON')?['body'], '"', '\"')}",
-   			"wrap": true
-   		},
-   		{
-   			"type": "ActionSet",
-   			"actions": [@{replace(replace(join(body('Parse_JSON')?['payload']?['actions'], ','), '{', '{"type": "Action.OpenUrl",'), '"label"', '"title"')}]
-   		}
-   	]
+       "$schema": "https://adaptivecards.io/schemas/adaptive-card.json",
+       "type": "AdaptiveCard",
+       "version": "1.0",
+       "body": [
+           {
+               "type": "Image",
+               "url": "https://coder.com/coder-logo-horizontal.png",
+               "height": "40px",
+               "altText": "Coder",
+               "horizontalAlignment": "center"
+           },
+           {
+               "type": "TextBlock",
+               "text": "**@{replace(body('Parse_JSON')?['title'], '"', '\"')}**"
+           },
+           {
+               "type": "TextBlock",
+               "text": "@{replace(body('Parse_JSON')?['body'], '"', '\"')}",
+               "wrap": true
+           },
+           {
+               "type": "ActionSet",
+               "actions": [@{replace(replace(join(body('Parse_JSON')?['payload']?['actions'], ','), '{', '{"type": "Action.OpenUrl",'), '"label"', '"title"')}]
+           }
+       ]
    }
    ```
 

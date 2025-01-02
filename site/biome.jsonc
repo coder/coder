@@ -8,7 +8,8 @@
 			"e2e/**/*Generated.ts",
 			"src/api/*Generated.ts",
 			"pnpm-lock.yaml",
-			"storybook-static/"
+			"storybook-static/",
+			"../examples/examples.gen.json"
 		]
 	},
 	"linter": {

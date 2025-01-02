@@ -144,10 +144,10 @@ will be able to configure this in the UI. For now, you must use CLI commands.
 
    ```json
    {
-   	"field": "",
-   	"mapping": null,
-   	"regex_filter": null,
-   	"auto_create_missing_groups": false
+       "field": "",
+       "mapping": null,
+       "regex_filter": null,
+       "auto_create_missing_groups": false
    }
    ```
 
@@ -156,10 +156,10 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 
 ```json
 {
-	"field": "groups",
-	"mapping": null,
-	"regex_filter": "^coder-.*$",
-	"auto_create_missing_groups": true
+    "field": "groups",
+    "mapping": null,
+    "regex_filter": "^coder-.*$",
+    "auto_create_missing_groups": true
 }
 ```
 
@@ -177,16 +177,16 @@ group:
 
 ```json
 {
-	"field": "groups",
-	"mapping": {
-		"coder-admins": [
-			"2ba2a4ff-ddfb-4493-b7cd-1aec2fa4c830",
-			"93371154-150f-4b12-b5f0-261bb1326bb4"
-		],
-		"coder-users": ["2f4bde93-0179-4815-ba50-b757fb3d43dd"]
-	},
-	"regex_filter": null,
-	"auto_create_missing_groups": false
+    "field": "groups",
+    "mapping": {
+        "coder-admins": [
+            "2ba2a4ff-ddfb-4493-b7cd-1aec2fa4c830",
+            "93371154-150f-4b12-b5f0-261bb1326bb4"
+        ],
+        "coder-users": ["2f4bde93-0179-4815-ba50-b757fb3d43dd"]
+    },
+    "regex_filter": null,
+    "auto_create_missing_groups": false
 }
 ```
 
@@ -310,8 +310,8 @@ will be able to configure this in the UI. For now, you must use CLI commands.
 
    ```json
    {
-   	"field": "",
-   	"mapping": null
+       "field": "",
+       "mapping": null
    }
    ```
 
@@ -321,11 +321,11 @@ role:
 
 ```json
 {
-	"field": "roles",
-	"mapping": {
-		"coder-admins": ["organization-admin"],
-		"infra-admins": ["provisioner-admin"]
-	}
+    "field": "roles",
+    "mapping": {
+        "coder-admins": ["organization-admin"],
+        "infra-admins": ["provisioner-admin"]
+    }
 }
 ```
 

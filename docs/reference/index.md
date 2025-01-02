@@ -74,9 +74,9 @@ activity.
   -d "{
   \"logs\": [
     {
-  	\"created_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
-  	\"level\": \"info\",
-  	\"output\": \"Restoring workspace from snapshot: 05%...\"
+      \"created_at\": \"$(date -u +'%Y-%m-%dT%H:%M:%SZ')\",
+      \"level\": \"info\",
+      \"output\": \"Restoring workspace from snapshot: 05%...\"
     }
   ]
   }"
@@ -97,7 +97,7 @@ activity.
     curl -X PUT "https://coder.example.com/api/v2/workspaces/$WORKSPACE_ID/extend" \
     -H "Coder-Session-Token: $CODER_AGENT_TOKEN" \
     -d '{
-  	"deadline": "2019-08-24T14:15:22Z"
+      "deadline": "2019-08-24T14:15:22Z"
     }'
 
     # Sleep for 30 minutes (1800 seconds) if the job is running

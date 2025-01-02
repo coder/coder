@@ -137,7 +137,7 @@ following to your `init.el`:
 
 ```lisp
 (connection-local-set-profile-variables 'remote-path-lsp-servers
-								 '((tramp-remote-path . ("<PATH TO ADD>" tramp-default-remote-path))))
+                                 '((tramp-remote-path . ("<PATH TO ADD>" tramp-default-remote-path))))
 (connection-local-set-profiles '(:machine "coder.<WORKSPACE NAME>") 'remote-path-lsp-servers)
 ```
 

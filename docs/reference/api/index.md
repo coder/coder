@@ -1,3 +1,5 @@
+# API
+
 Get started with the Coder API:
 
 ## Quickstart
