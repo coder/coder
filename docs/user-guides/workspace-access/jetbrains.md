@@ -17,8 +17,8 @@ IDEs are supported for remote development:
 
 JetBrains Gateway is a compact desktop app that allows you to work remotely with
 a JetBrains IDE without downloading one. Visit the
-[JetBrains Gateway website](https://www.jetbrains.com/remote-development/gateway/) to
-learn more about Gateway.
+[JetBrains Gateway website](https://www.jetbrains.com/remote-development/gateway/)
+to learn more about Gateway.
 
 Gateway can connect to a Coder workspace using Coder's Gateway plugin or
 manually setting up an SSH connection.
@@ -137,7 +137,6 @@ Use the `keytool` included in the JetBrains Gateway installation:
 & '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\apps\Gateway\ch-0\<VERSION>\jbr\bin\keytool.exe' '%USERPROFILE%\AppData\Local\JetBrains\Toolbox\bin\jre\lib\security\cacerts' -import -alias coder -file <cert>
 ```
 
-
 </div>
 
 ## Manually Configuring A JetBrains Gateway Connection
@@ -209,8 +208,8 @@ This step must be done before configuring Gateway.
 </blockquote>
 
 If you would like to use an existing JetBrains IDE in a Coder workspace (or you
-are air-gapped, and cannot reach `jetbrains.com`), run the following script in the
-JetBrains IDE directory to point the default Gateway directory to the IDE
+are air-gapped, and cannot reach `jetbrains.com`), run the following script in
+the JetBrains IDE directory to point the default Gateway directory to the IDE
 directory.
 
 ```shell
