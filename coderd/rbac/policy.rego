@@ -31,12 +31,12 @@ import rego.v1
 
 # bool_flip lets you assign a value to an inverted bool.
 # You cannot do 'x := !false', but you can do 'x := bool_flip(false)'
-bool_flip(b) = flipped if {
+bool_flip(b) := flipped if {
 	b
 	flipped = false
 }
 
-bool_flip(b) = flipped if {
+bool_flip(b) := flipped if {
 	not b
 	flipped = true
 }
@@ -45,17 +45,17 @@ bool_flip(b) = flipped if {
 #  -1: {false, true} or {false}
 #   0: {}
 #   1: {true}
-number(set) = c if {
+number(set) := c if {
 	count(set) == 0
 	c := 0
 }
 
-number(set) = c if {
+number(set) := c if {
 	false in set
 	c := -1
 }
 
-number(set) = c if {
+number(set) := c if {
 	not false in set
 	set[_]
 	c := 1
@@ -64,7 +64,7 @@ number(set) = c if {
 # site, org, and user rules are all similar. Each rule should return a number
 # from [-1, 1]. The number corresponds to "negative", "abstain", and "positive"
 # for the given level. See the 'allow' rules for how these numbers are used.
-default site = 0
+default site := 0
 
 site := site_allow(input.subject.roles)
 
@@ -93,7 +93,7 @@ org_members := {orgID |
 
 # org is the same as 'site' except we need to iterate over each organization
 # that the actor is a member of.
-default org = 0
+default org := 0
 
 org := org_allow(input.subject.roles)
 
@@ -193,7 +193,7 @@ org_ok if {
 
 # User is the same as the site, except it only applies if the user owns the object and
 # the user is apart of the org (if the object has an org).
-default user = 0
+default user := 0
 
 user := user_allow(input.subject.roles)
 
