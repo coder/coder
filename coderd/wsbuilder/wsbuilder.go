@@ -8,10 +8,12 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
 	"time"
 
 	"github.com/hashicorp/hcl/v2"
 	"github.com/hashicorp/hcl/v2/hclsyntax"
+	"github.com/zclconf/go-cty/cty"
 
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/provisioner/terraform/tfparse"
@@ -732,7 +734,33 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 		paramsM[name] = parameterValues[i]
 	}
 
-	evalCtx := tfparse.BuildEvalContext(varsM, paramsM)
+	// FIXME: what do we do with locals? Do we add a dependency on extracting files to disk
+	// inside this critical path, or should we store the locals in the database similarly to
+	// parameters / variables?
+	var localsM map[string]cty.Value
+	{
+		tempDir, err := os.MkdirTemp(os.TempDir(), "wsbuilder-tfparse-XXXX")
+		if err != nil {
+			return nil, BuildError{http.StatusInternalServerError, "failed to create temp dir for parsing terraform", err}
+		}
+		tf, err := b.store.GetFileByID(dbauthz.AsSystemRestricted(b.ctx), templateVersionJob.FileID)
+		if err != nil {
+			return nil, BuildError{http.StatusInternalServerError, "failed to get file for template build job", err}
+		}
+		if err := tfparse.WriteArchive(tf.Data, "application/x-tar", tempDir); err != nil {
+			return nil, BuildError{http.StatusInternalServerError, "failed to write archive to disk", err}
+		}
+		parser, diags := tfparse.New(tempDir)
+		if diags.HasErrors() {
+			return nil, BuildError{http.StatusInternalServerError, "init tf parser", xerrors.Errorf(diags.Error())}
+		}
+		locals, err := parser.Locals(b.ctx)
+		if err != nil {
+			return nil, BuildError{http.StatusInternalServerError, "get locals", err}
+		}
+		localsM = locals
+	}
+	evalCtx := tfparse.BuildEvalContext(localsM, varsM, paramsM)
 	for _, workspaceTag := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTag.Value), "expression.hcl", hcl.InitialPos)
 		if diags.HasErrors() {
