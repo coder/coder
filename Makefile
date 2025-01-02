@@ -398,7 +398,7 @@ site/node_modules/.installed: site/package.json
 	cd site
 	../scripts/pnpm_install.sh
 
-site/out/index.html: site/package.json site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
+site/out/index.html: site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
