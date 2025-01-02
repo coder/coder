@@ -44,6 +44,11 @@ coder server
 or running [coder_apps](../templates/index.md) on an absolute path. Set this to
 a wildcard subdomain that resolves to Coder (e.g. `*.coder.example.com`).
 
+> Note: We do not recommend using a top-level-domain for Coder wildcard access
+> (for example `*.workspaces`), even on private networks with split-DNS. Some
+> browsers consider these "public" domains and will refuse Coder's cookies,
+> which are vital to the proper operation of this feature.
+
 If you are providing TLS certificates directly to the Coder server, either
 
 1. Use a single certificate and key for both the root and wildcard domains.
