@@ -328,53 +328,66 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	previousWorkspaceBuild, err := api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
-	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching previous workspace build",
-			Detail:  err.Error(),
-		})
-		return
-	}
+	var (
+		previousWorkspaceBuild database.WorkspaceBuild
+		workspaceBuild         *database.WorkspaceBuild
+		provisionerJob         *database.ProvisionerJob
+		provisionerDaemons     []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+	)
 
-	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
-		Initiator(apiKey.UserID).
-		RichParameterValues(createBuild.RichParameterValues).
-		LogLevel(string(createBuild.LogLevel)).
-		DeploymentValues(api.Options.DeploymentValues)
+	err := api.Database.InTx(func(database.Store) error {
+		var err error
 
-	if createBuild.TemplateVersionID != uuid.Nil {
-		builder = builder.VersionID(createBuild.TemplateVersionID)
-	}
-
-	if createBuild.Orphan {
-		if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "Orphan is only permitted when deleting a workspace.",
+		previousWorkspaceBuild, err = api.Database.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+		if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
+			api.Logger.Error(ctx, "failed fetching previous workspace build", slog.F("workspace_id", workspace.ID), slog.Error(err))
+			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+				Message: "Internal error fetching previous workspace build",
+				Detail:  err.Error(),
 			})
-			return
+			return nil
+		}
+
+		builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
+			Initiator(apiKey.UserID).
+			RichParameterValues(createBuild.RichParameterValues).
+			LogLevel(string(createBuild.LogLevel)).
+			DeploymentValues(api.Options.DeploymentValues)
+
+		if createBuild.TemplateVersionID != uuid.Nil {
+			builder = builder.VersionID(createBuild.TemplateVersionID)
+		}
+
+		if createBuild.Orphan {
+			if createBuild.Transition != codersdk.WorkspaceTransitionDelete {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "Orphan is only permitted when deleting a workspace.",
+				})
+				return nil
+			}
+			if len(createBuild.ProvisionerState) > 0 {
+				httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+					Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
+				})
+				return nil
+			}
+			builder = builder.Orphan()
 		}
 		if len(createBuild.ProvisionerState) > 0 {
-			httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
-				Message: "ProvisionerState cannot be set alongside Orphan since state intent is unclear.",
-			})
-			return
+			builder = builder.State(createBuild.ProvisionerState)
 		}
-		builder = builder.Orphan()
-	}
-	if len(createBuild.ProvisionerState) > 0 {
-		builder = builder.State(createBuild.ProvisionerState)
-	}
 
-	workspaceBuild, provisionerJob, provisionerDaemons, err := builder.Build(
-		ctx,
-		api.Database,
-		func(action policy.Action, object rbac.Objecter) bool {
-			return api.Authorize(r, action, object)
-		},
-		audit.WorkspaceBuildBaggageFromRequest(r),
-	)
+		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
+			ctx,
+			api.Database,
+			func(action policy.Action, object rbac.Objecter) bool {
+				return api.Authorize(r, action, object)
+			},
+			audit.WorkspaceBuildBaggageFromRequest(r),
+		)
+
+		return err
+	}, nil)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
 		var authErr dbauthz.NotAuthorizedError
