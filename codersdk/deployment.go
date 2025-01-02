@@ -594,7 +594,7 @@ type ExternalAuthConfig struct {
 	// a string (e.g. coder.com) instead of by it's type.
 	//
 	// Git clone makes use of this by parsing the URL from:
-	// 'Username for <https://github.com>:'
+	// 'Username for https://github.com:'
 	// And sending it to the Coder server to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// DisplayName is shown in the UI to identify the auth config.
@@ -1174,7 +1174,7 @@ when required by your organization's security policy.`,
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
 			// Do not use a serpent.URL here. We are intentionally omitting the
-			// scheme part of the url <https://>, so the standard url parsing
+			// scheme part of the url https://, so the standard url parsing
 			// will yield unexpected results.
 			//
 			// We have a validation function to ensure the wildcard url is correct,
@@ -1339,7 +1339,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "TLS Ciphers",
-			Description: "Specify specific TLS ciphers that allowed to be used. See <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75>.",
+			Description: "Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.",
 			Flag:        "tls-ciphers",
 			Env:         "CODER_TLS_CIPHERS",
 			Default:     "",
@@ -1350,7 +1350,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "TLS Allow Insecure Ciphers",
-			Description: "By default, only ciphers marked as 'secure' are allowed to be used. See <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95>.",
+			Description: "By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.",
 			Flag:        "tls-allow-insecure-ciphers",
 			Env:         "CODER_TLS_ALLOW_INSECURE_CIPHERS",
 			Default:     "false",
@@ -1452,7 +1452,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Config URL",
-			Description: "URL to fetch a DERP mapping on startup. See: <https://tailscale.com/kb/1118/custom-derp-servers/>.",
+			Description: "URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-url",
 			Env:         "CODER_DERP_CONFIG_URL",
 			Value:       &c.DERP.Config.URL,
@@ -1461,7 +1461,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "DERP Config Path",
-			Description: "Path to read a DERP mapping from. See: <https://tailscale.com/kb/1118/custom-derp-servers/>.",
+			Description: "Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.",
 			Flag:        "derp-config-path",
 			Env:         "CODER_DERP_CONFIG_PATH",
 			Value:       &c.DERP.Config.Path,
@@ -1945,7 +1945,7 @@ when required by your organization's security policy.`,
 		// Trace settings
 		{
 			Name:        "Trace Enable",
-			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md>.",
+			Description: "Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.",
 			Flag:        "trace",
 			Env:         "CODER_TRACE_ENABLE",
 			Value:       &c.Trace.Enable,
@@ -2284,7 +2284,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Connection URL",
-			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven <https://repo1.maven.org/maven2> and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\". Note that any special characters in the URL must be URL-encoded.",
+			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven https://repo1.maven.org/maven2 and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\". Note that any special characters in the URL must be URL-encoded.",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -2530,7 +2530,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
-			Description: "Hostname of HTTPS server that runs <https://github.com/coder/wgtunnel>. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. <tunnel.example.com>.",
+			Description: "Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. tunnel.example.com.",
 			Flag:        "wg-tunnel-host",
 			Env:         "WGTUNNEL_HOST",
 			YAML:        "wgtunnelHost",

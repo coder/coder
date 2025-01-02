@@ -173,7 +173,7 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 | Environment | <code>$CODER_TLS_CIPHERS</code>        |
 | YAML        | <code>networking.tls.tlsCiphers</code> |
 
-Specify specific TLS ciphers that allowed to be used. See <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75>.
+Specify specific TLS ciphers that allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L53-L75.
 
 ### --tls-allow-insecure-ciphers
 
@@ -184,7 +184,7 @@ Specify specific TLS ciphers that allowed to be used. See <https://github.com/go
 | YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
 | Default     | <code>false</code>                                  |
 
-By default, only ciphers marked as 'secure' are allowed to be used. See <https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95>.
+By default, only ciphers marked as 'secure' are allowed to be used. See https://github.com/golang/go/blob/master/src/crypto/tls/cipher_suites.go#L82-L95.
 
 ### --derp-server-enable
 
@@ -257,7 +257,7 @@ Force clients and agents to always use WebSocket to connect to DERP relay server
 | Environment | <code>$CODER_DERP_CONFIG_URL</code> |
 | YAML        | <code>networking.derp.url</code>    |
 
-URL to fetch a DERP mapping on startup. See: <https://tailscale.com/kb/1118/custom-derp-servers/>.
+URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --derp-config-path
 
@@ -267,7 +267,7 @@ URL to fetch a DERP mapping on startup. See: <https://tailscale.com/kb/1118/cust
 | Environment | <code>$CODER_DERP_CONFIG_PATH</code>    |
 | YAML        | <code>networking.derp.configPath</code> |
 
-Path to read a DERP mapping from. See: <https://tailscale.com/kb/1118/custom-derp-servers/>.
+Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp-servers/.
 
 ### --prometheus-enable
 
@@ -702,7 +702,7 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 | Environment | <code>$CODER_TRACE_ENABLE</code>          |
 | YAML        | <code>introspection.tracing.enable</code> |
 
-Whether application tracing data is collected. It exports to a backend configured by environment variables. See: <https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md>.
+Whether application tracing data is collected. It exports to a backend configured by environment variables. See: https://github.com/open-telemetry/opentelemetry-specification/blob/main/specification/protocol/exporter.md.
 
 ### --trace-honeycomb-api-key
 
@@ -836,7 +836,7 @@ Allow administrators to enable Terraform debug output.
 | Environment | <code>$CODER_ADDITIONAL_CSP_POLICY</code>        |
 | YAML        | <code>networking.http.additionalCSPPolicy</code> |
 
-Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. --additional-csp-policy="script-src <https://example.com>".
+Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
 
 ### --dangerous-allow-path-app-sharing
 
@@ -947,7 +947,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven <https://repo1.maven.org/maven2> and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven https://repo1.maven.org/maven2 and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
 
 ### --postgres-auth
 

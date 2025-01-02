@@ -2890,7 +2890,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | `id`                    | string  | false    |              | ID is a unique identifier for the auth config. It defaults to `type` when not provided. |
 | `no_refresh`            | boolean | false    |              |                                                                                         |
 |`regex`|string|false||Regex allows API requesters to match an auth config by a string (e.g. coder.com) instead of by it's type.
-Git clone makes use of this by parsing the URL from: 'Username for <https://github.com>:' And sending it to the Coder server to match against the Regex.|
+Git clone makes use of this by parsing the URL from: 'Username for https://github.com:' And sending it to the Coder server to match against the Regex.|
 |`scopes`|array of string|false|||
 |`token_url`|string|false|||
 |`type`|string|false||Type is the type of external auth config.|

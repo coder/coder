@@ -8,6 +8,8 @@
 
 	"MD033": false, // Inline HTML: we use it in some places
 
+	"MD034": false, // Bare URL: we use it in some places in generated docs see: codersdk/deployment.go
+
 	"MD041": false, // First line in file should be a top level heading: All of our changelogs do not start with a top level heading
 	// TODO: We need to update /home/coder/repos/coder/coder/scripts/release/generate_release_notes.sh to generate changelogs that follow this rule
 

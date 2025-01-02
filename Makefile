@@ -685,9 +685,15 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 
 site/src/api/rbacresourcesGenerated.ts: scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/typegen/main.go rbac typescript > "$@"
+	cd site
+	../scripts/pnpm_install.sh
+	pnpm exec biome format --write src/api/rbacresourcesGenerated.ts
 
 site/src/api/countriesGenerated.ts: scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
+	cd site
+	../scripts/pnpm_install.sh
+	pnpm exec biome format --write src/api/countriesGenerated.ts
 
 docs/admin/integrations/prometheus.md: scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
 	go run scripts/metricsdocgen/main.go
