@@ -46,7 +46,11 @@ direnv: export +AR +AS +CC +CONFIG_SHELL +CXX +HOST_PATH +IN_NIX_SHELL +LD +NIX_
 🎉
 ```
 
-> **Note:** On macOS, a [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause `nix-shell` to fail to build or run `coder`. If you see `error: creating directory` when attempting to run, build, or test, adding one line to your `.envrc` should fix the problem:
+> **Note:** On macOS, a
+> [direnv bug](https://github.com/direnv/direnv/issues/1345) can cause
+> `nix-shell` to fail to build or run `coder`. If you see
+> `error: creating directory` when attempting to run, build, or test, adding one
+> line to your `.envrc` should fix the problem:
 
 ```shell
 use nix
