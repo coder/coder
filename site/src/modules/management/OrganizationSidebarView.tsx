@@ -114,39 +114,41 @@ const OrganizationsSettingsNavigation: FC<
 					<Command>
 						<CommandList>
 							<CommandGroup className="pb-2">
-								{organizations.map((organization) => (
-									<Link
-										key={organization.id}
-										to={urlForSubpage(organization.name)}
-										className="no-underline visited:text-content-secondary"
-									>
-										<CommandItem
-											value={organization.name}
-											onSelect={() => {
-												setIsPopoverOpen(false);
-											}}
-										>
-											<Avatar
-												size="sm"
-												src={organization.icon}
-												fallback={organization.display_name}
-											/>
-											{organization.display_name || organization.name}
-										</CommandItem>
-									</Link>
-								))}
-								{permissions.createOrganization && (
+								{organizations.length > 1 && (
 									<>
-										<hr className="h-px my-2 border-none bg-border -mx-2" />
-										<Button variant="subtle" className="w-full h-8">
-											<a
-												href="/organizations/new"
-												className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
+										{organizations.map((organization) => (
+											<Link
+												key={organization.id}
+												to={urlForSubpage(organization.name)}
+												className="no-underline visited:text-content-secondary"
 											>
-												<Plus /> Create Organization
-											</a>
-										</Button>
+												<CommandItem
+													value={organization.name}
+													onSelect={() => {
+														setIsPopoverOpen(false);
+													}}
+												>
+													<Avatar
+														size="sm"
+														src={organization.icon}
+														fallback={organization.display_name}
+													/>
+													{organization.display_name || organization.name}
+												</CommandItem>
+											</Link>
+										))}
+										<hr className="h-px my-2 border-none bg-border -mx-2" />
 									</>
+								)}
+								{permissions.createOrganization && (
+									<Button variant="subtle" className="w-full h-8">
+										<a
+											href="/organizations/new"
+											className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
+										>
+											<Plus /> Create Organization
+										</a>
+									</Button>
 								)}
 							</CommandGroup>
 						</CommandList>
