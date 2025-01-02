@@ -11,9 +11,8 @@ application. The following providers are supported:
 
 The next step is to configure the Coder server to use the OAuth application by
 setting the following environment variables:
-<div class="tabs">
 
-## Environment Variables
+## Configuration
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
@@ -29,43 +28,10 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
 
-## Docker Compose
-
-```yaml
-services:
-	coder:
-		environment:
-			CODER_EXTERNAL_AUTH_0_ID: <USER_DEFINED_ID>
-			CODER_EXTERNAL_AUTH_0_TYPE: <github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
-			CODER_EXTERNAL_AUTH_0_CLIENT_ID: <OAuth app client ID>
-			CODER_EXTERNAL_AUTH_0_CLIENT_SECRET: <OAuth app client secret>
-```
 
 The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
-
-## Docker CLI
-
-```sh
-export DOCKER_GROUP=$(getent group docker | cut -d: -f3)
-docker run --rm -it \
-	-e CODER_ACCESS_URL="https://coder.example.com" \
-	-e CODER_PG_CONECTION_URL="postgresql://username:password@database/coder" \
-	-e CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>" \
-	-e CODER_EXTERNAL_AUTH_0_TYPE="<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" \
-	-e CODER_EXTERNAL_AUTH_0_CLIENT_ID="<OAuth app client ID>" \
-	-e CODER_EXTERNAL_AUTH_0_CLIENT_SECRET="<OAuth app client secret>" \
-	-v /var/run/docker.sock:/var/run/docker.sock \
-	--group-add $DOCKER_GROUP \
-	ghcr.io/coder/coder:latest
-```
-
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
-reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
-GitHub provider).
-
-</div>
 
 You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider.
 
