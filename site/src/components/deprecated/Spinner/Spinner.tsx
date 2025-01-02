@@ -8,6 +8,8 @@ import type { FC } from "react";
  * Spinner component used to indicate loading states. This component abstracts
  * the MUI CircularProgress to provide better control over its rendering,
  * especially in snapshot tests with Chromatic.
+ *
+ * @deprecated prefer `components.Spinner`
  */
 export const Spinner: FC<CircularProgressProps> = (props) => {
 	/**
