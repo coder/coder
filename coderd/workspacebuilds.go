@@ -328,6 +328,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
+		Initiator(apiKey.UserID).
+		RichParameterValues(createBuild.RichParameterValues).
+		LogLevel(string(createBuild.LogLevel)).
+		DeploymentValues(api.Options.DeploymentValues)
+
 	var (
 		previousWorkspaceBuild database.WorkspaceBuild
 		workspaceBuild         *database.WorkspaceBuild
@@ -347,12 +353,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			})
 			return nil
 		}
-
-		builder := wsbuilder.New(workspace, database.WorkspaceTransition(createBuild.Transition)).
-			Initiator(apiKey.UserID).
-			RichParameterValues(createBuild.RichParameterValues).
-			LogLevel(string(createBuild.LogLevel)).
-			DeploymentValues(api.Options.DeploymentValues)
 
 		if createBuild.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(createBuild.TemplateVersionID)
@@ -385,17 +385,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 			},
 			audit.WorkspaceBuildBaggageFromRequest(r),
 		)
-		if err != nil {
-			return err
-		}
-
-		// If this workspace build has a different template version ID to the previous build
-		// we can assume it has just been updated.
-		if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
-			api.notifyWorkspaceUpdated(ctx, tx, apiKey.UserID, workspace, createBuild.RichParameterValues)
-		}
-
-		return nil
+		return err
 	}, nil)
 	var buildErr wsbuilder.BuildError
 	if xerrors.As(err, &buildErr) {
@@ -453,6 +443,12 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// If this workspace build has a different template version ID to the previous build
+	// we can assume it has just been updated.
+	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
+		api.notifyWorkspaceUpdated(ctx, apiKey.UserID, workspace, createBuild.RichParameterValues)
+	}
+
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
 		Kind:        wspubsub.WorkspaceEventKindStateChange,
 		WorkspaceID: workspace.ID,
@@ -463,32 +459,31 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 
 func (api *API) notifyWorkspaceUpdated(
 	ctx context.Context,
-	db database.Store,
 	initiatorID uuid.UUID,
 	workspace database.Workspace,
 	parameters []codersdk.WorkspaceBuildParameter,
 ) {
 	log := api.Logger.With(slog.F("workspace_id", workspace.ID))
 
-	template, err := db.GetTemplateByID(ctx, workspace.TemplateID)
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch template for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		return
 	}
 
-	version, err := db.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch template version for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
 		return
 	}
 
-	initiator, err := db.GetUserByID(ctx, initiatorID)
+	initiator, err := api.Database.GetUserByID(ctx, initiatorID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("initiator_id", initiatorID), slog.Error(err))
 		return
 	}
 
-	owner, err := db.GetUserByID(ctx, workspace.OwnerID)
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
 	if err != nil {
 		log.Warn(ctx, "failed to fetch user for workspace update notification", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
 		return
