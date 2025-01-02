@@ -28,11 +28,6 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
 
-
-The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
-reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
-GitHub provider).
-
 You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider.
 
 ```tf
@@ -49,6 +44,14 @@ data "coder_external_auth" "github" {
 ```
 
 Inside your terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
+
+### Workspace CLI
+An access token can be accessed within the workspace by using
+
+```
+coder external-auth <USER_DEFINED_ID> access-token
+```
+
 
 ## GitHub
 
