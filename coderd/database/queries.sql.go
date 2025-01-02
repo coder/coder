@@ -3096,24 +3096,49 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 
 const getUserStatusChanges = `-- name: GetUserStatusChanges :many
 WITH dates AS (
-    SELECT generate_series(
-        date_trunc('day', $1::timestamptz),
-        date_trunc('day', $2::timestamptz),
-        '1 day'::interval
-    )::timestamptz AS date
+	SELECT $1::timestamptz AS date
+
+	UNION
+
+    SELECT DISTINCT changed_at AS date
+    FROM user_status_changes
+    WHERE changed_at > $1::timestamptz
+        AND changed_at < $2::timestamptz
+
+	UNION
+
+	SELECT DISTINCT deleted_at AS date
+	FROM user_deleted
+	WHERE deleted_at > $1::timestamptz
+		AND deleted_at < $2::timestamptz
+
+	UNION
+
+	SELECT $2::timestamptz AS date
 ),
 latest_status_before_range AS (
-    -- Get the last status change for each user before our date range
-    SELECT DISTINCT ON (user_id)
-        user_id,
-        new_status,
-        changed_at
-    FROM user_status_changes
-    WHERE changed_at < (SELECT MIN(date) FROM dates)
-    ORDER BY user_id, changed_at DESC
+    SELECT
+        DISTINCT usc.user_id,
+        usc.new_status,
+        usc.changed_at
+    FROM user_status_changes usc
+	LEFT JOIN user_deleted ud ON usc.user_id = ud.user_id
+    WHERE usc.changed_at < $1::timestamptz
+	AND (ud.user_id IS NULL OR ud.deleted_at > $1::timestamptz)
+    ORDER BY usc.user_id, usc.changed_at DESC
+),
+status_changes_during_range AS (
+    SELECT
+        usc.user_id,
+        usc.new_status,
+        usc.changed_at
+    FROM user_status_changes usc
+	LEFT JOIN user_deleted ud ON usc.user_id = ud.user_id
+    WHERE usc.changed_at >= $1::timestamptz
+        AND usc.changed_at <= $2::timestamptz
+		AND (ud.user_id IS NULL OR usc.changed_at < ud.deleted_at)
 ),
 all_status_changes AS (
-    -- Combine status changes before and during our range
     SELECT
         user_id,
         new_status,
@@ -3126,42 +3151,36 @@ all_status_changes AS (
         user_id,
         new_status,
         changed_at
-    FROM user_status_changes
-    WHERE changed_at < $2::timestamptz
+    FROM status_changes_during_range
 ),
-daily_counts AS (
-    SELECT
-        d.date,
-        asc1.new_status,
-        -- For each date and status, count users whose most recent status change
-        -- (up to that date) matches this status AND who weren't deleted by that date
-        COUNT(*) FILTER (
-            WHERE asc1.changed_at = (
-                SELECT MAX(changed_at)
-                FROM all_status_changes asc2
-                WHERE asc2.user_id = asc1.user_id
-                AND asc2.changed_at <= d.date
-            )
-            AND NOT EXISTS (
-                SELECT 1
-                FROM user_deleted ud
-                WHERE ud.user_id = asc1.user_id
-                AND ud.deleted_at <= d.date
-            )
-        )::bigint AS count
-    FROM dates d
-    CROSS JOIN all_status_changes asc1
-    GROUP BY d.date, asc1.new_status
+ranked_status_change_per_user_per_date AS (
+	SELECT
+	d.date,
+	asc1.user_id,
+	ROW_NUMBER() OVER (PARTITION BY d.date, asc1.user_id ORDER BY asc1.changed_at DESC) AS rn,
+	asc1.new_status
+	FROM dates d
+	LEFT JOIN all_status_changes asc1 ON asc1.changed_at <= d.date
 )
 SELECT
-    date::timestamptz AS date,
-    new_status AS status,
-    count
-FROM daily_counts
-WHERE count > 0
-ORDER BY
-    status ASC,
-    date ASC
+	date,
+	statuses.new_status AS status,
+	COUNT(rscpupd.user_id) FILTER (
+		WHERE rscpupd.rn = 1
+		AND (
+			rscpupd.new_status = statuses.new_status
+			AND (
+				-- Include users who haven't been deleted
+				NOT EXISTS (SELECT 1 FROM user_deleted WHERE user_id = rscpupd.user_id)
+				OR
+				-- Or users whose deletion date is after the current date we're looking at
+				rscpupd.date < (SELECT deleted_at FROM user_deleted WHERE user_id = rscpupd.user_id)
+			)
+		)
+	) AS count
+FROM ranked_status_change_per_user_per_date rscpupd
+CROSS JOIN (select distinct new_status FROM all_status_changes) statuses
+GROUP BY date, statuses.new_status
 `
 
 type GetUserStatusChangesParams struct {
