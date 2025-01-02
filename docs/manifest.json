@@ -8,8 +8,8 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Coder quickstart",
-					"description": "Try it out for yourself",
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
 				},
 				{
@@ -657,7 +657,7 @@
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
 				{
-					"title": "Get started with Coder",
+					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
 				},
