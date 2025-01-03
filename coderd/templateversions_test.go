@@ -293,6 +293,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							type = string
 							default = "2"
 						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
@@ -301,18 +306,23 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with empty workspace tags",
 				files: map[string]string{
 					`main.tf`: `
-					variable "a" {
-						type = string
-						default = "1"
-					}
-					data "coder_parameter" "b" {
-						type = string
-						default = "2"
-					}
-					resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {}
-					}`,
+						variable "a" {
+							type = string
+							default = "1"
+						}
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {}
+						}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
@@ -327,6 +337,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						data "coder_parameter" "b" {
 							type = string
 							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
 						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
@@ -343,22 +358,28 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags and request tags",
 				files: map[string]string{
 					`main.tf`: `
-					variable "a" {
-						type = string
-						default = "1"
-					}
-					data "coder_parameter" "b" {
-						type = string
-						default = "2"
-					}
-					resource "null_resource" "test" {}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							"foo": "bar",
-							"a": var.a,
-							"b": data.coder_parameter.b.value,
+						// This file is the same as the above, except for this comment.
+						variable "a" {
+							type = string
+							default = "1"
 						}
-					}`,
+						data "coder_parameter" "b" {
+							type = string
+							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
+						resource "null_resource" "test" {}
+						data "coder_workspace_tags" "tags" {
+							tags = {
+								"foo": "bar",
+								"a": var.a,
+								"b": data.coder_parameter.b.value,
+							}
+						}`,
 				},
 				reqTags:  map[string]string{"baz": "zap", "foo": "noclobber"},
 				wantTags: map[string]string{"owner": "", "scope": "organization", "foo": "bar", "baz": "zap", "a": "1", "b": "2"},
@@ -374,6 +395,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						data "coder_parameter" "b" {
 							type = string
 							default = "2"
+						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
 						}
 						resource "null_resource" "test" {
 							name = "foo"
@@ -401,6 +427,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							type = string
 							default = "2"
 						}
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {
 							name = "foo"
 						}
@@ -423,6 +454,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that attempts to set user scope",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -437,6 +473,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that attempt to clobber org ID",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -451,6 +492,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 				name: "main.tf with workspace tags that set scope=user",
 				files: map[string]string{
 					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}
 						resource "null_resource" "test" {}
 						data "coder_workspace_tags" "tags" {
 							tags = {
@@ -459,6 +505,19 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}`,
 				},
 				wantTags: map[string]string{"owner": templateAdminUser.ID.String(), "scope": "user"},
+			},
+			// Ref: https://github.com/coder/coder/issues/16021
+			{
+				name: "main.tf with no workspace_tags and a function call in a parameter default",
+				files: map[string]string{
+					`main.tf`: `
+						data "coder_parameter" "unrelated" {
+							name    = "unrelated"
+							type    = "list(string)"
+							default = jsonencode(["a", "b"])
+						}`,
+				},
+				wantTags: map[string]string{"owner": "", "scope": "organization"},
 			},
 		} {
 			tt := tt
