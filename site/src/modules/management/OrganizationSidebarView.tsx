@@ -97,7 +97,7 @@ const OrganizationsSettingsNavigation: FC<
 						aria-expanded={isPopoverOpen}
 						className="w-60 justify-between p-2 h-11"
 					>
-						<div className="flex flex-row gap-2 items-center p-2">
+						<div className="flex flex-row gap-2 items-center p-2 truncate">
 							{activeOrganization && (
 								<Avatar
 									size="sm"
@@ -105,7 +105,9 @@ const OrganizationsSettingsNavigation: FC<
 									fallback={activeOrganization.display_name}
 								/>
 							)}
-							{activeOrganization?.display_name || activeOrganization?.name}
+							<span className="truncate">
+								{activeOrganization?.display_name || activeOrganization?.name}
+							</span>
 						</div>
 						<ChevronDown />
 					</Button>
@@ -133,7 +135,9 @@ const OrganizationsSettingsNavigation: FC<
 														src={organization.icon}
 														fallback={organization.display_name}
 													/>
-													{organization.display_name || organization.name}
+													<span className="truncate">
+														{organization?.display_name || organization?.name}
+													</span>
 												</CommandItem>
 											</Link>
 										))}
