@@ -136,20 +136,20 @@ HKEY_LOCAL_MACHINE registry
 Additionally, create a string for each setting with its appropriate value in
 `SOFTWARE\JetBrains\RemoteDev`:
 
-![Alt text](../../images/gateway/jetbrains-offline-windows.png)
+![JetBrains offline - Windows](../../../images/gateway/jetbrains-offline-windows.png)
 
 ## 5. Setup SSH connection with JetBrains Gateway
 
 With the server now configured, you can now configure your local machine to use
 Gateway. Here is the documentation to
-[setup SSH config via the Coder CLI](../../user-guides/workspace-access/index.md#configure-ssh).
+[setup SSH config via the Coder CLI](../../../user-guides/workspace-access/index.md#configure-ssh).
 On the Gateway side, follow our guide here until step 16.
 
 Instead of downloading from jetbrains.com, we will point Gateway to our server
 endpoint. Select `Installation options...` and select `Use download link`. Note
 that the URL must explicitly reference the archive file:
 
-![Offline Gateway](../../images/gateway/offline-gateway.png)
+![Offline Gateway](../../../images/gateway/offline-gateway.png)
 
 Click `Download IDE and Connect`. Gateway should now download the backend and
 clients from the server into your remote workspace and local machine,
