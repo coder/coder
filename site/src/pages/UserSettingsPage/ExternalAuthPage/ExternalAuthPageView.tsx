@@ -21,7 +21,6 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/Avatar/AvatarData";
 import { Loader } from "components/Loader/Loader";
 import {
 	MoreMenu,

@@ -1,13 +1,3 @@
-/**
- * @file A global error boundary designed to work with React Router.
- *
- * This is not documented well, but because of React Router works, it will
- * automatically intercept any render errors produced in routes, and will
- * "swallow" them, preventing the errors from bubbling up to any error
- * boundaries above the router. The global error boundary must be explicitly
- * bound to a route to work as expected.
- */
-import type { Interpolation } from "@emotion/react";
 import Link from "@mui/material/Link";
 import { Button } from "components/Button/Button";
 import { CoderIcon } from "components/Icons/CoderIcon";
