@@ -101,7 +101,7 @@ export const CreateOrganizationPageView: FC<
 						</Popover>
 					</Badges>
 
-					<header className="flex flex-col gap-2 items-center">
+					<header className="flex flex-col items-center">
 						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
 						<p className="max-w-md text-sm text-content-secondary text-center">
 							Organize your deployment into multiple platform teams with unique
