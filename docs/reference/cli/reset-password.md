@@ -23,7 +23,7 @@ URL of a PostgreSQL database to connect to.
 ### --postgres-connection-auth
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>password\|awsiamrds</code>       |
 | Environment | <code>$CODER_PG_CONNECTION_AUTH</code> |
 | Default     | <code>password</code>                  |
