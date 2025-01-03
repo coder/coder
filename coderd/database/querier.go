@@ -285,7 +285,35 @@ type sqlcQuerier interface {
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
-	GetUserStatusChanges(ctx context.Context, arg GetUserStatusChangesParams) ([]GetUserStatusChangesRow, error)
+	// GetUserStatusCountsOverTime returns the count of users in each status over time.
+	// The time range is inclusively defined by the start_time and end_time parameters.
+	//
+	// Bucketing:
+	// Between the start_time and end_time, we include each timestamp where a user's status changed or they were deleted.
+	// We do not bucket these results by day or some other time unit. This is because such bucketing would hide potentially
+	// important patterns. If a user was active for 23 hours and 59 minutes, and then suspended, a daily bucket would hide this.
+	// A daily bucket would also have required us to carefully manage the timezone of the bucket based on the timezone of the user.
+	//
+	// Accumulation:
+	// We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
+	// the result shows the total number of users in each status on any particular day.
+	// dates_of_interest defines all points in time that are relevant to the query.
+	// It includes the start_time, all status changes, all deletions, and the end_time.
+	// latest_status_before_range defines the status of each user before the start_time.
+	// We do not include users who were deleted before the start_time. We use this to ensure that
+	// we correctly count users prior to the start_time for a complete graph.
+	// status_changes_during_range defines the status of each user during the start_time and end_time.
+	// If a user is deleted during the time range, we count status changes prior to the deletion.
+	// Theoretically, it should probably not be possible to update the status of a deleted user, but we
+	// need to ensure that this is enforced, so that a change in business logic later does not break this graph.
+	// relevant_status_changes defines the status of each user at any point in time.
+	// It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
+	// statuses defines all the distinct statuses that were present just before and during the time range.
+	// This is used to ensure that we have a series for every relevant status.
+	// We only want to count the latest status change for each user on each date and then filter them by the relevant status.
+	// We use the row_number function to ensure that we only count the latest status change for each user on each date.
+	// We then filter the status changes by the relevant status in the final select statement below.
+	GetUserStatusCountsOverTime(ctx context.Context, arg GetUserStatusCountsOverTimeParams) ([]GetUserStatusCountsOverTimeRow, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)

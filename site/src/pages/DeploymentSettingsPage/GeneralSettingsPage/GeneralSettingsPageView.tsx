@@ -2,7 +2,7 @@ import AlertTitle from "@mui/material/AlertTitle";
 import type {
 	DAUsResponse,
 	Experiments,
-	GetUserStatusChangesResponse,
+	GetUserStatusCountsOverTimeResponse,
 	SerpentOption,
 } from "api/typesGenerated";
 import {
@@ -25,7 +25,7 @@ export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
 	deploymentDAUs?: DAUsResponse;
 	deploymentDAUsError: unknown;
-	userStatusCountsOverTime?: GetUserStatusChangesResponse;
+	userStatusCountsOverTime?: GetUserStatusCountsOverTimeResponse;
 	activeUserLimit?: number;
 	readonly invalidExperiments: Experiments | string[];
 	readonly safeExperiments: Experiments | string[];

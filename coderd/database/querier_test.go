@@ -2256,7 +2256,7 @@ func TestGroupRemovalTrigger(t *testing.T) {
 	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
 }
 
-func TestGetUserStatusChanges(t *testing.T) {
+func TestGetUserStatusCountsOverTime(t *testing.T) {
 	t.Parallel()
 
 	if !dbtestutil.WillUsePostgres() {
@@ -2294,7 +2294,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 				end := dbtime.Now()
 				start := end.Add(-30 * 24 * time.Hour)
 
-				counts, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+				counts, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 					StartTime: start,
 					EndTime:   end,
 				})
@@ -2342,7 +2342,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 						})
 
 						// Query for the last 30 days
-						userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+						userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 							StartTime: createdAt,
 							EndTime:   today,
 						})
@@ -2510,7 +2510,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 						require.NoError(t, err)
 
 						// Query for the last 5 days
-						userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+						userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 							StartTime: createdAt,
 							EndTime:   today,
 						})
@@ -2639,7 +2639,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 						})
 						require.NoError(t, err)
 
-						userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+						userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 							StartTime: createdAt,
 							EndTime:   today,
 						})
@@ -2715,7 +2715,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 					UpdatedAt: createdAt,
 				})
 
-				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+				userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 					StartTime: createdAt.Add(time.Hour * 24),
 					EndTime:   today,
 				})
@@ -2742,7 +2742,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 				err = db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
-				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+				userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 					StartTime: today.Add(time.Hour * 24),
 					EndTime:   today.Add(time.Hour * 48),
 				})
@@ -2764,7 +2764,7 @@ func TestGetUserStatusChanges(t *testing.T) {
 				err := db.UpdateUserDeletedByID(ctx, user.ID)
 				require.NoError(t, err)
 
-				userStatusChanges, err := db.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+				userStatusChanges, err := db.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 					StartTime: createdAt,
 					EndTime:   today.Add(time.Hour * 24),
 				})

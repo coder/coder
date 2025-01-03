@@ -776,12 +776,12 @@ export interface GenerateAPIKeyResponse {
 }
 
 // From codersdk/insights.go
-export interface GetUserStatusChangesRequest {
+export interface GetUserStatusCountsOverTimeRequest {
     readonly offset: string;
 }
 
 // From codersdk/insights.go
-export interface GetUserStatusChangesResponse {
+export interface GetUserStatusCountsOverTimeResponse {
     readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
 }
 

@@ -2882,7 +2882,7 @@ CreateWorkspaceRequest provides options for creating a new workspace. Only one o
 | ----- | ------ | -------- | ------------ | ----------- |
 | `key` | string | false    |              |             |
 
-## codersdk.GetUserStatusChangesResponse
+## codersdk.GetUserStatusCountsOverTimeResponse
 
 ```json
 {

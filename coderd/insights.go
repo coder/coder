@@ -298,7 +298,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 // @Produce json
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
-// @Success 200 {object} codersdk.GetUserStatusChangesResponse
+// @Success 200 {object} codersdk.GetUserStatusCountsOverTimeResponse
 // @Router /insights/user-status-counts-over-time [get]
 func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
@@ -324,7 +324,7 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 	// Always return 60 days of data (2 months).
 	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetUserStatusChanges(ctx, database.GetUserStatusChangesParams{
+	rows, err := api.Database.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
 	})
@@ -336,7 +336,7 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 		return
 	}
 
-	resp := codersdk.GetUserStatusChangesResponse{
+	resp := codersdk.GetUserStatusCountsOverTimeResponse{
 		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
 	}
 
