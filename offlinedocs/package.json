@@ -27,7 +27,7 @@
 		"react-markdown": "9.0.1",
 		"rehype-raw": "7.0.0",
 		"remark-gfm": "4.0.0",
-		"sanitize-html": "2.13.1"
+		"sanitize-html": "2.14.0"
 	},
 	"devDependencies": {
 		"@types/lodash": "4.17.13",
