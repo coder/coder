@@ -98,6 +98,9 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
+					variable "unrelated" {
+						type = bool
+					}
 					data "coder_parameter" "unrelated" {
 						name    = "unrelated"
 						type    = "list(string)"
