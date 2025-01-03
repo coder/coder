@@ -423,6 +423,36 @@ $$;
 
 COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
 
+CREATE FUNCTION record_user_status_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
+        INSERT INTO user_status_changes (
+            user_id,
+            new_status,
+            changed_at
+        ) VALUES (
+            NEW.id,
+            NEW.status,
+            NEW.updated_at
+        );
+    END IF;
+
+    IF OLD.deleted = FALSE AND NEW.deleted = TRUE THEN
+        INSERT INTO user_deleted (
+            user_id,
+            deleted_at
+        ) VALUES (
+            NEW.id,
+            NEW.updated_at
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
+
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
@@ -1377,6 +1407,14 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE user_deleted (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE user_deleted IS 'Tracks when users were deleted';
+
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
     login_type login_type NOT NULL,
@@ -1394,6 +1432,15 @@ COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key use
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
+
+CREATE TABLE user_status_changes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    new_status user_status NOT NULL,
+    changed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1980,8 +2027,14 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
+
+ALTER TABLE ONLY user_status_changes
+    ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
@@ -2092,6 +2145,10 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
+
+CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
@@ -2235,6 +2292,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
+CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
@@ -2358,6 +2417,9 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
@@ -2366,6 +2428,9 @@ ALTER TABLE ONLY user_links
 
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY user_status_changes
+    ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
 
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
