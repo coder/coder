@@ -23,14 +23,16 @@ You can run the UI and access the Coder dashboard in two ways:
 In both cases, you can access the dashboard on `http://localhost:8080`. If using
 `./scripts/develop.sh` you can log in with the default credentials.
 
-> [!TIP]
->
-> **Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
+<blockquote class="admonition note">
+
+**Default Credentials:** `admin@coder.com` and `SomeSecurePassword!`.
+
+</blockquote>
 
 ## Tech Stack Overview
 
-All our dependencies are described in `site/package.json` but the following are
-the most important:
+All our dependencies are described in `site/package.json`, but the following are
+the most important.
 
 - [React](https://reactjs.org/) for the UI framework
 - [Typescript](https://www.typescriptlang.org/) to keep our sanity

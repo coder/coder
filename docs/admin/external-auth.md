@@ -168,8 +168,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 
 ## JFrog Artifactory
 
-See [this](../admin/integrations/jfrog-artifactory.md) guide on instructions on
-how to set up for JFrog Artifactory.
+Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
 
 ## Custom scopes
 
@@ -190,6 +189,16 @@ Multiple providers is an Enterprise and Premium feature.
 
 Below is an example configuration with multiple providers:
 
+<blockquote class="admonition warning">
+
+**Note:** To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
+
+```shell
+git config --global credential.useHttpPath true
+```
+
+</blockquote>
+
 ```env
 # Provider 1) github.com
 CODER_EXTERNAL_AUTH_0_ID=primary-github
@@ -207,12 +216,4 @@ CODER_EXTERNAL_AUTH_1_REGEX=github\.example\.com
 CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize"
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
-```
-
-To support regex matching for paths (e.g. `github\.com/org`), you'll need to add
-this to the
-[Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
-
-```shell
-git config --global credential.useHttpPath true
 ```
