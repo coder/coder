@@ -14,7 +14,7 @@ export const Welcome: FC<PropsWithChildren> = ({ children }) => {
 	return (
 		<div>
 			<div css={styles.container}>
-				<CoderIcon css={styles.icon} />
+				<CoderIcon className="w-12 h-12" />
 			</div>
 			<h1 css={styles.header}>{children || Language.defaultMessage}</h1>
 		</div>
