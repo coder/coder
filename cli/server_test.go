@@ -1832,6 +1832,8 @@ func TestConnectToPostgres(t *testing.T) {
 	}
 
 	t.Run("Migrate", func(t *testing.T) {
+		t.Parallel()
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 
@@ -1849,6 +1851,8 @@ func TestConnectToPostgres(t *testing.T) {
 	})
 
 	t.Run("NoMigrate", func(t *testing.T) {
+		t.Parallel()
+
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		t.Cleanup(cancel)
 
