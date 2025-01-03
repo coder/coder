@@ -501,7 +501,7 @@ supportLinks: []
 externalAuthProviders: []
 # Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By
 # default, this will pick the best available wgtunnel server hosted by Coder. e.g.
-# tunnel.example.com.
+# "tunnel.example.com".
 # (default: <unset>, type: string)
 wgtunnelHost: ""
 # Allow users to set quiet hours schedules each day for workspaces to avoid

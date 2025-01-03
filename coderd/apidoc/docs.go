@@ -11000,7 +11000,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "regex": {
-                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for https://github.com:'\nAnd sending it to the Coder server to match against the Regex.",
+                    "description": "Regex allows API requesters to match an auth config by\na string (e.g. coder.com) instead of by it's type.\n\nGit clone makes use of this by parsing the URL from:\n'Username for \"https://github.com\":'\nAnd sending it to the Coder server to match against the Regex.",
                     "type": "string"
                 },
                 "scopes": {

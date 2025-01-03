@@ -594,7 +594,7 @@ type ExternalAuthConfig struct {
 	// a string (e.g. coder.com) instead of by it's type.
 	//
 	// Git clone makes use of this by parsing the URL from:
-	// 'Username for https://github.com:'
+	// 'Username for "https://github.com":'
 	// And sending it to the Coder server to match against the Regex.
 	Regex string `json:"regex" yaml:"regex"`
 	// DisplayName is shown in the UI to identify the auth config.
@@ -1174,7 +1174,7 @@ when required by your organization's security policy.`,
 			Flag:        "wildcard-access-url",
 			Env:         "CODER_WILDCARD_ACCESS_URL",
 			// Do not use a serpent.URL here. We are intentionally omitting the
-			// scheme part of the url https://, so the standard url parsing
+			// scheme part of the url (https://), so the standard url parsing
 			// will yield unexpected results.
 			//
 			// We have a validation function to ensure the wildcard url is correct,
@@ -2530,7 +2530,7 @@ Write out the current server config as YAML to stdout.`,
 		},
 		{
 			Name:        "Custom wgtunnel Host",
-			Description: "Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. tunnel.example.com.",
+			Description: `Hostname of HTTPS server that runs https://github.com/coder/wgtunnel. By default, this will pick the best available wgtunnel server hosted by Coder. e.g. "tunnel.example.com".`,
 			Flag:        "wg-tunnel-host",
 			Env:         "WGTUNNEL_HOST",
 			YAML:        "wgtunnelHost",
