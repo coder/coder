@@ -4,7 +4,7 @@ import "github.com/coder/coder/v2/apiversion"
 
 const (
 	CurrentMajor = 1
-	CurrentMinor = 1
+	CurrentMinor = 2
 )
 
 // CurrentVersion is the current provisionerd API version.
