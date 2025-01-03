@@ -14,9 +14,8 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, useCallback } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams } from "react-router";
 import { pageTitle } from "utils/page";
 import { useTemplateSettings } from "../TemplateSettingsLayout";
 import { TemplateVariablesPageView } from "./TemplateVariablesPageView";
@@ -86,9 +85,7 @@ export const TemplateVariablesPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(template.name, "Template variables")}</title>
-			</Helmet>
+			<title>{pageTitle(template.name, "Template variables")}</title>
 
 			<TemplateVariablesPageView
 				isSubmitting={isSubmitting}

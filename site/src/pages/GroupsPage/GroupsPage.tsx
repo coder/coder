@@ -4,7 +4,6 @@ import { displayError } from "components/GlobalSnackbar/utils";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import GroupsPageView from "./GroupsPageView";
@@ -24,9 +23,7 @@ export const GroupsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Groups")}</title>
-			</Helmet>
+			<title>{pageTitle("Groups")}</title>
 
 			<GroupsPageView
 				groups={groupsQuery.data}

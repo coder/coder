@@ -2,7 +2,7 @@ import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppProviders } from "App";
 import { RequireAuth } from "contexts/auth/RequireAuth";
-import { RouterProvider, createMemoryRouter } from "react-router-dom";
+import { RouterProvider, createMemoryRouter } from "react-router";
 import TemplatesPage from "./TemplatesPage";
 
 test("create template from scratch", async () => {

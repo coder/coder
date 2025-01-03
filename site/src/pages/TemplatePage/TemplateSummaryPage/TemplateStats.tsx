@@ -1,7 +1,7 @@
 import type { Template, TemplateVersion } from "api/typesGenerated";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 import { createDayString } from "utils/createDayString";
 import {
 	formatTemplateActiveDevelopers,

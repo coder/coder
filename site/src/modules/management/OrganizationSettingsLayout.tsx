@@ -14,7 +14,7 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, Suspense, createContext, useContext } from "react";
-import { Outlet, useParams } from "react-router-dom";
+import { Outlet, useParams } from "react-router";
 import { OrganizationSidebar } from "./OrganizationSidebar";
 
 export const OrganizationSettingsContext = createContext<

@@ -33,7 +33,7 @@ import { Stack } from "components/Stack/Stack";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink, useNavigate } from "react-router-dom";
+import { Link as RouterLink, useNavigate } from "react-router";
 import { useDeletionDialogState } from "./useDeletionDialogState";
 
 type TemplateMenuProps = {
@@ -168,7 +168,6 @@ export const TemplatePageHeader: FC<TemplatePageHeaderProps> = ({
 	onDeleteTemplate,
 }) => {
 	const getLink = useLinks();
-	const hasIcon = template.icon && template.icon !== "";
 	const templateLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);

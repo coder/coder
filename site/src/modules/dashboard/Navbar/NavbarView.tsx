@@ -3,7 +3,7 @@ import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import { CoderIcon } from "components/Icons/CoderIcon";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import type { FC } from "react";
-import { NavLink, useLocation } from "react-router-dom";
+import { NavLink, useLocation } from "react-router";
 import { cn } from "utils/cn";
 import { DeploymentDropdown } from "./DeploymentDropdown";
 import { MobileMenu } from "./MobileMenu";

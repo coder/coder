@@ -7,9 +7,8 @@ import {
 	useEffect,
 	useState,
 } from "react";
-import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider } from "react-query";
-import { RouterProvider } from "react-router-dom";
+import { RouterProvider } from "react-router";
 import { GlobalSnackbar } from "./components/GlobalSnackbar/GlobalSnackbar";
 import { ThemeProvider } from "./contexts/ThemeProvider";
 import { AuthProvider } from "./contexts/auth/AuthProvider";
@@ -63,17 +62,15 @@ export const AppProviders: FC<AppProvidersProps> = ({
 	}, []);
 
 	return (
-		<HelmetProvider>
-			<QueryClientProvider client={queryClient}>
-				<AuthProvider>
-					<ThemeProvider>
-						{children}
-						<GlobalSnackbar />
-					</ThemeProvider>
-				</AuthProvider>
-				{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
-			</QueryClientProvider>
-		</HelmetProvider>
+		<QueryClientProvider client={queryClient}>
+			<AuthProvider>
+				<ThemeProvider>
+					{children}
+					<GlobalSnackbar />
+				</ThemeProvider>
+			</AuthProvider>
+			{showDevtools && <ReactQueryDevtools initialIsOpen={showDevtools} />}
+		</QueryClientProvider>
 	);
 };
 

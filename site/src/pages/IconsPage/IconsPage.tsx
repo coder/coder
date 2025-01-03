@@ -16,7 +16,6 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import { type FC, type ReactNode, useMemo, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import {
 	defaultParametersForBuiltinIcons,
 	parseImageParameters,
@@ -74,9 +73,8 @@ export const IconsPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Icons")}</title>
-			</Helmet>
+			<title>{pageTitle("Icons")}</title>
+
 			<Margins>
 				<PageHeader
 					actions={

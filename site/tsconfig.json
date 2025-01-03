@@ -10,6 +10,7 @@
 		"module": "esnext",
 		"moduleResolution": "node",
 		"noEmit": true,
+		"noUnusedLocals": true,
 		"outDir": "build/",
 		"preserveWatchOutput": true,
 		"resolveJsonModule": true,

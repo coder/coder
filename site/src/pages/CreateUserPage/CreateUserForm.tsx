@@ -9,7 +9,7 @@ import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { PasswordField } from "components/PasswordField/PasswordField";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect } from "react";
+import type { FC } from "react";
 import {
 	displayNameValidator,
 	getFormHelpers,

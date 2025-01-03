@@ -21,14 +21,13 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { usePaginatedQuery } from "hooks/usePaginatedQuery";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import {
 	Navigate,
 	useLocation,
 	useNavigate,
 	useSearchParams,
-} from "react-router-dom";
+} from "react-router";
 import { pageTitle } from "utils/page";
 import { generateRandomString } from "utils/random";
 import { ResetPasswordDialog } from "./ResetPasswordDialog";
@@ -114,9 +113,7 @@ const UsersPage: FC<UserPageProps> = ({ defaultNewPassword }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Users")}</title>
-			</Helmet>
+			<title>{pageTitle("Users")}</title>
 
 			<UsersPageView
 				oidcRoleSyncEnabled={oidcRoleSyncEnabled}

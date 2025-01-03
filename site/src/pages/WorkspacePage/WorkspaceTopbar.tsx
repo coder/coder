@@ -23,7 +23,7 @@ import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { Link as RouterLink } from "react-router-dom";
+import { Link as RouterLink } from "react-router";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";

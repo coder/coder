@@ -3,10 +3,9 @@ import { createFirstUser } from "api/queries/users";
 import { Loader } from "components/Loader/Loader";
 import { useAuthContext } from "contexts/auth/AuthProvider";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
+import { type FC, useEffect } from "react";
 import { useMutation, useQuery } from "react-query";
-import { Navigate, useNavigate } from "react-router-dom";
+import { Navigate, useNavigate } from "react-router";
 import { pageTitle } from "utils/page";
 import { sendDeploymentEvent } from "utils/telemetry";
 import { SetupPageView } from "./SetupPageView";
@@ -50,9 +49,8 @@ export const SetupPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Set up your account")}</title>
-			</Helmet>
+			<title>{pageTitle("Set up your account")}</title>
+
 			<SetupPageView
 				isLoading={isSigningIn || createFirstUserMutation.isLoading}
 				error={createFirstUserMutation.error}

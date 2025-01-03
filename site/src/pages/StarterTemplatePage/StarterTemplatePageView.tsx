@@ -15,7 +15,7 @@ import {
 } from "components/PageHeader/PageHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 export interface StarterTemplatePageViewProps {
 	starterTemplate?: TemplateExample;

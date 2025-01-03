@@ -13,9 +13,8 @@ import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
-import { useParams } from "react-router-dom";
+import { useParams } from "react-router";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
@@ -57,9 +56,7 @@ export const IdpSyncPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("IdP Sync")}</title>
-			</Helmet>
+			<title>{pageTitle("IdP Sync")}</title>
 
 			<Stack
 				alignItems="baseline"

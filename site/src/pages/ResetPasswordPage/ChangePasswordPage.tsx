@@ -2,7 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
-import { isApiError, isApiValidationError } from "api/errors";
+import { isApiValidationError } from "api/errors";
 import { changePasswordWithOTP } from "api/queries/users";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { CustomLogo } from "components/CustomLogo/CustomLogo";
@@ -10,13 +10,8 @@ import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Stack } from "components/Stack/Stack";
 import { useFormik } from "formik";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation } from "react-query";
-import {
-	Link as RouterLink,
-	useNavigate,
-	useSearchParams,
-} from "react-router-dom";
+import { Link as RouterLink, useNavigate, useSearchParams } from "react-router";
 import { getApplicationName } from "utils/appearance";
 import { getFormHelpers } from "utils/formUtils";
 import * as yup from "yup";
@@ -69,9 +64,7 @@ const ChangePasswordPage: FC<ChangePasswordChangeProps> = ({ redirect }) => {
 
 	return (
 		<>
-			<Helmet>
-				<title>Reset Password - {applicationName}</title>
-			</Helmet>
+			<title>Reset Password - {applicationName}</title>
 
 			<div css={styles.root}>
 				<main css={styles.container}>

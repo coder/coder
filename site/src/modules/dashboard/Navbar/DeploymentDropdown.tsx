@@ -11,7 +11,7 @@ import {
 import { ChevronDownIcon } from "lucide-react";
 import { linkToAuditing } from "modules/navigation";
 import type { FC } from "react";
-import { NavLink } from "react-router-dom";
+import { NavLink } from "react-router";
 
 interface DeploymentDropdownProps {
 	canViewDeployment: boolean;

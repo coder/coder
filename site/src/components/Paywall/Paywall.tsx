@@ -5,7 +5,6 @@ import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
-import { docs } from "utils/docs";
 
 export interface PaywallProps {
 	message: string;

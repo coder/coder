@@ -1,5 +1,4 @@
 import { execSync } from "node:child_process";
-import * as path from "node:path";
 import { defineConfig } from "@playwright/test";
 import {
 	coderMain,

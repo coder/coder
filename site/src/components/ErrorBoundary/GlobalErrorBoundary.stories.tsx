@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
 import { expect, userEvent } from "@storybook/test";
 import { within } from "@testing-library/react";
-import type { ErrorResponse } from "react-router-dom";
+import type { ErrorResponse } from "react-router";
 import { GlobalErrorBoundaryInner } from "./GlobalErrorBoundary";
 
 /**

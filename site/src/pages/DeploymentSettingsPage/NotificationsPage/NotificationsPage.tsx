@@ -11,7 +11,6 @@ import { useDeploymentSettings } from "modules/management/DeploymentSettingsProv
 import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQueries } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
@@ -37,9 +36,8 @@ export const NotificationsPage: FC = () => {
 	const ready = !!(templatesByGroup.data && dispatchMethods.data);
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Notifications Settings")}</title>
-			</Helmet>
+			<title>{pageTitle("Notifications Settings")}</title>
+
 			<Section
 				title="Notifications"
 				description="Control delivery methods for notifications on this deployment."

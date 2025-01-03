@@ -7,10 +7,9 @@ import {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import type { FC } from "react";
 import { useQuery } from "react-query";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router";
 import { CreateTemplateForm } from "./CreateTemplateForm";
 import type { CreateTemplatePageViewProps } from "./types";
 import {

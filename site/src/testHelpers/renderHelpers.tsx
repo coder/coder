@@ -12,13 +12,13 @@ import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
 import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
-import type { ReactNode } from "react";
+import type { JSX, ReactNode } from "react";
 import { QueryClient } from "react-query";
 import {
 	type RouteObject,
 	RouterProvider,
 	createMemoryRouter,
-} from "react-router-dom";
+} from "react-router";
 import { MockUser } from "./entities";
 
 export function createTestQueryClient() {
@@ -243,7 +243,7 @@ export const waitForLoaderToBeRemoved = async (): Promise<void> => {
 	);
 };
 
-export const renderComponent = (component: React.ReactElement) => {
+export const renderComponent = (component: React.ReactNode) => {
 	return testingLibraryRender(component, {
 		wrapper: ({ children }) => <ThemeProvider>{children}</ThemeProvider>,
 	});

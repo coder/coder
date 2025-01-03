@@ -27,7 +27,7 @@ import { WorkspaceOutdatedTooltip } from "modules/workspaces/WorkspaceOutdatedTo
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import { LastUsed } from "pages/WorkspacesPage/LastUsed";
 import type { FC, ReactNode } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getDisplayWorkspaceTemplateName } from "utils/workspace";
 import { WorkspacesEmpty } from "./WorkspacesEmpty";
 

@@ -2,7 +2,6 @@ import type { Meta, StoryObj } from "@storybook/react";
 import { fn, userEvent, within } from "@storybook/test";
 import { PointerEventsCheckLevel } from "@testing-library/user-event";
 import type { FC } from "react";
-import { chromaticWithTablet } from "testHelpers/chromatic";
 import {
 	MockPrimaryWorkspaceProxy,
 	MockProxyLatencies,

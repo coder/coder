@@ -12,7 +12,7 @@ import type { Permissions } from "contexts/auth/permissions";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { Link, NavLink } from "react-router";
 
 export interface OrganizationWithPermissions extends Organization {
 	permissions: AuthorizationResponse;

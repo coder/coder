@@ -4,7 +4,6 @@ import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useTemplateLayoutContext } from "pages/TemplatePage/TemplateLayout";
 import { useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery } from "react-query";
 import { getTemplatePageTitle } from "../utils";
 import { VersionsTable } from "./VersionsTable";
@@ -62,9 +61,8 @@ const TemplateVersionsPage = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{getTemplatePageTitle("Versions", template)}</title>
-			</Helmet>
+			<title>{getTemplatePageTitle("Versions", template)}</title>
+
 			<VersionsTable
 				versions={data}
 				onPromoteClick={

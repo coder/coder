@@ -40,7 +40,7 @@ import {
 import { useClickableTableRow } from "hooks/useClickableTableRow";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { createDayString } from "utils/createDayString";
 import { docs } from "utils/docs";
 import {
@@ -94,7 +94,6 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 	const templatePageLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
-	const hasIcon = template.icon && template.icon !== "";
 	const navigate = useNavigate();
 
 	const { css: clickableCss, ...clickableRow } = useClickableTableRow({

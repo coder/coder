@@ -12,7 +12,7 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
 import type { FormikContextType } from "formik";
 import { type FC, useEffect, useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router";
 import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
 import {
 	type CreateTokenData,

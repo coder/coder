@@ -5,7 +5,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link } from "react-router";
 
 interface WorkspacesEmptyProps {
 	isUsingFilter: boolean;

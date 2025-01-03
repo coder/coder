@@ -1,7 +1,6 @@
 import { templateExamples } from "api/queries/templates";
 import type { TemplateExample } from "api/typesGenerated";
 import type { FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { getTemplatesByTag } from "utils/starterTemplates";
@@ -16,9 +15,8 @@ const CreateTemplatesGalleryPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle("Create a Template")}</title>
-			</Helmet>
+			<title>{pageTitle("Create a Template")}</title>
+
 			<CreateTemplateGalleryPageView
 				error={templateExamplesQuery.error}
 				starterTemplatesByTag={starterTemplatesByTag}

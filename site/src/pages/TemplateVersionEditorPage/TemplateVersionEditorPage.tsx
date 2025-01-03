@@ -17,9 +17,8 @@ import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { type FC, useEffect, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import { type FileTree, traverse } from "utils/filetree";
 import { pageTitle } from "utils/page";
 import { TarReader, TarWriter } from "utils/tar";
@@ -126,9 +125,7 @@ export const TemplateVersionEditorPage: FC = () => {
 
 	return (
 		<>
-			<Helmet>
-				<title>{pageTitle(templateName, "Template Editor")}</title>
-			</Helmet>
+			<title>{pageTitle(templateName, "Template Editor")}</title>
 
 			{!(templateQuery.data && activeTemplateVersion && fileTree) ? (
 				<Loader fullscreen />

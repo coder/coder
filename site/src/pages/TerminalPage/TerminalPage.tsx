@@ -14,9 +14,8 @@ import {
 import { useProxy } from "contexts/ProxyContext";
 import { ThemeOverride } from "contexts/ThemeProvider";
 import { type FC, useCallback, useEffect, useRef, useState } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useNavigate, useParams, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router";
 import themes from "theme";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { pageTitle } from "utils/page";
@@ -99,7 +98,7 @@ const TerminalPage: FC = () => {
 	}, [handleWebLink]);
 
 	// Create the terminal!
-	const fitAddonRef = useRef<FitAddon>();
+	const fitAddonRef = useRef<FitAddon | undefined>(undefined);
 	useEffect(() => {
 		if (!terminalWrapperRef.current || config.isLoading) {
 			return;
@@ -306,15 +305,14 @@ const TerminalPage: FC = () => {
 
 	return (
 		<ThemeOverride theme={theme}>
-			<Helmet>
-				<title>
-					{workspace.data
-						? pageTitle(
-								`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
-							)
-						: ""}
-				</title>
-			</Helmet>
+			<title>
+				{workspace.data
+					? pageTitle(
+							`Terminal · ${workspace.data.owner_name}/${workspace.data.name}`,
+						)
+					: ""}
+			</title>
+
 			<div
 				css={{ display: "flex", flexDirection: "column", height: "100vh" }}
 				data-status={connectionStatus}

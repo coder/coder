@@ -9,7 +9,7 @@ import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { type FC, Suspense } from "react";
-import { Outlet } from "react-router-dom";
+import { Outlet } from "react-router";
 import { DeploymentSidebar } from "./DeploymentSidebar";
 
 const DeploymentSettingsLayout: FC = () => {

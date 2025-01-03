@@ -53,9 +53,8 @@ import {
 	type ReactNode,
 	useId,
 } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useSearchParams } from "react-router-dom";
+import { useSearchParams } from "react-router";
 import { getLatencyColor } from "utils/latency";
 import { getTemplatePageTitle } from "../utils";
 import { DateRange as DailyPicker, type DateRangeValue } from "./DateRange";
@@ -101,9 +100,8 @@ export default function TemplateInsightsPage() {
 
 	return (
 		<>
-			<Helmet>
-				<title>{getTemplatePageTitle("Insights", template)}</title>
-			</Helmet>
+			<title>{getTemplatePageTitle("Insights", template)}</title>
+
 			<TemplateInsightsPageView
 				controls={
 					<>
