@@ -2099,7 +2099,7 @@ class ApiMethods {
 
 	getInsightsUserStatusCountsOverTime = async (
 		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
-	): Promise<TypesGen.GetUserStatusChangesResponse> => {
+	): Promise<TypesGen.GetUserStatusCountsOverTimeResponse> => {
 		const searchParams = new URLSearchParams({
 			offset: offset.toString(),
 		});

@@ -1337,10 +1337,10 @@ func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, u
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetUserStatusChanges(ctx context.Context, arg database.GetUserStatusChangesParams) ([]database.GetUserStatusChangesRow, error) {
+func (m queryMetricsStore) GetUserStatusCountsOverTime(ctx context.Context, arg database.GetUserStatusCountsOverTimeParams) ([]database.GetUserStatusCountsOverTimeRow, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetUserStatusChanges(ctx, arg)
-	m.queryLatencies.WithLabelValues("GetUserStatusChanges").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetUserStatusCountsOverTime(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserStatusCountsOverTime").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
