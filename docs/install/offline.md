@@ -249,7 +249,7 @@ Coder is installed.
 ## JetBrains IDEs
 
 Gateway, JetBrains' remote development product that works with Coder,
-[has documented offline deployment steps.](../user-guides/workspace-access/jetbrains/jetbrains-offline.md)
+[has documented offline deployment steps.](../user-guides/workspace-access/jetbrains/jetbrains-airgapped.md)
 
 ## Microsoft VS Code Remote - SSH
 

@@ -1,4 +1,4 @@
-# JetBrains Gateway in an offline environment
+# JetBrains Gateway in an air-gapped environment
 
 In networks that restrict access to the internet, you will need to leverage the
 JetBrains Client Installer to download and save the IDE clients locally. Please
