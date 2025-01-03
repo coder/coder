@@ -2151,6 +2151,67 @@ func AllWorkspaceAppHealthValues() []WorkspaceAppHealth {
 	}
 }
 
+type WorkspaceAppOpenIn string
+
+const (
+	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
+	WorkspaceAppOpenInWindow     WorkspaceAppOpenIn = "window"
+	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
+)
+
+func (e *WorkspaceAppOpenIn) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppOpenIn(s)
+	case string:
+		*e = WorkspaceAppOpenIn(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppOpenIn: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAppOpenIn struct {
+	WorkspaceAppOpenIn WorkspaceAppOpenIn `json:"workspace_app_open_in"`
+	Valid              bool               `json:"valid"` // Valid is true if WorkspaceAppOpenIn is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAppOpenIn) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAppOpenIn, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAppOpenIn.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAppOpenIn) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAppOpenIn), nil
+}
+
+func (e WorkspaceAppOpenIn) Valid() bool {
+	switch e {
+	case WorkspaceAppOpenInTab,
+		WorkspaceAppOpenInWindow,
+		WorkspaceAppOpenInSlimWindow:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAppOpenInValues() []WorkspaceAppOpenIn {
+	return []WorkspaceAppOpenIn{
+		WorkspaceAppOpenInTab,
+		WorkspaceAppOpenInWindow,
+		WorkspaceAppOpenInSlimWindow,
+	}
+}
+
 type WorkspaceTransition string
 
 const (
@@ -3092,7 +3153,8 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool `db:"hidden" json:"hidden"`
+	Hidden bool               `db:"hidden" json:"hidden"`
+	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
 // A record of workspace app usage statistics

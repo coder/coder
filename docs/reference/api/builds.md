@@ -78,6 +78,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"open_in": "string",
 							"sharing_level": "owner",
 							"slug": "string",
 							"subdomain": true,
@@ -268,6 +269,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"open_in": "string",
 							"sharing_level": "owner",
 							"slug": "string",
 							"subdomain": true,
@@ -592,6 +594,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 						"hidden": true,
 						"icon": "string",
 						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+						"open_in": "string",
 						"sharing_level": "owner",
 						"slug": "string",
 						"subdomain": true,
@@ -714,6 +717,7 @@ Status Code **200**
 | `»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» open_in`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -892,6 +896,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"open_in": "string",
 							"sharing_level": "owner",
 							"slug": "string",
 							"subdomain": true,
@@ -1155,6 +1160,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 								"hidden": true,
 								"icon": "string",
 								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+								"open_in": "string",
 								"sharing_level": "owner",
 								"slug": "string",
 								"subdomain": true,
@@ -1318,6 +1324,7 @@ Status Code **200**
 | `»»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» open_in`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -1550,6 +1557,7 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 							"hidden": true,
 							"icon": "string",
 							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+							"open_in": "string",
 							"sharing_level": "owner",
 							"slug": "string",
 							"subdomain": true,

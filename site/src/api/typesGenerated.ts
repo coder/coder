@@ -2553,12 +2553,18 @@ export interface WorkspaceApp {
     readonly healthcheck: Healthcheck;
     readonly health: WorkspaceAppHealth;
     readonly hidden: boolean;
+    readonly open_in: string;
 }
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhealthy";
 
 export const WorkspaceAppHealths: WorkspaceAppHealth[] = ["disabled", "healthy", "initializing", "unhealthy"];
+
+// From codersdk/workspaceapps.go
+export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
+
+export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab", "window"];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
