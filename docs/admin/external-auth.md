@@ -12,20 +12,46 @@ application. The following providers are supported:
 The next step is to configure the Coder server to use the OAuth application by
 setting the following environment variables:
 
+## Configuration
+
 ```env
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
 CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=<OAuth app client ID>
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=<OAuth app client secret>
 
 # Optionally, configure a custom display name and icon
 CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
-
 The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
+
+You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider.
+
+```tf
+data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
+	id = "<USER_DEFINED_ID>"
+}
+
+# Github Example (CODER_EXTERNAL_AUTH_0_ID="github-auth")
+# makes a github authentication token available at data.coder_external_auth.github.access_token
+data "coder_external_auth" "github" {
+   id = "github-auth"
+}
+
+```
+
+Inside your terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
+
+### Workspace CLI
+An access token can be accessed within the workspace by using
+
+```
+coder external-auth <USER_DEFINED_ID> access-token
+```
+
 
 ## GitHub
 
