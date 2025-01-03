@@ -22,6 +22,13 @@ export enum AppSharingLevel {
   UNRECOGNIZED = -1,
 }
 
+export enum AppOpenIn {
+	WINDOW = 0,
+	SLIM_WINDOW = 1,
+	TAB = 2,
+	UNRECOGNIZED = -1,
+}
+
 /** WorkspaceTransition is the desired outcome of a build */
 export enum WorkspaceTransition {
   START = 0,

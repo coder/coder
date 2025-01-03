@@ -154,7 +154,8 @@ data "local_sensitive_file" "cache_repo_dockerconfigjson" {
 }
 
 resource "docker_image" "devcontainer_builder_image" {
-  name = local.devcontainer_builder_image
+  name         = local.devcontainer_builder_image
+  keep_locally = true
 }
 
 resource "docker_volume" "workspaces" {

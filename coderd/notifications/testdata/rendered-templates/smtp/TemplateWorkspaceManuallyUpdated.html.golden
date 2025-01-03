@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Workspace 'bobby-workspace' has been created
+Subject: Workspace 'bobby-workspace' has been manually updated
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,11 +12,14 @@ Content-Type: text/plain; charset=UTF-8
 
 Hello Bobby,
 
-The workspace bobby-workspace has been created from the template bobby-temp=
-late using version alpha.
+A new workspace build has been manually created for your workspace bobby-wo=
+rkspace by bobby to update it to version alpha of template bobby-template.
 
 
 View workspace: http://test.com/@bobby/bobby-workspace
+
+View template version: http://test.com/templates/bobby-organization/bobby-t=
+emplate/versions/alpha
 
 --bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
 Content-Transfer-Encoding: quoted-printable
@@ -28,7 +31,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Workspace 'bobby-workspace' has been created</title>
+    <title>Workspace 'bobby-workspace' has been manually updated</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -43,14 +46,14 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Workspace 'bobby-workspace' has been created
+        Workspace 'bobby-workspace' has been manually updated
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hello Bobby,</p>
 
-<p>The workspace <strong>bobby-workspace</strong> has been created from the=
- template <strong>bobby-template</strong> using version <strong>alpha</stro=
-ng>.</p>
+<p>A new workspace build has been manually created for your workspace <stro=
+ng>bobby-workspace</strong> by <strong>bobby</strong> to update it to versi=
+on <strong>alpha</strong> of template <strong>bobby-template</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
@@ -58,6 +61,13 @@ ng>.</p>
 : inline-block; padding: 13px 24px; background-color: #020617; color: #f8fa=
 fc; text-decoration: none; border-radius: 8px; margin: 0 4px;">
           View workspace
+        </a>
+       =20
+        <a href=3D"http://test.com/templates/bobby-organization/bobby-templ=
+ate/versions/alpha" style=3D"display: inline-block; padding: 13px 24px; bac=
+kground-color: #020617; color: #f8fafc; text-decoration: none; border-radiu=
+s: 8px; margin: 0 4px;">
+          View template version
         </a>
        =20
       </div>
@@ -69,8 +79,8 @@ ttp://test.com</a></p>
         <p><a href=3D"http://test.com/settings/notifications" style=3D"colo=
 r: #2563eb; text-decoration: none;">Click here to manage your notification =
 settings</a></p>
-        <p><a href=3D"http://test.com/settings/notifications?disabled=3D281=
-fdf73-c6d6-4cbb-8ff5-888baf8a2fff" style=3D"color: #2563eb; text-decoration=
+        <p><a href=3D"http://test.com/settings/notifications?disabled=3Dd08=
+9fe7b-d5c5-4c0c-aaf5-689859f7d392" style=3D"color: #2563eb; text-decoration=
 : none;">Stop receiving emails like this</a></p>
       </div>
     </div>

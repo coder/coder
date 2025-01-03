@@ -27,6 +27,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -557,6 +559,104 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[2], "first_resource", "example", 1)  // resource has 1 agent with explicit order
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[3], "fourth_resource", "example", 0) // resource has no agents, sorted by name
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[4], "third_resource", "example", 0)  // resource is the last one
+	})
+}
+
+func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OnlyOneNotification", func(t *testing.T) {
+		t.Parallel()
+
+		notify := &notificationstest.FakeEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create a template with an initial version
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// Create a workspace using this template
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create a new version of the template
+		newVersion := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
+
+		// Create a workspace build using this new template version
+		build := coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
+			cwbr.TemplateVersionID = newVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create the workspace build _again_. We are doing this to ensure we only create 1 notification.
+		build = coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
+			cwbr.TemplateVersionID = newVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Ensure we receive only 1 workspace manually updated notification
+		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		require.Len(t, sent, 1)
+		require.Equal(t, user.ID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, template.ID)
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+	})
+
+	t.Run("ToCorrectUser", func(t *testing.T) {
+		t.Parallel()
+
+		notify := &notificationstest.FakeEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		first := coderdtest.CreateFirstUser(t, client)
+		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create a template with an initial version
+		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+
+		// Create a workspace using this template
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create a new version of the template
+		newVersion := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
+
+		// Create a workspace build using this new template version from a different user
+		ctx := testutil.Context(t, testutil.WaitShort)
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:        codersdk.WorkspaceTransitionStart,
+			TemplateVersionID: newVersion.ID,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Ensure we receive only 1 workspace manually updated notification and to the right user
+		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		require.Len(t, sent, 1)
+		require.Equal(t, user.ID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, template.ID)
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
 	})
 }
 
