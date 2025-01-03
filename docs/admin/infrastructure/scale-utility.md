@@ -17,7 +17,7 @@ Learn more about [Coder’s architecture](./architecture.md) and our
 > hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
-| ---------------- | --------- | --------- | -------------- | ----------------- | ----- | ----------------- | ------------------------------------- | ------------- | ------------ |
+|------------------|-----------|-----------|----------------|-------------------|-------|-------------------|---------------------------------------|---------------|--------------|
 | Kubernetes (GKE) | 3 cores   | 12 GB     | 1              | db-f1-micro       | 200   | 3                 | 200 simulated                         | `v0.24.1`     | Jun 26, 2023 |
 | Kubernetes (GKE) | 4 cores   | 8 GB      | 1              | db-custom-1-3840  | 1500  | 20                | 1,500 simulated                       | `v0.24.1`     | Jun 27, 2023 |
 | Kubernetes (GKE) | 2 cores   | 4 GB      | 1              | db-custom-1-3840  | 500   | 20                | 500 simulated                         | `v0.27.2`     | Jul 27, 2023 |
@@ -48,14 +48,14 @@ specified template and extra parameters.
 
 ```shell
 coder exp scaletest create-workspaces \
-		--retry 5 \
-		--count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
-		--template "${SCALETEST_PARAM_TEMPLATE}" \
-		--concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
-		--timeout 5h \
-		--job-timeout 5h \
-		--no-cleanup \
-		--output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
+        --retry 5 \
+        --count "${SCALETEST_PARAM_NUM_WORKSPACES}" \
+        --template "${SCALETEST_PARAM_TEMPLATE}" \
+        --concurrency "${SCALETEST_PARAM_CREATE_CONCURRENCY}" \
+        --timeout 5h \
+        --job-timeout 5h \
+        --no-cleanup \
+        --output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
 
 # Run `coder exp scaletest create-workspaces --help` for all usage
 ```
@@ -79,14 +79,14 @@ Terminal against those workspaces.
 ```shell
 # Produce load at about 1000MB/s (25MB/40ms).
 coder exp scaletest workspace-traffic \
-	--template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
-	--bytes-per-tick $((1024 * 1024 * 25)) \
-	--tick-interval 40ms \
-	--timeout "$((delay))s" \
-	--job-timeout "$((delay))s" \
-	--scaletest-prometheus-address 0.0.0.0:21113 \
-	--target-workspaces "0:100" \
-	--trace=false \
+    --template "${SCALETEST_PARAM_GREEDY_AGENT_TEMPLATE}" \
+    --bytes-per-tick $((1024 * 1024 * 25)) \
+    --tick-interval 40ms \
+    --timeout "$((delay))s" \
+    --job-timeout "$((delay))s" \
+    --scaletest-prometheus-address 0.0.0.0:21113 \
+    --target-workspaces "0:100" \
+    --trace=false \
   --output json:"${SCALETEST_RESULTS_DIR}/traffic-${type}-greedy-agent.json"
 ```
 
@@ -114,8 +114,8 @@ wish to clean up all workspaces, you can run the following command:
 
 ```shell
 coder exp scaletest cleanup \
-	--cleanup-job-timeout 2h \
-	--cleanup-timeout 15min
+    --cleanup-job-timeout 2h \
+    --cleanup-timeout 15min
 ```
 
 This will delete all workspaces and users with the prefix `scaletest-`.
@@ -168,7 +168,7 @@ that operators can deploy depending on the traffic projections.
 There are a few cluster options available:
 
 | Workspace size | vCPU | Memory | Persisted storage | Details                                               |
-| -------------- | ---- | ------ | ----------------- | ----------------------------------------------------- |
+|----------------|------|--------|-------------------|-------------------------------------------------------|
 | minimal        | 1    | 2 Gi   | None              |                                                       |
 | small          | 1    | 1 Gi   | None              |                                                       |
 | medium         | 2    | 2 Gi   | None              | Medium-sized cluster offers the greedy agent variant. |

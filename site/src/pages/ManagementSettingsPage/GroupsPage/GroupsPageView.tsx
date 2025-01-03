@@ -11,17 +11,16 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { Group } from "api/typesGenerated";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
-import { GroupAvatar } from "components/GroupAvatar/GroupAvatar";
 import { Paywall } from "components/Paywall/Paywall";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useClickableTableRow } from "hooks";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
@@ -124,9 +123,9 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 			<TableCell>
 				<AvatarData
 					avatar={
-						<GroupAvatar
-							name={group.display_name || group.name}
-							avatarURL={group.avatar_url}
+						<Avatar
+							fallback={group.display_name || group.name}
+							src={group.avatar_url}
 						/>
 					}
 					title={group.display_name || group.name}
@@ -139,13 +138,13 @@ const GroupRow: FC<GroupRowProps> = ({ group }) => {
 				<AvatarGroup
 					max={10}
 					total={group.members.length}
-					css={{ justifyContent: "flex-end" }}
+					css={{ justifyContent: "flex-end", gap: 8 }}
 				>
 					{group.members.map((member) => (
-						<UserAvatar
+						<Avatar
 							key={member.username}
-							username={member.username}
-							avatarURL={member.avatar_url}
+							fallback={member.username}
+							src={member.avatar_url}
 						/>
 					))}
 				</AvatarGroup>

@@ -84,7 +84,7 @@ test("change quota settings", async ({ page }) => {
 
 	// Go to settings
 	await page.goto(`/organizations/${org.name}/groups/${group.name}`);
-	await page.getByRole("button", { name: "Settings" }).click();
+	await page.getByRole("button", { name: "Settings", exact: true }).click();
 	expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${group.name}/settings`,
 	);
@@ -99,6 +99,6 @@ test("change quota settings", async ({ page }) => {
 	);
 
 	// ...and that setting should persist if we go back
-	await page.getByRole("button", { name: "Settings" }).click();
+	await page.getByRole("button", { name: "Settings", exact: true }).click();
 	await expect(page.getByLabel("Quota Allowance")).toHaveValue("100");
 });

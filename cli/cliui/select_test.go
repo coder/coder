@@ -101,6 +101,39 @@ func TestMultiSelect(t *testing.T) {
 		}()
 		require.Equal(t, items, <-msgChan)
 	})
+
+	t.Run("MultiSelectWithCustomInput", func(t *testing.T) {
+		t.Parallel()
+		items := []string{"Code", "Chairs", "Whale", "Diamond", "Carrot"}
+		ptty := ptytest.New(t)
+		msgChan := make(chan []string)
+		go func() {
+			resp, err := newMultiSelectWithCustomInput(ptty, items)
+			assert.NoError(t, err)
+			msgChan <- resp
+		}()
+		require.Equal(t, items, <-msgChan)
+	})
+}
+
+func newMultiSelectWithCustomInput(ptty *ptytest.PTY, items []string) ([]string, error) {
+	var values []string
+	cmd := &serpent.Command{
+		Handler: func(inv *serpent.Invocation) error {
+			selectedItems, err := cliui.MultiSelect(inv, cliui.MultiSelectOptions{
+				Options:           items,
+				Defaults:          items,
+				EnableCustomInput: true,
+			})
+			if err == nil {
+				values = selectedItems
+			}
+			return err
+		},
+	}
+	inv := cmd.Invoke()
+	ptty.Attach(inv)
+	return values, inv.Run()
 }
 
 func newMultiSelect(ptty *ptytest.PTY, items []string) ([]string, error) {

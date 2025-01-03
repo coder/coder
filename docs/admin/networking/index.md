@@ -168,7 +168,7 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```
 
 ```bash
-$ coder server --derp-config-path derpmap.json
+coder server --derp-config-path derpmap.json
 ```
 
 ### Dashboard connections

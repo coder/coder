@@ -8,6 +8,7 @@
  * the workspaces and audits page that have a risk of getting out of sync.
  */
 import { API } from "api/api";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
@@ -17,7 +18,6 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import type { FC } from "react";
 
 // Organization helpers ////////////////////////////////////////////////////////
@@ -39,11 +39,11 @@ export const useOrganizationsFilterMenu = ({
 						label: organization.display_name || organization.name,
 						value: organization.name,
 						startIcon: (
-							<UserAvatar
+							<Avatar
 								key={organization.id}
-								size="xs"
-								username={organization.display_name || organization.name}
-								avatarURL={organization.icon}
+								size="sm"
+								fallback={organization.display_name || organization.name}
+								src={organization.icon}
 							/>
 						),
 					};
@@ -74,11 +74,11 @@ export const useOrganizationsFilterMenu = ({
 					label: organization.display_name || organization.name,
 					value: organization.name,
 					startIcon: (
-						<UserAvatar
+						<Avatar
 							key={organization.id}
-							size="xs"
-							username={organization.display_name || organization.name}
-							avatarURL={organization.icon}
+							size="sm"
+							fallback={organization.display_name || organization.name}
+							src={organization.icon}
 						/>
 					),
 				}));

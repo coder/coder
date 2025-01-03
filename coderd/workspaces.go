@@ -666,6 +666,8 @@ func createWorkspace(
 		return err
 	}, nil)
 
+	api.notifyWorkspaceCreated(ctx, workspace, req.RichParameterValues)
+
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
@@ -733,6 +735,64 @@ func createWorkspace(
 		return
 	}
 	httpapi.Write(ctx, rw, http.StatusCreated, w)
+}
+
+func (api *API) notifyWorkspaceCreated(
+	ctx context.Context,
+	workspace database.Workspace,
+	parameters []codersdk.WorkspaceBuildParameter,
+) {
+	log := api.Logger.With(slog.F("workspace_id", workspace.ID))
+
+	template, err := api.Database.GetTemplateByID(ctx, workspace.TemplateID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch template for workspace creation notification", slog.F("template_id", workspace.TemplateID), slog.Error(err))
+		return
+	}
+
+	owner, err := api.Database.GetUserByID(ctx, workspace.OwnerID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch user for workspace creation notification", slog.F("owner_id", workspace.OwnerID), slog.Error(err))
+		return
+	}
+
+	version, err := api.Database.GetTemplateVersionByID(ctx, template.ActiveVersionID)
+	if err != nil {
+		log.Warn(ctx, "failed to fetch template version for workspace creation notification", slog.F("template_version_id", template.ActiveVersionID), slog.Error(err))
+		return
+	}
+
+	buildParameters := make([]map[string]any, len(parameters))
+	for idx, parameter := range parameters {
+		buildParameters[idx] = map[string]any{
+			"name":  parameter.Name,
+			"value": parameter.Value,
+		}
+	}
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		// nolint:gocritic // Need notifier actor to enqueue notifications
+		dbauthz.AsNotifier(ctx),
+		workspace.OwnerID,
+		notifications.TemplateWorkspaceCreated,
+		map[string]string{
+			"workspace": workspace.Name,
+			"template":  template.Name,
+			"version":   version.Name,
+		},
+		map[string]any{
+			"workspace":        map[string]any{"id": workspace.ID, "name": workspace.Name},
+			"template":         map[string]any{"id": template.ID, "name": template.Name},
+			"template_version": map[string]any{"id": version.ID, "name": version.Name},
+			"owner":            map[string]any{"id": owner.ID, "name": owner.Name},
+			"parameters":       buildParameters,
+		},
+		"api-workspaces-create",
+		// Associate this notification with all the related entities
+		workspace.ID, workspace.OwnerID, workspace.TemplateID, workspace.OrganizationID,
+	); err != nil {
+		log.Warn(ctx, "failed to notify of workspace creation", slog.Error(err))
+	}
 }
 
 // @Summary Update workspace metadata by ID

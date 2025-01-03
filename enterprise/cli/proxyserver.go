@@ -34,15 +34,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-type closers []func()
+type closerFuncs []func()
 
-func (c closers) Close() {
+func (c closerFuncs) Close() {
 	for _, closeF := range c {
 		closeF()
 	}
 }
 
-func (c *closers) Add(f func()) {
+func (c *closerFuncs) Add(f func()) {
 	*c = append(*c, f)
 }
 
@@ -113,7 +113,8 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var closers closers
+			var closers closerFuncs
+			defer closers.Close()
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, topCancel := context.WithCancel(inv.Context())
