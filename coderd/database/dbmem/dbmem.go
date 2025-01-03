@@ -1128,6 +1128,96 @@ func getOwnerFromTags(tags map[string]string) string {
 	return ""
 }
 
+func (q *FakeQuerier) getProvisionerJobsByIDsWithQueuePositionLocked(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+	//	WITH pending_jobs AS (
+	//		SELECT
+	//			id, created_at
+	//		FROM
+	//			provisioner_jobs
+	//		WHERE
+	//			started_at IS NULL
+	//		AND
+	//			canceled_at IS NULL
+	//		AND
+	//			completed_at IS NULL
+	//		AND
+	//			error IS NULL
+	//	),
+	type pendingJobRow struct {
+		ID        uuid.UUID
+		CreatedAt time.Time
+	}
+	pendingJobs := make([]pendingJobRow, 0)
+	for _, job := range q.provisionerJobs {
+		if job.StartedAt.Valid ||
+			job.CanceledAt.Valid ||
+			job.CompletedAt.Valid ||
+			job.Error.Valid {
+			continue
+		}
+		pendingJobs = append(pendingJobs, pendingJobRow{
+			ID:        job.ID,
+			CreatedAt: job.CreatedAt,
+		})
+	}
+
+	//	queue_position AS (
+	//		SELECT
+	//			id,
+	//				ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+	//		FROM
+	//			pending_jobs
+	// 	),
+	slices.SortFunc(pendingJobs, func(a, b pendingJobRow) int {
+		c := a.CreatedAt.Compare(b.CreatedAt)
+		return c
+	})
+
+	queuePosition := make(map[uuid.UUID]int64)
+	for idx, pj := range pendingJobs {
+		queuePosition[pj.ID] = int64(idx + 1)
+	}
+
+	//	queue_size AS (
+	//		SELECT COUNT(*) AS count FROM pending_jobs
+	//	),
+	queueSize := len(pendingJobs)
+
+	//	SELECT
+	//		sqlc.embed(pj),
+	//		COALESCE(qp.queue_position, 0) AS queue_position,
+	//		COALESCE(qs.count, 0) AS queue_size
+	// 	FROM
+	//		provisioner_jobs pj
+	//	LEFT JOIN
+	//		queue_position qp ON pj.id = qp.id
+	//	LEFT JOIN
+	//		queue_size qs ON TRUE
+	//	WHERE
+	//		pj.id IN (...)
+	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
+	for _, job := range q.provisionerJobs {
+		if ids != nil && !slices.Contains(ids, job.ID) {
+			continue
+		}
+		// clone the Tags before appending, since maps are reference types and
+		// we don't want the caller to be able to mutate the map we have inside
+		// dbmem!
+		job.Tags = maps.Clone(job.Tags)
+		job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			//	sqlc.embed(pj),
+			ProvisionerJob: job,
+			//	COALESCE(qp.queue_position, 0) AS queue_position,
+			QueuePosition: queuePosition[job.ID],
+			//	COALESCE(qs.count, 0) AS queue_size
+			QueueSize: int64(queueSize),
+		}
+		jobs = append(jobs, job)
+	}
+
+	return jobs, nil
+}
+
 func (*FakeQuerier) AcquireLock(_ context.Context, _ int64) error {
 	return xerrors.New("AcquireLock must only be called within a transaction")
 }
@@ -3894,97 +3984,127 @@ func (q *FakeQuerier) GetProvisionerJobsByIDs(_ context.Context, ids []uuid.UUID
 	return jobs, nil
 }
 
-func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(_ context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
+func (q *FakeQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	//	WITH pending_jobs AS (
-	//		SELECT
-	//			id, created_at
-	//		FROM
-	//			provisioner_jobs
-	//		WHERE
-	//			started_at IS NULL
-	//		AND
-	//			canceled_at IS NULL
-	//		AND
-	//			completed_at IS NULL
-	//		AND
-	//			error IS NULL
-	//	),
-	type pendingJobRow struct {
-		ID        uuid.UUID
-		CreatedAt time.Time
+	if ids == nil {
+		ids = []uuid.UUID{}
 	}
-	pendingJobs := make([]pendingJobRow, 0)
-	for _, job := range q.provisionerJobs {
-		if job.StartedAt.Valid ||
-			job.CanceledAt.Valid ||
-			job.CompletedAt.Valid ||
-			job.Error.Valid {
-			continue
-		}
-		pendingJobs = append(pendingJobs, pendingJobRow{
-			ID:        job.ID,
-			CreatedAt: job.CreatedAt,
-		})
+	return q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, ids)
+}
+
+func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
 	}
 
-	//	queue_position AS (
-	//		SELECT
-	//			id,
-	//				ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
-	//		FROM
-	//			pending_jobs
-	// 	),
-	slices.SortFunc(pendingJobs, func(a, b pendingJobRow) int {
-		c := a.CreatedAt.Compare(b.CreatedAt)
-		return c
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	/*
+		-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+		WITH pending_jobs AS (
+			SELECT
+				id, created_at
+			FROM
+				provisioner_jobs
+			WHERE
+				started_at IS NULL
+			AND
+				canceled_at IS NULL
+			AND
+				completed_at IS NULL
+			AND
+				error IS NULL
+		),
+		queue_position AS (
+			SELECT
+				id,
+				ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+			FROM
+				pending_jobs
+		),
+		queue_size AS (
+			SELECT COUNT(*) AS count FROM pending_jobs
+		)
+		SELECT
+			sqlc.embed(pj),
+			COALESCE(qp.queue_position, 0) AS queue_position,
+			COALESCE(qs.count, 0) AS queue_size,
+			array_agg(DISTINCT pd.id) FILTER (WHERE pd.id IS NOT NULL)::uuid[] AS available_workers
+		FROM
+			provisioner_jobs pj
+		LEFT JOIN
+			queue_position qp ON qp.id = pj.id
+		LEFT JOIN
+			queue_size qs ON TRUE
+		LEFT JOIN
+			provisioner_daemons pd ON (
+				-- See AcquireProvisionerJob.
+				pj.started_at IS NULL
+				AND pj.organization_id = pd.organization_id
+				AND pj.provisioner = ANY(pd.provisioners)
+				AND provisioner_tagset_contains(pd.tags, pj.tags)
+			)
+		WHERE
+			(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
+			AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 1) > 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
+		GROUP BY
+			pj.id,
+			qp.queue_position,
+			qs.count
+		ORDER BY
+			pj.created_at DESC
+		LIMIT
+			sqlc.narg('limit')::int;
+	*/
+	rowsWithQueuePosition, err := q.getProvisionerJobsByIDsWithQueuePositionLocked(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	var rows []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+	for _, rowQP := range rowsWithQueuePosition {
+		job := rowQP.ProvisionerJob
+
+		if arg.OrganizationID.Valid && job.OrganizationID != arg.OrganizationID.UUID {
+			continue
+		}
+		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
+			continue
+		}
+
+		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
+			ProvisionerJob: rowQP.ProvisionerJob,
+			QueuePosition:  rowQP.QueuePosition,
+			QueueSize:      rowQP.QueueSize,
+		}
+		if row.QueuePosition > 0 {
+			var availableWorkers []database.ProvisionerDaemon
+			for _, daemon := range q.provisionerDaemons {
+				if daemon.OrganizationID == job.OrganizationID &&
+					slices.Contains(daemon.Provisioners, job.Provisioner) &&
+					tagsSubset(job.Tags, daemon.Tags) {
+					availableWorkers = append(availableWorkers, daemon)
+				}
+			}
+			slices.SortFunc(availableWorkers, func(a, b database.ProvisionerDaemon) int {
+				return a.CreatedAt.Compare(b.CreatedAt)
+			})
+			for _, worker := range availableWorkers {
+				row.AvailableWorkers = append(row.AvailableWorkers, worker.ID)
+			}
+		}
+		rows = append(rows, row)
+	}
+
+	slices.SortFunc(rows, func(a, b database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) int {
+		return b.ProvisionerJob.CreatedAt.Compare(a.ProvisionerJob.CreatedAt)
 	})
 
-	queuePosition := make(map[uuid.UUID]int64)
-	for idx, pj := range pendingJobs {
-		queuePosition[pj.ID] = int64(idx + 1)
-	}
-
-	//	queue_size AS (
-	//		SELECT COUNT(*) AS count FROM pending_jobs
-	//	),
-	queueSize := len(pendingJobs)
-
-	//	SELECT
-	//		sqlc.embed(pj),
-	//		COALESCE(qp.queue_position, 0) AS queue_position,
-	//		COALESCE(qs.count, 0) AS queue_size
-	// 	FROM
-	//		provisioner_jobs pj
-	//	LEFT JOIN
-	//		queue_position qp ON pj.id = qp.id
-	//	LEFT JOIN
-	//		queue_size qs ON TRUE
-	//	WHERE
-	//		pj.id IN (...)
-	jobs := make([]database.GetProvisionerJobsByIDsWithQueuePositionRow, 0)
-	for _, job := range q.provisionerJobs {
-		if !slices.Contains(ids, job.ID) {
-			continue
-		}
-		// clone the Tags before appending, since maps are reference types and
-		// we don't want the caller to be able to mutate the map we have inside
-		// dbmem!
-		job.Tags = maps.Clone(job.Tags)
-		job := database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			//	sqlc.embed(pj),
-			ProvisionerJob: job,
-			//	COALESCE(qp.queue_position, 0) AS queue_position,
-			QueuePosition: queuePosition[job.ID],
-			//	COALESCE(qs.count, 0) AS queue_size
-			QueueSize: int64(queueSize),
-		}
-		jobs = append(jobs, job)
-	}
-
-	return jobs, nil
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobsCreatedAfter(_ context.Context, after time.Time) ([]database.ProvisionerJob, error) {

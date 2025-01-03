@@ -2175,6 +2175,41 @@ func (s *MethodTestSuite) TestExtraMethods() {
 			LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}).Asserts(rbac.ResourceProvisionerDaemon, policy.ActionUpdate)
 	}))
+	s.Run("GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		tags := database.StringMap(map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+		t := dbgen.Template(s.T(), db, database.Template{})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: t.ID})
+		wb := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: w.ID, TemplateVersionID: tv.ID})
+		j1, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte(`{"template_version_id":"` + tv.ID.String() + `"}`),
+			Tags:           tags,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+		})
+		s.NoError(err, "insert provisioner job")
+		j2, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          []byte(`{"workspace_build_id":"` + wb.ID.String() + `"}`),
+			Tags:           tags,
+			Provisioner:    database.ProvisionerTypeEcho,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+		})
+		s.NoError(err, "insert provisioner job")
+		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+		})
+		s.NoError(err, "get provisioner jobs by org")
+		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
+	}))
 }
 
 // All functions in this method test suite are not implemented in dbmem, but

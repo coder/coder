@@ -2,6 +2,7 @@ package database
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"sort"
 	"strconv"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 )
 
 type WorkspaceStatus string
@@ -456,6 +458,32 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
+}
+
+func (p ProvisionerJob) RBACObject() rbac.Object {
+	var input codersdk.ProvisionerJobInput
+	_ = json.Unmarshal(p.Input, &input) // Best effort.
+
+	// TODO(mafredri): Do we need to check provisioner permissions as well (p.AvailableProvisioners?).
+	id := uuid.Nil
+	switch p.Type {
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun:
+		if input.TemplateVersionID != nil {
+			id = *input.TemplateVersionID
+		}
+		return rbac.ResourceTemplate.
+			WithID(id).
+			InOrg(p.OrganizationID)
+	case ProvisionerJobTypeWorkspaceBuild:
+		if input.WorkspaceBuildID != nil {
+			id = *input.WorkspaceBuildID
+		}
+		return rbac.ResourceWorkspace.
+			WithID(id).
+			InOrg(p.OrganizationID)
+	default:
+		panic("developer error: unknown provisioner job type " + string(p.Type))
+	}
 }
 
 func (p ProvisionerJob) Finished() bool {

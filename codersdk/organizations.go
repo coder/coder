@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -341,6 +342,47 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 
 	var daemons []ProvisionerDaemonWithStatus
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
+}
+
+type OrganizationProvisionerJobsOptions struct {
+	Limit  int
+	Status []ProvisionerJobStatus
+}
+
+func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID uuid.UUID, opts *OrganizationProvisionerJobsOptions) ([]ProvisionerJob, error) {
+	qp := url.Values{}
+	if opts != nil {
+		if opts.Limit > 0 {
+			qp.Add("limit", strconv.Itoa(opts.Limit))
+		}
+		if len(opts.Status) > 0 {
+			qp.Add("status", joinSlice(opts.Status))
+		}
+	}
+
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerjobs?%s", organizationID.String(), qp.Encode()),
+		nil,
+	)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+
+	var jobs []ProvisionerJob
+	return jobs, json.NewDecoder(res.Body).Decode(&jobs)
+}
+
+func joinSlice[T ~string](s []T) string {
+	var ss []string
+	for _, v := range s {
+		ss = append(ss, string(v))
+	}
+	return strings.Join(ss, ",")
 }
 
 // CreateTemplateVersion processes source-code and optionally associates the version with a template.
