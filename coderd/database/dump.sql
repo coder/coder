@@ -190,7 +190,10 @@ CREATE TYPE resource_type AS ENUM (
     'custom_role',
     'organization_member',
     'notifications_settings',
-    'notification_template'
+    'notification_template',
+    'idp_sync_settings_organization',
+    'idp_sync_settings_group',
+    'idp_sync_settings_role'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
