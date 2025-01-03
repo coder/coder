@@ -122,7 +122,8 @@ const OrganizationsSettingsNavigation: FC<
 											<Link
 												key={organization.id}
 												to={urlForSubpage(organization.name)}
-												className="no-underline visited:text-content-secondary text-content-secondary"
+												// Setting width to 215px so that outline is visible
+												className="w-[215px] ml-1 no-underline visited:text-content-secondary text-content-secondary"
 											>
 												<CommandItem
 													value={organization.name}
@@ -151,7 +152,7 @@ const OrganizationsSettingsNavigation: FC<
 										<Button variant="subtle" className="w-full h-8">
 											<a
 												href="/organizations/new"
-												className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
+												className="flex items-center gap-1 no-underline text-content-secondary hover:text-content-primary visited:text-content-secondary"
 											>
 												<Plus /> Create Organization
 											</a>
