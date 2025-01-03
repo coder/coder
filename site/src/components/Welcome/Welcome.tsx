@@ -9,9 +9,14 @@ const Language = {
 	),
 };
 
-export const Welcome: FC<PropsWithChildren> = ({ children }) => {
+type WelcomeProps = Readonly<
+	PropsWithChildren<{
+		className?: string;
+	}>
+>;
+export const Welcome: FC<WelcomeProps> = ({ children, className }) => {
 	return (
-		<div>
+		<div className={className}>
 			<div className="flex justify-center pb-1">
 				<CoderIcon className="w-12 h-12" />
 			</div>
