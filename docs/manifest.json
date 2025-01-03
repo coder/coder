@@ -124,7 +124,14 @@
 						{
 							"title": "JetBrains IDEs",
 							"description": "Use JetBrains IDEs with Gateway",
-							"path": "./user-guides/workspace-access/jetbrains.md"
+							"path": "./user-guides/workspace-access/jetbrains/index.md",
+							"children": [
+								{
+									"title": "JetBrains Gateway in an offline environment",
+									"description": "Use JetBrains Gateway in an offline environment",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-offline.md"
+								}
+							]
 						},
 						{
 							"title": "Remote Desktop",
