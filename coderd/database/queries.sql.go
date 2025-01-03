@@ -5404,6 +5404,118 @@ func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, ar
 	return items, nil
 }
 
+const getProvisionerDaemonsWithStatusByOrganization = `-- name: GetProvisionerDaemonsWithStatusByOrganization :many
+SELECT
+	pd.id, pd.created_at, pd.name, pd.provisioners, pd.replica_id, pd.tags, pd.last_seen_at, pd.version, pd.api_version, pd.organization_id, pd.key_id,
+	CASE
+		WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($1::bigint || ' ms')::interval)
+		THEN 'offline'
+		ELSE CASE
+			WHEN current_job.id IS NOT NULL THEN 'busy'
+			ELSE 'idle'
+		END
+	END::provisioner_daemon_status AS status,
+	pk.name AS key_name,
+	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
+	current_job.id AS current_job_id,
+	current_job.job_status AS current_job_status,
+	previous_job.id AS previous_job_id,
+	previous_job.job_status AS previous_job_status
+FROM
+	provisioner_daemons pd
+JOIN
+	provisioner_keys pk ON pk.id = pd.key_id
+LEFT JOIN
+	provisioner_jobs current_job ON (
+		current_job.worker_id = pd.id
+		AND current_job.completed_at IS NULL
+	)
+LEFT JOIN
+	provisioner_jobs previous_job ON (
+		previous_job.id = (
+			SELECT
+				id
+			FROM
+				provisioner_jobs
+			WHERE
+				worker_id = pd.id
+				AND completed_at IS NOT NULL
+			ORDER BY
+				completed_at DESC
+			LIMIT 1
+		)
+	)
+WHERE
+	pd.organization_id = $2::uuid
+	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
+	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
+ORDER BY
+	pd.created_at ASC
+`
+
+type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
+	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
+	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
+	IDs             []uuid.UUID `db:"ids" json:"ids"`
+	Tags            StringMap   `db:"tags" json:"tags"`
+}
+
+type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
+	ProvisionerDaemon ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status            ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName           string                   `db:"key_name" json:"key_name"`
+	CurrentJobID      uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus  NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID     uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsWithStatusByOrganization,
+		arg.StaleIntervalMS,
+		arg.OrganizationID,
+		pq.Array(arg.IDs),
+		arg.Tags,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProvisionerDaemonsWithStatusByOrganizationRow
+	for rows.Next() {
+		var i GetProvisionerDaemonsWithStatusByOrganizationRow
+		if err := rows.Scan(
+			&i.ProvisionerDaemon.ID,
+			&i.ProvisionerDaemon.CreatedAt,
+			&i.ProvisionerDaemon.Name,
+			pq.Array(&i.ProvisionerDaemon.Provisioners),
+			&i.ProvisionerDaemon.ReplicaID,
+			&i.ProvisionerDaemon.Tags,
+			&i.ProvisionerDaemon.LastSeenAt,
+			&i.ProvisionerDaemon.Version,
+			&i.ProvisionerDaemon.APIVersion,
+			&i.ProvisionerDaemon.OrganizationID,
+			&i.ProvisionerDaemon.KeyID,
+			&i.Status,
+			&i.KeyName,
+			&i.CurrentJobID,
+			&i.CurrentJobStatus,
+			&i.PreviousJobID,
+			&i.PreviousJobStatus,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const updateProvisionerDaemonLastSeenAt = `-- name: UpdateProvisionerDaemonLastSeenAt :exec
 UPDATE provisioner_daemons
 SET

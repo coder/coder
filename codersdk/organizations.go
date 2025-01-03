@@ -296,7 +296,7 @@ func (c *Client) DeleteOrganization(ctx context.Context, orgID string) error {
 }
 
 // ProvisionerDaemons returns provisioner daemons available.
-func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, error) {
+func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemonWithStatus, error) {
 	res, err := c.Request(ctx, http.MethodGet,
 		// TODO: the organization path parameter is currently ignored.
 		"/api/v2/organizations/default/provisionerdaemons",
@@ -311,11 +311,11 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 		return nil, ReadBodyAsError(res)
 	}
 
-	var daemons []ProvisionerDaemon
+	var daemons []ProvisionerDaemonWithStatus
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemon, error) {
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemonWithStatus, error) {
 	baseURL := fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String())
 
 	queryParams := url.Values{}
@@ -339,7 +339,7 @@ func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizatio
 		return nil, ReadBodyAsError(res)
 	}
 
-	var daemons []ProvisionerDaemon
+	var daemons []ProvisionerDaemonWithStatus
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 

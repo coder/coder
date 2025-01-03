@@ -505,8 +505,26 @@ func GroupMember(t testing.TB, db database.Store, member database.GroupMemberTab
 
 // ProvisionerDaemon creates a provisioner daemon as far as the database is concerned. It does not run a provisioner daemon.
 // If no key is provided, it will create one.
-func ProvisionerDaemon(t testing.TB, db database.Store, daemon database.ProvisionerDaemon) database.ProvisionerDaemon {
+func ProvisionerDaemon(t testing.TB, db database.Store, orig database.ProvisionerDaemon) database.ProvisionerDaemon {
 	t.Helper()
+
+	var defOrgID uuid.UUID
+	if orig.OrganizationID == uuid.Nil {
+		defOrg, _ := db.GetDefaultOrganization(genCtx)
+		defOrgID = defOrg.ID
+	}
+
+	daemon := database.UpsertProvisionerDaemonParams{
+		Name:           takeFirst(orig.Name, testutil.GetRandomName(t)),
+		OrganizationID: takeFirst(orig.OrganizationID, defOrgID, uuid.New()),
+		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
+		Provisioners:   takeFirstSlice(orig.Provisioners, []database.ProvisionerType{database.ProvisionerTypeEcho}),
+		Tags:           takeFirstMap(orig.Tags, database.StringMap{}),
+		KeyID:          takeFirst(orig.KeyID, uuid.Nil),
+		LastSeenAt:     takeFirst(orig.LastSeenAt, sql.NullTime{Time: dbtime.Now(), Valid: true}),
+		Version:        takeFirst(orig.Version, "v0.0.0"),
+		APIVersion:     takeFirst(orig.APIVersion, "1.1"),
+	}
 
 	if daemon.KeyID == uuid.Nil {
 		key, err := db.InsertProvisionerKey(genCtx, database.InsertProvisionerKeyParams{
@@ -521,24 +539,7 @@ func ProvisionerDaemon(t testing.TB, db database.Store, daemon database.Provisio
 		daemon.KeyID = key.ID
 	}
 
-	if daemon.CreatedAt.IsZero() {
-		daemon.CreatedAt = dbtime.Now()
-	}
-	if daemon.Name == "" {
-		daemon.Name = "test-daemon"
-	}
-
-	d, err := db.UpsertProvisionerDaemon(genCtx, database.UpsertProvisionerDaemonParams{
-		Name:           daemon.Name,
-		OrganizationID: daemon.OrganizationID,
-		CreatedAt:      daemon.CreatedAt,
-		Provisioners:   daemon.Provisioners,
-		Tags:           daemon.Tags,
-		KeyID:          daemon.KeyID,
-		LastSeenAt:     daemon.LastSeenAt,
-		Version:        daemon.Version,
-		APIVersion:     daemon.APIVersion,
-	})
+	d, err := db.UpsertProvisionerDaemon(genCtx, daemon)
 	require.NoError(t, err)
 	return d
 }
@@ -1106,6 +1107,12 @@ func takeFirstIP(values ...net.IPNet) net.IPNet {
 func takeFirstSlice[T any](values ...[]T) []T {
 	return takeFirstF(values, func(v []T) bool {
 		return len(v) != 0
+	})
+}
+
+func takeFirstMap[T, E comparable](values ...map[T]E) map[T]E {
+	return takeFirstF(values, func(v map[T]E) bool {
+		return v != nil
 	})
 }
 

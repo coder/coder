@@ -2955,7 +2955,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.ProvisionerDaemon"
+                                "$ref": "#/definitions/codersdk.ProvisionerDaemonWithStatus"
                             }
                         }
                     }
@@ -12344,6 +12344,110 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                },
+                "tags": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "version": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ProvisionerDaemonJob": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "running",
+                        "succeeded",
+                        "canceling",
+                        "canceled",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ProvisionerDaemonStatus": {
+            "type": "string",
+            "enum": [
+                "offline",
+                "idle",
+                "busy"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerDaemonOffline",
+                "ProvisionerDaemonIdle",
+                "ProvisionerDaemonBusy"
+            ]
+        },
+        "codersdk.ProvisionerDaemonWithStatus": {
+            "type": "object",
+            "properties": {
+                "api_version": {
+                    "type": "string"
+                },
+                "created_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "current_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "key_name": {
+                    "type": "string"
+                },
+                "last_seen_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "organization_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "previous_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
+                "provisioners": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
+                "status": {
+                    "enum": [
+                        "offline",
+                        "idle",
+                        "busy"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
+                        }
+                    ]
                 },
                 "tags": {
                     "type": "object",

@@ -377,7 +377,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		//
 		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
 		// route as is.
-		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+		r.Route("/organizations/{organization}/provisionerdaemons/serve", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
@@ -391,8 +391,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
-			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
+			r.Get("/", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(

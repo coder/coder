@@ -3749,6 +3749,100 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	return daemons, nil
 }
 
+func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var rows []database.GetProvisionerDaemonsWithStatusByOrganizationRow
+	for _, daemon := range q.provisionerDaemons {
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, daemon.ID) {
+			continue
+		}
+
+		if len(arg.Tags) > 0 {
+			// Special case for untagged provisioners: only match untagged jobs.
+			// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+			// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+			//      THEN nested.tags :: jsonb = @tags :: jsonb
+			if tagsEqual(arg.Tags, tagsUntagged) && !tagsEqual(arg.Tags, daemon.Tags) {
+				continue
+			}
+			// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+			if !tagsSubset(arg.Tags, daemon.Tags) {
+				continue
+			}
+		}
+
+		var status database.ProvisionerDaemonStatus
+		var currentJob database.ProvisionerJob
+		if !daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
+			status = database.ProvisionerDaemonStatusOffline
+		} else {
+			for _, job := range q.provisionerJobs {
+				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID && !job.CompletedAt.Valid && !job.Error.Valid {
+					currentJob = job
+					break
+				}
+			}
+
+			if currentJob.ID != uuid.Nil {
+				status = database.ProvisionerDaemonStatusBusy
+			} else {
+				status = database.ProvisionerDaemonStatusIdle
+			}
+		}
+
+		var previousJob database.ProvisionerJob
+		for _, job := range q.provisionerJobs {
+			if !job.WorkerID.Valid || job.WorkerID.UUID != daemon.ID {
+				continue
+			}
+
+			if job.StartedAt.Valid ||
+				job.CanceledAt.Valid ||
+				job.CompletedAt.Valid ||
+				job.Error.Valid {
+				if job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
+					previousJob = job
+				}
+			}
+		}
+
+		// Get the provisioner key name
+		var keyName string
+		for _, key := range q.provisionerKeys {
+			if key.ID == daemon.KeyID {
+				keyName = key.Name
+				break
+			}
+		}
+
+		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
+			ProvisionerDaemon: daemon,
+			Status:            status,
+			KeyName:           keyName,
+			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
+			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+		})
+	}
+
+	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
+		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
+	})
+
+	return rows, nil
+}
+
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
