@@ -120,7 +120,7 @@ const OrganizationsSettingsNavigation: FC<
 											<Link
 												key={organization.id}
 												to={urlForSubpage(organization.name)}
-												className="no-underline visited:text-content-secondary"
+												className="no-underline visited:text-content-secondary text-content-secondary"
 											>
 												<CommandItem
 													value={organization.name}

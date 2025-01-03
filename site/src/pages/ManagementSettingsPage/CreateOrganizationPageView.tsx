@@ -5,12 +5,6 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "components/Badges/Badges";
 import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
-import {
-	Form,
-	FormFields,
-	FormFooter,
-	FormSection,
-} from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
@@ -23,6 +17,7 @@ import {
 import { useFormik } from "formik";
 import { ArrowLeft } from "lucide-react";
 import type { FC } from "react";
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 import { docs } from "utils/docs";
 import {
@@ -64,6 +59,7 @@ export const CreateOrganizationPageView: FC<
 		validationSchema,
 		onSubmit,
 	});
+	const navigate = useNavigate();
 	const getFieldHelpers = getFormHelpers(form, error);
 
 	return (
@@ -77,7 +73,7 @@ export const CreateOrganizationPageView: FC<
 					Go Back
 				</Link>
 			</div>
-			<div className="flex flex-col gap-4 max-w-2xl mx-auto">
+			<div className="flex flex-col gap-4 w-4/5 max-w-xl min-w-72 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
 						<div css={{ marginBottom: 32 }}>
@@ -106,7 +102,7 @@ export const CreateOrganizationPageView: FC<
 					</Badges>
 
 					<header className="flex flex-col gap-2 items-center">
-						<h1 className="text-3xl font-bold m-0">New Organization</h1>
+						<h1 className="text-3xl font-semibold m-0">New Organization</h1>
 						<p className="max-w-md text-sm text-content-secondary text-center">
 							Organize your deployment into multiple platform teams with unique
 							provisioners, templates, groups, and members.
@@ -123,57 +119,55 @@ export const CreateOrganizationPageView: FC<
 						/>
 					</Cond>
 					<Cond>
-						<Form
-							direction="vertical"
+						<form
 							onSubmit={form.handleSubmit}
 							aria-label="Organization settings form"
+							className="flex flex-col gap-6 w-full"
 						>
-							<FormSection title="" description="">
-								<fieldset
+							<fieldset
+								disabled={form.isSubmitting}
+								className="flex flex-col gap-6 w-full border-none"
+							>
+								<TextField
+									{...getFieldHelpers("name")}
+									onChange={onChangeTrimmed(form)}
+									fullWidth
+									label="Slug"
+								/>
+								<TextField
+									{...getFieldHelpers("display_name")}
+									fullWidth
+									label="Display name"
+								/>
+								<TextField
+									{...getFieldHelpers("description")}
+									multiline
+									label="Description"
+									rows={2}
+								/>
+								<IconField
+									{...getFieldHelpers("icon")}
+									onChange={onChangeTrimmed(form)}
+									onPickEmoji={(value) => form.setFieldValue("icon", value)}
+								/>
+							</fieldset>
+							<div className="flex flex-row gap-2">
+								<Button
+									type="submit"
 									disabled={form.isSubmitting}
-									css={{
-										border: "unset",
-										padding: 0,
-										margin: 0,
-										width: "100%",
-									}}
 								>
-									<FormFields>
-										<TextField
-											{...getFieldHelpers("name")}
-											onChange={onChangeTrimmed(form)}
-											autoFocus
-											fullWidth
-											label="Slug"
-										/>
-										<TextField
-											{...getFieldHelpers("display_name")}
-											fullWidth
-											label="Display name"
-										/>
-										<TextField
-											{...getFieldHelpers("description")}
-											multiline
-											fullWidth
-											label="Description"
-											rows={2}
-										/>
-										<IconField
-											{...getFieldHelpers("icon")}
-											onChange={onChangeTrimmed(form)}
-											fullWidth
-											onPickEmoji={(value) => form.setFieldValue("icon", value)}
-										/>
-									</FormFields>
-								</fieldset>
-							</FormSection>
-							<FormFooter>
-								<Button type="submit" disabled={form.isSubmitting}>
 									{form.isSubmitting && <Spinner />}
 									Save
 								</Button>
-							</FormFooter>
-						</Form>
+								<Button
+									variant="outline"
+									type="button"
+									onClick={() => navigate("/organizations")}
+								>
+									Cancel
+								</Button>
+							</div>
+						</form>
 					</Cond>
 				</ChooseOne>
 			</div>
