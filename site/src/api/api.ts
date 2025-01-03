@@ -2101,7 +2101,7 @@ class ApiMethods {
 		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
 	): Promise<TypesGen.GetUserStatusCountsOverTimeResponse> => {
 		const searchParams = new URLSearchParams({
-			offset: offset.toString(),
+			tz_offset: offset.toString(),
 		});
 		const response = await this.axios.get(
 			`/api/v2/insights/user-status-counts-over-time?${searchParams}`,
