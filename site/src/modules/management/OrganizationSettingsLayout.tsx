@@ -81,13 +81,12 @@ const OrganizationSettingsLayout: FC = () => {
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
-								<BreadcrumbLink
-									href="/organizations"
+								<BreadcrumbPage
 									className="flex items-center gap-2"
 								>
 									Organizations
 									<FeatureStageBadge contentType="beta" size="sm" />
-								</BreadcrumbLink>
+								</BreadcrumbPage>
 							</BreadcrumbItem>
 							{organization && (
 								<>
