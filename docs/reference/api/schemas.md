@@ -4454,6 +4454,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ```json
 {
+  "available_workers": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
   "canceled_at": "2019-08-24T14:15:22Z",
   "completed_at": "2019-08-24T14:15:22Z",
   "created_at": "2019-08-24T14:15:22Z",
@@ -4461,6 +4464,11 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "error_code": "REQUIRED_TEMPLATE_VARIABLES",
   "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input": {
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+  },
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "queue_position": 0,
   "queue_size": 0,
   "started_at": "2019-08-24T14:15:22Z",
@@ -4469,28 +4477,33 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "property1": "string",
     "property2": "string"
   },
+  "type": "template_version_import",
   "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                           | Required | Restrictions | Description |
-|--------------------|----------------------------------------------------------------|----------|--------------|-------------|
-| `canceled_at`      | string                                                         | false    |              |             |
-| `completed_at`     | string                                                         | false    |              |             |
-| `created_at`       | string                                                         | false    |              |             |
-| `error`            | string                                                         | false    |              |             |
-| `error_code`       | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
-| `file_id`          | string                                                         | false    |              |             |
-| `id`               | string                                                         | false    |              |             |
-| `queue_position`   | integer                                                        | false    |              |             |
-| `queue_size`       | integer                                                        | false    |              |             |
-| `started_at`       | string                                                         | false    |              |             |
-| `status`           | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `tags`             | object                                                         | false    |              |             |
-| » `[any property]` | string                                                         | false    |              |             |
-| `worker_id`        | string                                                         | false    |              |             |
+| Name                | Type                                                           | Required | Restrictions | Description |
+|---------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `available_workers` | array of string                                                | false    |              |             |
+| `canceled_at`       | string                                                         | false    |              |             |
+| `completed_at`      | string                                                         | false    |              |             |
+| `created_at`        | string                                                         | false    |              |             |
+| `error`             | string                                                         | false    |              |             |
+| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
+| `file_id`           | string                                                         | false    |              |             |
+| `id`                | string                                                         | false    |              |             |
+| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)   | false    |              |             |
+| `organization_id`   | string                                                         | false    |              |             |
+| `queue_position`    | integer                                                        | false    |              |             |
+| `queue_size`        | integer                                                        | false    |              |             |
+| `started_at`        | string                                                         | false    |              |             |
+| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `tags`              | object                                                         | false    |              |             |
+| » `[any property]`  | string                                                         | false    |              |             |
+| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)     | false    |              |             |
+| `worker_id`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4503,6 +4516,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `status`     | `canceling`                   |
 | `status`     | `canceled`                    |
 | `status`     | `failed`                      |
+
+## codersdk.ProvisionerJobInput
+
+```json
+{
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+}
+```
+
+### Properties
+
+| Name                  | Type   | Required | Restrictions | Description |
+|-----------------------|--------|----------|--------------|-------------|
+| `template_version_id` | string | false    |              |             |
+| `workspace_build_id`  | string | false    |              |             |
 
 ## codersdk.ProvisionerJobLog
 
@@ -4557,6 +4586,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `canceled`  |
 | `failed`    |
 | `unknown`   |
+
+## codersdk.ProvisionerJobType
+
+```json
+"template_version_import"
+```
+
+### Properties
+
+#### Enumerated Values
+
+| Value                      |
+|----------------------------|
+| `template_version_import`  |
+| `workspace_build`          |
+| `template_version_dry_run` |
 
 ## codersdk.ProvisionerKey
 
@@ -5893,6 +5938,9 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -5900,6 +5948,11 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -5908,6 +5961,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
@@ -6932,6 +6986,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
     "initiator_name": "string",
     "job": {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
       "canceled_at": "2019-08-24T14:15:22Z",
       "completed_at": "2019-08-24T14:15:22Z",
       "created_at": "2019-08-24T14:15:22Z",
@@ -6939,6 +6996,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error_code": "REQUIRED_TEMPLATE_VARIABLES",
       "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input": {
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "queue_position": 0,
       "queue_size": 0,
       "started_at": "2019-08-24T14:15:22Z",
@@ -6947,6 +7009,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property1": "string",
         "property2": "string"
       },
+      "type": "template_version_import",
       "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
     },
     "matched_provisioners": {
@@ -7649,6 +7712,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
   "initiator_name": "string",
   "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
     "canceled_at": "2019-08-24T14:15:22Z",
     "completed_at": "2019-08-24T14:15:22Z",
     "created_at": "2019-08-24T14:15:22Z",
@@ -7656,6 +7722,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     "error_code": "REQUIRED_TEMPLATE_VARIABLES",
     "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
     "started_at": "2019-08-24T14:15:22Z",
@@ -7664,6 +7735,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "property1": "string",
       "property2": "string"
     },
+    "type": "template_version_import",
     "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
   },
   "matched_provisioners": {
@@ -8303,6 +8375,9 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
         "initiator_name": "string",
         "job": {
+          "available_workers": [
+            "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+          ],
           "canceled_at": "2019-08-24T14:15:22Z",
           "completed_at": "2019-08-24T14:15:22Z",
           "created_at": "2019-08-24T14:15:22Z",
@@ -8310,6 +8385,11 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "error_code": "REQUIRED_TEMPLATE_VARIABLES",
           "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "input": {
+            "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+            "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+          },
+          "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "queue_position": 0,
           "queue_size": 0,
           "started_at": "2019-08-24T14:15:22Z",
@@ -8318,6 +8398,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "property1": "string",
             "property2": "string"
           },
+          "type": "template_version_import",
           "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
         },
         "matched_provisioners": {

@@ -2991,6 +2991,71 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/provisionerjobs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get provisioner jobs",
+                "operationId": "get-provisioner-jobs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed",
+                            "unknown",
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed"
+                        ],
+                        "type": "string",
+                        "description": "Filter results by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJob"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/provisionerkeys": {
             "get": {
                 "security": [
@@ -12463,6 +12528,13 @@ const docTemplate = `{
         "codersdk.ProvisionerJob": {
             "type": "object",
             "properties": {
+                "available_workers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "canceled_at": {
                     "type": "string",
                     "format": "date-time"
@@ -12493,6 +12565,13 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobInput"
+                },
+                "organization_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -12527,7 +12606,23 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobType"
+                },
                 "worker_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ProvisionerJobInput": {
+            "type": "object",
+            "properties": {
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_build_id": {
                     "type": "string",
                     "format": "uuid"
                 }
@@ -12587,6 +12682,19 @@ const docTemplate = `{
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed",
                 "ProvisionerJobUnknown"
+            ]
+        },
+        "codersdk.ProvisionerJobType": {
+            "type": "string",
+            "enum": [
+                "template_version_import",
+                "workspace_build",
+                "template_version_dry_run"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerJobTypeTemplateVersionImport",
+                "ProvisionerJobTypeWorkspaceBuild",
+                "ProvisionerJobTypeTemplateVersionDryRun"
             ]
         },
         "codersdk.ProvisionerKey": {

@@ -6066,6 +6066,128 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 	return items, nil
 }
 
+const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+WITH pending_jobs AS (
+    SELECT
+        id, created_at
+    FROM
+        provisioner_jobs
+    WHERE
+        started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
+),
+queue_position AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+    FROM
+        pending_jobs
+),
+queue_size AS (
+	SELECT COUNT(*) AS count FROM pending_jobs
+)
+SELECT
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+    COALESCE(qp.queue_position, 0) AS queue_position,
+    COALESCE(qs.count, 0) AS queue_size,
+	-- Use subquery to utilize ORDER BY in array_agg since it cannot be
+	-- combined with FILTER.
+	(
+		SELECT
+			-- Order for stable output.
+			array_agg(pd.id ORDER BY pd.created_at ASC)::uuid[]
+		FROM
+			provisioner_daemons pd
+		WHERE
+			-- See AcquireProvisionerJob.
+			pj.started_at IS NULL
+			AND pj.organization_id = pd.organization_id
+			AND pj.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags, pj.tags)
+	) AS available_workers
+FROM
+	provisioner_jobs pj
+LEFT JOIN
+	queue_position qp ON qp.id = pj.id
+LEFT JOIN
+	queue_size qs ON TRUE
+WHERE
+	($1::uuid IS NULL OR pj.organization_id = $1)
+	AND (COALESCE(array_length($2::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($2::provisioner_job_status[]))
+GROUP BY
+	pj.id,
+	qp.queue_position,
+	qs.count
+ORDER BY
+	pj.created_at DESC
+LIMIT
+	$3::int
+`
+
+type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
+	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Limit          sql.NullInt32          `db:"limit" json:"limit"`
+}
+
+type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow struct {
+	ProvisionerJob   ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
+	QueuePosition    int64          `db:"queue_position" json:"queue_position"`
+	QueueSize        int64          `db:"queue_size" json:"queue_size"`
+	AvailableWorkers []uuid.UUID    `db:"available_workers" json:"available_workers"`
+}
+
+func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner, arg.OrganizationID, pq.Array(arg.Status), arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+	for rows.Next() {
+		var i GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+		if err := rows.Scan(
+			&i.ProvisionerJob.ID,
+			&i.ProvisionerJob.CreatedAt,
+			&i.ProvisionerJob.UpdatedAt,
+			&i.ProvisionerJob.StartedAt,
+			&i.ProvisionerJob.CanceledAt,
+			&i.ProvisionerJob.CompletedAt,
+			&i.ProvisionerJob.Error,
+			&i.ProvisionerJob.OrganizationID,
+			&i.ProvisionerJob.InitiatorID,
+			&i.ProvisionerJob.Provisioner,
+			&i.ProvisionerJob.StorageMethod,
+			&i.ProvisionerJob.Type,
+			&i.ProvisionerJob.Input,
+			&i.ProvisionerJob.WorkerID,
+			&i.ProvisionerJob.FileID,
+			&i.ProvisionerJob.Tags,
+			&i.ProvisionerJob.ErrorCode,
+			&i.ProvisionerJob.TraceMetadata,
+			&i.ProvisionerJob.JobStatus,
+			&i.QueuePosition,
+			&i.QueueSize,
+			pq.Array(&i.AvailableWorkers),
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const getProvisionerJobsCreatedAfter = `-- name: GetProvisionerJobsCreatedAfter :many
 SELECT id, created_at, updated_at, started_at, canceled_at, completed_at, error, organization_id, initiator_id, provisioner, storage_method, type, input, worker_id, file_id, tags, error_code, trace_metadata, job_status FROM provisioner_jobs WHERE created_at > $1
 `
