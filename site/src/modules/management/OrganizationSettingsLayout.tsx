@@ -81,9 +81,7 @@ const OrganizationSettingsLayout: FC = () => {
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
-								<BreadcrumbPage
-									className="flex items-center gap-2"
-								>
+								<BreadcrumbPage className="flex items-center gap-2">
 									Organizations
 									<FeatureStageBadge contentType="beta" size="sm" />
 								</BreadcrumbPage>
