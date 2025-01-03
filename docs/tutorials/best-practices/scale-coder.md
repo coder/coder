@@ -18,20 +18,13 @@ and metrics to identify potential bottlenecks before they negatively affect the
 end-user experience and measure the effects of modifications you make to your
 deployment.
 
-**Log output**
-
-- Capture log output from Loki, CloudWatch logs, and other tools on your Coder
-  Server instances and external provisioner daemons and store them in a
+- Log output
+  - Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server instances and external provisioner daemons and store them in a
   searchable log store.
+  - Retain logs for a minimum of thirty days, ideally ninety days. This allows you to look back to see when anomalous behaviors began.
 
-  - Retain logs for a minimum of thirty days, ideally ninety days. This allows
-    you to look back to see when anomalous behaviors began.
-
-**Metrics**
-
-- Capture infrastructure metrics like CPU, memory, open files, and network I/O
-  for all Coder Server, external provisioner daemon, workspace proxy, and
-  PostgreSQL instances.
+- Metrics
+  - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
 
 ### Capture Coder server metrics with Prometheus
 
@@ -73,27 +66,23 @@ dashboard, for example, [Grafana](../../admin/monitoring/index.md).
 Configure alerting based on these metrics to ensure you surface problems before
 they affect the end-user experience.
 
-**CPU and Memory Utilization**
+#### CPU and Memory Utilization
 
-- Monitor the utilization as a fraction of the available resources on the
-  instance.
+Monitor the utilization as a fraction of the available resources on the instance.
 
-  Utilization will vary with use throughout the course of a day, week, and
-  longer timelines. Monitor trends and pay special attention to the daily and
-  weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
+Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
 
-**Tail latency of Coder Server API requests**
+#### Tail latency of Coder Server API requests
 
-- High tail latency can indicate Coder Server or the PostgreSQL database is low
-  on resources.
+High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
 
-  Use the `coderd_api_request_latencies_seconds` metric.
+- Use the `coderd_api_request_latencies_seconds` metric.
 
-**Tail latency of database queries**
+#### Tail latency of database queries
 
-- High tail latency can indicate the PostgreSQL database is low in resources.
+High tail latency can indicate the PostgreSQL database is low in resources.
 
-  Use the `coderd_db_query_latencies_seconds` metric.
+- Use the `coderd_db_query_latencies_seconds` metric.
 
 ## Coder Server
 
