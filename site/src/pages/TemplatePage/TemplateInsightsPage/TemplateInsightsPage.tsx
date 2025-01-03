@@ -258,10 +258,14 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 				{data && data.length > 0 && (
 					<ActiveUserChart
 						interval={interval}
-						data={data.map((d) => ({
-							amount: d.active_users,
-							date: d.start_time,
-						}))}
+						series={[
+							{
+								data: data.map((d) => ({
+									amount: d.active_users,
+									date: d.start_time,
+								})),
+							},
+						]}
 					/>
 				)}
 			</PanelContent>

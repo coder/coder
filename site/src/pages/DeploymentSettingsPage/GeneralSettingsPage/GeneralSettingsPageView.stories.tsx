@@ -1,9 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-	MockDeploymentDAUResponse,
-	MockEntitlementsWithUserLimit,
-	mockApiError,
-} from "testHelpers/entities";
+import { MockDeploymentDAUResponse, mockApiError } from "testHelpers/entities";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
@@ -42,7 +38,100 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
 		deploymentDAUs: MockDeploymentDAUResponse,
 		invalidExperiments: [],
 		safeExperiments: [],
-		entitlements: undefined,
+		userStatusCountsOverTime: {
+			status_counts: {
+				active: [
+					{
+						date: "1/1/2024",
+						count: 1,
+					},
+					{
+						date: "1/2/2024",
+						count: 8,
+					},
+					{
+						date: "1/3/2024",
+						count: 8,
+					},
+					{
+						date: "1/4/2024",
+						count: 6,
+					},
+					{
+						date: "1/5/2024",
+						count: 6,
+					},
+					{
+						date: "1/6/2024",
+						count: 6,
+					},
+					{
+						date: "1/7/2024",
+						count: 6,
+					},
+				],
+				dormant: [
+					{
+						date: "1/1/2024",
+						count: 0,
+					},
+					{
+						date: "1/2/2024",
+						count: 3,
+					},
+					{
+						date: "1/3/2024",
+						count: 3,
+					},
+					{
+						date: "1/4/2024",
+						count: 3,
+					},
+					{
+						date: "1/5/2024",
+						count: 3,
+					},
+					{
+						date: "1/6/2024",
+						count: 3,
+					},
+					{
+						date: "1/7/2024",
+						count: 3,
+					},
+				],
+				suspended: [
+					{
+						date: "1/1/2024",
+						count: 0,
+					},
+					{
+						date: "1/2/2024",
+						count: 0,
+					},
+					{
+						date: "1/3/2024",
+						count: 0,
+					},
+					{
+						date: "1/4/2024",
+						count: 2,
+					},
+					{
+						date: "1/5/2024",
+						count: 2,
+					},
+					{
+						date: "1/6/2024",
+						count: 2,
+					},
+					{
+						date: "1/7/2024",
+						count: 2,
+					},
+				],
+			},
+		},
 	},
 };
 
@@ -138,73 +227,26 @@ export const invalidExperimentsEnabled: Story = {
 	},
 };
 
-export const WithLicenseUtilization: Story = {
+export const UnlicensedInstallation: Story = {
+	args: {},
+};
+
+export const LicensedWithNoUserLimit: Story = {
+	args: {},
+};
+
+export const LicensedWithPlentyOfSpareLicenses: Story = {
 	args: {
-		entitlements: {
-			...MockEntitlementsWithUserLimit,
-			features: {
-				...MockEntitlementsWithUserLimit.features,
-				user_limit: {
-					...MockEntitlementsWithUserLimit.features.user_limit,
-					enabled: true,
-					actual: 75,
-					limit: 100,
-					entitlement: "entitled",
-				},
-			},
-		},
+		activeUserLimit: 100,
 	},
 };
 
-export const HighLicenseUtilization: Story = {
+export const TotalUsersExceedsLicenseButNotActiveUsers: Story = {
 	args: {
-		entitlements: {
-			...MockEntitlementsWithUserLimit,
-			features: {
-				...MockEntitlementsWithUserLimit.features,
-				user_limit: {
-					...MockEntitlementsWithUserLimit.features.user_limit,
-					enabled: true,
-					actual: 95,
-					limit: 100,
-					entitlement: "entitled",
-				},
-			},
-		},
+		activeUserLimit: 8,
 	},
 };
 
-export const ExceedsLicenseUtilization: Story = {
-	args: {
-		entitlements: {
-			...MockEntitlementsWithUserLimit,
-			features: {
-				...MockEntitlementsWithUserLimit.features,
-				user_limit: {
-					...MockEntitlementsWithUserLimit.features.user_limit,
-					enabled: true,
-					actual: 100,
-					limit: 95,
-					entitlement: "entitled",
-				},
-			},
-		},
-	},
-};
-export const NoLicenseLimit: Story = {
-	args: {
-		entitlements: {
-			...MockEntitlementsWithUserLimit,
-			features: {
-				...MockEntitlementsWithUserLimit.features,
-				user_limit: {
-					...MockEntitlementsWithUserLimit.features.user_limit,
-					enabled: false,
-					actual: 0,
-					limit: 0,
-					entitlement: "entitled",
-				},
-			},
-		},
-	},
+export const ManyUsers: Story = {
+	args: {},
 };
