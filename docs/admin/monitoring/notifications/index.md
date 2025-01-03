@@ -64,7 +64,7 @@ You can modify the notification delivery behavior using the following server
 flags.
 
 | Required | CLI                                 | Env                                     | Type       | Description                                                                                                           | Default |
-| :------: | ----------------------------------- | --------------------------------------- | ---------- | --------------------------------------------------------------------------------------------------------------------- | ------- |
+|:--------:|-------------------------------------|-----------------------------------------|------------|-----------------------------------------------------------------------------------------------------------------------|---------|
 |    ✔️    | `--notifications-dispatch-timeout`  | `CODER_NOTIFICATIONS_DISPATCH_TIMEOUT`  | `duration` | How long to wait while a notification is being sent before giving up.                                                 | 1m      |
 |    ✔️    | `--notifications-method`            | `CODER_NOTIFICATIONS_METHOD`            | `string`   | Which delivery method to use (available options: 'smtp', 'webhook'). See [Delivery Methods](#delivery-methods) below. | smtp    |
 |    -️    | `--notifications-max-send-attempts` | `CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS` | `int`      | The upper limit of attempts to send a notification.                                                                   | 5       |
@@ -90,15 +90,15 @@ existing one.
 **Server Settings:**
 
 | Required | CLI                 | Env                     | Type     | Description                               | Default   |
-| :------: | ------------------- | ----------------------- | -------- | ----------------------------------------- | --------- |
+|:--------:|---------------------|-------------------------|----------|-------------------------------------------|-----------|
 |    ✔️    | `--email-from`      | `CODER_EMAIL_FROM`      | `string` | The sender's address to use.              |           |
-|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |
+|    ✔️    | `--email-smarthost` | `CODER_EMAIL_SMARTHOST` | `string` | The SMTP relay to send messages           |           |
 |    ✔️    | `--email-hello`     | `CODER_EMAIL_HELLO`     | `string` | The hostname identifying the SMTP server. | localhost |
 
 **Authentication Settings:**
 
 | Required | CLI                          | Env                              | Type     | Description                                                               |
-| :------: | ---------------------------- | -------------------------------- | -------- | ------------------------------------------------------------------------- |
+|:--------:|------------------------------|----------------------------------|----------|---------------------------------------------------------------------------|
 |    -     | `--email-auth-username`      | `CODER_EMAIL_AUTH_USERNAME`      | `string` | Username to use with PLAIN/LOGIN authentication.                          |
 |    -     | `--email-auth-password`      | `CODER_EMAIL_AUTH_PASSWORD`      | `string` | Password to use with PLAIN/LOGIN authentication.                          |
 |    -     | `--email-auth-password-file` | `CODER_EMAIL_AUTH_PASSWORD_FILE` | `string` | File from which to load password for use with PLAIN/LOGIN authentication. |
@@ -106,14 +106,14 @@ existing one.
 
 **TLS Settings:**
 
-| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                      | Default |
-| :------: | --------------------------- | ----------------------------- | -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------- |
-|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See https://datatracker.ietf.org/doc/html/rfc8314#section-3.3. | false   |
-|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                         | false   |
-|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                             | false   |
-|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                            |         |
-|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                         |         |
-|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                     |         |
+| Required | CLI                         | Env                           | Type     | Description                                                                                                                                                        | Default |
+|:--------:|-----------------------------|-------------------------------|----------|--------------------------------------------------------------------------------------------------------------------------------------------------------------------|---------|
+|    -     | `--email-force-tls`         | `CODER_EMAIL_FORCE_TLS`       | `bool`   | Force a TLS connection to the configured SMTP smarthost. If port 465 is used, TLS will be forced. See <https://datatracker.ietf.org/doc/html/rfc8314#section-3.3>. | false   |
+|    -     | `--email-tls-starttls`      | `CODER_EMAIL_TLS_STARTTLS`    | `bool`   | Enable STARTTLS to upgrade insecure SMTP connections using TLS. Ignored if `CODER_NOTIFICATIONS_EMAIL_FORCE_TLS` is set.                                           | false   |
+|    -     | `--email-tls-skip-verify`   | `CODER_EMAIL_TLS_SKIPVERIFY`  | `bool`   | Skip verification of the target server's certificate (**insecure**).                                                                                               | false   |
+|    -     | `--email-tls-server-name`   | `CODER_EMAIL_TLS_SERVERNAME`  | `string` | Server name to verify against the target certificate.                                                                                                              |         |
+|    -     | `--email-tls-cert-file`     | `CODER_EMAIL_TLS_CERTFILE`    | `string` | Certificate file to use.                                                                                                                                           |         |
+|    -     | `--email-tls-cert-key-file` | `CODER_EMAIL_TLS_CERTKEYFILE` | `string` | Certificate key file to use.                                                                                                                                       |         |
 
 **NOTE:** you _MUST_ use `CODER_EMAIL_FORCE_TLS` if your smarthost supports TLS
 on a port other than `465`.
@@ -123,9 +123,11 @@ on a port other than `465`.
 After setting the required fields above:
 
 1. Create an [App Password](https://myaccount.google.com/apppasswords) using the
-   account you wish to send from
-2. Set the following configuration options:
-   ```
+   account you wish to send from.
+
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp.gmail.com:465
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
    CODER_EMAIL_AUTH_PASSWORD="<app password created above>"
@@ -140,8 +142,9 @@ for more options.
 After setting the required fields above:
 
 1. Setup an account on Microsoft 365 or outlook.com
-2. Set the following configuration options:
-   ```
+1. Set the following configuration options:
+
+   ```text
    CODER_EMAIL_SMARTHOST=smtp-mail.outlook.com:587
    CODER_EMAIL_TLS_STARTTLS=true
    CODER_EMAIL_AUTH_USERNAME=<user>@<domain>
@@ -161,40 +164,40 @@ systems.
 **Settings**:
 
 | Required | CLI                                | Env                                    | Type  | Description                             |
-| :------: | ---------------------------------- | -------------------------------------- | ----- | --------------------------------------- |
+|:--------:|------------------------------------|----------------------------------------|-------|-----------------------------------------|
 |    ✔️    | `--notifications-webhook-endpoint` | `CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT` | `url` | The endpoint to which to send webhooks. |
 
 Here is an example payload for Coder's webhook notification:
 
 ```json
 {
-	"_version": "1.0",
-	"msg_id": "88750cad-77d4-4663-8bc0-f46855f5019b",
-	"payload": {
-		"_version": "1.0",
-		"notification_name": "Workspace Deleted",
-		"user_id": "4ac34fcb-8155-44d5-8301-e3cd46e88b35",
-		"user_email": "danny@coder.com",
-		"user_name": "danny",
-		"user_username": "danny",
-		"actions": [
-			{
-				"label": "View workspaces",
-				"url": "https://et23ntkhpueak.pit-1.try.coder.app/workspaces"
-			},
-			{
-				"label": "View templates",
-				"url": "https://et23ntkhpueak.pit-1.try.coder.app/templates"
-			}
-		],
-		"labels": {
-			"initiator": "danny",
-			"name": "my-workspace",
-			"reason": "initiated by user"
-		}
-	},
-	"title": "Workspace \"my-workspace\" deleted",
-	"body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\"."
+    "_version": "1.0",
+    "msg_id": "88750cad-77d4-4663-8bc0-f46855f5019b",
+    "payload": {
+        "_version": "1.0",
+        "notification_name": "Workspace Deleted",
+        "user_id": "4ac34fcb-8155-44d5-8301-e3cd46e88b35",
+        "user_email": "danny@coder.com",
+        "user_name": "danny",
+        "user_username": "danny",
+        "actions": [
+            {
+                "label": "View workspaces",
+                "url": "https://et23ntkhpueak.pit-1.try.coder.app/workspaces"
+            },
+            {
+                "label": "View templates",
+                "url": "https://et23ntkhpueak.pit-1.try.coder.app/templates"
+            }
+        ],
+        "labels": {
+            "initiator": "danny",
+            "name": "my-workspace",
+            "reason": "initiated by user"
+        }
+    },
+    "title": "Workspace \"my-workspace\" deleted",
+    "body": "Hi danny\n\nYour workspace my-workspace was deleted.\nThe specified reason was \"initiated by user (danny)\"."
 }
 ```
 

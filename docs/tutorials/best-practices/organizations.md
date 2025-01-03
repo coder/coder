@@ -47,8 +47,8 @@ deployed with Coder and has 1000 users in production. Today, MegaCo has a single
 (default) organization and a central platform team but is evaluating whether to
 use organizations for several use cases.
 
-| **Use Case**                                                                         | **Description**                                                                                                                                                                                                                                                                                                                                                                 | **Good fit for organizations?**                                                                         |
-| ------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------- |
+| **Use Case**                                                                         | **Description**                                                                                                                                                                                                                                                                                                                                                                 | **Good fit for organizations?**                                                                        |
+|--------------------------------------------------------------------------------------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | Mergers and acquisitions                                                             | Raptix, a 180-person startup recently acquired by MegaCo, has an independent cloud account, platform team, and Terraform modules and pipelines for deploying their code. They want to use Coder.                                                                                                                                                                                | ✅ Organizations                                                                                        |
 | Independent cloud-native teams that manage their namespaces, images, and/or clusters | MegaCo has six teams responsible for their own dev, staging, and production Kubernetes clusters and frequently deploy & test their work with `kubectl` and `helm`.</br></br>They wish to hook up Coder to their cluster so they can write and manage IDE templates for connecting to the cluster with their IDE                                                                 | ✅ Organizations                                                                                        |
 | Java monolith                                                                        | MegaCo has identified that anyone developing the Java monolith is best served with a VM instead of a container/cloud-native environment.</br></br>However, the Java team is supported by MegaCo's central platform team.                                                                                                                                                        | ❌ Use instead:</br>A separate template and/or groups                                                   |
@@ -115,18 +115,18 @@ within an organization. Custom roles can be applied to the default organization.
 
 Some examples of custom roles that can be created:
 
-**Provisioner Admin**
+### Provisioner Admin
 
 - The user can deploy provisioners but not manage templates. This may be useful
   if automation is used to create and update templates in the organization.
 
-**Template Editor**
+### Template Editor
 
 - Inverse of provisioner admin: User can manage templates but not deploy
   provisioners. This may be useful if the provisioner and template are deployed
   via automation and users are allowed to edit them.
 
-**Template Pusher**
+### Template Pusher
 
 - A system account that can push new templates from a git repo but cannot manage
   users or delete templates.

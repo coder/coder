@@ -18,7 +18,9 @@ import (
 const (
 	apiSubdir       = "reference/api"
 	apiIndexFile    = "index.md"
-	apiIndexContent = `Get started with the Coder API:
+	apiIndexContent = `# API
+
+Get started with the Coder API:
 
 ## Quickstart
 
