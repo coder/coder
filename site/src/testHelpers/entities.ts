@@ -206,6 +206,10 @@ export const MockProxyLatencies: Record<string, ProxyLatencyReport> = {
 						100) %
 					250,
 				at: new Date(),
+				nextHopProtocol:
+					proxy.id === "8444931c-0247-4171-842a-569d9f9cbadb"
+						? "http/1.1"
+						: "h2",
 			};
 			return acc;
 		},
@@ -865,6 +869,7 @@ export const MockWorkspaceApp: TypesGen.WorkspaceApp = {
 		threshold: 0,
 	},
 	hidden: false,
+	open_in: "slim-window",
 };
 
 export const MockWorkspaceAgentLogSource: TypesGen.WorkspaceAgentLogSource = {

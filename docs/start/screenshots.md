@@ -46,7 +46,7 @@ Templates are most popular and how well they perform for developers.
 
 ![Coder administrators can control *every* aspect of their Coder deployment.](../images/screenshots/settings.png)
 
-Coder administrators can control _every_ aspect of their Coder deployment.
+Coder administrators can control *every* aspect of their Coder deployment.
 
 ![Coder administrators and auditor roles can review how users are interacting with their Coder Workspaces and Templates.](../images/screenshots/audit.png)
 

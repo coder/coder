@@ -15,13 +15,13 @@ import (
 	"golang.org/x/exp/maps"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/codersdk/drpc"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionerd/runner"
+	"github.com/coder/websocket"
 )
 
 type LogSource string

@@ -24,7 +24,7 @@ If there is an issue, you may see one of the following errors reported:
 
 ### EACS01
 
-_Access URL not set_
+### Access URL not set
 
 **Problem:** no access URL has been configured.
 
@@ -32,7 +32,7 @@ _Access URL not set_
 
 ### EACS02
 
-_Access URL invalid_
+#### Access URL invalid
 
 **Problem:** `${CODER_ACCESS_URL}/healthz` is not a valid URL.
 
@@ -44,7 +44,7 @@ _Access URL invalid_
 
 ### EACS03
 
-_Failed to fetch `/healthz`_
+#### Failed to fetch `/healthz`
 
 **Problem:** Coder was unable to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`.
@@ -74,7 +74,7 @@ The output of this command should aid further diagnosis.
 
 ### EACS04
 
-_/healthz did not return 200 OK_
+#### /healthz did not return 200 OK
 
 **Problem:** Coder was able to execute a GET request to
 `${CODER_ACCESS_URL}/healthz`, but the response code was not `200 OK` as
@@ -97,7 +97,7 @@ its configured database, and also measures the median latency over 5 attempts.
 
 ### EDB01
 
-_Database Ping Failed_
+#### Database Ping Failed
 
 **Problem:** This error code is returned if any attempt to execute this database
 query fails.
@@ -106,7 +106,7 @@ query fails.
 
 ### EDB02
 
-_Database Latency High_
+#### Database Latency High
 
 **Problem:** This code is returned if the median latency is higher than the
 [configured threshold](../../reference/cli/server.md#--health-check-threshold-database).
@@ -138,7 +138,7 @@ following:
 
 ### EDERP01
 
-_DERP Node Uses Websocket_
+#### DERP Node Uses Websocket
 
 **Problem:** When Coder attempts to establish a connection to one or more DERP
 servers, it sends a specific `Upgrade: derp` HTTP header. Some load balancers
@@ -157,7 +157,7 @@ still be able to reach their workspaces, connection performance may be degraded.
 
 ### EDERP02
 
-_One or more DERP nodes are unhealthy_
+#### One or more DERP nodes are unhealthy
 
 **Problem:** This is shown if Coder is unable to reach one or more configured
 DERP servers. Clients will fall back to use the remaining DERP servers, but
@@ -176,7 +176,7 @@ curl -v "https://coder.company.com/derp"
 
 ### ESTUN01
 
-_No STUN servers available._
+#### No STUN servers available
 
 **Problem:** This is shown if no STUN servers are available. Coder will use STUN
 to establish [direct connections](../networking/stun.md). Without at least one
@@ -189,7 +189,7 @@ configured port.
 
 ### ESTUN02
 
-_STUN returned different addresses; you may be behind a hard NAT._
+#### STUN returned different addresses; you may be behind a hard NAT
 
 **Problem:** This is a warning shown when multiple attempts to determine our
 public IP address/port via STUN resulted in different `ip:port` combinations.
@@ -218,7 +218,7 @@ message over the connection, and attempt to read back that same message.
 
 ### EWS01
 
-_Failed to establish a WebSocket connection_
+#### Failed to establish a WebSocket connection
 
 **Problem:** Coder was unable to establish a WebSocket connection over its own
 Access URL.
@@ -237,7 +237,7 @@ Access URL.
 
 ### EWS02
 
-_Failed to echo a WebSocket message_
+#### Failed to echo a WebSocket message
 
 **Problem:** Coder was able to establish a WebSocket connection, but was unable
 to write a message.
@@ -258,7 +258,7 @@ Coder will periodically query their availability and show their status here.
 
 ### EWP01
 
-_Error Updating Workspace Proxy Health_
+#### Error Updating Workspace Proxy Health
 
 **Problem:** Coder was unable to query the connected workspace proxies for their
 health status.
@@ -268,7 +268,7 @@ connectivity issue.
 
 ### EWP02
 
-_Error Fetching Workspace Proxies_
+#### Error Fetching Workspace Proxies
 
 **Problem:** Coder was unable to fetch the stored workspace proxy health data
 from the database.
@@ -278,7 +278,7 @@ issue with Coder's configured database.
 
 ### EWP04
 
-_One or more Workspace Proxies Unhealthy_
+#### One or more Workspace Proxies Unhealthy
 
 **Problem:** One or more workspace proxies are not reachable.
 
@@ -287,7 +287,7 @@ workspace proxies.
 
 ### EPD01
 
-_No Provisioner Daemons Available_
+#### No Provisioner Daemons Available
 
 **Problem:** No provisioner daemons are registered with Coder. No workspaces can
 be built until there is at least one provisioner daemon running.
@@ -305,7 +305,7 @@ is set to a value greater than 0.
 
 ### EPD02
 
-_Provisioner Daemon Version Mismatch_
+#### Provisioner Daemon Version Mismatch
 
 **Problem:** One or more provisioner daemons are more than one major or minor
 version out of date with the main deployment. It is important that provisioner
@@ -320,7 +320,7 @@ version of Coder.
 
 ### EPD03
 
-_Provisioner Daemon API Version Mismatch_
+#### Provisioner Daemon API Version Mismatch
 
 **Problem:** One or more provisioner daemons are using APIs that are marked as
 deprecated. These deprecated APIs may be removed in a future release of Coder,
@@ -333,9 +333,9 @@ version of Coder.
 > Note: This may be a transient issue if you are currently in the process of
 > updating your deployment.
 
-## EUNKNOWN
+### EUNKNOWN
 
-_Unknown Error_
+#### Unknown Error
 
 **Problem:** This error is shown when an unexpected error occurred evaluating
 deployment health. It may resolve on its own.

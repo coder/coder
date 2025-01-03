@@ -146,7 +146,7 @@ func copyContext(ctx context.Context, dst io.Writer, src io.Reader, expectOutput
 			}
 			processing <- struct{}{}
 		}
-		if scanner.Err() != nil {
+		if scanner.Err() != nil && !xerrors.Is(scanner.Err(), io.EOF) {
 			copyErr <- xerrors.Errorf("read from reconnecting PTY: %w", scanner.Err())
 			return
 		}

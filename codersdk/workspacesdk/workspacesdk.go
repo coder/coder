@@ -14,7 +14,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 	"tailscale.com/wgengine/capture"
 
@@ -23,6 +22,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 var ErrSkipClose = xerrors.New("skip tailnet close")

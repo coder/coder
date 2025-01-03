@@ -4,13 +4,18 @@ import { test } from "@playwright/test";
 import {
 	createTemplate,
 	createWorkspace,
+	login,
 	startAgent,
 	stopAgent,
 	stopWorkspace,
 } from "../helpers";
 import { beforeCoderTest } from "../hooks";
+import { AppOpenIn } from "../provisionerGenerated";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("app", async ({ context, page }) => {
 	test.setTimeout(75_000);
@@ -42,6 +47,7 @@ test("app", async ({ context, page }) => {
 											url: `http://localhost:${addr.port}`,
 											displayName: appName,
 											order: 0,
+											openIn: AppOpenIn.SLIM_WINDOW,
 										},
 									],
 									order: 0,

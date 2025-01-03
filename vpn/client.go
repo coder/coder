@@ -7,7 +7,6 @@ import (
 	"net/url"
 
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/net/dns"
 	"tailscale.com/wgengine/router"
 
@@ -20,6 +19,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/quartz"
+	"github.com/coder/websocket"
 )
 
 type Conn interface {

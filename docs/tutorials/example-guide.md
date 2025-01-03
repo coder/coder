@@ -3,7 +3,7 @@
 <div>
   <a href="https://github.com/coder" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Your Name</span>
-    <img src="https://github.com/coder.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/coder.png" alt="Coder" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 December 13, 2023
