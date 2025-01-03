@@ -260,6 +260,7 @@ $(CODER_DYLIBS): go.mod go.sum $(GO_SRC_FILES)
 
 # This task builds both dylibs
 build/coder-dylib: $(CODER_DYLIBS)
+.PHONY: build/coder-dylib
 
 # This task builds all archives. It parses the target name to get the metadata
 # for the build, so it must be specified in this format:
@@ -391,21 +392,21 @@ node_modules/.installed: package.json
 	./scripts/pnpm_install.sh
 
 offlinedocs/node_modules/.installed: offlinedocs/package.json
-	cd offlinedocs
+	cd offlinedocs/
 	../scripts/pnpm_install.sh
 
 site/node_modules/.installed: site/package.json
-	cd site
+	cd site/
 	../scripts/pnpm_install.sh
 
 site/out/index.html: site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
-	cd site
+	cd site/
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
 	pnpm build
 
 offlinedocs/out/index.html: offlinedocs/node_modules/.installed $(shell find ./offlinedocs $(FIND_EXCLUSIONS) -type f) $(shell find ./docs $(FIND_EXCLUSIONS) -type f | sed 's: :\\ :g')
-	cd offlinedocs
+	cd offlinedocs/
 	../scripts/pnpm_install.sh
 	pnpm export
 
@@ -450,7 +451,7 @@ endif
 
 fmt/biome: site/node_modules/.installed
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/biome$(RESET)"
-	cd site
+	cd site/
 # Avoid writing files in CI to reduce file write activity
 ifdef CI
 	pnpm run format:check
@@ -487,7 +488,7 @@ lint/site-icons:
 .PHONY: lint/site-icons
 
 lint/ts: site/node_modules/.installed
-	cd site
+	cd site/
 	pnpm lint
 .PHONY: lint/ts
 
@@ -509,7 +510,7 @@ lint/shellcheck: $(SHELL_SRC_FILES)
 .PHONY: lint/shellcheck
 
 lint/helm:
-	cd helm
+	cd helm/
 	make lint
 .PHONY: lint/helm
 
@@ -599,7 +600,7 @@ gen/mark-fresh:
 		fi
 
 		# touch sets the mtime of the file to the current time
-		touch $$file
+		touch "$$file"
 	done
 .PHONY: gen/mark-fresh
 
@@ -664,16 +665,16 @@ vpn/vpn.pb.go: vpn/vpn.proto
 site/src/api/typesGenerated.ts: site/node_modules/.installed $(wildcard scripts/apitypings/*) $(shell find ./codersdk $(FIND_EXCLUSIONS) -type f -name '*.go')
 	# -C sets the directory for the go run command
 	go run -C ./scripts/apitypings main.go > $@
-	cd site
+	cd site/
 	pnpm exec biome format --write src/api/typesGenerated.ts
 
 site/e2e/provisionerGenerated.ts: site/node_modules/.installed provisionerd/proto/provisionerd.pb.go provisionersdk/proto/provisioner.pb.go
-	cd site
+	cd site/
 	pnpm run gen:provisioner
 
 site/src/theme/icons.json: site/node_modules/.installed $(wildcard scripts/gensite/*) $(wildcard site/static/icon/*)
 	go run ./scripts/gensite/ -icons "$@"
-	cd site
+	cd site/
 	pnpm exec biome format --write src/theme/icons.json
 
 examples/examples.gen.json: scripts/examplegen/main.go examples/examples.go $(shell find ./examples/templates)
@@ -693,12 +694,12 @@ codersdk/rbacresources_gen.go: scripts/typegen/codersdk.gotmpl scripts/typegen/m
 
 site/src/api/rbacresourcesGenerated.ts: site/node_modules/.installed scripts/typegen/codersdk.gotmpl scripts/typegen/main.go coderd/rbac/object.go coderd/rbac/policy/policy.go
 	go run scripts/typegen/main.go rbac typescript > "$@"
-	cd site
+	cd site/
 	pnpm exec biome format --write src/api/rbacresourcesGenerated.ts
 
 site/src/api/countriesGenerated.ts: site/node_modules/.installed scripts/typegen/countries.tstmpl scripts/typegen/main.go codersdk/countries.go
 	go run scripts/typegen/main.go countries > "$@"
-	cd site
+	cd site/
 	pnpm exec biome format --write src/api/countriesGenerated.ts
 
 docs/admin/integrations/prometheus.md: node_modules/.installed scripts/metricsdocgen/main.go scripts/metricsdocgen/metrics
@@ -710,7 +711,7 @@ docs/reference/cli/index.md: node_modules/.installed site/node_modules/.installe
 	CI=true BASE_PATH="." go run ./scripts/clidocgen
 	pnpm exec markdownlint-cli2 --fix ./docs/reference/cli/*.md
 	pnpm exec markdown-table-formatter ./docs/reference/cli/*.md
-	cd site
+	cd site/
 	pnpm exec biome format --write ../docs/manifest.json
 
 docs/admin/security/audit-logs.md: node_modules/.installed coderd/database/querier.go scripts/auditdocgen/main.go enterprise/audit/table.go coderd/rbac/object_gen.go
@@ -722,7 +723,7 @@ coderd/apidoc/swagger.json: node_modules/.installed site/node_modules/.installed
 	./scripts/apidocgen/generate.sh
 	pnpm exec markdownlint-cli2 --fix ./docs/reference/api/*.md
 	pnpm exec markdown-table-formatter ./docs/reference/api/*.md
-	cd site
+	cd site/
 	pnpm exec biome format --write ../docs/manifest.json ../coderd/apidoc/swagger.json
 
 update-golden-files: \
@@ -850,6 +851,7 @@ test-migrations: test-postgres-docker
 	if [[ "$${COMMIT_FROM}" == "$${COMMIT_TO}" ]]; then echo "Nothing to do!"; exit 0; fi
 	echo "DROP DATABASE IF EXISTS migrate_test_$${COMMIT_FROM}; CREATE DATABASE migrate_test_$${COMMIT_FROM};" | psql 'postgresql://postgres:postgres@localhost:5432/postgres?sslmode=disable'
 	go run ./scripts/migrate-test/main.go --from="$$COMMIT_FROM" --to="$$COMMIT_TO" --postgres-url="postgresql://postgres:postgres@localhost:5432/migrate_test_$${COMMIT_FROM}?sslmode=disable"
+.PHONY: test-migrations
 
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
@@ -897,6 +899,7 @@ test-tailnet-integration:
 			-timeout=5m \
 			-count=1 \
 			./tailnet/test/integration
+.PHONY: test-tailnet-integration
 
 # Note: we used to add this to the test target, but it's not necessary and we can
 # achieve the desired result by specifying -count=1 in the go test invocation
@@ -905,6 +908,11 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
+test-e2e: site/node_modules/.installed site/out/index.html
+	cd site/
+ifdef CI
+	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
+else
+	pnpm playwright:test
+endif
 .PHONY: test-e2e
-test-e2e: site/node_modules/.installed
-	cd ./site && DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
