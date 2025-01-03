@@ -892,6 +892,16 @@ export interface GetUserStatusCountsOverTimeResponse {
     readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
 }
 
+// From codersdk/insights.go
+export interface GetUserStatusCountsOverTimeRequest {
+    readonly offset: string;
+}
+
+// From codersdk/insights.go
+export interface GetUserStatusCountsOverTimeResponse {
+    readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
+}
+
 // From codersdk/users.go
 export interface GetUsersResponse {
 	readonly users: readonly User[];
