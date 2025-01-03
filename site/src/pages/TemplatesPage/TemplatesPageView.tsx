@@ -94,7 +94,6 @@ const TemplateRow: FC<TemplateRowProps> = ({ showOrganizations, template }) => {
 	const templatePageLink = getLink(
 		linkToTemplate(template.organization_name, template.name),
 	);
-	const hasIcon = template.icon && template.icon !== "";
 	const navigate = useNavigate();
 
 	const { css: clickableCss, ...clickableRow } = useClickableTableRow({

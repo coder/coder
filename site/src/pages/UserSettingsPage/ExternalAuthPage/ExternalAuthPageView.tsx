@@ -1,7 +1,6 @@
 import { useTheme } from "@emotion/react";
 import AutorenewIcon from "@mui/icons-material/Autorenew";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Badge from "@mui/material/Badge";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -10,8 +9,6 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import Tooltip from "@mui/material/Tooltip";
-// biome-ignore lint/nursery/noRestrictedImports: styled
-import { styled } from "@mui/material/styles";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { externalAuthProvider } from "api/queries/externalAuth";
 import type {
@@ -109,25 +106,6 @@ interface ExternalAuthRowProps {
 	onUnlinkExternalAuth: () => void;
 	onValidateExternalAuth: () => void;
 }
-
-const StyledBadge = styled(Badge)(({ theme }) => ({
-	"& .MuiBadge-badge": {
-		// Make a circular background for the icon. Background provides contrast, with a thin
-		// border to separate it from the avatar image.
-		backgroundColor: `${theme.palette.background.paper}`,
-		borderStyle: "solid",
-		borderColor: `${theme.palette.secondary.main}`,
-		borderWidth: "thin",
-
-		// Override the default minimum sizes, as they are larger than what we want.
-		minHeight: "0px",
-		minWidth: "0px",
-		// Override the default "height", which is usually set to some constant value.
-		height: "auto",
-		// Padding adds some room for the icon to live in.
-		padding: "0.1em",
-	},
-}));
 
 const ExternalAuthRow: FC<ExternalAuthRowProps> = ({
 	app,

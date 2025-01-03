@@ -1,4 +1,4 @@
-import { type Interpolation, type Theme, useTheme } from "@emotion/react";
+import type { Interpolation, Theme } from "@emotion/react";
 import AddIcon from "@mui/icons-material/AddOutlined";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import Button from "@mui/material/Button";
@@ -45,7 +45,6 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canAssignOrgRole,
 	isCustomRolesEnabled,
 }) => {
-	const theme = useTheme();
 	return (
 		<Stack spacing={4}>
 			{!isCustomRolesEnabled && (
