@@ -400,7 +400,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					}
 					variable "region" {
 						type    = string
-						default = "region.us"
+						default = "us"
 					}
 					data "base" "ours" {
 						all = true
@@ -408,7 +408,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					data "coder_parameter" "az" {
 						name = "az"
 						type = "string"
-						default = "az.a"
+						default = "a"
 					}
 					data "coder_workspace_tags" "tags" {
 						tags = {
@@ -421,6 +421,42 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			},
 			expectTags:  nil,
 			expectError: `Function calls not allowed; Functions may not be called here.`,
+		},
+		{
+			name: "main.tf with locals as default values",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					locals {
+						defaults = {
+							az = "a"
+						}
+					}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "base" "ours" {
+						all = true
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = local.defaults.az
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = var.region
+							"az"        = data.coder_parameter.az.value
+						}
+					}`,
+			},
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "us", "az": "a"},
 		},
 	} {
 		tc := tc

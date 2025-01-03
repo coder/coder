@@ -79,6 +79,11 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 	return &p, diags
 }
 
+func (p *Parser) Locals(ctx context.Context) (map[string]cty.Value, error) {
+	localsM := make(map[string]cty.Value, 0)
+	return localsM, nil
+}
+
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module
 // and returns the raw values for the tags. Use
 func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
@@ -166,13 +171,18 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
+	locals, err := p.Locals(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("load locals: %w", err)
+	}
+
 	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
 	varsDefaults, err := p.VariableDefaults(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults)
+	paramsDefaults, err := p.CoderParameterDefaults(ctx, locals, varsDefaults)
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -180,7 +190,7 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 	// Evaluate the tags expressions given the inputs.
 	// This will resolve any variables or parameters to their default
 	// values.
-	evalTags, err := evaluateWorkspaceTags(varsDefaults, paramsDefaults, tags)
+	evalTags, err := evaluateWorkspaceTags(locals, varsDefaults, paramsDefaults, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
@@ -268,7 +278,7 @@ func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error
 
 // CoderParameterDefaults returns the default values of all coder_parameter data sources
 // in the parsed module.
-func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string) (map[string]string, error) {
+func (p *Parser) CoderParameterDefaults(ctx context.Context, locals map[string]cty.Value, varsDefaults map[string]string) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	var (
 		skipped []string
@@ -327,7 +337,7 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[st
 				// Issue #15795: the "default" value could also be an expression we need
 				// to evaluate.
 				// TODO: should we support coder_parameter default values that reference other coder_parameter data sources?
-				evalCtx := BuildEvalContext(varsDefaults, nil)
+				evalCtx := BuildEvalContext(locals, varsDefaults, nil)
 				val, diags := expr.Value(evalCtx)
 				if diags.HasErrors() {
 					return nil, xerrors.Errorf("failed to evaluate coder_parameter %q default value %q: %s", dataResource.Name, value, diags.Error())
@@ -347,7 +357,7 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[st
 
 // evaluateWorkspaceTags evaluates the given workspaceTags based on the given
 // default values for variables and coder_parameter data sources.
-func evaluateWorkspaceTags(varsDefaults, paramsDefaults, workspaceTags map[string]string) (map[string]string, error) {
+func evaluateWorkspaceTags(locals map[string]cty.Value, varsDefaults, paramsDefaults, workspaceTags map[string]string) (map[string]string, error) {
 	// Filter only allowed data sources for preflight check.
 	// This is not strictly required but provides a friendlier error.
 	if err := validWorkspaceTagValues(workspaceTags); err != nil {
@@ -355,7 +365,7 @@ func evaluateWorkspaceTags(varsDefaults, paramsDefaults, workspaceTags map[strin
 	}
 	// We only add variables and coder_parameter data sources. Anything else will be
 	// undefined and will raise a Terraform error.
-	evalCtx := BuildEvalContext(varsDefaults, paramsDefaults)
+	evalCtx := BuildEvalContext(locals, varsDefaults, paramsDefaults)
 	tags := make(map[string]string)
 	for workspaceTagKey, workspaceTagValue := range workspaceTags {
 		expr, diags := hclsyntax.ParseExpression([]byte(workspaceTagValue), "expression.hcl", hcl.InitialPos)
@@ -396,7 +406,7 @@ func validWorkspaceTagValues(tags map[string]string) error {
 }
 
 // BuildEvalContext builds an evaluation context for the given variable and parameter defaults.
-func BuildEvalContext(vars map[string]string, params map[string]string) *hcl.EvalContext {
+func BuildEvalContext(locals map[string]cty.Value, vars map[string]string, params map[string]string) *hcl.EvalContext {
 	varDefaultsM := map[string]cty.Value{}
 	for varName, varDefault := range vars {
 		varDefaultsM[varName] = cty.MapVal(map[string]cty.Value{
@@ -418,6 +428,9 @@ func BuildEvalContext(vars map[string]string, params map[string]string) *hcl.Eva
 		// have to re-implement or copy the entire map or a subset thereof.
 		// ref: https://github.com/hashicorp/terraform/blob/e044e569c5bc81f82e9a4d7891f37c6fbb0a8a10/internal/lang/functions.go#L54
 		Functions: nil,
+	}
+	if len(locals) != 0 {
+		evalCtx.Variables["local"] = cty.MapVal(locals)
 	}
 	if len(varDefaultsM) != 0 {
 		evalCtx.Variables["var"] = cty.MapVal(varDefaultsM)
