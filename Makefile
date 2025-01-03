@@ -422,7 +422,9 @@ fmt/go:
 	echo "$(GREEN)==>$(RESET) $(BOLD)fmt/go$(RESET)"
 	# VS Code users should check out
 	# https://github.com/mvdan/gofumpt#visual-studio-code
-	go run mvdan.cc/gofumpt@v0.4.0 -w -l .
+	find . $(FIND_EXCLUSIONS) -type f -name '*.go' -print0 | \
+		xargs -0 grep --null -L "DO NOT EDIT" | \
+		xargs -0 go run mvdan.cc/gofumpt@v0.4.0 -w -l
 .PHONY: fmt/go
 
 fmt/ts:
@@ -511,9 +513,7 @@ TAILNETTEST_MOCKS := \
 	tailnet/tailnettest/workspaceupdatesprovidermock.go \
 	tailnet/tailnettest/subscriptionmock.go
 
-
-# all gen targets should be added here and to gen/mark-fresh
-gen: \
+GEN_FILES := \
 	tailnet/proto/tailnet.pb.go \
 	agent/proto/agent.pb.go \
 	provisionersdk/proto/provisioner.pb.go \
@@ -538,7 +538,13 @@ gen: \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
+
+# all gen targets should be added here and to gen/mark-fresh
+gen: $(GEN_FILES)
 .PHONY: gen
+
+gen/db: $(DB_GEN_FILES)
+.PHONY: gen/db
 
 # Mark all generated files as fresh so make thinks they're up-to-date. This is
 # used during releases so we don't run generation scripts.
@@ -696,19 +702,33 @@ coderd/apidoc/swagger.json: $(shell find ./scripts/apidocgen $(FIND_EXCLUSIONS) 
 
 update-golden-files: \
 	cli/testdata/.gen-golden \
-	helm/coder/tests/testdata/.gen-golden \
-	helm/provisioner/tests/testdata/.gen-golden \
-	scripts/ci-report/testdata/.gen-golden \
-	enterprise/cli/testdata/.gen-golden \
-	enterprise/tailnet/testdata/.gen-golden \
-	tailnet/testdata/.gen-golden \
 	coderd/.gen-golden \
 	coderd/notifications/.gen-golden \
-	provisioner/terraform/testdata/.gen-golden
+	enterprise/cli/testdata/.gen-golden \
+	enterprise/tailnet/testdata/.gen-golden \
+	helm/coder/tests/testdata/.gen-golden \
+	helm/provisioner/tests/testdata/.gen-golden \
+	provisioner/terraform/testdata/.gen-golden \
+	tailnet/testdata/.gen-golden
 .PHONY: update-golden-files
 
+clean/golden-files:
+	find . -type f -name '.gen-golden' -delete
+	find \
+		cli/testdata \
+		coderd/notifications/testdata \
+		coderd/testdata \
+		enterprise/cli/testdata \
+		enterprise/tailnet/testdata \
+		helm/coder/tests/testdata \
+		helm/provisioner/tests/testdata \
+		provisioner/terraform/testdata \
+		tailnet/testdata \
+		-type f -name '*.golden' -delete
+.PHONY: clean/golden-files
+
 cli/testdata/.gen-golden: $(wildcard cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard cli/*_test.go)
-	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples)" -update
+	go test ./cli -run="Test(CommandHelp|ServerYAML|ErrorExamples|.*Golden)" -update
 	touch "$@"
 
 enterprise/cli/testdata/.gen-golden: $(wildcard enterprise/cli/testdata/*.golden) $(wildcard cli/*.tpl) $(GO_SRC_FILES) $(wildcard enterprise/cli/*_test.go)
@@ -748,10 +768,6 @@ provisioner/terraform/testdata/version:
 		./provisioner/terraform/testdata/generate.sh
 	fi
 .PHONY: provisioner/terraform/testdata/version
-
-scripts/ci-report/testdata/.gen-golden: $(wildcard scripts/ci-report/testdata/*) $(wildcard scripts/ci-report/*.go)
-	go test ./scripts/ci-report -run=TestOutputMatchesGoldenFile -update
-	touch "$@"
 
 # Combine .gitignore with .prettierignore.include to generate .prettierignore.
 .prettierignore: .gitignore .prettierignore.include

@@ -11,7 +11,7 @@
     "user_username": "bobby",
     "actions": [
       {
-        "label": "See workspace",
+        "label": "View workspace",
         "url": "http://test.com/@bobby/bobby-workspace"
       }
     ],

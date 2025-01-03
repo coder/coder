@@ -62,9 +62,9 @@ There are two ways you can configure group sync:
 On login, users will automatically be assigned to groups that have matching
 names in Coder and removed from groups that the user no longer belongs to.
 
-For cases when an OIDC provider only returns group IDs ([Azure AD][azure-gids])
-or you want to have different group names in Coder than in your OIDC provider,
-you can configure mapping between the two with the
+For cases when an OIDC provider only returns group IDs or you want to have
+different group names in Coder than in your OIDC provider, you can configure
+mapping between the two with the
 [OIDC group mapping](../../reference/cli/server.md#--oidc-group-mapping) server
 flag:
 
@@ -92,9 +92,6 @@ coder:
 
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
-
-[azure-gids]:
-	https://github.com/MicrosoftDocs/azure-docs/issues/59766#issuecomment-664387195
 
 ## Runtime (Organizations)
 
