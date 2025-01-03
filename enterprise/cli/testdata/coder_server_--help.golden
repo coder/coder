@@ -57,7 +57,7 @@ OPTIONS:
 
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
-          downloaded from Maven https://repo1.maven.org/maven2 and store all
+          downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
           server postgres-builtin-url". Note that any special characters in the
           URL must be URL-encoded.
@@ -83,8 +83,8 @@ Clients include the coder cli, vs code extension, and the web UI.
 
       --cli-upgrade-message string, $CODER_CLI_UPGRADE_MESSAGE
           The upgrade message to display to users when a client/server mismatch
-          is detected. By default it instructs users to update using `curl -L
-          https://coder.com/install.sh | sh`.
+          is detected. By default it instructs users to update using 'curl -L
+          https://coder.com/install.sh | sh'.
 
       --ssh-config-options string-array, $CODER_SSH_CONFIG_OPTIONS
           These SSH config options will override the default SSH config options.
