@@ -2,7 +2,6 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { http, HttpResponse } from "msw";
 import {
 	MockEntitlements,
@@ -99,9 +98,7 @@ const fillAndSubmitForm = async ({
 		await userEvent.click(allowCancelJobsField);
 	}
 
-	const submitButton = await screen.findByText(
-		FooterFormLanguage.defaultSubmitLabel,
-	);
+	const submitButton = await screen.findByText(/save settings/i);
 	await userEvent.click(submitButton);
 };
 
@@ -217,8 +214,6 @@ async function deprecateTemplate(template: Template, message: string) {
 	const deprecationField = screen.getByLabelText("Deprecation Message");
 	await userEvent.type(deprecationField, message);
 
-	const submitButton = await screen.findByText(
-		FooterFormLanguage.defaultSubmitLabel,
-	);
+	const submitButton = await screen.findByText(/save settings/i);
 	await userEvent.click(submitButton);
 }

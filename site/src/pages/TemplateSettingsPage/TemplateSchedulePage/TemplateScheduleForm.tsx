@@ -45,6 +45,8 @@ import {
 	useWorkspacesToBeDeleted,
 	useWorkspacesToGoDormant,
 } from "./useWorkspacesToBeDeleted";
+import { Spinner } from "components/Spinner/Spinner";
+import { Button } from "components/Button/Button";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;
@@ -628,11 +630,19 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 				/>
 			)}
 
-			<FormFooter
-				onCancel={onCancel}
-				isLoading={isSubmitting}
-				submitDisabled={!form.isValid || !form.dirty}
-			/>
+			<FormFooter>
+				<Button type="button" onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button
+					type="submit"
+					disabled={isSubmitting || !form.isValid || !form.dirty}
+				>
+					{isSubmitting && <Spinner />}
+					Save settings
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

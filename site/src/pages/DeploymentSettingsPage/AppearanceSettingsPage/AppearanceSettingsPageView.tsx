@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
@@ -19,6 +18,7 @@ import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
+import { Button } from "components/Button/Button";
 
 export type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;

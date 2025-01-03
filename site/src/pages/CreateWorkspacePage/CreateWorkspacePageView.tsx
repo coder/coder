@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import FormHelperText from "@mui/material/FormHelperText";
 import TextField from "@mui/material/TextField";
 import type * as TypesGen from "api/typesGenerated";
@@ -42,6 +41,8 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
+import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 
 export const Language = {
 	duplicationWarning:
@@ -146,7 +147,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 	return (
 		<Margins size="medium">
-			<PageHeader actions={<Button onClick={onCancel}>Cancel</Button>}>
+			<PageHeader
+				actions={
+					<Button size="sm" variant="outline" onClick={onCancel}>
+						Cancel
+					</Button>
+				}
+			>
 				<Stack direction="row">
 					<Avatar
 						variant="icon"
@@ -218,7 +225,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 							<FormHelperText data-chromatic="ignore">
 								Need a suggestion?{" "}
 								<Button
-									variant="text"
+									variant="subtle"
+									size="sm"
 									css={styles.nameSuggestion}
 									onClick={async () => {
 										await form.setFieldValue("name", suggestedName);
@@ -306,12 +314,15 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					</FormSection>
 				)}
 
-				<FormFooter
-					onCancel={onCancel}
-					isLoading={creatingWorkspace}
-					submitDisabled={!hasAllRequiredExternalAuth}
-					submitLabel="Create Workspace"
-				/>
+				<FormFooter>
+					<Button onClick={onCancel} type="button" variant="outline">
+						Cancel
+					</Button>
+					<Button disabled={creatingWorkspace || !hasAllRequiredExternalAuth}>
+						{creatingWorkspace && <Spinner />}
+						Create workspace
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 		</Margins>
 	);

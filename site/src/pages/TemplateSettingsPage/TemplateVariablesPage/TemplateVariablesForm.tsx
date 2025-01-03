@@ -18,6 +18,8 @@ import {
 	SensitiveVariableHelperText,
 	TemplateVariableField,
 } from "./TemplateVariableField";
+import { Spinner } from "components/Spinner/Spinner";
+import { Button } from "components/Button/Button";
 
 export interface TemplateVariablesForm {
 	templateVersion: TemplateVersion;
@@ -106,7 +108,16 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 				);
 			})}
 
-			<FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+			<FormFooter>
+				<Button type="button" onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button type="submit" disabled={isSubmitting}>
+					{isSubmitting && <Spinner />}
+					Save settings
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

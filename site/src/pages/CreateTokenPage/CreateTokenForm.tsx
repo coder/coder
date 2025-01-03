@@ -21,6 +21,8 @@ import {
 	determineDefaultLtValue,
 	filterByMaxTokenLifetime,
 } from "./utils";
+import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 
 dayjs.extend(utc);
 
@@ -144,11 +146,20 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					</Stack>
 				</FormFields>
 			</FormSection>
-			<FormFooter
-				onCancel={() => navigate("/settings/tokens")}
-				isLoading={isCreating}
-				submitLabel={creationFailed ? "Retry" : "Create token"}
-			/>
+
+			<FormFooter>
+				<Button
+					onClick={() => navigate("/settings/tokens")}
+					type="button"
+					variant="outline"
+				>
+					Cancel
+				</Button>
+				<Button disabled={isCreating}>
+					{isCreating && <Spinner />}
+					{creationFailed ? "Retry" : "Create token"}
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

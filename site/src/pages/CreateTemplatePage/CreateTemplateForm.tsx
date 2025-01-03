@@ -41,6 +41,8 @@ import {
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
+import { Button } from "components/Button/Button";
+import { Spinner } from "components/Spinner/Spinner";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 
@@ -350,37 +352,37 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</FormSection>
 			)}
 
-			<div className="flex items-center">
-				<FormFooter
-					extraActions={
-						logs && (
-							<button
-								type="button"
-								onClick={onOpenBuildLogsDrawer}
-								css={(theme) => ({
-									backgroundColor: "transparent",
-									border: 0,
-									fontWeight: 500,
-									fontSize: 14,
-									cursor: "pointer",
-									color: theme.palette.text.secondary,
+			<FormFooter>
+				<Button onClick={onCancel} type="button" variant="outline">
+					Cancel
+				</Button>
+				<Button disabled={isSubmitting}>
+					{isSubmitting && <Spinner />}
+					{jobError ? "Retry" : "Create template"}
+				</Button>
+				{logs && (
+					<button
+						type="button"
+						onClick={onOpenBuildLogsDrawer}
+						css={(theme) => ({
+							backgroundColor: "transparent",
+							border: 0,
+							fontWeight: 500,
+							fontSize: 14,
+							cursor: "pointer",
+							color: theme.palette.text.secondary,
 
-									"&:hover": {
-										textDecoration: "underline",
-										textUnderlineOffset: 4,
-										color: theme.palette.text.primary,
-									},
-								})}
-							>
-								Show build logs
-							</button>
-						)
-					}
-					onCancel={onCancel}
-					isLoading={isSubmitting}
-					submitLabel={jobError ? "Retry" : "Create template"}
-				/>
-			</div>
+							"&:hover": {
+								textDecoration: "underline",
+								textUnderlineOffset: 4,
+								color: theme.palette.text.primary,
+							},
+						})}
+					>
+						Show build logs
+					</button>
+				)}
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

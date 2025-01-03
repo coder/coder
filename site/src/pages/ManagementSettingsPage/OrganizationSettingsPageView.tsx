@@ -26,6 +26,7 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
+import { Spinner } from "components/Spinner/Spinner";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;
@@ -115,7 +116,13 @@ export const OrganizationSettingsPageView: FC<
 						</FormFields>
 					</fieldset>
 				</FormSection>
-				<FormFooter isLoading={form.isSubmitting} />
+
+				<FormFooter>
+					<Button type="submit" disabled={form.isSubmitting}>
+						{form.isSubmitting && <Spinner />}
+						Save settings
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 
 			{!organization.is_default && (

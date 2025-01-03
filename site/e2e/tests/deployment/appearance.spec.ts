@@ -20,7 +20,7 @@ test("set application name", async ({ page }) => {
 	await form
 		.getByLabel("Application name", { exact: true })
 		.fill(applicationName);
-	await form.getByRole("button", { name: "Submit" }).click();
+	await form.getByRole("button", { name: /save settings/i }).click();
 
 	// Open a new session without cookies to see the login page
 	const browser = await chromium.launch();
