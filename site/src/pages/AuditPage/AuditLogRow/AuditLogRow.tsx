@@ -16,7 +16,10 @@ import type { ThemeRole } from "theme/roles";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
-import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
+import {
+	determineGroupDiff,
+	determineIdPSyncMappingDiff,
+} from "./AuditLogDiff/auditUtils";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
@@ -57,6 +60,14 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 	// groups have nested diffs (group members)
 	if (auditLog.resource_type === "group") {
 		auditDiff = determineGroupDiff(auditLog.diff);
+	}
+
+	if (
+		auditLog.resource_type === "idp_sync_settings_organization" ||
+		auditLog.resource_type === "idp_sync_settings_group" ||
+		auditLog.resource_type === "idp_sync_settings_role"
+	) {
+		auditDiff = determineIdPSyncMappingDiff(auditLog.diff);
 	}
 
 	const toggle = () => {

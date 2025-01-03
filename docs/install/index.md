@@ -69,5 +69,5 @@ coder login https://coder.example.com
 
 ## Next steps
 
-- [Set up your first deployment](../tutorials/quickstart.md)
-- [Expose your control plane to other users](../admin/setup/index.md)
+- [Quickstart](../tutorials/quickstart.md)
+- [Configure Control Plane Access](../admin/setup/index.md)

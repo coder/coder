@@ -1,3 +1,4 @@
+<!-- markdownlint-disable MD024 -->
 # IDP Sync
 
 <blockquote class="info">
@@ -6,6 +7,8 @@ IDP sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
 
 </blockquote>
+
+## Group Sync
 
 If your OpenID Connect provider supports group claims, you can configure Coder
 to synchronize groups in your auth provider to groups within Coder. To enable
@@ -141,10 +144,10 @@ will be able to configure this in the UI. For now, you must use CLI commands.
 
    ```json
    {
-   	"field": "",
-   	"mapping": null,
-   	"regex_filter": null,
-   	"auto_create_missing_groups": false
+       "field": "",
+       "mapping": null,
+       "regex_filter": null,
+       "auto_create_missing_groups": false
    }
    ```
 
@@ -153,10 +156,10 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 
 ```json
 {
-	"field": "groups",
-	"mapping": null,
-	"regex_filter": "^coder-.*$",
-	"auto_create_missing_groups": true
+    "field": "groups",
+    "mapping": null,
+    "regex_filter": "^coder-.*$",
+    "auto_create_missing_groups": true
 }
 ```
 
@@ -174,16 +177,16 @@ group:
 
 ```json
 {
-	"field": "groups",
-	"mapping": {
-		"coder-admins": [
-			"2ba2a4ff-ddfb-4493-b7cd-1aec2fa4c830",
-			"93371154-150f-4b12-b5f0-261bb1326bb4"
-		],
-		"coder-users": ["2f4bde93-0179-4815-ba50-b757fb3d43dd"]
-	},
-	"regex_filter": null,
-	"auto_create_missing_groups": false
+    "field": "groups",
+    "mapping": {
+        "coder-admins": [
+            "2ba2a4ff-ddfb-4493-b7cd-1aec2fa4c830",
+            "93371154-150f-4b12-b5f0-261bb1326bb4"
+        ],
+        "coder-users": ["2f4bde93-0179-4815-ba50-b757fb3d43dd"]
+    },
+    "regex_filter": null,
+    "auto_create_missing_groups": false
 }
 ```
 
@@ -209,7 +212,7 @@ Users who are not in a matching group will see the following error:
 
 <Image height="412px" src="../../images/admin/group-allowlist.png" alt="Unauthorized group error" align="center" />
 
-## Role sync
+## Role Sync
 
 <blockquote class="info">
 
@@ -307,8 +310,8 @@ will be able to configure this in the UI. For now, you must use CLI commands.
 
    ```json
    {
-   	"field": "",
-   	"mapping": null
+       "field": "",
+       "mapping": null
    }
    ```
 
@@ -318,11 +321,11 @@ role:
 
 ```json
 {
-	"field": "roles",
-	"mapping": {
-		"coder-admins": ["organization-admin"],
-		"infra-admins": ["provisioner-admin"]
-	}
+    "field": "roles",
+    "mapping": {
+        "coder-admins": ["organization-admin"],
+        "infra-admins": ["provisioner-admin"]
+    }
 }
 ```
 
@@ -372,7 +375,7 @@ dashboard:
 
 <div class="tabs">
 
-### Dashboard
+## Dashboard
 
 1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
    the following URL with an `Owner` account:
@@ -412,7 +415,7 @@ dashboard:
 
    ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
 
-### CLI
+## CLI
 
 Use the Coder CLI to show and adjust the settings.
 
@@ -455,7 +458,7 @@ settings, a user's memberships will update when they log out and log back in.
    Analyzing the JSON payload:
 
    | Field                       | Explanation                                                                                                                                                                                                                                                                             |
-   | :-------------------------- | :-------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+   |:----------------------------|:----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
    | field                       | If this field is the empty string `""`, then org-sync is disabled. </br> Org memberships must be manually configured through the UI or API.                                                                                                                                             |
    | mapping                     | Mapping takes a claim from the IdP, and associates it with 1 or more organizations by UUID. </br> No validation is done, so you can put UUID's of orgs that do not exist (a noop). The UI picker will allow selecting orgs from a drop down, and convert it to a UUID for you.          |
    | organization_assign_default | This setting exists for maintaining backwards compatibility with single org deployments, either through their upgrade, or in perpetuity. </br> If this is set to 'true', all users will always be assigned to the default organization regardless of the mappings and their IdP claims. |

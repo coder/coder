@@ -8,7 +8,7 @@ to us, what we expect, what you can expect from us.
 
 You can see the pretty version [here](https://coder.com/security/policy)
 
-# Why Coder's security matters
+## Why Coder's security matters
 
 If an attacker could fully compromise a Coder installation, they could spin up
 expensive workstations, steal valuable credentials, or steal proprietary source
@@ -16,13 +16,13 @@ code. We take this risk very seriously and employ routine pen testing,
 vulnerability scanning, and code reviews. We also welcome the contributions from
 the community that helped make this product possible.
 
-# Where should I report security issues?
+## Where should I report security issues?
 
-Please report security issues to security@coder.com, providing all relevant
+Please report security issues to <security@coder.com>, providing all relevant
 information. The more details you provide, the easier it will be for us to
 triage and fix the issue.
 
-# Out of Scope
+## Out of Scope
 
 Our primary concern is around an abuse of the Coder application that allows an
 attacker to gain access to another users workspace, or spin up unwanted
@@ -40,7 +40,7 @@ workspaces.
   out-of-scope systems should be reported to the appropriate vendor or
   applicable authority.
 
-# Our Commitments
+## Our Commitments
 
 When working with us, according to this policy, you can expect us to:
 
@@ -53,7 +53,7 @@ When working with us, according to this policy, you can expect us to:
 - Extend Safe Harbor for your vulnerability research that is related to this
   policy.
 
-# Our Expectations
+## Our Expectations
 
 In participating in our vulnerability disclosure program in good faith, we ask
 that you:

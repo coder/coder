@@ -17,7 +17,7 @@ For any information not strictly contained in these sections, check out our
 
 ## What is an image, template, dev container, or workspace
 
-**Image**
+### Image
 
 - A [base image](./templates/managing-templates/image-management.md) contains
   OS-level packages and utilities that the Coder workspace is built on. It can
@@ -26,28 +26,28 @@ For any information not strictly contained in these sections, check out our
   defined in each template.
 - Managed by: Externally to Coder.
 
-**Template**
+### Template
 
 - [Templates](./templates/index.md) include infrastructure-level dependencies
   for the workspace. For example, a template can include Kubernetes
   PersistentVolumeClaims, Docker containers, or EC2 VMs.
 - Managed by: Template administrators from within the Coder deployment.
 
-**Startup scripts**
+### Startup scripts
 
 - Agent startup scripts apply to all users of a template. This is an
   intentionally flexible area that template authors have at their disposal to
   manage the "last mile" of workspace creation.
 - Managed by: Coder template administrators.
 
-**Workspace**
+### Workspace
 
 - A [workspace](../user-guides/workspace-management.md) is the environment that
   a developer works in. Developers on a team each work from their own workspace
   and can use [multiple IDEs](../user-guides/workspace-access/index.md).
 - Managed by: Developers
 
-**Development containers (dev containers)**
+### Development containers (dev containers)
 
 - A
   [Development Container](./templates/managing-templates/devcontainers/index.md)
@@ -57,7 +57,7 @@ For any information not strictly contained in these sections, check out our
   will be built on-demand.
 - Managed by: Dev Teams
 
-**Dotfiles / personalization**
+### Dotfiles / personalization
 
 - Users may have their own specific preferences relating to shell prompt, custom
   keybindings, color schemes, and more. Users can leverage Coder's
