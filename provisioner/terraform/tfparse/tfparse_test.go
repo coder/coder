@@ -49,8 +49,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -71,8 +73,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -94,8 +98,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -128,8 +134,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "${""}${"a"}"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -158,8 +166,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						type    = string
@@ -195,8 +205,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "eu"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 					  name = "az"
@@ -235,8 +247,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -263,8 +277,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -300,8 +316,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 					variable "notregion" {
 						type = string
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -332,8 +350,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -368,8 +388,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -402,8 +424,10 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = string
 						default = "region.us"
 					}
-					data "base" "ours" {
-						all = true
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
 					}
 					data "coder_parameter" "az" {
 						name = "az"
@@ -421,6 +445,99 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			},
 			expectTags:  nil,
 			expectError: `Function calls not allowed; Functions may not be called here.`,
+		},
+		{
+			name: "supported types",
+			files: map[string]string{
+				"main.tf": `
+					variable "stringvar" {
+						type    = string
+						default = "a"
+					}
+					variable "numvar" {
+						type    = number
+						default = 1
+					}
+					variable "boolvar" {
+						type    = bool
+						default = true
+					}
+					data "coder_parameter" "stringparam" {
+						name    = "stringparam"
+						type    = "string"
+						default = "a"
+					}
+					data "coder_parameter" "numparam" {
+						name    = "numparam"
+						type    = "number"
+						default = 1
+					}
+					data "coder_parameter" "boolparam" {
+						name    = "boolparam"
+						type    = "bool"
+						default = true
+					}
+					data "coder_parameter" "listparam" {
+						name    = "listparam"
+						type    = "list(string)"
+						default = "[\"a\", \"b\"]"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"stringvar"   = var.stringvar
+							"numvar"      = var.numvar
+							"boolvar"     = var.boolvar
+							"stringparam" = data.coder_parameter.stringparam.value
+							"numparam"    = data.coder_parameter.numparam.value
+							"boolparam"   = data.coder_parameter.boolparam.value
+							"listparam"   = data.coder_parameter.listparam.value
+						}
+					}`,
+			},
+			expectTags: map[string]string{
+				"stringvar":   "a",
+				"numvar":      "1",
+				"boolvar":     "true",
+				"stringparam": "a",
+				"numparam":    "1",
+				"boolparam":   "true",
+				"listparam":   `["a", "b"]`,
+			},
+			expectError: ``,
+		},
+		{
+			name: "unsupported list variable",
+			files: map[string]string{
+				"main.tf": `
+					variable "listvar" {
+						type    = list(string)
+						default = ["a"]
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							listvar = var.listvar
+						}
+					}`,
+			},
+			expectTags:  nil,
+			expectError: `can't convert variable default value to string: unsupported type []interface {}`,
+		},
+		{
+			name: "unsupported map variable",
+			files: map[string]string{
+				"main.tf": `
+					variable "mapvar" {
+						type    = map(string)
+						default = {"a": "b"}
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							mapvar = var.mapvar
+						}
+					}`,
+			},
+			expectTags:  nil,
+			expectError: `can't convert variable default value to string: unsupported type map[string]interface {}`,
 		},
 	} {
 		tc := tc

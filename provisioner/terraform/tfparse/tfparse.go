@@ -80,7 +80,7 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 }
 
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module
-// and returns the raw values for the tags. Use
+// and returns the raw values for the tags.
 func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
 	tags := map[string]string{}
 	var skipped []string
@@ -166,13 +166,17 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
 	}
 
+	if len(tags) == 0 {
+		return map[string]string{}, nil
+	}
+
 	// To evaluate the expressions, we need to load the default values for
 	// variables and parameters.
-	varsDefaults, err := p.VariableDefaults(ctx)
+	varsDefaults, err := p.VariableDefaults(ctx, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults)
+	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults, tags)
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -247,13 +251,24 @@ func WriteArchive(bs []byte, mimetype string, path string) error {
 	return nil
 }
 
-// VariableDefaults returns the default values for all variables passed to it.
-func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error) {
+// VariableDefaults returns the default values for all variables referenced in the values of tags.
+func (p *Parser) VariableDefaults(ctx context.Context, tags map[string]string) (map[string]string, error) {
+	var skipped []string
 	// iterate through vars to get the default values for all
-	// variables.
+	// required variables.
 	m := make(map[string]string)
 	for _, v := range p.module.Variables {
 		if v == nil {
+			continue
+		}
+		var found bool
+		for _, tv := range tags {
+			if strings.Contains(tv, v.Name) {
+				found = true
+			}
+		}
+		if !found {
+			skipped = append(skipped, "var."+v.Name)
 			continue
 		}
 		sv, err := interfaceToString(v.Default)
@@ -262,13 +277,13 @@ func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error
 		}
 		m[v.Name] = strings.Trim(sv, `"`)
 	}
-	p.logger.Debug(ctx, "found default values for variables", slog.F("defaults", m))
+	p.logger.Debug(ctx, "found default values for variables", slog.F("defaults", m), slog.F("skipped", skipped))
 	return m, nil
 }
 
 // CoderParameterDefaults returns the default values of all coder_parameter data sources
 // in the parsed module.
-func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string) (map[string]string, error) {
+func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string, tags map[string]string) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	var (
 		skipped []string
@@ -287,6 +302,18 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[st
 		}
 
 		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
+			continue
+		}
+
+		var found bool
+		needle := strings.Join([]string{"data", dataResource.Type, dataResource.Name}, ".")
+		for _, tv := range tags {
+			if strings.Contains(tv, needle) {
+				found = true
+			}
+		}
+		if !found {
+			skipped = append(skipped, needle)
 			continue
 		}
 
