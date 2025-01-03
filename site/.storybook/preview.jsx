@@ -64,6 +64,14 @@ export const parameters = {
 				},
 				type: "tablet",
 			},
+			iphone12: {
+				name: "iPhone 12",
+				styles: {
+					height: "844px",
+					width: "390px",
+				},
+				type: "mobile",
+			},
 			terminal: {
 				name: "Terminal",
 				styles: {

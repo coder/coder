@@ -775,16 +775,6 @@ export interface GenerateAPIKeyResponse {
     readonly key: string;
 }
 
-// From codersdk/insights.go
-export interface GetUserStatusCountsOverTimeRequest {
-    readonly offset: string;
-}
-
-// From codersdk/insights.go
-export interface GetUserStatusCountsOverTimeResponse {
-    readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
-}
-
 // From codersdk/users.go
 export interface GetUsersResponse {
     readonly users: readonly User[];
@@ -1558,15 +1548,9 @@ export interface ResolveAutostartResponse {
 }
 
 // From codersdk/audit.go
-export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "license" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy";
+export type ResourceType = "api_key" | "convert_login" | "custom_role" | "git_ssh_key" | "group" | "health_settings" | "idp_sync_settings_group" | "idp_sync_settings_organization" | "idp_sync_settings_role" | "license" | "notification_template" | "notifications_settings" | "oauth2_provider_app" | "oauth2_provider_app_secret" | "organization" | "organization_member" | "template" | "template_version" | "user" | "workspace" | "workspace_build" | "workspace_proxy";
 
-// From codersdk/audit.go
-export const ResourceTypeNotificationTemplate = "notification_template";
-
-// From codersdk/audit.go
-export const ResourceTypeOrganizationMember = "organization_member";
-
-export const ResourceTypes: ResourceType[] = ["api_key", "convert_login", "custom_role", "git_ssh_key", "group", "health_settings", "license", "notifications_settings", "oauth2_provider_app", "oauth2_provider_app_secret", "organization", "template", "template_version", "user", "workspace", "workspace_build", "workspace_proxy"];
+export const ResourceTypes: ResourceType[] = ["api_key", "convert_login", "custom_role", "git_ssh_key", "group", "health_settings", "idp_sync_settings_group", "idp_sync_settings_organization", "idp_sync_settings_role", "license", "notification_template", "notifications_settings", "oauth2_provider_app", "oauth2_provider_app_secret", "organization", "organization_member", "template", "template_version", "user", "workspace", "workspace_build", "workspace_proxy"];
 
 // From codersdk/client.go
 export interface Response {
@@ -2331,12 +2315,6 @@ export interface UserRoles {
 
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
-
-// From codersdk/insights.go
-export interface UserStatusChangeCount {
-    readonly date: string;
-    readonly count: number;
-}
 
 export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 
