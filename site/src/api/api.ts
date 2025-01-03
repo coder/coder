@@ -1033,6 +1033,7 @@ class ApiMethods {
 			{ params },
 		);
 
+		console.log(response.data.latest_build.resources);
 		return response.data;
 	};
 

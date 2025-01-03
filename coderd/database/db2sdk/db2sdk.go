@@ -518,6 +518,7 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 			},
 			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
 			Hidden: dbApp.Hidden,
+			OpenIn: codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 		})
 	}
 	return apps

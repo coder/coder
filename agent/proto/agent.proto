@@ -24,6 +24,7 @@ message WorkspaceApp {
 		AUTHENTICATED = 2;
 		PUBLIC = 3;
 	}
+
 	SharingLevel sharing_level = 10;
 
 	message Healthcheck {
@@ -42,7 +43,13 @@ message WorkspaceApp {
 	}
 	Health health = 12;
 	bool hidden = 13;
-	string open_in = 14;
+
+	enum OpenIn {
+		WINDOW = 0;
+		SLIM_WINDOW = 1;
+		TAB = 2;
+	}
+	OpenIn open_in = 14;
 }
 
 message WorkspaceAgentScript {

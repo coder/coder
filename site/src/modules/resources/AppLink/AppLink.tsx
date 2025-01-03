@@ -41,6 +41,8 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 	const theme = useTheme();
 	const username = workspace.owner_name;
 
+	console.log('app : ', app);
+
 	let appSlug = app.slug;
 	let appDisplayName = app.display_name;
 	if (!appSlug) {

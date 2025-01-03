@@ -237,6 +237,11 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app health: %v (%q)", protoApp.Health, protoApp.Health.String())
 	}
 
+	openIn := codersdk.WorkspaceAppOpenIn(strings.ToLower(protoApp.OpenIn.String()))
+	if _, ok := codersdk.MapWorkspaceAppOpenIns[openIn]; !ok {
+		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app open in option: %v (%q)", protoApp.OpenIn, protoApp.OpenIn.String())
+	}
+
 	return codersdk.WorkspaceApp{
 		ID:            id,
 		URL:           protoApp.Url,
@@ -255,7 +260,7 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		},
 		Health: health,
 		Hidden: protoApp.Hidden,
-		OpenIn: protoApp.OpenIn,
+		OpenIn: openIn,
 	}, nil
 }
 
@@ -267,6 +272,10 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	health, ok := proto.WorkspaceApp_Health_value[strings.ToUpper(string(a.Health))]
 	if !ok {
 		return nil, xerrors.Errorf("unknown health %s", a.Health)
+	}
+	openIn, ok := proto.WorkspaceApp_OpenIn_value[strings.ToUpper(string(a.OpenIn))]
+	if !ok {
+		return nil, xerrors.Errorf("unknown open_in %s", a.OpenIn)
 	}
 	return &proto.WorkspaceApp{
 		Id:            a.ID[:],
@@ -286,7 +295,7 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 		},
 		Health: proto.WorkspaceApp_Health(health),
 		Hidden: a.Hidden,
-		OpenIn: a.OpenIn,
+		OpenIn: proto.WorkspaceApp_OpenIn(openIn),
 	}, nil
 }
 
