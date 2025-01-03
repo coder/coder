@@ -24,6 +24,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=<OAuth app client secret>
 CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
+
 The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
@@ -32,7 +33,7 @@ You can now add the following code to any template. This will add a button to th
 
 ```tf
 data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
-	id = "<USER_DEFINED_ID>"
+    id = "<USER_DEFINED_ID>"
 }
 
 # Github Example (CODER_EXTERNAL_AUTH_0_ID="github-auth")
@@ -46,12 +47,12 @@ data "coder_external_auth" "github" {
 Inside your terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
 
 ### Workspace CLI
+
 An access token can be accessed within the workspace by using
 
-```
+```shell
 coder external-auth <USER_DEFINED_ID> access-token
 ```
-
 
 ## GitHub
 
