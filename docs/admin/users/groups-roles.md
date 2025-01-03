@@ -17,21 +17,28 @@ which templates developers can use. For example:
 Roles determine which actions users can take within the platform.
 
 |                                                                 | Auditor | User Admin | Template Admin | Owner |
-| --------------------------------------------------------------- | ------- | ---------- | -------------- | ----- |
-| Add and remove Users                                            |         | ✅         |                | ✅    |
-| Manage groups (enterprise) (premium)                            |         | ✅         |                | ✅    |
-| Change User roles                                               |         |            |                | ✅    |
-| Manage **ALL** Templates                                        |         |            | ✅             | ✅    |
-| View **ALL** Workspaces                                         |         |            | ✅             | ✅    |
-| Update and delete **ALL** Workspaces                            |         |            |                | ✅    |
-| Run [external provisioners](../provisioners.md)                 |         |            | ✅             | ✅    |
-| Execute and use **ALL** Workspaces                              |         |            |                | ✅    |
-| View all user operation [Audit Logs](../security/audit-logs.md) | ✅      |            |                | ✅    |
+|-----------------------------------------------------------------|---------|------------|----------------|-------|
+| Add and remove Users                                            |         | ✅          |                | ✅     |
+| Manage groups (enterprise) (premium)                            |         | ✅          |                | ✅     |
+| Change User roles                                               |         |            |                | ✅     |
+| Manage **ALL** Templates                                        |         |            | ✅              | ✅     |
+| View **ALL** Workspaces                                         |         |            | ✅              | ✅     |
+| Update and delete **ALL** Workspaces                            |         |            |                | ✅     |
+| Run [external provisioners](../provisioners.md)                 |         |            | ✅              | ✅     |
+| Execute and use **ALL** Workspaces                              |         |            |                | ✅     |
+| View all user operation [Audit Logs](../security/audit-logs.md) | ✅       |            |                | ✅     |
 
 A user may have one or more roles. All users have an implicit Member role that
 may use personal workspaces.
 
-## Custom Roles (Premium) (Beta)
+## Custom Roles
+
+<blockquote class="info">
+
+Custom roles are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Starting in v2.16.0, Premium Coder deployments can configure custom roles on the
 [Organization](./organizations.md) level. You can create and assign custom roles

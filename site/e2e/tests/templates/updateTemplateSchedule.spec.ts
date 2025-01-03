@@ -1,15 +1,19 @@
 import { expect, test } from "@playwright/test";
 import { API } from "api/api";
 import { getCurrentOrgId, setupApiCalls } from "../../api";
+import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("update template schedule settings without override other settings", async ({
 	page,
 	baseURL,
 }) => {
-	await setupApiCalls(page);
 	const orgId = await getCurrentOrgId();
 	const templateVersion = await API.createTemplateVersion(orgId, {
 		storage_method: "file" as const,
@@ -24,6 +28,8 @@ test("update template schedule settings without override other settings", async 
 		template_version_id: templateVersion.id,
 		disable_everyone_group_access: false,
 		require_active_version: true,
+		max_port_share_level: null,
+		allow_user_cancel_workspace_jobs: null,
 	});
 
 	await page.goto(`${baseURL}/templates/${template.name}/settings/schedule`, {

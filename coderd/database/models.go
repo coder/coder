@@ -1524,25 +1524,28 @@ func AllProvisionerTypeValues() []ProvisionerType {
 type ResourceType string
 
 const (
-	ResourceTypeOrganization            ResourceType = "organization"
-	ResourceTypeTemplate                ResourceType = "template"
-	ResourceTypeTemplateVersion         ResourceType = "template_version"
-	ResourceTypeUser                    ResourceType = "user"
-	ResourceTypeWorkspace               ResourceType = "workspace"
-	ResourceTypeGitSshKey               ResourceType = "git_ssh_key"
-	ResourceTypeApiKey                  ResourceType = "api_key"
-	ResourceTypeGroup                   ResourceType = "group"
-	ResourceTypeWorkspaceBuild          ResourceType = "workspace_build"
-	ResourceTypeLicense                 ResourceType = "license"
-	ResourceTypeWorkspaceProxy          ResourceType = "workspace_proxy"
-	ResourceTypeConvertLogin            ResourceType = "convert_login"
-	ResourceTypeHealthSettings          ResourceType = "health_settings"
-	ResourceTypeOauth2ProviderApp       ResourceType = "oauth2_provider_app"
-	ResourceTypeOauth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole              ResourceType = "custom_role"
-	ResourceTypeOrganizationMember      ResourceType = "organization_member"
-	ResourceTypeNotificationsSettings   ResourceType = "notifications_settings"
-	ResourceTypeNotificationTemplate    ResourceType = "notification_template"
+	ResourceTypeOrganization                ResourceType = "organization"
+	ResourceTypeTemplate                    ResourceType = "template"
+	ResourceTypeTemplateVersion             ResourceType = "template_version"
+	ResourceTypeUser                        ResourceType = "user"
+	ResourceTypeWorkspace                   ResourceType = "workspace"
+	ResourceTypeGitSshKey                   ResourceType = "git_ssh_key"
+	ResourceTypeApiKey                      ResourceType = "api_key"
+	ResourceTypeGroup                       ResourceType = "group"
+	ResourceTypeWorkspaceBuild              ResourceType = "workspace_build"
+	ResourceTypeLicense                     ResourceType = "license"
+	ResourceTypeWorkspaceProxy              ResourceType = "workspace_proxy"
+	ResourceTypeConvertLogin                ResourceType = "convert_login"
+	ResourceTypeHealthSettings              ResourceType = "health_settings"
+	ResourceTypeOauth2ProviderApp           ResourceType = "oauth2_provider_app"
+	ResourceTypeOauth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                  ResourceType = "custom_role"
+	ResourceTypeOrganizationMember          ResourceType = "organization_member"
+	ResourceTypeNotificationsSettings       ResourceType = "notifications_settings"
+	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 )
 
 func (e *ResourceType) Scan(src interface{}) error {
@@ -1600,7 +1603,10 @@ func (e ResourceType) Valid() bool {
 		ResourceTypeCustomRole,
 		ResourceTypeOrganizationMember,
 		ResourceTypeNotificationsSettings,
-		ResourceTypeNotificationTemplate:
+		ResourceTypeNotificationTemplate,
+		ResourceTypeIdpSyncSettingsOrganization,
+		ResourceTypeIdpSyncSettingsGroup,
+		ResourceTypeIdpSyncSettingsRole:
 		return true
 	}
 	return false
@@ -1627,6 +1633,9 @@ func AllResourceTypeValues() []ResourceType {
 		ResourceTypeOrganizationMember,
 		ResourceTypeNotificationsSettings,
 		ResourceTypeNotificationTemplate,
+		ResourceTypeIdpSyncSettingsOrganization,
+		ResourceTypeIdpSyncSettingsGroup,
+		ResourceTypeIdpSyncSettingsRole,
 	}
 }
 
@@ -2139,6 +2148,67 @@ func AllWorkspaceAppHealthValues() []WorkspaceAppHealth {
 		WorkspaceAppHealthInitializing,
 		WorkspaceAppHealthHealthy,
 		WorkspaceAppHealthUnhealthy,
+	}
+}
+
+type WorkspaceAppOpenIn string
+
+const (
+	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
+	WorkspaceAppOpenInWindow     WorkspaceAppOpenIn = "window"
+	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
+)
+
+func (e *WorkspaceAppOpenIn) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAppOpenIn(s)
+	case string:
+		*e = WorkspaceAppOpenIn(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAppOpenIn: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAppOpenIn struct {
+	WorkspaceAppOpenIn WorkspaceAppOpenIn `json:"workspace_app_open_in"`
+	Valid              bool               `json:"valid"` // Valid is true if WorkspaceAppOpenIn is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAppOpenIn) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAppOpenIn, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAppOpenIn.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAppOpenIn) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAppOpenIn), nil
+}
+
+func (e WorkspaceAppOpenIn) Valid() bool {
+	switch e {
+	case WorkspaceAppOpenInTab,
+		WorkspaceAppOpenInWindow,
+		WorkspaceAppOpenInSlimWindow:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAppOpenInValues() []WorkspaceAppOpenIn {
+	return []WorkspaceAppOpenIn{
+		WorkspaceAppOpenInTab,
+		WorkspaceAppOpenInWindow,
+		WorkspaceAppOpenInSlimWindow,
 	}
 }
 
@@ -2773,6 +2843,7 @@ type TemplateVersion struct {
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	Message               string          `db:"message" json:"message"`
 	Archived              bool            `db:"archived" json:"archived"`
+	SourceExampleID       sql.NullString  `db:"source_example_id" json:"source_example_id"`
 	CreatedByAvatarURL    string          `db:"created_by_avatar_url" json:"created_by_avatar_url"`
 	CreatedByUsername     string          `db:"created_by_username" json:"created_by_username"`
 }
@@ -2826,8 +2897,9 @@ type TemplateVersionTable struct {
 	// IDs of External auth providers for a specific template version
 	ExternalAuthProviders json.RawMessage `db:"external_auth_providers" json:"external_auth_providers"`
 	// Message describing the changes in this version of the template, similar to a Git commit message. Like a commit message, this should be a short, high-level description of the changes in this version of the template. This message is immutable and should not be updated after the fact.
-	Message  string `db:"message" json:"message"`
-	Archived bool   `db:"archived" json:"archived"`
+	Message         string         `db:"message" json:"message"`
+	Archived        bool           `db:"archived" json:"archived"`
+	SourceExampleID sql.NullString `db:"source_example_id" json:"source_example_id"`
 }
 
 type TemplateVersionVariable struct {
@@ -2892,8 +2964,8 @@ type UserLink struct {
 	OAuthAccessTokenKeyID sql.NullString `db:"oauth_access_token_key_id" json:"oauth_access_token_key_id"`
 	// The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
-	// Debug information includes information like id_token and userinfo claims.
-	DebugContext json.RawMessage `db:"debug_context" json:"debug_context"`
+	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
+	Claims UserLinkClaims `db:"claims" json:"claims"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.
@@ -2920,6 +2992,7 @@ type Workspace struct {
 	DeletingAt              sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates        AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	Favorite                bool             `db:"favorite" json:"favorite"`
+	NextStartAt             sql.NullTime     `db:"next_start_at" json:"next_start_at"`
 	OwnerAvatarUrl          string           `db:"owner_avatar_url" json:"owner_avatar_url"`
 	OwnerUsername           string           `db:"owner_username" json:"owner_username"`
 	OrganizationName        string           `db:"organization_name" json:"organization_name"`
@@ -3080,7 +3153,8 @@ type WorkspaceApp struct {
 	// Specifies the order in which to display agent app in user interfaces.
 	DisplayOrder int32 `db:"display_order" json:"display_order"`
 	// Determines if the app is not shown in user interfaces.
-	Hidden bool `db:"hidden" json:"hidden"`
+	Hidden bool               `db:"hidden" json:"hidden"`
+	OpenIn WorkspaceAppOpenIn `db:"open_in" json:"open_in"`
 }
 
 // A record of workspace app usage statistics
@@ -3152,6 +3226,16 @@ type WorkspaceBuildTable struct {
 	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
 }
 
+type WorkspaceModule struct {
+	ID         uuid.UUID           `db:"id" json:"id"`
+	JobID      uuid.UUID           `db:"job_id" json:"job_id"`
+	Transition WorkspaceTransition `db:"transition" json:"transition"`
+	Source     string              `db:"source" json:"source"`
+	Version    string              `db:"version" json:"version"`
+	Key        string              `db:"key" json:"key"`
+	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
 type WorkspaceProxy struct {
 	ID          uuid.UUID `db:"id" json:"id"`
 	Name        string    `db:"name" json:"name"`
@@ -3186,6 +3270,7 @@ type WorkspaceResource struct {
 	Icon         string              `db:"icon" json:"icon"`
 	InstanceType sql.NullString      `db:"instance_type" json:"instance_type"`
 	DailyCost    int32               `db:"daily_cost" json:"daily_cost"`
+	ModulePath   sql.NullString      `db:"module_path" json:"module_path"`
 }
 
 type WorkspaceResourceMetadatum struct {
@@ -3212,5 +3297,6 @@ type WorkspaceTable struct {
 	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
 	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
 	// Favorite is true if the workspace owner has favorited the workspace.
-	Favorite bool `db:"favorite" json:"favorite"`
+	Favorite    bool         `db:"favorite" json:"favorite"`
+	NextStartAt sql.NullTime `db:"next_start_at" json:"next_start_at"`
 }

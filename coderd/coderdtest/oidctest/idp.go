@@ -25,7 +25,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/go-chi/chi/v5"
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/prometheus/client_golang/prometheus"
@@ -775,7 +775,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		if f.hookWellKnown != nil {
 			err := f.hookWellKnown(r, &cpy)
 			if err != nil {
-				http.Error(rw, err.Error(), http.StatusInternalServerError)
+				httpError(rw, http.StatusInternalServerError, err)
 				return
 			}
 		}
@@ -792,7 +792,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		clientID := r.URL.Query().Get("client_id")
 		if !assert.Equal(t, f.clientID, clientID, "unexpected client_id") {
-			http.Error(rw, "invalid client_id", http.StatusBadRequest)
+			httpError(rw, http.StatusBadRequest, xerrors.New("invalid client_id"))
 			return
 		}
 
@@ -818,7 +818,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		err := f.hookValidRedirectURL(redirectURI)
 		if err != nil {
 			t.Errorf("not authorized redirect_uri by custom hook %q: %s", redirectURI, err.Error())
-			http.Error(rw, fmt.Sprintf("invalid redirect_uri: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
+			httpError(rw, http.StatusBadRequest, xerrors.Errorf("invalid redirect_uri: %w", err))
 			return
 		}
 
@@ -853,7 +853,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			)...)
 
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("invalid token request: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
+			httpError(rw, http.StatusBadRequest, err)
 			return
 		}
 		getEmail := func(claims jwt.MapClaims) string {
@@ -914,7 +914,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 			claims = idTokenClaims
 			err := f.hookOnRefresh(getEmail(claims))
 			if err != nil {
-				http.Error(rw, fmt.Sprintf("refresh hook blocked refresh: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
+				httpError(rw, http.StatusBadRequest, xerrors.Errorf("refresh hook blocked refresh: %w", err))
 				return
 			}
 
@@ -1036,7 +1036,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 
 		claims, err := f.hookUserInfo(email)
 		if err != nil {
-			http.Error(rw, fmt.Sprintf("user info hook returned error: %s", err.Error()), httpErrorCode(http.StatusBadRequest, err))
+			httpError(rw, http.StatusBadRequest, xerrors.Errorf("user info hook returned error: %w", err))
 			return
 		}
 		_ = json.NewEncoder(rw).Encode(claims)
@@ -1499,13 +1499,33 @@ func slogRequestFields(r *http.Request) []any {
 	}
 }
 
-func httpErrorCode(defaultCode int, err error) int {
-	var statusErr statusHookError
+// httpError handles better formatted custom errors.
+func httpError(rw http.ResponseWriter, defaultCode int, err error) {
 	status := defaultCode
+
+	var statusErr statusHookError
 	if errors.As(err, &statusErr) {
 		status = statusErr.HTTPStatusCode
 	}
-	return status
+
+	var oauthErr *oauth2.RetrieveError
+	if errors.As(err, &oauthErr) {
+		if oauthErr.Response.StatusCode != 0 {
+			status = oauthErr.Response.StatusCode
+		}
+
+		rw.Header().Set("Content-Type", "application/x-www-form-urlencoded; charset=utf-8")
+		form := url.Values{
+			"error":             {oauthErr.ErrorCode},
+			"error_description": {oauthErr.ErrorDescription},
+			"error_uri":         {oauthErr.ErrorURI},
+		}
+		rw.WriteHeader(status)
+		_, _ = rw.Write([]byte(form.Encode()))
+		return
+	}
+
+	http.Error(rw, err.Error(), status)
 }
 
 type fakeRoundTripper struct {

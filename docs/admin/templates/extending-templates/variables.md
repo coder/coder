@@ -53,15 +53,15 @@ variables, you can employ a straightforward solution:
 
 1. Create a `terraform.tfvars` file in in the template directory:
 
-```tf
-coder_image = newimage:tag
-```
+   ```tf
+   coder_image = newimage:tag
+   ```
 
-2. Push the new template revision using Coder CLI:
+1. Push the new template revision using Coder CLI:
 
-```
-coder templates push my-template -y # no need to use --var
-```
+   ```shell
+   coder templates push my-template -y # no need to use --var
+   ```
 
 This file serves as a mechanism to override the template settings for variables.
 It can be stored in the repository for easy access and reference. Coder CLI
@@ -74,9 +74,11 @@ for providing values to variables using the Coder CLI:
 
 1. _Manual input in CLI_: You can manually input values for Terraform variables
    directly in the CLI during the deployment process.
-2. _Command-line argument_: Utilize the `--var name=value` command-line argument
+1. _Web UI_: You can set or edit variable values under **Variables** in the
+   template's settings.
+1. _Command-line argument_: Utilize the `--var name=value` command-line argument
    to specify variable values inline as key-value pairs.
-3. _Variables file selection_: Alternatively, you can use a variables file
+1. _Variables file selection_: Alternatively, you can use a variables file
    selected via the `--variables-file values.yml` command-line argument. This
    approach is particularly useful when dealing with multiple variables or to
    avoid manual input of numerous values. Variables files can be versioned for

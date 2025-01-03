@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -98,7 +97,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})
@@ -255,7 +254,7 @@ func TestWorkspaceUpdates(t *testing.T) {
 			cbs: map[string]pubsub.ListenerWithErr{},
 		}
 
-		updateProvider := coderd.NewUpdatesProvider(slogtest.Make(t, nil), ps, db, &mockAuthorizer{})
+		updateProvider := coderd.NewUpdatesProvider(testutil.Logger(t), ps, db, &mockAuthorizer{})
 		t.Cleanup(func() {
 			_ = updateProvider.Close()
 		})

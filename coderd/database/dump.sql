@@ -190,13 +190,20 @@ CREATE TYPE resource_type AS ENUM (
     'custom_role',
     'organization_member',
     'notifications_settings',
-    'notification_template'
+    'notification_template',
+    'idp_sync_settings_organization',
+    'idp_sync_settings_group',
+    'idp_sync_settings_role'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (
     'blocking',
     'non-blocking'
 );
+
+CREATE DOMAIN tagset AS jsonb;
+
+COMMENT ON DOMAIN tagset IS 'A set of tags that match provisioner daemons to provisioner jobs, which can originate from workspaces or templates. tagset is a narrowed type over jsonb. It is expected to be the JSON representation of map[string]string. That is, {"key1": "value1", "key2": "value2"}. We need the narrowed type instead of just using jsonb so that we can give sqlc a type hint, otherwise it defaults to json.RawMessage. json.RawMessage is a suboptimal type to use in the context that we need tagset for.';
 
 CREATE TYPE tailnet_status AS ENUM (
     'ok',
@@ -252,6 +259,12 @@ CREATE TYPE workspace_app_health AS ENUM (
     'initializing',
     'healthy',
     'unhealthy'
+);
+
+CREATE TYPE workspace_app_open_in AS ENUM (
+    'tab',
+    'window',
+    'slim-window'
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -375,6 +388,40 @@ BEGIN
 	RETURN NEW;
 END;
 $$;
+
+CREATE FUNCTION nullify_next_start_at_on_workspace_autostart_modification() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+DECLARE
+BEGIN
+	-- A workspace's next_start_at might be invalidated by the following:
+	--   * The autostart schedule has changed independent to next_start_at
+	--   * The workspace has been marked as dormant
+	IF (NEW.autostart_schedule <> OLD.autostart_schedule AND NEW.next_start_at = OLD.next_start_at)
+		OR (NEW.dormant_at IS NOT NULL AND NEW.next_start_at IS NOT NULL)
+	THEN
+		UPDATE workspaces
+		SET next_start_at = NULL
+		WHERE id = NEW.id;
+	END IF;
+	RETURN NEW;
+END;
+$$;
+
+CREATE FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) RETURNS boolean
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+	RETURN CASE
+		-- Special case for untagged provisioners, where only an exact match should count
+		WHEN job_tags::jsonb = '{"scope": "organization", "owner": ""}'::jsonb THEN job_tags::jsonb = provisioner_tags::jsonb
+		-- General case
+		ELSE job_tags::jsonb <@ provisioner_tags::jsonb
+	END;
+END;
+$$;
+
+COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
 
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
@@ -1198,7 +1245,8 @@ CREATE TABLE template_versions (
     created_by uuid NOT NULL,
     external_auth_providers jsonb DEFAULT '[]'::jsonb NOT NULL,
     message character varying(1048576) DEFAULT ''::character varying NOT NULL,
-    archived boolean DEFAULT false NOT NULL
+    archived boolean DEFAULT false NOT NULL,
+    source_example_id text
 );
 
 COMMENT ON COLUMN template_versions.external_auth_providers IS 'IDs of External auth providers for a specific template version';
@@ -1226,6 +1274,7 @@ CREATE VIEW template_version_with_user AS
     template_versions.external_auth_providers,
     template_versions.message,
     template_versions.archived,
+    template_versions.source_example_id,
     COALESCE(visible_users.avatar_url, ''::text) AS created_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS created_by_username
    FROM (template_versions
@@ -1337,14 +1386,14 @@ CREATE TABLE user_links (
     oauth_expiry timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     oauth_access_token_key_id text,
     oauth_refresh_token_key_id text,
-    debug_context jsonb DEFAULT '{}'::jsonb NOT NULL
+    claims jsonb DEFAULT '{}'::jsonb NOT NULL
 );
 
 COMMENT ON COLUMN user_links.oauth_access_token_key_id IS 'The ID of the key used to encrypt the OAuth access token. If this is NULL, the access token is not encrypted';
 
 COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key used to encrypt the OAuth refresh token. If this is NULL, the refresh token is not encrypted';
 
-COMMENT ON COLUMN user_links.debug_context IS 'Debug information includes information like id_token and userinfo claims.';
+COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
@@ -1559,7 +1608,8 @@ CREATE TABLE workspace_apps (
     slug text NOT NULL,
     external boolean DEFAULT false NOT NULL,
     display_order integer DEFAULT 0 NOT NULL,
-    hidden boolean DEFAULT false NOT NULL
+    hidden boolean DEFAULT false NOT NULL,
+    open_in workspace_app_open_in DEFAULT 'slim-window'::workspace_app_open_in NOT NULL
 );
 
 COMMENT ON COLUMN workspace_apps.display_order IS 'Specifies the order in which to display agent app in user interfaces.';
@@ -1614,6 +1664,16 @@ CREATE VIEW workspace_build_with_user AS
      LEFT JOIN visible_users ON ((workspace_builds.initiator_id = visible_users.id)));
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
+
+CREATE TABLE workspace_modules (
+    id uuid NOT NULL,
+    job_id uuid NOT NULL,
+    transition workspace_transition NOT NULL,
+    source text NOT NULL,
+    version text NOT NULL,
+    key text NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
 
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
@@ -1681,7 +1741,8 @@ CREATE TABLE workspace_resources (
     hide boolean DEFAULT false NOT NULL,
     icon character varying(256) DEFAULT ''::character varying NOT NULL,
     instance_type character varying(256),
-    daily_cost integer DEFAULT 0 NOT NULL
+    daily_cost integer DEFAULT 0 NOT NULL,
+    module_path text
 );
 
 CREATE TABLE workspaces (
@@ -1699,7 +1760,8 @@ CREATE TABLE workspaces (
     dormant_at timestamp with time zone,
     deleting_at timestamp with time zone,
     automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
 );
 
 COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
@@ -1720,6 +1782,7 @@ CREATE VIEW workspaces_expanded AS
     workspaces.deleting_at,
     workspaces.automatic_updates,
     workspaces.favorite,
+    workspaces.next_start_at,
     visible_users.avatar_url AS owner_avatar_url,
     visible_users.username AS owner_username,
     organizations.name AS organization_name,
@@ -2076,9 +2139,15 @@ CREATE INDEX workspace_agents_resource_id_idx ON workspace_agents USING btree (r
 
 CREATE INDEX workspace_app_stats_workspace_id_idx ON workspace_app_stats USING btree (workspace_id);
 
+CREATE INDEX workspace_modules_created_at_idx ON workspace_modules USING btree (created_at);
+
+CREATE INDEX workspace_next_start_at_idx ON workspaces USING btree (next_start_at) WHERE (deleted = false);
+
 CREATE UNIQUE INDEX workspace_proxies_lower_name_idx ON workspace_proxies USING btree (lower(name)) WHERE (deleted = false);
 
 CREATE INDEX workspace_resources_job_id_idx ON workspace_resources USING btree (job_id);
+
+CREATE INDEX workspace_template_id_idx ON workspaces USING btree (template_id) WHERE (deleted = false);
 
 CREATE UNIQUE INDEX workspaces_owner_id_lower_idx ON workspaces USING btree (owner_id, lower((name)::text)) WHERE (deleted = false);
 
@@ -2157,6 +2226,8 @@ CREATE TRIGGER trigger_delete_group_members_on_org_member_delete BEFORE DELETE O
 CREATE TRIGGER trigger_delete_oauth2_provider_app_token AFTER DELETE ON oauth2_provider_app_tokens FOR EACH ROW EXECUTE FUNCTION delete_deleted_oauth2_provider_app_token_api_key();
 
 CREATE TRIGGER trigger_insert_apikeys BEFORE INSERT ON api_keys FOR EACH ROW EXECUTE FUNCTION insert_apikey_fail_if_user_deleted();
+
+CREATE TRIGGER trigger_nullify_next_start_at_on_workspace_autostart_modificati AFTER UPDATE ON workspaces FOR EACH ROW EXECUTE FUNCTION nullify_next_start_at_on_workspace_autostart_modification();
 
 CREATE TRIGGER trigger_update_users AFTER INSERT OR UPDATE ON users FOR EACH ROW WHEN ((new.deleted = true)) EXECUTE FUNCTION delete_deleted_user_resources();
 
@@ -2340,6 +2411,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_modules
+    ADD CONSTRAINT workspace_modules_job_id_fkey FOREIGN KEY (job_id) REFERENCES provisioner_jobs(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_resource_metadata
     ADD CONSTRAINT workspace_resource_metadata_workspace_resource_id_fkey FOREIGN KEY (workspace_resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

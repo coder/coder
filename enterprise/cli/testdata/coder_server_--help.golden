@@ -52,13 +52,15 @@ OPTIONS:
           all available experiments.
 
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
-          Type of auth to use when connecting to postgres.
+          Type of auth to use when connecting to postgres. For AWS RDS, using
+          IAM authentication (awsiamrds) is recommended.
 
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
-          server postgres-builtin-url".
+          server postgres-builtin-url". Note that any special characters in the
+          URL must be URL-encoded.
 
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
@@ -119,7 +121,7 @@ Configure how emails are sent.
       --email-hello string, $CODER_EMAIL_HELLO (default: localhost)
           The hostname identifying the SMTP server.
 
-      --email-smarthost host:port, $CODER_EMAIL_SMARTHOST (default: localhost:587)
+      --email-smarthost string, $CODER_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
 
 EMAIL / EMAIL AUTHENTICATION OPTIONS: 
@@ -295,6 +297,13 @@ backed by Tailscale and WireGuard.
           + 1`. Use special value 'disable' to turn off STUN completely.
 
 NETWORKING / HTTP OPTIONS: 
+      --additional-csp-policy string-array, $CODER_ADDITIONAL_CSP_POLICY
+          Coder configures a Content Security Policy (CSP) to protect against
+          XSS attacks. This setting allows you to add additional CSP directives,
+          which can open the attack surface of the deployment. Format matches
+          the CSP directive format, e.g. --additional-csp-policy="script-src
+          https://example.com".
+
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
@@ -414,7 +423,7 @@ Configure how email notifications are sent.
           The hostname identifying the SMTP server.
           DEPRECATED: Use --email-hello instead.
 
-      --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST
+      --notifications-email-smarthost string, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
           DEPRECATED: Use --email-smarthost instead.
 

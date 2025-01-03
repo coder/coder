@@ -682,12 +682,20 @@ class ApiMethods {
 
 	/**
 	 * @param organization Can be the organization's ID or name
+	 * @param tags to filter provisioner daemons by.
 	 */
 	getProvisionerDaemonsByOrganization = async (
 		organization: string,
+		tags?: Record<string, string>,
 	): Promise<TypesGen.ProvisionerDaemon[]> => {
+		const params = new URLSearchParams();
+
+		if (tags) {
+			params.append("tags", JSON.stringify(tags));
+		}
+
 		const response = await this.axios.get<TypesGen.ProvisionerDaemon[]>(
-			`/api/v2/organizations/${organization}/provisionerdaemons`,
+			`/api/v2/organizations/${organization}/provisionerdaemons?${params.toString()}`,
 		);
 		return response.data;
 	};
@@ -700,6 +708,24 @@ class ApiMethods {
 	): Promise<TypesGen.ProvisionerKeyDaemons[]> => {
 		const response = await this.axios.get<TypesGen.ProvisionerKeyDaemons[]>(
 			`/api/v2/organizations/${organization}/provisionerkeys/daemons`,
+		);
+		return response.data;
+	};
+
+	getOrganizationIdpSyncSettings =
+		async (): Promise<TypesGen.OrganizationSyncSettings> => {
+			const response = await this.axios.get<TypesGen.OrganizationSyncSettings>(
+				"/api/v2/settings/idpsync/organization",
+			);
+			return response.data;
+		};
+
+	patchOrganizationIdpSyncSettings = async (
+		data: TypesGen.OrganizationSyncSettings,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			"/api/v2/settings/idpsync/organization",
+			data,
 		);
 		return response.data;
 	};
@@ -1712,15 +1738,20 @@ class ApiMethods {
 			name: "",
 			add_users: [userId],
 			remove_users: [],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 
 	removeMember = async (groupId: string, userId: string) => {
 		return this.patchGroup(groupId, {
 			name: "",
-			display_name: "",
 			add_users: [],
 			remove_users: [userId],
+			display_name: null,
+			avatar_url: null,
+			quota_allowance: null,
 		});
 	};
 

@@ -5,18 +5,21 @@ import Link from "@mui/material/Link";
 import TableCell from "@mui/material/TableCell";
 import Tooltip from "@mui/material/Tooltip";
 import type { AuditLog } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import { DropdownArrow } from "components/DropdownArrow/DropdownArrow";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
 import { TimelineEntry } from "components/Timeline/TimelineEntry";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { type FC, useState } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import type { ThemeRole } from "theme/roles";
 import userAgentParser from "ua-parser-js";
 import { AuditLogDescription } from "./AuditLogDescription/AuditLogDescription";
 import { AuditLogDiff } from "./AuditLogDiff/AuditLogDiff";
-import { determineGroupDiff } from "./AuditLogDiff/auditUtils";
+import {
+	determineGroupDiff,
+	determineIdPSyncMappingDiff,
+} from "./AuditLogDiff/auditUtils";
 
 const httpStatusColor = (httpStatus: number): ThemeRole => {
 	// Treat server errors (500) as errors
@@ -59,6 +62,14 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 		auditDiff = determineGroupDiff(auditLog.diff);
 	}
 
+	if (
+		auditLog.resource_type === "idp_sync_settings_organization" ||
+		auditLog.resource_type === "idp_sync_settings_group" ||
+		auditLog.resource_type === "idp_sync_settings_role"
+	) {
+		auditDiff = determineIdPSyncMappingDiff(auditLog.diff);
+	}
+
 	const toggle = () => {
 		if (shouldDisplayDiff) {
 			setIsDiffOpen((v) => !v);
@@ -90,9 +101,9 @@ export const AuditLogRow: FC<AuditLogRowProps> = ({
 						css={styles.auditLogHeaderInfo}
 					>
 						<Stack direction="row" alignItems="center" css={styles.fullWidth}>
-							<UserAvatar
-								username={auditLog.user?.username ?? "?"}
-								avatarURL={auditLog.user?.avatar_url}
+							<Avatar
+								fallback={auditLog.user?.username ?? "?"}
+								src={auditLog.user?.avatar_url}
 							/>
 
 							<Stack

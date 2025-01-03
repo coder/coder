@@ -3,7 +3,7 @@
 <div>
   <a href="https://github.com/matifali" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">M Atif Ali</span>
-    <img src="https://github.com/matifali.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/matifali.png" alt="matifali" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 January 24, 2024
@@ -31,18 +31,16 @@ by using our official Coder [modules](https://registry.coder.com). We publish
 two type of modules that automate the JFrog Artifactory and Coder integration.
 
 1. [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth)
-2. [JFrog-Token](https://registry.coder.com/modules/jfrog-token)
+1. [JFrog-Token](https://registry.coder.com/modules/jfrog-token)
 
 ### JFrog-OAuth
 
 This module is usable by JFrog self-hosted (on-premises) Artifactory as it
-requires configuring a custom integration. This integration benefits from
-Coder's [external-auth][] feature and allows each user to authenticate with
-Artifactory using an OAuth flow and issues user-scoped tokens to each user.
+requires configuring a custom integration. This integration benefits from Coder's [external-auth](../../admin/external-auth.md) feature allows each user to authenticate with Artifactory using an OAuth flow and issues user-scoped tokens to each user.
 
 To set this up, follow these steps:
 
-1. Modify your Helm chart `values.yaml` for JFrog Artifactory to add,
+1. Add the following to your Helm chart `values.yaml` for JFrog Artifactory. Replace `CODER_URL` with your JFrog Artifactory base URL:
 
    ```yaml
    artifactory:
@@ -61,21 +59,12 @@ To set this up, follow these steps:
            scope: "applied-permissions/user"
    ```
 
-   <blockquote class="admonition info">
-
-   Replace `CODER_URL` with your JFrog Artifactory base URL; for example,
-   `coder.mycompany.com`.
-
-   </blockquote>
-
-2. Create a new Application Integration by going to
-   <https://JFROG_URL/ui/admin/configuration/integrations/new> and select the
+1. Create a new Application Integration by going to
+   `https://JFROG_URL/ui/admin/configuration/integrations/new` and select the
    Application Type as the integration you created in step 1.
 
-   <img alt="JFrog Platform new integration" src="../../images/guides/artifactory-integration/jfrog-oauth-app.png" />
-
-3. Add a new [external authentication][external-auth] to Coder by setting these
-   environment variables in a manner consistent with your Coder deployment.
+1. Add a new [external authentication](../../admin/external-auth.md) to Coder by setting these
+   environment variables in a manner consistent with your Coder deployment. Replace `JFROG_URL` with your JFrog Artifactory base URL:
 
    ```env
    # JFrog Artifactory External Auth
@@ -89,15 +78,7 @@ To set this up, follow these steps:
    CODER_EXTERNAL_AUTH_1_SCOPES="applied-permissions/user"
    ```
 
-   <blockquote class="admonition info">
-
-   Replace `JFROG_URL` with your JFrog Artifactory base URL; for example,
-   `my-company.jfrog.io`.
-
-   </blockquote>
-
-4. Create or edit a Coder template and use the [JFrog-OAuth][] module to
-   configure the integration.
+1. Create or edit a Coder template and use the [JFrog-OAuth](https://registry.coder.com/modules/jfrog-oauth) module to configure the integration:
 
    ```tf
    module "jfrog" {
@@ -118,20 +99,16 @@ To set this up, follow these steps:
 ### JFrog-Token
 
 This module makes use of the [Artifactory terraform
-provider][artifactory-tf-provider] and an admin-scoped token to create
+provider](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs) and an admin-scoped token to create
 user-scoped tokens for each user by matching their Coder email or username with
-Artifactory. This can be used for both SaaS and self-hosted(on-premises)
+Artifactory. This can be used for both SaaS and self-hosted (on-premises)
 Artifactory instances.
 
 To set this up, follow these steps:
 
-1. Get a JFrog access token from your Artifactory instance. The token must be an
-   [admin token] with scope `applied-permissions/admin`.
+1. Get a JFrog access token from your Artifactory instance. The token must be an [admin token](https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token) with scope `applied-permissions/admin`.
 
-2. Create or edit a Coder template and use the [JFrog-Token][] module to
-   configure the integration and pass the admin token. It is recommended to
-   store the token in a sensitive terraform variable to prevent it from being
-   displayed in plain text in the terraform state.
+1. Create or edit a Coder template and use the [JFrog-Token](https://registry.coder.com/modules/jfrog-token) module to configure the integration and pass the admin token. It is recommended to store the token in a sensitive Terraform variable to prevent it from being displayed in plain text in the terraform state:
 
    ```tf
    variable "artifactory_access_token" {
@@ -154,10 +131,11 @@ To set this up, follow these steps:
    }
    ```
 
-<blockquote class="info">
-The admin-level access token is used to provision user tokens and is never exposed to
-developers or stored in workspaces.
-</blockquote>
+   <blockquote class="info">
+
+   The admin-level access token is used to provision user tokens and is never exposed to developers or stored in workspaces.
+   
+   </blockquote>
 
 If you don't want to use the official modules, you can read through the [example
 template][docker-template], which uses Docker as the underlying compute. The
@@ -165,27 +143,11 @@ same concepts apply to all compute types.
 
 ## Offline Deployments
 
-See the [offline deployments][] section for instructions on how to use coder-modules
-in an offline environment with Artifactory.
+See the [offline deployments](../templates/extending-templates/modules.md#offline-installations) section for instructions on how to use Coder modules in an offline environment with Artifactory.
 
-## More reading
+## Next Steps
 
-- See the [full example Docker template][docker-template].
+- See the [full example Docker template](https://github.com/coder/coder/tree/main/examples/jfrog/docker).
 
 - To serve extensions from your own VS Code Marketplace, check out
-  [code-marketplace][cm-artifactory].
-
-<!-- Reference Links -->
-
-[jfrog-oauth]: https://registry.coder.com/modules/jfrog-oauth
-[jfrog-token]: https://registry.coder.com/modules/jfrog-token
-[cm-artifactory]: https://github.com/coder/code-marketplace#artifactory-storage
-[offline deployments]:
-	../templates/extending-templates/modules.md#offline-installations
-[docker-template]:
-	https://github.com/coder/coder/tree/main/examples/jfrog/docker
-[admin token]:
-	https://registry.terraform.io/providers/jfrog/artifactory/latest/docs#access-token
-[artifactory-tf-provider]:
-	https://registry.terraform.io/providers/jfrog/artifactory/latest/docs
-[external-auth]: https://coder.com/docs/admin/external-auth
+  [code-marketplace](https://github.com/coder/code-marketplace#artifactory-storage).

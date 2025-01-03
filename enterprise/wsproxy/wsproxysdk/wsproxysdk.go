@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
@@ -19,7 +18,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	agpl "github.com/coder/coder/v2/tailnet"
-	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -507,9 +506,6 @@ func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
 	if err != nil {
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := coordinateURL.Query()
-	q.Add("version", proto.CurrentVersion.String())
-	coordinateURL.RawQuery = q.Encode()
 	coordinateHeaders := make(http.Header)
 	tokenHeader := codersdk.SessionTokenHeader
 	if c.SDKClient.SessionTokenHeader != "" {

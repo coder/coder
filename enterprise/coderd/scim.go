@@ -1,6 +1,7 @@
 package coderd
 
 import (
+	"bytes"
 	"crypto/subtle"
 	"database/sql"
 	"encoding/json"
@@ -26,14 +27,19 @@ import (
 )
 
 func (api *API) scimVerifyAuthHeader(r *http.Request) bool {
-	bearer := []byte("Bearer ")
+	bearer := []byte("bearer ")
 	hdr := []byte(r.Header.Get("Authorization"))
 
-	if len(hdr) >= len(bearer) && subtle.ConstantTimeCompare(hdr[:len(bearer)], bearer) == 1 {
+	// Use toLower to make the comparison case-insensitive.
+	if len(hdr) >= len(bearer) && subtle.ConstantTimeCompare(bytes.ToLower(hdr[:len(bearer)]), bearer) == 1 {
 		hdr = hdr[len(bearer):]
 	}
 
 	return len(api.SCIMAPIKey) != 0 && subtle.ConstantTimeCompare(hdr, api.SCIMAPIKey) == 1
+}
+
+func scimUnauthorized(rw http.ResponseWriter) {
+	_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusUnauthorized, "invalidAuthorization", xerrors.New("invalid authorization")))
 }
 
 // scimServiceProviderConfig returns a static SCIM service provider configuration.
@@ -63,7 +69,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 	enc.SetEscapeHTML(true)
 	_ = enc.Encode(scim.ServiceProviderConfig{
 		Schemas: []string{"urn:ietf:params:scim:schemas:core:2.0:ServiceProviderConfig"},
-		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+		DocURI:  "https://coder.com/docs/admin/users/oidc-auth#scim",
 		Patch: scim.Supported{
 			Supported: true,
 		},
@@ -87,7 +93,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 				Type:        "oauthbearertoken",
 				Name:        "HTTP Header Authentication",
 				Description: "Authentication scheme using the Authorization header with the shared token",
-				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim-enterprise-premium",
+				DocURI:      "https://coder.com/docs/admin/users/oidc-auth#scim",
 			},
 		},
 		Meta: scim.ServiceProviderMeta{
@@ -114,7 +120,7 @@ func (api *API) scimServiceProviderConfig(rw http.ResponseWriter, _ *http.Reques
 //nolint:revive
 func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 	if !api.scimVerifyAuthHeader(r) {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusUnauthorized, Type: "invalidAuthorization"})
+		scimUnauthorized(rw)
 		return
 	}
 
@@ -142,11 +148,11 @@ func (api *API) scimGetUsers(rw http.ResponseWriter, r *http.Request) {
 //nolint:revive
 func (api *API) scimGetUser(rw http.ResponseWriter, r *http.Request) {
 	if !api.scimVerifyAuthHeader(r) {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusUnauthorized, Type: "invalidAuthorization"})
+		scimUnauthorized(rw)
 		return
 	}
 
-	_ = handlerutil.WriteError(rw, spec.ErrNotFound)
+	_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusNotFound, spec.ErrNotFound.Type, xerrors.New("endpoint will always return 404")))
 }
 
 // We currently use our own struct instead of using the SCIM package. This was
@@ -167,7 +173,8 @@ type SCIMUser struct {
 		Type    string `json:"type"`
 		Display string `json:"display"`
 	} `json:"emails"`
-	Active bool          `json:"active"`
+	// Active is a ptr to prevent the empty value from being interpreted as false.
+	Active *bool         `json:"active"`
 	Groups []interface{} `json:"groups"`
 	Meta   struct {
 		ResourceType string `json:"resourceType"`
@@ -192,7 +199,7 @@ var SCIMAuditAdditionalFields = map[string]string{
 func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.scimVerifyAuthHeader(r) {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusUnauthorized, Type: "invalidAuthorization"})
+		scimUnauthorized(rw)
 		return
 	}
 
@@ -209,7 +216,12 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)
 	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", err))
+		return
+	}
+
+	if sUser.Active == nil {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", xerrors.New("active field is required")))
 		return
 	}
 
@@ -222,7 +234,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	}
 
 	if email == "" {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusBadRequest, Type: "invalidEmail"})
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidEmail", xerrors.New("no primary email provided")))
 		return
 	}
 
@@ -232,14 +244,14 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		Username: sUser.UserName,
 	})
 	if err != nil && !xerrors.Is(err, sql.ErrNoRows) {
-		_ = handlerutil.WriteError(rw, err)
+		_ = handlerutil.WriteError(rw, err) // internal error
 		return
 	}
 	if err == nil {
 		sUser.ID = dbUser.ID.String()
 		sUser.UserName = dbUser.Username
 
-		if sUser.Active && dbUser.Status == database.UserStatusSuspended {
+		if *sUser.Active && dbUser.Status == database.UserStatusSuspended {
 			//nolint:gocritic
 			newUser, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 				ID: dbUser.ID,
@@ -248,7 +260,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 				UpdatedAt: dbtime.Now(),
 			})
 			if err != nil {
-				_ = handlerutil.WriteError(rw, err)
+				_ = handlerutil.WriteError(rw, err) // internal error
 				return
 			}
 			aReq.New = newUser
@@ -284,14 +296,14 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 	//nolint:gocritic // SCIM operations are a system user
 	orgSync, err := api.IDPSync.OrganizationSyncSettings(dbauthz.AsSystemRestricted(ctx), api.Database)
 	if err != nil {
-		_ = handlerutil.WriteError(rw, xerrors.Errorf("failed to get organization sync settings: %w", err))
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to get organization sync settings: %w", err)))
 		return
 	}
 	if orgSync.AssignDefault {
 		//nolint:gocritic // SCIM operations are a system user
 		defaultOrganization, err := api.Database.GetDefaultOrganization(dbauthz.AsSystemRestricted(ctx))
 		if err != nil {
-			_ = handlerutil.WriteError(rw, err)
+			_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to get default organization: %w", err)))
 			return
 		}
 		organizations = append(organizations, defaultOrganization.ID)
@@ -309,7 +321,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 		SkipNotifications: true,
 	})
 	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusInternalServerError, "internalError", xerrors.Errorf("failed to create user: %w", err)))
 		return
 	}
 	aReq.New = dbUser
@@ -335,7 +347,7 @@ func (api *API) scimPostUser(rw http.ResponseWriter, r *http.Request) {
 func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	if !api.scimVerifyAuthHeader(r) {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusUnauthorized, Type: "invalidAuthorization"})
+		scimUnauthorized(rw)
 		return
 	}
 
@@ -354,53 +366,41 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 	var sUser SCIMUser
 	err := json.NewDecoder(r.Body).Decode(&sUser)
 	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", err))
 		return
 	}
 	sUser.ID = id
 
 	uid, err := uuid.Parse(id)
 	if err != nil {
-		_ = handlerutil.WriteError(rw, spec.Error{Status: http.StatusBadRequest, Type: "invalidId"})
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidId", xerrors.Errorf("id must be a uuid: %w", err)))
 		return
 	}
 
 	//nolint:gocritic // needed for SCIM
 	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
 	if err != nil {
-		_ = handlerutil.WriteError(rw, err)
+		_ = handlerutil.WriteError(rw, err) // internal error
 		return
 	}
 	aReq.Old = dbUser
 	aReq.UserID = dbUser.ID
 
-	var status database.UserStatus
-	if sUser.Active {
-		switch dbUser.Status {
-		case database.UserStatusActive:
-			// Keep the user active
-			status = database.UserStatusActive
-		case database.UserStatusDormant, database.UserStatusSuspended:
-			// Move (or keep) as dormant
-			status = database.UserStatusDormant
-		default:
-			// If the status is unknown, just move them to dormant.
-			// The user will get transitioned to Active after logging in.
-			status = database.UserStatusDormant
-		}
-	} else {
-		status = database.UserStatusSuspended
+	if sUser.Active == nil {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", xerrors.New("active field is required")))
+		return
 	}
 
-	if dbUser.Status != status {
+	newStatus := scimUserStatus(dbUser, *sUser.Active)
+	if dbUser.Status != newStatus {
 		//nolint:gocritic // needed for SCIM
 		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
 			ID:        dbUser.ID,
-			Status:    status,
+			Status:    newStatus,
 			UpdatedAt: dbtime.Now(),
 		})
 		if err != nil {
-			_ = handlerutil.WriteError(rw, err)
+			_ = handlerutil.WriteError(rw, err) // internal error
 			return
 		}
 		dbUser = userNew
@@ -411,4 +411,128 @@ func (api *API) scimPatchUser(rw http.ResponseWriter, r *http.Request) {
 
 	aReq.New = dbUser
 	httpapi.Write(ctx, rw, http.StatusOK, sUser)
+}
+
+// scimPutUser supports suspending and activating users only.
+// TODO: SCIM specification requires that the PUT method should replace the entire user object.
+// At present, our fields read as 'immutable' except for the 'active' field.
+// See: https://datatracker.ietf.org/doc/html/rfc7644#section-3.5.1
+//
+// @Summary SCIM 2.0: Replace user account
+// @ID scim-replace-user-status
+// @Security Authorization
+// @Produce application/scim+json
+// @Tags Enterprise
+// @Param id path string true "User ID" format(uuid)
+// @Param request body coderd.SCIMUser true "Replace user request"
+// @Success 200 {object} codersdk.User
+// @Router /scim/v2/Users/{id} [put]
+func (api *API) scimPutUser(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	if !api.scimVerifyAuthHeader(r) {
+		scimUnauthorized(rw)
+		return
+	}
+
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequestWithCancel[database.User](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+
+	defer commitAudit(true)
+
+	id := chi.URLParam(r, "id")
+
+	var sUser SCIMUser
+	err := json.NewDecoder(r.Body).Decode(&sUser)
+	if err != nil {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", err))
+		return
+	}
+	sUser.ID = id
+	if sUser.Active == nil {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidRequest", xerrors.New("active field is required")))
+		return
+	}
+
+	uid, err := uuid.Parse(id)
+	if err != nil {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "invalidId", xerrors.Errorf("id must be a uuid: %w", err)))
+		return
+	}
+
+	//nolint:gocritic // needed for SCIM
+	dbUser, err := api.Database.GetUserByID(dbauthz.AsSystemRestricted(ctx), uid)
+	if err != nil {
+		_ = handlerutil.WriteError(rw, err) // internal error
+		return
+	}
+	aReq.Old = dbUser
+	aReq.UserID = dbUser.ID
+
+	// Technically our immutability rules dictate that we should not allow
+	// fields to be changed. According to the SCIM specification, this error should
+	// be returned.
+	// This immutability enforcement only exists because we have not implemented it
+	// yet. If these rules are causing errors, this code should be updated to allow
+	// the fields to be changed.
+	// TODO: Currently ignoring a lot of the SCIM fields. Coder's SCIM implementation
+	// is very basic and only supports active status changes.
+	if immutabilityViolation(dbUser.Username, sUser.UserName) {
+		_ = handlerutil.WriteError(rw, scim.NewHTTPError(http.StatusBadRequest, "mutability", xerrors.Errorf("username is currently an immutable field, and cannot be changed. Current: %s, New: %s", dbUser.Username, sUser.UserName)))
+		return
+	}
+
+	newStatus := scimUserStatus(dbUser, *sUser.Active)
+	if dbUser.Status != newStatus {
+		//nolint:gocritic // needed for SCIM
+		userNew, err := api.Database.UpdateUserStatus(dbauthz.AsSystemRestricted(r.Context()), database.UpdateUserStatusParams{
+			ID:        dbUser.ID,
+			Status:    newStatus,
+			UpdatedAt: dbtime.Now(),
+		})
+		if err != nil {
+			_ = handlerutil.WriteError(rw, err) // internal error
+			return
+		}
+		dbUser = userNew
+	} else {
+		// Do not push an audit log if there is no change.
+		commitAudit(false)
+	}
+
+	aReq.New = dbUser
+	httpapi.Write(ctx, rw, http.StatusOK, sUser)
+}
+
+func immutabilityViolation[T comparable](old, new T) bool {
+	var empty T
+	if new == empty {
+		// No change
+		return false
+	}
+	return old != new
+}
+
+//nolint:revive // active is not a control flag
+func scimUserStatus(user database.User, active bool) database.UserStatus {
+	if !active {
+		return database.UserStatusSuspended
+	}
+
+	switch user.Status {
+	case database.UserStatusActive:
+		// Keep the user active
+		return database.UserStatusActive
+	case database.UserStatusDormant, database.UserStatusSuspended:
+		// Move (or keep) as dormant
+		return database.UserStatusDormant
+	default:
+		// If the status is unknown, just move them to dormant.
+		// The user will get transitioned to Active after logging in.
+		return database.UserStatusDormant
+	}
 }

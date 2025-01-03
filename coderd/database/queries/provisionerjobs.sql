@@ -16,21 +16,17 @@ WHERE
 		SELECT
 			id
 		FROM
-			provisioner_jobs AS nested
+			provisioner_jobs AS potential_job
 		WHERE
-			nested.started_at IS NULL
-			AND nested.organization_id = @organization_id
+			potential_job.started_at IS NULL
+			AND potential_job.organization_id = @organization_id
 			-- Ensure the caller has the correct provisioner.
-			AND nested.provisioner = ANY(@types :: provisioner_type [ ])
-			AND CASE
-				-- Special case for untagged provisioners: only match untagged jobs.
-				WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
-				THEN nested.tags :: jsonb = @tags :: jsonb
-				-- Ensure the caller satisfies all job tags.
-				ELSE nested.tags :: jsonb <@ @tags :: jsonb
-			END
+			AND potential_job.provisioner = ANY(@types :: provisioner_type [ ])
+			-- elsewhere, we use the tagset type, but here we use jsonb for backward compatibility
+			-- they are aliases and the code that calls this query already relies on a different type
+			AND provisioner_tagset_contains(@provisioner_tags :: jsonb, potential_job.tags :: jsonb)
 		ORDER BY
-			nested.created_at
+			potential_job.created_at
 		FOR UPDATE
 		SKIP LOCKED
 		LIMIT
@@ -54,23 +50,29 @@ WHERE
 	id = ANY(@ids :: uuid [ ]);
 
 -- name: GetProvisionerJobsByIDsWithQueuePosition :many
-WITH unstarted_jobs AS (
+WITH pending_jobs AS (
     SELECT
         id, created_at
     FROM
         provisioner_jobs
     WHERE
         started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
 ),
 queue_position AS (
     SELECT
         id,
         ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
     FROM
-        unstarted_jobs
+        pending_jobs
 ),
 queue_size AS (
-	SELECT COUNT(*) as count FROM unstarted_jobs
+	SELECT COUNT(*) AS count FROM pending_jobs
 )
 SELECT
 	sqlc.embed(pj),

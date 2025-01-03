@@ -96,6 +96,10 @@ var testCases = []testCase{
 		name:          "topology",
 		expectedError: "",
 	},
+	{
+		name:          "svc_loadbalancer_class",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

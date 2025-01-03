@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -156,13 +157,13 @@ type CreateTemplateRequest struct {
 	// AllowUserAutostart allows users to set a schedule for autostarting their
 	// workspace. By default this is true. This can only be disabled when using
 	// an enterprise license.
-	AllowUserAutostart *bool `json:"allow_user_autostart"`
+	AllowUserAutostart *bool `json:"allow_user_autostart,omitempty"`
 
 	// AllowUserAutostop allows users to set a custom workspace TTL to use in
 	// place of the template's DefaultTTL field. By default this is true. If
 	// false, the DefaultTTL will always be used. This can only be disabled when
 	// using an enterprise license.
-	AllowUserAutostop *bool `json:"allow_user_autostop"`
+	AllowUserAutostop *bool `json:"allow_user_autostop,omitempty"`
 
 	// FailureTTLMillis allows optionally specifying the max lifetime before Coder
 	// stops all resources for failed workspaces created from this template.
@@ -201,7 +202,7 @@ type CreateWorkspaceRequest struct {
 	// TemplateVersionID can be used to specify a specific version of a template for creating the workspace.
 	TemplateVersionID uuid.UUID `json:"template_version_id,omitempty" validate:"required_without=TemplateID,excluded_with=TemplateID" format:"uuid"`
 	Name              string    `json:"name" validate:"workspace_name,required"`
-	AutostartSchedule *string   `json:"autostart_schedule"`
+	AutostartSchedule *string   `json:"autostart_schedule,omitempty"`
 	TTLMillis         *int64    `json:"ttl_ms,omitempty"`
 	// RichParameterValues allows for additional parameters to be provided
 	// during the initial provision.
@@ -314,11 +315,21 @@ func (c *Client) ProvisionerDaemons(ctx context.Context) ([]ProvisionerDaemon, e
 	return daemons, json.NewDecoder(res.Body).Decode(&daemons)
 }
 
-func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID) ([]ProvisionerDaemon, error) {
-	res, err := c.Request(ctx, http.MethodGet,
-		fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String()),
-		nil,
-	)
+func (c *Client) OrganizationProvisionerDaemons(ctx context.Context, organizationID uuid.UUID, tags map[string]string) ([]ProvisionerDaemon, error) {
+	baseURL := fmt.Sprintf("/api/v2/organizations/%s/provisionerdaemons", organizationID.String())
+
+	queryParams := url.Values{}
+	tagsJSON, err := json.Marshal(tags)
+	if err != nil {
+		return nil, xerrors.Errorf("marshal tags: %w", err)
+	}
+
+	queryParams.Add("tags", string(tagsJSON))
+	if len(queryParams) > 0 {
+		baseURL = fmt.Sprintf("%s?%s", baseURL, queryParams.Encode())
+	}
+
+	res, err := c.Request(ctx, http.MethodGet, baseURL, nil)
 	if err != nil {
 		return nil, xerrors.Errorf("execute request: %w", err)
 	}

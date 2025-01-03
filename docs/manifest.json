@@ -8,8 +8,8 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Coder quickstart",
-					"description": "Try it out for yourself",
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
 				},
 				{
@@ -321,9 +321,26 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Devcontainers",
-									"description": "Learn about using devcontainers in templates",
-									"path": "./admin/templates/managing-templates/devcontainers.md"
+									"title": "Dev containers",
+									"description": "Learn about using development containers in templates",
+									"path": "./admin/templates/managing-templates/devcontainers/index.md",
+									"children": [
+										{
+											"title": "Add a dev container template",
+											"description": "How to add a dev container template to Coder",
+											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
+										},
+										{
+											"title": "Dev container security and caching",
+											"description": "Configure dev container authentication and caching",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
+										},
+										{
+											"title": "Dev container releases and known issues",
+											"description": "Dev container releases and known issues",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
+										}
+									]
 								},
 								{
 									"title": "Template Dependencies",
@@ -640,7 +657,7 @@
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
 				{
-					"title": "Get started with Coder",
+					"title": "Quickstart",
 					"description": "Learn how to install and run Coder quickly",
 					"path": "./tutorials/quickstart.md"
 				},
@@ -680,6 +697,11 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
+					"title": "Istio Integration",
+					"description": "Integrate Coder with Istio",
+					"path": "./admin/integrations/istio.md"
+				},
+				{
 					"title": "Island Secure Browser Integration",
 					"description": "Integrate Coder with Island's Secure Browser",
 					"path": "./admin/integrations/island.md"
@@ -710,6 +732,11 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
+					"title": "Test Templates Through CI/CD",
+					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
+					"path": "./tutorials/testing-templates.md"
+				},
+				{
 					"title": "Use Apache as a Reverse Proxy",
 					"description": "Learn how to use Apache as a reverse proxy",
 					"path": "./tutorials/reverse-proxy-apache.md"
@@ -734,6 +761,16 @@
 					"description": "Guides to help you make the most of your Coder experience",
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
+						{
+							"title": "Security - best practices",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
+						},
+						{
+							"title": "Organizations - best practices",
+							"description": "How to make the best use of Coder Organizations",
+							"path": "./tutorials/best-practices/organizations.md"
+						},
 						{
 							"title": "Speed up your workspaces",
 							"description": "Speed up your Coder templates and workspaces",
@@ -1157,9 +1194,9 @@
 							"path": "reference/cli/schedule.md"
 						},
 						{
-							"title": "schedule override-stop",
-							"description": "Override the stop time of a currently running workspace instance.",
-							"path": "reference/cli/schedule_override-stop.md"
+							"title": "schedule extend",
+							"description": "Extend the stop time of a currently running workspace instance.",
+							"path": "reference/cli/schedule_extend.md"
 						},
 						{
 							"title": "schedule show",

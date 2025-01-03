@@ -1,6 +1,7 @@
 package terraform_test
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -14,10 +15,18 @@ import (
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
 
+	"cdr.dev/slog"
+	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/testutil"
+
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk/proto"
 )
+
+func ctxAndLogger(t *testing.T) (context.Context, slog.Logger) {
+	return context.Background(), testutil.Logger(t)
+}
 
 func TestConvertResources(t *testing.T) {
 	t.Parallel()
@@ -109,6 +118,7 @@ func TestConvertResources(t *testing.T) {
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
 				}},
+				ModulePath: "module.module",
 			}},
 		},
 		// Ensures the attachment of multiple agents to a single
@@ -172,6 +182,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
+							OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
@@ -182,11 +193,13 @@ func TestConvertResources(t *testing.T) {
 								Interval:  5,
 								Threshold: 6,
 							},
+							OpenIn: proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app3",
 							DisplayName: "app3",
 							Subdomain:   false,
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -207,10 +220,12 @@ func TestConvertResources(t *testing.T) {
 						{
 							Slug:        "app1",
 							DisplayName: "app1",
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
 							DisplayName: "app2",
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -233,6 +248,7 @@ func TestConvertResources(t *testing.T) {
 							DisplayName: "app1",
 							// Subdomain defaults to false if unspecified.
 							Subdomain: false,
+							OpenIn:    proto.AppOpenIn_SLIM_WINDOW,
 						},
 						{
 							Slug:        "app2",
@@ -243,6 +259,7 @@ func TestConvertResources(t *testing.T) {
 								Interval:  5,
 								Threshold: 6,
 							},
+							OpenIn: proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -261,6 +278,7 @@ func TestConvertResources(t *testing.T) {
 							Slug:        "app3",
 							DisplayName: "app3",
 							Subdomain:   false,
+							OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 						},
 					},
 					Auth:                     &proto.Agent_Token{},
@@ -444,6 +462,7 @@ func TestConvertResources(t *testing.T) {
 								Slug:        "code-server",
 								DisplayName: "code-server",
 								Url:         "http://localhost:13337?folder=/home/coder",
+								OpenIn:      proto.AppOpenIn_SLIM_WINDOW,
 							},
 						},
 						Auth:                     &proto.Agent_Token{},
@@ -687,6 +706,7 @@ func TestConvertResources(t *testing.T) {
 			dir := filepath.Join(filepath.Dir(filename), "testdata", folderName)
 			t.Run("Plan", func(t *testing.T) {
 				t.Parallel()
+				ctx, logger := ctxAndLogger(t)
 
 				tfPlanRaw, err := os.ReadFile(filepath.Join(dir, folderName+".tfplan.json"))
 				require.NoError(t, err)
@@ -704,7 +724,7 @@ func TestConvertResources(t *testing.T) {
 					// and that no errors occur!
 					modules = append(modules, tfPlan.PlannedValues.RootModule)
 				}
-				state, err := terraform.ConvertState(modules, string(tfPlanGraph))
+				state, err := terraform.ConvertState(ctx, modules, string(tfPlanGraph), logger)
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sortExternalAuthProviders(state.ExternalAuthProviders)
@@ -762,6 +782,7 @@ func TestConvertResources(t *testing.T) {
 
 			t.Run("Provision", func(t *testing.T) {
 				t.Parallel()
+				ctx, logger := ctxAndLogger(t)
 				tfStateRaw, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.json"))
 				require.NoError(t, err)
 				var tfState tfjson.State
@@ -770,7 +791,7 @@ func TestConvertResources(t *testing.T) {
 				tfStateGraph, err := os.ReadFile(filepath.Join(dir, folderName+".tfstate.dot"))
 				require.NoError(t, err)
 
-				state, err := terraform.ConvertState([]*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph))
+				state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfState.Values.RootModule}, string(tfStateGraph), logger)
 				require.NoError(t, err)
 				sortResources(state.Resources)
 				sortExternalAuthProviders(state.ExternalAuthProviders)
@@ -805,8 +826,27 @@ func TestConvertResources(t *testing.T) {
 	}
 }
 
+func TestInvalidTerraformAddress(t *testing.T) {
+	t.Parallel()
+	ctx, logger := context.Background(), slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
+		Resources: []*tfjson.StateResource{{
+			Address:         "invalid",
+			Type:            "invalid",
+			Name:            "invalid",
+			Mode:            tfjson.ManagedResourceMode,
+			AttributeValues: map[string]interface{}{},
+		}},
+	}}, `digraph {}`, logger)
+	require.Nil(t, err)
+	require.Len(t, state.Resources, 1)
+	require.Equal(t, state.Resources[0].Name, "invalid")
+	require.Equal(t, state.Resources[0].ModulePath, "invalid terraform address")
+}
+
 func TestAppSlugValidation(t *testing.T) {
 	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
 
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
@@ -828,7 +868,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "invalid app slug")
@@ -840,7 +880,7 @@ func TestAppSlugValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	state, err = terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate app slug")
@@ -848,6 +888,7 @@ func TestAppSlugValidation(t *testing.T) {
 
 func TestMetadataResourceDuplicate(t *testing.T) {
 	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
 
 	// Load the multiple-apps state file and edit it.
 	dir := filepath.Join("testdata", "resource-metadata-duplicate")
@@ -859,7 +900,7 @@ func TestMetadataResourceDuplicate(t *testing.T) {
 	tfPlanGraph, err := os.ReadFile(filepath.Join(dir, "resource-metadata-duplicate.tfplan.dot"))
 	require.NoError(t, err)
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph))
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PlannedValues.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "duplicate metadata resource: null_resource.about")
@@ -867,6 +908,7 @@ func TestMetadataResourceDuplicate(t *testing.T) {
 
 func TestParameterValidation(t *testing.T) {
 	t.Parallel()
+	ctx, logger := ctxAndLogger(t)
 
 	// nolint:dogsled
 	_, filename, _, _ := runtime.Caller(0)
@@ -890,7 +932,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err := terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
+	state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical\" appears multiple times")
@@ -906,7 +948,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
+	state, err = terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\" and \"identical-1\" appear multiple times")
@@ -922,7 +964,7 @@ func TestParameterValidation(t *testing.T) {
 		}
 	}
 
-	state, err = terraform.ConvertState([]*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph))
+	state, err = terraform.ConvertState(ctx, []*tfjson.StateModule{tfPlan.PriorState.Values.RootModule}, string(tfPlanGraph), logger)
 	require.Nil(t, state)
 	require.Error(t, err)
 	require.ErrorContains(t, err, "coder_parameter names must be unique but \"identical-0\", \"identical-1\" and \"identical-2\" appear multiple times")
@@ -953,9 +995,10 @@ func TestInstanceTypeAssociation(t *testing.T) {
 		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
 			instanceType, err := cryptorand.String(12)
 			require.NoError(t, err)
-			state, err := terraform.ConvertState([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: tc.ResourceType + ".dev",
 					Type:    tc.ResourceType,
@@ -972,7 +1015,7 @@ func TestInstanceTypeAssociation(t *testing.T) {
 	subgraph "root" {
 		"[root] `+tc.ResourceType+`.dev" [label = "`+tc.ResourceType+`.dev", shape = "box"]
 	}
-}`)
+}`, logger)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Equal(t, state.Resources[0].GetInstanceType(), instanceType)
@@ -1011,9 +1054,10 @@ func TestInstanceIDAssociation(t *testing.T) {
 		tc := tc
 		t.Run(tc.ResourceType, func(t *testing.T) {
 			t.Parallel()
+			ctx, logger := ctxAndLogger(t)
 			instanceID, err := cryptorand.String(12)
 			require.NoError(t, err)
-			state, err := terraform.ConvertState([]*tfjson.StateModule{{
+			state, err := terraform.ConvertState(ctx, []*tfjson.StateModule{{
 				Resources: []*tfjson.StateResource{{
 					Address: "coder_agent.dev",
 					Type:    "coder_agent",
@@ -1043,7 +1087,7 @@ func TestInstanceIDAssociation(t *testing.T) {
 		"[root] `+tc.ResourceType+`.dev" -> "[root] coder_agent.dev"
 	}
 }
-`)
+`, logger)
 			require.NoError(t, err)
 			require.Len(t, state.Resources, 1)
 			require.Len(t, state.Resources[0].Agents, 1)

@@ -27,10 +27,10 @@ A brief overview of all files contained in the bundle is provided below:
 > out of scope, as support bundles are primarily intended for internal use.
 
 | Filename                          | Description                                                                                                |
-| --------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+|-----------------------------------|------------------------------------------------------------------------------------------------------------|
 | `agent/agent.json`                | The agent used to connect to the workspace with environment variables stripped.                            |
-| `agent/agent_magicsock.html`      | The contents of the HTTP debug endpoint of the agent's Tailscale connection.                               |
-| `agent/client_magicsock.html`     | The contents of the HTTP debug endpoint of the client's Tailscale connection.                              |
+| `agent/agent_magicsock.html`      | The contents of the HTTP debug endpoint of the agent's Tailscale Wireguard connection.                     |
+| `agent/client_magicsock.html`     | The contents of the HTTP debug endpoint of the client's Tailscale Wireguard connection.                    |
 | `agent/listening_ports.json`      | The listening ports detected by the selected agent running in the workspace.                               |
 | `agent/logs.txt`                  | The logs of the selected agent running in the workspace.                                                   |
 | `agent/manifest.json`             | The manifest of the selected agent with environment variables stripped.                                    |

@@ -391,6 +391,7 @@ type DeploymentValues struct {
 	CLIUpgradeMessage               serpent.String                       `json:"cli_upgrade_message,omitempty" typescript:",notnull"`
 	TermsOfServiceURL               serpent.String                       `json:"terms_of_service_url,omitempty" typescript:",notnull"`
 	Notifications                   NotificationsConfig                  `json:"notifications,omitempty" typescript:",notnull"`
+	AdditionalCSPPolicy             serpent.StringArray                  `json:"additional_csp_policy,omitempty" typescript:",notnull"`
 
 	Config      serpent.YAMLConfigPath `json:"config,omitempty" typescript:",notnull"`
 	WriteConfig serpent.Bool           `json:"write_config,omitempty" typescript:",notnull"`
@@ -686,11 +687,15 @@ type NotificationsConfig struct {
 	Webhook NotificationsWebhookConfig `json:"webhook" typescript:",notnull"`
 }
 
+func (n *NotificationsConfig) Enabled() bool {
+	return n.SMTP.Smarthost != "" || n.Webhook.Endpoint != serpent.URL{}
+}
+
 type NotificationsEmailConfig struct {
 	// The sender's address.
 	From serpent.String `json:"from" typescript:",notnull"`
 	// The intermediary SMTP host through which emails are sent (host:port).
-	Smarthost serpent.HostPort `json:"smarthost" typescript:",notnull"`
+	Smarthost serpent.String `json:"smarthost" typescript:",notnull"`
 	// The hostname identifying the SMTP server.
 	Hello serpent.String `json:"hello" typescript:",notnull"`
 
@@ -788,7 +793,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Report a bug",
-			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+triage&body=" + buildInfo,
 			Icon:   "bug",
 		},
 		{
@@ -1028,7 +1033,6 @@ when required by your organization's security policy.`,
 		Description: "The intermediary SMTP host through which emails are sent.",
 		Flag:        "email-smarthost",
 		Env:         "CODER_EMAIL_SMARTHOST",
-		Default:     "localhost:587", // To pass validation.
 		Value:       &c.Notifications.SMTP.Smarthost,
 		Group:       &deploymentGroupEmail,
 		YAML:        "smarthost",
@@ -1142,6 +1146,16 @@ when required by your organization's security policy.`,
 		Value:       &c.Notifications.SMTP.TLS.KeyFile,
 		Group:       &deploymentGroupEmailTLS,
 		YAML:        "certKeyFile",
+	}
+	telemetryEnable := serpent.Option{
+		Name:        "Telemetry Enable",
+		Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
+		Flag:        "telemetry",
+		Env:         "CODER_TELEMETRY_ENABLE",
+		Default:     strconv.FormatBool(flag.Lookup("test.v") == nil || os.Getenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE") == "true"),
+		Value:       &c.Telemetry.Enable,
+		Group:       &deploymentGroupTelemetry,
+		YAML:        "enable",
 	}
 	opts := serpent.OptionSet{
 		{
@@ -1903,15 +1917,19 @@ when required by your organization's security policy.`,
 			YAML:  "dangerousSkipIssuerChecks",
 		},
 		// Telemetry settings
+		telemetryEnable,
 		{
-			Name:        "Telemetry Enable",
-			Description: "Whether telemetry is enabled or not. Coder collects anonymized usage data to help improve our product.",
-			Flag:        "telemetry",
-			Env:         "CODER_TELEMETRY_ENABLE",
-			Default:     strconv.FormatBool(flag.Lookup("test.v") == nil),
-			Value:       &c.Telemetry.Enable,
-			Group:       &deploymentGroupTelemetry,
-			YAML:        "enable",
+			Hidden: true,
+			Name:   "Telemetry (backwards compatibility)",
+			// Note the flip-flop of flag and env to maintain backwards
+			// compatibility and consistency. Inconsistently, the env
+			// was renamed to CODER_TELEMETRY_ENABLE in the past, but
+			// the flag was not renamed -enable.
+			Flag:       "telemetry-enable",
+			Env:        "CODER_TELEMETRY",
+			Value:      &c.Telemetry.Enable,
+			Group:      &deploymentGroupTelemetry,
+			UseInstead: []serpent.Option{telemetryEnable},
 		},
 		{
 			Name:        "Telemetry URL",
@@ -2130,6 +2148,18 @@ when required by your organization's security policy.`,
 			Group:       &deploymentGroupIntrospectionLogging,
 			YAML:        "enableTerraformDebugMode",
 		},
+		{
+			Name: "Additional CSP Policy",
+			Description: "Coder configures a Content Security Policy (CSP) to protect against XSS attacks. " +
+				"This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. " +
+				"Format matches the CSP directive format, e.g. --additional-csp-policy=\"script-src https://example.com\".",
+			Flag:  "additional-csp-policy",
+			Env:   "CODER_ADDITIONAL_CSP_POLICY",
+			YAML:  "additionalCSPPolicy",
+			Value: &c.AdditionalCSPPolicy,
+			Group: &deploymentGroupNetworkingHTTP,
+		},
+
 		// ☢️ Dangerous settings
 		{
 			Name:        "DANGEROUS: Allow all CORS requests",
@@ -2254,7 +2284,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Connection URL",
-			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\".",
+			Description: "URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with \"coder server postgres-builtin-url\". Note that any special characters in the URL must be URL-encoded.",
 			Flag:        "postgres-url",
 			Env:         "CODER_PG_CONNECTION_URL",
 			Annotations: serpent.Annotations{}.Mark(annotationSecretKey, "true"),
@@ -2262,7 +2292,7 @@ when required by your organization's security policy.`,
 		},
 		{
 			Name:        "Postgres Auth",
-			Description: "Type of auth to use when connecting to postgres.",
+			Description: "Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.",
 			Flag:        "postgres-auth",
 			Env:         "CODER_PG_AUTH",
 			Default:     "password",
@@ -2346,7 +2376,7 @@ when required by your organization's security policy.`,
 			Flag:        "agent-fallback-troubleshooting-url",
 			Env:         "CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL",
 			Hidden:      true,
-			Default:     "https://coder.com/docs/templates/troubleshooting",
+			Default:     "https://coder.com/docs/admin/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
 		},

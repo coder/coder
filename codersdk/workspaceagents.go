@@ -12,9 +12,10 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/coderd/tracing"
+	"github.com/coder/coder/v2/codersdk/wsjson"
+	"github.com/coder/websocket"
 )
 
 type WorkspaceAgentStatus string
@@ -454,30 +455,6 @@ func (c *Client) WorkspaceAgentLogsAfter(ctx context.Context, agentID uuid.UUID,
 		}
 		return nil, nil, ReadBodyAsError(res)
 	}
-	logChunks := make(chan []WorkspaceAgentLog, 1)
-	closed := make(chan struct{})
-	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageText)
-	decoder := json.NewDecoder(wsNetConn)
-	go func() {
-		defer close(closed)
-		defer close(logChunks)
-		defer conn.Close(websocket.StatusGoingAway, "")
-		for {
-			var logs []WorkspaceAgentLog
-			err = decoder.Decode(&logs)
-			if err != nil {
-				return
-			}
-			select {
-			case <-ctx.Done():
-				return
-			case logChunks <- logs:
-			}
-		}
-	}()
-	return logChunks, closeFunc(func() error {
-		_ = wsNetConn.Close()
-		<-closed
-		return nil
-	}), nil
+	d := wsjson.NewDecoder[[]WorkspaceAgentLog](conn, websocket.MessageText, c.logger)
+	return d.Chan(), d, nil
 }

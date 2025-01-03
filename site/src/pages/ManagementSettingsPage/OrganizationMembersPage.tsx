@@ -15,10 +15,12 @@ import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { useManagementSettings } from "modules/management/ManagementSettingsLayout";
+import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { type FC, useState } from "react";
+import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
+import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
 
 const OrganizationMembersPage: FC = () => {
@@ -50,7 +52,7 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useManagementSettings();
+	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
 
@@ -62,8 +64,17 @@ const OrganizationMembersPage: FC = () => {
 		return <Loader />;
 	}
 
+	const helmet = organization && (
+		<Helmet>
+			<title>
+				{pageTitle("Members", organization.display_name || organization.name)}
+			</title>
+		</Helmet>
+	);
+
 	return (
 		<>
+			{helmet}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
 				canEditMembers={permissions.editMembers}
@@ -77,7 +88,6 @@ const OrganizationMembersPage: FC = () => {
 				isUpdatingMemberRoles={updateMemberRolesMutation.isLoading}
 				me={me}
 				members={members}
-				groupsByUserId={groupsByUserIdQuery.data}
 				addMember={async (user: User) => {
 					await addMemberMutation.mutateAsync(user.id);
 					void membersQuery.refetch();

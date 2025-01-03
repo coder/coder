@@ -9,58 +9,26 @@ terraform {
   }
 }
 
-provider "coder" {
-}
+provider "coder" {}
 
 variable "project_id" {
   description = "Which Google Compute Project should your workspace live in?"
 }
 
-data "coder_parameter" "zone" {
-  name         = "zone"
-  display_name = "Zone"
-  description  = "Which zone should your workspace live in?"
-  type         = "string"
-  default      = "us-central1-a"
-  icon         = "/emojis/1f30e.png"
-  mutable      = false
-  option {
-    name  = "North America (Northeast)"
-    value = "northamerica-northeast1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (Central)"
-    value = "us-central1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (West)"
-    value = "us-west2-c"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "Europe (West)"
-    value = "europe-west4-b"
-    icon  = "/emojis/1f1ea-1f1fa.png"
-  }
-  option {
-    name  = "South America (East)"
-    value = "southamerica-east1-a"
-    icon  = "/emojis/1f1e7-1f1f7.png"
-  }
+module "gcp_region" {
+  source  = "registry.coder.com/modules/gcp-region/coder"
+  version = "1.0.12"
+  regions = ["us", "europe"]
 }
 
 provider "google" {
-  zone    = data.coder_parameter.zone.value
+  zone    = module.gcp_region.value
   project = var.project_id
 }
 
-data "google_compute_default_service_account" "default" {
-}
+data "google_compute_default_service_account" "default" {}
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
@@ -70,32 +38,43 @@ resource "coder_agent" "main" {
   startup_script = <<-EOT
     set -e
 
-    # Install the latest code-server.
-    # Append "--version x.x.x" to install a specific version of code-server.
-    curl -fsSL https://code-server.dev/install.sh | sh -s -- --method=standalone --prefix=/tmp/code-server
-
-    # Start code-server in the background.
-    /tmp/code-server/bin/code-server --auth none --port 13337 >/tmp/code-server.log 2>&1 &
+    # Add any commands that should be executed at workspace startup (e.g install requirements, start a program, etc) here
   EOT
 }
 
-# code-server
-resource "coder_app" "code-server" {
-  agent_id     = coder_agent.main.id
-  slug         = "code-server"
-  display_name = "code-server"
-  icon         = "/icon/code.svg"
-  url          = "http://localhost:13337?folder=/home/coder"
-  subdomain    = false
-  share        = "owner"
+# See https://registry.coder.com/modules/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
 }
 
+# See https://registry.coder.com/modules/jetbrains-gateway
+module "jetbrains_gateway" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+
+  # JetBrains IDEs to make available for the user to select
+  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  default        = "IU"
+
+  # Default folder to open when starting a JetBrains IDE
+  folder = "/home/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  order      = 2
+}
+
+# See https://registry.terraform.io/modules/terraform-google-modules/container-vm
 module "gce-container" {
   source  = "terraform-google-modules/container-vm/google"
   version = "3.0.0"
@@ -111,7 +90,7 @@ module "gce-container" {
 }
 
 resource "google_compute_instance" "dev" {
-  zone         = data.coder_parameter.zone.value
+  zone         = module.gcp_region.value
   count        = data.coder_workspace.me.start_count
   name         = "coder-${lower(data.coder_workspace_owner.me.name)}-${lower(data.coder_workspace.me.name)}"
   machine_type = "e2-medium"

@@ -104,3 +104,25 @@ export const NavigateToStartStage: Story = {
 		await canvas.findByText("Startup Script");
 	},
 };
+
+// Test case for https://github.com/coder/coder/issues/15413
+export const DuplicatedScriptTiming: Story = {
+	args: {
+		agentScriptTimings: [
+			WorkspaceTimingsResponse.agent_script_timings[0],
+			{
+				...WorkspaceTimingsResponse.agent_script_timings[0],
+				started_at: "2021-09-01T00:00:00Z",
+				ended_at: "2021-09-01T00:00:00Z",
+			},
+		],
+	},
+};
+
+// Loading when agent script timings are empty
+// Test case for https://github.com/coder/coder/issues/15273
+export const LoadingWhenAgentScriptTimingsAreEmpty: Story = {
+	args: {
+		agentScriptTimings: undefined,
+	},
+};

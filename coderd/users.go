@@ -70,8 +70,7 @@ func (api *API) userDebugOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// This will encode properly because it is a json.RawMessage.
-	httpapi.Write(ctx, rw, http.StatusOK, link.DebugContext)
+	httpapi.Write(ctx, rw, http.StatusOK, link.Claims)
 }
 
 // Returns whether the initial user has been created or not.
@@ -318,6 +317,8 @@ func (api *API) GetUsers(rw http.ResponseWriter, r *http.Request) ([]database.Us
 		RbacRole:       params.RbacRole,
 		LastSeenBefore: params.LastSeenBefore,
 		LastSeenAfter:  params.LastSeenAfter,
+		CreatedAfter:   params.CreatedAfter,
+		CreatedBefore:  params.CreatedBefore,
 		OffsetOpt:      int32(paginationParams.Offset),
 		LimitOpt:       int32(paginationParams.Limit),
 	})

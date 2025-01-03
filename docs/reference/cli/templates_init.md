@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates init
 
 Get started with a templated template.
@@ -14,8 +13,8 @@ coder templates init [flags] [directory]
 
 ### --id
 
-|      |                                                                                                                                                                                                                                   |
-| ---- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Type | <code>aws-devcontainer\|aws-linux\|aws-windows\|azure-linux\|devcontainer-docker\|devcontainer-kubernetes\|do-linux\|docker\|gcp-devcontainer\|gcp-linux\|gcp-vm-container\|gcp-windows\|kubernetes\|nomad-docker\|scratch</code> |
+|      |                                                                                                                                                                                                                                             |
+|------|---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
+| Type | <code>aws-devcontainer\|aws-linux\|aws-windows\|azure-linux\|digitalocean-linux\|docker\|docker-devcontainer\|gcp-devcontainer\|gcp-linux\|gcp-vm-container\|gcp-windows\|kubernetes\|kubernetes-devcontainer\|nomad-docker\|scratch</code> |
 
 Specify a given example template by ID.

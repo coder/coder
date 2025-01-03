@@ -61,7 +61,6 @@ import (
 	"github.com/coder/serpent"
 	"github.com/coder/wgtunnel/tunnelsdk"
 
-	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/notifications/reports"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -295,7 +294,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 		Options: opts,
 		Middleware: serpent.Chain(
 			WriteConfigMW(vals),
-			PrintDeprecatedOptions(),
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
@@ -699,7 +697,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				options.Database = dbmem.New()
 				options.Pubsub = pubsub.NewInMemory()
 			} else {
-				sqlDB, dbURL, err := getPostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
+				sqlDB, dbURL, err := getAndMigratePostgresDB(ctx, logger, vals.PostgresURL.String(), codersdk.PostgresAuth(vals.PostgresAuth), sqlDriver)
 				if err != nil {
 					return xerrors.Errorf("connect to postgres: %w", err)
 				}
@@ -753,25 +751,6 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if err != nil {
 				return xerrors.Errorf("set deployment id: %w", err)
 			}
-
-			fetcher := &cryptokeys.DBFetcher{
-				DB: options.Database,
-			}
-
-			resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
-				logger,
-				fetcher,
-				codersdk.CryptoKeyFeatureTailnetResume,
-			)
-			if err != nil {
-				logger.Critical(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
-			}
-
-			options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
-				resumeKeycache,
-				quartz.NewReal(),
-				tailnet.DefaultResumeTokenExpiry,
-			)
 
 			options.RuntimeConfig = runtimeconfig.NewManager()
 
@@ -897,31 +876,39 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// Manage notifications.
-			cfg := options.DeploymentValues.Notifications
-			metrics := notifications.NewMetrics(options.PrometheusRegistry)
-			helpers := templateHelpers(options)
+			var (
+				notificationsCfg     = options.DeploymentValues.Notifications
+				notificationsManager *notifications.Manager
+			)
 
-			// The enqueuer is responsible for enqueueing notifications to the given store.
-			enqueuer, err := notifications.NewStoreEnqueuer(cfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
-			if err != nil {
-				return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+			if notificationsCfg.Enabled() {
+				metrics := notifications.NewMetrics(options.PrometheusRegistry)
+				helpers := templateHelpers(options)
+
+				// The enqueuer is responsible for enqueueing notifications to the given store.
+				enqueuer, err := notifications.NewStoreEnqueuer(notificationsCfg, options.Database, helpers, logger.Named("notifications.enqueuer"), quartz.NewReal())
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification store enqueuer: %w", err)
+				}
+				options.NotificationsEnqueuer = enqueuer
+
+				// The notification manager is responsible for:
+				//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
+				//   - keeping the store updated with status updates
+				notificationsManager, err = notifications.NewManager(notificationsCfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
+				if err != nil {
+					return xerrors.Errorf("failed to instantiate notification manager: %w", err)
+				}
+
+				// nolint:gocritic // We need to run the manager in a notifier context.
+				notificationsManager.Run(dbauthz.AsNotifier(ctx))
+
+				// Run report generator to distribute periodic reports.
+				notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
+				defer notificationReportGenerator.Close()
+			} else {
+				cliui.Info(inv.Stdout, "Notifications are currently disabled as there are no configured delivery methods. See https://coder.com/docs/admin/monitoring/notifications#delivery-methods for more details.")
 			}
-			options.NotificationsEnqueuer = enqueuer
-
-			// The notification manager is responsible for:
-			//   - creating notifiers and managing their lifecycles (notifiers are responsible for dequeueing/sending notifications)
-			//   - keeping the store updated with status updates
-			notificationsManager, err := notifications.NewManager(cfg, options.Database, helpers, metrics, logger.Named("notifications.manager"))
-			if err != nil {
-				return xerrors.Errorf("failed to instantiate notification manager: %w", err)
-			}
-
-			// nolint:gocritic // We need to run the manager in a notifier context.
-			notificationsManager.Run(dbauthz.AsNotifier(ctx))
-
-			// Run report generator to distribute periodic reports.
-			notificationReportGenerator := reports.NewReportGenerator(ctx, logger.Named("notifications.report_generator"), options.Database, options.NotificationsEnqueuer, quartz.NewReal())
-			defer notificationReportGenerator.Close()
 
 			// Since errCh only has one buffered slot, all routines
 			// sending on it must be wrapped in a select/default to
@@ -1098,17 +1085,19 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// Cancel any remaining in-flight requests.
 			shutdownConns()
 
-			// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
-			// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
-			// their leases expire after a period of time and will be re-queued for sending.
-			// See CODER_NOTIFICATIONS_LEASE_PERIOD.
-			cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
-			err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
-			if err != nil {
-				cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
-					"this may result in duplicate notifications being sent: %s\n", err)
-			} else {
-				cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+			if notificationsManager != nil {
+				// Stop the notification manager, which will cause any buffered updates to the store to be flushed.
+				// If the Stop() call times out, messages that were sent but not reflected as such in the store will have
+				// their leases expire after a period of time and will be re-queued for sending.
+				// See CODER_NOTIFICATIONS_LEASE_PERIOD.
+				cliui.Info(inv.Stdout, "Shutting down notifications manager..."+"\n")
+				err = shutdownWithTimeout(notificationsManager.Stop, 5*time.Second)
+				if err != nil {
+					cliui.Warnf(inv.Stderr, "Notifications manager shutdown took longer than 5s, "+
+						"this may result in duplicate notifications being sent: %s\n", err)
+				} else {
+					cliui.Info(inv.Stdout, "Gracefully shut down notifications manager\n")
+				}
 			}
 
 			// Shut down provisioners before waiting for WebSockets
@@ -1257,41 +1246,6 @@ func templateHelpers(options *coderd.Options) map[string]any {
 	return map[string]any{
 		"base_url":     func() string { return options.AccessURL.String() },
 		"current_year": func() string { return strconv.Itoa(time.Now().Year()) },
-	}
-}
-
-// printDeprecatedOptions loops through all command options, and prints
-// a warning for usage of deprecated options.
-func PrintDeprecatedOptions() serpent.MiddlewareFunc {
-	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
-		return func(inv *serpent.Invocation) error {
-			opts := inv.Command.Options
-			// Print deprecation warnings.
-			for _, opt := range opts {
-				if opt.UseInstead == nil {
-					continue
-				}
-
-				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
-					continue
-				}
-
-				warnStr := opt.Name + " is deprecated, please use "
-				for i, use := range opt.UseInstead {
-					warnStr += use.Name + " "
-					if i != len(opt.UseInstead)-1 {
-						warnStr += "and "
-					}
-				}
-				warnStr += "instead.\n"
-
-				cliui.Warn(inv.Stderr,
-					warnStr,
-				)
-			}
-
-			return next(inv)
-		}
 	}
 }
 
@@ -2136,9 +2090,18 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string) (sqlDB *sql.DB, err error) {
+// ConnectToPostgres takes in the migration command to run on the database once
+// it connects. To avoid running migrations, pass in `nil` or a no-op function.
+// Regardless of the passed in migration function, if the database is not fully
+// migrated, an error will be returned. This can happen if the database is on a
+// future or past migration version.
+//
+// If no error is returned, the database is fully migrated and up to date.
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
+	var err error
+	var sqlDB *sql.DB
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -2201,9 +2164,16 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, d
 	}
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
-	err = migrations.Up(sqlDB)
+	if migrate != nil {
+		err = migrate(sqlDB)
+		if err != nil {
+			return nil, xerrors.Errorf("migrate up: %w", err)
+		}
+	}
+
+	err = migrations.EnsureClean(sqlDB)
 	if err != nil {
-		return nil, xerrors.Errorf("migrate up: %w", err)
+		return nil, xerrors.Errorf("migrations in database: %w", err)
 	}
 	// The default is 0 but the request will fail with a 500 if the DB
 	// cannot accept new connections, so we try to limit that here.
@@ -2607,7 +2577,7 @@ func signalNotifyContext(ctx context.Context, inv *serpent.Invocation, sig ...os
 	return inv.SignalNotifyContext(ctx, sig...)
 }
 
-func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
+func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, auth codersdk.PostgresAuth, sqlDriver string) (*sql.DB, string, error) {
 	dbURL, err := escapePostgresURLUserInfo(postgresURL)
 	if err != nil {
 		return nil, "", xerrors.Errorf("escaping postgres URL: %w", err)
@@ -2620,7 +2590,7 @@ func getPostgresDB(ctx context.Context, logger slog.Logger, postgresURL string, 
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL)
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}

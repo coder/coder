@@ -129,7 +129,14 @@ resource uses a different method of authentication and **is not impacted by the
 template's maximum sharing level**, nor the level of a shared port that points
 to the app.
 
-### Configure maximum port sharing level (enterprise) (premium)
+### Configure maximum port sharing level
+
+<blockquote class="info">
+
+Configuring port sharing level is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Premium-licensed template admins can control the maximum port sharing level for
 workspaces under a given template in the template settings. By default, the
@@ -149,7 +156,7 @@ protocol configuration for each shared port individually.
 You can access any port on the workspace and can configure the port protocol
 manually by appending a `s` to the port in the URL.
 
-```
+```text
 # Uses HTTP
 https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS
@@ -173,8 +180,8 @@ requests cannot be authenticated and you will see an error resembling the
 following:
 
 > Access to fetch at
-> 'https://coder.example.com/api/v2/applications/auth-redirect' from origin
-> 'https://8000--dev--user--apps.coder.example.com' has been blocked by CORS
+> '<https://coder.example.com/api/v2/applications/auth-redirect>' from origin
+> '<https://8000--dev--user--apps.coder.example.com>' has been blocked by CORS
 > policy: No 'Access-Control-Allow-Origin' header is present on the requested
 > resource. If an opaque response serves your needs, set the request's mode to
 > 'no-cors' to fetch the resource with CORS disabled.
@@ -183,7 +190,7 @@ following:
 
 Below is a list of the cross-origin headers Coder sets with example values:
 
-```
+```text
 access-control-allow-credentials: true
 access-control-allow-methods: PUT
 access-control-allow-headers: X-Custom-Header

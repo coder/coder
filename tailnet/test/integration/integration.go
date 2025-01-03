@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -40,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 type ClientNumber int

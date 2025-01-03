@@ -3,6 +3,7 @@ package database
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"strings"
 
@@ -289,6 +290,7 @@ func (q *sqlQuerier) GetAuthorizedWorkspaces(ctx context.Context, arg GetWorkspa
 			&i.DeletingAt,
 			&i.AutomaticUpdates,
 			&i.Favorite,
+			&i.NextStartAt,
 			&i.OwnerAvatarUrl,
 			&i.OwnerUsername,
 			&i.OrganizationName,
@@ -389,6 +391,8 @@ func (q *sqlQuerier) GetAuthorizedUsers(ctx context.Context, arg GetUsersParams,
 		pq.Array(arg.RbacRole),
 		arg.LastSeenBefore,
 		arg.LastSeenAfter,
+		arg.CreatedBefore,
+		arg.CreatedAfter,
 		arg.OffsetOpt,
 		arg.LimitOpt,
 	)
@@ -526,4 +530,10 @@ func insertAuthorizedFilter(query string, replaceWith string) (string, error) {
 	}
 	filtered := strings.Replace(query, authorizedQueryPlaceholder, replaceWith, 1)
 	return filtered, nil
+}
+
+// UpdateUserLinkRawJSON is a custom query for unit testing. Do not ever expose this
+func (q *sqlQuerier) UpdateUserLinkRawJSON(ctx context.Context, userID uuid.UUID, data json.RawMessage) error {
+	_, err := q.sdb.ExecContext(ctx, "UPDATE user_links SET claims = $2 WHERE user_id = $1", userID, data)
+	return err
 }

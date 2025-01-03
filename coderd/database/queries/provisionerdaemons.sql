@@ -10,7 +10,23 @@ SELECT
 FROM
 	provisioner_daemons
 WHERE
-	organization_id = @organization_id;
+	-- This is the original search criteria:
+	organization_id = @organization_id :: uuid
+	AND
+	-- adding support for searching by tags:
+	(@want_tags :: tagset = 'null' :: tagset OR provisioner_tagset_contains(provisioner_daemons.tags::tagset, @want_tags::tagset));
+
+-- name: GetEligibleProvisionerDaemonsByProvisionerJobIDs :many
+SELECT DISTINCT
+    provisioner_jobs.id as job_id, sqlc.embed(provisioner_daemons)
+FROM
+    provisioner_jobs
+JOIN
+    provisioner_daemons ON provisioner_daemons.organization_id = provisioner_jobs.organization_id
+    AND provisioner_tagset_contains(provisioner_daemons.tags::tagset, provisioner_jobs.tags::tagset)
+    AND provisioner_jobs.provisioner = ANY(provisioner_daemons.provisioners)
+WHERE
+    provisioner_jobs.id = ANY(@provisioner_job_ids :: uuid[]);
 
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago

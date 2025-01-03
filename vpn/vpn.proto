@@ -1,5 +1,6 @@
 syntax = "proto3";
 option go_package = "github.com/coder/coder/v2/vpn";
+option csharp_namespace = "Coder.Desktop.Vpn.Proto";
 
 import "google/protobuf/timestamp.proto";
 
@@ -104,7 +105,7 @@ message Agent {
 	bytes id = 1; // UUID
 	string name = 2;
 	bytes workspace_id = 3; // UUID
-	string fqdn = 4;
+	repeated string fqdn = 4;
 	repeated string ip_addrs = 5;
 	// last_handshake is the primary indicator of whether we are connected to a peer. Zero value or
 	// anything longer than 5 minutes ago means there is a problem.
@@ -178,6 +179,12 @@ message StartRequest {
 	int32 tunnel_file_descriptor = 1;
 	string coder_url = 2;
 	string api_token = 3;
+	// Additional HTTP headers added to all requests
+	message Header {
+		string name = 1;
+		string value = 2;
+	}
+	repeated Header headers = 4;
 }
 
 message StartResponse {

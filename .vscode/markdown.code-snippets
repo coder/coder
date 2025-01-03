@@ -1,0 +1,46 @@
+{
+	// For info about snippets, visit https://code.visualstudio.com/docs/editor/userdefinedsnippets
+
+    "admonition": {
+        "prefix": "#callout",
+        "body": [
+            "<blockquote class=\"admonition ${1|caution,important,note,tip,warning|}\">\n",
+            "${TM_SELECTED_TEXT:${2:add info here}}\n",
+            "</blockquote>\n"
+        ],
+        "description": "callout admonition caution info note tip warning"
+    },
+	"fenced code block": {
+		"prefix": "#codeblock",
+		"body": ["```${1|apache,bash,console,diff,Dockerfile,env,go,hcl,ini,json,lisp,md,powershell,shell,sql,text,tf,tsx,yaml|}", "${TM_SELECTED_TEXT}$0", "```"],
+		"description": "fenced code block"
+	},
+	"image": {
+		"prefix": "#image",
+		"body": "![${TM_SELECTED_TEXT:${1:alt}}](${2:url})$0",
+		"description": "image"
+	},
+	"premium-feature": {
+		"prefix": "#premium-feature",
+		"body": [
+			"<blockquote class=\"info\">\n",
+			"${1:feature} ${2|is,are|} an Enterprise and Premium feature. [Learn more](https://coder.com/pricing#compare-plans).\n",
+			"</blockquote>"
+		]
+	},
+	"tabs": {
+		"prefix": "#tabs",
+		"body": [
+			"<div class=\"tabs\">\n",
+			"${1:optional description}\n",
+			"## ${2:tab title}\n",
+			"${TM_SELECTED_TEXT:${3:first tab content}}\n",
+			"## ${4:tab title}\n",
+			"${5:second tab content}\n",
+			"## ${6:tab title}\n",
+			"${7:third tab content}\n",
+			"</div>\n"
+		],
+		"description": "tabs"
+	}
+}

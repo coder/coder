@@ -1,8 +1,13 @@
 package coderd
 
 import (
+	"fmt"
 	"net/http"
 
+	"github.com/google/uuid"
+
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
@@ -53,6 +58,16 @@ func (api *API) groupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+
+	aReq, commitAudit := audit.InitRequest[idpsync.GroupSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
@@ -80,7 +95,14 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, idpsync.GroupSyncSettings{
+	existing, err := api.IDPSync.GroupSyncSettings(sysCtx, org.ID, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateGroupSettings(sysCtx, org.ID, api.Database, idpsync.GroupSyncSettings{
 		Field:             req.Field,
 		Mapping:           req.Mapping,
 		RegexFilter:       req.RegexFilter,
@@ -98,6 +120,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.GroupSyncSettings{
 		Field:             settings.Field,
 		Mapping:           settings.Mapping,
@@ -148,6 +171,16 @@ func (api *API) roleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+
+	aReq, commitAudit := audit.InitRequest[idpsync.RoleSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
 		httpapi.Forbidden(rw)
@@ -161,7 +194,14 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
+	existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
 		Field:   req.Field,
 		Mapping: req.Mapping,
 	})
@@ -176,6 +216,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RoleSyncSettings{
 		Field:   settings.Field,
 		Mapping: settings.Mapping,
@@ -205,7 +246,11 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, settings)
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
 }
 
 // @Summary Update organization IdP Sync settings
@@ -219,6 +264,14 @@ func (api *API) organizationIDPSyncSettings(rw http.ResponseWriter, r *http.Requ
 // @Router /settings/idpsync/organization [patch]
 func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.OrganizationSyncSettings](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
 
 	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings) {
 		httpapi.Forbidden(rw)
@@ -232,7 +285,14 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 
 	//nolint:gocritic // Requires system context to update runtime config
 	sysCtx := dbauthz.AsSystemRestricted(ctx)
-	err := api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
+	existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, api.Database)
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+	aReq.Old = *existing
+
+	err = api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
 		Field: req.Field,
 		// We do not check if the mappings point to actual organizations.
 		Mapping:       req.Mapping,
@@ -249,9 +309,57 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 		return
 	}
 
+	aReq.New = *settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
 		Field:         settings.Field,
 		Mapping:       settings.Mapping,
 		AssignDefault: settings.AssignDefault,
 	})
+}
+
+// @Summary Get the available organization idp sync claim fields
+// @ID get-the-available-organization-idp-sync-claim-fields
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} string
+// @Router /organizations/{organization}/settings/idpsync/available-fields [get]
+func (api *API) organizationIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
+	org := httpmw.OrganizationParam(r)
+	api.idpSyncClaimFields(org.ID, rw, r)
+}
+
+// @Summary Get the available idp sync claim fields
+// @ID get-the-available-idp-sync-claim-fields
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Success 200 {array} string
+// @Router /settings/idpsync/available-fields [get]
+func (api *API) deploymentIDPSyncClaimFields(rw http.ResponseWriter, r *http.Request) {
+	// nil uuid implies all organizations
+	api.idpSyncClaimFields(uuid.Nil, rw, r)
+}
+
+func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	fields, err := api.Database.OIDCClaimFields(ctx, orgID)
+	if httpapi.IsUnauthorizedError(err) {
+		// Give a helpful error. The user could read the org, so this does not
+		// leak anything.
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You do not have permission to view the available IDP fields",
+			Detail:  fmt.Sprintf("%s.read permission is required", rbac.ResourceIdpsyncSettings.Type),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, fields)
 }

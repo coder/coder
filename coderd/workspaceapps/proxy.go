@@ -17,7 +17,6 @@ import (
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -32,6 +31,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
+	"github.com/coder/websocket"
 )
 
 const (

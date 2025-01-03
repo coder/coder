@@ -30,10 +30,13 @@ const (
 	ResourceTypeOrganization          ResourceType = "organization"
 	ResourceTypeOAuth2ProviderApp     ResourceType = "oauth2_provider_app"
 	// nolint:gosec // This is not a secret.
-	ResourceTypeOAuth2ProviderAppSecret ResourceType = "oauth2_provider_app_secret"
-	ResourceTypeCustomRole              ResourceType = "custom_role"
-	ResourceTypeOrganizationMember                   = "organization_member"
-	ResourceTypeNotificationTemplate                 = "notification_template"
+	ResourceTypeOAuth2ProviderAppSecret     ResourceType = "oauth2_provider_app_secret"
+	ResourceTypeCustomRole                  ResourceType = "custom_role"
+	ResourceTypeOrganizationMember          ResourceType = "organization_member"
+	ResourceTypeNotificationTemplate        ResourceType = "notification_template"
+	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
+	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
+	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -78,6 +81,12 @@ func (r ResourceType) FriendlyString() string {
 		return "organization member"
 	case ResourceTypeNotificationTemplate:
 		return "notification template"
+	case ResourceTypeIdpSyncSettingsOrganization:
+		return "settings"
+	case ResourceTypeIdpSyncSettingsGroup:
+		return "settings"
+	case ResourceTypeIdpSyncSettingsRole:
+		return "settings"
 	default:
 		return "unknown"
 	}

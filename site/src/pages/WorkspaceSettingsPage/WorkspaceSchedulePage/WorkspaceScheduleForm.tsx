@@ -464,7 +464,7 @@ export const ttlShutdownAt = (formTTL: number): string => {
 		return `Your workspace will shut down ${formatDuration(
 			intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
 			{ delimiter: " and " },
-		)} after its next start. We delay shutdown by 1 hour whenever we detect activity.`;
+		)} after its next start.`;
 	} catch (e) {
 		if (e instanceof RangeError) {
 			return Language.errorTtlMax;

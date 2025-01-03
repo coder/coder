@@ -1,116 +1,92 @@
-import { type Interpolation, type Theme, css, useTheme } from "@emotion/react";
-import MuiAvatar, {
-	type AvatarProps as MuiAvatarProps,
-	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
-} from "@mui/material/Avatar";
-import { visuallyHidden } from "@mui/utils";
-import { type FC, useId } from "react";
+/**
+ * Copied from shadc/ui on 12/16/2024
+ * @see {@link https://ui.shadcn.com/docs/components/avatar}
+ *
+ * This component was updated to support the variants and match the styles from
+ * the Figma design:
+ * @see {@link https://www.figma.com/design/WfqIgsTFXN2BscBSSyXWF8/Coder-kit?node-id=711-383&t=xqxOSUk48GvDsjGK-0}
+ *
+ * It was also simplified to make usage easier and reduce boilerplate.
+ * @see {@link https://github.com/coder/coder/pull/15930#issuecomment-2552292440}
+ */
+
+import { useTheme } from "@emotion/react";
+import * as AvatarPrimitive from "@radix-ui/react-avatar";
+import { type VariantProps, cva } from "class-variance-authority";
+import * as React from "react";
 import { getExternalImageStylesFromUrl } from "theme/externalImages";
+import { cn } from "utils/cn";
 
-export type AvatarProps = MuiAvatarProps & {
-	size?: "xs" | "sm" | "md" | "xl";
-	background?: boolean;
-	fitImage?: boolean;
-};
-
-const sizeStyles = {
-	xs: {
-		width: 16,
-		height: 16,
-		fontSize: 8,
-		fontWeight: 700,
+const avatarVariants = cva(
+	"relative flex shrink-0 overflow-hidden rounded border border-solid bg-surface-secondary text-content-secondary",
+	{
+		variants: {
+			size: {
+				lg: "h-[--avatar-lg] w-[--avatar-lg] rounded-[6px] text-sm font-medium",
+				md: "h-[--avatar-default] w-[--avatar-default] text-2xs",
+				sm: "h-[--avatar-sm] w-[--avatar-sm] text-[8px]",
+			},
+			variant: {
+				default: null,
+				icon: null,
+			},
+		},
+		defaultVariants: {
+			size: "md",
+		},
+		compoundVariants: [
+			{
+				size: "lg",
+				variant: "icon",
+				className: "p-2",
+			},
+			{
+				size: "md",
+				variant: "icon",
+				className: "p-1",
+			},
+			{
+				size: "sm",
+				variant: "icon",
+				className: "p-[3px]",
+			},
+		],
 	},
-	sm: {
-		width: 24,
-		height: 24,
-		fontSize: 12,
-		fontWeight: 600,
-	},
-	md: {},
-	xl: {
-		width: 48,
-		height: 48,
-		fontSize: 24,
-	},
-} satisfies Record<string, Interpolation<Theme>>;
+);
 
-const fitImageStyles = css`
-  & .MuiAvatar-img {
-    object-fit: contain;
-  }
-`;
+export type AvatarProps = AvatarPrimitive.AvatarProps &
+	VariantProps<typeof avatarVariants> & {
+		src?: string;
 
-export const Avatar: FC<AvatarProps> = ({
-	size = "md",
-	fitImage,
-	children,
-	background,
-	...muiProps
-}) => {
-	const fromName = !muiProps.src && typeof children === "string";
+		fallback?: string;
+	};
 
-	return (
-		<MuiAvatar
-			{...muiProps}
-			css={[
-				sizeStyles[size],
-				fitImage && fitImageStyles,
-				(theme) => ({
-					background:
-						background || fromName ? theme.palette.divider : undefined,
-					color: theme.palette.text.primary,
-				}),
-			]}
-		>
-			{typeof children === "string" ? firstLetter(children) : children}
-		</MuiAvatar>
-	);
-};
-
-export const ExternalAvatar: FC<AvatarProps> = (props) => {
+const Avatar = React.forwardRef<
+	React.ElementRef<typeof AvatarPrimitive.Root>,
+	AvatarProps
+>(({ className, size, variant, src, fallback, children, ...props }, ref) => {
 	const theme = useTheme();
 
 	return (
-		<Avatar
-			css={getExternalImageStylesFromUrl(theme.externalImages, props.src)}
+		<AvatarPrimitive.Root
+			ref={ref}
+			className={cn(avatarVariants({ size, variant, className }))}
 			{...props}
-		/>
-	);
-};
-
-type AvatarIconProps = {
-	src: string;
-	alt: string;
-};
-
-/**
- * Use it to make an img element behaves like a MaterialUI Icon component
- */
-export const AvatarIcon: FC<AvatarIconProps> = ({ src, alt }) => {
-	const hookId = useId();
-	const avatarId = `${hookId}-avatar`;
-
-	// We use a `visuallyHidden` element instead of setting `alt` to avoid
-	// splatting the text out on the screen if the image fails to load.
-	return (
-		<>
-			<img
+		>
+			<AvatarPrimitive.Image
 				src={src}
-				alt=""
-				css={{ maxWidth: "50%" }}
-				aria-labelledby={avatarId}
+				className="aspect-square h-full w-full object-contain"
+				css={getExternalImageStylesFromUrl(theme.externalImages, src)}
 			/>
-			<div id={avatarId} css={{ ...visuallyHidden }}>
-				{alt}
-			</div>
-		</>
+			{fallback && (
+				<AvatarPrimitive.Fallback className="flex h-full w-full items-center justify-center rounded-full">
+					{fallback.charAt(0).toUpperCase()}
+				</AvatarPrimitive.Fallback>
+			)}
+			{children}
+		</AvatarPrimitive.Root>
 	);
-};
+});
+Avatar.displayName = AvatarPrimitive.Root.displayName;
 
-const firstLetter = (str: string): string => {
-	if (str.length > 0) {
-		return str[0].toLocaleUpperCase();
-	}
-
-	return "";
-};
+export { Avatar };

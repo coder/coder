@@ -23,7 +23,7 @@ pnpm playwright:test
 pnpm playwright:test -g '<your test here>'
 ```
 
-# Using nix
+## Using nix
 
 If this breaks, it is likely because the flake chromium version and playwright
 are no longer compatible. To fix this, update the flake to get the latest
@@ -50,18 +50,18 @@ nix develop
 code .
 ```
 
-# Enterprise tests
+## Enterprise tests
 
 Enterprise tests require a license key to run.
 
 ```shell
-export CODER_E2E_ENTERPRISE_LICENSE=<license key>
+export CODER_E2E_LICENSE=<license key>
 ```
 
-# Debugging tests
+## Debugging tests
 
 To debug a test, it is more helpful to run it in `ui` mode.
 
-```
+```shell
 pnpm playwright:test-ui
 ```

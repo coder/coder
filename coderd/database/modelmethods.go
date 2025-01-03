@@ -214,6 +214,7 @@ func (w Workspace) WorkspaceTable() WorkspaceTable {
 		DeletingAt:        w.DeletingAt,
 		AutomaticUpdates:  w.AutomaticUpdates,
 		Favorite:          w.Favorite,
+		NextStartAt:       w.NextStartAt,
 	}
 }
 
@@ -266,6 +267,10 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
+}
+
+func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.Object {
+	return p.ProvisionerDaemon.RBACObject()
 }
 
 func (p ProvisionerKey) RBACObject() rbac.Object {
@@ -438,6 +443,7 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 			TemplateDisplayName:     r.TemplateDisplayName,
 			TemplateIcon:            r.TemplateIcon,
 			TemplateDescription:     r.TemplateDescription,
+			NextStartAt:             r.NextStartAt,
 		}
 	}
 

@@ -15,7 +15,7 @@ terraform {
 provider "coder" {}
 
 provider "google" {
-  zone    = data.coder_parameter.zone.value
+  zone    = module.gcp_region.value
   project = var.project_id
 }
 
@@ -41,40 +41,10 @@ variable "cache_repo_docker_config_path" {
   type        = string
 }
 
-data "coder_parameter" "zone" {
-  name         = "zone"
-  display_name = "Zone"
-  description  = "Which zone should your workspace live in?"
-  type         = "string"
-  icon         = "/emojis/1f30e.png"
-  default      = "us-central1-a"
-  mutable      = false
-  order        = 1
-  option {
-    name  = "North America (Northeast)"
-    value = "northamerica-northeast1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (Central)"
-    value = "us-central1-a"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "North America (West)"
-    value = "us-west2-c"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "Europe (West)"
-    value = "europe-west4-b"
-    icon  = "/emojis/1f1ea-1f1fa.png"
-  }
-  option {
-    name  = "South America (East)"
-    value = "southamerica-east1-a"
-    icon  = "/emojis/1f1e7-1f1f7.png"
-  }
+module "gcp_region" {
+  source  = "registry.coder.com/modules/gcp-region/coder"
+  version = "1.0.12"
+  regions = ["us", "europe"]
 }
 
 data "coder_parameter" "instance_type" {
@@ -311,12 +281,36 @@ resource "coder_agent" "dev" {
   }
 }
 
-# Install code-server via Terraform module.
+# See https://registry.coder.com/modules/code-server
 module "code-server" {
-  count    = data.coder_workspace.me.start_count
-  source   = "registry.coder.com/modules/code-server/coder"
-  version  = "1.0.18"
-  agent_id = coder_agent.dev[0].id
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
+}
+
+# See https://registry.coder.com/modules/jetbrains-gateway
+module "jetbrains_gateway" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+
+  # JetBrains IDEs to make available for the user to select
+  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  default        = "IU"
+
+  # Default folder to open when starting a JetBrains IDE
+  folder = "/home/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  order      = 2
 }
 
 # Create metadata for the workspace and home disk.
@@ -331,7 +325,7 @@ resource "coder_metadata" "workspace_info" {
 
   item {
     key   = "zone"
-    value = data.coder_parameter.zone.value
+    value = module.gcp_region.value
   }
 }
 

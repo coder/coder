@@ -49,7 +49,7 @@ GitHub provider).
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
 
    | Name          | Permission   | Description                                            |
-   | ------------- | ------------ | ------------------------------------------------------ |
+   |---------------|--------------|--------------------------------------------------------|
    | Contents      | Read & Write | Grants access to code and commit statuses.             |
    | Pull requests | Read & Write | Grants access to create and update pull requests.      |
    | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
@@ -150,7 +150,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 ```
 
 The Redirect URI for Gitea should be
-https://coder.company.org/external-auth/gitea/callback
+`https://coder.company.org/external-auth/gitea/callback`.
 
 ## Self-managed git providers
 
@@ -179,16 +179,20 @@ Optionally, you can request custom scopes:
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
 
-## Multiple External Providers (enterprise) (premium)
+## Multiple External Providers
 
-Multiple providers are an Enterprise feature.
-[Learn more](https://coder.com/pricing#compare-plans). Below is an example
-configuration with multiple providers.
+<blockquote class="info">
+
+Multiple providers is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
+
+Below is an example configuration with multiple providers:
 
 <blockquote class="admonition warning">
 
-**Note:** To support regex matching for paths (e.g. github\.com/org), you'll
-need to add this to the [Coder agent startup script][agent_startup]:
+**Note:** To support regex matching for paths like `github\.com/org`, add the following `git config` line to the [Coder agent startup script](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script):
 
 ```shell
 git config --global credential.useHttpPath true
@@ -214,6 +218,3 @@ CODER_EXTERNAL_AUTH_1_AUTH_URL="https://github.example.com/login/oauth/authorize
 CODER_EXTERNAL_AUTH_1_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 CODER_EXTERNAL_AUTH_1_VALIDATE_URL="https://github.example.com/api/v3/user"
 ```
-
-[agent_startup]:
-	https://registry.terraform.io/providers/coder/coder/latest/docs/resources/agent#startup_script

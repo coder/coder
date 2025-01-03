@@ -7,7 +7,7 @@ import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
+} from "components/deprecated/Popover/Popover";
 import {
 	addDays,
 	addHours,
