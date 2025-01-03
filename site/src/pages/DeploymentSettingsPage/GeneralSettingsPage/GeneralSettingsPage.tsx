@@ -8,6 +8,7 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
+import { entitlements } from "api/queries/entitlements";
 
 const GeneralSettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();
@@ -15,6 +16,7 @@ const GeneralSettingsPage: FC = () => {
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
 	const { metadata } = useEmbeddedMetadata();
+	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
 	const userStatusCountsOverTimeQuery = useQuery(userStatusCountsOverTime());
 	const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
@@ -34,6 +36,7 @@ const GeneralSettingsPage: FC = () => {
 				deploymentDAUsError={deploymentDAUsQuery.error}
 				invalidExperiments={invalidExperiments}
 				safeExperiments={safeExperiments}
+				activeUserLimit={entitlementsQuery.data?.features?.user_limit?.limit}
 				userStatusCountsOverTime={userStatusCountsOverTimeQuery.data}
 			/>
 		</>
