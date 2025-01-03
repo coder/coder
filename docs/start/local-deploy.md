@@ -1,4 +1,4 @@
-## Setting up a Coder deployment
+# Setting up a Coder deployment
 
 For day-zero Coder users, we recommend following this guide to set up a local
 Coder deployment from our
@@ -11,7 +11,7 @@ slim deployment to experiment with [workspaces](../user-guides/index.md) and
 Docker is not necessary for every Coder deployment and is only used here for
 simplicity.
 
-### Install Coder daemon
+## Install Coder daemon
 
 First, install [Docker](https://docs.docker.com/engine/install/) locally.
 
@@ -45,7 +45,7 @@ winget install Coder.Coder
 
 </div>
 
-### Start the server
+## Start the server
 
 To start or restart the Coder deployment, use the following command:
 
@@ -61,6 +61,6 @@ administrator account.
 Once you've signed in, you'll be brought to an empty workspaces page, which
 we'll soon populate with your first development environments.
 
-### Next steps
+## Next steps
 
 TODO: Add link to next page.

@@ -16,82 +16,82 @@ certificates, you'll need a domain name that resolves to your Caddy server.
    ```yaml
    services:
    coder:
-   	image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
-   	environment:
-   		CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
-   		CODER_HTTP_ADDRESS: "0.0.0.0:7080"
-   		# You'll need to set CODER_ACCESS_URL to an IP or domain
-   		# that workspaces can reach. This cannot be localhost
-   		# or 127.0.0.1 for non-Docker templates!
-   		CODER_ACCESS_URL: "${CODER_ACCESS_URL}"
-   		# Optional) Enable wildcard apps/dashboard port forwarding
-   		CODER_WILDCARD_ACCESS_URL: "${CODER_WILDCARD_ACCESS_URL}"
-   		# If the coder user does not have write permissions on
-   		# the docker socket, you can uncomment the following
-   		# lines and set the group ID to one that has write
-   		# permissions on the docker socket.
-   		#group_add:
-   		#  - "998" # docker group on host
-   	volumes:
-   		- /var/run/docker.sock:/var/run/docker.sock
-   	depends_on:
-   		database:
-   		condition: service_healthy
+       image: ghcr.io/coder/coder:${CODER_VERSION:-latest}
+       environment:
+           CODER_PG_CONNECTION_URL: "postgresql://${POSTGRES_USER:-username}:${POSTGRES_PASSWORD:-password}@database/${POSTGRES_DB:-coder}?sslmode=disable"
+           CODER_HTTP_ADDRESS: "0.0.0.0:7080"
+           # You'll need to set CODER_ACCESS_URL to an IP or domain
+           # that workspaces can reach. This cannot be localhost
+           # or 127.0.0.1 for non-Docker templates!
+           CODER_ACCESS_URL: "${CODER_ACCESS_URL}"
+           # Optional) Enable wildcard apps/dashboard port forwarding
+           CODER_WILDCARD_ACCESS_URL: "${CODER_WILDCARD_ACCESS_URL}"
+           # If the coder user does not have write permissions on
+           # the docker socket, you can uncomment the following
+           # lines and set the group ID to one that has write
+           # permissions on the docker socket.
+           #group_add:
+           #  - "998" # docker group on host
+       volumes:
+           - /var/run/docker.sock:/var/run/docker.sock
+       depends_on:
+           database:
+           condition: service_healthy
 
    database:
-   	image: "postgres:16"
-   	ports:
-   		- "5432:5432"
-   	environment:
-   		POSTGRES_USER: ${POSTGRES_USER:-username} # The PostgreSQL user (useful to connect to the database)
-   		POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # The PostgreSQL password (useful to connect to the database)
-   		POSTGRES_DB: ${POSTGRES_DB:-coder} # The PostgreSQL default database (automatically created at first launch)
-   	volumes:
-   		- coder_data:/var/lib/postgresql/data # Use "docker volume rm coder_coder_data" to reset Coder
-   	healthcheck:
-   		test:
-   		[
-   			"CMD-SHELL",
-   			"pg_isready -U ${POSTGRES_USER:-username} -d ${POSTGRES_DB:-coder}",
-   		]
-   		interval: 5s
-   		timeout: 5s
-   		retries: 5
+       image: "postgres:16"
+       ports:
+           - "5432:5432"
+       environment:
+           POSTGRES_USER: ${POSTGRES_USER:-username} # The PostgreSQL user (useful to connect to the database)
+           POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-password} # The PostgreSQL password (useful to connect to the database)
+           POSTGRES_DB: ${POSTGRES_DB:-coder} # The PostgreSQL default database (automatically created at first launch)
+       volumes:
+           - coder_data:/var/lib/postgresql/data # Use "docker volume rm coder_coder_data" to reset Coder
+       healthcheck:
+           test:
+           [
+               "CMD-SHELL",
+               "pg_isready -U ${POSTGRES_USER:-username} -d ${POSTGRES_DB:-coder}",
+           ]
+           interval: 5s
+           timeout: 5s
+           retries: 5
 
    caddy:
-   	image: caddy:2.6.2
-   	ports:
-   		- "80:80"
-   		- "443:443"
-   		- "443:443/udp"
-   	volumes:
-   		- $PWD/Caddyfile:/etc/caddy/Caddyfile
-   		- caddy_data:/data
-   		- caddy_config:/config
+       image: caddy:2.6.2
+       ports:
+           - "80:80"
+           - "443:443"
+           - "443:443/udp"
+       volumes:
+           - $PWD/Caddyfile:/etc/caddy/Caddyfile
+           - caddy_data:/data
+           - caddy_config:/config
 
    volumes:
-   	coder_data:
-   	caddy_data:
-   	caddy_config:
+       coder_data:
+       caddy_data:
+       caddy_config:
    ```
 
 3. Create a `Caddyfile` and add the following:
 
    ```caddyfile
    {
-   	on_demand_tls {
-   		ask http://example.com
-   	}
+       on_demand_tls {
+           ask http://example.com
+       }
    }
 
    coder.example.com, *.coder.example.com {
      reverse_proxy coder:7080
      tls {
-       	on_demand
+           on_demand
          issuer acme {
             email email@example.com
          }
-     	}
+         }
    }
    ```
 
@@ -124,9 +124,9 @@ certificates, you'll need a domain name that resolves to your Caddy server.
 
    ```caddyfile
    {
-   	on_demand_tls {
-   		ask http://example.com
-   	}
+       on_demand_tls {
+           ask http://example.com
+       }
    }
 
    coder.example.com, *.coder.example.com {

@@ -149,13 +149,13 @@ type OrganizationSyncSettings struct {
 	// Field selects the claim field to be used as the created user's
 	// organizations. If the field is the empty string, then no organization updates
 	// will ever come from the OIDC provider.
-	Field string
+	Field string `json:"field"`
 	// Mapping controls how organizations returned by the OIDC provider get mapped
-	Mapping map[string][]uuid.UUID
+	Mapping map[string][]uuid.UUID `json:"mapping"`
 	// AssignDefault will ensure all users that authenticate will be
 	// placed into the default organization. This is mostly a hack to support
 	// legacy deployments.
-	AssignDefault bool
+	AssignDefault bool `json:"assign_default"`
 }
 
 func (s *OrganizationSyncSettings) Set(v string) error {

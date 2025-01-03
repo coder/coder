@@ -84,6 +84,7 @@ type agentAppAttributes struct {
 	Healthcheck []appHealthcheckAttributes `mapstructure:"healthcheck"`
 	Order       int64                      `mapstructure:"order"`
 	Hidden      bool                       `mapstructure:"hidden"`
+	OpenIn      string                     `mapstructure:"open_in"`
 }
 
 type agentEnvAttributes struct {
@@ -432,6 +433,16 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				sharingLevel = proto.AppSharingLevel_PUBLIC
 			}
 
+			openIn := proto.AppOpenIn_SLIM_WINDOW
+			switch strings.ToLower(attrs.OpenIn) {
+			case "slim-window":
+				openIn = proto.AppOpenIn_SLIM_WINDOW
+			case "window":
+				openIn = proto.AppOpenIn_WINDOW
+			case "tab":
+				openIn = proto.AppOpenIn_TAB
+			}
+
 			for _, agents := range resourceAgents {
 				for _, agent := range agents {
 					// Find agents with the matching ID and associate them!
@@ -452,6 +463,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 						Healthcheck:  healthcheck,
 						Order:        attrs.Order,
 						Hidden:       attrs.Hidden,
+						OpenIn:       openIn,
 					})
 				}
 			}
