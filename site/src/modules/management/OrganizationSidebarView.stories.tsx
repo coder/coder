@@ -71,6 +71,90 @@ export const NoCreateOrg: Story = {
 	},
 };
 
+export const OverflowDropdown: Story = {
+	args: {
+		activeOrganization: {
+			...MockOrganization,
+			permissions: { createOrganization: true },
+		},
+		permissions: {
+			...MockPermissions,
+			createOrganization: true,
+		},
+		organizations: [
+			{
+				...MockOrganization,
+				permissions: {},
+			},
+			{
+				...MockOrganization2,
+				permissions: {},
+			},
+			{
+				id: "my-organization-3-id",
+				name: "my-organization-3",
+				display_name: "My Organization 3",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-4-id",
+				name: "my-organization-4",
+				display_name: "My Organization 4",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-5-id",
+				name: "my-organization-5",
+				display_name: "My Organization 5",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-6-id",
+				name: "my-organization-6",
+				display_name: "My Organization 6",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-7-id",
+				name: "my-organization-7",
+				display_name: "My Organization 7",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+	},
+};
+
 export const NoPermissions: Story = {
 	args: {
 		activeOrganization: {
