@@ -46,7 +46,7 @@ func (*RootCmd) resetPassword() *serpent.Command {
 				}
 			}
 
-			sqlDB, err := ConnectToPostgres(inv.Context(), logger, false, sqlDriver, postgresURL)
+			sqlDB, err := ConnectToPostgres(inv.Context(), logger, sqlDriver, postgresURL, nil)
 			if err != nil {
 				return xerrors.Errorf("dial postgres: %w", err)
 			}

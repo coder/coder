@@ -2090,15 +2090,18 @@ func IsLocalhost(host string) bool {
 	return host == "localhost" || host == "127.0.0.1" || host == "::1"
 }
 
-// ConnectToPostgres takes a control flag "migrate". If true, `migrations.Up` will be applied
-// to the database, potentially making schema changes.
-// If set to false, no database changes will be applied, however the migration version
-// will be checked. If the database is not fully up to date with its migrations, then
-// an error will be returned.
-// nolint:revive // 'migrate' is a control flag.
-func ConnectToPostgres(ctx context.Context, logger slog.Logger, migrate bool, driver string, dbURL string) (sqlDB *sql.DB, err error) {
+// ConnectToPostgres takes in the migration command to run on the database once
+// it connects. To avoid running migrations, pass in `nil` or a no-op function.
+// Regardless of the passed in migration function, if the database is not fully
+// migrated, an error will be returned. This can happen if the database is on a
+// future or past migration version.
+//
+// If no error is returned, the database is fully migrated and up to date.
+func ConnectToPostgres(ctx context.Context, logger slog.Logger, driver string, dbURL string, migrate func(db *sql.DB) error) (*sql.DB, error) {
 	logger.Debug(ctx, "connecting to postgresql")
 
+	var err error
+	var sqlDB *sql.DB
 	// Try to connect for 30 seconds.
 	ctx, cancel := context.WithTimeout(ctx, 30*time.Second)
 	defer cancel()
@@ -2161,13 +2164,16 @@ func ConnectToPostgres(ctx context.Context, logger slog.Logger, migrate bool, dr
 	}
 	logger.Debug(ctx, "connected to postgresql", slog.F("version", versionNum))
 
-	if migrate {
-		err = migrations.Up(sqlDB)
-	} else {
-		err = migrations.EnsureClean(sqlDB)
+	if migrate != nil {
+		err = migrate(sqlDB)
+		if err != nil {
+			return nil, xerrors.Errorf("migrate up: %w", err)
+		}
 	}
+
+	err = migrations.EnsureClean(sqlDB)
 	if err != nil {
-		return nil, xerrors.Errorf("migrate up: %w", err)
+		return nil, xerrors.Errorf("migrations in database: %w", err)
 	}
 	// The default is 0 but the request will fail with a 500 if the DB
 	// cannot accept new connections, so we try to limit that here.
@@ -2584,7 +2590,7 @@ func getAndMigratePostgresDB(ctx context.Context, logger slog.Logger, postgresUR
 		}
 	}
 
-	sqlDB, err := ConnectToPostgres(ctx, logger, true, sqlDriver, dbURL)
+	sqlDB, err := ConnectToPostgres(ctx, logger, sqlDriver, dbURL, migrations.Up)
 	if err != nil {
 		return nil, "", xerrors.Errorf("connect to postgres: %w", err)
 	}
