@@ -99,11 +99,7 @@ export const ResourceCard: FC<ResourceCardProps> = ({ resource, agentRow }) => {
 				css={styles.resourceCardHeader}
 				spacing={10}
 			>
-				<Stack
-					direction="row"
-					alignItems="center"
-					css={styles.resourceCardProfile}
-				>
+				<Stack direction="row" spacing={1} css={styles.resourceCardProfile}>
 					<div>
 						<ResourceAvatar resource={resource} />
 					</div>

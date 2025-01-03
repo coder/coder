@@ -9,7 +9,7 @@ This article explains how to use secrets in a workspace. To authenticate the
 workspace provisioner, see the
 <a href="../provisioners.md#authentication">provisioners documentation</a>.
 
-## Wait a minute...
+## Before you begin
 
 Your first attempt to use secrets with Coder should be your local method. You
 can do everything you can locally and more with your Coder workspace, so

@@ -1,4 +1,5 @@
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	Breadcrumb,
 	BreadcrumbItem,
@@ -7,8 +8,8 @@ import {
 	BreadcrumbPage,
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
+import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import { Loader } from "components/Loader/Loader";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
@@ -81,8 +82,12 @@ const OrganizationSettingsLayout: FC = () => {
 							</BreadcrumbItem>
 							<BreadcrumbSeparator />
 							<BreadcrumbItem>
-								<BreadcrumbLink href="/organizations">
+								<BreadcrumbLink
+									href="/organizations"
+									className="flex items-center gap-2"
+								>
 									Organizations
+									<FeatureStageBadge contentType="beta" size="sm" />
 								</BreadcrumbLink>
 							</BreadcrumbItem>
 							{organization && (
@@ -90,11 +95,11 @@ const OrganizationSettingsLayout: FC = () => {
 									<BreadcrumbSeparator />
 									<BreadcrumbItem>
 										<BreadcrumbPage className="text-content-primary">
-											<UserAvatar
+											<Avatar
 												key={organization.id}
-												size="xs"
-												username={organization.display_name}
-												avatarURL={organization.icon}
+												size="sm"
+												fallback={organization.display_name}
+												src={organization.icon}
 											/>
 											{organization?.name}
 										</BreadcrumbPage>
@@ -104,7 +109,7 @@ const OrganizationSettingsLayout: FC = () => {
 						</BreadcrumbList>
 					</Breadcrumb>
 					<hr className="h-px border-none bg-border" />
-					<div className="px-10 max-w-screen-2xl">
+					<div className="px-6 max-w-screen-2xl">
 						<div className="flex flex-row gap-12 py-10">
 							<OrganizationSidebar />
 							<main css={{ flexGrow: 1 }}>

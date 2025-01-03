@@ -52,7 +52,7 @@ coder external-auth access-token <external-auth-id>
 Note: Some IDE's override the `GIT_ASKPASS` environment variable and need to be
 configured.
 
-**VSCode**
+#### VSCode
 
 Use the
 [Coder](https://marketplace.visualstudio.com/items?itemName=coder.coder-remote)

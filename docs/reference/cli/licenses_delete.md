@@ -1,13 +1,12 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # licenses delete
 
 Delete license by ID
 
 Aliases:
 
-- del
-- rm
+* del
+* rm
 
 ## Usage
 

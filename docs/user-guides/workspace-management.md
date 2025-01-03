@@ -177,7 +177,7 @@ coder state push <username>/<workspace name>
 Coder stores macOS and Linux logs at the following locations:
 
 | Service           | Location                         |
-| ----------------- | -------------------------------- |
+|-------------------|----------------------------------|
 | `startup_script`  | `/tmp/coder-startup-script.log`  |
 | `shutdown_script` | `/tmp/coder-shutdown-script.log` |
 | Agent             | `/tmp/coder-agent.log`           |

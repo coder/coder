@@ -5,7 +5,7 @@ import (
 	"strings"
 
 	"github.com/open-policy-agent/opa/ast"
-	"github.com/open-policy-agent/opa/rego"
+	"github.com/open-policy-agent/opa/v1/rego"
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/rbac/regosql/sqltypes"

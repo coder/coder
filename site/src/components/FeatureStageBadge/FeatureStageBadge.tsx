@@ -19,12 +19,14 @@ type FeatureStageBadgeProps = Readonly<
 	Omit<HTMLAttributes<HTMLSpanElement>, "children"> & {
 		contentType: keyof typeof featureStageBadgeTypes;
 		size?: "sm" | "md" | "lg";
+		showTooltip?: boolean;
 	}
 >;
 
 export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 	contentType,
 	size = "md",
+	showTooltip = true, // This is a temporary until the deprecated popover is removed
 	...delegatedProps
 }) => {
 	return (
@@ -49,24 +51,26 @@ export const FeatureStageBadge: FC<FeatureStageBadgeProps> = ({
 				)}
 			</PopoverTrigger>
 
-			<HelpTooltipContent
-				anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
-				transformOrigin={{ vertical: "top", horizontal: "center" }}
-			>
-				<p css={styles.tooltipDescription}>
-					This feature has not yet reached general availability (GA).
-				</p>
-
-				<Link
-					href={docs("/contributing/feature-stages")}
-					target="_blank"
-					rel="noreferrer"
-					css={styles.tooltipLink}
+			{showTooltip && (
+				<HelpTooltipContent
+					anchorOrigin={{ vertical: "bottom", horizontal: "center" }}
+					transformOrigin={{ vertical: "top", horizontal: "center" }}
 				>
-					Learn about feature stages
-					<span style={visuallyHidden}> (link opens in new tab)</span>
-				</Link>
-			</HelpTooltipContent>
+					<p css={styles.tooltipDescription}>
+						This feature has not yet reached general availability (GA).
+					</p>
+
+					<Link
+						href={docs("/contributing/feature-stages")}
+						target="_blank"
+						rel="noreferrer"
+						css={styles.tooltipLink}
+					>
+						Learn about feature stages
+						<span style={visuallyHidden}> (link opens in new tab)</span>
+					</Link>
+				</HelpTooltipContent>
+			)}
 		</Popover>
 	);
 };

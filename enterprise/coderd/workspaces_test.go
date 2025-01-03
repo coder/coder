@@ -1412,6 +1412,11 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		provider "coder" {}
 		data "coder_workspace" "me" {}
 		data "coder_workspace_owner" "me" {}
+		data "coder_parameter" "unrelated" {
+			name    = "unrelated"
+			type    = "list(string)"
+			default = jsonencode(["a", "b"])
+		}
 		%s
 	`
 

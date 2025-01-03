@@ -7,6 +7,8 @@ We recommend enterprise customers test the compatibility of new releases with
 their infrastructure on a staging environment before upgrading a production
 deployment.
 
+## Release channels
+
 We support two release channels:
 [mainline](https://github.com/coder/coder/releases/tag/v2.16.0) for the bleeding
 edge version of Coder and
@@ -53,7 +55,7 @@ pages.
 ## Release schedule
 
 | Release name | Release Date       | Status           |
-| ------------ | ------------------ | ---------------- |
+|--------------|--------------------|------------------|
 | 2.12.x       | June 04, 2024      | Not Supported    |
 | 2.13.x       | July 02, 2024      | Not Supported    |
 | 2.14.x       | August 06, 2024    | Not Supported    |

@@ -38,11 +38,13 @@ import (
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/types/key"
 
+	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -1828,20 +1830,51 @@ func TestConnectToPostgres(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("this test does not make sense without postgres")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
 
-	log := testutil.Logger(t)
+	t.Run("Migrate", func(t *testing.T) {
+		t.Parallel()
 
-	dbURL, err := dbtestutil.Open(t)
-	require.NoError(t, err)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
 
-	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sqlDB.Close()
+		log := testutil.Logger(t)
+
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sqlDB.Close()
+		})
+		require.NoError(t, sqlDB.PingContext(ctx))
 	})
-	require.NoError(t, sqlDB.PingContext(ctx))
+
+	t.Run("NoMigrate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		require.NoError(t, err)
+		defer okDB.Close()
+
+		// Set the migration number forward
+		_, err = okDB.Exec(`UPDATE schema_migrations SET version = version + 1`)
+		require.NoError(t, err)
+
+		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "database needs migration")
+
+		require.NoError(t, okDB.PingContext(ctx))
+	})
 }
 
 func TestServer_InvalidDERP(t *testing.T) {

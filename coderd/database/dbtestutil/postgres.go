@@ -464,14 +464,14 @@ func openContainer(t TBSubset, opts DBContainerOptions) (container, func(), erro
 // The user is responsible for calling the returned cleanup function.
 func OpenContainerized(t TBSubset, opts DBContainerOptions) (string, func(), error) {
 	container, containerCleanup, err := openContainer(t, opts)
+	if err != nil {
+		return "", nil, xerrors.Errorf("open container: %w", err)
+	}
 	defer func() {
 		if err != nil {
 			containerCleanup()
 		}
 	}()
-	if err != nil {
-		return "", nil, xerrors.Errorf("open container: %w", err)
-	}
 	dbURL := ConnectionParams{
 		Username: "postgres",
 		Password: "postgres",

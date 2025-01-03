@@ -141,6 +141,6 @@ or [the v2 migration guide and FAQ](https://coder.com/docs/v1/guides/v2-faq).
 
 ## Up next
 
-- Learn about [Templates](./admin/templates/index.md)
-- [Install Coder](./install/index.md)
-- Follow the [Quickstart guide](./tutorials/quickstart.md) to try Coder out for yourself.
+- [Template](./admin/templates/index.md)
+- [Installing Coder](./install/index.md)
+- [Quickstart](./tutorials/quickstart.md) to try Coder out for yourself.

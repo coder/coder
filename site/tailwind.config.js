@@ -8,6 +8,11 @@ export default {
 	important: ["#root", "#storybook-root"],
 	theme: {
 		extend: {
+			size: {
+				"icon-lg": "1.5rem",
+				"icon-sm": "1.125rem",
+				"icon-xs": "0.875rem",
+			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
 				sm: ["0.875rem", "1.5rem"],
@@ -51,6 +56,15 @@ export default {
 					3: "hsl(var(--chart-3))",
 					4: "hsl(var(--chart-4))",
 					5: "hsl(var(--chart-5))",
+				},
+			},
+			keyframes: {
+				loading: {
+					"0%": { opacity: 0.85 },
+					"25%": { opacity: 0.7 },
+					"50%": { opacity: 0.4 },
+					"75%": { opacity: 0.3 },
+					"100%": { opacity: 0.2 },
 				},
 			},
 		},
