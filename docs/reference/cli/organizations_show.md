@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # organizations show
 
 Show the organization. Using "selected" will show the selected organization from the "--org" flag. Using "me" will show all organizations you are a member of.
@@ -35,7 +34,7 @@ coder organizations show [flags] ["selected"|"me"|uuid|org_name]
 ### --only-id
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Only print the organization ID.
@@ -43,7 +42,7 @@ Only print the organization ID.
 ### -c, --column
 
 |         |                                                                                           |
-| ------- | ----------------------------------------------------------------------------------------- |
+|---------|-------------------------------------------------------------------------------------------|
 | Type    | <code>[id\|name\|display name\|icon\|description\|created at\|updated at\|default]</code> |
 | Default | <code>id,name,default</code>                                                              |
 
@@ -52,7 +51,7 @@ Columns to display in table output.
 ### -o, --output
 
 |         |                                |
-| ------- | ------------------------------ |
+|---------|--------------------------------|
 | Type    | <code>text\|table\|json</code> |
 | Default | <code>text</code>              |
 

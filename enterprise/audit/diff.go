@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"reflect"
+	"strings"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -49,6 +50,7 @@ func diffValues(left, right any, table Table) audit.Map {
 		)
 
 		diffName := field.FieldType.Tag.Get("json")
+		diffName = strings.TrimSuffix(diffName, ",omitempty")
 
 		atype, ok := diffKey[diffName]
 		if !ok {

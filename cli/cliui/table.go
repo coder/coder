@@ -9,6 +9,8 @@ import (
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Table creates a new table with standardized styles.
@@ -195,6 +197,12 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				if val != nil {
 					v = val.Format(time.RFC3339)
 				}
+			case codersdk.NullTime:
+				if val.Valid {
+					v = val.Time.Format(time.RFC3339)
+				} else {
+					v = nil
+				}
 			case *int64:
 				if val != nil {
 					v = *val
@@ -204,8 +212,13 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 					v = val.String()
 				}
 			case fmt.Stringer:
-				if val != nil {
+				// Protect against typed nils since fmt.Stringer is an interface.
+				vv := reflect.ValueOf(v)
+				nilPtr := vv.Kind() == reflect.Ptr && vv.IsNil()
+				if val != nil && !nilPtr {
 					v = val.String()
+				} else if nilPtr {
+					v = nil
 				}
 			}
 

@@ -1,6 +1,6 @@
 # Using RBAC
 
-# Overview
+## Overview
 
 > _NOTE: you should probably read [`README.md`](README.md) beforehand, but it's
 > not essential._
@@ -19,7 +19,7 @@ We have a number of roles (some of which have legacy connotations back to v1).
 These can be found in `coderd/rbac/roles.go`.
 
 | Role                 | Description                                                         | Example resources (non-exhaustive)           |
-| -------------------- | ------------------------------------------------------------------- | -------------------------------------------- |
+|----------------------|---------------------------------------------------------------------|----------------------------------------------|
 | **owner**            | Super-user, first user in Coder installation, has all\* permissions | all\*                                        |
 | **member**           | A regular user                                                      | workspaces, own details, provisioner daemons |
 | **auditor**          | Viewer of audit log events, read-only access to a few resources     | audit logs, templates, users, groups         |
@@ -43,7 +43,7 @@ Roles are collections of permissions (we call them _actions_).
 These can be found in `coderd/rbac/policy/policy.go`.
 
 | Action                  | Description                             |
-| ----------------------- | --------------------------------------- |
+|-------------------------|-----------------------------------------|
 | **create**              | Create a resource                       |
 | **read**                | Read a resource                         |
 | **update**              | Update a resource                       |
@@ -58,7 +58,7 @@ These can be found in `coderd/rbac/policy/policy.go`.
 | **stop**                | Stop a workspace                        |
 | **assign**              | Assign user to role / org               |
 
-# Creating a new noun
+## Creating a new noun
 
 In the following example, we're going to create a new RBAC noun for a new entity
 called a "frobulator" _(just some nonsense word for demonstration purposes)_.
@@ -291,7 +291,7 @@ frobulator, but no test case covered it.
 **NOTE: don't just add cases which make the tests pass; consider all the ways in
 which your resource must be used, and test all of those scenarios!**
 
-# Database authorization
+## Database authorization
 
 Now that we have the RBAC system fully configured, we need to make use of it.
 
@@ -350,7 +350,7 @@ before we validate (this explains the `fetchWithPostFilter` naming).
 All queries are executed through `dbauthz`, and now our little frobulators are
 protected!
 
-# API authorization
+## API authorization
 
 API authorization is not strictly required because we have database
 authorization in place, but it's a good practice to reject requests as soon as

@@ -1,6 +1,6 @@
 # Changelogs
 
-These are the changelogs used by [generate_release_notes.sh]https://github.com/coder/coder/blob/main/scripts/release/generate_release_notes.sh) for a release.
+These are the changelogs used by [generate_release_notes.sh](https://github.com/coder/coder/blob/main/scripts/release/generate_release_notes.sh) for a release.
 
 These changelogs are currently not kept in sync with GitHub releases. Use [GitHub releases](https://github.com/coder/coder/releases) for the latest information!
 

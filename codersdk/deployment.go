@@ -793,7 +793,7 @@ func DefaultSupportLinks(docsURL string) []LinkConfig {
 		},
 		{
 			Name:   "Report a bug",
-			Target: "https://github.com/coder/coder/issues/new?labels=needs+grooming&body=" + buildInfo,
+			Target: "https://github.com/coder/coder/issues/new?labels=needs+triage&body=" + buildInfo,
 			Icon:   "bug",
 		},
 		{
@@ -2376,7 +2376,7 @@ when required by your organization's security policy.`,
 			Flag:        "agent-fallback-troubleshooting-url",
 			Env:         "CODER_AGENT_FALLBACK_TROUBLESHOOTING_URL",
 			Hidden:      true,
-			Default:     "https://coder.com/docs/templates/troubleshooting",
+			Default:     "https://coder.com/docs/admin/templates/troubleshooting",
 			Value:       &c.AgentFallbackTroubleshootingURL,
 			YAML:        "agentFallbackTroubleshootingURL",
 		},
