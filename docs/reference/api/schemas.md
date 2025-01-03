@@ -4945,25 +4945,30 @@ Git clone makes use of this by parsing the URL from: 'Username for https://githu
 
 #### Enumerated Values
 
-| Value                        |
-|------------------------------|
-| `template`                   |
-| `template_version`           |
-| `user`                       |
-| `workspace`                  |
-| `workspace_build`            |
-| `git_ssh_key`                |
-| `api_key`                    |
-| `group`                      |
-| `license`                    |
-| `convert_login`              |
-| `health_settings`            |
-| `notifications_settings`     |
-| `workspace_proxy`            |
-| `organization`               |
-| `oauth2_provider_app`        |
-| `oauth2_provider_app_secret` |
-| `custom_role`                |
+| Value                            |
+|----------------------------------|
+| `template`                       |
+| `template_version`               |
+| `user`                           |
+| `workspace`                      |
+| `workspace_build`                |
+| `git_ssh_key`                    |
+| `api_key`                        |
+| `group`                          |
+| `license`                        |
+| `convert_login`                  |
+| `health_settings`                |
+| `notifications_settings`         |
+| `workspace_proxy`                |
+| `organization`                   |
+| `oauth2_provider_app`            |
+| `oauth2_provider_app_secret`     |
+| `custom_role`                    |
+| `organization_member`            |
+| `notification_template`          |
+| `idp_sync_settings_organization` |
+| `idp_sync_settings_group`        |
+| `idp_sync_settings_role`         |
 
 ## codersdk.Response
 
@@ -6867,6 +6872,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                 "hidden": true,
                 "icon": "string",
                 "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "open_in": "string",
                 "sharing_level": "owner",
                 "slug": "string",
                 "subdomain": true,
@@ -7054,6 +7060,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "hidden": true,
       "icon": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "open_in": "string",
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,
@@ -7458,6 +7465,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
   "hidden": true,
   "icon": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "open_in": "string",
   "sharing_level": "owner",
   "slug": "string",
   "subdomain": true,
@@ -7581,6 +7589,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
               "hidden": true,
               "icon": "string",
               "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "open_in": "string",
               "sharing_level": "owner",
               "slug": "string",
               "subdomain": true,
@@ -7980,6 +7989,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           "hidden": true,
           "icon": "string",
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "open_in": "string",
           "sharing_level": "owner",
           "slug": "string",
           "subdomain": true,
@@ -8229,6 +8239,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
                     "hidden": true,
                     "icon": "string",
                     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                    "open_in": "string",
                     "sharing_level": "owner",
                     "slug": "string",
                     "subdomain": true,

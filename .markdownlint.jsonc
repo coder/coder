@@ -16,7 +16,6 @@
 	"MD052": false, // Image reference: docs/reference/cli/server.md#L628 is not a valid reference
 
 	"MD055": false, // Table pipe style: Some of the generated tables do not have ending pipes
-	// docs/admin/security/audit-logs.md
 	// docs/reference/api/schema.md
 	// docs/reference/api/templates.md
 	// docs/reference/cli/server.md
