@@ -15,6 +15,7 @@ import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { DeprecatedBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import type { useFilter } from "components/Filter/Filter";
 import {
 	HelpTooltip,
@@ -37,6 +38,7 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { useClickableTableRow } from "hooks/useClickableTableRow";
+import { PlusIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
 import { Link, useNavigate } from "react-router-dom";
@@ -49,8 +51,6 @@ import {
 import { CreateTemplateButton } from "./CreateTemplateButton";
 import { EmptyTemplates } from "./EmptyTemplates";
 import { TemplatesFilter } from "./TemplatesFilter";
-import { Button } from "components/Button/Button";
-import { PlusIcon } from "lucide-react";
 
 export const Language = {
 	developerCount: (activeCount: number): string => {
