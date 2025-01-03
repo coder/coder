@@ -27,7 +27,6 @@ import {
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
 import { StrictMode } from "react";
-import { HelmetProvider } from "react-helmet-async";
 import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
@@ -36,7 +35,7 @@ import themes from "../src/theme";
 DecoratorHelpers.initializeThemeState(Object.keys(themes), "dark");
 
 /** @type {readonly Decorator[]} */
-export const decorators = [withRouter, withQuery, withHelmet, withTheme];
+export const decorators = [withRouter, withQuery, withTheme];
 
 /** @type {Preview["parameters"]} */
 export const parameters = {
@@ -82,24 +81,6 @@ export const parameters = {
 		},
 	},
 };
-
-/**
- * There's a mismatch on the React Helmet return type that causes issues when
- * mounting the component in JS files only. Have to do type assertion, which is
- * especially ugly in JSDoc
- */
-const SafeHelmetProvider = /** @type {FC} */ (
-	/** @type {unknown} */ (HelmetProvider)
-);
-
-/** @type {Decorator} */
-function withHelmet(Story) {
-	return (
-		<SafeHelmetProvider>
-			<Story />
-		</SafeHelmetProvider>
-	);
-}
 
 /** @type {Decorator} */
 function withQuery(Story, { parameters }) {
