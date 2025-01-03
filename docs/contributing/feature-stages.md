@@ -46,7 +46,7 @@ coder server --experiments=feature1,feature2
 <!-- BEGIN: available-experimental-features -->
 
 | Feature         | Description                                                         | Available in |
-| --------------- | ------------------------------------------------------------------- | ------------ |
+|-----------------|---------------------------------------------------------------------|--------------|
 | `notifications` | Sends notifications via SMTP and webhooks following certain events. | stable       |
 
 <!-- END: available-experimental-features -->

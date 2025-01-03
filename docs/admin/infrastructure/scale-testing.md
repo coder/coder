@@ -40,12 +40,12 @@ Our scale tests include the following stages:
 The scale tests runner can distribute the workload to overlap single scenarios
 based on the workflow configuration:
 
-|                      | T0  | T1  | T2  | T3  | T4  | T5  | T6  |
-| -------------------- | --- | --- | --- | --- | --- | --- | --- |
-| SSH connections      | X   | X   | X   | X   |     |     |     |
-| Web Terminal (PTY)   |     | X   | X   | X   | X   |     |     |
-| Workspace apps       |     |     | X   | X   | X   | X   |     |
-| Dashboard (headless) |     |     |     | X   | X   | X   | X   |
+|                      | T0 | T1 | T2 | T3 | T4 | T5 | T6 |
+|----------------------|----|----|----|----|----|----|----|
+| SSH connections      | X  | X  | X  | X  |    |    |    |
+| Web Terminal (PTY)   |    | X  | X  | X  | X  |    |    |
+| Workspace apps       |    |    | X  | X  | X  | X  |    |
+| Dashboard (headless) |    |    |    | X  | X  | X  | X  |
 
 This pattern closely reflects how our customers naturally use the system. SSH
 connections are heavily utilized because they're the primary communication
@@ -137,7 +137,7 @@ When determining scaling requirements, consider the following factors:
   connections: For a very high number of proxied connections, more memory is
   required.
 
-**HTTP API latency**
+#### HTTP API latency
 
 For a reliable Coder deployment dealing with medium to high loads, it's
 important that API calls for workspace/template queries and workspace build
@@ -152,7 +152,7 @@ between users and the load balancer. Fortunately, the latency can be improved
 with a deployment of Coder
 [workspace proxies](../networking/workspace-proxies.md).
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 We recommend disabling the autoscaling for `coderd` nodes. Autoscaling can cause
 interruptions for user connections, see
@@ -186,7 +186,7 @@ When determining scaling requirements, consider the following factors:
   provisioners are free/available, the more concurrent workspace builds can be
   performed.
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 Autoscaling provisioners is not an easy problem to solve unless it can be
 predicted when a number of concurrent workspace builds increases.
@@ -219,7 +219,7 @@ When determining scaling requirements, consider the following factors:
   running Coder agent and occasional CPU and memory bursts for building
   projects.
 
-**Node Autoscaling**
+#### Node Autoscaling
 
 Workspace nodes can be set to operate in autoscaling mode to mitigate the risk
 of prolonged high resource utilization.

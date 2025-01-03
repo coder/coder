@@ -332,7 +332,7 @@ Breaking changes can be triggered in two ways:
 ### Security
 
 > If you find a vulnerability, **DO NOT FILE AN ISSUE**. Instead, send an email
-> to security@coder.com.
+> to <security@coder.com>.
 
 The
 [`security`](https://github.com/coder/coder/issues?q=sort%3Aupdated-desc+label%3Asecurity)

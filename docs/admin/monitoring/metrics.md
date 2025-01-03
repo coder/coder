@@ -8,7 +8,7 @@ If you don't have an Prometheus server installed, you can follow the Prometheus
 [Getting started](https://prometheus.io/docs/prometheus/latest/getting_started/)
 guide.
 
-### Setting up metrics
+## Setting up metrics
 
 To set up metrics monitoring, please read our
 [Prometheus integration guide](../integrations/prometheus.md). The following

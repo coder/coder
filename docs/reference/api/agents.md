@@ -15,7 +15,7 @@ curl -X GET http://coder-server:8080/api/v2/derp-map \
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
-| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -35,7 +35,7 @@ curl -X GET http://coder-server:8080/api/v2/tailnet \
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
-| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -58,15 +58,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ```json
 {
-	"document": "string",
-	"signature": "string"
+  "document": "string",
+  "signature": "string"
 }
 ```
 
 ### Parameters
 
 | Name   | In   | Type                                                                             | Required | Description             |
-| ------ | ---- | -------------------------------------------------------------------------------- | -------- | ----------------------- |
+|--------|------|----------------------------------------------------------------------------------|----------|-------------------------|
 | `body` | body | [agentsdk.AWSInstanceIdentityToken](schemas.md#agentsdkawsinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
@@ -75,14 +75,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/aws-instance-identi
 
 ```json
 {
-	"session_token": "string"
+  "session_token": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -105,15 +105,15 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ```json
 {
-	"encoding": "string",
-	"signature": "string"
+  "encoding": "string",
+  "signature": "string"
 }
 ```
 
 ### Parameters
 
 | Name   | In   | Type                                                                                 | Required | Description             |
-| ------ | ---- | ------------------------------------------------------------------------------------ | -------- | ----------------------- |
+|--------|------|--------------------------------------------------------------------------------------|----------|-------------------------|
 | `body` | body | [agentsdk.AzureInstanceIdentityToken](schemas.md#agentsdkazureinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
@@ -122,14 +122,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/azure-instance-iden
 
 ```json
 {
-	"session_token": "string"
+  "session_token": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -152,14 +152,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ```json
 {
-	"json_web_token": "string"
+  "json_web_token": "string"
 }
 ```
 
 ### Parameters
 
 | Name   | In   | Type                                                                                   | Required | Description             |
-| ------ | ---- | -------------------------------------------------------------------------------------- | -------- | ----------------------- |
+|--------|------|----------------------------------------------------------------------------------------|----------|-------------------------|
 | `body` | body | [agentsdk.GoogleInstanceIdentityToken](schemas.md#agentsdkgoogleinstanceidentitytoken) | true     | Instance identity token |
 
 ### Example responses
@@ -168,14 +168,14 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/google-instance-ide
 
 ```json
 {
-	"session_token": "string"
+  "session_token": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.AuthenticateResponse](schemas.md#agentsdkauthenticateresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -196,7 +196,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 ### Parameters
 
 | Name     | In    | Type    | Required | Description                       |
-| -------- | ----- | ------- | -------- | --------------------------------- |
+|----------|-------|---------|----------|-----------------------------------|
 | `match`  | query | string  | true     | Match                             |
 | `id`     | query | string  | true     | Provider ID                       |
 | `listen` | query | boolean | false    | Wait for a new token to be issued |
@@ -207,19 +207,19 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/external-auth?mat
 
 ```json
 {
-	"access_token": "string",
-	"password": "string",
-	"token_extra": {},
-	"type": "string",
-	"url": "string",
-	"username": "string"
+  "access_token": "string",
+  "password": "string",
+  "token_extra": {},
+  "type": "string",
+  "url": "string",
+  "username": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -240,7 +240,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 ### Parameters
 
 | Name     | In    | Type    | Required | Description                       |
-| -------- | ----- | ------- | -------- | --------------------------------- |
+|----------|-------|---------|----------|-----------------------------------|
 | `match`  | query | string  | true     | Match                             |
 | `id`     | query | string  | true     | Provider ID                       |
 | `listen` | query | boolean | false    | Wait for a new token to be issued |
@@ -251,19 +251,19 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitauth?match=str
 
 ```json
 {
-	"access_token": "string",
-	"password": "string",
-	"token_extra": {},
-	"type": "string",
-	"url": "string",
-	"username": "string"
+  "access_token": "string",
+  "password": "string",
+  "token_extra": {},
+  "type": "string",
+  "url": "string",
+  "username": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.ExternalAuthResponse](schemas.md#agentsdkexternalauthresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -287,15 +287,15 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/me/gitsshkey \
 
 ```json
 {
-	"private_key": "string",
-	"public_key": "string"
+  "private_key": "string",
+  "public_key": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                             |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [agentsdk.GitSSHKey](schemas.md#agentsdkgitsshkey) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -318,16 +318,16 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ```json
 {
-	"display_name": "string",
-	"icon": "string",
-	"id": "string"
+  "display_name": "string",
+  "icon": "string",
+  "id": "string"
 }
 ```
 
 ### Parameters
 
 | Name   | In   | Type                                                                     | Required | Description        |
-| ------ | ---- | ------------------------------------------------------------------------ | -------- | ------------------ |
+|--------|------|--------------------------------------------------------------------------|----------|--------------------|
 | `body` | body | [agentsdk.PostLogSourceRequest](schemas.md#agentsdkpostlogsourcerequest) | true     | Log source request |
 
 ### Example responses
@@ -336,18 +336,18 @@ curl -X POST http://coder-server:8080/api/v2/workspaceagents/me/log-source \
 
 ```json
 {
-	"created_at": "2019-08-24T14:15:22Z",
-	"display_name": "string",
-	"icon": "string",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+  "created_at": "2019-08-24T14:15:22Z",
+  "display_name": "string",
+  "icon": "string",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                         |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentLogSource](schemas.md#codersdkworkspaceagentlogsource) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -370,21 +370,21 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ```json
 {
-	"log_source_id": "string",
-	"logs": [
-		{
-			"created_at": "string",
-			"level": "trace",
-			"output": "string"
-		}
-	]
+  "log_source_id": "string",
+  "logs": [
+    {
+      "created_at": "string",
+      "level": "trace",
+      "output": "string"
+    }
+  ]
 }
 ```
 
 ### Parameters
 
 | Name   | In   | Type                                               | Required | Description |
-| ------ | ---- | -------------------------------------------------- | -------- | ----------- |
+|--------|------|----------------------------------------------------|----------|-------------|
 | `body` | body | [agentsdk.PatchLogs](schemas.md#agentsdkpatchlogs) | true     | logs        |
 
 ### Example responses
@@ -393,21 +393,21 @@ curl -X PATCH http://coder-server:8080/api/v2/workspaceagents/me/logs \
 
 ```json
 {
-	"detail": "string",
-	"message": "string",
-	"validations": [
-		{
-			"detail": "string",
-			"field": "string"
-		}
-	]
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -428,7 +428,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
 
 ### Example responses
@@ -437,102 +437,106 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
 
 ```json
 {
-	"api_version": "string",
-	"apps": [
-		{
-			"command": "string",
-			"display_name": "string",
-			"external": true,
-			"health": "disabled",
-			"healthcheck": {
-				"interval": 0,
-				"threshold": 0,
-				"url": "string"
-			},
-			"hidden": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"open_in": "string",
-			"sharing_level": "owner",
-			"slug": "string",
-			"subdomain": true,
-			"subdomain_name": "string",
-			"url": "string"
-		}
-	],
-	"architecture": "string",
-	"connection_timeout_seconds": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"directory": "string",
-	"disconnected_at": "2019-08-24T14:15:22Z",
-	"display_apps": ["vscode"],
-	"environment_variables": {
-		"property1": "string",
-		"property2": "string"
-	},
-	"expanded_directory": "string",
-	"first_connected_at": "2019-08-24T14:15:22Z",
-	"health": {
-		"healthy": false,
-		"reason": "agent has lost connection"
-	},
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"instance_id": "string",
-	"last_connected_at": "2019-08-24T14:15:22Z",
-	"latency": {
-		"property1": {
-			"latency_ms": 0,
-			"preferred": true
-		},
-		"property2": {
-			"latency_ms": 0,
-			"preferred": true
-		}
-	},
-	"lifecycle_state": "created",
-	"log_sources": [
-		{
-			"created_at": "2019-08-24T14:15:22Z",
-			"display_name": "string",
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-		}
-	],
-	"logs_length": 0,
-	"logs_overflowed": true,
-	"name": "string",
-	"operating_system": "string",
-	"ready_at": "2019-08-24T14:15:22Z",
-	"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-	"scripts": [
-		{
-			"cron": "string",
-			"display_name": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"log_path": "string",
-			"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-			"run_on_start": true,
-			"run_on_stop": true,
-			"script": "string",
-			"start_blocks_login": true,
-			"timeout": 0
-		}
-	],
-	"started_at": "2019-08-24T14:15:22Z",
-	"startup_script_behavior": "blocking",
-	"status": "connecting",
-	"subsystems": ["envbox"],
-	"troubleshooting_url": "string",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"version": "string"
+  "api_version": "string",
+  "apps": [
+    {
+      "command": "string",
+      "display_name": "string",
+      "external": true,
+      "health": "disabled",
+      "healthcheck": {
+        "interval": 0,
+        "threshold": 0,
+        "url": "string"
+      },
+      "hidden": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "open_in": "string",
+      "sharing_level": "owner",
+      "slug": "string",
+      "subdomain": true,
+      "subdomain_name": "string",
+      "url": "string"
+    }
+  ],
+  "architecture": "string",
+  "connection_timeout_seconds": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "directory": "string",
+  "disconnected_at": "2019-08-24T14:15:22Z",
+  "display_apps": [
+    "vscode"
+  ],
+  "environment_variables": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "expanded_directory": "string",
+  "first_connected_at": "2019-08-24T14:15:22Z",
+  "health": {
+    "healthy": false,
+    "reason": "agent has lost connection"
+  },
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "instance_id": "string",
+  "last_connected_at": "2019-08-24T14:15:22Z",
+  "latency": {
+    "property1": {
+      "latency_ms": 0,
+      "preferred": true
+    },
+    "property2": {
+      "latency_ms": 0,
+      "preferred": true
+    }
+  },
+  "lifecycle_state": "created",
+  "log_sources": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "display_name": "string",
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+    }
+  ],
+  "logs_length": 0,
+  "logs_overflowed": true,
+  "name": "string",
+  "operating_system": "string",
+  "ready_at": "2019-08-24T14:15:22Z",
+  "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+  "scripts": [
+    {
+      "cron": "string",
+      "display_name": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "log_path": "string",
+      "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+      "run_on_start": true,
+      "run_on_stop": true,
+      "script": "string",
+      "start_blocks_login": true,
+      "timeout": 0
+    }
+  ],
+  "started_at": "2019-08-24T14:15:22Z",
+  "startup_script_behavior": "blocking",
+  "status": "connecting",
+  "subsystems": [
+    "envbox"
+  ],
+  "troubleshooting_url": "string",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "version": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgent](schemas.md#codersdkworkspaceagent) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -553,7 +557,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
 
 ### Example responses
@@ -562,74 +566,74 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
 
 ```json
 {
-	"derp_force_websockets": true,
-	"derp_map": {
-		"homeParams": {
-			"regionScore": {
-				"property1": 0,
-				"property2": 0
-			}
-		},
-		"omitDefaultRegions": true,
-		"regions": {
-			"property1": {
-				"avoid": true,
-				"embeddedRelay": true,
-				"nodes": [
-					{
-						"canPort80": true,
-						"certName": "string",
-						"derpport": 0,
-						"forceHTTP": true,
-						"hostName": "string",
-						"insecureForTests": true,
-						"ipv4": "string",
-						"ipv6": "string",
-						"name": "string",
-						"regionID": 0,
-						"stunonly": true,
-						"stunport": 0,
-						"stuntestIP": "string"
-					}
-				],
-				"regionCode": "string",
-				"regionID": 0,
-				"regionName": "string"
-			},
-			"property2": {
-				"avoid": true,
-				"embeddedRelay": true,
-				"nodes": [
-					{
-						"canPort80": true,
-						"certName": "string",
-						"derpport": 0,
-						"forceHTTP": true,
-						"hostName": "string",
-						"insecureForTests": true,
-						"ipv4": "string",
-						"ipv6": "string",
-						"name": "string",
-						"regionID": 0,
-						"stunonly": true,
-						"stunport": 0,
-						"stuntestIP": "string"
-					}
-				],
-				"regionCode": "string",
-				"regionID": 0,
-				"regionName": "string"
-			}
-		}
-	},
-	"disable_direct_connections": true
+  "derp_force_websockets": true,
+  "derp_map": {
+    "homeParams": {
+      "regionScore": {
+        "property1": 0,
+        "property2": 0
+      }
+    },
+    "omitDefaultRegions": true,
+    "regions": {
+      "property1": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      },
+      "property2": {
+        "avoid": true,
+        "embeddedRelay": true,
+        "nodes": [
+          {
+            "canPort80": true,
+            "certName": "string",
+            "derpport": 0,
+            "forceHTTP": true,
+            "hostName": "string",
+            "insecureForTests": true,
+            "ipv4": "string",
+            "ipv6": "string",
+            "name": "string",
+            "regionID": 0,
+            "stunonly": true,
+            "stunport": 0,
+            "stuntestIP": "string"
+          }
+        ],
+        "regionCode": "string",
+        "regionID": 0,
+        "regionName": "string"
+      }
+    }
+  },
+  "disable_direct_connections": true
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                         |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [workspacesdk.AgentConnectionInfo](schemas.md#workspacesdkagentconnectioninfo) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -649,13 +653,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/coo
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
 
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
-| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -676,7 +680,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
 
 ### Example responses
@@ -685,20 +689,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/lis
 
 ```json
 {
-	"ports": [
-		{
-			"network": "string",
-			"port": 0,
-			"process_name": "string"
-		}
-	]
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                                                   |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceAgentListeningPortsResponse](schemas.md#codersdkworkspaceagentlisteningportsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -719,7 +723,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 ### Parameters
 
 | Name             | In    | Type         | Required | Description                                  |
-| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+|------------------|-------|--------------|----------|----------------------------------------------|
 | `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
 | `before`         | query | integer      | false    | Before log id                                |
 | `after`          | query | integer      | false    | After log id                                 |
@@ -732,20 +736,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 
 ```json
 [
-	{
-		"created_at": "2019-08-24T14:15:22Z",
-		"id": 0,
-		"level": "trace",
-		"output": "string",
-		"source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
-	}
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "level": "trace",
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
 
 <h3 id="get-logs-by-workspace-agent-responseschema">Response Schema</h3>
@@ -753,7 +757,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/log
 Status Code **200**
 
 | Name           | Type                                             | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+|----------------|--------------------------------------------------|----------|--------------|-------------|
 | `[array item]` | array                                            | false    |              |             |
 | `» created_at` | string(date-time)                                | false    |              |             |
 | `» id`         | integer                                          | false    |              |             |
@@ -764,7 +768,7 @@ Status Code **200**
 #### Enumerated Values
 
 | Property | Value   |
-| -------- | ------- |
+|----------|---------|
 | `level`  | `trace` |
 | `level`  | `debug` |
 | `level`  | `info`  |
@@ -788,13 +792,13 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/pty
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspaceagent` | path | string(uuid) | true     | Workspace agent ID |
 
 ### Responses
 
 | Status | Meaning                                                                  | Description         | Schema |
-| ------ | ------------------------------------------------------------------------ | ------------------- | ------ |
+|--------|--------------------------------------------------------------------------|---------------------|--------|
 | 101    | [Switching Protocols](https://tools.ietf.org/html/rfc7231#section-6.2.2) | Switching Protocols |        |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -815,7 +819,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 ### Parameters
 
 | Name             | In    | Type         | Required | Description                                  |
-| ---------------- | ----- | ------------ | -------- | -------------------------------------------- |
+|------------------|-------|--------------|----------|----------------------------------------------|
 | `workspaceagent` | path  | string(uuid) | true     | Workspace agent ID                           |
 | `before`         | query | integer      | false    | Before log id                                |
 | `after`          | query | integer      | false    | After log id                                 |
@@ -828,20 +832,20 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 
 ```json
 [
-	{
-		"created_at": "2019-08-24T14:15:22Z",
-		"id": 0,
-		"level": "trace",
-		"output": "string",
-		"source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
-	}
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "level": "trace",
+    "output": "string",
+    "source_id": "ae50a35c-df42-4eff-ba26-f8bc28d2af81"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceAgentLog](schemas.md#codersdkworkspaceagentlog) |
 
 <h3 id="removed:-get-logs-by-workspace-agent-responseschema">Response Schema</h3>
@@ -849,7 +853,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/sta
 Status Code **200**
 
 | Name           | Type                                             | Required | Restrictions | Description |
-| -------------- | ------------------------------------------------ | -------- | ------------ | ----------- |
+|----------------|--------------------------------------------------|----------|--------------|-------------|
 | `[array item]` | array                                            | false    |              |             |
 | `» created_at` | string(date-time)                                | false    |              |             |
 | `» id`         | integer                                          | false    |              |             |
@@ -860,7 +864,7 @@ Status Code **200**
 #### Enumerated Values
 
 | Property | Value   |
-| -------- | ------- |
+|----------|---------|
 | `level`  | `trace` |
 | `level`  | `debug` |
 | `level`  | `info`  |
