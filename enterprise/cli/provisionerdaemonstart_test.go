@@ -49,7 +49,7 @@ func TestProvisionerDaemon_PSK(t *testing.T) {
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, "matt-daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		require.Eventually(t, func() bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
 			if err != nil {
@@ -126,7 +126,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		var err error
 		require.Eventually(t, func() bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
@@ -161,7 +161,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		var err error
 		require.Eventually(t, func() bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
@@ -197,7 +197,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		var err error
 		require.Eventually(t, func() bool {
 			daemons, err = client.ProvisionerDaemons(ctx)
@@ -233,7 +233,7 @@ func TestProvisionerDaemon_SessionToken(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		var err error
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
@@ -280,7 +280,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, "matt-daemon")
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
 			if err != nil {
@@ -325,7 +325,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, `tags={"tag1":"value1","tag2":"value2"}`)
 
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, user.OrganizationID, nil)
 			if err != nil {
@@ -440,8 +440,7 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, "matt-daemon")
-
-		var daemons []codersdk.ProvisionerDaemon
+		var daemons []codersdk.ProvisionerDaemonWithStatus
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)
 			if err != nil {
@@ -482,7 +481,7 @@ func TestProvisionerDaemon_PrometheusEnabled(t *testing.T) {
 	clitest.Start(t, inv)
 	pty.ExpectMatchContext(ctx, "starting provisioner daemon")
 
-	var daemons []codersdk.ProvisionerDaemon
+	var daemons []codersdk.ProvisionerDaemonWithStatus
 	var err error
 	require.Eventually(t, func() bool {
 		daemons, err = client.ProvisionerDaemons(ctx)

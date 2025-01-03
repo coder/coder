@@ -39,17 +39,40 @@ const (
 	LogLevelError LogLevel = "error"
 )
 
+// ProvisionerDaemonStatus represents the status of a provisioner daemon.
+type ProvisionerDaemonStatus string
+
+// ProvisionerDaemonStatus enums.
+const (
+	ProvisionerDaemonOffline ProvisionerDaemonStatus = "offline"
+	ProvisionerDaemonIdle    ProvisionerDaemonStatus = "idle"
+	ProvisionerDaemonBusy    ProvisionerDaemonStatus = "busy"
+)
+
 type ProvisionerDaemon struct {
-	ID             uuid.UUID         `json:"id" format:"uuid"`
-	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid"`
-	KeyID          uuid.UUID         `json:"key_id" format:"uuid"`
-	CreatedAt      time.Time         `json:"created_at" format:"date-time"`
-	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time"`
-	Name           string            `json:"name"`
-	Version        string            `json:"version"`
-	APIVersion     string            `json:"api_version"`
-	Provisioners   []ProvisionerType `json:"provisioners"`
-	Tags           map[string]string `json:"tags"`
+	ID             uuid.UUID         `json:"id" format:"uuid" table:"id"`
+	OrganizationID uuid.UUID         `json:"organization_id" format:"uuid" table:"organization id"`
+	KeyID          uuid.UUID         `json:"key_id" format:"uuid" table:"-"`
+	CreatedAt      time.Time         `json:"created_at" format:"date-time" table:"created at"`
+	LastSeenAt     NullTime          `json:"last_seen_at,omitempty" format:"date-time" table:"last seen at"`
+	Name           string            `json:"name" table:"name,default_sort"`
+	Version        string            `json:"version" table:"version"`
+	APIVersion     string            `json:"api_version" table:"api version"`
+	Provisioners   []ProvisionerType `json:"provisioners" table:"-"`
+	Tags           map[string]string `json:"tags" table:"tags"`
+}
+
+type ProvisionerDaemonWithStatus struct {
+	ProvisionerDaemon `table:"provisioner daemon,recursive_inline"`
+	KeyName           string                  `json:"key_name" table:"key name"`
+	Status            ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
+	CurrentJob        *ProvisionerDaemonJob   `json:"current_job" table:"current job,recursive"`
+	PreviousJob       *ProvisionerDaemonJob   `json:"previous_job" table:"previous job,recursive"`
+}
+
+type ProvisionerDaemonJob struct {
+	ID     uuid.UUID            `json:"id" format:"uuid" table:"id"`
+	Status ProvisionerJobStatus `json:"status" enums:"pending,running,succeeded,canceling,canceled,failed" table:"status"`
 }
 
 // MatchedProvisioners represents the number of provisioner daemons
