@@ -117,7 +117,7 @@ const OrganizationsSettingsNavigation: FC<
 						<CommandList>
 							<CommandGroup className="pb-2">
 								{organizations.length > 1 && (
-									<>
+									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{organizations.map((organization) => (
 											<Link
 												key={organization.id}
@@ -141,18 +141,22 @@ const OrganizationsSettingsNavigation: FC<
 												</CommandItem>
 											</Link>
 										))}
-										<hr className="h-px my-2 border-none bg-border -mx-2" />
-									</>
+									</div>
 								)}
 								{permissions.createOrganization && (
-									<Button variant="subtle" className="w-full h-8">
-										<a
-											href="/organizations/new"
-											className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
-										>
-											<Plus /> Create Organization
-										</a>
-									</Button>
+									<>
+										{organizations.length > 1 && (
+											<hr className="h-px my-2 border-none bg-border -mx-2" />
+										)}
+										<Button variant="subtle" className="w-full h-8">
+											<a
+												href="/organizations/new"
+												className="flex items-center gap-1 no-underline hover:text-content-primary visited:text-content-secondary"
+											>
+												<Plus /> Create Organization
+											</a>
+										</Button>
+									</>
 								)}
 							</CommandGroup>
 						</CommandList>
