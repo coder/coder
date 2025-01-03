@@ -1875,7 +1875,6 @@ func TestConnectToPostgres(t *testing.T) {
 
 		require.NoError(t, okDB.PingContext(ctx))
 	})
-
 }
 
 func TestServer_InvalidDERP(t *testing.T) {
