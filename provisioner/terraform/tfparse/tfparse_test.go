@@ -462,6 +462,14 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						type    = bool
 						default = true
 					}
+					variable "listvar" {
+						type    = list(string)
+						default = ["a"]
+					}
+					variable "mapvar" {
+						type    = map(string)
+						default = {"a": "b"}
+					}
 					data "coder_parameter" "stringparam" {
 						name    = "stringparam"
 						type    = "string"
@@ -487,6 +495,8 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 							"stringvar"   = var.stringvar
 							"numvar"      = var.numvar
 							"boolvar"     = var.boolvar
+							"listvar"     = var.listvar
+							"mapvar"      = var.mapvar
 							"stringparam" = data.coder_parameter.stringparam.value
 							"numparam"    = data.coder_parameter.numparam.value
 							"boolparam"   = data.coder_parameter.boolparam.value
@@ -498,6 +508,8 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 				"stringvar":   "a",
 				"numvar":      "1",
 				"boolvar":     "true",
+				"listvar":     `["a"]`,
+				"mapvar":      `{"a":"b"}`,
 				"stringparam": "a",
 				"numparam":    "1",
 				"boolparam":   "true",
@@ -506,46 +518,16 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectError: ``,
 		},
 		{
-			name: "unsupported list variable",
-			files: map[string]string{
-				"main.tf": `
-					variable "listvar" {
-						type    = list(string)
-						default = ["a"]
-					}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							listvar = var.listvar
-						}
-					}`,
-			},
-			expectTags:  nil,
-			expectError: `can't convert variable default value to string: unsupported type []interface {}`,
-		},
-		{
-			name: "unsupported map variable",
-			files: map[string]string{
-				"main.tf": `
-					variable "mapvar" {
-						type    = map(string)
-						default = {"a": "b"}
-					}
-					data "coder_workspace_tags" "tags" {
-						tags = {
-							mapvar = var.mapvar
-						}
-					}`,
-			},
-			expectTags:  nil,
-			expectError: `can't convert variable default value to string: unsupported type map[string]interface {}`,
-		},
-		{
 			name: "overlapping var name",
 			files: map[string]string{
 				`main.tf`: `
 				variable "a" {
 					type = string
 					default = "1"
+				}
+				variable "unused" {
+					type = map(string)
+					default = {"a" : "b"}
 				}
 				variable "ab" {
 					description = "This is a variable of type string"

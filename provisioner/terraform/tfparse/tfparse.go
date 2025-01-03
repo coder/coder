@@ -598,7 +598,11 @@ func interfaceToString(i interface{}) (string, error) {
 		return strconv.FormatFloat(v, 'f', -1, 64), nil
 	case bool:
 		return strconv.FormatBool(v), nil
-	default:
-		return "", xerrors.Errorf("unsupported type %T", v)
+	default: // just try to JSON-encode it.
+		var sb strings.Builder
+		if err := json.NewEncoder(&sb).Encode(i); err != nil {
+			return "", xerrors.Errorf("convert %T: %w", v, err)
+		}
+		return strings.TrimSpace(sb.String()), nil
 	}
 }
