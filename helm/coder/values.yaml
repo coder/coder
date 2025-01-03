@@ -288,11 +288,11 @@ coder:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
     # coder.service.httpNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpNodePort: ""
     # coder.service.httpsNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpsNodePort: ""
 
