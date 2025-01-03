@@ -17,7 +17,7 @@ SUBCOMMANDS:
     features           List Enterprise features
     groups             Manage groups
     licenses           Add, delete, and list licenses
-    provisioner        Manage provisioner daemons
+    provisioner        View and manage provisioner daemons and jobs
     server             Start a Coder server
 
 GLOBAL OPTIONS: 

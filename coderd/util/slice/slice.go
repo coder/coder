@@ -13,6 +13,14 @@ func ToStrings[T ~string](a []T) []string {
 	return tmp
 }
 
+func ToStringEnums[E ~string](a []string) []E {
+	tmp := make([]E, 0, len(a))
+	for _, v := range a {
+		tmp = append(tmp, E(v))
+	}
+	return tmp
+}
+
 // Omit creates a new slice with the arguments omitted from the list.
 func Omit[T comparable](a []T, omits ...T) []T {
 	tmp := make([]T, 0, len(a))

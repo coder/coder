@@ -1494,12 +1494,22 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 	{
 		"api_version": "string",
 		"created_at": "2019-08-24T14:15:22Z",
+		"current_job": {
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"status": "pending"
+		},
 		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
 		"key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+		"key_name": "string",
 		"last_seen_at": "2019-08-24T14:15:22Z",
 		"name": "string",
 		"organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+		"previous_job": {
+			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+			"status": "pending"
+		},
 		"provisioners": ["string"],
+		"status": "offline",
 		"tags": {
 			"property1": "string",
 			"property2": "string"
@@ -1511,28 +1521,48 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerDaemon](schemas.md#codersdkprovisionerdaemon) |
+| Status | Meaning                                                 | Description | Schema                                                                                          |
+| ------ | ------------------------------------------------------- | ----------- | ----------------------------------------------------------------------------------------------- |
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerDaemonWithStatus](schemas.md#codersdkprovisionerdaemonwithstatus) |
 
 <h3 id="get-provisioner-daemons-responseschema">Response Schema</h3>
 
 Status Code **200**
 
-| Name                | Type              | Required | Restrictions | Description |
-| ------------------- | ----------------- | -------- | ------------ | ----------- |
-| `[array item]`      | array             | false    |              |             |
-| `» api_version`     | string            | false    |              |             |
-| `» created_at`      | string(date-time) | false    |              |             |
-| `» id`              | string(uuid)      | false    |              |             |
-| `» key_id`          | string(uuid)      | false    |              |             |
-| `» last_seen_at`    | string(date-time) | false    |              |             |
-| `» name`            | string            | false    |              |             |
-| `» organization_id` | string(uuid)      | false    |              |             |
-| `» provisioners`    | array             | false    |              |             |
-| `» tags`            | object            | false    |              |             |
-| `»» [any property]` | string            | false    |              |             |
-| `» version`         | string            | false    |              |             |
+| Name                | Type                                                                           | Required | Restrictions | Description |
+| ------------------- | ------------------------------------------------------------------------------ | -------- | ------------ | ----------- |
+| `[array item]`      | array                                                                          | false    |              |             |
+| `» api_version`     | string                                                                         | false    |              |             |
+| `» created_at`      | string(date-time)                                                              | false    |              |             |
+| `» current_job`     | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |             |
+| `»» id`             | string(uuid)                                                                   | false    |              |             |
+| `»» status`         | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)       | false    |              |             |
+| `» id`              | string(uuid)                                                                   | false    |              |             |
+| `» key_id`          | string(uuid)                                                                   | false    |              |             |
+| `» key_name`        | string                                                                         | false    |              |             |
+| `» last_seen_at`    | string(date-time)                                                              | false    |              |             |
+| `» name`            | string                                                                         | false    |              |             |
+| `» organization_id` | string(uuid)                                                                   | false    |              |             |
+| `» previous_job`    | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |             |
+| `» provisioners`    | array                                                                          | false    |              |             |
+| `» status`          | [codersdk.ProvisionerDaemonStatus](schemas.md#codersdkprovisionerdaemonstatus) | false    |              |             |
+| `» tags`            | object                                                                         | false    |              |             |
+| `»» [any property]` | string                                                                         | false    |              |             |
+| `» version`         | string                                                                         | false    |              |             |
+
+#### Enumerated Values
+
+| Property | Value       |
+| -------- | ----------- |
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+| `status` | `offline`   |
+| `status` | `idle`      |
+| `status` | `busy`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
