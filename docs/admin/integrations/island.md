@@ -108,15 +108,13 @@ sidestep such policies simply by using another browser.
 
 ### Configure browser enforcement, conditional access policies
 
-1. Create a conditional access policy for your configured identity provider.
+Create a conditional access policy for your configured identity provider.
 
-   <blockquote class="admonition">
-   The configured IdP must be the same for both Coder and Island
-   </blockquote>
+Note that the configured IdP must be the same for both Coder and Island.
 
-   - [Azure Active Directory/Entra ID](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-azure-ad#create-and-apply-a-conditional-access-policy)
-   - [Okta](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-okta)
-   - [Google](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-google-enterprise)
+- [Azure Active Directory/Entra ID](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-azure-ad#create-and-apply-a-conditional-access-policy)
+- [Okta](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-okta)
+- [Google](https://documentation.island.io/docs/configure-browser-enforcement-for-island-with-google-enterprise)
 
 ## Browser Activity Logging
 

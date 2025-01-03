@@ -137,8 +137,7 @@ To set this up, follow these steps:
 
    </blockquote>
 
-If you don't want to use the official modules, you can read through the [example
-template][docker-template], which uses Docker as the underlying compute. The
+If you don't want to use the official modules, you can read through the [example template](https://github.com/coder/coder/tree/main/examples/jfrog/docker), which uses Docker as the underlying compute. The
 same concepts apply to all compute types.
 
 ## Offline Deployments

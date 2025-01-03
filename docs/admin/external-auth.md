@@ -168,8 +168,7 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 
 ## JFrog Artifactory
 
-See [this](../admin/integrations/jfrog-artifactory.md) guide on instructions on
-how to set up for JFrog Artifactory.
+Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
 
 ## Custom scopes
 
