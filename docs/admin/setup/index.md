@@ -142,7 +142,7 @@ To configure Coder behind a corporate proxy, set the environment variables
 ## External Authentication
 
 Coder supports external authentication via OAuth2.0. This allows enabling
-integrations with git providers, such as GitHub, GitLab, and Bitbucket etc.
+integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
