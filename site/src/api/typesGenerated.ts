@@ -2562,6 +2562,11 @@ export type WorkspaceAppHealth = "disabled" | "healthy" | "initializing" | "unhe
 export const WorkspaceAppHealths: WorkspaceAppHealth[] = ["disabled", "healthy", "initializing", "unhealthy"];
 
 // From codersdk/workspaceapps.go
+export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
+
+export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab", "window"];
+
+// From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";
 
 export const WorkspaceAppSharingLevels: WorkspaceAppSharingLevel[] = ["authenticated", "owner", "public"];
