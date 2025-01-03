@@ -947,7 +947,7 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven https://repo1.maven.org/maven2 and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
 
 ### --postgres-auth
 
@@ -1129,7 +1129,7 @@ These SSH config options will override the default SSH config options. Provide o
 | Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
 | YAML        | <code>client.cliUpgradeMessage</code>   |
 
-The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using `curl -L https://coder.com/install.sh | sh`.
+The upgrade message to display to users when a client/server mismatch is detected. By default it instructs users to update using 'curl -L https://coder.com/install.sh | sh'.
 
 ### --write-config
 

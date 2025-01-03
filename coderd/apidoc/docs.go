@@ -12832,11 +12832,11 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "path_app_url": {
-                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. \u003chttps://us.example.com\u003e",
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
                     "type": "string"
                 },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. ` + "`" + `*.us.example.com` + "`" + `\nE.g. ` + "`" + `*--suffix.au.example.com` + "`" + `\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }
@@ -15383,7 +15383,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "path_app_url": {
-                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. \u003chttps://us.example.com\u003e",
+                    "description": "PathAppURL is the URL to the base path for path apps. Optional\nunless wildcard_hostname is set.\nE.g. https://us.example.com",
                     "type": "string"
                 },
                 "status": {
@@ -15402,7 +15402,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "wildcard_hostname": {
-                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. ` + "`" + `*.us.example.com` + "`" + `\nE.g. ` + "`" + `*--suffix.au.example.com` + "`" + `\nOptional. Does not need to be on the same domain as PathAppURL.",
+                    "description": "WildcardHostname is the wildcard hostname for subdomain apps.\nE.g. *.us.example.com\nE.g. *--suffix.au.example.com\nOptional. Does not need to be on the same domain as PathAppURL.",
                     "type": "string"
                 }
             }
