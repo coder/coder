@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import type { ProxyContextValue } from "contexts/ProxyContext";
 import { MockPrimaryWorkspaceProxy, MockUser } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
-import { NavbarView, Language as navLanguage } from "./NavbarView";
+import { NavbarView } from "./NavbarView";
 
 const proxyContextValue: ProxyContextValue = {
 	proxy: {
@@ -25,76 +25,75 @@ describe("NavbarView", () => {
 	it("workspaces nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
+				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
 		);
-		const workspacesLink = await screen.findByText(navLanguage.workspaces);
-		expect((workspacesLink as HTMLAnchorElement).href).toContain("/workspaces");
+		const workspacesLink =
+			await screen.findByText<HTMLAnchorElement>(/workspaces/i);
+		expect(workspacesLink.href).toContain("/workspaces");
 	});
 
 	it("templates nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
+				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
 		);
-		const templatesLink = await screen.findByText(navLanguage.templates);
-		expect((templatesLink as HTMLAnchorElement).href).toContain("/templates");
+		const templatesLink =
+			await screen.findByText<HTMLAnchorElement>(/templates/i);
+		expect(templatesLink.href).toContain("/templates");
 	});
 
 	it("audit nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
+				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
-		const auditLink = await screen.findByText(navLanguage.audit);
-		expect((auditLink as HTMLAnchorElement).href).toContain("/audit");
+		const auditLink = await screen.findByText<HTMLAnchorElement>(/audit logs/i);
+		expect(auditLink.href).toContain("/audit");
 	});
 
 	it("deployment nav link has the correct href", async () => {
 		renderWithAuth(
 			<NavbarView
+				docsHref="https://docs.coder.com"
 				proxyContextValue={proxyContextValue}
 				user={MockUser}
 				onSignOut={noop}
 				canViewDeployment
 				canViewOrganizations
-				canViewAllUsers
 				canViewHealth
 				canViewAuditLog
 			/>,
 		);
 		const deploymentMenu = await screen.findByText("Admin settings");
 		await userEvent.click(deploymentMenu);
-		const deploymentSettingsLink = await screen.findByText(
-			navLanguage.deployment,
-		);
-		expect((deploymentSettingsLink as HTMLAnchorElement).href).toContain(
-			"/deployment/general",
-		);
+		const deploymentSettingsLink =
+			await screen.findByText<HTMLAnchorElement>(/deployment/i);
+		expect(deploymentSettingsLink.href).toContain("/deployment/general");
 	});
 });

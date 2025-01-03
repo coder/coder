@@ -28,6 +28,14 @@ const (
 	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
 )
 
+type WorkspaceAppOpenIn string
+
+const (
+	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
+	WorkspaceAppOpenInWindow     WorkspaceAppOpenIn = "window"
+	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
+)
+
 var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelOwner:         {},
 	WorkspaceAppSharingLevelAuthenticated: {},
@@ -62,6 +70,7 @@ type WorkspaceApp struct {
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`
 	Hidden      bool               `json:"hidden"`
+	OpenIn      string             `json:"open_in"`
 }
 
 type Healthcheck struct {

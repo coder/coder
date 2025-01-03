@@ -23,3 +23,29 @@ export const determineGroupDiff = (auditLogDiff: AuditDiff): AuditDiff => {
 		},
 	};
 };
+
+/**
+ *
+ * @param auditLogDiff
+ * @returns a diff with the 'mappings' as a JSON string. Otherwise, it is [Object object]
+ */
+export const determineIdPSyncMappingDiff = (
+	auditLogDiff: AuditDiff,
+): AuditDiff => {
+	const old = auditLogDiff.mapping?.old as Record<string, string[]> | undefined;
+	const new_ = auditLogDiff.mapping?.new as
+		| Record<string, string[]>
+		| undefined;
+	if (!old || !new_) {
+		return auditLogDiff;
+	}
+
+	return {
+		...auditLogDiff,
+		mapping: {
+			old: JSON.stringify(old),
+			new: JSON.stringify(new_),
+			secret: auditLogDiff.mapping?.secret,
+		},
+	};
+};
