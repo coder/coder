@@ -1243,7 +1243,7 @@
 					"200": {
 						"description": "OK",
 						"schema": {
-							"$ref": "#/definitions/codersdk.GetUserStatusChangesResponse"
+							"$ref": "#/definitions/codersdk.GetUserStatusCountsOverTimeResponse"
 						}
 					}
 				}
@@ -10084,7 +10084,7 @@
 				}
 			}
 		},
-		"codersdk.GetUserStatusChangesResponse": {
+		"codersdk.GetUserStatusCountsOverTimeResponse": {
 			"type": "object",
 			"properties": {
 				"status_counts": {

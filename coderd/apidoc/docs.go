@@ -1426,7 +1426,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GetUserStatusChangesResponse"
+                            "$ref": "#/definitions/codersdk.GetUserStatusCountsOverTimeResponse"
                         }
                     }
                 }
@@ -11241,7 +11241,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.GetUserStatusChangesResponse": {
+        "codersdk.GetUserStatusCountsOverTimeResponse": {
             "type": "object",
             "properties": {
                 "status_counts": {
