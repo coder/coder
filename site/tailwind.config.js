@@ -58,6 +58,15 @@ module.exports = {
 					5: "hsl(var(--chart-5))",
 				},
 			},
+			keyframes: {
+				loading: {
+					"0%": { opacity: 0.85 },
+					"25%": { opacity: 0.7 },
+					"50%": { opacity: 0.4 },
+					"75%": { opacity: 0.3 },
+					"100%": { opacity: 0.2 },
+				},
+			},
 		},
 	},
 	plugins: [require("tailwindcss-animate")],
