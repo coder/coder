@@ -134,7 +134,7 @@ To set this up, follow these steps:
    <blockquote class="info">
 
    The admin-level access token is used to provision user tokens and is never exposed to developers or stored in workspaces.
-   
+
    </blockquote>
 
 If you don't want to use the official modules, you can read through the [example

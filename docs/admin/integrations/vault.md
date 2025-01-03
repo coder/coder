@@ -11,7 +11,7 @@ August 05, 2024
 
 ---
 
-This guide describes the process of integrating [HashiCorp Vault][] into Coder workspaces.
+This guide describes the process of integrating [HashiCorp Vault](https://www.vaultproject.io/) into Coder workspaces.
 
 Coder makes it easy to integrate HashiCorp Vault with your workspaces by
 providing official Terraform modules to integrate Vault with Coder. This guide
@@ -19,9 +19,9 @@ will show you how to use these modules to integrate HashiCorp Vault with Coder.
 
 ## The `vault-github` module
 
-The [`vault-github`][] module is a Terraform module that allows you to
+The [`vault-github`](https://registry.coder.com/modules/vault-github) module is a Terraform module that allows you to
 authenticate with Vault using a GitHub token. This module uses the existing
-GitHub [external authentication][] to get the token and authenticate with Vault.
+GitHub [external authentication](../external-auth.md) to get the token and authenticate with Vault.
 
 To use this module, add the following code to your Terraform configuration.
 
@@ -43,9 +43,3 @@ a secret stored in the KV backend.
 ```shell
 vault kv get -namespace=YOUR_NAMESPACE -mount=MOUNT_NAME SECRET_NAME
 ```
-
-<!-- References -->
-
-[HashiCorp Vault]: https://www.vaultproject.io/
-[external authentication]: ../external-auth.md
-[`vault-github`]: https://registry.coder.com/modules/vault-github

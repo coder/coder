@@ -11,8 +11,8 @@ March 17, 2024
 
 ---
 
-This guide describes the process of integrating [JFrog Xray][] to Coder Kubernetes-backed
-workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder-xray`].
+This guide describes the process of integrating [JFrog Xray](https://jfrog.com/xray/) to Coder Kubernetes-backed
+workspaces using Coder's [JFrog Xray Integration](https://github.com/coder/coder-xray).
 
 ## Prerequisites
 
@@ -21,10 +21,10 @@ workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder-xray`].
 
 ## Deploy the **Coder - JFrog Xray** Integration
 
-1. Create a JFrog Platform [Access Token][] with a user that has the `read` [permission][]
+1. Create a JFrog Platform [Access Token](https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens) with a user that has the `read` [permission](https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions)
    for the repositories you want to scan.
 
-1. Create a Coder [token][] with a user that has the [`owner`][roles] role.
+1. Create a Coder [token](../../reference/cli/tokens_create.md#tokens-create) with a user that has the [`owner`](../users#roles) role.
 
 1. Create Kubernetes secrets for the JFrog Xray and Coder tokens.
 
@@ -58,10 +58,9 @@ workspaces using Coder&rsquo;s [JFrog Xray Integration][`coder-xray`].
 
    <blockquote class="admonition warning">
 
-   **Note**: To authenticate with the Artifactory registry, you may need to
-   create a [Docker config][docker-advanced-topics] and use it in the
-   `imagePullSecrets` field of the Kubernetes Pod. See the [**Defining
-   ImagePullSecrets for Coder workspaces**][image-pull-secret] guide for more
+   To authenticate with the Artifactory registry, you may need to
+   create a [Docker config](https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics) and use it in the
+   `imagePullSecrets` field of the Kubernetes Pod. See the [Defining ImagePullSecrets for Coder workspaces](../../tutorials/image-pull-secret.md) guide for more
    information.
 
    </blockquote>
@@ -72,18 +71,3 @@ Once installed, configured workspaces will now have a banner appear on any
 workspace with vulnerabilities reported by JFrog Xray.
 
 <img alt="JFrog Xray Integration" src="../../images/guides/xray-integration/example.png" />
-
-<!-- References -->
-
-[JFrog Xray]: https://jfrog.com/xray/
-[JFrog Xray Integration]: https://github.com/coder/coder-xray
-[`coder-xray`]: https://github.com/coder/coder-xray
-[docker-advanced-topics]:
-	https://jfrog.com/help/r/jfrog-artifactory-documentation/docker-advanced-topics
-[image-pull-secret]: ../../tutorials/image-pull-secret.md
-[token]: ../../reference/cli/tokens_create.md#tokens-create
-[roles]: ../users#roles
-[permission]:
-	https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions
-[access token]:
-	https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens
