@@ -28,6 +28,14 @@ const (
 	WorkspaceAppSharingLevelPublic        WorkspaceAppSharingLevel = "public"
 )
 
+type WorkspaceAppOpenIn string
+
+const (
+	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
+	WorkspaceAppOpenInWindow     WorkspaceAppOpenIn = "window"
+	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
+)
+
 var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelOwner:         {},
 	WorkspaceAppSharingLevelAuthenticated: {},

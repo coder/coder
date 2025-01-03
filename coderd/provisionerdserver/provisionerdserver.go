@@ -2013,6 +2013,14 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				sharingLevel = database.AppSharingLevelPublic
 			}
 
+			openIn := database.WorkspaceAppOpenInSlimWindow
+			switch app.OpenIn {
+			case sdkproto.AppOpenIn_TAB:
+				openIn = database.WorkspaceAppOpenInTab
+			case sdkproto.AppOpenIn_WINDOW:
+				openIn = database.WorkspaceAppOpenInWindow
+			}
+
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
 				ID:          uuid.New(),
 				CreatedAt:   dbtime.Now(),
@@ -2037,18 +2045,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 				Health:               health,
 				DisplayOrder:         int32(app.Order),
 				Hidden:               app.Hidden,
-				OpenIn: func() database.WorkspaceAppOpenIn {
-					switch app.OpenIn {
-					case sdkproto.AppOpenIn_WINDOW:
-						return database.WorkspaceAppOpenInWindow
-					case sdkproto.AppOpenIn_SLIM_WINDOW:
-						return database.WorkspaceAppOpenInSlimWindow
-					case sdkproto.AppOpenIn_TAB:
-						return database.WorkspaceAppOpenInTab
-					default:
-						return database.WorkspaceAppOpenInSlimWindow
-					}
-				}(),
+				OpenIn:               openIn,
 			})
 			if err != nil {
 				return xerrors.Errorf("insert app: %w", err)
