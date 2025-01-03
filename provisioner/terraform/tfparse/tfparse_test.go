@@ -34,7 +34,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			name: "single text file",
 			files: map[string]string{
 				"file.txt": `
-		hello world`,
+					hello world`,
 			},
 			expectTags:  map[string]string{},
 			expectError: "",
@@ -539,6 +539,28 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectTags:  nil,
 			expectError: `can't convert variable default value to string: unsupported type map[string]interface {}`,
 		},
+		{
+			name: "overlapping var name",
+			files: map[string]string{
+				`main.tf`: `
+				variable "a" {
+					type = string
+					default = "1"
+				}
+				variable "ab" {
+					description = "This is a variable of type string"
+					type        = string
+					default     = "ab"
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo": "bar",
+						"a": var.a,
+					}
+				}`,
+			},
+			expectTags: map[string]string{"foo": "bar", "a": "1"},
+		},
 	} {
 		tc := tc
 		t.Run(tc.name+"/tar", func(t *testing.T) {
@@ -622,7 +644,7 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 			tfparse.WriteArchive(tarFile, "application/x-tar", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
 			require.NoError(b, diags.Err())
-			_, err := parser.WorkspaceTags(ctx)
+			_, _, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}
@@ -636,7 +658,7 @@ func BenchmarkWorkspaceTagDefaultsFromFile(b *testing.B) {
 			tfparse.WriteArchive(zipFile, "application/zip", tmpDir)
 			parser, diags := tfparse.New(tmpDir, tfparse.WithLogger(logger))
 			require.NoError(b, diags.Err())
-			_, err := parser.WorkspaceTags(ctx)
+			_, _, err := parser.WorkspaceTags(ctx)
 			if err != nil {
 				b.Fatal(err)
 			}
