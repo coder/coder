@@ -426,6 +426,7 @@ require (
 	github.com/yuin/goldmark-emoji v1.0.4 // indirect
 	github.com/zclconf/go-cty v1.15.1
 	github.com/zeebo/errs v1.3.0 // indirect
+	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib v1.19.0 // indirect
 	go.opentelemetry.io/contrib/instrumentation/net/http/otelhttp v0.58.0 // indirect
 	go.opentelemetry.io/otel/metric v1.33.0 // indirect
@@ -445,5 +446,3 @@ require (
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
 	sigs.k8s.io/yaml v1.4.0 // indirect
 )
-
-require go.opentelemetry.io/auto/sdk v1.1.0 // indirect
