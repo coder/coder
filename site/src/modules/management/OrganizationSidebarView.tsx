@@ -116,7 +116,6 @@ const OrganizationsSettingsNavigation: FC<
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command>
-						{/* <button type="button" className="sr-only" /> */}
 						<CommandList>
 							<CommandGroup className="pb-2">
 								{organizations.length > 1 && (
@@ -129,6 +128,8 @@ const OrganizationsSettingsNavigation: FC<
 													setIsPopoverOpen(false);
 													navigate(urlForSubpage(organization.name));
 												}}
+												// There is currently an issue with the cmdk component for keyboard navigation
+												// https://github.com/pacocoursey/cmdk/issues/322
 												tabIndex={0}
 											>
 												<Avatar
