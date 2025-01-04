@@ -115,7 +115,7 @@ const OrganizationsSettingsNavigation: FC<
 					</Button>
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
-					<Command>
+					<Command loop>
 						<CommandList>
 							<CommandGroup className="pb-2">
 								{organizations.length > 1 && (
@@ -149,14 +149,15 @@ const OrganizationsSettingsNavigation: FC<
 										{organizations.length > 1 && (
 											<hr className="h-px my-2 border-none bg-border -mx-2" />
 										)}
-										<Button asChild variant="subtle" className="w-full h-8">
-											<a
-												href="/organizations/new"
-												className="flex items-center gap-1 no-underline text-content-secondary hover:text-content-primary visited:text-content-secondary"
-											>
-												<Plus /> Create Organization
-											</a>
-										</Button>
+										<CommandItem
+											className="flex justify-center"
+											onSelect={() => {
+												setIsPopoverOpen(false);
+												navigate("/organizations/new");
+											}}
+										>
+											<Plus /> Create Organization
+										</CommandItem>
 									</>
 								)}
 							</CommandGroup>
