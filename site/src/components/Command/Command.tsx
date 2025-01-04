@@ -119,7 +119,7 @@ export const CommandItem = forwardRef<
 	<CommandPrimitive.Item
 		ref={ref}
 		className={cn(
-			`relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-2 text-sm font-medium outline-none
+			`relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-none
 			data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 			data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
 			[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,

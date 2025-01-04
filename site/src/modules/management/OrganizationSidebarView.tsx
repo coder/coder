@@ -21,6 +21,7 @@ import type { Permissions } from "contexts/auth/permissions";
 import { ChevronDown, Plus } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Link } from "react-router-dom";
 
 export interface OrganizationWithPermissions extends Organization {
@@ -87,6 +88,7 @@ const OrganizationsSettingsNavigation: FC<
 	}
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+	const navigate = useNavigate();
 
 	return (
 		<>
@@ -114,33 +116,30 @@ const OrganizationsSettingsNavigation: FC<
 				</PopoverTrigger>
 				<PopoverContent align="start" className="w-60">
 					<Command>
+						{/* <button type="button" className="sr-only" /> */}
 						<CommandList>
 							<CommandGroup className="pb-2">
 								{organizations.length > 1 && (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{organizations.map((organization) => (
-											<Link
+											<CommandItem
 												key={organization.id}
-												to={urlForSubpage(organization.name)}
-												// Setting width to 215px so that outline is visible
-												className="w-[215px] ml-1 no-underline visited:text-content-secondary text-content-secondary"
+												value={organization.name}
+												onSelect={() => {
+													setIsPopoverOpen(false);
+													navigate(urlForSubpage(organization.name));
+												}}
+												tabIndex={0}
 											>
-												<CommandItem
-													value={organization.name}
-													onSelect={() => {
-														setIsPopoverOpen(false);
-													}}
-												>
-													<Avatar
-														size="sm"
-														src={organization.icon}
-														fallback={organization.display_name}
-													/>
-													<span className="truncate">
-														{organization?.display_name || organization?.name}
-													</span>
-												</CommandItem>
-											</Link>
+												<Avatar
+													size="sm"
+													src={organization.icon}
+													fallback={organization.display_name}
+												/>
+												<span className="truncate">
+													{organization?.display_name || organization?.name}
+												</span>
+											</CommandItem>
 										))}
 									</div>
 								)}
@@ -149,7 +148,7 @@ const OrganizationsSettingsNavigation: FC<
 										{organizations.length > 1 && (
 											<hr className="h-px my-2 border-none bg-border -mx-2" />
 										)}
-										<Button variant="subtle" className="w-full h-8">
+										<Button asChild variant="subtle" className="w-full h-8">
 											<a
 												href="/organizations/new"
 												className="flex items-center gap-1 no-underline text-content-secondary hover:text-content-primary visited:text-content-secondary"
