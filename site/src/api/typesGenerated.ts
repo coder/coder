@@ -2964,7 +2964,7 @@ export interface WorkspaceApp {
 	readonly healthcheck: Healthcheck;
 	readonly health: WorkspaceAppHealth;
 	readonly hidden: boolean;
-	readonly open_in: string;
+	readonly open_in: WorkspaceAppOpenIn;
 }
 
 // From codersdk/workspaceapps.go

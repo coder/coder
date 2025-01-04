@@ -452,7 +452,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent} \
       "hidden": true,
       "icon": "string",
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "open_in": "string",
+      "open_in": "slim-window",
       "sharing_level": "owner",
       "slug": "string",
       "subdomain": true,

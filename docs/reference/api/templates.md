@@ -2074,7 +2074,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/d
             "hidden": true,
             "icon": "string",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "open_in": "string",
+            "open_in": "slim-window",
             "sharing_level": "owner",
             "slug": "string",
             "subdomain": true,
@@ -2201,7 +2201,7 @@ Status Code **200**
 | `»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» open_in`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -2280,6 +2280,9 @@ Status Code **200**
 | `health`                  | `initializing`     |
 | `health`                  | `healthy`          |
 | `health`                  | `unhealthy`        |
+| `open_in`                 | `slim-window`      |
+| `open_in`                 | `window`           |
+| `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
 | `sharing_level`           | `public`           |
@@ -2506,7 +2509,7 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/r
             "hidden": true,
             "icon": "string",
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "open_in": "string",
+            "open_in": "slim-window",
             "sharing_level": "owner",
             "slug": "string",
             "subdomain": true,
@@ -2633,7 +2636,7 @@ Status Code **200**
 | `»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
-| `»»» open_in`                   | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -2712,6 +2715,9 @@ Status Code **200**
 | `health`                  | `initializing`     |
 | `health`                  | `healthy`          |
 | `health`                  | `unhealthy`        |
+| `open_in`                 | `slim-window`      |
+| `open_in`                 | `window`           |
+| `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
 | `sharing_level`           | `public`           |

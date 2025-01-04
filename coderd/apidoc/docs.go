@@ -15080,7 +15080,7 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "open_in": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
                 },
                 "sharing_level": {
                     "enum": [
@@ -15125,6 +15125,19 @@ const docTemplate = `{
                 "WorkspaceAppHealthInitializing",
                 "WorkspaceAppHealthHealthy",
                 "WorkspaceAppHealthUnhealthy"
+            ]
+        },
+        "codersdk.WorkspaceAppOpenIn": {
+            "type": "string",
+            "enum": [
+                "slim-window",
+                "window",
+                "tab"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAppOpenInSlimWindow",
+                "WorkspaceAppOpenInWindow",
+                "WorkspaceAppOpenInTab"
             ]
         },
         "codersdk.WorkspaceAppSharingLevel": {
