@@ -311,7 +311,7 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 		},
 		Health: proto.WorkspaceApp_Health(health),
 		Hidden: a.Hidden,
-		OpenIn: proto.WorkspaceApp_OpenIn(openIn),
+		OpenIn: openIn,
 	}, nil
 }
 
