@@ -1,4 +1,4 @@
-import MuiDialog from "@mui/material/Dialog";
+import MuiDialog, { type DialogProps } from "@mui/material/Dialog";
 import type { FC, ReactNode } from "react";
 import type { ConfirmDialogType } from "./types";
 import { Button } from "components/Button/Button";
@@ -60,4 +60,4 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
  * Re-export of MUI's Dialog component, for convenience.
  * @link See original documentation here: https://mui.com/material-ui/react-dialog/
  */
-export { MuiDialog as Dialog };
+export { MuiDialog as Dialog, type DialogProps };
