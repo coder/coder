@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Trash } from "lucide-react";
 import { Button } from "./Button";
+import { PlusIcon } from "lucide-react";
 
 const meta: Meta<typeof Button> = {
 	title: "components/Button",
@@ -8,7 +8,7 @@ const meta: Meta<typeof Button> = {
 	args: {
 		children: (
 			<>
-				<Trash />
+				<PlusIcon />
 				Button
 			</>
 		),
@@ -69,20 +69,20 @@ export const DestructiveDisabled: Story = {
 export const IconButtonDefault: Story = {
 	args: {
 		variant: "default",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };
 
 export const IconButtonOutline: Story = {
 	args: {
 		variant: "outline",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };
 
 export const IconButtonSubtle: Story = {
 	args: {
 		variant: "subtle",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };
