@@ -151,6 +151,7 @@ resource "azurerm_managed_disk" "data" {
 
 # Create virtual machine
 resource "azurerm_windows_virtual_machine" "main" {
+  count                 = data.coder_workspace.me.start_count
   name                  = "vm"
   admin_username        = local.admin_username
   admin_password        = random_password.admin_password.result
@@ -189,7 +190,8 @@ resource "azurerm_windows_virtual_machine" "main" {
 }
 
 resource "coder_metadata" "rdp_login" {
-  resource_id = azurerm_windows_virtual_machine.main.id
+  count       = data.coder_workspace.me.start_count
+  resource_id = azurerm_windows_virtual_machine.main[0].id
   item {
     key   = "Username"
     value = local.admin_username
@@ -202,27 +204,9 @@ resource "coder_metadata" "rdp_login" {
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "main_data" {
+  count              = data.coder_workspace.me.start_count
   managed_disk_id    = azurerm_managed_disk.data.id
-  virtual_machine_id = azurerm_windows_virtual_machine.main.id
+  virtual_machine_id = azurerm_windows_virtual_machine.main[0].id
   lun                = "10"
   caching            = "ReadWrite"
-}
-
-# Stop the VM
-resource "null_resource" "stop_vm" {
-  count      = data.coder_workspace.me.transition == "stop" ? 1 : 0
-  depends_on = [azurerm_windows_virtual_machine.main]
-  provisioner "local-exec" {
-    # Use deallocate so the VM is not charged
-    command = "az vm deallocate --ids ${azurerm_windows_virtual_machine.main.id}"
-  }
-}
-
-# Start the VM
-resource "null_resource" "start" {
-  count      = data.coder_workspace.me.transition == "start" ? 1 : 0
-  depends_on = [azurerm_windows_virtual_machine.main]
-  provisioner "local-exec" {
-    command = "az vm start --ids ${azurerm_windows_virtual_machine.main.id}"
-  }
 }
