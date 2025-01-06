@@ -26,7 +26,7 @@ func (s *server) Parse(sess *provisionersdk.Session, _ *proto.ParseRequest, _ <-
 		return provisionersdk.ParseErrorf("load module: %s", formatDiagnostics(sess.WorkDirectory, diags))
 	}
 
-	workspaceTags, err := parser.WorkspaceTags(ctx)
+	workspaceTags, _, err := parser.WorkspaceTags(ctx)
 	if err != nil {
 		return provisionersdk.ParseErrorf("can't load workspace tags: %v", err)
 	}

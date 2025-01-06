@@ -1,3 +1,4 @@
+import { GlobalErrorBoundary } from "components/ErrorBoundary/GlobalErrorBoundary";
 import { TemplateRedirectController } from "pages/TemplatePage/TemplateRedirectController";
 import { Suspense, lazy } from "react";
 import {
@@ -365,7 +366,10 @@ const groupsRouter = () => {
 
 export const router = createBrowserRouter(
 	createRoutesFromChildren(
-		<Route element={<RoutesWithSuspense />}>
+		<Route
+			element={<RoutesWithSuspense />}
+			errorElement={<GlobalErrorBoundary />}
+		>
 			<Route path="login" element={<LoginPage />} />
 			<Route path="setup" element={<SetupPage />} />
 			<Route path="reset-password">

@@ -55,9 +55,19 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
 		const Comp = asChild ? Slot : "button";
 		return (
 			<Comp
-				className={cn(buttonVariants({ variant, size, className }))}
-				ref={ref}
 				{...props}
+				ref={ref}
+				className={cn(buttonVariants({ variant, size }), className)}
+				// Adding default button type to make sure that buttons don't
+				// accidentally trigger form actions when clicked. But because
+				// this Button component is so polymorphic (it's also used to
+				// make <a> elements look like buttons), we can only safely
+				// default to adding the prop when we know that we're rendering
+				// a real HTML button instead of an arbitrary Slot. Adding the
+				// type attribute to any non-buttons will produce invalid HTML
+				type={
+					props.type === undefined && Comp === "button" ? "button" : props.type
+				}
 			/>
 		);
 	},
