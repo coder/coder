@@ -16,6 +16,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -26,7 +27,6 @@ import {
 } from "utils/formUtils";
 import * as Yup from "yup";
 import { HorizontalContainer, HorizontalSection } from "./Horizontal";
-import { Spinner } from "components/Spinner/Spinner";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 const MAX_DESCRIPTION_MESSAGE = `Please enter a description that is no longer than ${MAX_DESCRIPTION_CHAR_LIMIT} characters.`;

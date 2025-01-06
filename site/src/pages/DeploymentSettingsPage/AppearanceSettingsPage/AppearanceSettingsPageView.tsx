@@ -6,6 +6,7 @@ import {
 	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import {
@@ -18,7 +19,6 @@ import type { FC } from "react";
 import { getFormHelpers } from "utils/formUtils";
 import { Fieldset } from "../Fieldset";
 import { AnnouncementBannerSettings } from "./AnnouncementBannerSettings";
-import { Button } from "components/Button/Button";
 
 export type AppearanceSettingsPageViewProps = {
 	appearance: UpdateAppearanceConfig;

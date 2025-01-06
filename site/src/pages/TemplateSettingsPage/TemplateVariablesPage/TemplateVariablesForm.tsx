@@ -4,12 +4,14 @@ import type {
 	TemplateVersionVariable,
 	VariableValue,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { type FormHelpers, getFormHelpers } from "utils/formUtils";
@@ -18,8 +20,6 @@ import {
 	SensitiveVariableHelperText,
 	TemplateVariableField,
 } from "./TemplateVariableField";
-import { Spinner } from "components/Spinner/Spinner";
-import { Button } from "components/Button/Button";
 
 export interface TemplateVariablesForm {
 	templateVersion: TemplateVersion;

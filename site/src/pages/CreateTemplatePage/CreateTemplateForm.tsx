@@ -11,6 +11,7 @@ import type {
 	VariableValue,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -19,6 +20,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -41,8 +43,6 @@ import {
 import * as Yup from "yup";
 import { TemplateUpload, type TemplateUploadProps } from "./TemplateUpload";
 import { VariableInput } from "./VariableInput";
-import { Button } from "components/Button/Button";
-import { Spinner } from "components/Spinner/Spinner";
 
 const MAX_DESCRIPTION_CHAR_LIMIT = 128;
 

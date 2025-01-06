@@ -4,6 +4,7 @@ import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { DurationField } from "components/DurationField/DurationField";
 import {
 	FormFields,
@@ -11,6 +12,7 @@ import {
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
@@ -45,8 +47,6 @@ import {
 	useWorkspacesToBeDeleted,
 	useWorkspacesToGoDormant,
 } from "./useWorkspacesToBeDeleted";
-import { Spinner } from "components/Spinner/Spinner";
-import { Button } from "components/Button/Button";
 
 const MS_HOUR_CONVERSION = 3600000;
 const MS_DAY_CONVERSION = 86400000;

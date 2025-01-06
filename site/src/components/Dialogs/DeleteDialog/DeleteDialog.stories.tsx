@@ -1,8 +1,8 @@
 import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
-import { DeleteDialog } from "./DeleteDialog";
 import { userEvent } from "@storybook/test";
 import { within } from "@testing-library/react";
+import { DeleteDialog } from "./DeleteDialog";
 
 const meta: Meta<typeof DeleteDialog> = {
 	title: "components/Dialogs/DeleteDialog",
