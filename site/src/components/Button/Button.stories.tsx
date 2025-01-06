@@ -20,27 +20,15 @@ type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {};
 
-export const Outline: Story = {
-	args: {
-		variant: "outline",
-	},
-};
-
-export const Subtle: Story = {
-	args: {
-		variant: "subtle",
-	},
-};
-
-export const Warning: Story = {
-	args: {
-		variant: "warning",
-	},
-};
-
 export const DefaultDisabled: Story = {
 	args: {
 		disabled: true,
+	},
+};
+
+export const Outline: Story = {
+	args: {
+		variant: "outline",
 	},
 };
 
@@ -51,9 +39,29 @@ export const OutlineDisabled: Story = {
 	},
 };
 
+export const Subtle: Story = {
+	args: {
+		variant: "subtle",
+	},
+};
+
 export const SubtleDisabled: Story = {
 	args: {
 		variant: "subtle",
+		disabled: true,
+	},
+};
+
+export const Destructive: Story = {
+	args: {
+		variant: "destructive",
+		children: "Delete",
+	},
+};
+
+export const DestructiveDisabled: Story = {
+	args: {
+		...Destructive.args,
 		disabled: true,
 	},
 };

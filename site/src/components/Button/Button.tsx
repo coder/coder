@@ -18,13 +18,13 @@ export const buttonVariants = cva(
 		variants: {
 			variant: {
 				default:
-					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary border-none disabled:bg-surface-secondary",
+					"bg-surface-invert-primary text-content-invert hover:bg-surface-invert-secondary border-none disabled:bg-surface-secondary font-semibold",
 				outline:
 					"border border-border-default text-content-primary bg-transparent hover:bg-surface-secondary",
 				subtle:
 					"border-none bg-transparent text-content-secondary hover:text-content-primary",
-				warning:
-					"border border-border-error text-content-primary bg-surface-error hover:bg-transparent",
+				destructive:
+					"border border-border-destructive text-content-primary bg-surface-destructive hover:bg-transparent disabled:bg-transparent disabled:text-content-disabled font-semibold",
 			},
 
 			size: {
