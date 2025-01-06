@@ -1,7 +1,6 @@
 # External Authentication
 
-Coder supports external authentication via OAuth2.0. This allows enabling
-integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
+Coder supports external authentication via OAuth2.0. This allows enabling any OAuth provider as well as integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
 
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
@@ -34,7 +33,7 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
 
-You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider:
+Add the following code to any template to add a button to the workspace setup page which will allow you to authenticate with your provider:
 
 ```tf
 data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
@@ -53,7 +52,7 @@ Inside your Terraform code, you now have access to authentication variables. Ref
 
 ### Workspace CLI
 
-An access token can be accessed within the workspace by using
+Use `coder external-auth` to access a token within the workspace:
 
 ```shell
 coder external-auth <USER_DEFINED_ID> access-token
@@ -117,37 +116,11 @@ The Redirect URI for Gitea should be
 
 ### GitHub
 
-> If you don't require fine-grained access control, it's easier to configure a
-> GitHub OAuth app!
+<blockquote class="admonition tip">
 
-1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
+If you don't require fine-grained access control, it's easier to [configure a GitHub OAuth app](#configure-a-github-oauth-app).
 
-   - Set the callback URL to
-     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
-   - Deactivate Webhooks.
-   - Enable fine-grained access to specific repositories or a subset of
-     permissions for security.
-
-   ![Register GitHub App](../images/admin/github-app-register.png)
-
-2. Adjust the GitHub app permissions. You can use more or fewer permissions than
-   are listed here, this example allows users to clone
-   repositories:
-
-   ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
-
-   | Name          | Permission   | Description                                            |
-   |---------------|--------------|--------------------------------------------------------|
-   | Contents      | Read & Write | Grants access to code and commit statuses.             |
-   | Pull requests | Read & Write | Grants access to create and update pull requests.      |
-   | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
-   | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
-   | Members       | Read-only    | Grants access to organization members and teams.       |
-
-3. Install the App for your organization. You may select a subset of
-   repositories to grant access to.
-
-   ![Install GitHub App](../images/admin/github-app-install.png)
+</blockquote>
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="USER_DEFINED_ID"
@@ -211,6 +184,39 @@ Optionally, you can request custom scopes:
 ```env
 CODER_EXTERNAL_AUTH_0_SCOPES="repo:read repo:write write:gpg_key"
 ```
+
+## OAuth provider
+
+### Configure a GitHub OAuth app
+
+1. [Create a GitHub App](https://docs.github.com/en/apps/creating-github-apps/registering-a-github-app/registering-a-github-app)
+
+   - Set the callback URL to
+     `https://coder.example.com/external-auth/USER_DEFINED_ID/callback`.
+   - Deactivate Webhooks.
+   - Enable fine-grained access to specific repositories or a subset of
+     permissions for security.
+
+   ![Register GitHub App](../images/admin/github-app-register.png)
+
+1. Adjust the GitHub app permissions. You can use more or fewer permissions than
+   are listed here, this example allows users to clone
+   repositories:
+
+   ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
+
+   | Name          | Permission   | Description                                            |
+   |---------------|--------------|--------------------------------------------------------|
+   | Contents      | Read & Write | Grants access to code and commit statuses.             |
+   | Pull requests | Read & Write | Grants access to create and update pull requests.      |
+   | Workflows     | Read & Write | Grants access to update files in `.github/workflows/`. |
+   | Metadata      | Read-only    | Grants access to metadata written by GitHub Apps.      |
+   | Members       | Read-only    | Grants access to organization members and teams.       |
+
+1. Install the App for your organization. You may select a subset of
+   repositories to grant access to.
+
+   ![Install GitHub App](../images/admin/github-app-install.png)
 
 ## Multiple External Providers
 
