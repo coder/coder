@@ -59,7 +59,11 @@ An access token can be accessed within the workspace by using
 coder external-auth <USER_DEFINED_ID> access-token
 ```
 
-## Azure DevOps
+## Git-provider specific env variables
+
+<div class="tabs">
+
+### Azure DevOps
 
 Azure DevOps requires the following environment variables:
 
@@ -73,7 +77,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/author
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
 ```
 
-## Azure DevOps (via Entra ID)
+### Azure DevOps (via Entra ID)
 
 Azure DevOps (via Entra ID) requires the following environment variables:
 
@@ -87,7 +91,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oa
 
 > Note: Your app registration in Entra ID requires the `vso.code_write` scope
 
-## Bitbucket Server
+### Bitbucket Server
 
 Bitbucket Server requires the following environment variables:
 
@@ -99,7 +103,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
 CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
 ```
 
-## Gitea
+### Gitea
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="gitea"
@@ -113,7 +117,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
 The Redirect URI for Gitea should be
 `https://coder.company.org/external-auth/gitea/callback`.
 
-## GitHub
+### GitHub
 
 > If you don't require fine-grained access control, it's easier to configure a
 > GitHub OAuth app!
@@ -154,7 +158,7 @@ CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
 ```
 
-## GitHub Enterprise
+### GitHub Enterprise
 
 GitHub Enterprise requires the following environment variables:
 
@@ -168,7 +172,7 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
-## GitLab self-managed
+### GitLab self-managed
 
 GitLab self-managed requires the following environment variables:
 
@@ -184,11 +188,11 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
 ```
 
-## JFrog Artifactory
+### JFrog Artifactory
 
 Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
 
-## Self-managed Git providers
+### Self-managed Git providers
 
 Custom authentication and token URLs should be used for self-managed Git
 provider deployments.
@@ -201,6 +205,8 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
 > Note: The `REGEX` variable must be set if using a custom git domain.
+
+</div>
 
 ## Custom scopes
 
