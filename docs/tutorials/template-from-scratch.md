@@ -99,6 +99,9 @@ provider "coder" {
 
 data "coder_workspace" "me" {
 }
+
+data "coder_workspace_owner" "me" {
+}
 ```
 
 Notice that the `provider` blocks for `coder` and `docker` are empty. In a more
