@@ -26,6 +26,12 @@ export const DefaultDisabled: Story = {
 	},
 };
 
+export const DefaultSmall: Story = {
+	args: {
+		size: "sm",
+	},
+};
+
 export const Outline: Story = {
 	args: {
 		variant: "outline",
@@ -36,6 +42,13 @@ export const OutlineDisabled: Story = {
 	args: {
 		variant: "outline",
 		disabled: true,
+	},
+};
+
+export const OutlineSmall: Story = {
+	args: {
+		variant: "outline",
+		size: "sm",
 	},
 };
 
@@ -52,6 +65,13 @@ export const SubtleDisabled: Story = {
 	},
 };
 
+export const SubtleSmall: Story = {
+	args: {
+		variant: "subtle",
+		size: "sm",
+	},
+};
+
 export const Destructive: Story = {
 	args: {
 		variant: "destructive",
@@ -63,6 +83,13 @@ export const DestructiveDisabled: Story = {
 	args: {
 		...Destructive.args,
 		disabled: true,
+	},
+};
+
+export const DestructiveSmall: Story = {
+	args: {
+		...Destructive.args,
+		size: "sm",
 	},
 };
 
