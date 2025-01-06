@@ -80,10 +80,12 @@ func New(workdir string, opts ...Option) (*Parser, tfconfig.Diagnostics) {
 }
 
 // WorkspaceTags looks for all coder_workspace_tags datasource in the module
-// and returns the raw values for the tags. Use
-func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
+// and returns the raw values for the tags. It also returns the set of
+// variables referenced by any expressions in the raw values of tags.
+func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, map[string]struct{}, error) {
 	tags := map[string]string{}
-	var skipped []string
+	skipped := []string{}
+	requiredVars := map[string]struct{}{}
 	for _, dataResource := range p.module.DataResources {
 		if dataResource.Type != "coder_workspace_tags" {
 			skipped = append(skipped, strings.Join([]string{"data", dataResource.Type, dataResource.Name}, "."))
@@ -99,13 +101,13 @@ func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
 		// We know in which HCL file is the data resource defined.
 		file, diags = p.underlying.ParseHCLFile(dataResource.Pos.Filename)
 		if diags.HasErrors() {
-			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+			return nil, nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
 
 		// Parse root to find "coder_workspace_tags".
 		content, _, diags := file.Body.PartialContent(rootTemplateSchema)
 		if diags.HasErrors() {
-			return nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
+			return nil, nil, xerrors.Errorf("can't parse the resource file: %s", diags.Error())
 		}
 
 		// Iterate over blocks to locate the exact "coder_workspace_tags" data resource.
@@ -117,7 +119,7 @@ func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
 			// Parse "coder_workspace_tags" to find all key-value tags.
 			resContent, _, diags := block.Body.PartialContent(coderWorkspaceTagsSchema)
 			if diags.HasErrors() {
-				return nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
+				return nil, nil, xerrors.Errorf(`can't parse the resource coder_workspace_tags: %s`, diags.Error())
 			}
 
 			if resContent == nil {
@@ -125,45 +127,97 @@ func (p *Parser) WorkspaceTags(ctx context.Context) (map[string]string, error) {
 			}
 
 			if _, ok := resContent.Attributes["tags"]; !ok {
-				return nil, xerrors.Errorf(`"tags" attribute is required by coder_workspace_tags`)
+				return nil, nil, xerrors.Errorf(`"tags" attribute is required by coder_workspace_tags`)
 			}
 
 			expr := resContent.Attributes["tags"].Expr
 			tagsExpr, ok := expr.(*hclsyntax.ObjectConsExpr)
 			if !ok {
-				return nil, xerrors.Errorf(`"tags" attribute is expected to be a key-value map`)
+				return nil, nil, xerrors.Errorf(`"tags" attribute is expected to be a key-value map`)
 			}
 
 			// Parse key-value entries in "coder_workspace_tags"
 			for _, tagItem := range tagsExpr.Items {
 				key, err := previewFileContent(tagItem.KeyExpr.Range())
 				if err != nil {
-					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
+					return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
 				key = strings.Trim(key, `"`)
 
 				value, err := previewFileContent(tagItem.ValueExpr.Range())
 				if err != nil {
-					return nil, xerrors.Errorf("can't preview the resource file: %v", err)
+					return nil, nil, xerrors.Errorf("can't preview the resource file: %v", err)
 				}
 
 				if _, ok := tags[key]; ok {
-					return nil, xerrors.Errorf(`workspace tag %q is defined multiple times`, key)
+					return nil, nil, xerrors.Errorf(`workspace tag %q is defined multiple times`, key)
 				}
 				tags[key] = value
+
+				// Find values referenced by the expression.
+				refVars := referencedVariablesExpr(tagItem.ValueExpr)
+				for _, refVar := range refVars {
+					requiredVars[refVar] = struct{}{}
+				}
 			}
 		}
 	}
-	p.logger.Debug(ctx, "found workspace tags", slog.F("tags", maps.Keys(tags)), slog.F("skipped", skipped))
-	return tags, nil
+
+	requiredVarNames := maps.Keys(requiredVars)
+	slices.Sort(requiredVarNames)
+	p.logger.Debug(ctx, "found workspace tags", slog.F("tags", maps.Keys(tags)), slog.F("skipped", skipped), slog.F("required_vars", requiredVarNames))
+	return tags, requiredVars, nil
+}
+
+// referencedVariablesExpr determines the variables referenced in expr
+// and returns the names of those variables.
+func referencedVariablesExpr(expr hclsyntax.Expression) (names []string) {
+	var parts []string
+	for _, expVar := range expr.Variables() {
+		for _, tr := range expVar {
+			switch v := tr.(type) {
+			case hcl.TraverseRoot:
+				parts = append(parts, v.Name)
+			case hcl.TraverseAttr:
+				parts = append(parts, v.Name)
+			default: // skip
+			}
+		}
+
+		cleaned := cleanupTraversalName(parts)
+		names = append(names, strings.Join(cleaned, "."))
+	}
+	return names
+}
+
+// cleanupTraversalName chops off extraneous pieces of the traversal.
+// for example:
+// - var.foo -> unchanged
+// - data.coder_parameter.bar.value -> data.coder_parameter.bar
+// - null_resource.baz.zap -> null_resource.baz
+func cleanupTraversalName(parts []string) []string {
+	if len(parts) == 0 {
+		return parts
+	}
+	if len(parts) > 3 && parts[0] == "data" {
+		return parts[:3]
+	}
+	if len(parts) > 2 {
+		return parts[:2]
+	}
+	return parts
 }
 
 func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, error) {
 	// This only gets us the expressions. We need to evaluate them.
 	// Example: var.region -> "us"
-	tags, err := p.WorkspaceTags(ctx)
+	tags, requiredVars, err := p.WorkspaceTags(ctx)
 	if err != nil {
 		return nil, xerrors.Errorf("extract workspace tags: %w", err)
+	}
+
+	if len(tags) == 0 {
+		return map[string]string{}, nil
 	}
 
 	// To evaluate the expressions, we need to load the default values for
@@ -172,7 +226,7 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 	if err != nil {
 		return nil, xerrors.Errorf("load variable defaults: %w", err)
 	}
-	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults)
+	paramsDefaults, err := p.CoderParameterDefaults(ctx, varsDefaults, requiredVars)
 	if err != nil {
 		return nil, xerrors.Errorf("load parameter defaults: %w", err)
 	}
@@ -247,10 +301,10 @@ func WriteArchive(bs []byte, mimetype string, path string) error {
 	return nil
 }
 
-// VariableDefaults returns the default values for all variables passed to it.
+// VariableDefaults returns the default values for all variables in the module.
 func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error) {
 	// iterate through vars to get the default values for all
-	// variables.
+	// required variables.
 	m := make(map[string]string)
 	for _, v := range p.module.Variables {
 		if v == nil {
@@ -268,7 +322,7 @@ func (p *Parser) VariableDefaults(ctx context.Context) (map[string]string, error
 
 // CoderParameterDefaults returns the default values of all coder_parameter data sources
 // in the parsed module.
-func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string) (map[string]string, error) {
+func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[string]string, names map[string]struct{}) (map[string]string, error) {
 	defaultsM := make(map[string]string)
 	var (
 		skipped []string
@@ -281,12 +335,18 @@ func (p *Parser) CoderParameterDefaults(ctx context.Context, varsDefaults map[st
 			continue
 		}
 
-		if dataResource.Type != "coder_parameter" {
-			skipped = append(skipped, strings.Join([]string{"data", dataResource.Type, dataResource.Name}, "."))
+		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
 			continue
 		}
 
-		if !strings.HasSuffix(dataResource.Pos.Filename, ".tf") {
+		needle := strings.Join([]string{"data", dataResource.Type, dataResource.Name}, ".")
+		if dataResource.Type != "coder_parameter" {
+			skipped = append(skipped, needle)
+			continue
+		}
+
+		if _, found := names[needle]; !found {
+			skipped = append(skipped, needle)
 			continue
 		}
 
@@ -538,7 +598,11 @@ func interfaceToString(i interface{}) (string, error) {
 		return strconv.FormatFloat(v, 'f', -1, 64), nil
 	case bool:
 		return strconv.FormatBool(v), nil
-	default:
-		return "", xerrors.Errorf("unsupported type %T", v)
+	default: // just try to JSON-encode it.
+		var sb strings.Builder
+		if err := json.NewEncoder(&sb).Encode(i); err != nil {
+			return "", xerrors.Errorf("convert %T: %w", v, err)
+		}
+		return strings.TrimSpace(sb.String()), nil
 	}
 }
