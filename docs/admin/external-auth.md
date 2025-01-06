@@ -15,10 +15,9 @@ application. The following providers are supported:
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
 
-The next step is to configure the Coder server to use the OAuth application by
-setting the following environment variables:
-
 ## Configuration
+
+After you create an OAuth application, set environment variables to configure the Coder server to use it:
 
 ```env
 CODER_EXTERNAL_AUTH_0_ID="<USER_DEFINED_ID>"
@@ -35,7 +34,7 @@ The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
 reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
 GitHub provider).
 
-You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider.
+You can now add the following code to any template. This will add a button to the workspace setup page which will allow you to authenticate with your provider:
 
 ```tf
 data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
@@ -50,7 +49,7 @@ data "coder_external_auth" "github" {
 
 ```
 
-Inside your terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
+Inside your Terraform code, you now have access to authentication variables. Reference the documentation for your chosen provider for more information on how to supply it with a token.
 
 ### Workspace CLI
 
@@ -59,6 +58,60 @@ An access token can be accessed within the workspace by using
 ```shell
 coder external-auth <USER_DEFINED_ID> access-token
 ```
+
+## Azure DevOps
+
+Azure DevOps requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
+CODER_EXTERNAL_AUTH_0_TYPE=azure-devops
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+# Ensure this value is your "Client Secret", not "App Secret"
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
+CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
+```
+
+## Azure DevOps (via Entra ID)
+
+Azure DevOps (via Entra ID) requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
+CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
+```
+
+> Note: Your app registration in Entra ID requires the `vso.code_write` scope
+
+## Bitbucket Server
+
+Bitbucket Server requires the following environment variables:
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
+CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
+CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
+```
+
+## Gitea
+
+```env
+CODER_EXTERNAL_AUTH_0_ID="gitea"
+CODER_EXTERNAL_AUTH_0_TYPE=gitea
+CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
+CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
+# If self managed, set the Auth URL to your Gitea instance
+CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
+```
+
+The Redirect URI for Gitea should be
+`https://coder.company.org/external-auth/gitea/callback`.
 
 ## GitHub
 
@@ -75,8 +128,8 @@ coder external-auth <USER_DEFINED_ID> access-token
 
    ![Register GitHub App](../images/admin/github-app-register.png)
 
-2. Adjust the GitHub App permissions. You can use more or less permissions than
-   are listed here, this is merely a suggestion that allows users to clone
+2. Adjust the GitHub app permissions. You can use more or fewer permissions than
+   are listed here, this example allows users to clone
    repositories:
 
    ![Adjust GitHub App Permissions](../images/admin/github-app-permissions.png)
@@ -115,46 +168,6 @@ CODER_EXTERNAL_AUTH_0_AUTH_URL="https://github.example.com/login/oauth/authorize
 CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://github.example.com/login/oauth/access_token"
 ```
 
-## Bitbucket Server
-
-Bitbucket Server requires the following environment variables:
-
-```env
-CODER_EXTERNAL_AUTH_0_ID="primary-bitbucket-server"
-CODER_EXTERNAL_AUTH_0_TYPE=bitbucket-server
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL=https://bitbucket.domain.com/rest/oauth2/latest/authorize
-```
-
-## Azure DevOps
-
-Azure DevOps requires the following environment variables:
-
-```env
-CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
-CODER_EXTERNAL_AUTH_0_TYPE=azure-devops
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-# Ensure this value is your "Client Secret", not "App Secret"
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://app.vssps.visualstudio.com/oauth2/authorize"
-CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://app.vssps.visualstudio.com/oauth2/token"
-```
-
-## Azure DevOps (via Entra ID)
-
-Azure DevOps (via Entra ID) requires the following environment variables:
-
-```env
-CODER_EXTERNAL_AUTH_0_ID="primary-azure-devops"
-CODER_EXTERNAL_AUTH_0_TYPE=azure-devops-entra
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://login.microsoftonline.com/<TENANT ID>/oauth2/authorize"
-```
-
-> Note: Your app registration in Entra ID requires the `vso.code_write` scope
-
 ## GitLab self-managed
 
 GitLab self-managed requires the following environment variables:
@@ -171,21 +184,11 @@ CODER_EXTERNAL_AUTH_0_TOKEN_URL="https://gitlab.company.org/oauth/token"
 CODER_EXTERNAL_AUTH_0_REGEX=gitlab\.company\.org
 ```
 
-## Gitea
+## JFrog Artifactory
 
-```env
-CODER_EXTERNAL_AUTH_0_ID="gitea"
-CODER_EXTERNAL_AUTH_0_TYPE=gitea
-CODER_EXTERNAL_AUTH_0_CLIENT_ID=xxxxxxx
-CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=xxxxxxx
-# If self managed, set the Auth URL to your Gitea instance
-CODER_EXTERNAL_AUTH_0_AUTH_URL="https://gitea.com/login/oauth/authorize"
-```
+Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
 
-The Redirect URI for Gitea should be
-`https://coder.company.org/external-auth/gitea/callback`.
-
-## Self-managed git providers
+## Self-managed Git providers
 
 Custom authentication and token URLs should be used for self-managed Git
 provider deployments.
@@ -198,10 +201,6 @@ CODER_EXTERNAL_AUTH_0_REGEX=github\.company\.org
 ```
 
 > Note: The `REGEX` variable must be set if using a custom git domain.
-
-## JFrog Artifactory
-
-Visit the [JFrog Artifactory](../admin/integrations/jfrog-artifactory.md) guide for instructions on how to set up for JFrog Artifactory.
 
 ## Custom scopes
 
