@@ -422,7 +422,7 @@ require (
 	github.com/yashtewari/glob-intersection v0.2.0 // indirect
 	github.com/yuin/goldmark v1.7.8 // indirect
 	github.com/yuin/goldmark-emoji v1.0.4 // indirect
-	github.com/zclconf/go-cty v1.15.1
+	github.com/zclconf/go-cty v1.16.0
 	github.com/zeebo/errs v1.3.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/contrib v1.19.0 // indirect
