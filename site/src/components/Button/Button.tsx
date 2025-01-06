@@ -13,7 +13,7 @@ export const buttonVariants = cva(
 	text-sm font-semibold font-medium  cursor-pointer no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled
-	[&_svg]:pointer-events-none [&_svg]:shrink-0`,
+	[&_svg]:pointer-events-none [&_svg]:shrink-0 [&_svg]:p-[2px]`,
 	{
 		variants: {
 			variant: {
