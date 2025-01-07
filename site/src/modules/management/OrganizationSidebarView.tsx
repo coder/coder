@@ -150,7 +150,7 @@ const OrganizationsSettingsNavigation: FC<
 											<hr className="h-px my-2 border-none bg-border -mx-2" />
 										)}
 										<CommandItem
-											className="flex justify-center"
+											className="flex justify-center data-[selected=true]:bg-transparent"
 											onSelect={() => {
 												setIsPopoverOpen(false);
 												navigate("/organizations/new");
