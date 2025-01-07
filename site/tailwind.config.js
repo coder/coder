@@ -42,11 +42,11 @@ module.exports = {
 						primary: "hsl(var(--surface-invert-primary))",
 						secondary: "hsl(var(--surface-invert-secondary))",
 					},
-					error: "hsl(var(--surface-error))",
+					destructive: "hsl(var(--surface-destructive))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
-					error: "hsl(var(--border-error))",
+					destructive: "hsl(var(--border-destructive))",
 				},
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",

@@ -3,6 +3,7 @@ import { isApiValidationError } from "api/errors";
 import type { CreateOrganizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Badges, PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	FormFields,
@@ -14,6 +15,7 @@ import { IconField } from "components/IconField/IconField";
 import { Paywall } from "components/Paywall/Paywall";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
@@ -154,7 +156,13 @@ export const CreateOrganizationPageView: FC<
 								</FormFields>
 							</fieldset>
 						</FormSection>
-						<FormFooter isLoading={form.isSubmitting} />
+
+						<FormFooter>
+							<Button type="submit" disabled={form.isSubmitting}>
+								{form.isSubmitting && <Spinner />}
+								Save
+							</Button>
+						</FormFooter>
 					</HorizontalForm>
 				</Cond>
 			</ChooseOne>

@@ -34,7 +34,7 @@ test("create group", async ({ page }) => {
 	const displayName = `Group ${name}`;
 	await page.getByLabel("Display Name").fill(displayName);
 	await page.getByLabel("Avatar URL").fill("/emojis/1f60d.png");
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${name}`,
@@ -91,7 +91,7 @@ test("change quota settings", async ({ page }) => {
 
 	// Update Quota
 	await page.getByLabel("Quota Allowance").fill("100");
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	// We should get sent back to the group page afterwards
 	expectUrl(page).toHavePathName(

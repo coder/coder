@@ -23,7 +23,7 @@ test("create and delete organization", async ({ page }) => {
 	await page.getByLabel("Display name").fill(`Org ${name}`);
 	await page.getByLabel("Description").fill(`Org description ${name}`);
 	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	// Expect to be redirected to the new organization
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
@@ -32,7 +32,7 @@ test("create and delete organization", async ({ page }) => {
 	const newName = randomName();
 	await page.getByLabel("Slug").fill(newName);
 	await page.getByLabel("Description").fill(`Org description ${newName}`);
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	// Expect to be redirected when renaming the organization
 	await expectUrl(page).toHavePathName(`/organizations/${newName}`);

@@ -288,7 +288,7 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostopToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
 			const dialog = await screen.findByText("Restart workspace?");
@@ -309,7 +309,7 @@ describe("WorkspaceSchedulePage", () => {
 			);
 			await user.click(autostartToggle);
 			const submitButton = await screen.findByRole("button", {
-				name: /submit/i,
+				name: /save/i,
 			});
 			await user.click(submitButton);
 			const dialog = screen.queryByText("Restart workspace?");

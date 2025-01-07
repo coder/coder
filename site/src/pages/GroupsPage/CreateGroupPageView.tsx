@@ -2,10 +2,12 @@ import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FormFooter } from "components/FormFooter/FormFooter";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
@@ -76,7 +78,17 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
 					</Stack>
-					<FormFooter onCancel={onCancel} isLoading={isLoading} />
+
+					<FormFooter className="mt-8">
+						<Button onClick={onCancel} variant="outline">
+							Cancel
+						</Button>
+
+						<Button type="submit" disabled={isLoading}>
+							{isLoading && <Spinner />}
+							Save
+						</Button>
+					</FormFooter>
 				</form>
 			</FullPageForm>
 		</Margins>
