@@ -7,13 +7,15 @@ see the
 
 ## Configuration Steps
 
-The Coder team built a POC of the JetBrains Gateway Offline Mode solution. Here
-are the steps we took (and "gotchas"):
+This page is an example that the Coder team used as a proof-of-concept (POC) of the JetBrains Gateway Offline Mode solution.
+
+We used Ubuntu on a virtual machine to test the steps.
+If you have a suggestion or encounter an issue, please
+[file a GitHub issue](https://github.com/coder/coder/issues/new?title=request%28docs%29%3A+jetbrains-airgapped+-+request+title+here%0D%0A&labels=["community","docs"]&body=doc%3A+%5Bjetbrains-airgapped%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fuser-guides%2Fworkspace-access%2Fjetbrains%2Fjetbrains-airgapped%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A).
 
 ## 1. Deploy the server and install the Client Downloader
 
-We deployed a simple Ubuntu VM and installed the JetBrains Client Downloader
-binary. Note that the server must be a Linux-based distribution.
+Install the JetBrains Client Downloader binary. Note that the server must be a Linux-based distribution:
 
 ```shell
 wget https://download.jetbrains.com/idea/code-with-me/backend/jetbrains-clients-downloader-linux-x86_64-1867.tar.gz && \
@@ -106,6 +108,8 @@ https://internal.site/KEYS
 
 The location of these files will depend upon your local operating system:
 
+<div class="tabs">
+
 ### macOS
 
 ```console
@@ -137,6 +141,8 @@ Additionally, create a string for each setting with its appropriate value in
 `SOFTWARE\JetBrains\RemoteDev`:
 
 ![JetBrains offline - Windows](../../../images/gateway/jetbrains-offline-windows.png)
+
+</div>
 
 ## 5. Setup SSH connection with JetBrains Gateway
 

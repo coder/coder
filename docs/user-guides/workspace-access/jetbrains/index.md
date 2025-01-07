@@ -193,7 +193,7 @@ Use the `keytool` included in the JetBrains Gateway installation:
    ![Gateway Choose IDE](../../../images/gateway/gateway-choose-ide.png)
 
    > Note the JetBrains IDE is remotely installed into
-   > `~/. cache/JetBrains/RemoteDev/dist`
+   > `~/.cache/JetBrains/RemoteDev/dist`
 
 1. Click **Download and Start IDE** to connect.
 
