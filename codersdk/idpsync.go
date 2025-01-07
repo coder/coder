@@ -163,3 +163,31 @@ func (c *Client) GetOrganizationAvailableIDPSyncFields(ctx context.Context, orgI
 	var resp []string
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
+
+func (c *Client) GetIDPSyncFieldValues(ctx context.Context, claimField string) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/settings/idpsync/field-values?claimField=%s", claimField), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []string
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+func (c *Client) GetOrganizationIDPSyncFieldValues(ctx context.Context, orgID string, claimField string) ([]string, error) {
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/field-values?claimField=%s", orgID, claimField), nil)
+	if err != nil {
+		return nil, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return nil, ReadBodyAsError(res)
+	}
+	var resp []string
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}

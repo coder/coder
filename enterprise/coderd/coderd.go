@@ -297,6 +297,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 					r.Patch("/", api.patchOrganizationIDPSyncSettings)
 				})
 				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
+				r.Get("/field-values", api.deploymentIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -311,6 +312,13 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
+				// r.Route("/idpsync/field-values/{claimField}", func(r chi.Router) {
+				// 	r.Use(
+				// 		httpmw.ExtractClaimFieldParam(api.Database),
+				// 	)
+				// 	r.Get("/", api.organizationIDPSyncClaimFieldValues)
+				// })
 			})
 		})
 
