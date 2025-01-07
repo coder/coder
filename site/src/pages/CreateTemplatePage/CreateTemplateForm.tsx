@@ -358,7 +358,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
 					{isSubmitting && <Spinner />}
-					{jobError ? "Retry" : "Create template"}
+					{jobError ? "Retry" : "Save"}
 				</Button>
 				{logs && (
 					<button
