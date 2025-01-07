@@ -737,6 +737,8 @@ func (b *Builder) getProvisionerTags() (map[string]string, error) {
 	// FIXME: what do we do with locals? Do we add a dependency on extracting files to disk
 	// inside this critical path, or should we store the locals in the database similarly to
 	// parameters / variables?
+	// Answer: locals can end up referring to _anything_. We'll need to extract them inside this
+	// critical path. To make it less terrible we can probably
 	var localsM map[string]cty.Value
 	{
 		tempDir, err := os.MkdirTemp(os.TempDir(), "wsbuilder-tfparse-XXXX")
