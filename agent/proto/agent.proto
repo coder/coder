@@ -24,7 +24,6 @@ message WorkspaceApp {
 		AUTHENTICATED = 2;
 		PUBLIC = 3;
 	}
-
 	SharingLevel sharing_level = 10;
 
 	message Healthcheck {

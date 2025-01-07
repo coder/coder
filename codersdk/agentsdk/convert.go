@@ -267,7 +267,6 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	if !ok {
 		return nil, xerrors.Errorf("unknown health %s", a.Health)
 	}
-
 	return &proto.WorkspaceApp{
 		Id:            a.ID[:],
 		Url:           a.URL,
