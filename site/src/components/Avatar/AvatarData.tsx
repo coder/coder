@@ -37,23 +37,10 @@ export const AvatarData: FC<AvatarDataProps> = ({
 	}
 
 	return (
-		<Stack
-			spacing={1}
-			direction="row"
-			css={{
-				minHeight: 40, // Make it predictable for the skeleton
-				width: "100%",
-				lineHeight: "150%",
-			}}
-		>
+		<Stack spacing={1} direction="row" className="w-full">
 			{avatar}
 
-			<Stack
-				spacing={0}
-				css={{
-					width: "100%",
-				}}
-			>
+			<Stack spacing={0} className="w-full">
 				<span
 					css={{
 						color: theme.palette.text.primary,
