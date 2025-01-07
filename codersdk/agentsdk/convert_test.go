@@ -45,7 +45,6 @@ func TestManifest(t *testing.T) {
 				},
 				Health: codersdk.WorkspaceAppHealthHealthy,
 				Hidden: false,
-				OpenIn: codersdk.WorkspaceAppOpenInSlimWindow,
 			},
 			{
 				ID:            uuid.New(),
@@ -65,7 +64,6 @@ func TestManifest(t *testing.T) {
 				},
 				Health: codersdk.WorkspaceAppHealthInitializing,
 				Hidden: true,
-				OpenIn: codersdk.WorkspaceAppOpenInTab,
 			},
 		},
 		DERPMap: &tailcfg.DERPMap{
