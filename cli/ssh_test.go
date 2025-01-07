@@ -145,6 +145,65 @@ func TestSSH(t *testing.T) {
 		pty.WriteLine("exit")
 		<-cmdDone
 	})
+	t.Run("StartStoppedWorkspaceConflict", func(t *testing.T) {
+		t.Parallel()
+
+		authToken := uuid.NewString()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancel()
+
+		type proc struct {
+			stdout bytes.Buffer
+			pty    *ptytest.PTY
+			err    chan error
+		}
+		procs := make([]proc, 3)
+		for i := range procs {
+			// SSH to the workspace which should autostart it
+			inv, root := clitest.New(t, "ssh", workspace.Name)
+
+			proc := proc{
+				pty: ptytest.New(t).Attach(inv),
+				err: make(chan error, 1),
+			}
+			procs[i] = proc
+			inv.Stdout = io.MultiWriter(proc.pty.Output(), &proc.stdout)
+			clitest.SetupConfig(t, client, root)
+			clitest.StartWithAssert(t, inv, func(*testing.T, error) {
+				// Noop.
+			})
+		}
+
+		var foundConflict int
+		for _, proc := range procs {
+			// Either allow the command to start the workspace or fail
+			// due to conflict (race), in which case it retries.
+			match := proc.pty.ExpectRegexMatchContext(ctx, "(Waiting for the workspace agent to connect|Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...)")
+			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
+				foundConflict++
+				// It should retry without autostart.
+				proc.pty.ExpectMatchContext(ctx, "Waiting for the workspace agent to connect")
+			}
+		}
+		// TODO(mafredri): Remove this if it's racy.
+		require.Greater(t, foundConflict, 0, "expected at least one conflict")
+	})
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
 
