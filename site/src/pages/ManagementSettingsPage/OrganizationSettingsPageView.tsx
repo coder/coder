@@ -120,7 +120,7 @@ export const OrganizationSettingsPageView: FC<
 				<FormFooter>
 					<Button type="submit" disabled={form.isSubmitting}>
 						{form.isSubmitting && <Spinner />}
-						Save settings
+						Save
 					</Button>
 				</FormFooter>
 			</HorizontalForm>

@@ -98,7 +98,7 @@ const fillAndSubmitForm = async ({
 		await userEvent.click(allowCancelJobsField);
 	}
 
-	const submitButton = await screen.findByText(/save settings/i);
+	const submitButton = await screen.findByText(/save/i);
 	await userEvent.click(submitButton);
 };
 
@@ -171,7 +171,7 @@ describe("TemplateSettingsPage", () => {
 			const deprecationMessage = "This template is deprecated";
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate(MockTemplate, deprecationMessage);
+			await deprecateTemplate(deprecationMessage);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -195,10 +195,7 @@ describe("TemplateSettingsPage", () => {
 			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate(
-				MockTemplate,
-				"This template should not be able to deprecate",
-			);
+			await deprecateTemplate("This template should not be able to deprecate");
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -210,10 +207,9 @@ describe("TemplateSettingsPage", () => {
 	});
 });
 
-async function deprecateTemplate(template: Template, message: string) {
+async function deprecateTemplate(message: string) {
 	const deprecationField = screen.getByLabelText("Deprecation Message");
 	await userEvent.type(deprecationField, message);
-
-	const submitButton = await screen.findByText(/save settings/i);
+	const submitButton = await screen.findByRole("button", { name: /save/i });
 	await userEvent.click(submitButton);
 }

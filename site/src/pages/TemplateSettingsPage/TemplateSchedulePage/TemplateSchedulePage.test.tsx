@@ -99,7 +99,7 @@ const fillAndSubmitForm = async ({
 	}
 
 	const submitButton = screen.getByRole("button", {
-		name: /save settings/i,
+		name: /save/i,
 	});
 
 	expect(submitButton).not.toBeDisabled();

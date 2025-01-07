@@ -631,7 +631,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 			)}
 
 			<FormFooter>
-				<Button type="button" onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} variant="outline">
 					Cancel
 				</Button>
 
@@ -640,7 +640,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					disabled={isSubmitting || !form.isValid || !form.dirty}
 				>
 					{isSubmitting && <Spinner />}
-					Save settings
+					Save
 				</Button>
 			</FormFooter>
 		</HorizontalForm>

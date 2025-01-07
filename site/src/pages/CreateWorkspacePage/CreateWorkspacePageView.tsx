@@ -315,10 +315,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				)}
 
 				<FormFooter>
-					<Button onClick={onCancel} type="button" variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
-					<Button disabled={creatingWorkspace || !hasAllRequiredExternalAuth}>
+					<Button
+						type="submit"
+						disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
+					>
 						{creatingWorkspace && <Spinner />}
 						Create workspace
 					</Button>

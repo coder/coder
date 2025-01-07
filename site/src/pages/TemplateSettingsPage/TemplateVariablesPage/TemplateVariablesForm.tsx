@@ -109,13 +109,13 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 			})}
 
 			<FormFooter>
-				<Button type="button" onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} variant="outline">
 					Cancel
 				</Button>
 
 				<Button type="submit" disabled={isSubmitting}>
 					{isSubmitting && <Spinner />}
-					Save settings
+					Save
 				</Button>
 			</FormFooter>
 		</HorizontalForm>

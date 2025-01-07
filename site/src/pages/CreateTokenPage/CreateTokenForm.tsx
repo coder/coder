@@ -148,14 +148,10 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 			</FormSection>
 
 			<FormFooter>
-				<Button
-					onClick={() => navigate("/settings/tokens")}
-					type="button"
-					variant="outline"
-				>
+				<Button onClick={() => navigate("/settings/tokens")} variant="outline">
 					Cancel
 				</Button>
-				<Button disabled={isCreating}>
+				<Button type="submit" disabled={isCreating}>
 					{isCreating && <Spinner />}
 					{creationFailed ? "Retry" : "Create token"}
 				</Button>

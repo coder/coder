@@ -34,7 +34,7 @@ test("create group", async ({ page }) => {
 	const displayName = `Group ${name}`;
 	await page.getByLabel("Display Name").fill(displayName);
 	await page.getByLabel("Avatar URL").fill("/emojis/1f60d.png");
-	await page.getByRole("button", { name: "Create group" }).click();
+	await page.getByRole("button", { name: "Save" }).click();
 
 	await expectUrl(page).toHavePathName(
 		`/organizations/${org.name}/groups/${name}`,

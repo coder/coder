@@ -88,13 +88,13 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 				</FormSection>
 
 				<FormFooter>
-					<Button type="button" onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
 
 					<Button type="submit" disabled={isLoading}>
 						{isLoading && <Spinner />}
-						Create group
+						Save
 					</Button>
 				</FormFooter>
 			</HorizontalForm>

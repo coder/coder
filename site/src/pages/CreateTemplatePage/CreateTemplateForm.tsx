@@ -353,10 +353,10 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 			)}
 
 			<FormFooter>
-				<Button onClick={onCancel} type="button" variant="outline">
+				<Button onClick={onCancel} variant="outline">
 					Cancel
 				</Button>
-				<Button disabled={isSubmitting}>
+				<Button type="submit" disabled={isSubmitting}>
 					{isSubmitting && <Spinner />}
 					{jobError ? "Retry" : "Create template"}
 				</Button>

@@ -157,7 +157,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 				)}
 
 				<FormFooter>
-					<Button type="button" onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
 

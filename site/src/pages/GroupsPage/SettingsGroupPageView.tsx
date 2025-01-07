@@ -108,13 +108,13 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</Stack>
 
 				<FormFooter>
-					<Button type="button" onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
 
 					<Button type="submit" disabled={isLoading}>
 						{isLoading && <Spinner />}
-						Save settings
+						Save
 					</Button>
 				</FormFooter>
 			</form>

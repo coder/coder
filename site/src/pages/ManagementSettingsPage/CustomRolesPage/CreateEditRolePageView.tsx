@@ -136,7 +136,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 				</FormFields>
 				{canAssignOrgRole && (
 					<FormFooter>
-						<Button type="button" onClick={onCancel} variant="outline">
+						<Button onClick={onCancel} variant="outline">
 							Cancel
 						</Button>
 

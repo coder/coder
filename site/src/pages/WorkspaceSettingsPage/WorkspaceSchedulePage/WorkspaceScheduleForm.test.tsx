@@ -417,7 +417,7 @@ test("form should be enabled when both auto stop and auto start features are dis
 	);
 
 	const submitButton = await screen.findByRole("button", {
-		name: /save settings/i,
+		name: /save/i,
 	});
 	expect(submitButton).toBeEnabled();
 });
@@ -435,7 +435,7 @@ test("form should be disabled when both auto stop and auto start features are di
 	render(<WorkspaceScheduleForm {...props} />);
 
 	const submitButton = await screen.findByRole("button", {
-		name: /save settings/i,
+		name: /save/i,
 	});
 	expect(submitButton).toBeDisabled();
 });

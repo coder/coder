@@ -160,7 +160,7 @@ export const CreateOrganizationPageView: FC<
 						<FormFooter>
 							<Button type="submit" disabled={form.isSubmitting}>
 								{form.isSubmitting && <Spinner />}
-								Create organization
+								Save
 							</Button>
 						</FormFooter>
 					</HorizontalForm>

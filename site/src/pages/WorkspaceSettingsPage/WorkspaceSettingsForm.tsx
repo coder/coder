@@ -118,13 +118,13 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 			</FormSection>
 			{formEnabled && (
 				<FormFooter>
-					<Button type="button" onClick={onCancel} variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
 
 					<Button type="submit" disabled={form.isSubmitting}>
 						{form.isSubmitting && <Spinner />}
-						Save settings
+						Save
 					</Button>
 				</FormFooter>
 			)}

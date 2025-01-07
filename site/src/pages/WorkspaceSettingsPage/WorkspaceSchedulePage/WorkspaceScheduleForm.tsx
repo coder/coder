@@ -445,7 +445,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 			</FormSection>
 
 			<FormFooter>
-				<Button type="button" onClick={onCancel} variant="outline">
+				<Button onClick={onCancel} variant="outline">
 					Cancel
 				</Button>
 
@@ -457,7 +457,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					}
 				>
 					{isLoading && <Spinner />}
-					Save settings
+					Save
 				</Button>
 			</FormFooter>
 		</HorizontalForm>

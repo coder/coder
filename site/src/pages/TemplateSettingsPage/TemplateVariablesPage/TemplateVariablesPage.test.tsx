@@ -99,7 +99,7 @@ describe("TemplateVariablesPage", () => {
 		await userEvent.type(secondVariableField, validFormValues.second_variable);
 
 		// Submit the form
-		const submitButton = await screen.findByText(/save settings/i);
+		const submitButton = await screen.findByText(/save/i);
 		await userEvent.click(submitButton);
 		// Wait for the success message
 		await delay(1500);

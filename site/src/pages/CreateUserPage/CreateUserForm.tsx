@@ -206,12 +206,12 @@ export const CreateUserForm: FC<
 				</Stack>
 
 				<FormFooter className="mt-8">
-					<Button onClick={onCancel} type="button" variant="outline">
+					<Button onClick={onCancel} variant="outline">
 						Cancel
 					</Button>
-					<Button disabled={isLoading}>
+					<Button type="submit" disabled={isLoading}>
 						{isLoading && <Spinner />}
-						Create user
+						Save
 					</Button>
 				</FormFooter>
 			</form>
