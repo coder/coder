@@ -237,18 +237,6 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app health: %v (%q)", protoApp.Health, protoApp.Health.String())
 	}
 
-	var openIn codersdk.WorkspaceAppOpenIn
-	switch protoApp.OpenIn {
-	case proto.WorkspaceApp_OpenIn(proto.WorkspaceApp_OpenIn_value["SLIM_WINDOW"]):
-		openIn = codersdk.WorkspaceAppOpenInSlimWindow
-	case proto.WorkspaceApp_OpenIn(proto.WorkspaceApp_OpenIn_value["WINDOW"]):
-		openIn = codersdk.WorkspaceAppOpenInWindow
-	case proto.WorkspaceApp_OpenIn(proto.WorkspaceApp_OpenIn_value["TAB"]):
-		openIn = codersdk.WorkspaceAppOpenInTab
-	default:
-		return codersdk.WorkspaceApp{}, xerrors.Errorf("unknown app open in option: %v (%q)", protoApp.OpenIn, protoApp.OpenIn.String())
-	}
-
 	return codersdk.WorkspaceApp{
 		ID:            id,
 		URL:           protoApp.Url,
@@ -267,7 +255,6 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		},
 		Health: health,
 		Hidden: protoApp.Hidden,
-		OpenIn: openIn,
 	}, nil
 }
 
@@ -279,18 +266,6 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 	health, ok := proto.WorkspaceApp_Health_value[strings.ToUpper(string(a.Health))]
 	if !ok {
 		return nil, xerrors.Errorf("unknown health %s", a.Health)
-	}
-
-	var openIn proto.WorkspaceApp_OpenIn
-	switch a.OpenIn {
-	case "slim-window":
-		openIn = proto.WorkspaceApp_SLIM_WINDOW
-	case "window":
-		openIn = proto.WorkspaceApp_WINDOW
-	case "tab":
-		openIn = proto.WorkspaceApp_TAB
-	default:
-		return nil, xerrors.Errorf("unknown open_in %s", a.OpenIn)
 	}
 
 	return &proto.WorkspaceApp{
@@ -311,7 +286,6 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 		},
 		Health: proto.WorkspaceApp_Health(health),
 		Hidden: a.Hidden,
-		OpenIn: openIn,
 	}, nil
 }
 

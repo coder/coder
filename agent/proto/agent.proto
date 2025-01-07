@@ -43,13 +43,6 @@ message WorkspaceApp {
 	}
 	Health health = 12;
 	bool hidden = 13;
-
-	enum OpenIn {
-		WINDOW = 0;
-		SLIM_WINDOW = 1;
-		TAB = 2;
-	}
-	OpenIn open_in = 14;
 }
 
 message WorkspaceAgentScript {
