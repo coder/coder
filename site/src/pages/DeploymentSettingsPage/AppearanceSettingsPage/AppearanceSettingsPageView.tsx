@@ -1,4 +1,3 @@
-import Button from "@mui/material/Button";
 import InputAdornment from "@mui/material/InputAdornment";
 import TextField from "@mui/material/TextField";
 import type { UpdateAppearanceConfig } from "api/typesGenerated";
@@ -7,6 +6,7 @@ import {
 	EnterpriseBadge,
 	PremiumBadge,
 } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import {

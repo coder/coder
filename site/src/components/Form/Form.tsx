@@ -10,11 +10,7 @@ import {
 	forwardRef,
 	useContext,
 } from "react";
-import {
-	FormFooter as BaseFormFooter,
-	type FormFooterProps,
-	type FormFooterStyles,
-} from "../FormFooter/FormFooter";
+import { cn } from "utils/cn";
 
 type FormContextValue = { direction?: "horizontal" | "vertical" };
 
@@ -191,29 +187,12 @@ const styles = {
 	},
 } satisfies Record<string, Interpolation<Theme>>;
 
-export const FormFooter: FC<Exclude<FormFooterProps, "styles">> = (props) => (
-	<BaseFormFooter {...props} styles={footerStyles} />
+export const FormFooter: FC<HTMLProps<HTMLDivElement>> = ({
+	className,
+	...props
+}) => (
+	<footer
+		className={cn("flex items-center justify-end space-x-2 mt-2", className)}
+		{...props}
+	/>
 );
-
-const footerStyles = {
-	button: (theme) => ({
-		minWidth: 184,
-
-		[theme.breakpoints.down("md")]: {
-			width: "100%",
-		},
-	}),
-
-	footer: (theme) => ({
-		display: "flex",
-		alignItems: "center",
-		justifyContent: "flex-start",
-		flexDirection: "row-reverse",
-		gap: 16,
-
-		[theme.breakpoints.down("md")]: {
-			flexDirection: "column",
-			gap: 8,
-		},
-	}),
-} satisfies FormFooterStyles;

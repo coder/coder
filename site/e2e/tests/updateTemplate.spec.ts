@@ -67,7 +67,7 @@ test("require latest version", async ({ page }) => {
 	await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 	let checkbox = await page.waitForSelector("#require_active_version");
 	await checkbox.click();
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await page.goto(`/templates/${templateName}/settings`, {
 		waitUntil: "domcontentloaded",

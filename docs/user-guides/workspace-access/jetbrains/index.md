@@ -11,6 +11,8 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
+- PhpStorm
+- RustRover
 - [JetBrains Fleet](#jetbrains-fleet)
 
 ## JetBrains Gateway
@@ -228,27 +230,28 @@ explaining this IDE specification.
 JetBrains Fleet is a code editor and lightweight IDE designed to support various
 programming languages and development environments.
 
-[See JetBrains' website to learn about Fleet](https://www.jetbrains.com/fleet/)
+[See JetBrains's website](https://www.jetbrains.com/fleet/) to learn more about Fleet.
 
-Fleet can connect to a Coder workspace by following these steps.
+To connect Fleet to a Coder workspace:
 
 1. [Install Fleet](https://www.jetbrains.com/fleet/download)
-2. Install Coder CLI
+
+1. Install Coder CLI
 
    ```shell
    curl -L https://coder.com/install.sh | sh
    ```
 
-3. Login and configure Coder SSH.
+1. Login and configure Coder SSH.
 
    ```shell
    coder login coder.example.com
    coder config-ssh
    ```
 
-4. Connect via SSH with the Host set to `coder.workspace-name`
+1. Connect via SSH with the Host set to `coder.workspace-name`
    ![Fleet Connect to Coder](../../../images/fleet/ssh-connect-to-coder.png)
 
-> If you experience problems, please
+> If you experience any issues, please
 > [create a GitHub issue](https://github.com/coder/coder/issues) or share in
 > [our Discord channel](https://discord.gg/coder).

@@ -27,7 +27,7 @@ test("create group", async ({ page, baseURL }) => {
 	await page.getByLabel("Name", { exact: true }).fill(groupValues.name);
 	await page.getByLabel("Display Name").fill(groupValues.displayName);
 	await page.getByLabel("Avatar URL").fill(groupValues.avatarURL);
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await expect(page).toHaveTitle(`${groupValues.displayName} - Coder`);
 	await expect(page.getByText(groupValues.displayName)).toBeVisible();

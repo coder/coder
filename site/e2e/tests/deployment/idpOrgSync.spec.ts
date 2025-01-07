@@ -67,14 +67,14 @@ test.describe("IdpOrgSyncPage", () => {
 		const syncField = page.getByRole("textbox", {
 			name: "Organization sync field",
 		});
-		const saveButton = page.getByRole("button", { name: "Save" }).first();
+		const saveButton = page.getByRole("button", { name: /save/i }).first();
 
 		await expect(saveButton).toBeDisabled();
 
 		await syncField.fill("test-field");
 		await expect(saveButton).toBeEnabled();
 
-		await page.getByRole("button", { name: "Save" }).click();
+		await page.getByRole("button", { name: /save/i }).click();
 
 		await expect(
 			page.getByText("Organization sync settings updated."),

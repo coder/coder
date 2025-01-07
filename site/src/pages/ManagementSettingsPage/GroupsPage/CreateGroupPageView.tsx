@@ -2,6 +2,7 @@ import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -10,6 +11,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
@@ -84,7 +86,17 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 						/>
 					</FormFields>
 				</FormSection>
-				<FormFooter onCancel={onCancel} isLoading={isLoading} />
+
+				<FormFooter>
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+
+					<Button type="submit" disabled={isLoading}>
+						{isLoading && <Spinner />}
+						Save
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 		</>
 	);
