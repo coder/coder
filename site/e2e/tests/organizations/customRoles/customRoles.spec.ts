@@ -87,7 +87,7 @@ test.describe("CustomRolesPage", () => {
 		await expect(organizationMemberCheckbox).toBeVisible();
 		await organizationMemberCheckbox.click();
 
-		const saveButton = page.getByRole("button", { name: "Save" }).first();
+		const saveButton = page.getByRole("button", { name: /save/i }).first();
 		await expect(saveButton).toBeVisible();
 		await saveButton.click();
 

@@ -276,7 +276,7 @@ export const createTemplate = async (
 
 	const name = randomName();
 	await page.getByLabel("Name *").fill(name);
-	await page.getByRole("button", { name: /create template/i }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expectUrl(page).toHavePathName(
 		organizationsEnabled
 			? `/templates/${orgName}/${name}/files`
@@ -298,7 +298,7 @@ export const createGroup = async (page: Page): Promise<string> => {
 
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
-	await page.getByRole("button", { name: /create group/i }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expectUrl(page).toHavePathName(`/groups/${name}`);
 	return name;
 };
@@ -1091,7 +1091,7 @@ export async function createUser(
 	// as the label for the currently active option.
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
-	await page.getByRole("button", { name: "Save" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expect(page.getByText("Successfully created user.")).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
