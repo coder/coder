@@ -168,22 +168,12 @@ func TestSSH(t *testing.T) {
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 		defer cancel()
 
-		type proc struct {
-			stdout bytes.Buffer
-			pty    *ptytest.PTY
-			err    chan error
-		}
-		procs := make([]proc, 3)
-		for i := range procs {
+		ptys := make([]*ptytest.PTY, 3)
+		for i := range ptys {
 			// SSH to the workspace which should autostart it
 			inv, root := clitest.New(t, "ssh", workspace.Name)
 
-			proc := proc{
-				pty: ptytest.New(t).Attach(inv),
-				err: make(chan error, 1),
-			}
-			procs[i] = proc
-			inv.Stdout = io.MultiWriter(proc.pty.Output(), &proc.stdout)
+			ptys[i] = ptytest.New(t).Attach(inv)
 			clitest.SetupConfig(t, client, root)
 			clitest.StartWithAssert(t, inv, func(*testing.T, error) {
 				// Noop.
@@ -191,14 +181,14 @@ func TestSSH(t *testing.T) {
 		}
 
 		var foundConflict int
-		for _, proc := range procs {
+		for _, pty := range ptys {
 			// Either allow the command to start the workspace or fail
 			// due to conflict (race), in which case it retries.
-			match := proc.pty.ExpectRegexMatchContext(ctx, "(Waiting for the workspace agent to connect|Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...)")
+			match := pty.ExpectRegexMatchContext(ctx, "(Waiting for the workspace agent to connect|Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...)")
 			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
 				foundConflict++
 				// It should retry without autostart.
-				proc.pty.ExpectMatchContext(ctx, "Waiting for the workspace agent to connect")
+				pty.ExpectMatchContext(ctx, "Waiting for the workspace agent to connect")
 			}
 		}
 		// TODO(mafredri): Remove this if it's racy.
