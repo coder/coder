@@ -6,13 +6,16 @@ External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
 
 To add an external authentication provider, you'll need to create an OAuth
-application. The following providers are supported:
+application. The following providers have been tested and work with Coder:
 
-- [GitHub](#github)
-- [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
-- [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
 - [Azure DevOps](https://learn.microsoft.com/en-us/azure/devops/integrate/get-started/authentication/oauth?view=azure-devops)
 - [Azure DevOps (via Entra ID)](https://learn.microsoft.com/en-us/entra/architecture/auth-oauth2)
+- [BitBucket](https://support.atlassian.com/bitbucket-cloud/docs/use-oauth-on-bitbucket-cloud/)
+- [GitHub](#github)
+- [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
+
+If you have experience with a provider that is not listed here, please [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A
+&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
 
 ## Configuration
 
@@ -52,7 +55,7 @@ Inside your Terraform code, you now have access to authentication variables. Ref
 
 ### Workspace CLI
 
-Use `coder external-auth` to access a token within the workspace:
+Use [`external-auth`](../reference/cli/external-auth.md) in the Coder CLI to access a token within the workspace:
 
 ```shell
 coder external-auth <USER_DEFINED_ID> access-token

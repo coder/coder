@@ -113,8 +113,8 @@ If you are using the built-in PostgreSQL deployment and need to use `psql` (aka
 the PostgreSQL interactive terminal), output the connection URL with the
 following command:
 
-```shell
-coder server postgres-builtin-url
+```console
+$ coder server postgres-builtin-url
 psql "postgres://coder@localhost:49627/coder?sslmode=disable&password=feU...yI1"
 ```
 
