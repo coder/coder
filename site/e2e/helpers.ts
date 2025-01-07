@@ -1123,7 +1123,7 @@ export async function createOrganization(page: Page): Promise<{
 	const description = `Org description ${name}`;
 	await page.getByLabel("Description").fill(description);
 	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: "Create organization" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
 	await expect(page.getByText("Organization created.")).toBeVisible();
