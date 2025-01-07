@@ -1,6 +1,7 @@
 # External Authentication
 
-Coder supports external authentication via OAuth2.0. This allows enabling any OAuth provider as well as integrations with Git providers, such as GitHub, GitLab, and Bitbucket.
+Coder supports external authentication via OAuth2.0. This allows enabling any OAuth provider as well as integrations with Git providers,
+such as GitHub, GitLab, and Bitbucket.
 
 External authentication can also be used to integrate with external services
 like JFrog Artifactory and others.
@@ -14,8 +15,8 @@ application. The following providers have been tested and work with Coder:
 - [GitHub](#github)
 - [GitLab](https://docs.gitlab.com/ee/integration/oauth_provider.html)
 
-If you have experience with a provider that is not listed here, please [file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A
-&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
+If you have experience with a provider that is not listed here, please
+[file an issue](https://github.com/coder/internal/issues/new?title=request%28docs%29%3A+external-auth+-+request+title+here%0D%0A&labels=["customer-feedback","docs"]&body=doc%3A+%5Bexternal-auth%5D%28https%3A%2F%2Fcoder.com%2Fdocs%2Fadmin%2Fexternal-auth%29%0D%0A%0D%0Aplease+enter+your+request+here%0D%0A)
 
 ## Configuration
 
@@ -27,26 +28,26 @@ CODER_EXTERNAL_AUTH_0_TYPE=<github|gitlab|azure-devops|bitbucket-cloud|bitbucket
 CODER_EXTERNAL_AUTH_0_CLIENT_ID=<OAuth app client ID>
 CODER_EXTERNAL_AUTH_0_CLIENT_SECRET=<OAuth app client secret>
 
-# Optionally, configure a custom display name and icon
+# Optionally, configure a custom display name and icon:
 CODER_EXTERNAL_AUTH_0_DISPLAY_NAME="Google Calendar"
 CODER_EXTERNAL_AUTH_0_DISPLAY_ICON="https://mycustomicon.com/google.svg"
 ```
 
 The `CODER_EXTERNAL_AUTH_0_ID` environment variable is used for internal
-reference. Therefore, it can be set arbitrarily (e.g., `primary-github` for your
-GitHub provider).
+reference. Set it with a value that helps you identify it. For example, you can use `CODER_EXTERNAL_AUTH_0_ID="primary-github"` for your
+GitHub provider.
 
 Add the following code to any template to add a button to the workspace setup page which will allow you to authenticate with your provider:
 
 ```tf
-data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|etc>" {
+data "coder_external_auth" "<github|gitlab|azure-devops|bitbucket-cloud|bitbucket-server|other>" {
     id = "<USER_DEFINED_ID>"
 }
 
-# Github Example (CODER_EXTERNAL_AUTH_0_ID="github-auth")
-# makes a github authentication token available at data.coder_external_auth.github.access_token
+# GitHub Example (CODER_EXTERNAL_AUTH_0_ID="primary-github")
+# makes a GitHub authentication token available at data.coder_external_auth.github.access_token
 data "coder_external_auth" "github" {
-   id = "github-auth"
+   id = "primary-github"
 }
 
 ```
