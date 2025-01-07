@@ -1091,7 +1091,7 @@ export async function createUser(
 	// as the label for the currently active option.
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
-	await page.getByRole("button", { name: "Create user" }).click();
+	await page.getByRole("button", { name: "Save" }).click();
 	await expect(page.getByText("Successfully created user.")).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
