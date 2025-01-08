@@ -37,8 +37,9 @@ const DeploymentSettingsProvider = lazy(
 const OrganizationSettingsLayout = lazy(
 	() => import("./modules/management/OrganizationSettingsLayout"),
 );
-const CliAuthenticationPage = lazy(
-	() => import("./pages/CliAuthPage/CliAuthPage"),
+const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
+const CliInstallPage = lazy(
+	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
 const AccountPage = lazy(
 	() => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
@@ -539,6 +540,9 @@ export const router = createBrowserRouter(
 							element={<ProvisionerDaemonsHealthPage />}
 						/>
 					</Route>
+
+					<Route path="/install" element={<CliInstallPage />} />
+
 					{/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
               routes for. */}
@@ -559,7 +563,7 @@ export const router = createBrowserRouter(
 					path="/:username/:workspace/terminal"
 					element={<TerminalPage />}
 				/>
-				<Route path="/cli-auth" element={<CliAuthenticationPage />} />
+				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 			</Route>
 		</Route>,
