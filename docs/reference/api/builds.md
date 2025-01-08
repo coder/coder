@@ -451,12 +451,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ### Parameters
 
-| Name             | In    | Type    | Required | Description           |
-|------------------|-------|---------|----------|-----------------------|
-| `workspacebuild` | path  | string  | true     | Workspace build ID    |
-| `before`         | query | integer | false    | Before Unix timestamp |
-| `after`          | query | integer | false    | After Unix timestamp  |
-| `follow`         | query | boolean | false    | Follow log stream     |
+| Name             | In    | Type    | Required | Description        |
+|------------------|-------|---------|----------|--------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID |
+| `before`         | query | integer | false    | Before log id      |
+| `after`          | query | integer | false    | After log id       |
+| `follow`         | query | boolean | false    | Follow log stream  |
 
 ### Example responses
 

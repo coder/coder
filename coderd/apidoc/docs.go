@@ -7696,13 +7696,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Before log id",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "After log id",
                         "name": "after",
                         "in": "query"
                     },
