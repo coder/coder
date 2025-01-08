@@ -1256,5 +1256,5 @@ func mustWorkspaceParameters(t *testing.T, client *codersdk.Client, workspaceID 
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }

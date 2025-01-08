@@ -19,7 +19,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // TestSpeaker_RawPeer tests the speaker with a peer that we simulate by directly making reads and
