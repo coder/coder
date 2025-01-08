@@ -22,8 +22,8 @@ a JetBrains IDE without downloading one. Visit the
 [JetBrains Gateway website](https://www.jetbrains.com/remote-development/gateway/)
 to learn more about Gateway.
 
-Gateway can connect to a Coder workspace using Coder's Gateway plugin or
-manually setting up an SSH connection.
+Gateway can connect to a Coder workspace using Coder's Gateway plugin or through a
+manually configured SSH connection.
 
 ### How to use the plugin
 
@@ -87,8 +87,8 @@ manually setting up an SSH connection.
 
 ### Configuring the Gateway plugin to use internal certificates
 
-When attempting to connect to a Coder deployment that uses internally signed
-certificates, you may receive the following error in Gateway:
+When you attempt to connect to a Coder deployment that uses internally signed
+certificates, you might receive the following error in Gateway:
 
 ```console
 Failed to configure connection to https://coder.internal.enterprise/: PKIX path building failed: sun.security.provider.certpath.SunCertPathBuilderException: unable to find valid certification path to requested target
