@@ -375,8 +375,7 @@ func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *h
 // @Router /organizations/{organization}/settings/idpsync/field-values [get]
 func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
 	org := httpmw.OrganizationParam(r)
-	claimField := r.URL.Query().Get("claimField")
-	api.idpSyncClaimFieldValues(org.ID, claimField, rw, r)
+	api.idpSyncClaimFieldValues(org.ID, rw, r)
 }
 
 // @Summary Get the idp sync claim field values
@@ -389,15 +388,21 @@ func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *h
 // @Success 200 {array} string
 // @Router /settings/idpsync/field-values [get]
 func (api *API) deploymentIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
-	claimField := r.URL.Query().Get("claimField")
 	// nil uuid implies all organizations
-	api.idpSyncClaimFieldValues(uuid.Nil, claimField, rw, r)
+	api.idpSyncClaimFieldValues(uuid.Nil, rw, r)
 }
 
-func (api *API) idpSyncClaimFieldValues(orgID uuid.UUID, claimField string, rw http.ResponseWriter, r *http.Request) {
+func (api *API) idpSyncClaimFieldValues(orgID uuid.UUID, rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	fields, err := api.Database.OIDCClaimFieldValues(ctx, database.OIDCClaimFieldValuesParams{
+	claimField := r.URL.Query().Get("claimField")
+	if claimField == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "claimField query parameter is required",
+		})
+		return
+	}
+	fieldValues, err := api.Database.OIDCClaimFieldValues(ctx, database.OIDCClaimFieldValuesParams{
 		OrganizationID: orgID,
 		ClaimField:     claimField,
 	})
@@ -416,5 +421,5 @@ func (api *API) idpSyncClaimFieldValues(orgID uuid.UUID, claimField string, rw h
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, fields)
+	httpapi.Write(ctx, rw, http.StatusOK, fieldValues)
 }
