@@ -210,6 +210,8 @@ func TestSSH(t *testing.T) {
 
 		for _, pty := range ptys {
 			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+		}
+		for range ptys {
 			testutil.RequireRecvCtx(ctx, t, buildReq)
 		}
 		close(buildResume)
@@ -218,14 +220,12 @@ func TestSSH(t *testing.T) {
 		for _, pty := range ptys {
 			// Either allow the command to start the workspace or fail
 			// due to conflict (race), in which case it retries.
-			match := pty.ExpectRegexMatchContext(ctx, "(Waiting for the workspace agent to connect|Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...)")
+			match := pty.ExpectRegexMatchContext(ctx, "Waiting for the workspace agent to connect")
 			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
 				foundConflict++
-				// It should retry without autostart.
-				pty.ExpectMatchContext(ctx, "Waiting for the workspace agent to connect")
 			}
 		}
-		require.Equal(t, foundConflict, 2, "expected 2 conflicts")
+		require.Equal(t, 2, foundConflict, "expected 2 conflicts")
 	})
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
