@@ -164,8 +164,9 @@ func TestSSH(t *testing.T) {
 						buildReq <- struct{}{}
 						<-buildResume
 						t.Log("buildSyncMW: resuming build")
+					} else {
+						isFirstBuild = false
 					}
-					isFirstBuild = false
 				}
 				next.ServeHTTP(w, r)
 			})
