@@ -11,7 +11,6 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/suite"
 	"go.uber.org/mock/gomock"
@@ -116,9 +115,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		s.methodAccounting[methodName]++
 
 		db, _ := dbtestutil.NewDB(t)
-		fakeAuthorizer := &coderdtest.FakeAuthorizer{
-			RegoAuthorizer: rbac.NewAuthorizer(prometheus.NewRegistry()),
-		}
+		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
 		}

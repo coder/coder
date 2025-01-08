@@ -358,7 +358,6 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 // Meaning 'FakeAuthorizer' by default will never return "unauthorized".
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
-	RegoAuthorizer    *rbac.RegoAuthorizer
 	sqlFilter         string
 }
 
@@ -385,16 +384,11 @@ func (d *FakeAuthorizer) Authorize(ctx context.Context, subject rbac.Subject, ac
 	return nil
 }
 
-func (d *FakeAuthorizer) Prepare(ctx context.Context, subject rbac.Subject, action policy.Action, objectType string) (rbac.PreparedAuthorized, error) {
-	prep, err := d.RegoAuthorizer.Prepare(ctx, subject, action, objectType)
-	if err != nil {
-		return nil, err
-	}
+func (d *FakeAuthorizer) Prepare(_ context.Context, subject rbac.Subject, action policy.Action, _ string) (rbac.PreparedAuthorized, error) {
 	return &fakePreparedAuthorizer{
-		Original:               d,
-		Subject:                subject,
-		Action:                 action,
-		PreparedRegoAuthorizer: prep,
+		Original: d,
+		Subject:  subject,
+		Action:   action,
 	}, nil
 }
 
@@ -404,21 +398,21 @@ var _ rbac.PreparedAuthorized = (*fakePreparedAuthorizer)(nil)
 // return the same error as the original FakeAuthorizer.
 type fakePreparedAuthorizer struct {
 	sync.RWMutex
-	Original               *FakeAuthorizer
-	PreparedRegoAuthorizer rbac.PreparedAuthorized
-	Subject                rbac.Subject
-	Action                 policy.Action
+	Original *FakeAuthorizer
+	Subject  rbac.Subject
+	Action   policy.Action
 }
 
 func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Object) error {
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
-func (f *fakePreparedAuthorizer) CompileToSQL(ctx context.Context, cfg regosql.ConvertConfig) (string, error) {
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
 	if f.Original.sqlFilter != "" {
 		return f.Original.sqlFilter, nil
 	}
-	return f.PreparedRegoAuthorizer.CompileToSQL(ctx, cfg)
+	// By default, allow all SQL queries.
+	return "TRUE", nil
 }
 
 // Random rbac helper funcs
