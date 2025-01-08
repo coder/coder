@@ -22,7 +22,6 @@ import { ChevronDown, Plus } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import { Link } from "react-router-dom";
 
 export interface OrganizationWithPermissions extends Organization {
 	permissions: AuthorizationResponse;
@@ -153,7 +152,9 @@ const OrganizationsSettingsNavigation: FC<
 											className="flex justify-center data-[selected=true]:bg-transparent"
 											onSelect={() => {
 												setIsPopoverOpen(false);
-												navigate("/organizations/new");
+												setTimeout(() => {
+													navigate("/organizations/new");
+												}, 200);
 											}}
 										>
 											<Plus /> Create Organization
