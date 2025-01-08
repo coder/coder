@@ -86,7 +86,7 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceReplicas:               {ActionRead},
 	ResourceSystem:                 {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTailnetCoordinator:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceTemplate:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionViewInsights},
+	ResourceTemplate:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUser:                   {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
 	ResourceWorkspace:              {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
 	ResourceWorkspaceDormant:       {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},

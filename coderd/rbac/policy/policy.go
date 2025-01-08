@@ -135,6 +135,7 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionCreate: actDef("create a template"),
 			// TODO: Create a use permission maybe?
+			ActionUse:          actDef("use the template to create a workspace"),
 			ActionRead:         actDef("read template"),
 			ActionUpdate:       actDef("update a template"),
 			ActionDelete:       actDef("delete a template"),
