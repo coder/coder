@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -148,8 +149,33 @@ func TestSSH(t *testing.T) {
 	t.Run("StartStoppedWorkspaceConflict", func(t *testing.T) {
 		t.Parallel()
 
+		// Intercept builds to synchronize execution of the SSH command.
+		// The purpose here is to make sure all commands try to trigger
+		// a start build of the workspace.
+		isFirstBuild := true
+		buildURL := regexp.MustCompile("/api/v2/workspaces/.*/builds")
+		buildReq := make(chan struct{})
+		buildResume := make(chan struct{})
+		buildSyncMW := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && buildURL.MatchString(r.URL.Path) {
+					if !isFirstBuild {
+						t.Log("buildSyncMW: blocking build")
+						buildReq <- struct{}{}
+						<-buildResume
+						t.Log("buildSyncMW: resuming build")
+					}
+					isFirstBuild = false
+				}
+				next.ServeHTTP(w, r)
+			})
+		}
+
 		authToken := uuid.NewString()
-		ownerClient := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			APIMiddleware:            buildSyncMW,
+		})
 		owner := coderdtest.CreateFirstUser(t, ownerClient)
 		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
 		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
@@ -165,20 +191,27 @@ func TestSSH(t *testing.T) {
 		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
 		defer cancel()
 
-		ptys := make([]*ptytest.PTY, 3)
-		for i := range ptys {
+		var ptys []*ptytest.PTY
+		for i := 0; i < 3; i++ {
 			// SSH to the workspace which should autostart it
 			inv, root := clitest.New(t, "ssh", workspace.Name)
 
-			ptys[i] = ptytest.New(t).Attach(inv)
+			pty := ptytest.New(t).Attach(inv)
+			ptys = append(ptys, pty)
 			clitest.SetupConfig(t, client, root)
-			clitest.StartWithAssert(t, inv, func(*testing.T, error) {
-				// Noop.
+			testutil.Go(t, func() {
+				_ = inv.WithContext(ctx).Run()
 			})
 		}
+
+		for _, pty := range ptys {
+			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+			testutil.RequireRecvCtx(ctx, t, buildReq)
+		}
+		close(buildResume)
 
 		var foundConflict int
 		for _, pty := range ptys {
@@ -191,8 +224,7 @@ func TestSSH(t *testing.T) {
 				pty.ExpectMatchContext(ctx, "Waiting for the workspace agent to connect")
 			}
 		}
-		// TODO(mafredri): Remove this if it's racy.
-		require.Greater(t, foundConflict, 0, "expected at least one conflict")
+		require.Equal(t, foundConflict, 2, "expected 2 conflicts")
 	})
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
