@@ -58,10 +58,6 @@ replace github.com/gliderlabs/ssh => github.com/coder/ssh v0.0.0-20231128192721-
 // Waiting on https://github.com/imulab/go-scim/pull/95 to merge.
 replace github.com/imulab/go-scim/pkg/v2 => github.com/coder/go-scim/pkg/v2 v2.0.0-20230221055123-1d63c1222136
 
-// Waiting on https://github.com/pkg/sftp/pull/567
-// Fixes https://github.com/coder/coder/issues/6685
-replace github.com/pkg/sftp => github.com/mafredri/sftp v1.13.6-0.20231212144145-8218e927edb0
-
 // Adds support for a new Listener from a driver.Connector
 // This lets us use rotating authentication tokens for passwords in connection strings
 // which we use in the awsiamrds package.
@@ -162,7 +158,7 @@ require (
 	github.com/pion/udp v0.1.4
 	github.com/pkg/browser v0.0.0-20240102092130-5ac0b6a4141c
 	github.com/pkg/diff v0.0.0-20210226163009-20ebb0f2a09e
-	github.com/pkg/sftp v1.13.6
+	github.com/pkg/sftp v1.13.7
 	github.com/prometheus-community/pro-bing v0.5.0
 	github.com/prometheus/client_golang v1.20.5
 	github.com/prometheus/client_model v0.6.1
