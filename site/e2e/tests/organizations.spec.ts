@@ -39,7 +39,7 @@ test("create and delete organization", async ({ page }) => {
 	await page.getByRole("button", { name: /save/i }).click();
 
 	// Expect to be redirected when renaming the organization
-	await expectUrl(page).toHavePathName(`/organizations/${newName}`);
+	await expectUrl(page).toHavePathName(`/organizations/${newName}/settings`);
 	await expect(page.getByText("Organization settings updated.")).toBeVisible();
 
 	await page.goto(`/organizations/${newName}/settings`, {
