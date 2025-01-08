@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"regexp"
 
 	"github.com/google/uuid"
@@ -165,7 +166,9 @@ func (c *Client) GetOrganizationAvailableIDPSyncFields(ctx context.Context, orgI
 }
 
 func (c *Client) GetIDPSyncFieldValues(ctx context.Context, claimField string) ([]string, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/settings/idpsync/field-values?claimField=%s", claimField), nil)
+	qv := url.Values{}
+	qv.Add("claimField", claimField)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/settings/idpsync/field-values?%s", qv.Encode()), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
 	}
@@ -179,7 +182,9 @@ func (c *Client) GetIDPSyncFieldValues(ctx context.Context, claimField string) (
 }
 
 func (c *Client) GetOrganizationIDPSyncFieldValues(ctx context.Context, orgID string, claimField string) ([]string, error) {
-	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/field-values?claimField=%s", orgID, claimField), nil)
+	qv := url.Values{}
+	qv.Add("claimField", claimField)
+	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/field-values?%s", orgID, qv.Encode()), nil)
 	if err != nil {
 		return nil, xerrors.Errorf("make request: %w", err)
 	}
