@@ -16,6 +16,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -326,7 +327,7 @@ func validateTemplateRole(role codersdk.TemplateRole) error {
 
 func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	switch {
-	case len(actions) == 1 && actions[0] == policy.ActionRead:
+	case len(actions) == 2 && slice.SameElements(actions, []policy.Action{policy.ActionUse, policy.ActionRead}):
 		return codersdk.TemplateRoleUse
 	case len(actions) == 1 && actions[0] == policy.WildcardSymbol:
 		return codersdk.TemplateRoleAdmin
@@ -340,7 +341,7 @@ func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
 	case codersdk.TemplateRoleAdmin:
 		return []policy.Action{policy.WildcardSymbol}
 	case codersdk.TemplateRoleUse:
-		return []policy.Action{policy.ActionRead}
+		return []policy.Action{policy.ActionRead, policy.ActionUse}
 	}
 
 	return nil
