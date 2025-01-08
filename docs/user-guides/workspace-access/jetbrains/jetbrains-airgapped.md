@@ -5,8 +5,6 @@ JetBrains Client Installer to download and save the IDE clients locally. Please
 see the
 [JetBrains documentation for more information](https://www.jetbrains.com/help/idea/fully-offline-mode.html).
 
-## Configuration Steps
-
 This page is an example that the Coder team used as a proof-of-concept (POC) of the JetBrains Gateway Offline Mode solution.
 
 We used Ubuntu on a virtual machine to test the steps.

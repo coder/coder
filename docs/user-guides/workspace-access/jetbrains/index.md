@@ -25,6 +25,8 @@ to learn more about Gateway.
 Gateway can connect to a Coder workspace using Coder's Gateway plugin or through a
 manually configured SSH connection.
 
+You can [pre-install the JetBrains Gateway backend](./jetbrains-pre-install.md) in a template to help JetBrains load faster in workspaces.
+
 ### How to use the plugin
 
 > If you experience problems, please

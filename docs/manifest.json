@@ -127,6 +127,11 @@
 							"path": "./user-guides/workspace-access/jetbrains/index.md",
 							"children": [
 								{
+									"title": "Pre-install JetBrains Gateway in a template",
+									"description": "Pre-install JetBrains Gateway in a template",
+									"path": "./user-guides/workspace-access/jetbrains/jetbrains-pre-install.md"
+								},
+								{
 									"title": "JetBrains Gateway in an air-gapped environment",
 									"description": "Use JetBrains Gateway in an air-gapped offline environment",
 									"path": "./user-guides/workspace-access/jetbrains/jetbrains-airgapped.md"
