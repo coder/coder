@@ -3,7 +3,7 @@ import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink, useLocation } from "react-router-dom";
+import { Link, NavLink, useMatch } from "react-router-dom";
 import { cn } from "utils/cn";
 
 interface SidebarProps {
@@ -61,18 +61,8 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 	href,
 	end,
 }) => {
+	const matchResult = useMatch(href);
 
-	const location = useLocation();
-	if (end) {
-		console.log('Current Path:', location.pathname);
-		console.log('NavLink href:', href);
-	}
-
-	const normalizePath = (path: string) =>
-		path.endsWith('/') ? path.slice(0, -1) : path;
-
-	const isInitiallyActive =
-		normalizePath(location.pathname) === normalizePath(href);
 	return (
 		<NavLink
 			end={end}
@@ -81,7 +71,7 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 				cn(
 					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
 					{
-						"font-semibold text-content-primary": isActive || isInitiallyActive,
+						"font-semibold text-content-primary": matchResult !== null,
 					},
 				)
 			}
