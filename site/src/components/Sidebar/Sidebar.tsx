@@ -67,7 +67,7 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 		<NavLink
 			end={end}
 			to={href}
-			className={({ isActive }) =>
+			className={() =>
 				cn(
 					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
 					{
