@@ -18,15 +18,17 @@ const CreateOrganizationPage: FC = () => {
 	const error = createOrganizationMutation.error;
 
 	return (
-		<CreateOrganizationPageView
-			error={error}
-			isEntitled={feats.multiple_organizations}
-			onSubmit={async (values) => {
-				await createOrganizationMutation.mutateAsync(values);
-				displaySuccess("Organization created.");
-				navigate(`/organizations/${values.name}`);
-			}}
-		/>
+		<main className="py-20 sm:py-7">
+			<CreateOrganizationPageView
+				error={error}
+				isEntitled={feats.multiple_organizations}
+				onSubmit={async (values) => {
+					await createOrganizationMutation.mutateAsync(values);
+					displaySuccess("Organization created.");
+					navigate(`/organizations/${values.name}`);
+				}}
+			/>
+		</main>
 	);
 };
 

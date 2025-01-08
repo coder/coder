@@ -37,6 +37,9 @@ const DeploymentSettingsProvider = lazy(
 const OrganizationSettingsLayout = lazy(
 	() => import("./modules/management/OrganizationSettingsLayout"),
 );
+const OrganizationSidebarLayout = lazy(
+	() => import("./modules/management/OrganizationSidebarLayout"),
+);
 const CliAuthenticationPage = lazy(
 	() => import("./pages/CliAuthPage/CliAuthPage"),
 );
@@ -427,9 +430,8 @@ export const router = createBrowserRouter(
 						{/* General settings for the default org can omit the organization name */}
 						<Route index element={<OrganizationSettingsPage />} />
 
-						<Route path=":organization">
-							<Route index element={<OrganizationSettingsPage />} />
-							<Route path="members" element={<OrganizationMembersPage />} />
+						<Route path=":organization" element={<OrganizationSidebarLayout />}>
+							<Route index element={<OrganizationMembersPage />} />
 							{groupsRouter()}
 							<Route path="roles">
 								<Route index element={<OrganizationCustomRolesPage />} />
@@ -441,6 +443,7 @@ export const router = createBrowserRouter(
 								element={<OrganizationProvisionersPage />}
 							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
+							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>
 					</Route>
 
