@@ -280,7 +280,7 @@ export const watchBuildLogsByBuildId = (
 	);
 
 	socket.addEventListener("error", () => {
-		if (socket.readyState == socket.CLOSED) {
+		if (socket.readyState === socket.CLOSED) {
 			return;
 		}
 		onError?.(new Error("Connection for logs failed."));
