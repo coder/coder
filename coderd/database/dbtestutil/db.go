@@ -87,6 +87,18 @@ func NewDBWithSQLDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub
 	return db, ps, sqlDB
 }
 
+var DefaultTimezone = "Canada/Newfoundland"
+
+// NowInDefaultTimezone returns the current time rounded to the nearest microsecond in the default timezone
+// used by postgres in tests. Useful for object equality checks.
+func NowInDefaultTimezone() time.Time {
+	loc, err := time.LoadLocation(DefaultTimezone)
+	if err != nil {
+		panic(err)
+	}
+	return time.Now().In(loc).Round(time.Microsecond)
+}
+
 func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 	t.Helper()
 
@@ -115,7 +127,7 @@ func NewDB(t testing.TB, opts ...Option) (database.Store, pubsub.Pubsub) {
 			// - It has a non-UTC offset
 			// - It has a fractional hour UTC offset
 			// - It includes a daylight savings time component
-			o.fixedTimezone = "Canada/Newfoundland"
+			o.fixedTimezone = DefaultTimezone
 		}
 		dbName := dbNameFromConnectionURL(t, connectionURL)
 		setDBTimezone(t, connectionURL, dbName, o.fixedTimezone)
@@ -317,4 +329,16 @@ func normalizeDump(schema []byte) []byte {
 	schema = regexp.MustCompile(`(?im)\n{3,}`).ReplaceAll(schema, []byte("\n\n"))
 
 	return schema
+}
+
+// Deprecated: disable foreign keys was created to aid in migrating off
+// of the test-only in-memory database. Do not use this in new code.
+func DisableForeignKeysAndTriggers(t *testing.T, db database.Store) {
+	err := db.DisableForeignKeysAndTriggers(context.Background())
+	if t != nil {
+		require.NoError(t, err)
+	}
+	if err != nil {
+		panic(err)
+	}
 }
