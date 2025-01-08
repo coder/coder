@@ -69,7 +69,7 @@ export const CommandList = forwardRef<
 >(({ className, ...props }, ref) => (
 	<CommandPrimitive.List
 		ref={ref}
-		className={cn("max-h-[340px] overflow-y-auto overflow-x-hidden", className)}
+		className={cn("max-h-96 overflow-y-auto overflow-x-hidden", className)}
 		{...props}
 	/>
 ));
