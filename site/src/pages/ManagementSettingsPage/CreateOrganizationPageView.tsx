@@ -154,10 +154,7 @@ export const CreateOrganizationPageView: FC<
 									/>
 								</fieldset>
 								<div className="flex flex-row gap-2">
-									<Button
-										type="submit"
-										disabled={form.isSubmitting}
-									>
+									<Button type="submit" disabled={form.isSubmitting}>
 										{form.isSubmitting && <Spinner />}
 										Save
 									</Button>
