@@ -34,9 +34,6 @@ replace github.com/fatedier/kcp-go => github.com/coder/kcp-go v2.0.4-0.202204091
 // https://github.com/tcnksm/go-httpstat/pull/29
 replace github.com/tcnksm/go-httpstat => github.com/coder/go-httpstat v0.0.0-20230801153223-321c88088322
 
-// See https://github.com/dlclark/regexp2/issues/63
-replace github.com/dlclark/regexp2 => github.com/dlclark/regexp2 v1.7.0
-
 // There are a few minor changes we make to Tailscale that we're slowly upstreaming. Compare here:
 // https://github.com/tailscale/tailscale/compare/main...coder:tailscale:main
 replace tailscale.com => github.com/coder/tailscale v1.1.1-0.20241218201526-b53d914d625f
