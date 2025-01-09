@@ -154,16 +154,18 @@ func TestSSH(t *testing.T) {
 		// a start build of the workspace.
 		isFirstBuild := true
 		buildURL := regexp.MustCompile("/api/v2/workspaces/.*/builds")
-		buildReq := make(chan struct{})
+		buildSync := make(chan struct{})
 		buildResume := make(chan struct{})
 		buildSyncMW := func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost && buildURL.MatchString(r.URL.Path) {
 					if !isFirstBuild {
-						t.Log("buildSyncMW: blocking build")
-						buildReq <- struct{}{}
-						<-buildResume
-						t.Log("buildSyncMW: resuming build")
+						defer func() {
+							t.Log("buildSyncMW: blocking post-build")
+							buildSync <- struct{}{}
+							<-buildResume
+							t.Log("buildSyncMW: resuming...")
+						}()
 					} else {
 						isFirstBuild = false
 					}
@@ -212,7 +214,7 @@ func TestSSH(t *testing.T) {
 			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
 		}
 		for range ptys {
-			testutil.RequireRecvCtx(ctx, t, buildReq)
+			testutil.RequireRecvCtx(ctx, t, buildSync)
 		}
 		close(buildResume)
 
