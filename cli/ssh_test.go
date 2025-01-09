@@ -154,17 +154,22 @@ func TestSSH(t *testing.T) {
 		// a start build of the workspace.
 		isFirstBuild := true
 		buildURL := regexp.MustCompile("/api/v2/workspaces/.*/builds")
-		buildSync := make(chan struct{})
-		buildResume := make(chan struct{})
+		buildPause := make(chan struct{})
+		buildDone := make(chan struct{})
+		buildReturnSync := make(chan struct{})
 		buildSyncMW := func(next http.Handler) http.Handler {
 			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 				if r.Method == http.MethodPost && buildURL.MatchString(r.URL.Path) {
 					if !isFirstBuild {
+						t.Log("buildSyncMW: pausing build")
+						<-buildPause
+						t.Log("buildSyncMW: resuming build")
 						defer func() {
-							t.Log("buildSyncMW: blocking post-build")
-							buildSync <- struct{}{}
-							<-buildResume
-							t.Log("buildSyncMW: resuming...")
+							t.Log("buildSyncMW: sending build done")
+							buildDone <- struct{}{}
+							t.Log("buildSyncMW: waiting for return sync")
+							<-buildReturnSync
+							t.Log("buildSyncMW: returning")
 						}()
 					} else {
 						isFirstBuild = false
@@ -213,10 +218,20 @@ func TestSSH(t *testing.T) {
 		for _, pty := range ptys {
 			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
 		}
-		for range ptys {
-			testutil.RequireRecvCtx(ctx, t, buildSync)
+
+		// Allow one build to complete.
+		testutil.RequireSendCtx(ctx, t, buildPause, struct{}{})
+		testutil.RequireRecvCtx(ctx, t, buildDone)
+
+		// Allow the remaining builds to continue.
+		for i := 0; i < len(ptys)-1; i++ {
+			testutil.RequireSendCtx(ctx, t, buildPause, struct{}{})
 		}
-		close(buildResume)
+		for i := 0; i < len(ptys)-1; i++ {
+			testutil.RequireRecvCtx(ctx, t, buildDone)
+		}
+		// Allow all three endpoints to return.
+		close(buildReturnSync)
 
 		var foundConflict int
 		for _, pty := range ptys {
