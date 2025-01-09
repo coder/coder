@@ -277,7 +277,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts-over-tim
 ### Parameters
 
 | Name        | In    | Type    | Required | Description                |
-| ----------- | ----- | ------- | -------- | -------------------------- |
+|-------------|-------|---------|----------|----------------------------|
 | `tz_offset` | query | integer | true     | Time-zone offset (e.g. -2) |
 
 ### Example responses
@@ -286,27 +286,27 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts-over-tim
 
 ```json
 {
-	"status_counts": {
-		"property1": [
-			{
-				"count": 10,
-				"date": "2019-08-24T14:15:22Z"
-			}
-		],
-		"property2": [
-			{
-				"count": 10,
-				"date": "2019-08-24T14:15:22Z"
-			}
-		]
-	}
+  "status_counts": {
+    "property1": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ],
+    "property2": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ]
+  }
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                                                 |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUserStatusCountsOverTimeResponse](schemas.md#codersdkgetuserstatuscountsovertimeresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
