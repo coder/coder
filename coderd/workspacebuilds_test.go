@@ -598,14 +598,19 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// Create the workspace build _again_. We are doing this to ensure we only create 1 notification.
+		// Create the workspace build _again_. We are doing this to
+		// ensure we do not create _another_ notification. This is
+		// separate to the notifications subsystem dedupe mechanism
+		// as this build shouldn't create a notification. It shouldn't
+		// create another notification as this new build isn't changing
+		// the template version.
 		build = coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
 			cwbr.TemplateVersionID = newVersion.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// We're going to have two notifications (one for owner and one for the template admin)
+		// We're going to have two notifications (one for the first user and one for the template admin)
 		// By ensuring we only have these two, we are sure the second build didn't trigger more
 		// notifications.
 		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
@@ -616,7 +621,9 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 			receivers[idx] = notif.UserID
 		}
 
-		// Check the notification was sent to the owner and template admin
+		// Check the notification was sent to the first user and template admin
+		// (both of whom have the "template admin" role), and explicitly not the
+		// workspace owner (since they initiated the workspace build).
 		require.Contains(t, receivers, templateAdmin.ID)
 		require.Contains(t, receivers, first.UserID)
 		require.NotContains(t, receivers, user.ID)
