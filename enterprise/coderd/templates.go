@@ -318,7 +318,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 
 func validateTemplateRole(role codersdk.TemplateRole) error {
 	actions := db2sdk.TemplateRoleActions(role)
-	if actions == nil && role != codersdk.TemplateRoleDeleted {
+	if len(actions) == 0 && role != codersdk.TemplateRoleDeleted {
 		return xerrors.Errorf("role %q is not a valid Template role", role)
 	}
 
