@@ -261,7 +261,7 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?start_time=201
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get insights about user status counts over time
+## Get insights about user status counts
 
 ### Code samples
 

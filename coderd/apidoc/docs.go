@@ -1411,7 +1411,7 @@ const docTemplate = `{
                 "tags": [
                     "Insights"
                 ],
-                "summary": "Get insights about user status counts over time",
+                "summary": "Get insights about user status counts",
                 "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {

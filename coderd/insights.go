@@ -292,7 +292,7 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, resp)
 }
 
-// @Summary Get insights about user status counts over time
+// @Summary Get insights about user status counts
 // @ID get-insights-about-user-status-counts
 // @Security CoderSessionToken
 // @Produce json
