@@ -786,8 +786,8 @@ GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.de
 -- We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 -- the result shows the total number of users in each status on any particular day.
 WITH
--- dates_of_interest defines all points in time that are relevant to the query.
--- It includes the start_time, all status changes, all deletions, and the end_time.
+	-- dates_of_interest defines all points in time that are relevant to the query.
+	-- It includes the start_time, all status changes, all deletions, and the end_time.
 dates_of_interest AS (
 	SELECT @start_time::timestamptz AS date
 
@@ -809,9 +809,9 @@ dates_of_interest AS (
 
 	SELECT @end_time::timestamptz AS date
 ),
--- latest_status_before_range defines the status of each user before the start_time.
--- We do not include users who were deleted before the start_time. We use this to ensure that
--- we correctly count users prior to the start_time for a complete graph.
+	-- latest_status_before_range defines the status of each user before the start_time.
+	-- We do not include users who were deleted before the start_time. We use this to ensure that
+	-- we correctly count users prior to the start_time for a complete graph.
 latest_status_before_range AS (
     SELECT
         DISTINCT usc.user_id,
@@ -823,10 +823,10 @@ latest_status_before_range AS (
 	AND (ud.user_id IS NULL OR ud.deleted_at > @start_time::timestamptz)
     ORDER BY usc.user_id, usc.changed_at DESC
 ),
--- status_changes_during_range defines the status of each user during the start_time and end_time.
--- If a user is deleted during the time range, we count status changes prior to the deletion.
--- Theoretically, it should probably not be possible to update the status of a deleted user, but we
--- need to ensure that this is enforced, so that a change in business logic later does not break this graph.
+	-- status_changes_during_range defines the status of each user during the start_time and end_time.
+	-- If a user is deleted during the time range, we count status changes between the start_time and the deletion date.
+	-- Theoretically, it should probably not be possible to update the status of a deleted user, but we
+	-- need to ensure that this is enforced, so that a change in business logic later does not break this graph.
 status_changes_during_range AS (
     SELECT
         usc.user_id,
@@ -838,8 +838,8 @@ status_changes_during_range AS (
         AND usc.changed_at <= @end_time::timestamptz
 		AND (ud.user_id IS NULL OR usc.changed_at < ud.deleted_at)
 ),
--- relevant_status_changes defines the status of each user at any point in time.
--- It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
+	-- relevant_status_changes defines the status of each user at any point in time.
+	-- It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
 relevant_status_changes AS (
     SELECT
         user_id,
@@ -855,14 +855,14 @@ relevant_status_changes AS (
         changed_at
     FROM status_changes_during_range
 ),
--- statuses defines all the distinct statuses that were present just before and during the time range.
--- This is used to ensure that we have a series for every relevant status.
+	-- statuses defines all the distinct statuses that were present just before and during the time range.
+	-- This is used to ensure that we have a series for every relevant status.
 statuses AS (
 	SELECT DISTINCT new_status FROM relevant_status_changes
 ),
--- We only want to count the latest status change for each user on each date and then filter them by the relevant status.
--- We use the row_number function to ensure that we only count the latest status change for each user on each date.
--- We then filter the status changes by the relevant status in the final select statement below.
+	-- We only want to count the latest status change for each user on each date and then filter them by the relevant status.
+	-- We use the row_number function to ensure that we only count the latest status change for each user on each date.
+	-- We then filter the status changes by the relevant status in the final select statement below.
 ranked_status_change_per_user_per_date AS (
 	SELECT
 	d.date,
