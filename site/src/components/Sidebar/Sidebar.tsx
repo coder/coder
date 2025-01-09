@@ -61,20 +61,19 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 	href,
 	end,
 }) => {
+	// useMatch is necessary to verify if the current path matches the href on the initial render of the route
 	const matchResult = useMatch(href);
 
 	return (
 		<NavLink
 			end={end}
 			to={href}
-			className={() =>
-				cn(
-					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
-					{
-						"font-semibold text-content-primary": matchResult !== null,
-					},
-				)
-			}
+			className={cn(
+				"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+				{
+					"font-semibold text-content-primary": matchResult !== null,
+				},
+			)}
 		>
 			{children}
 		</NavLink>
