@@ -882,16 +882,6 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
-// From codersdk/insights.go
-export interface GetUserStatusCountsOverTimeRequest {
-	readonly offset: string;
-}
-
-// From codersdk/insights.go
-export interface GetUserStatusCountsOverTimeResponse {
-	readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
-}
-
 // From codersdk/users.go
 export interface GetUsersResponse {
 	readonly users: readonly User[];
@@ -2699,12 +2689,6 @@ export interface UserRoles {
 
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
-
-// From codersdk/insights.go
-export interface UserStatusChangeCount {
-	readonly date: string;
-	readonly count: number;
-}
 
 export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 

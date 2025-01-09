@@ -20,10 +20,3 @@ export const insightsUserActivity = (params: InsightsParams) => {
 		queryFn: () => API.getInsightsUserActivity(params),
 	};
 };
-
-export const userStatusCountsOverTime = () => {
-	return {
-		queryKey: ["userStatusCountsOverTime"],
-		queryFn: () => API.getInsightsUserStatusCountsOverTime(),
-	};
-};

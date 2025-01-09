@@ -1,6 +1,6 @@
 import { deploymentDAUs } from "api/queries/deployment";
+import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
-import { userStatusCountsOverTime } from "api/queries/insights";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
@@ -15,8 +15,9 @@ const GeneralSettingsPage: FC = () => {
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
 	const { metadata } = useEmbeddedMetadata();
+	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
-	const userStatusCountsOverTimeQuery = useQuery(userStatusCountsOverTime());
+
 	const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
 	const invalidExperiments =
 		enabledExperimentsQuery.data?.filter((exp) => {
@@ -32,9 +33,9 @@ const GeneralSettingsPage: FC = () => {
 				deploymentOptions={deploymentConfig.options}
 				deploymentDAUs={deploymentDAUsQuery.data}
 				deploymentDAUsError={deploymentDAUsQuery.error}
+				entitlements={entitlementsQuery.data}
 				invalidExperiments={invalidExperiments}
 				safeExperiments={safeExperiments}
-				userStatusCountsOverTime={userStatusCountsOverTimeQuery.data}
 			/>
 		</>
 	);

@@ -2097,19 +2097,6 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getInsightsUserStatusCountsOverTime = async (
-		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
-	): Promise<TypesGen.GetUserStatusCountsOverTimeResponse> => {
-		const searchParams = new URLSearchParams({
-			offset: offset.toString(),
-		});
-		const response = await this.axios.get(
-			`/api/v2/insights/user-status-counts-over-time?${searchParams}`,
-		);
-
-		return response.data;
-	};
-
 	getHealth = async (force = false) => {
 		const params = new URLSearchParams({ force: force.toString() });
 		const response = await this.axios.get<TypesGen.HealthcheckReport>(
