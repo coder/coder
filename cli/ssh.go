@@ -180,7 +180,17 @@ func (r *RootCmd) ssh() *serpent.Command {
 				parsedEnv = append(parsedEnv, [2]string{k, v})
 			}
 
-			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, inv.Args[0])
+			namedWorkspace := inv.Args[0]
+			if parts := strings.Split(namedWorkspace, "--"); len(parts) >= 3 {
+				owner := parts[1]
+				name := parts[2]
+				namedWorkspace = owner + "/" + name
+				if len(parts) > 3 {
+					namedWorkspace += "." + parts[3]
+				}
+			}
+
+			workspace, workspaceAgent, err := getWorkspaceAndAgent(ctx, inv, client, !disableAutostart, namedWorkspace)
 			if err != nil {
 				return err
 			}
