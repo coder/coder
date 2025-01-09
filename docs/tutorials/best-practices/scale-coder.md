@@ -1,17 +1,14 @@
-kl# Scale Coder
+# Scale Coder
 
-December 20, 2024
-
----
-
-This best practice guide helps you prepare a low-scale Coder deployment so that
-it can be scaled up to a high-scale deployment as use grows, and keep it
-operating smoothly with a high number of active users and workspaces.
+This best practice guide helps you prepare a low-scale Coder deployment that you can
+scale up to a high-scale deployment as use grows, and keep it operating smoothly with a
+high number of active users and workspaces.
 
 ## Observability
 
-Observability is one of the most important aspects to a scalable Coder
-deployment.
+Observability is one of the most important aspects to a scalable Coder deployment.
+When you have visibility into performance and usage metrics, you can make informed
+decisions about what changes you should make.
 
 [Monitor your Coder deployment](../../admin/monitoring/index.md) with log output
 and metrics to identify potential bottlenecks before they negatively affect the
@@ -19,16 +16,18 @@ end-user experience and measure the effects of modifications you make to your
 deployment.
 
 - Log output
-  - Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server instances and external provisioner daemons and store them in a
-  searchable log store.
-  - Retain logs for a minimum of thirty days, ideally ninety days. This allows you to look back to see when anomalous behaviors began.
+  - Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server
+  instances and external provisioner daemons and store them in a searchable log store.
+  - Retain logs for a minimum of thirty days, ideally ninety days.
+  This allows you to look back to see when anomalous behaviors began.
 
 - Metrics
-  - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
+  - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
+  Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
 
 ### Capture Coder server metrics with Prometheus
 
-To capture metrics from Coder Server and external provisioner daemons with
+Edit your Helm `values.yaml` to capture metrics from Coder Server and external provisioner daemons with
 [Prometheus](../../admin/integrations/prometheus.md):
 
 1. Enable Prometheus metrics:
@@ -49,40 +48,35 @@ To capture metrics from Coder Server and external provisioner daemons with
    CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
    ```
 
-- To disable agent stats:
+   - To disable agent stats:
 
-  ```yaml
-  CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
-  ```
+     ```yaml
+     CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
+     ```
 
 Retain metric time series for at least six months. This allows you to see
 performance trends relative to user growth.
 
 For a more comprehensive overview, integrate metrics with an observability
-dashboard, for example, [Grafana](../../admin/monitoring/index.md).
+dashboard like [Grafana](../../admin/monitoring/index.md).
 
 ### Observability key metrics
 
 Configure alerting based on these metrics to ensure you surface problems before
 they affect the end-user experience.
 
-#### CPU and Memory Utilization
+- CPU and Memory Utilization
+  - Monitor the utilization as a fraction of the available resources on the instance.
 
-Monitor the utilization as a fraction of the available resources on the instance.
+     Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
 
-Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
+- Tail latency of Coder Server API requests
+  - High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
+  - Use the `coderd_api_request_latencies_seconds` metric.
 
-#### Tail latency of Coder Server API requests
-
-High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
-
-- Use the `coderd_api_request_latencies_seconds` metric.
-
-#### Tail latency of database queries
-
-High tail latency can indicate the PostgreSQL database is low in resources.
-
-- Use the `coderd_db_query_latencies_seconds` metric.
+- Tail latency of database queries
+  - High tail latency can indicate the PostgreSQL database is low in resources.
+  - Use the `coderd_db_query_latencies_seconds` metric.
 
 ## Coder Server
 
@@ -116,8 +110,7 @@ Coder's
 [validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales. These are a useful
 starting point, but very few deployments will remain stable at a predetermined
-user level over the long term, so monitoring and adjusting of resources is
-recommended.
+user level over the long term. We recommend monitoring and adjusting resources as needed.
 
 We don't recommend that you autoscale the Coder Servers. Instead, scale the
 deployment for peak weekly usage.
@@ -128,27 +121,25 @@ users to their workspaces in two capacities:
 1. As an HTTP proxy when they access workspace applications in their browser via
    the Coder Dashboard
 
-1. As a DERP proxy when establishing tunneled connections via CLI tools
-   (`coder ssh`, `coder port-forward`, etc.) and desktop IDEs.
+1. As a DERP proxy when establishing tunneled connections with CLI tools like `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
 
 Stopping a Coder Server instance will (momentarily) disconnect any users
 currently connecting through that instance. Adding a new instance is not
-disruptive, but removing instances and upgrades should be performed during a
+disruptive, but you should remove instances and perform upgrades during a
 maintenance window to minimize disruption.
 
 ## Provisioner daemons
 
 ### Locality
 
-We recommend you disable provisioner daemons within your Coder Server:
+We recommend that you run one or more
+[provisioner daemon deployments external to Coder Server](../../admin/provisioners.md)
+and disable provisioner daemons within your Coder Server.
+This allows you to scale them independently of the Coder Server:
 
 ```yaml
 CODER_PROVISIONER_DAEMONS=0
 ```
-
-Run one or more
-[provisioner daemon deployments external to Coder Server](../../admin/provisioners.md).
-This allows you to scale them independently of the Coder Server.
 
 We recommend deploying provisioner daemons within the same cluster as the
 workspaces they will provision or are hosted in.
@@ -157,15 +148,15 @@ workspaces they will provision or are hosted in.
   provision workspaces and can speed builds.
 
 - It allows provisioner daemons to use in-cluster mechanisms (for example
-  Kubernetes service account tokens, AWS IAM Roles, etc.) to authenticate with
+  Kubernetes service account tokens, AWS IAM Roles, and others) to authenticate with
   the infrastructure APIs.
 
 - If you deploy workspaces in multiple clusters, run multiple provisioner daemon
   deployments and use template tags to select the correct set of provisioner
   daemons.
 
-- Provisioner daemons need to be able to connect to Coder Server, but this need
-  not be a low-latency connection.
+- Provisioner daemons need to be able to connect to Coder Server, but this does not need
+  to be a low-latency connection.
 
 Provisioner daemons make no direct connections to the PostgreSQL database, so
 there's no need for locality to the Postgres database.
@@ -173,30 +164,31 @@ there's no need for locality to the Postgres database.
 ### Scaling
 
 Each provisioner daemon instance can handle a single workspace build job at a
-time. Therefore, the number of provisioner daemon instances within a tagged
-deployment equals the maximum number of simultaneous builds your Coder
-deployment can handle.
+time. Therefore, the maximum number of simultaneous builds your Coder deployment
+can handle is equal to the number of provisioner daemon instances within a tagged
+deployment.
 
 If users experience unacceptably long queues for workspace builds to start,
 consider increasing the number of provisioner daemon instances in the affected
 cluster.
 
-You may wish to automatically scale the number of provisioner daemon instances
-throughout the day to meet demand. If you stop instances with `SIGHUP`, they
-will complete their current build job and exit. `SIGINT` will cancel the current
-job, which will result in a failed build. Ensure your autoscaler waits long
-enough for your build jobs to complete before forcibly killing the provisioner
-daemon process.
+You might need to automatically scale the number of provisioner daemon instances
+throughout the day to meet demand.
 
-If deploying in Kubernetes, we recommend a single provisioner daemon per pod. On
-a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring
+If you stop instances with `SIGHUP`, they will complete their current build job
+and exit. `SIGINT` will cancel the current job, which will result in a failed build.
+Ensure your autoscaler waits long enough for your build jobs to complete before
+it kills the provisioner daemon process.
+
+If you deploy in Kubernetes, we recommend a single provisioner daemon per pod.
+On a virtual machine (VM), you can deploy multiple provisioner daemons, ensuring
 each has a unique `CODER_CACHE_DIRECTORY` value.
 
 Coder's
 [validated architectures](../../admin/infrastructure/validated-architectures/index.md)
 give specific sizing recommendations for various user scales. Since the
 complexity of builds varies significantly depending on the workspace template,
-consider this a starting point. Monitor queue times and build times to adjust
+consider this a starting point. Monitor queue times and build times and adjust
 the number and size of your provisioner daemon instances.
 
 ## PostgreSQL
@@ -232,20 +224,22 @@ path.
 
 ### Scaling
 
-Workspace proxy load is determined by the amount of traffic they proxy. We
-recommend you monitor CPU, memory, and network I/O utilization to decide when to
-resize the number of proxy instances.
+Workspace proxy load is determined by the amount of traffic they proxy.
+
+Monitor CPU, memory, and network I/O utilization to decide when to resize
+the number of proxy instances.
+
+Scale for peak demand and scale down or upgrade during a maintenance window.
 
 We do not recommend autoscaling the workspace proxies because many applications
 use long-lived connections such as websockets, which would be disrupted by
-stopping the proxy. We recommend you scale for peak demand and scale down or
-upgrade during a maintenance window.
+stopping the proxy.
 
 ## Workspaces
 
 Workspaces represent the vast majority of resources in most Coder deployments.
 Because they are defined by templates, there is no one-size-fits-all advice for
-scaling.
+scaling workspaces.
 
 ### Hard and soft cluster limits
 
@@ -259,25 +253,23 @@ utilization against the limits, so that a new influx of users doesn't encounter
 failed builds. Monitoring these is outside the scope of Coder, but we recommend
 that you set up dashboards and alerts for each kind of limited resource.
 
-As you approach soft limits, you might be able to justify an increase to keep
-growing.
+As you approach soft limits, you can increase limits to keep growing.
 
-As you approach hard limits, you will need to consider deploying to additional
-cluster(s).
+As you approach hard limits, consider deploying to additional cluster(s).
 
 ### Workspaces per node
 
 Many development workloads are "spiky" in their CPU and memory requirements, for
-example, peaking during build/test and then ebbing while editing code. This
-leads to an opportunity to efficiently use compute resources by packing multiple
+example, they peak during build/test and then ebb while editing code.
+This leads to an opportunity to efficiently use compute resources by packing multiple
 workspaces onto a single node. This can lead to better experience (more CPU and
 memory available during brief bursts) and lower cost.
 
-However, it needs to be considered against several trade-offs.
+There are a number of things you should consider before you decide how many
+workspaces you should allow per node:
 
-- There are residual probabilities of "noisy neighbor" problems negatively
-  affecting end users. The probabilities increase with the amount of
-  oversubscription of CPU and memory resources.
+- "Noisy neighbor" issues: Users share the node's CPU and memory resources and might
+be susceptible to a user or process consuming shared resources.
 
 - If the shared nodes are a provisioned resource, for example, Kubernetes nodes
   running on VMs in a public cloud, then it can sometimes be a challenge to
