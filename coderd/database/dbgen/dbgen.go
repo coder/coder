@@ -20,12 +20,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -75,7 +76,7 @@ func Template(t testing.TB, db database.Store, seed database.Template) database.
 	if seed.GroupACL == nil {
 		// By default, all users in the organization can read the template.
 		seed.GroupACL = database.TemplateACL{
-			seed.OrganizationID.String(): []policy.Action{policy.ActionRead},
+			seed.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 		}
 	}
 	if seed.UserACL == nil {

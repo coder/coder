@@ -223,7 +223,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 					delete(template.UserACL, id)
 					continue
 				}
-				template.UserACL[id] = convertSDKTemplateRole(role)
+				template.UserACL[id] = db2sdk.TemplateRoleActions(role)
 			}
 		}
 
@@ -235,7 +235,7 @@ func (api *API) patchTemplateACL(rw http.ResponseWriter, r *http.Request) {
 					delete(template.GroupACL, id)
 					continue
 				}
-				template.GroupACL[id] = convertSDKTemplateRole(role)
+				template.GroupACL[id] = db2sdk.TemplateRoleActions(role)
 			}
 		}
 
@@ -317,7 +317,7 @@ func convertTemplateUsers(tus []database.TemplateUser, orgIDsByUserIDs map[uuid.
 }
 
 func validateTemplateRole(role codersdk.TemplateRole) error {
-	actions := convertSDKTemplateRole(role)
+	actions := db2sdk.TemplateRoleActions(role)
 	if actions == nil && role != codersdk.TemplateRoleDeleted {
 		return xerrors.Errorf("role %q is not a valid Template role", role)
 	}
@@ -334,17 +334,6 @@ func convertToTemplateRole(actions []policy.Action) codersdk.TemplateRole {
 	}
 
 	return ""
-}
-
-func convertSDKTemplateRole(role codersdk.TemplateRole) []policy.Action {
-	switch role {
-	case codersdk.TemplateRoleAdmin:
-		return []policy.Action{policy.WildcardSymbol}
-	case codersdk.TemplateRoleUse:
-		return []policy.Action{policy.ActionRead, policy.ActionUse}
-	}
-
-	return nil
 }
 
 // TODO move to api.RequireFeatureMW when we are OK with changing the behavior.

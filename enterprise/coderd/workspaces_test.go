@@ -219,6 +219,8 @@ func TestCreateWorkspace(t *testing.T) {
 		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
 		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
 		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		//nolint:gocritic // This should be run as the owner user.
 		err := owner.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
 			UserPerms: nil,
 			GroupPerms: map[string]codersdk.TemplateRole{
