@@ -103,6 +103,23 @@ Enable remote port forwarding (remote_port:local_address:local_port).
 
 Set environment variable(s) for session (key1=value1,key2=value2,...).
 
+### --network-info-dir
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Specifies a directory to write network information periodically.
+
+### --network-info-interval
+
+|         |                       |
+|---------|-----------------------|
+| Type    | <code>duration</code> |
+| Default | <code>5s</code>       |
+
+Specifies the interval to update network information.
+
 ### --disable-autostart
 
 |             |                                           |
