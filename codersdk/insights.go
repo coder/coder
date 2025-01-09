@@ -283,7 +283,7 @@ func (c *Client) TemplateInsights(ctx context.Context, req TemplateInsightsReque
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }
 
-type GetUserStatusCountsOverTimeResponse struct {
+type GetUserStatusCountsResponse struct {
 	StatusCounts map[UserStatus][]UserStatusChangeCount `json:"status_counts"`
 }
 
@@ -292,24 +292,24 @@ type UserStatusChangeCount struct {
 	Count int64     `json:"count" example:"10"`
 }
 
-type GetUserStatusCountsOverTimeRequest struct {
+type GetUserStatusCountsRequest struct {
 	Offset time.Time `json:"offset" format:"date-time"`
 }
 
-func (c *Client) GetUserStatusCountsOverTime(ctx context.Context, req GetUserStatusCountsOverTimeRequest) (GetUserStatusCountsOverTimeResponse, error) {
+func (c *Client) GetUserStatusCounts(ctx context.Context, req GetUserStatusCountsRequest) (GetUserStatusCountsResponse, error) {
 	qp := url.Values{}
 	qp.Add("offset", req.Offset.Format(insightsTimeLayout))
 
-	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts-over-time?%s", qp.Encode())
+	reqURL := fmt.Sprintf("/api/v2/insights/user-status-counts?%s", qp.Encode())
 	resp, err := c.Request(ctx, http.MethodGet, reqURL, nil)
 	if err != nil {
-		return GetUserStatusCountsOverTimeResponse{}, xerrors.Errorf("make request: %w", err)
+		return GetUserStatusCountsResponse{}, xerrors.Errorf("make request: %w", err)
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		return GetUserStatusCountsOverTimeResponse{}, ReadBodyAsError(resp)
+		return GetUserStatusCountsResponse{}, ReadBodyAsError(resp)
 	}
-	var result GetUserStatusCountsOverTimeResponse
+	var result GetUserStatusCountsResponse
 	return result, json.NewDecoder(resp.Body).Decode(&result)
 }

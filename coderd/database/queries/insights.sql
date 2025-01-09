@@ -772,8 +772,8 @@ FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
 
--- name: GetUserStatusCountsOverTime :many
--- GetUserStatusCountsOverTime returns the count of users in each status over time.
+-- name: GetUserStatusCounts :many
+-- GetUserStatusCounts returns the count of users in each status over time.
 -- The time range is inclusively defined by the start_time and end_time parameters.
 --
 -- Bucketing:

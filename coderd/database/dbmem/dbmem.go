@@ -5671,7 +5671,7 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	return out, nil
 }
 
-func (q *FakeQuerier) GetUserStatusCountsOverTime(_ context.Context, arg database.GetUserStatusCountsOverTimeParams) ([]database.GetUserStatusCountsOverTimeRow, error) {
+func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -5680,16 +5680,16 @@ func (q *FakeQuerier) GetUserStatusCountsOverTime(_ context.Context, arg databas
 		return nil, err
 	}
 
-	result := make([]database.GetUserStatusCountsOverTimeRow, 0)
+	result := make([]database.GetUserStatusCountsRow, 0)
 	for _, change := range q.userStatusChanges {
 		if change.ChangedAt.Before(arg.StartTime) || change.ChangedAt.After(arg.EndTime) {
 			continue
 		}
 		date := time.Date(change.ChangedAt.Year(), change.ChangedAt.Month(), change.ChangedAt.Day(), 0, 0, 0, 0, time.UTC)
-		if !slices.ContainsFunc(result, func(r database.GetUserStatusCountsOverTimeRow) bool {
+		if !slices.ContainsFunc(result, func(r database.GetUserStatusCountsRow) bool {
 			return r.Status == change.NewStatus && r.Date.Equal(date)
 		}) {
-			result = append(result, database.GetUserStatusCountsOverTimeRow{
+			result = append(result, database.GetUserStatusCountsRow{
 				Status: change.NewStatus,
 				Date:   date,
 				Count:  1,

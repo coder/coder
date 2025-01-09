@@ -1398,7 +1398,7 @@ const docTemplate = `{
                 }
             }
         },
-        "/insights/user-status-counts-over-time": {
+        "/insights/user-status-counts": {
             "get": {
                 "security": [
                     {
@@ -1412,7 +1412,7 @@ const docTemplate = `{
                     "Insights"
                 ],
                 "summary": "Get insights about user status counts over time",
-                "operationId": "get-insights-about-user-status-counts-over-time",
+                "operationId": "get-insights-about-user-status-counts",
                 "parameters": [
                     {
                         "type": "integer",
@@ -1426,7 +1426,7 @@ const docTemplate = `{
                     "200": {
                         "description": "OK",
                         "schema": {
-                            "$ref": "#/definitions/codersdk.GetUserStatusCountsOverTimeResponse"
+                            "$ref": "#/definitions/codersdk.GetUserStatusCountsResponse"
                         }
                     }
                 }
@@ -11241,7 +11241,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.GetUserStatusCountsOverTimeResponse": {
+        "codersdk.GetUserStatusCountsResponse": {
             "type": "object",
             "properties": {
                 "status_counts": {

@@ -3000,7 +3000,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
-## codersdk.GetUserStatusCountsOverTimeResponse
+## codersdk.GetUserStatusCountsResponse
 
 ```json
 {

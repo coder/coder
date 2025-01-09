@@ -289,7 +289,7 @@ type sqlcQuerier interface {
 	GetUserLinkByUserIDLoginType(ctx context.Context, arg GetUserLinkByUserIDLoginTypeParams) (UserLink, error)
 	GetUserLinksByUserID(ctx context.Context, userID uuid.UUID) ([]UserLink, error)
 	GetUserNotificationPreferences(ctx context.Context, userID uuid.UUID) ([]NotificationPreference, error)
-	// GetUserStatusCountsOverTime returns the count of users in each status over time.
+	// GetUserStatusCounts returns the count of users in each status over time.
 	// The time range is inclusively defined by the start_time and end_time parameters.
 	//
 	// Bucketing:
@@ -301,7 +301,7 @@ type sqlcQuerier interface {
 	// Accumulation:
 	// We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 	// the result shows the total number of users in each status on any particular day.
-	GetUserStatusCountsOverTime(ctx context.Context, arg GetUserStatusCountsOverTimeParams) ([]GetUserStatusCountsOverTimeRow, error)
+	GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error)
 	GetUserWorkspaceBuildParameters(ctx context.Context, arg GetUserWorkspaceBuildParametersParams) ([]GetUserWorkspaceBuildParametersRow, error)
 	// This will never return deleted users.
 	GetUsers(ctx context.Context, arg GetUsersParams) ([]GetUsersRow, error)

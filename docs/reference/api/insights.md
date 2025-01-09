@@ -267,12 +267,12 @@ To perform this operation, you must be authenticated. [Learn more](authenticatio
 
 ```shell
 # Example request using curl
-curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts-over-time?tz_offset=0 \
+curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts?tz_offset=0 \
   -H 'Accept: application/json' \
   -H 'Coder-Session-Token: API_KEY'
 ```
 
-`GET /insights/user-status-counts-over-time`
+`GET /insights/user-status-counts`
 
 ### Parameters
 
@@ -305,8 +305,8 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts-over-tim
 
 ### Responses
 
-| Status | Meaning                                                 | Description | Schema                                                                                                 |
-|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUserStatusCountsOverTimeResponse](schemas.md#codersdkgetuserstatuscountsovertimeresponse) |
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUserStatusCountsResponse](schemas.md#codersdkgetuserstatuscountsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

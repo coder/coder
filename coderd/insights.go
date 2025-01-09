@@ -293,14 +293,14 @@ func (api *API) insightsUserLatency(rw http.ResponseWriter, r *http.Request) {
 }
 
 // @Summary Get insights about user status counts over time
-// @ID get-insights-about-user-status-counts-over-time
+// @ID get-insights-about-user-status-counts
 // @Security CoderSessionToken
 // @Produce json
 // @Tags Insights
 // @Param tz_offset query int true "Time-zone offset (e.g. -2)"
-// @Success 200 {object} codersdk.GetUserStatusCountsOverTimeResponse
-// @Router /insights/user-status-counts-over-time [get]
-func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http.Request) {
+// @Success 200 {object} codersdk.GetUserStatusCountsResponse
+// @Router /insights/user-status-counts [get]
+func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
 	p := httpapi.NewQueryParamParser()
@@ -324,7 +324,7 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 	// Always return 60 days of data (2 months).
 	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
 
-	rows, err := api.Database.GetUserStatusCountsOverTime(ctx, database.GetUserStatusCountsOverTimeParams{
+	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
 	})
@@ -340,7 +340,7 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 		return
 	}
 
-	resp := codersdk.GetUserStatusCountsOverTimeResponse{
+	resp := codersdk.GetUserStatusCountsResponse{
 		StatusCounts: make(map[codersdk.UserStatus][]codersdk.UserStatusChangeCount),
 	}
 

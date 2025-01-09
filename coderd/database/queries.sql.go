@@ -3094,7 +3094,7 @@ func (q *sqlQuerier) GetUserLatencyInsights(ctx context.Context, arg GetUserLate
 	return items, nil
 }
 
-const getUserStatusCountsOverTime = `-- name: GetUserStatusCountsOverTime :many
+const getUserStatusCounts = `-- name: GetUserStatusCounts :many
 WITH
 	-- dates_of_interest defines all points in time that are relevant to the query.
 	-- It includes the start_time, all status changes, all deletions, and the end_time.
@@ -3203,18 +3203,18 @@ CROSS JOIN statuses
 GROUP BY date, statuses.new_status
 `
 
-type GetUserStatusCountsOverTimeParams struct {
+type GetUserStatusCountsParams struct {
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
 }
 
-type GetUserStatusCountsOverTimeRow struct {
+type GetUserStatusCountsRow struct {
 	Date   time.Time  `db:"date" json:"date"`
 	Status UserStatus `db:"status" json:"status"`
 	Count  int64      `db:"count" json:"count"`
 }
 
-// GetUserStatusCountsOverTime returns the count of users in each status over time.
+// GetUserStatusCounts returns the count of users in each status over time.
 // The time range is inclusively defined by the start_time and end_time parameters.
 //
 // Bucketing:
@@ -3226,15 +3226,15 @@ type GetUserStatusCountsOverTimeRow struct {
 // Accumulation:
 // We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 // the result shows the total number of users in each status on any particular day.
-func (q *sqlQuerier) GetUserStatusCountsOverTime(ctx context.Context, arg GetUserStatusCountsOverTimeParams) ([]GetUserStatusCountsOverTimeRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserStatusCountsOverTime, arg.StartTime, arg.EndTime)
+func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error) {
+	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetUserStatusCountsOverTimeRow
+	var items []GetUserStatusCountsRow
 	for rows.Next() {
-		var i GetUserStatusCountsOverTimeRow
+		var i GetUserStatusCountsRow
 		if err := rows.Scan(&i.Date, &i.Status, &i.Count); err != nil {
 			return nil, err
 		}
