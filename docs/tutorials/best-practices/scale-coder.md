@@ -260,7 +260,7 @@ As you approach hard limits, consider deploying to additional cluster(s).
 ### Workspaces per node
 
 Many development workloads are "spiky" in their CPU and memory requirements, for
-example, they peak during build/test and then ebb while editing code.
+example, they peak during build/test and then lower while editing code.
 This leads to an opportunity to efficiently use compute resources by packing multiple
 workspaces onto a single node. This can lead to better experience (more CPU and
 memory available during brief bursts) and lower cost.
