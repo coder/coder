@@ -29,7 +29,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbrollup"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
-	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/codersdk"
@@ -1574,7 +1573,7 @@ func TestUserActivityInsights_Golden(t *testing.T) {
 				OrganizationID:  firstUser.OrganizationID,
 				CreatedBy:       firstUser.UserID,
 				GroupACL: database.TemplateACL{
-					firstUser.OrganizationID.String(): []policy.Action{policy.ActionRead},
+					firstUser.OrganizationID.String(): db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse),
 				},
 			})
 			err := db.UpdateTemplateVersionByID(context.Background(), database.UpdateTemplateVersionByIDParams{
