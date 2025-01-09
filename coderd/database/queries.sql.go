@@ -3183,7 +3183,7 @@ ranked_status_change_per_user_per_date AS (
 	LEFT JOIN relevant_status_changes rsc1 ON rsc1.changed_at <= d.date
 )
 SELECT
-	date,
+	rscpupd.date,
 	statuses.new_status AS status,
 	COUNT(rscpupd.user_id) FILTER (
 		WHERE rscpupd.rn = 1

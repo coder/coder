@@ -2321,10 +2321,6 @@ func TestGetUserStatusCountsOverTime(t *testing.T) {
 						name:   "Suspended Only",
 						status: database.UserStatusSuspended,
 					},
-					// {
-					// 	name:   "Deleted Only",
-					// 	status: database.UserStatusDeleted,
-					// },
 				}
 
 				for _, tc := range testCases {

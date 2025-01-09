@@ -329,6 +329,10 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 		EndTime:   nextHourInLoc,
 	})
 	if err != nil {
+		if httpapi.IsUnauthorizedError(err) {
+			httpapi.Forbidden(rw)
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching user status counts over time.",
 			Detail:  err.Error(),
@@ -342,9 +346,6 @@ func (api *API) insightsUserStatusCountsOverTime(rw http.ResponseWriter, r *http
 
 	for _, row := range rows {
 		status := codersdk.UserStatus(row.Status)
-		if _, ok := resp.StatusCounts[status]; !ok {
-			resp.StatusCounts[status] = make([]codersdk.UserStatusChangeCount, 0)
-		}
 		resp.StatusCounts[status] = append(resp.StatusCounts[status], codersdk.UserStatusChangeCount{
 			Date:  row.Date,
 			Count: row.Count,
