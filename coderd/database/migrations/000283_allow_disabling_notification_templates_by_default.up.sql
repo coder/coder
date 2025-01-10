@@ -23,7 +23,7 @@ BEGIN
 					 FROM notification_templates
 					 WHERE id = NEW.notification_template_id
 				        AND enabled_by_default = FALSE)) THEN
-		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+		RAISE EXCEPTION 'cannot enqueue message: user has not enabled this notification';
 	END IF;
 
 	RETURN NEW;
