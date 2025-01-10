@@ -1,15 +1,13 @@
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
-import Button from "@mui/material/Button";
 import { groupsByOrganization } from "api/queries/groups";
-import { organizationRoles } from "api/queries/roles";
 import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
+import { organizationRoles } from "api/queries/roles";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { SquareArrowOutUpRight } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
@@ -18,7 +16,6 @@ import { useQueries } from "react-query";
 import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
-import { IdpSyncHelpTooltip } from "./IdpSyncHelpTooltip";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 export const IdpSyncPage: FC = () => {
@@ -30,15 +27,19 @@ export const IdpSyncPage: FC = () => {
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 
-	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery, rolesQuery] =
-		useQueries({
-			queries: [
-				groupIdpSyncSettings(organizationName),
-				roleIdpSyncSettings(organizationName),
-				groupsByOrganization(organizationName),
-				organizationRoles(organizationName),
-			],
-		});
+	const [
+		groupIdpSyncSettingsQuery,
+		roleIdpSyncSettingsQuery,
+		groupsQuery,
+		rolesQuery,
+	] = useQueries({
+		queries: [
+			groupIdpSyncSettings(organizationName),
+			roleIdpSyncSettings(organizationName),
+			groupsByOrganization(organizationName),
+			organizationRoles(organizationName),
+		],
+	});
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -62,42 +63,45 @@ export const IdpSyncPage: FC = () => {
 				<title>{pageTitle("IdP Sync")}</title>
 			</Helmet>
 
-			<div className="flex items-baseline justify-between"
-			>
-				<SettingsHeader
-					title="IdP Sync"
-					description="Group and role sync mappings (configured using Coder CLI)."
-					tooltip={<IdpSyncHelpTooltip />}
-				/>
-				<Button
-					startIcon={<LaunchOutlined />}
-					component="a"
-					href={docs("/admin/users/idp-sync")}
-					target="_blank"
-				>
-					Setup IdP Sync
-				</Button>
+			<div className="flex flex-col gap-12">
+				<header className="flex flex-row items-baseline justify-between">
+					<div className="flex flex-col gap-2">
+						<h1 className="text-3xl m-0">IdP Sync</h1>
+						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
+							Automatically assign groups or roles to a user based on their IdP
+							claims.
+							<a
+								href={docs("/admin/users/idp-sync")}
+								className="flex flex-row text-content-link items-center gap-1 no-underline hover:underline visited:text-content-link"
+							>
+								View docs
+								<SquareArrowOutUpRight size={14} />
+							</a>
+						</p>
+					</div>
+					{/* <ExportPolicyButton syncSettings={orgSyncSettingsData} /> */}
+				</header>
+				<ChooseOne>
+					<Cond condition={!isIdpSyncEnabled}>
+						<Paywall
+							message="IdP Sync"
+							description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
+							documentationLink={docs("/admin/users/idp-sync")}
+						/>
+					</Cond>
+					<Cond>
+						<IdpSyncPageView
+							groupSyncSettings={groupIdpSyncSettingsQuery.data}
+							roleSyncSettings={roleIdpSyncSettingsQuery.data}
+							groups={groupsQuery.data}
+							groupsMap={groupsMap}
+							roles={rolesQuery.data}
+							organization={organization}
+							error={error}
+						/>
+					</Cond>
+				</ChooseOne>
 			</div>
-			<ChooseOne>
-				<Cond condition={!isIdpSyncEnabled}>
-					<Paywall
-						message="IdP Sync"
-						description="Configure group and role mappings to manage permissions outside of Coder. You need an Premium license to use this feature."
-						documentationLink={docs("/admin/users/idp-sync")}
-					/>
-				</Cond>
-				<Cond>
-					<IdpSyncPageView
-						groupSyncSettings={groupIdpSyncSettingsQuery.data}
-						roleSyncSettings={roleIdpSyncSettingsQuery.data}
-						groups={groupsQuery.data}
-						groupsMap={groupsMap}
-						roles={rolesQuery.data}
-						organization={organization}
-						error={error}
-					/>
-				</Cond>
-			</ChooseOne>
 		</>
 	);
 };

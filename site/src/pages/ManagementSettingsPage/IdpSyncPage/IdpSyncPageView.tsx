@@ -176,8 +176,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								showDisabled
 							/>
 						</div>
-						<div
-						className="flex items-baseline justify-between mb-4">
+						<div className="flex items-baseline justify-between mb-4">
 							<TableRowCount count={roleMappingCount} type="roles" />
 							<ExportPolicyButton
 								syncSettings={roleSyncSettings}
