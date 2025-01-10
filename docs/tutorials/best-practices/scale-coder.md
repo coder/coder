@@ -1,6 +1,6 @@
 # Scale Coder
 
-This best practice guide helps you prepare a low-scale Coder deployment that you can
+This best practice guide helps you prepare a Coder deployment that you can
 scale up to a high-scale deployment as use grows, and keep it operating smoothly with a
 high number of active users and workspaces.
 
@@ -249,11 +249,11 @@ size of the cluster, especially in the case of a private cloud, or soft limits,
 based on configured limits in your public cloud account.
 
 It is important to be aware of these limits and monitor Coder workspace resource
-utilization against the limits, so that a new influx of users doesn't encounter
+utilization against the limits, so that a new influx of users don't encounter
 failed builds. Monitoring these is outside the scope of Coder, but we recommend
 that you set up dashboards and alerts for each kind of limited resource.
 
-As you approach soft limits, you can increase limits to keep growing.
+As you approach soft limits, you can request limit increases to keep growing.
 
 As you approach hard limits, consider deploying to additional cluster(s).
 
