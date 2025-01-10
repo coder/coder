@@ -13,33 +13,31 @@ provider "azurerm" {
   features {}
 }
 
-provider "coder" {
-}
-
+provider "coder" {}
 data "coder_workspace" "me" {}
 
-data "coder_parameter" "location" {
-  description  = "What location should your workspace live in?"
-  display_name = "Location"
-  name         = "location"
-  default      = "eastus"
-  mutable      = false
-  option {
-    value = "eastus"
-    name  = "East US"
-  }
-  option {
-    value = "centralus"
-    name  = "Central US"
-  }
-  option {
-    value = "southcentralus"
-    name  = "South Central US"
-  }
-  option {
-    value = "westus2"
-    name  = "West US 2"
-  }
+# See https://registry.coder.com/modules/azure-region
+module "azure_region" {
+  source = "registry.coder.com/modules/azure-region/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  default = "eastus"
+}
+
+# See https://registry.coder.com/modules/windows-rdp
+module "windows_rdp" {
+  source = "registry.coder.com/modules/windows-rdp/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  admin_username = local.admin_username
+  admin_password = random_password.admin_password.result
+
+  agent_id    = resource.coder_agent.main.id
+  resource_id = null # Unused, to be removed in a future version
 }
 
 data "coder_parameter" "data_disk_size" {
@@ -77,7 +75,7 @@ locals {
 
 resource "azurerm_resource_group" "main" {
   name     = "${local.prefix}-${data.coder_workspace.me.id}"
-  location = data.coder_parameter.location.value
+  location = module.azure_region.value
   tags = {
     Coder_Provisioned = "true"
   }

@@ -445,7 +445,10 @@ jobs:
             # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
             mkdir -p "R:/temp/embedded-pg"
             go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
-            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...
+            # Reduce test parallelism, mirroring what we do for race tests.
+            # We'd been encountering issues with timing related flakes, and
+            # this seems to help.
+            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
           else
             go run scripts/embedded-pg/main.go
             DB=ci gotestsum --format standard-quiet -- -v -short -count=1 ./...

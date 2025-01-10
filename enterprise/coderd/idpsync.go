@@ -363,3 +363,63 @@ func (api *API) idpSyncClaimFields(orgID uuid.UUID, rw http.ResponseWriter, r *h
 
 	httpapi.Write(ctx, rw, http.StatusOK, fields)
 }
+
+// @Summary Get the organization idp sync claim field values
+// @ID get-the-organization-idp-sync-claim-field-values
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param claimField query string true "Claim Field" format(string)
+// @Success 200 {array} string
+// @Router /organizations/{organization}/settings/idpsync/field-values [get]
+func (api *API) organizationIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
+	org := httpmw.OrganizationParam(r)
+	api.idpSyncClaimFieldValues(org.ID, rw, r)
+}
+
+// @Summary Get the idp sync claim field values
+// @ID get-the-idp-sync-claim-field-values
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Enterprise
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param claimField query string true "Claim Field" format(string)
+// @Success 200 {array} string
+// @Router /settings/idpsync/field-values [get]
+func (api *API) deploymentIDPSyncClaimFieldValues(rw http.ResponseWriter, r *http.Request) {
+	// nil uuid implies all organizations
+	api.idpSyncClaimFieldValues(uuid.Nil, rw, r)
+}
+
+func (api *API) idpSyncClaimFieldValues(orgID uuid.UUID, rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	claimField := r.URL.Query().Get("claimField")
+	if claimField == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "claimField query parameter is required",
+		})
+		return
+	}
+	fieldValues, err := api.Database.OIDCClaimFieldValues(ctx, database.OIDCClaimFieldValuesParams{
+		OrganizationID: orgID,
+		ClaimField:     claimField,
+	})
+
+	if httpapi.IsUnauthorizedError(err) {
+		// Give a helpful error. The user could read the org, so this does not
+		// leak anything.
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: "You do not have permission to view the IDP claim field values",
+			Detail:  fmt.Sprintf("%s.read permission is required", rbac.ResourceIdpsyncSettings.Type),
+		})
+		return
+	}
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, fieldValues)
+}

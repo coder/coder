@@ -17,6 +17,7 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
@@ -144,6 +145,101 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+	t.Run("StartStoppedWorkspaceConflict", func(t *testing.T) {
+		t.Parallel()
+
+		// Intercept builds to synchronize execution of the SSH command.
+		// The purpose here is to make sure all commands try to trigger
+		// a start build of the workspace.
+		isFirstBuild := true
+		buildURL := regexp.MustCompile("/api/v2/workspaces/.*/builds")
+		buildPause := make(chan bool)
+		buildDone := make(chan struct{})
+		buildSyncMW := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && buildURL.MatchString(r.URL.Path) {
+					if !isFirstBuild {
+						t.Log("buildSyncMW: pausing build")
+						if shouldContinue := <-buildPause; !shouldContinue {
+							// We can't force the API to trigger a build conflict (racy) so we fake it.
+							t.Log("buildSyncMW: return conflict")
+							w.WriteHeader(http.StatusConflict)
+							return
+						}
+						t.Log("buildSyncMW: resuming build")
+						defer func() {
+							t.Log("buildSyncMW: sending build done")
+							buildDone <- struct{}{}
+							t.Log("buildSyncMW: done")
+						}()
+					} else {
+						isFirstBuild = false
+					}
+				}
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		authToken := uuid.NewString()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			APIMiddleware:            buildSyncMW,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		var ptys []*ptytest.PTY
+		for i := 0; i < 3; i++ {
+			// SSH to the workspace which should autostart it
+			inv, root := clitest.New(t, "ssh", workspace.Name)
+
+			pty := ptytest.New(t).Attach(inv)
+			ptys = append(ptys, pty)
+			clitest.SetupConfig(t, client, root)
+			testutil.Go(t, func() {
+				_ = inv.WithContext(ctx).Run()
+			})
+		}
+
+		for _, pty := range ptys {
+			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+		}
+
+		// Allow one build to complete.
+		testutil.RequireSendCtx(ctx, t, buildPause, true)
+		testutil.RequireRecvCtx(ctx, t, buildDone)
+
+		// Allow the remaining builds to continue.
+		for i := 0; i < len(ptys)-1; i++ {
+			testutil.RequireSendCtx(ctx, t, buildPause, false)
+		}
+
+		var foundConflict int
+		for _, pty := range ptys {
+			// Either allow the command to start the workspace or fail
+			// due to conflict (race), in which case it retries.
+			match := pty.ExpectRegexMatchContext(ctx, "Waiting for the workspace agent to connect")
+			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
+				foundConflict++
+			}
+		}
+		require.Equal(t, 2, foundConflict, "expected 2 conflicts")
 	})
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()

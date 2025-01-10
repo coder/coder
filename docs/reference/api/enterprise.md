@@ -1830,6 +1830,46 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get the organization idp sync claim field values
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/field-values?claimField=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/field-values`
+
+### Parameters
+
+| Name           | In    | Type           | Required | Description     |
+|----------------|-------|----------------|----------|-----------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID |
+| `claimField`   | query | string(string) | true     | Claim Field     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-organization-idp-sync-claim-field-values-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group IdP Sync settings by organization
 
 ### Code samples
@@ -2533,6 +2573,46 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
 
 <h3 id="get-the-available-idp-sync-claim-fields-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the idp sync claim field values
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimField=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /settings/idpsync/field-values`
+
+### Parameters
+
+| Name           | In    | Type           | Required | Description     |
+|----------------|-------|----------------|----------|-----------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID |
+| `claimField`   | query | string(string) | true     | Claim Field     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-idp-sync-claim-field-values-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 

@@ -413,6 +413,13 @@ func (m queryMetricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.
 	return r0
 }
 
+func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
+	m.queryLatencies.WithLabelValues("DisableForeignKeysAndTriggers").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	start := time.Now()
 	r0 := m.s.EnqueueNotificationMessage(ctx, arg)

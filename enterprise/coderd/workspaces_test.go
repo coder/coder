@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1398,8 +1399,12 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 // real Terraform provisioner and validate that the workspace is created
 // successfully. The workspace itself does not specify any resources, and
 // this is fine.
+// nolint:paralleltest // this test tends to time out on windows runners
+// when run in parallel
 func TestWorkspaceTagsTerraform(t *testing.T) {
-	t.Parallel()
+	if runtime.GOOS != "windows" {
+		t.Parallel()
+	}
 
 	mainTfTemplate := `
 		terraform {
@@ -1528,7 +1533,9 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			if runtime.GOOS != "windows" {
+				t.Parallel()
+			}
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
