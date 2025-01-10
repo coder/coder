@@ -61,9 +61,11 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 	href,
 	end,
 }) => {
-	// useMatch is necessary to verify if the current path matches the href on the initial render of the route
+	// 2025-01-10: useMatch is a workaround for a bug we encountered when you
+	// pass a render function to NavLink's className prop, and try to access
+	// NavLinks's isActive state value for the conditional styling. isActive
+	// wasn't always evaluating to true when it should be, but useMatch worked
 	const matchResult = useMatch(href);
-
 	return (
 		<NavLink
 			end={end}
