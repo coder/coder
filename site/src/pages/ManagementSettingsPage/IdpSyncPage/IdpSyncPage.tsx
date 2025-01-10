@@ -1,6 +1,7 @@
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
 import Button from "@mui/material/Button";
 import { groupsByOrganization } from "api/queries/groups";
+import { organizationRoles } from "api/queries/roles";
 import {
 	groupIdpSyncSettings,
 	roleIdpSyncSettings,
@@ -9,7 +10,6 @@ import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
@@ -30,12 +30,13 @@ export const IdpSyncPage: FC = () => {
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
 
-	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery] =
+	const [groupIdpSyncSettingsQuery, roleIdpSyncSettingsQuery, groupsQuery, rolesQuery] =
 		useQueries({
 			queries: [
 				groupIdpSyncSettings(organizationName),
 				roleIdpSyncSettings(organizationName),
 				groupsByOrganization(organizationName),
+				organizationRoles(organizationName),
 			],
 		});
 
@@ -61,10 +62,7 @@ export const IdpSyncPage: FC = () => {
 				<title>{pageTitle("IdP Sync")}</title>
 			</Helmet>
 
-			<Stack
-				alignItems="baseline"
-				direction="row"
-				justifyContent="space-between"
+			<div className="flex items-baseline justify-between"
 			>
 				<SettingsHeader
 					title="IdP Sync"
@@ -79,7 +77,7 @@ export const IdpSyncPage: FC = () => {
 				>
 					Setup IdP Sync
 				</Button>
-			</Stack>
+			</div>
 			<ChooseOne>
 				<Cond condition={!isIdpSyncEnabled}>
 					<Paywall
@@ -94,6 +92,7 @@ export const IdpSyncPage: FC = () => {
 						roleSyncSettings={roleIdpSyncSettingsQuery.data}
 						groups={groupsQuery.data}
 						groupsMap={groupsMap}
+						roles={rolesQuery.data}
 						organization={organization}
 						error={error}
 					/>
