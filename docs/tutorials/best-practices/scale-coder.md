@@ -16,8 +16,8 @@ end-user experience and measure the effects of modifications you make to your
 deployment.
 
 - Log output
-  - Capture log output from Loki, CloudWatch logs, and other tools on your Coder Server
-  instances and external provisioner daemons and store them in a searchable log store.
+  - Capture log output from from Coder Server instances and external provisioner daemons
+  and store them in a searchable log store like Loki, CloudWatch logs, or other tools.
   - Retain logs for a minimum of thirty days, ideally ninety days.
   This allows you to look back to see when anomalous behaviors began.
 
@@ -42,13 +42,15 @@ Edit your Helm `values.yaml` to capture metrics from Coder Server and external p
    CODER_PROMETHEUS_COLLECT_DB_METRICS=true
    ```
 
-1. Configure agent stats to avoid large cardinality:
+1. For a high scale deployment, configure agent stats to avoid large cardinality or disable them:
 
-   ```yaml
-   CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
-   ```
+   - Configure agent stats:
 
-   - To disable agent stats:
+     ```yaml
+     CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY=agent_name
+     ```
+
+   - Disable agent stats:
 
      ```yaml
      CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
@@ -68,10 +70,13 @@ they affect the end-user experience.
 - CPU and Memory Utilization
   - Monitor the utilization as a fraction of the available resources on the instance.
 
-     Utilization will vary with use throughout the course of a day, week, and longer timelines. Monitor trends and pay special attention to the daily and weekly peak utilization. Use long-term trends to plan infrastructure upgrades.
+     Utilization will vary with use throughout the course of a day, week, and longer timelines.
+     Monitor trends and pay special attention to the daily and weekly peak utilization.
+     Use long-term trends to plan infrastructure upgrades.
 
 - Tail latency of Coder Server API requests
-  - High tail latency can indicate Coder Server or the PostgreSQL database is low on resources.
+  - High tail latency can indicate Coder Server or the PostgreSQL database is underprovisioned
+  for the load.
   - Use the `coderd_api_request_latencies_seconds` metric.
 
 - Tail latency of database queries
@@ -82,8 +87,8 @@ they affect the end-user experience.
 
 ### Locality
 
-To ensure increased availability of the Coder API, deploy at least three
-instances. Spread the instances across nodes with anti-affinity rules in
+If increased availability of the Coder API is a concern, deploy at least three
+instances of Coder Server. Spread the instances across nodes with anti-affinity rules in
 Kubernetes or in different availability zones of the same geographic region.
 
 Do not deploy in different geographic regions.
