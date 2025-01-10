@@ -3969,7 +3969,7 @@ func (q *sqlQuerier) GetNotificationReportGeneratorLogByTemplate(ctx context.Con
 }
 
 const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
-SELECT id, name, title_template, body_template, actions, "group", method, kind
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 FROM notification_templates
 WHERE id = $1::uuid
 `
@@ -3986,12 +3986,13 @@ func (q *sqlQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UU
 		&i.Group,
 		&i.Method,
 		&i.Kind,
+		&i.EnabledByDefault,
 	)
 	return i, err
 }
 
 const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind :many
-SELECT id, name, title_template, body_template, actions, "group", method, kind
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 FROM notification_templates
 WHERE kind = $1::notification_template_kind
 ORDER BY name ASC
@@ -4015,6 +4016,7 @@ func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind No
 			&i.Group,
 			&i.Method,
 			&i.Kind,
+			&i.EnabledByDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -4068,7 +4070,7 @@ const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplat
 UPDATE notification_templates
 SET method = $1::notification_method
 WHERE id = $2::uuid
-RETURNING id, name, title_template, body_template, actions, "group", method, kind
+RETURNING id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 `
 
 type UpdateNotificationTemplateMethodByIDParams struct {
@@ -4088,6 +4090,7 @@ func (q *sqlQuerier) UpdateNotificationTemplateMethodByID(ctx context.Context, a
 		&i.Group,
 		&i.Method,
 		&i.Kind,
+		&i.EnabledByDefault,
 	)
 	return i, err
 }

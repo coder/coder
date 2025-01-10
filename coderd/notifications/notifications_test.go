@@ -1106,6 +1106,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 							r.Name = tc.payload.UserName
 						},
 					)
+
+					// With the introduction of notifications that can be disabled
+					// by default, we want to make sure the user preferences have
+					// the notification enabled.
+					_, err := adminClient.UpdateUserNotificationPreferences(
+						context.Background(),
+						user.ID,
+						codersdk.UpdateUserNotificationPreferences{
+							TemplateDisabledMap: map[string]bool{
+								tc.id.String(): false,
+							},
+						})
+					require.NoError(t, err)
+
 					return &db, &api.Logger, &user
 				}()
 
@@ -1275,6 +1289,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 							r.Name = tc.payload.UserName
 						},
 					)
+
+					// With the introduction of notifications that can be disabled
+					// by default, we want to make sure the user preferences have
+					// the notification enabled.
+					_, err := adminClient.UpdateUserNotificationPreferences(
+						context.Background(),
+						user.ID,
+						codersdk.UpdateUserNotificationPreferences{
+							TemplateDisabledMap: map[string]bool{
+								tc.id.String(): false,
+							},
+						})
+					require.NoError(t, err)
+
 					return &db, &api.Logger, &user
 				}()
 

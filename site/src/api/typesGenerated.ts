@@ -1218,6 +1218,7 @@ export interface NotificationTemplate {
 	readonly group: string;
 	readonly method: string;
 	readonly kind: string;
+	readonly enabled_by_default: boolean;
 }
 
 // From codersdk/deployment.go
