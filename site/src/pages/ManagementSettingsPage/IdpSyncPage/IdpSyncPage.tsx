@@ -1,24 +1,30 @@
+import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import {
 	groupIdpSyncSettings,
+	patchGroupSyncSettings,
+	patchRoleSyncSettings,
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
+import { displayError } from "components/GlobalSnackbar/utils";
+import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Paywall } from "components/Paywall/Paywall";
 import { SquareArrowOutUpRight } from "lucide-react";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import type { FC } from "react";
+import { type FC, useEffect } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQueries } from "react-query";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
 
 export const IdpSyncPage: FC = () => {
+	const queryClient = useQueryClient();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
@@ -45,10 +51,41 @@ export const IdpSyncPage: FC = () => {
 		return <EmptyState message="Organization not found" />;
 	}
 
+	const patchGroupSyncSettingsMutation = useMutation(
+		patchGroupSyncSettings(organizationName, queryClient),
+	);
+	const patchRoleSyncSettingsMutation = useMutation(
+		patchRoleSyncSettings(organizationName, queryClient),
+	);
+
+	useEffect(() => {
+		if (patchGroupSyncSettingsMutation.error) {
+			displayError(
+				getErrorMessage(
+					patchGroupSyncSettingsMutation.error,
+					"Error updating IdP group sync settings.",
+				),
+			);
+		}
+	}, [patchGroupSyncSettingsMutation.error]);
+
+	useEffect(() => {
+		if (patchRoleSyncSettingsMutation.error) {
+			displayError(
+				getErrorMessage(
+					patchRoleSyncSettingsMutation.error,
+					"Error updating IdP role sync settings.",
+				),
+			);
+		}
+	}, [patchRoleSyncSettingsMutation.error]);
+
 	const error =
 		groupIdpSyncSettingsQuery.error ||
 		roleIdpSyncSettingsQuery.error ||
-		groupsQuery.error;
+		groupsQuery.error ||
+		patchGroupSyncSettingsMutation.error ||
+		patchRoleSyncSettingsMutation.error;
 
 	const groupsMap = new Map<string, string>();
 	if (groupsQuery.data) {
@@ -98,6 +135,32 @@ export const IdpSyncPage: FC = () => {
 							roles={rolesQuery.data}
 							organization={organization}
 							error={error}
+							onSubmitGroupSyncSettings={async (data) => {
+								try {
+									await patchGroupSyncSettingsMutation.mutateAsync(data);
+									displaySuccess("IdP Group sync settings updated.");
+								} catch (error) {
+									displayError(
+										getErrorMessage(
+											error,
+											"Failed to update IdP group sync settings",
+										),
+									);
+								}
+							}}
+							onSubmitRoleSyncSettings={async (data) => {
+								try {
+									await patchRoleSyncSettingsMutation.mutateAsync(data);
+									displaySuccess("IdP Role sync settings updated.");
+								} catch (error) {
+									displayError(
+										getErrorMessage(
+											error,
+											"Failed to update IdP role sync settings",
+										),
+									);
+								}
+							}}
 						/>
 					</Cond>
 				</ChooseOne>

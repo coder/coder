@@ -33,10 +33,12 @@ import {
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { useFormik } from "formik";
 import type { FC } from "react";
 import { useSearchParams } from "react-router-dom";
 import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
+import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpPillList } from "./IdpPillList";
 
@@ -48,6 +50,8 @@ interface IdpSyncPageViewProps {
 	roles: Role[] | undefined;
 	organization: Organization;
 	error?: unknown;
+	onSubmitGroupSyncSettings: (data: GroupSyncSettings) => void;
+	onSubmitRoleSyncSettings: (data: RoleSyncSettings) => void;
 }
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
@@ -58,15 +62,11 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	roles,
 	organization,
 	error,
+	onSubmitGroupSyncSettings,
+	onSubmitRoleSyncSettings,
 }) => {
 	const [searchParams] = useSearchParams();
-
-	const getGroupNames = (groupIds: readonly string[]) => {
-		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
-	};
-
 	const tab = searchParams.get("tab") || "groups";
-
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
@@ -99,104 +99,21 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					</TabsList>
 				</Tabs>
 				{tab === "groups" ? (
-					<>
-						<div css={styles.fields}>
-							<div className="flex items-center gap-12">
-								<IdpField
-									name="Sync Field"
-									fieldText={groupSyncSettings?.field}
-									showDisabled
-								/>
-								<IdpField
-									name="Regex Filter"
-									fieldText={
-										typeof groupSyncSettings?.regex_filter === "string"
-											? groupSyncSettings.regex_filter
-											: "none"
-									}
-								/>
-								<IdpField
-									name="Auto Create"
-									fieldText={
-										groupSyncSettings?.field
-											? String(groupSyncSettings?.auto_create_missing_groups)
-											: "n/a"
-									}
-								/>
-							</div>
-						</div>
-						<div className="flex items-baseline justify-between mb-4">
-							<TableRowCount count={groupMappingCount} type="groups" />
-							<ExportPolicyButton
-								syncSettings={groupSyncSettings}
-								organization={organization}
-								type="groups"
-							/>
-						</div>
-						<div className="flex gap-12">
-							<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
-								{groupSyncSettings?.mapping &&
-									Object.entries(groupSyncSettings.mapping)
-										.sort()
-										.map(([idpGroup, groups]) => (
-											<GroupRow
-												key={idpGroup}
-												idpGroup={idpGroup}
-												coderGroup={getGroupNames(groups)}
-											/>
-										))}
-							</IdpMappingTable>
-							{groupSyncSettings?.legacy_group_name_mapping && (
-								<section>
-									<LegacyGroupSyncHeader />
-									<IdpMappingTable
-										type="Group"
-										isEmpty={legacyGroupMappingCount === 0}
-									>
-										{Object.entries(groupSyncSettings.legacy_group_name_mapping)
-											.sort()
-											.map(([idpGroup, groupId]) => (
-												<GroupRow
-													key={idpGroup}
-													idpGroup={idpGroup}
-													coderGroup={getGroupNames([groupId])}
-												/>
-											))}
-									</IdpMappingTable>
-								</section>
-							)}
-						</div>
-					</>
+					<IdpGroupSyncForm
+						groupSyncSettings={groupSyncSettings}
+						groupMappingCount={groupMappingCount}
+						legacyGroupMappingCount={legacyGroupMappingCount}
+						groupsMap={groupsMap}
+						organization={organization}
+						onSubmit={onSubmitGroupSyncSettings}
+					/>
 				) : (
-					<>
-						<div css={styles.fields}>
-							<IdpField
-								name="Sync Field"
-								fieldText={roleSyncSettings?.field}
-								showDisabled
-							/>
-						</div>
-						<div className="flex items-baseline justify-between mb-4">
-							<TableRowCount count={roleMappingCount} type="roles" />
-							<ExportPolicyButton
-								syncSettings={roleSyncSettings}
-								organization={organization}
-								type="roles"
-							/>
-						</div>
-						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
-							{roleSyncSettings?.mapping &&
-								Object.entries(roleSyncSettings.mapping)
-									.sort()
-									.map(([idpRole, roles]) => (
-										<RoleRow
-											key={idpRole}
-											idpRole={idpRole}
-											coderRoles={roles}
-										/>
-									))}
-						</IdpMappingTable>
-					</>
+					<IdpRoleSyncForm
+						roleSyncSettings={roleSyncSettings}
+						roleMappingCount={roleMappingCount}
+						organization={organization}
+						onSubmit={onSubmitRoleSyncSettings}
+					/>
 				)}
 			</div>
 		</>
@@ -323,11 +240,6 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	);
 };
 
-interface GroupRowProps {
-	idpGroup: string;
-	coderGroup: readonly string[];
-}
-
 const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
@@ -338,6 +250,191 @@ const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 		</TableRow>
 	);
 };
+
+interface IdpGroupSyncFormProps {
+	groupSyncSettings: GroupSyncSettings;
+	groupsMap: Map<string, string>;
+	groupMappingCount: number;
+	legacyGroupMappingCount: number;
+	organization: Organization;
+	onSubmit: (data: GroupSyncSettings) => void;
+}
+
+const groupSyncValidationSchema = Yup.object({
+	field: Yup.string().trim(),
+	regex_filter: Yup.string().trim(),
+	auto_create_missing_groups: Yup.boolean(),
+	mapping: Yup.object().shape({
+		[`${String}`]: Yup.array().of(Yup.string()),
+	}),
+});
+
+const IdpGroupSyncForm = ({
+	groupSyncSettings,
+	groupMappingCount,
+	legacyGroupMappingCount,
+	groupsMap,
+	organization,
+	onSubmit,
+}: IdpGroupSyncFormProps) => {
+	const form = useFormik<GroupSyncSettings>({
+		initialValues: {
+			field: groupSyncSettings?.field ?? "",
+			regex_filter: groupSyncSettings?.regex_filter ?? "",
+			auto_create_missing_groups:
+				groupSyncSettings?.auto_create_missing_groups ?? false,
+			mapping: groupSyncSettings?.mapping ?? {},
+		},
+		validationSchema: groupSyncValidationSchema,
+		onSubmit,
+		enableReinitialize: Boolean(groupSyncSettings),
+	});
+
+	const getGroupNames = (groupIds: readonly string[]) => {
+		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
+	};
+
+	return (
+		<form onSubmit={form.handleSubmit}>
+			<fieldset disabled={form.isSubmitting} className="border-none">
+				<div css={styles.fields}>
+					<div className="flex items-center gap-12">
+						<IdpField
+							name="Sync Field"
+							fieldText={groupSyncSettings?.field}
+							showDisabled
+						/>
+						<IdpField
+							name="Regex Filter"
+							fieldText={
+								typeof groupSyncSettings?.regex_filter === "string"
+									? groupSyncSettings.regex_filter
+									: "none"
+							}
+						/>
+						<IdpField
+							name="Auto Create"
+							fieldText={
+								groupSyncSettings?.field
+									? String(groupSyncSettings?.auto_create_missing_groups)
+									: "n/a"
+							}
+						/>
+					</div>
+				</div>
+				<div className="flex items-baseline justify-between mb-4">
+					<TableRowCount count={groupMappingCount} type="groups" />
+					<ExportPolicyButton
+						syncSettings={groupSyncSettings}
+						organization={organization}
+						type="groups"
+					/>
+				</div>
+				<div className="flex gap-12">
+					<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
+						{groupSyncSettings?.mapping &&
+							Object.entries(groupSyncSettings.mapping)
+								.sort()
+								.map(([idpGroup, groups]) => (
+									<GroupRow
+										key={idpGroup}
+										idpGroup={idpGroup}
+										coderGroup={getGroupNames(groups)}
+									/>
+								))}
+					</IdpMappingTable>
+					{groupSyncSettings?.legacy_group_name_mapping && (
+						<section>
+							<LegacyGroupSyncHeader />
+							<IdpMappingTable
+								type="Group"
+								isEmpty={legacyGroupMappingCount === 0}
+							>
+								{Object.entries(groupSyncSettings.legacy_group_name_mapping)
+									.sort()
+									.map(([idpGroup, groupId]) => (
+										<GroupRow
+											key={idpGroup}
+											idpGroup={idpGroup}
+											coderGroup={getGroupNames([groupId])}
+										/>
+									))}
+							</IdpMappingTable>
+						</section>
+					)}
+				</div>
+			</fieldset>
+		</form>
+	);
+};
+
+interface IdpRoleSyncFormProps {
+	roleSyncSettings: RoleSyncSettings;
+	roleMappingCount: number;
+	organization: Organization;
+	onSubmit: (data: RoleSyncSettings) => void;
+}
+
+const roleyncValidationSchema = Yup.object({
+	field: Yup.string().trim(),
+	regex_filter: Yup.string().trim(),
+	auto_create_missing_groups: Yup.boolean(),
+	mapping: Yup.object().shape({
+		[`${String}`]: Yup.array().of(Yup.string()),
+	}),
+});
+
+const IdpRoleSyncForm = ({
+	roleSyncSettings,
+	roleMappingCount,
+	organization,
+	onSubmit,
+}: IdpRoleSyncFormProps) => {
+	const form = useFormik<RoleSyncSettings>({
+		initialValues: {
+			field: roleSyncSettings?.field ?? "",
+			mapping: roleSyncSettings?.mapping ?? {},
+		},
+		validationSchema: roleyncValidationSchema,
+		onSubmit,
+		enableReinitialize: Boolean(roleSyncSettings),
+	});
+
+	return (
+		<form onSubmit={form.handleSubmit}>
+			<fieldset disabled={form.isSubmitting} className="border-none">
+				<div css={styles.fields}>
+					<IdpField
+						name="Sync Field"
+						fieldText={roleSyncSettings?.field}
+						showDisabled
+					/>
+				</div>
+				<div className="flex items-baseline justify-between mb-4">
+					<TableRowCount count={roleMappingCount} type="roles" />
+					<ExportPolicyButton
+						syncSettings={roleSyncSettings}
+						organization={organization}
+						type="roles"
+					/>
+				</div>
+				<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
+					{roleSyncSettings?.mapping &&
+						Object.entries(roleSyncSettings.mapping)
+							.sort()
+							.map(([idpRole, roles]) => (
+								<RoleRow key={idpRole} idpRole={idpRole} coderRoles={roles} />
+							))}
+				</IdpMappingTable>
+			</fieldset>
+		</form>
+	);
+};
+
+interface GroupRowProps {
+	idpGroup: string;
+	coderGroup: readonly string[];
+}
 
 interface RoleRowProps {
 	idpRole: string;
