@@ -13,6 +13,7 @@ import type {
 	Group,
 	GroupSyncSettings,
 	Organization,
+	Role,
 	RoleSyncSettings,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
@@ -26,7 +27,6 @@ import {
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
-import { Stack } from "components/Stack/Stack";
 import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
 import {
 	TableLoaderSkeleton,
@@ -45,6 +45,7 @@ interface IdpSyncPageViewProps {
 	roleSyncSettings: RoleSyncSettings | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
+	roles: Role[] | undefined;
 	organization: Organization;
 	error?: unknown;
 }
@@ -54,6 +55,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	roleSyncSettings,
 	groups,
 	groupsMap,
+	roles,
 	organization,
 	error,
 }) => {
@@ -85,7 +87,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 	return (
 		<>
-			<Stack spacing={2}>
+			<div className="gap-4">
 				<Tabs active={tab}>
 					<TabsList>
 						<TabLink to="?tab=groups" value="groups">
@@ -99,7 +101,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				{tab === "groups" ? (
 					<>
 						<div css={styles.fields}>
-							<Stack direction="row" alignItems="center" spacing={6}>
+							<div className="flex items-center gap-12">
 								<IdpField
 									name="Sync Field"
 									fieldText={groupSyncSettings?.field}
@@ -121,22 +123,17 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 											: "n/a"
 									}
 								/>
-							</Stack>
+							</div>
 						</div>
-						<Stack
-							direction="row"
-							alignItems="baseline"
-							justifyContent="space-between"
-							css={styles.tableInfo}
-						>
+						<div className="flex items-baseline justify-between mb-4">
 							<TableRowCount count={groupMappingCount} type="groups" />
 							<ExportPolicyButton
 								syncSettings={groupSyncSettings}
 								organization={organization}
 								type="groups"
 							/>
-						</Stack>
-						<Stack spacing={6}>
+						</div>
+						<div className="flex gap-12">
 							<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
 								{groupSyncSettings?.mapping &&
 									Object.entries(groupSyncSettings.mapping)
@@ -168,7 +165,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 									</IdpMappingTable>
 								</section>
 							)}
-						</Stack>
+						</div>
 					</>
 				) : (
 					<>
@@ -179,19 +176,15 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 								showDisabled
 							/>
 						</div>
-						<Stack
-							direction="row"
-							alignItems="baseline"
-							justifyContent="space-between"
-							css={styles.tableInfo}
-						>
+						<div
+						className="flex items-baseline justify-between mb-4">
 							<TableRowCount count={roleMappingCount} type="roles" />
 							<ExportPolicyButton
 								syncSettings={roleSyncSettings}
 								organization={organization}
 								type="roles"
 							/>
-						</Stack>
+						</div>
 						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
 							{roleSyncSettings?.mapping &&
 								Object.entries(roleSyncSettings.mapping)
@@ -206,7 +199,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						</IdpMappingTable>
 					</>
 				)}
-			</Stack>
+			</div>
 		</>
 	);
 };
@@ -389,7 +382,7 @@ const LegacyGroupSyncHeader: FC = () => {
 				fontWeight: 500,
 			}}
 		>
-			<Stack direction="row" alignItems="end" spacing={1}>
+			<div className="flex items-end gap-2">
 				<span>Legacy Group Sync Settings</span>
 				<HelpTooltip>
 					<HelpTooltipTrigger />
@@ -407,7 +400,7 @@ const LegacyGroupSyncHeader: FC = () => {
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>
-			</Stack>
+			</div>
 		</h4>
 	);
 };
