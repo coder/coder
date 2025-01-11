@@ -162,7 +162,7 @@ func New(opts *Options) *Handler {
 
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
-		_ = fmt.Errorf("install.sh will be unavailabe: %w", err)
+		_ = xerrors.Errorf("install.sh will be unavailable: %w", err)
 	}
 
 	return handler
