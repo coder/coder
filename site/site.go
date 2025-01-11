@@ -225,7 +225,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// If requesting the install.sh script, fill in the template with the
 	// appropriate hostname and version info.
 	case reqFile == "install.sh":
-		h.serveInstallScript(rw, r)
+		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScript))
 		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
@@ -314,11 +315,6 @@ func ShouldCacheFile(reqFile string) bool {
 	}
 
 	return true
-}
-
-func (h *Handler) serveInstallScript(rw http.ResponseWriter, r *http.Request) {
-	rw.Header().Add("content-type", "text/plain; charset=utf-8")
-	http.ServeContent(rw, r, "install.sh", time.Time{}, bytes.NewReader(h.installScript))
 }
 
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
