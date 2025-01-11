@@ -188,7 +188,7 @@ main() {
 	if [ "${RSH_ARGS-}" ]; then
 		RSH="${RSH-ssh}"
 		echoh "Installing remotely with $RSH $RSH_ARGS"
-		curl -fsSL {{ .Origin }}/install.sh | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
+		curl -fsSL "{{ .Origin }}/install.sh" | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
 		return
 	fi
 
@@ -208,7 +208,7 @@ main() {
 		echoh
 	fi
 
-	if [ ! has_standalone ]; then
+	if ! has_standalone; then
 		echoerr "There is no binary for $OS-$ARCH"
 		exit 1
 	fi
@@ -306,7 +306,7 @@ has_standalone() {
 	amd64) return 0 ;;
 	arm64) return 0 ;;
 	armv7)
-		[ "$(distro)" == "linux" ]
+		[ "$(distro)" = "linux" ]
 		return
 		;;
 	*) return 1 ;;
