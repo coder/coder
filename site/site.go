@@ -160,6 +160,11 @@ func New(opts *Options) *Handler {
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
 
+	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
+	if err != nil {
+		panic("failed to parse install script")
+	}
+
 	return handler
 }
 
@@ -169,8 +174,8 @@ type Handler struct {
 	secureHeaders *secure.Secure
 	handler       http.HandlerFunc
 	htmlTemplates *template.Template
-
 	buildInfoJSON string
+	installScript []byte
 
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
@@ -216,6 +221,11 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		// If the asset does not exist, this will return a 404.
 		h.handler.ServeHTTP(rw, r)
+		return
+	// If requesting the install.sh script, fill in the template with the
+	// appropriate hostname and version info.
+	case reqFile == "install.sh":
+		h.serveInstallScript(rw, r)
 		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
@@ -304,6 +314,11 @@ func ShouldCacheFile(reqFile string) bool {
 	}
 
 	return true
+}
+
+func (h *Handler) serveInstallScript(rw http.ResponseWriter, r *http.Request) {
+	rw.Header().Add("content-type", "text/plain; charset=utf-8")
+	http.ServeContent(rw, r, "install.sh", time.Time{}, bytes.NewReader(h.installScript))
 }
 
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
@@ -531,6 +546,32 @@ func findAndParseHTMLFiles(files fs.FS) (*template.Template, error) {
 		return nil, err
 	}
 	return root, nil
+}
+
+type installScriptState struct {
+	Origin  string
+	Version string
+}
+
+func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
+	scriptFile, err := fs.ReadFile(files, "install.sh")
+	if err != nil {
+		return []byte{}, err
+	}
+
+	script, err := template.New("install.sh").Parse(string(scriptFile))
+	if err != nil {
+		return []byte{}, err
+	}
+
+	var buf bytes.Buffer
+	state := installScriptState{Origin: buildInfo.DashboardURL, Version: buildInfo.Version}
+	err = script.Execute(&buf, state)
+	if err != nil {
+		return []byte{}, err
+	}
+
+	return buf.Bytes(), err
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and

@@ -399,7 +399,17 @@ site/node_modules/.installed: site/package.json
 	cd site/
 	../scripts/pnpm_install.sh
 
-site/out/index.html: site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
+SITE_GEN_FILES := \
+	site/src/api/typesGenerated.ts \
+	site/src/api/rbacresourcesGenerated.ts \
+	site/src/api/countriesGenerated.ts \
+	site/src/theme/icons.json
+
+site/out/index.html: \
+	site/node_modules/.installed \
+	site/static/install.sh \
+	$(SITE_GEN_FILES) \
+	$(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site/
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
@@ -542,21 +552,19 @@ GEN_FILES := \
 	vpn/vpn.pb.go \
 	coderd/database/dump.sql \
 	$(DB_GEN_FILES) \
-	site/src/api/typesGenerated.ts \
+	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
-	site/src/api/rbacresourcesGenerated.ts \
-	site/src/api/countriesGenerated.ts \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	provisioner/terraform/testdata/version \
 	site/e2e/provisionerGenerated.ts \
-	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
+
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: $(GEN_FILES)
