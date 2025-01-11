@@ -41,9 +41,6 @@ func TestInjection(t *testing.T) {
 		"index.html": &fstest.MapFile{
 			Data: []byte("{{ .User }}"),
 		},
-		"install.sh": &fstest.MapFile{
-			Data: []byte{},
-		},
 	}
 	binFs := http.FS(fstest.MapFS{})
 	db := dbmem.New()
@@ -102,9 +99,6 @@ func TestInjectionFailureProducesCleanHTML(t *testing.T) {
 		"index.html": &fstest.MapFile{
 			Data: []byte("<html>{{ .User }}</html>"),
 		},
-		"install.sh": &fstest.MapFile{
-			Data: []byte{},
-		},
 	}
 	handler := site.New(&site.Options{
 		BinFS:    binFs,
@@ -149,9 +143,6 @@ func TestCaching(t *testing.T) {
 		},
 		"terminal.html": &fstest.MapFile{
 			Data: []byte("folderFile"),
-		},
-		"install.sh": &fstest.MapFile{
-			Data: []byte{},
 		},
 	}
 	binFS := http.FS(fstest.MapFS{})
@@ -362,9 +353,6 @@ func TestServingBin(t *testing.T) {
 		},
 		"dashboard.css": &fstest.MapFile{
 			Data: []byte("dashboard-css-bytes"),
-		},
-		"install.sh": &fstest.MapFile{
-			Data: []byte{},
 		},
 	}
 

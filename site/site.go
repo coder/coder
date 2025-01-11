@@ -162,7 +162,7 @@ func New(opts *Options) *Handler {
 
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
-		panic("failed to parse install script")
+		_ = fmt.Errorf("install.sh will be unavailabe: %w", err)
 	}
 
 	return handler
@@ -225,6 +225,10 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	// If requesting the install.sh script, fill in the template with the
 	// appropriate hostname and version info.
 	case reqFile == "install.sh":
+		if h.installScript == nil {
+			http.NotFound(rw, r)
+			return
+		}
 		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
 		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScript))
 		return
@@ -552,22 +556,22 @@ type installScriptState struct {
 func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
 	scriptFile, err := fs.ReadFile(files, "install.sh")
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	script, err := template.New("install.sh").Parse(string(scriptFile))
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
 	var buf bytes.Buffer
 	state := installScriptState{Origin: buildInfo.DashboardURL, Version: buildInfo.Version}
 	err = script.Execute(&buf, state)
 	if err != nil {
-		return []byte{}, err
+		return nil, err
 	}
 
-	return buf.Bytes(), err
+	return buf.Bytes(), nil
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and
