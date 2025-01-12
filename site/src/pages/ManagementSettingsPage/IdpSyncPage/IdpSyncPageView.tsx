@@ -1,6 +1,3 @@
-import type { Interpolation, Theme } from "@emotion/react";
-import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
@@ -17,6 +14,7 @@ import type {
 	RoleSyncSettings,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import {
@@ -26,17 +24,23 @@ import {
 	HelpTooltipTitle,
 	HelpTooltipTrigger,
 } from "components/HelpTooltip/HelpTooltip";
+import { Input } from "components/Input/Input";
+import { Label } from "components/Label/Label";
 import { Loader } from "components/Loader/Loader";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import {
+	MultiSelectCombobox,
+	type Option,
+} from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Switch } from "components/Switch/Switch";
 import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useFormik } from "formik";
-import type { FC } from "react";
+import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
+import { type FC, useState } from "react";
 import { useSearchParams } from "react-router-dom";
-import { MONOSPACE_FONT_FAMILY } from "theme/constants";
 import { docs } from "utils/docs";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -87,7 +91,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 
 	return (
 		<>
-			<div className="gap-4">
+			<div className="flex flex-col gap-4">
 				<Tabs active={tab}>
 					<TabsList>
 						<TabLink to="?tab=groups" value="groups">
@@ -103,6 +107,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 						groupSyncSettings={groupSyncSettings}
 						groupMappingCount={groupMappingCount}
 						legacyGroupMappingCount={legacyGroupMappingCount}
+						groups={groups}
 						groupsMap={groupsMap}
 						organization={organization}
 						onSubmit={onSubmitGroupSyncSettings}
@@ -111,53 +116,13 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					<IdpRoleSyncForm
 						roleSyncSettings={roleSyncSettings}
 						roleMappingCount={roleMappingCount}
+						roles={roles || []}
 						organization={organization}
 						onSubmit={onSubmitRoleSyncSettings}
 					/>
 				)}
 			</div>
 		</>
-	);
-};
-
-interface IdpFieldProps {
-	name: string;
-	fieldText: string | undefined;
-	showDisabled?: boolean;
-}
-
-const IdpField: FC<IdpFieldProps> = ({
-	name,
-	fieldText,
-	showDisabled = false,
-}) => {
-	return (
-		<span
-			css={{
-				display: "flex",
-				alignItems: "center",
-				gap: "16px",
-			}}
-		>
-			<p css={styles.fieldLabel}>{name}</p>
-			{fieldText ? (
-				<p css={styles.fieldText}>{fieldText}</p>
-			) : (
-				showDisabled && (
-					<div
-						css={{
-							display: "flex",
-							alignItems: "center",
-							gap: "8px",
-							height: 0,
-						}}
-					>
-						<StatusIndicator color="error" />
-						<p>disabled</p>
-					</div>
-				)
-			)}
-		</span>
 	);
 };
 
@@ -218,13 +183,14 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 										message={`No ${type} Mappings`}
 										isCompact
 										cta={
-											<Button
-												startIcon={<LaunchOutlined />}
-												component="a"
-												href={docs("/admin/users/idp-sync")}
-												target="_blank"
-											>
-												How to setup IdP {type} sync
+											<Button variant="outline" asChild>
+												<a
+													href={docs("/admin/users/idp-sync")}
+													className="no-underline"
+												>
+													<SquareArrowOutUpRight size={14} />
+													How to setup IdP {type} sync
+												</a>
 											</Button>
 										}
 									/>
@@ -254,6 +220,7 @@ const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
 interface IdpGroupSyncFormProps {
 	groupSyncSettings: GroupSyncSettings;
 	groupsMap: Map<string, string>;
+	groups: Group[];
 	groupMappingCount: number;
 	legacyGroupMappingCount: number;
 	organization: Organization;
@@ -273,6 +240,7 @@ const IdpGroupSyncForm = ({
 	groupSyncSettings,
 	groupMappingCount,
 	legacyGroupMappingCount,
+	groups,
 	groupsMap,
 	organization,
 	onSubmit,
@@ -289,60 +257,170 @@ const IdpGroupSyncForm = ({
 		onSubmit,
 		enableReinitialize: Boolean(groupSyncSettings),
 	});
+	const [idpGroupName, setIdpGroupName] = useState("");
+	const [coderGroups, setCoderGroups] = useState<Option[]>([]);
 
 	const getGroupNames = (groupIds: readonly string[]) => {
 		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
 	};
 
+	const SYNC_FIELD_ID = "sync-field";
+	const REGEX_FILTER_ID = "regex-filter";
+	const AUTO_CREATE_MISSING_GROUPS_ID = "auto-create-missing-groups";
+	const IDP_GROUP_NAME_ID = "idp-group-name";
+
 	return (
 		<form onSubmit={form.handleSubmit}>
-			<fieldset disabled={form.isSubmitting} className="border-none">
-				<div css={styles.fields}>
-					<div className="flex items-center gap-12">
-						<IdpField
-							name="Sync Field"
-							fieldText={groupSyncSettings?.field}
-							showDisabled
+			<fieldset
+				disabled={form.isSubmitting}
+				className="flex flex-col border-none gap-5"
+			>
+				<div className="grid items-center gap-3">
+					<div className="flex flex-row items-center gap-5">
+						<div className="grid grid-cols-2 gap-2 grid-rows-[20px_auto_20px] w-96">
+							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+								Group sync field
+							</Label>
+							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+								Regex filter
+							</Label>
+							<Input
+								id={SYNC_FIELD_ID}
+								value={form.values.field}
+								onChange={async (event) => {
+									void form.setFieldValue("field", event.target.value);
+								}}
+								className="min-w-40"
+							/>
+							<div className="flex flex-row gap-2">
+								<Input
+									id={REGEX_FILTER_ID}
+									value={form.values.regex_filter ?? ""}
+									onChange={async (event) => {
+										void form.setFieldValue("regex_filter", event.target.value);
+									}}
+									className="min-w-40"
+								/>
+								<Button
+									className="w-20"
+									type="submit"
+									disabled={form.isSubmitting || !form.dirty}
+									onClick={(event) => {
+										event.preventDefault();
+										form.handleSubmit();
+									}}
+								>
+									Save
+								</Button>
+							</div>
+							<p className="text-content-secondary text-2xs m-0">
+								If empty, group sync is deactivated
+							</p>
+						</div>
+					</div>
+
+					<div className="flex flex-row items-center gap-3">
+						<Switch
+							id={AUTO_CREATE_MISSING_GROUPS_ID}
+							checked={form.values.auto_create_missing_groups}
+							onCheckedChange={async (checked) => {
+								void form.setFieldValue("organization_assign_default", checked);
+								form.handleSubmit();
+							}}
 						/>
-						<IdpField
-							name="Regex Filter"
-							fieldText={
-								typeof groupSyncSettings?.regex_filter === "string"
-									? groupSyncSettings.regex_filter
-									: "none"
-							}
-						/>
-						<IdpField
-							name="Auto Create"
-							fieldText={
-								groupSyncSettings?.field
-									? String(groupSyncSettings?.auto_create_missing_groups)
-									: "n/a"
-							}
-						/>
+						<span className="flex flex-row items-center gap-1">
+							<Label htmlFor={AUTO_CREATE_MISSING_GROUPS_ID}>
+								Auto Create Missing Groups
+							</Label>
+							<AutoCreateMissingGroupsHelpTooltip />
+						</span>
 					</div>
 				</div>
-				<div className="flex items-baseline justify-between mb-4">
-					<TableRowCount count={groupMappingCount} type="groups" />
-					<ExportPolicyButton
-						syncSettings={groupSyncSettings}
-						organization={organization}
-						type="groups"
-					/>
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-row pt-4 gap-2 justify-between items-start">
+						<div className="grid items-center gap-1">
+							<Label className="text-sm" htmlFor={IDP_GROUP_NAME_ID}>
+								IdP group name
+							</Label>
+							<Input
+								id={IDP_GROUP_NAME_ID}
+								value={idpGroupName}
+								className="min-w-72 w-72"
+								onChange={(event) => {
+									setIdpGroupName(event.target.value);
+								}}
+							/>
+						</div>
+						<div className="grid items-center gap-1 flex-1">
+							<Label className="text-sm" htmlFor=":r1d:">
+								Coder group
+							</Label>
+							<MultiSelectCombobox
+								className="min-w-60 max-w-3xl"
+								value={coderGroups}
+								onChange={setCoderGroups}
+								defaultOptions={groups.map((group) => ({
+									label: group.display_name || group.name,
+									value: group.name,
+								}))}
+								hidePlaceholderWhenSelected
+								placeholder="Select group"
+								emptyIndicator={
+									<p className="text-center text-md text-content-primary">
+										All groups selected
+									</p>
+								}
+							/>
+						</div>
+						<div className="grid items-center gap-1">
+							&nbsp;
+							<Button
+								className="mb-px"
+								type="submit"
+								disabled={!idpGroupName || coderGroups.length === 0}
+								onClick={async () => {
+									const newSyncSettings = {
+										...form.values,
+										mapping: {
+											...form.values.mapping,
+											[idpGroupName]: coderGroups.map((role) => role.value),
+										},
+									};
+									void form.setFieldValue("mapping", newSyncSettings.mapping);
+									form.handleSubmit();
+									setIdpGroupName("");
+									setCoderGroups([]);
+								}}
+							>
+								<Plus size={14} />
+								Add IdP group
+							</Button>
+						</div>
+					</div>
 				</div>
 				<div className="flex gap-12">
-					<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
-						{groupSyncSettings?.mapping &&
-							Object.entries(groupSyncSettings.mapping)
-								.sort()
-								.map(([idpGroup, groups]) => (
-									<GroupRow
-										key={idpGroup}
-										idpGroup={idpGroup}
-										coderGroup={getGroupNames(groups)}
-									/>
-								))}
-					</IdpMappingTable>
+					<div className="flex flex-col gap-4 w-full">
+						<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
+							{groupSyncSettings?.mapping &&
+								Object.entries(groupSyncSettings.mapping)
+									.sort()
+									.map(([idpGroup, groups]) => (
+										<GroupRow
+											key={idpGroup}
+											idpGroup={idpGroup}
+											coderGroup={getGroupNames(groups)}
+										/>
+									))}
+						</IdpMappingTable>
+						<div className="flex justify-between">
+							<ExportPolicyButton
+								syncSettings={groupSyncSettings}
+								organization={organization}
+								type="groups"
+							/>
+							<TableRowCount count={groupMappingCount} type="groups" />
+						</div>
+					</div>
 					{groupSyncSettings?.legacy_group_name_mapping && (
 						<section>
 							<LegacyGroupSyncHeader />
@@ -372,6 +450,7 @@ interface IdpRoleSyncFormProps {
 	roleSyncSettings: RoleSyncSettings;
 	roleMappingCount: number;
 	organization: Organization;
+	roles: Role[];
 	onSubmit: (data: RoleSyncSettings) => void;
 }
 
@@ -388,6 +467,7 @@ const IdpRoleSyncForm = ({
 	roleSyncSettings,
 	roleMappingCount,
 	organization,
+	roles,
 	onSubmit,
 }: IdpRoleSyncFormProps) => {
 	const form = useFormik<RoleSyncSettings>({
@@ -399,33 +479,132 @@ const IdpRoleSyncForm = ({
 		onSubmit,
 		enableReinitialize: Boolean(roleSyncSettings),
 	});
+	const [idpRoleName, setIdpRoleName] = useState("");
+	const [coderRoles, setCoderRoles] = useState<Option[]>([]);
+
+	const SYNC_FIELD_ID = "sync-field";
+	const IDP_ROLE_NAME_ID = "idp-role-name";
 
 	return (
 		<form onSubmit={form.handleSubmit}>
-			<fieldset disabled={form.isSubmitting} className="border-none">
-				<div css={styles.fields}>
-					<IdpField
-						name="Sync Field"
-						fieldText={roleSyncSettings?.field}
-						showDisabled
-					/>
+			<fieldset
+				disabled={form.isSubmitting}
+				className="flex flex-col border-none gap-3"
+			>
+				<div className="grid items-center gap-1">
+					<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+						Role sync field
+					</Label>
+					<div className="flex flex-row items-center gap-5">
+						<div className="flex flex-row gap-2 w-72">
+							<Input
+								id={SYNC_FIELD_ID}
+								value={form.values.field}
+								onChange={async (event) => {
+									void form.setFieldValue("field", event.target.value);
+								}}
+							/>
+							<Button
+								className="w-20"
+								type="submit"
+								disabled={form.isSubmitting || !form.dirty}
+								onClick={(event) => {
+									event.preventDefault();
+									form.handleSubmit();
+								}}
+							>
+								Save
+							</Button>
+						</div>
+					</div>
+					<p className="text-content-secondary text-2xs m-0">
+						If empty, role sync is deactivated
+					</p>
 				</div>
-				<div className="flex items-baseline justify-between mb-4">
-					<TableRowCount count={roleMappingCount} type="roles" />
-					<ExportPolicyButton
-						syncSettings={roleSyncSettings}
-						organization={organization}
-						type="roles"
-					/>
+				<div className="flex flex-col gap-4">
+					<div className="flex flex-row pt-4 gap-2 justify-between items-start">
+						<div className="grid items-center gap-1">
+							<Label className="text-sm" htmlFor={IDP_ROLE_NAME_ID}>
+								IdP role name
+							</Label>
+							<Input
+								id={IDP_ROLE_NAME_ID}
+								value={idpRoleName}
+								className="min-w-72 w-72"
+								onChange={(event) => {
+									setIdpRoleName(event.target.value);
+								}}
+							/>
+						</div>
+						<div className="grid items-center gap-1 flex-1">
+							<Label className="text-sm" htmlFor=":r1d:">
+								Coder role
+							</Label>
+							<MultiSelectCombobox
+								className="min-w-60 max-w-3xl"
+								value={coderRoles}
+								onChange={setCoderRoles}
+								defaultOptions={roles.map((role) => ({
+									label: role.display_name || role.name,
+									value: role.name,
+								}))}
+								hidePlaceholderWhenSelected
+								placeholder="Select role"
+								emptyIndicator={
+									<p className="text-center text-md text-content-primary">
+										All roles selected
+									</p>
+								}
+							/>
+						</div>
+						<div className="grid items-center gap-1">
+							&nbsp;
+							<Button
+								className="mb-px"
+								type="submit"
+								disabled={!idpRoleName || coderRoles.length === 0}
+								onClick={async () => {
+									const newSyncSettings = {
+										...form.values,
+										mapping: {
+											...form.values.mapping,
+											[idpRoleName]: coderRoles.map((role) => role.value),
+										},
+									};
+									void form.setFieldValue("mapping", newSyncSettings.mapping);
+									form.handleSubmit();
+									setIdpRoleName("");
+									setCoderRoles([]);
+								}}
+							>
+								<Plus size={14} />
+								Add IdP role
+							</Button>
+						</div>
+					</div>
+					<div>
+						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
+							{roleSyncSettings?.mapping &&
+								Object.entries(roleSyncSettings.mapping)
+									.sort()
+									.map(([idpRole, roles]) => (
+										<RoleRow
+											key={idpRole}
+											idpRole={idpRole}
+											coderRoles={roles}
+										/>
+									))}
+						</IdpMappingTable>
+						<div className="flex justify-between">
+							<ExportPolicyButton
+								syncSettings={roleSyncSettings}
+								organization={organization}
+								type="roles"
+							/>
+							<TableRowCount count={roleMappingCount} type="roles" />
+						</div>
+					</div>
 				</div>
-				<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
-					{roleSyncSettings?.mapping &&
-						Object.entries(roleSyncSettings.mapping)
-							.sort()
-							.map(([idpRole, roles]) => (
-								<RoleRow key={idpRole} idpRole={idpRole} coderRoles={roles} />
-							))}
-				</IdpMappingTable>
 			</fieldset>
 		</form>
 	);
@@ -501,22 +680,18 @@ const LegacyGroupSyncHeader: FC = () => {
 	);
 };
 
-const styles = {
-	fieldText: {
-		fontFamily: MONOSPACE_FONT_FAMILY,
-		whiteSpace: "nowrap",
-		paddingBottom: ".02rem",
-	},
-	fieldLabel: (theme) => ({
-		color: theme.palette.text.secondary,
-	}),
-	fields: () => ({
-		marginLeft: 16,
-		fontSize: 14,
-	}),
-	tableInfo: () => ({
-		marginBottom: 16,
-	}),
-} satisfies Record<string, Interpolation<Theme>>;
+export const AutoCreateMissingGroupsHelpTooltip: FC = () => {
+	return (
+		<HelpTooltip>
+			<HelpTooltipTrigger />
+			<HelpTooltipContent>
+				<HelpTooltipText>
+					Enabling auto create missing groups will automatically create groups
+					returned by the OIDC provider if they do not exist in Coder.
+				</HelpTooltipText>
+			</HelpTooltipContent>
+		</HelpTooltip>
+	);
+};
 
 export default IdpSyncPageView;
