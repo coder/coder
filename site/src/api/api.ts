@@ -742,7 +742,7 @@ class ApiMethods {
 		organization: string,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			`/api/v2/organizations/${organization}/settings/idpsync/groups"`,
+			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
 			data,
 		);
 		return response.data;
@@ -757,7 +757,7 @@ class ApiMethods {
 		organization: string,
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
-			`/api/v2/organizations/${organization}/settings/idpsync/roles"`,
+			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
 			data,
 		);
 		return response.data;
