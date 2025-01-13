@@ -1532,6 +1532,10 @@ export interface ProvisionerDaemon {
 	readonly api_version: string;
 	readonly provisioners: readonly ProvisionerType[];
 	readonly tags: Record<string, string>;
+	readonly key_name: string | null;
+	readonly status: ProvisionerDaemonStatus | null;
+	readonly current_job: ProvisionerDaemonJob | null;
+	readonly previous_job: ProvisionerDaemonJob | null;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1554,14 +1558,6 @@ export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = [
 	"idle",
 	"offline",
 ];
-
-// From codersdk/provisionerdaemons.go
-export interface ProvisionerDaemonWithStatus extends ProvisionerDaemon {
-	readonly key_name: string;
-	readonly status: ProvisionerDaemonStatus;
-	readonly current_job: ProvisionerDaemonJob | null;
-	readonly previous_job: ProvisionerDaemonJob | null;
-}
 
 // From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport extends BaseReport {

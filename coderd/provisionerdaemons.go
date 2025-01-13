@@ -18,7 +18,7 @@ import (
 // @Tags Enterprise
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
-// @Success 200 {array} codersdk.ProvisionerDaemonWithStatus
+// @Success 200 {array} codersdk.ProvisionerDaemon
 // @Router /organizations/{organization}/provisionerdaemons [get]
 func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 	var (
@@ -53,7 +53,7 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, func(dbDaemon database.GetProvisionerDaemonsWithStatusByOrganizationRow) codersdk.ProvisionerDaemonWithStatus {
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, func(dbDaemon database.GetProvisionerDaemonsWithStatusByOrganizationRow) codersdk.ProvisionerDaemon {
 		pd := db2sdk.ProvisionerDaemon(dbDaemon.ProvisionerDaemon)
 		var currentJob, previousJob *codersdk.ProvisionerDaemonJob
 		if dbDaemon.CurrentJobID.Valid {
@@ -68,12 +68,14 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 				Status: codersdk.ProvisionerJobStatus(dbDaemon.PreviousJobStatus.ProvisionerJobStatus),
 			}
 		}
-		return codersdk.ProvisionerDaemonWithStatus{
-			ProvisionerDaemon: pd,
-			KeyName:           dbDaemon.KeyName,
-			Status:            codersdk.ProvisionerDaemonStatus(dbDaemon.Status),
-			CurrentJob:        currentJob,
-			PreviousJob:       previousJob,
-		}
+
+		// Add optional fields.
+		status := codersdk.ProvisionerDaemonStatus(dbDaemon.Status)
+		pd.KeyName = &dbDaemon.KeyName
+		pd.Status = &status
+		pd.CurrentJob = currentJob
+		pd.PreviousJob = previousJob
+
+		return pd
 	}))
 }

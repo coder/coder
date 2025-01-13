@@ -2989,7 +2989,7 @@ const docTemplate = `{
                         "schema": {
                             "type": "array",
                             "items": {
-                                "$ref": "#/definitions/codersdk.ProvisionerDaemonWithStatus"
+                                "$ref": "#/definitions/codersdk.ProvisionerDaemon"
                             }
                         }
                     }
@@ -12463,6 +12463,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "current_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -12470,6 +12473,10 @@ const docTemplate = `{
                 "key_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "key_name": {
+                    "description": "Optional fields.",
+                    "type": "string"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -12482,11 +12489,26 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "previous_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "provisioners": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "status": {
+                    "enum": [
+                        "offline",
+                        "idle",
+                        "busy"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
+                        }
+                    ]
                 },
                 "tags": {
                     "type": "object",
@@ -12535,73 +12557,6 @@ const docTemplate = `{
                 "ProvisionerDaemonIdle",
                 "ProvisionerDaemonBusy"
             ]
-        },
-        "codersdk.ProvisionerDaemonWithStatus": {
-            "type": "object",
-            "properties": {
-                "api_version": {
-                    "type": "string"
-                },
-                "created_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "current_job": {
-                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
-                },
-                "id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "key_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "key_name": {
-                    "type": "string"
-                },
-                "last_seen_at": {
-                    "type": "string",
-                    "format": "date-time"
-                },
-                "name": {
-                    "type": "string"
-                },
-                "organization_id": {
-                    "type": "string",
-                    "format": "uuid"
-                },
-                "previous_job": {
-                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
-                },
-                "provisioners": {
-                    "type": "array",
-                    "items": {
-                        "type": "string"
-                    }
-                },
-                "status": {
-                    "enum": [
-                        "offline",
-                        "idle",
-                        "busy"
-                    ],
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
-                        }
-                    ]
-                },
-                "tags": {
-                    "type": "object",
-                    "additionalProperties": {
-                        "type": "string"
-                    }
-                },
-                "version": {
-                    "type": "string"
-                }
-            }
         },
         "codersdk.ProvisionerJob": {
             "type": "object",
