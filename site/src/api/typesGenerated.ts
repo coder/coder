@@ -2982,7 +2982,7 @@ export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
 ];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
+export type WorkspaceAppOpenIn = "slim-window" | "tab";
 
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
 	"slim-window",
