@@ -816,15 +816,15 @@ latest_status_before_range AS (
     SELECT
         DISTINCT usc.user_id,
         usc.new_status,
-        usc.changed_at
+        usc.changed_at,
+        ud.deleted
     FROM user_status_changes usc
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
-		WHERE ud.user_id = usc.user_id AND ud.changed_at < usc.changed_at
-	) AS ud ON usc.user_id = ud.user_id
+		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < @start_time)
+	) AS ud ON true
     WHERE usc.changed_at < @start_time::timestamptz
-	AND NOT ud.deleted
     ORDER BY usc.user_id, usc.changed_at DESC
 ),
 	-- status_changes_during_range defines the status of each user during the start_time and end_time.
@@ -835,16 +835,16 @@ status_changes_during_range AS (
     SELECT
         usc.user_id,
         usc.new_status,
-        usc.changed_at
+        usc.changed_at,
+        ud.deleted
     FROM user_status_changes usc
 	LEFT JOIN LATERAL (
 		SELECT COUNT(*) > 0 AS deleted
 		FROM user_deleted ud
-		WHERE ud.user_id = usc.user_id AND ud.changed_at < usc.changed_at
-	) AS ud ON usc.user_id = ud.user_id
+		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
+	) AS ud ON true
     WHERE usc.changed_at >= @start_time::timestamptz
         AND usc.changed_at <= @end_time::timestamptz
-        AND NOT deleted
 ),
 	-- relevant_status_changes defines the status of each user at any point in time.
 	-- It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
@@ -854,6 +854,7 @@ relevant_status_changes AS (
         new_status,
         changed_at
     FROM latest_status_before_range
+    WHERE NOT deleted
 
     UNION ALL
 
@@ -862,6 +863,7 @@ relevant_status_changes AS (
         new_status,
         changed_at
     FROM status_changes_during_range
+    WHERE NOT deleted
 ),
 	-- statuses defines all the distinct statuses that were present just before and during the time range.
 	-- This is used to ensure that we have a series for every relevant status.
