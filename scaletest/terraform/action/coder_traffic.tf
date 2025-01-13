@@ -1,23 +1,27 @@
 locals {
-  wait_baseline_duration        = "5m"
-  workspace_traffic_job_timeout = "15m"
-  workspace_traffic_duration    = "10m"
-  bytes_per_tick                = 1024
-  tick_interval                 = "100ms"
+  wait_baseline_duration = "5m"
+  bytes_per_tick         = 1024
+  tick_interval          = "100ms"
 
   traffic_types = {
     ssh = {
-      wait_duration_minutes = "0"
+      wait_duration = "0m"
+      duration      = "30m"
+      job_timeout   = "35m"
       flags = [
         "--ssh",
       ]
     }
     webterminal = {
-      wait_duration_minutes = "5"
-      flags = []
+      wait_duration = "5m"
+      duration      = "25m"
+      job_timeout   = "30m"
+      flags         = []
     }
     app = {
-      wait_duration_minutes = "10"
+      wait_duration = "10m"
+      duration      = "20m"
+      job_timeout   = "25m"
       flags = [
         "--app=wsec",
       ]
@@ -31,13 +35,16 @@ resource "time_sleep" "wait_baseline" {
     kubernetes_job.create_workspaces_europe,
     kubernetes_job.create_workspaces_asia,
   ]
-  # depends_on = [
-  #   kubernetes_job.push_template_primary,
-  #   kubernetes_job.push_template_europe,
-  #   kubernetes_job.push_template_asia,
-  # ]
 
   create_duration = local.wait_baseline_duration
+}
+
+resource "time_sleep" "wait_traffic" {
+  for_each = local.traffic_types
+
+  depends_on = [time_sleep.wait_baseline]
+
+  create_duration = "${local.traffic_types[each.key].wait_duration_minutes}m"
 }
 
 resource "kubernetes_job" "workspace_traffic_primary" {
@@ -52,7 +59,7 @@ resource "kubernetes_job" "workspace_traffic_primary" {
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
@@ -86,7 +93,7 @@ resource "kubernetes_job" "workspace_traffic_primary" {
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
             "--scaletest-prometheus-wait=30s",
-            "--job-timeout=${local.workspace_traffic_duration}",
+            "--job-timeout=${local.traffic_types[each.key].duration}",
           ], local.traffic_types[each.key].flags)
         }
         restart_policy = "Never"
@@ -96,16 +103,16 @@ resource "kubernetes_job" "workspace_traffic_primary" {
   wait_for_completion = true
 
   timeouts {
-    create = local.workspace_traffic_job_timeout
+    create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline]
+  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
 }
 
 resource "kubernetes_job" "workspace_traffic_europe" {
   provider = kubernetes.europe
 
-for_each = local.traffic_types
+  for_each = local.traffic_types
   metadata {
     name      = "${var.name}-workspace-traffic-${each.key}"
     namespace = kubernetes_namespace.coder_europe.metadata.0.name
@@ -114,7 +121,7 @@ for_each = local.traffic_types
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
@@ -148,7 +155,7 @@ for_each = local.traffic_types
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
             "--scaletest-prometheus-wait=30s",
-            "--job-timeout=${local.workspace_traffic_duration}",
+            "--job-timeout=${local.traffic_types[each.key].duration}",
             "--workspace-proxy-url=${local.deployments.europe.url}",
           ], local.traffic_types[each.key].flags)
         }
@@ -159,10 +166,10 @@ for_each = local.traffic_types
   wait_for_completion = true
 
   timeouts {
-    create = local.workspace_traffic_job_timeout
+    create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline]
+  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
 }
 
 resource "kubernetes_job" "workspace_traffic_asia" {
@@ -177,7 +184,7 @@ resource "kubernetes_job" "workspace_traffic_asia" {
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
@@ -211,7 +218,7 @@ resource "kubernetes_job" "workspace_traffic_asia" {
             "--bytes-per-tick=${local.bytes_per_tick}",
             "--tick-interval=${local.tick_interval}",
             "--scaletest-prometheus-wait=30s",
-            "--job-timeout=${local.workspace_traffic_duration}",
+            "--job-timeout=${local.traffic_types[each.key].duration}",
             "--workspace-proxy-url=${local.deployments.asia.url}",
           ], local.traffic_types[each.key].flags)
         }
@@ -222,8 +229,8 @@ resource "kubernetes_job" "workspace_traffic_asia" {
   wait_for_completion = true
 
   timeouts {
-    create = local.workspace_traffic_job_timeout
+    create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline]
+  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
 }

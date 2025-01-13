@@ -141,8 +141,8 @@ resource "google_container_node_pool" "node_pool" {
     }
     kubelet_config {
       cpu_manager_policy = ""
-      cpu_cfs_quota = false
-      pod_pids_limit = 0
+      cpu_cfs_quota      = false
+      pod_pids_limit     = 0
     }
   }
   lifecycle {

@@ -13,7 +13,7 @@ resource "kubernetes_job" "create_workspaces_primary" {
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
@@ -72,7 +72,7 @@ resource "kubernetes_job" "create_workspaces_europe" {
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
@@ -131,7 +131,7 @@ resource "kubernetes_job" "create_workspaces_asia" {
     }
   }
   spec {
-    completions = 1
+    completions   = 1
     backoff_limit = 0
     template {
       metadata {}
