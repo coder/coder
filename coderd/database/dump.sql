@@ -346,27 +346,25 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	-- Fail the insertion if the user has disabled this notification.
+	-- Fail the insertion if one of the following:
+	--  * the user has disabled this notification.
+	--  * the notification template is disabled by default and hasn't
+	--    been explicitly enabled by the user.
 	IF EXISTS (SELECT 1
 			   FROM notification_preferences
 			   WHERE disabled = TRUE
 				 AND user_id = NEW.user_id
-				 AND notification_template_id = NEW.notification_template_id) THEN
-		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
-	END IF;
-
-	-- Fails if the notification template is disabled by default and the
-	-- user hasn't explicitly enabled it.
-	IF (NOT EXISTS (SELECT 1
-				   FROM notification_preferences
-				   WHERE disabled = FALSE
-					 AND user_id = NEW.user_id
-					 AND notification_template_id = NEW.notification_template_id))
-		AND (EXISTS (SELECT 1
-					 FROM notification_templates
-					 WHERE id = NEW.notification_template_id
-				        AND enabled_by_default = FALSE)) THEN
-		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+				 AND notification_template_id = NEW.notification_template_id)
+		OR (NOT EXISTS (SELECT 1
+						   FROM notification_preferences
+						   WHERE disabled = FALSE
+							 AND user_id = NEW.user_id
+							 AND notification_template_id = NEW.notification_template_id))
+			AND (EXISTS (SELECT 1
+							 FROM notification_templates
+							 WHERE id = NEW.notification_template_id
+						        AND enabled_by_default = FALSE) ) THEN
+		RAISE EXCEPTION 'cannot enqueue message: notification is not enabled';
 	END IF;
 
 	RETURN NEW;
@@ -2509,4 +2507,3 @@ ALTER TABLE ONLY workspaces
 
 ALTER TABLE ONLY workspaces
     ADD CONSTRAINT workspaces_template_id_fkey FOREIGN KEY (template_id) REFERENCES templates(id) ON DELETE RESTRICT;
-
