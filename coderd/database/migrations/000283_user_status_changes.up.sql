@@ -31,8 +31,13 @@ COMMENT ON TABLE user_deleted IS 'Tracks when users were deleted';
 
 CREATE INDEX idx_user_deleted_deleted_at ON user_deleted(deleted_at);
 
-INSERT INTO user_deleted (user_id, deleted_at)
-SELECT id, updated_at
+INSERT INTO user_deleted (
+	user_id,
+	deleted_at
+)
+SELECT
+	id,
+	updated_at
 FROM users
 WHERE deleted;
 
