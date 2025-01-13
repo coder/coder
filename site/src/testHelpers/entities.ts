@@ -580,6 +580,10 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
 	last_seen_at: new Date().toISOString(),
+	key_name: "test-provisioner",
+	status: "idle",
+	current_job: null,
+	previous_job: null,
 };
 
 export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
@@ -594,6 +598,7 @@ export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
+	key_name: MockProvisionerPskKey.name,
 	name: "Test psk provisioner",
 };
 
@@ -601,6 +606,7 @@ export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
+	key_name: MockProvisionerKey.name,
 	organization_id: MockProvisionerKey.organization,
 	name: "Test key provisioner",
 	tags: MockProvisionerKey.tags,
@@ -611,6 +617,7 @@ export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
 	key_id: MockProvisionerKey.id,
+	key_name: MockProvisionerKey.name,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -3741,6 +3748,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_1: "1",
 						tag_yes: "yes",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [],
 			},
@@ -3763,6 +3774,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_1: "1",
 						tag_YES: "YES",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [],
 			},
@@ -3785,6 +3800,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_0: "0",
 						tag_no: "no",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [
 					{
@@ -3938,6 +3957,10 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 						owner: "",
 						scope: "organization",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [
 					{
