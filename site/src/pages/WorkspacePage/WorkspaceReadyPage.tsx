@@ -172,10 +172,11 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 			return {
 				...data,
 				agent_script_timings: uniqBy(
-					sortBy(data.agent_script_timings, (t) =>
-						new Date(t.started_at).getTime(),
-					),
-					(t) => t.display_name,
+					sortBy(data.agent_script_timings, [
+						"display_name",
+						"started_at",
+					]).reverse(),
+					"display_name",
 				),
 			};
 		},
