@@ -194,7 +194,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					title="General"
 					description={
 						permissions.createWorkspaceForUser
-							? "The name of the workspace and its owner. Only admins can create workspace for other users."
+							? "The name of the workspace and its owner. Only admins can create workspaces for other users."
 							: "The name of your new workspace."
 					}
 				>
