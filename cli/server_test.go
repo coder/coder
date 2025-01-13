@@ -212,7 +212,6 @@ func TestServer(t *testing.T) {
 		<-errCh
 
 		require.NoDirExists(t, rootDir)
-
 	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
