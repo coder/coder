@@ -379,7 +379,7 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   test-go-pg:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'macos-latest-xlarge' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -419,6 +419,8 @@ jobs:
         env:
           POSTGRES_VERSION: "13"
           TS_DEBUG_DISCO: "true"
+          LC_CTYPE: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
         shell: bash
         run: |
           # if macOS, install google-chrome for scaletests
