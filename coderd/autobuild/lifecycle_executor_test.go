@@ -702,6 +702,41 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	assert.Equal(t, codersdk.WorkspaceStatusStopped, workspaceBuild.Status)
 }
 
+func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
+	t.Parallel()
+
+	var (
+		ctx     = context.Background()
+		tickCh  = make(chan time.Time)
+		statsCh = make(chan autobuild.Stats)
+		client  = coderdtest.New(t, &coderdtest.Options{
+			AutobuildTicker:          tickCh,
+			IncludeProvisionerDaemon: true,
+			AutobuildStats:           statsCh,
+		})
+		// Given: we have a user with a workspace
+		workspace = mustProvisionWorkspace(t, client)
+	)
+
+	// Given: the user changes their mind and decides their workspace should not autostop
+	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
+	require.NoError(t, err)
+
+	// Then: the deadline should be set to zero
+	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
+	assert.True(t, !updated.LatestBuild.Deadline.Valid)
+
+	// When: the autobuild executor ticks after the original deadline
+	go func() {
+		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
+	}()
+
+	// Then: the workspace should not stop
+	stats := <-statsCh
+	assert.Len(t, stats.Errors, 0)
+	assert.Len(t, stats.Transitions, 0)
+}
+
 func TestExecutorAutostartMultipleOK(t *testing.T) {
 	if os.Getenv("DB") == "" {
 		t.Skip(`This test only really works when using a "real" database, similar to a HA setup`)
