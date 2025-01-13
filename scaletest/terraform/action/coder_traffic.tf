@@ -44,7 +44,7 @@ resource "time_sleep" "wait_traffic" {
 
   depends_on = [time_sleep.wait_baseline]
 
-  create_duration = "${local.traffic_types[each.key].wait_duration_minutes}m"
+  create_duration = local.traffic_types[each.key].wait_duration
 }
 
 resource "kubernetes_job" "workspace_traffic_primary" {
