@@ -103,10 +103,6 @@ jobs:
                   },
                   {
                     "type": "mrkdwn",
-                    "text": "*Failed Job:*\n${{ github.job }}"
-                  },
-                  {
-                    "type": "mrkdwn",
                     "text": "*Committer:*\n${{ github.actor }}"
                   },
                   {

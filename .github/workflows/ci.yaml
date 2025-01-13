@@ -1252,8 +1252,10 @@ jobs:
           make sqlc-vet
 
   notify-slack-on-failure:
+    needs:
+      - required
     runs-on: ubuntu-latest
-    if: always() && failure() && github.ref == 'refs/heads/main'
+    if: failure() && github.ref == 'refs/heads/main'
 
     steps:
       - name: Send Slack notification
@@ -1275,10 +1277,6 @@ jobs:
                   {
                     "type": "mrkdwn",
                     "text": "*Workflow:*\n${{ github.workflow }}"
-                  },
-                  {
-                    "type": "mrkdwn",
-                    "text": "*Failed Job:*\n${{ github.job }}"
                   },
                   {
                     "type": "mrkdwn",
