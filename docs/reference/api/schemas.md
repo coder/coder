@@ -3000,6 +3000,34 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 |-------|--------|----------|--------------|-------------|
 | `key` | string | false    |              |             |
 
+## codersdk.GetUserStatusCountsResponse
+
+```json
+{
+  "status_counts": {
+    "property1": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ],
+    "property2": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ]
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                      | Required | Restrictions | Description |
+|--------------------|---------------------------------------------------------------------------|----------|--------------|-------------|
+| `status_counts`    | object                                                                    | false    |              |             |
+| » `[any property]` | array of [codersdk.UserStatusChangeCount](#codersdkuserstatuschangecount) | false    |              |             |
+
 ## codersdk.GetUsersResponse
 
 ```json
@@ -3522,6 +3550,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "actions": "string",
   "body_template": "string",
+  "enabled_by_default": true,
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "string",
@@ -3533,16 +3562,17 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `actions`        | string | false    |              |             |
-| `body_template`  | string | false    |              |             |
-| `group`          | string | false    |              |             |
-| `id`             | string | false    |              |             |
-| `kind`           | string | false    |              |             |
-| `method`         | string | false    |              |             |
-| `name`           | string | false    |              |             |
-| `title_template` | string | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `actions`            | string  | false    |              |             |
+| `body_template`      | string  | false    |              |             |
+| `enabled_by_default` | boolean | false    |              |             |
+| `group`              | string  | false    |              |             |
+| `id`                 | string  | false    |              |             |
+| `kind`               | string  | false    |              |             |
+| `method`             | string  | false    |              |             |
+| `name`               | string  | false    |              |             |
+| `title_template`     | string  | false    |              |             |
 
 ## codersdk.NotificationsConfig
 
@@ -6723,6 +6753,22 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `active`    |
 | `dormant`   |
 | `suspended` |
+
+## codersdk.UserStatusChangeCount
+
+```json
+{
+  "count": 10,
+  "date": "2019-08-24T14:15:22Z"
+}
+```
+
+### Properties
+
+| Name    | Type    | Required | Restrictions | Description |
+|---------|---------|----------|--------------|-------------|
+| `count` | integer | false    |              |             |
+| `date`  | string  | false    |              |             |
 
 ## codersdk.ValidateUserPasswordRequest
 

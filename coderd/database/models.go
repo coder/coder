@@ -2480,8 +2480,9 @@ type NotificationTemplate struct {
 	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
 	// NULL defers to the deployment-level method
-	Method NullNotificationMethod   `db:"method" json:"method"`
-	Kind   NotificationTemplateKind `db:"kind" json:"kind"`
+	Method           NullNotificationMethod   `db:"method" json:"method"`
+	Kind             NotificationTemplateKind `db:"kind" json:"kind"`
+	EnabledByDefault bool                     `db:"enabled_by_default" json:"enabled_by_default"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.
@@ -2953,6 +2954,13 @@ type User struct {
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
 }
 
+// Tracks when users were deleted
+type UserDeleted struct {
+	ID        uuid.UUID `db:"id" json:"id"`
+	UserID    uuid.UUID `db:"user_id" json:"user_id"`
+	DeletedAt time.Time `db:"deleted_at" json:"deleted_at"`
+}
+
 type UserLink struct {
 	UserID            uuid.UUID `db:"user_id" json:"user_id"`
 	LoginType         LoginType `db:"login_type" json:"login_type"`
@@ -2966,6 +2974,14 @@ type UserLink struct {
 	OAuthRefreshTokenKeyID sql.NullString `db:"oauth_refresh_token_key_id" json:"oauth_refresh_token_key_id"`
 	// Claims from the IDP for the linked user. Includes both id_token and userinfo claims.
 	Claims UserLinkClaims `db:"claims" json:"claims"`
+}
+
+// Tracks the history of user status changes
+type UserStatusChange struct {
+	ID        uuid.UUID  `db:"id" json:"id"`
+	UserID    uuid.UUID  `db:"user_id" json:"user_id"`
+	NewStatus UserStatus `db:"new_status" json:"new_status"`
+	ChangedAt time.Time  `db:"changed_at" json:"changed_at"`
 }
 
 // Visible fields of users are allowed to be joined with other tables for including context of other resources.

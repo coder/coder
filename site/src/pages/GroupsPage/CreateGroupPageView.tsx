@@ -12,11 +12,15 @@ import { Stack } from "components/Stack/Stack";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "utils/formUtils";
 import * as Yup from "yup";
 
 const validationSchema = Yup.object({
-	name: Yup.string().required().label("Name"),
+	name: nameValidator("Name"),
 });
 
 export type CreateGroupPageViewProps = {
@@ -62,6 +66,8 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							autoFocus
 							fullWidth
 							label="Name"
+							onChange={onChangeTrimmed(form)}
+							autoComplete="name"
 						/>
 						<TextField
 							{...getFieldHelpers("display_name", {
@@ -69,6 +75,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							})}
 							fullWidth
 							label="Display Name"
+							autoComplete="display_name"
 						/>
 						<IconField
 							{...getFieldHelpers("avatar_url")}
