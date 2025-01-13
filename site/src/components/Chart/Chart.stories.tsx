@@ -1,11 +1,11 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import {
 	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
 } from "./Chart";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const chartData = [
 	{ month: "January", users: 186 },
