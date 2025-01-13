@@ -346,13 +346,24 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	-- Fail the insertion if the user has disabled this notification.
-	IF EXISTS (SELECT 1
-			   FROM notification_preferences
-			   WHERE disabled = TRUE
-				 AND user_id = NEW.user_id
-				 AND notification_template_id = NEW.notification_template_id) THEN
-		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+	-- Fail the insertion if one of the following:
+	--  * the user has disabled this notification.
+	--  * the notification template is disabled by default and hasn't
+	--    been explicitly enabled by the user.
+	IF EXISTS (
+		SELECT 1 FROM notification_templates
+		LEFT JOIN notification_preferences
+			ON  notification_preferences.notification_template_id = notification_templates.id
+			AND notification_preferences.user_id = NEW.user_id
+		WHERE notification_templates.id = NEW.notification_template_id AND (
+			-- Case 1: The user has explicitly disabled this template
+			notification_preferences.disabled = TRUE
+			OR
+			-- Case 2: The template is disabled by default AND the user hasn't enabled it
+			(notification_templates.enabled_by_default = FALSE AND notification_preferences.notification_template_id IS NULL)
+		)
+	) THEN
+		RAISE EXCEPTION 'cannot enqueue message: notification is not enabled';
 	END IF;
 
 	RETURN NEW;
@@ -874,7 +885,8 @@ CREATE TABLE notification_templates (
     actions jsonb,
     "group" text,
     method notification_method,
-    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL,
+    enabled_by_default boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';

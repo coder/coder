@@ -11712,6 +11712,9 @@ const docTemplate = `{
                 "body_template": {
                     "type": "string"
                 },
+                "enabled_by_default": {
+                    "type": "boolean"
+                },
                 "group": {
                     "type": "string"
                 },
