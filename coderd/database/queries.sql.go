@@ -3128,9 +3128,13 @@ latest_status_before_range AS (
         usc.new_status,
         usc.changed_at
     FROM user_status_changes usc
-	LEFT JOIN user_deleted ud ON usc.user_id = ud.user_id
+	LEFT JOIN LATERAL (
+		SELECT COUNT(*) > 0 AS deleted
+		FROM user_deleted ud
+		WHERE ud.user_id = usc.user_id AND ud.changed_at < usc.changed_at
+	) AS ud ON usc.user_id = ud.user_id
     WHERE usc.changed_at < $1::timestamptz
-	AND (ud.user_id IS NULL OR ud.deleted_at > $1::timestamptz)
+	AND NOT ud.deleted
     ORDER BY usc.user_id, usc.changed_at DESC
 ),
 	-- status_changes_during_range defines the status of each user during the start_time and end_time.
@@ -3143,10 +3147,14 @@ status_changes_during_range AS (
         usc.new_status,
         usc.changed_at
     FROM user_status_changes usc
-	LEFT JOIN user_deleted ud ON usc.user_id = ud.user_id
+	LEFT JOIN LATERAL (
+		SELECT COUNT(*) > 0 AS deleted
+		FROM user_deleted ud
+		WHERE ud.user_id = usc.user_id AND ud.changed_at < usc.changed_at
+	) AS ud ON usc.user_id = ud.user_id
     WHERE usc.changed_at >= $1::timestamptz
         AND usc.changed_at <= $2::timestamptz
-		AND (ud.user_id IS NULL OR usc.changed_at < ud.deleted_at)
+        AND NOT deleted
 ),
 	-- relevant_status_changes defines the status of each user at any point in time.
 	-- It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
