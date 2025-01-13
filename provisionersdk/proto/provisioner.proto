@@ -164,9 +164,8 @@ message Script {
 }
 
 enum AppOpenIn {
-    WINDOW = 0;
-    SLIM_WINDOW = 1;
-    TAB = 2;
+    SLIM_WINDOW = 0;
+    TAB = 1;
 }
 
 // App represents a dev-accessible application on the workspace.

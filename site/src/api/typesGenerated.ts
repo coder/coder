@@ -2987,7 +2987,6 @@ export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
 export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
 	"slim-window",
 	"tab",
-	"window",
 ];
 
 // From codersdk/workspaceapps.go
