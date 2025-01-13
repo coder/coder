@@ -3197,9 +3197,15 @@ func (s *MethodTestSuite) TestExtraMethods() {
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 			},
 		})
-		ds, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{OrganizationID: org.ID})
+		ds, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 86400000, // 24 hours.
+		})
 		s.NoError(err, "get provisioner daemon with status by org")
-		check.Args(database.GetProvisionerDaemonsWithStatusByOrganizationParams{OrganizationID: org.ID}).Asserts(d, policy.ActionRead).Returns(ds)
+		check.Args(database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 86400000, // 24 hours.
+		}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
 	s.Run("GetEligibleProvisionerDaemonsByProvisionerJobIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
