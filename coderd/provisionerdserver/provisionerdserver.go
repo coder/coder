@@ -2018,7 +2018,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			case sdkproto.AppOpenIn_TAB:
 				openIn = database.WorkspaceAppOpenInTab
 			case sdkproto.AppOpenIn_SLIM_WINDOW:
-				openIn = database.WorkspaceAppOpenInWindow
+				openIn = database.WorkspaceAppOpenInSlimWindow
 			}
 
 			dbApp, err := db.InsertWorkspaceApp(ctx, database.InsertWorkspaceAppParams{
