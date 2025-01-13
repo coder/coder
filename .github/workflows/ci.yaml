@@ -1263,7 +1263,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": "❌ CI Failure in `main`",
+                  "text": "❌ CI Failure in main",
                   "emoji": true
                 }
               },
