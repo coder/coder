@@ -20,3 +20,10 @@ export const insightsUserActivity = (params: InsightsParams) => {
 		queryFn: () => API.getInsightsUserActivity(params),
 	};
 };
+
+export const insightsUserStatusCounts = () => {
+	return {
+		queryKey: ["insights", "userStatusCounts"],
+		queryFn: () => API.getInsightsUserStatusCounts(),
+	};
+};
