@@ -26,6 +26,8 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import dayjs from "dayjs";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -37,8 +39,6 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
