@@ -59,7 +59,7 @@ spec:
 ### Prometheus configuration
 
 To allow Prometheus to scrape the Coder metrics, you will need to create a
-`scape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart
+`scrape_config` in your `prometheus.yml` file, or in the Prometheus Helm chart
 values. The following is an example `scrape_config`.
 
 ```yaml

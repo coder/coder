@@ -9,7 +9,7 @@ const meta: Meta<typeof Form> = {
 		children: (
 			<FormSection
 				title="General"
-				description="The name of the workspace and its owner. Only admins can create workspace for other users."
+				description="The name of the workspace and its owner. Only admins can create workspaces for other users."
 			>
 				<FormFields>
 					<TextField label="Workspace Name" />

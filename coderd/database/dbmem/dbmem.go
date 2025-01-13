@@ -88,6 +88,7 @@ func New() database.Store {
 			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
 			runtimeConfig:             map[string]string{},
+			userStatusChanges:         make([]database.UserStatusChange, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -256,6 +257,7 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	userStatusChanges                []database.UserStatusChange
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -5669,6 +5671,42 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	return out, nil
 }
 
+func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]database.GetUserStatusCountsRow, 0)
+	for _, change := range q.userStatusChanges {
+		if change.ChangedAt.Before(arg.StartTime) || change.ChangedAt.After(arg.EndTime) {
+			continue
+		}
+		date := time.Date(change.ChangedAt.Year(), change.ChangedAt.Month(), change.ChangedAt.Day(), 0, 0, 0, 0, time.UTC)
+		if !slices.ContainsFunc(result, func(r database.GetUserStatusCountsRow) bool {
+			return r.Status == change.NewStatus && r.Date.Equal(date)
+		}) {
+			result = append(result, database.GetUserStatusCountsRow{
+				Status: change.NewStatus,
+				Date:   date,
+				Count:  1,
+			})
+		} else {
+			for i, r := range result {
+				if r.Status == change.NewStatus && r.Date.Equal(date) {
+					result[i].Count++
+					break
+				}
+			}
+		}
+	}
+
+	return result, nil
+}
+
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8021,6 +8059,12 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	sort.Slice(q.users, func(i, j int) bool {
 		return q.users[i].CreatedAt.Before(q.users[j].CreatedAt)
 	})
+
+	q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+		UserID:    user.ID,
+		NewStatus: user.Status,
+		ChangedAt: user.UpdatedAt,
+	})
 	return user, nil
 }
 
@@ -9062,12 +9106,18 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 				Username:   user.Username,
 				LastSeenAt: user.LastSeenAt,
 			})
+			q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+				UserID:    user.ID,
+				NewStatus: database.UserStatusDormant,
+				ChangedAt: params.UpdatedAt,
+			})
 		}
 	}
 
 	if len(updated) == 0 {
 		return nil, sql.ErrNoRows
 	}
+
 	return updated, nil
 }
 
@@ -9868,6 +9918,12 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		user.Status = arg.Status
 		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
+
+		q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+			UserID:    user.ID,
+			NewStatus: user.Status,
+			ChangedAt: user.UpdatedAt,
+		})
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows
