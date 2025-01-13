@@ -1248,3 +1248,52 @@ jobs:
       - name: Setup and run sqlc vet
         run: |
           make sqlc-vet
+
+  notify-slack-on-failure:
+    runs-on: ubuntu-latest
+    if: always() && failure() && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Send Slack notification
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": "❌ CI Failure in `main`",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Workflow:*\n${{ github.workflow }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Failed Job:*\n${{ github.job }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Committer:*\n${{ github.actor }}"
+                  },
+                  {
+                    "type": "mrkdwn",
+                    "text": "*Commit:*\n${{ github.sha }}"
+                  }
+                ]
+              },
+              {
+                "type": "section",
+                "text": {
+                  "type": "mrkdwn",
+                  "text": "*View failure:* <${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}|Click here>"
+                }
+              }
+            ]
+          }' ${{ secrets.CI_FAILURE_SLACK_WEBHOOK }}
