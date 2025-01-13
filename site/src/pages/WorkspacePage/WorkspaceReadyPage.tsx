@@ -37,6 +37,8 @@ import { UpdateBuildParametersDialog } from "./UpdateBuildParametersDialog";
 import { Workspace } from "./Workspace";
 import { WorkspaceDeleteDialog } from "./WorkspaceDeleteDialog";
 import type { WorkspacePermissions } from "./permissions";
+import sortBy from "lodash/sortBy";
+import uniqBy from "lodash/uniqBy";
 
 interface WorkspaceReadyPageProps {
 	template: TypesGen.Template;
@@ -162,6 +164,21 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 		// Fetch build timings only when the build job is completed.
 		enabled: Boolean(workspace.latest_build.job.completed_at),
+
+		// This is a workaround to deal with the BE returning multiple timings for a
+		// single agent script when it should return only one. Reference:
+		// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
+		select: (data) => {
+			return {
+				...data,
+				agent_script_timings: uniqBy(
+					sortBy(data.agent_script_timings, (t) =>
+						new Date(t.started_at).getTime(),
+					),
+					(t) => t.display_name,
+				),
+			};
+		},
 
 		// Sometimes, the timings can be fetched before the agent script timings are
 		// done or saved in the database so we need to conditionally refetch the
