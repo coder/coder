@@ -430,7 +430,7 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}`,
 				},
 				reqTags: map[string]string{"a": "b"},
-				//wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
+				// wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
 				expectError: `provisioner tag "a" evaluated to an empty value`,
 			},
 			{
