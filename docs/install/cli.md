@@ -58,8 +58,6 @@ coder login https://coder.example.com
 
 ## Downloading the CLI from your deployment
 
-## Linux/macOS
-
 > NOTE:
 >
 > This method is only available to users to Coder 2.19 and newer.
