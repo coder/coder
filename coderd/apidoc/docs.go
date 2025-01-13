@@ -15223,12 +15223,10 @@ const docTemplate = `{
             "type": "string",
             "enum": [
                 "slim-window",
-                "window",
                 "tab"
             ],
             "x-enum-varnames": [
                 "WorkspaceAppOpenInSlimWindow",
-                "WorkspaceAppOpenInWindow",
                 "WorkspaceAppOpenInTab"
             ]
         },
