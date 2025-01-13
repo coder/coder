@@ -1219,6 +1219,36 @@
 				}
 			}
 		},
+		"/insights/user-status-counts": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Insights"],
+				"summary": "Get insights about user status counts",
+				"operationId": "get-insights-about-user-status-counts",
+				"parameters": [
+					{
+						"type": "integer",
+						"description": "Time-zone offset (e.g. -2)",
+						"name": "tz_offset",
+						"in": "query",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.GetUserStatusCountsResponse"
+						}
+					}
+				}
+			}
+		},
 		"/integrations/jfrog/xray-scan": {
 			"get": {
 				"security": [
@@ -10054,6 +10084,20 @@
 				}
 			}
 		},
+		"codersdk.GetUserStatusCountsResponse": {
+			"type": "object",
+			"properties": {
+				"status_counts": {
+					"type": "object",
+					"additionalProperties": {
+						"type": "array",
+						"items": {
+							"$ref": "#/definitions/codersdk.UserStatusChangeCount"
+						}
+					}
+				}
+			}
+		},
 		"codersdk.GetUsersResponse": {
 			"type": "object",
 			"properties": {
@@ -13243,6 +13287,19 @@
 				"UserStatusDormant",
 				"UserStatusSuspended"
 			]
+		},
+		"codersdk.UserStatusChangeCount": {
+			"type": "object",
+			"properties": {
+				"count": {
+					"type": "integer",
+					"example": 10
+				},
+				"date": {
+					"type": "string",
+					"format": "date-time"
+				}
+			}
 		},
 		"codersdk.ValidateUserPasswordRequest": {
 			"type": "object",
