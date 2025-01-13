@@ -121,11 +121,12 @@ main() {
 
 	unset \
 		DRY_RUN \
-		OPTIONAL \
+		ORIGIN \
 		ALL_FLAGS \
 		RSH_ARGS \
 		RSH
 
+	ORIGIN="{{ .Origin }}"
 	ALL_FLAGS=""
 
 	while [ "$#" -gt 0 ]; do
@@ -138,6 +139,13 @@ main() {
 		case "$1" in
 		--dry-run)
 			DRY_RUN=1
+			;;
+		--origin)
+			ORIGIN="$(parse_arg "$@")"
+			shift
+			;;
+		--origin=*)
+			ORIGIN="$(parse_arg "$@")"
 			;;
 		--prefix)
 			STANDALONE_INSTALL_PREFIX="$(parse_arg "$@")"
@@ -188,7 +196,7 @@ main() {
 	if [ "${RSH_ARGS-}" ]; then
 		RSH="${RSH-ssh}"
 		echoh "Installing remotely with $RSH $RSH_ARGS"
-		curl -fsSL "{{ .Origin }}/install.sh" | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
+		curl -fsSL "$ORIGIN/install.sh" | prefix "$RSH_ARGS" "$RSH" "$RSH_ARGS" sh -s -- "$ALL_FLAGS"
 		return
 	fi
 
@@ -223,7 +231,7 @@ parse_arg() {
 		opt="${1%%=*}"
 		# Remove everything before first equal sign.
 		optarg="${1#*=}"
-		if [ ! "$optarg" ] && [ ! "${OPTIONAL-}" ]; then
+		if [ ! "$optarg" ]; then
 			echoerr "$opt requires an argument"
 			echoerr "Run with --help to see usage."
 			exit 1
@@ -235,11 +243,9 @@ parse_arg() {
 
 	case "${2-}" in
 	"" | -*)
-		if [ ! "${OPTIONAL-}" ]; then
-			echoerr "$1 requires an argument"
-			echoerr "Run with --help to see usage."
-			exit 1
-		fi
+		echoerr "$1 requires an argument"
+		echoerr "Run with --help to see usage."
+		exit 1
 		;;
 	*)
 		echo "$2"
@@ -267,12 +273,12 @@ fetch() {
 }
 
 install_standalone() {
-	echoh "Installing coder-$OS-$ARCH {{ .Version }} from {{ .Origin }}."
+	echoh "Installing coder-$OS-$ARCH {{ .Version }} from $ORIGIN."
 	echoh
 
 	BINARY_FILE="$CACHE_DIR/coder-${OS}-${ARCH}-{{ .Version }}"
 
-	fetch "{{ .Origin }}/bin/coder-${OS}-${ARCH}" "$BINARY_FILE"
+	fetch "$ORIGIN/bin/coder-${OS}-${ARCH}" "$BINARY_FILE"
 
 	# -w only works if the directory exists so try creating it first. If this
 	# fails we can ignore the error as the -w check will then swap us to sudo.
