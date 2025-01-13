@@ -1598,10 +1598,10 @@ func (api *API) postTemplateVersionsByOrganization(rw http.ResponseWriter, r *ht
 
 	// Ensure the "owner" tag is properly applied in addition to request tags and coder_workspace_tags.
 	// Tag order precedence:
-	// 1) User-specified tags in the request
-	// 2) Tags parsed from coder_workspace_tags data source in template file
+	// 1) Tags parsed from coder_workspace_tags data source in template file
+	// 2) User-specified tags in the request
 	// 2 may clobber 1.
-	tags := provisionersdk.MutateTags(apiKey.UserID, req.ProvisionerTags, parsedTags)
+	tags := provisionersdk.MutateTags(apiKey.UserID, parsedTags, req.ProvisionerTags)
 
 	var templateVersion database.TemplateVersion
 	var provisionerJob database.ProvisionerJob
