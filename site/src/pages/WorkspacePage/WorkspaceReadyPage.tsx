@@ -205,8 +205,6 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 		},
 	});
 
-	console.log(timingsQuery.data?.agent_connection_timings);
-
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
 		debug: boolean,
