@@ -1146,9 +1146,8 @@ func TestSSH(t *testing.T) {
 		// started and accepting input on stdin.
 		_ = pty.Peek(ctx, 1)
 
-		// Download the test page
-		pty.WriteLine(fmt.Sprintf("ss -xl state listening src %s | wc -l", remoteSock))
-		pty.ExpectMatch("2")
+		pty.WriteLine(fmt.Sprintf("netstat -an | grep -q %s; echo \"returned $?\"", remoteSock))
+		pty.ExpectMatchContext(ctx, "returned 0")
 
 		// And we're done.
 		pty.WriteLine("exit")
