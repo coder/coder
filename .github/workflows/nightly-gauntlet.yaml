@@ -74,8 +74,11 @@ jobs:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
   notify-slack-on-failure:
+    needs:
+      - go-race
+      - go-timing
     runs-on: ubuntu-latest
-    if: always() && failure()
+    if: failure()
 
     steps:
       - name: Send Slack notification
