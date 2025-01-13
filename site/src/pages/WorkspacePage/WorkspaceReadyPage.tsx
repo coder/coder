@@ -26,8 +26,6 @@ import { useAuthenticated } from "contexts/auth/RequireAuth";
 import dayjs from "dayjs";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useWorkspaceBuildLogs } from "hooks/useWorkspaceBuildLogs";
-import sortBy from "lodash/sortBy";
-import uniqBy from "lodash/uniqBy";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
@@ -167,17 +165,27 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 
 		// This is a workaround to deal with the BE returning multiple timings for a
 		// single agent script when it should return only one. Reference:
-		// https://github.com/coder/coder/issues/15413#issuecomment-2493663571
+		// https://github.com/coder/coder/issues/16124
 		select: (data) => {
+			// Select the most recent agent script timing for each script.
+			const fixedAgentScriptTimings = Object.values(
+				data.agent_script_timings.reduce(
+					(acc, item) => {
+						const existing = acc[item.display_name];
+						if (
+							!existing ||
+							new Date(item.started_at) > new Date(existing.started_at)
+						) {
+							acc[item.display_name] = item;
+						}
+						return acc;
+					},
+					{} as Record<string, TypesGen.AgentScriptTiming>,
+				),
+			);
 			return {
 				...data,
-				agent_script_timings: uniqBy(
-					sortBy(data.agent_script_timings, [
-						"display_name",
-						"started_at",
-					]).reverse(),
-					"display_name",
-				),
+				agent_script_timings: fixedAgentScriptTimings,
 			};
 		},
 
@@ -196,6 +204,8 @@ export const WorkspaceReadyPage: FC<WorkspaceReadyPageProps> = ({
 				: 1_000;
 		},
 	});
+
+	console.log(timingsQuery.data?.agent_connection_timings);
 
 	const runLastBuild = (
 		buildParameters: TypesGen.WorkspaceBuildParameter[] | undefined,
