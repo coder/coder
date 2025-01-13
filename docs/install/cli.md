@@ -5,6 +5,8 @@ A single CLI (`coder`) is used for both the Coder server and the client.
 We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
+## Downloading the latest release from GitHub
+
 <div class="tabs">
 
 ## Linux/macOS
@@ -53,6 +55,27 @@ To log in to an existing Coder deployment:
 ```sh
 coder login https://coder.example.com
 ```
+
+## Downloading the CLI from your deployment
+
+## Linux/macOS
+
+> NOTE:
+>
+> This method is only available to users to Coder 2.19 and newer.
+
+Every Coder deployment contains binaries for the CLI on all supported platforms.
+We provide a script that can be run to download the appropriate CLI for your
+machine from your Coder deployment.
+
+```sh
+curl -L https://coder.example.com/install.sh | sh
+```
+
+This script works even within air-gapped deployments and is useful for ensuring
+that the version of the CLI you have installed on your machine matches the
+version of the server. When authoring a template, this script can also be useful
+for installing the correct CLI within the workspaces of your users.
 
 ### Next up
 
