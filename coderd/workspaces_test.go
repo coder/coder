@@ -2395,6 +2395,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 	}
 
 	t.Run("ModifyAutostopWithRunningWorkspace", func(t *testing.T) {
+		t.Parallel()
+
 		testCases := []struct {
 			name        string
 			fromTTL     *int64
@@ -2445,6 +2447,8 @@ func TestWorkspaceUpdateTTL(t *testing.T) {
 			testCase := testCase
 
 			t.Run(testCase.name, func(t *testing.T) {
+				t.Parallel()
+
 				var (
 					client    = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 					user      = coderdtest.CreateFirstUser(t, client)

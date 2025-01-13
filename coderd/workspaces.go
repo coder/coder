@@ -1042,6 +1042,7 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 					ID:          build.ID,
 					Deadline:    time.Time{},
 					MaxDeadline: build.MaxDeadline,
+					UpdatedAt:   dbtime.Time(api.Clock.Now()),
 				}); err != nil {
 					return xerrors.Errorf("update workspace build deadline: %w", err)
 				}
