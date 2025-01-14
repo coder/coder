@@ -133,9 +133,7 @@ interface TableRowCountProps {
 
 const TableRowCount: FC<TableRowCountProps> = ({ count, type }) => {
 	return (
-		<div
-			className="text-content-secondary text-xs"
-		>
+		<div className="text-content-secondary text-xs">
 			Showing <strong className="text-content-primary">{count}</strong> {type}
 		</div>
 	);
