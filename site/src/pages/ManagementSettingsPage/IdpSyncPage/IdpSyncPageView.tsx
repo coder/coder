@@ -166,8 +166,8 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 			<Table>
 				<TableHead>
 					<TableRow>
-						<TableCell width="45%">IdP {type}</TableCell>
-						<TableCell width="55%">Coder {type}</TableCell>
+						<TableCell width="45%">IdP {type.toLocaleLowerCase()}</TableCell>
+						<TableCell width="55%">Coder {type.toLocaleLowerCase()}</TableCell>
 						<TableCell width="10%" />
 					</TableRow>
 				</TableHead>
@@ -176,7 +176,6 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 						<Cond condition={isLoading}>
 							<TableLoader />
 						</Cond>
-
 						<Cond condition={isEmpty}>
 							<TableRow>
 								<TableCell colSpan={999}>
@@ -198,7 +197,6 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 								</TableCell>
 							</TableRow>
 						</Cond>
-
 						<Cond>{children}</Cond>
 					</ChooseOne>
 				</TableBody>
@@ -305,11 +303,18 @@ const IdpGroupSyncForm = ({
 		<form onSubmit={form.handleSubmit}>
 			<fieldset
 				disabled={form.isSubmitting}
-				className="flex flex-col border-none gap-5"
+				className="flex flex-col border-none gap-8 pt-2"
 			>
+				<div className="flex justify-end">
+					<ExportPolicyButton
+						syncSettings={groupSyncSettings}
+						organization={organization}
+						type="groups"
+					/>
+				</div>
 				<div className="grid items-center gap-3">
 					<div className="flex flex-row items-center gap-5">
-						<div className="grid grid-cols-2 gap-2 grid-rows-[20px_auto_20px] w-96">
+						<div className="grid grid-cols-2 gap-2 grid-rows-[20px_auto_20px]">
 							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
 								Group sync field
 							</Label>
@@ -322,7 +327,7 @@ const IdpGroupSyncForm = ({
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
-								className="min-w-40"
+								className="min-w-72 w-72"
 							/>
 							<div className="flex flex-row gap-2">
 								<Input
@@ -350,86 +355,84 @@ const IdpGroupSyncForm = ({
 							</p>
 						</div>
 					</div>
-
-					<div className="flex flex-row items-center gap-3">
-						<Switch
-							id={AUTO_CREATE_MISSING_GROUPS_ID}
-							checked={form.values.auto_create_missing_groups}
-							onCheckedChange={async (checked) => {
-								void form.setFieldValue("organization_assign_default", checked);
-								form.handleSubmit();
+				</div>
+				<div className="flex flex-row items-center gap-3">
+					<Switch
+						id={AUTO_CREATE_MISSING_GROUPS_ID}
+						checked={form.values.auto_create_missing_groups}
+						onCheckedChange={async (checked) => {
+							void form.setFieldValue("organization_assign_default", checked);
+							form.handleSubmit();
+						}}
+					/>
+					<span className="flex flex-row items-center gap-1">
+						<Label htmlFor={AUTO_CREATE_MISSING_GROUPS_ID}>
+							Auto create missing groups
+						</Label>
+						<AutoCreateMissingGroupsHelpTooltip />
+					</span>
+				</div>
+				<div className="flex flex-row gap-2 justify-between items-start">
+					<div className="grid items-center gap-1">
+						<Label className="text-sm" htmlFor={IDP_GROUP_NAME_ID}>
+							IdP group name
+						</Label>
+						<Input
+							id={IDP_GROUP_NAME_ID}
+							value={idpGroupName}
+							className="min-w-72 w-72"
+							onChange={(event) => {
+								setIdpGroupName(event.target.value);
 							}}
 						/>
-						<span className="flex flex-row items-center gap-1">
-							<Label htmlFor={AUTO_CREATE_MISSING_GROUPS_ID}>
-								Auto Create Missing Groups
-							</Label>
-							<AutoCreateMissingGroupsHelpTooltip />
-						</span>
+					</div>
+					<div className="grid items-center gap-1 flex-1">
+						<Label className="text-sm" htmlFor=":r1d:">
+							Coder group
+						</Label>
+						<MultiSelectCombobox
+							className="min-w-60 max-w-3xl"
+							value={coderGroups}
+							onChange={setCoderGroups}
+							defaultOptions={groups.map((group) => ({
+								label: group.display_name || group.name,
+								value: group.id,
+							}))}
+							hidePlaceholderWhenSelected
+							placeholder="Select group"
+							emptyIndicator={
+								<p className="text-center text-md text-content-primary">
+									All groups selected
+								</p>
+							}
+						/>
+					</div>
+					<div className="grid grid-rows-[28px_auto]">
+						&nbsp;
+						<Button
+							className="mb-px"
+							type="submit"
+							disabled={!idpGroupName || coderGroups.length === 0}
+							onClick={async () => {
+								const newSyncSettings = {
+									...form.values,
+									mapping: {
+										...form.values.mapping,
+										[idpGroupName]: coderGroups.map((role) => role.value),
+									},
+								};
+								void form.setFieldValue("mapping", newSyncSettings.mapping);
+								form.handleSubmit();
+								setIdpGroupName("");
+								setCoderGroups([]);
+							}}
+						>
+							<Plus size={14} />
+							Add IdP group
+						</Button>
 					</div>
 				</div>
-				<div className="flex flex-col gap-4">
-					<div className="flex flex-row pt-4 gap-2 justify-between items-start">
-						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor={IDP_GROUP_NAME_ID}>
-								IdP group name
-							</Label>
-							<Input
-								id={IDP_GROUP_NAME_ID}
-								value={idpGroupName}
-								className="min-w-72 w-72"
-								onChange={(event) => {
-									setIdpGroupName(event.target.value);
-								}}
-							/>
-						</div>
-						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor=":r1d:">
-								Coder group
-							</Label>
-							<MultiSelectCombobox
-								className="min-w-60 max-w-3xl"
-								value={coderGroups}
-								onChange={setCoderGroups}
-								defaultOptions={groups.map((group) => ({
-									label: group.display_name || group.name,
-									value: group.id,
-								}))}
-								hidePlaceholderWhenSelected
-								placeholder="Select group"
-								emptyIndicator={
-									<p className="text-center text-md text-content-primary">
-										All groups selected
-									</p>
-								}
-							/>
-						</div>
-						<div className="grid grid-rows-[28px_auto]">
-							&nbsp;
-							<Button
-								className="mb-px"
-								type="submit"
-								disabled={!idpGroupName || coderGroups.length === 0}
-								onClick={async () => {
-									const newSyncSettings = {
-										...form.values,
-										mapping: {
-											...form.values.mapping,
-											[idpGroupName]: coderGroups.map((role) => role.value),
-										},
-									};
-									void form.setFieldValue("mapping", newSyncSettings.mapping);
-									form.handleSubmit();
-									setIdpGroupName("");
-									setCoderGroups([]);
-								}}
-							>
-								<Plus size={14} />
-								Add IdP group
-							</Button>
-						</div>
-					</div>
-				</div>
+
 				<div className="flex gap-12">
 					<div className="flex flex-col w-full">
 						<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
@@ -445,14 +448,7 @@ const IdpGroupSyncForm = ({
 										/>
 									))}
 						</IdpMappingTable>
-						<div className="flex justify-between">
-							<span className="pt-2">
-								<ExportPolicyButton
-									syncSettings={groupSyncSettings}
-									organization={organization}
-									type="groups"
-								/>
-							</span>
+						<div className="flex justify-end">
 							<TableRowCount count={groupMappingCount} type="groups" />
 						</div>
 					</div>
@@ -539,8 +535,15 @@ const IdpRoleSyncForm = ({
 		<form onSubmit={form.handleSubmit}>
 			<fieldset
 				disabled={form.isSubmitting}
-				className="flex flex-col border-none gap-3"
+				className="flex flex-col border-none gap-8 pt-2"
 			>
+				<div className="flex justify-end">
+					<ExportPolicyButton
+						syncSettings={roleSyncSettings}
+						organization={organization}
+						type="roles"
+					/>
+				</div>
 				<div className="grid items-center gap-1">
 					<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
 						Role sync field
@@ -553,9 +556,10 @@ const IdpRoleSyncForm = ({
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
+								className="min-w-72 w-72"
 							/>
 							<Button
-								className="w-20"
+								className="px-6"
 								type="submit"
 								disabled={form.isSubmitting || !form.dirty}
 								onClick={(event) => {
@@ -571,91 +575,82 @@ const IdpRoleSyncForm = ({
 						If empty, role sync is deactivated
 					</p>
 				</div>
-				<div className="flex flex-col gap-4">
-					<div className="flex flex-row pt-4 gap-2 justify-between items-start">
-						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor={IDP_ROLE_NAME_ID}>
-								IdP role name
-							</Label>
-							<Input
-								id={IDP_ROLE_NAME_ID}
-								value={idpRoleName}
-								className="min-w-72 w-72"
-								onChange={(event) => {
-									setIdpRoleName(event.target.value);
-								}}
-							/>
-						</div>
-						<div className="grid items-center gap-1 flex-1">
-							<Label className="text-sm" htmlFor=":r1d:">
-								Coder role
-							</Label>
-							<MultiSelectCombobox
-								className="min-w-60 max-w-3xl"
-								value={coderRoles}
-								onChange={setCoderRoles}
-								defaultOptions={roles.map((role) => ({
-									label: role.display_name || role.name,
-									value: role.name,
-								}))}
-								hidePlaceholderWhenSelected
-								placeholder="Select role"
-								emptyIndicator={
-									<p className="text-center text-md text-content-primary">
-										All roles selected
-									</p>
-								}
-							/>
-						</div>
-						<div className="grid grid-rows-[28px_auto]">
-							&nbsp;
-							<Button
-								className="mb-px"
-								type="submit"
-								disabled={!idpRoleName || coderRoles.length === 0}
-								onClick={async () => {
-									const newSyncSettings = {
-										...form.values,
-										mapping: {
-											...form.values.mapping,
-											[idpRoleName]: coderRoles.map((role) => role.value),
-										},
-									};
-									void form.setFieldValue("mapping", newSyncSettings.mapping);
-									form.handleSubmit();
-									setIdpRoleName("");
-									setCoderRoles([]);
-								}}
-							>
-								<Plus size={14} />
-								Add IdP role
-							</Button>
-						</div>
+				<div className="flex flex-row gap-2 justify-between items-start">
+					<div className="grid items-center gap-1">
+						<Label className="text-sm" htmlFor={IDP_ROLE_NAME_ID}>
+							IdP role name
+						</Label>
+						<Input
+							id={IDP_ROLE_NAME_ID}
+							value={idpRoleName}
+							className="min-w-72 w-72"
+							onChange={(event) => {
+								setIdpRoleName(event.target.value);
+							}}
+						/>
 					</div>
-					<div>
-						<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
-							{roleSyncSettings?.mapping &&
-								Object.entries(roleSyncSettings.mapping)
-									.sort()
-									.map(([idpRole, roles]) => (
-										<RoleRow
-											key={idpRole}
-											idpRole={idpRole}
-											coderRoles={roles}
-											onDelete={handleDelete}
-										/>
-									))}
-						</IdpMappingTable>
-						<div className="flex justify-between">
-							<span className="pt-2">
-								<ExportPolicyButton
-									syncSettings={roleSyncSettings}
-									organization={organization}
-									type="roles"
-								/>
-							</span>
-							<TableRowCount count={roleMappingCount} type="roles" />
-						</div>
+					<div className="grid items-center gap-1 flex-1">
+						<Label className="text-sm" htmlFor=":r1d:">
+							Coder role
+						</Label>
+						<MultiSelectCombobox
+							className="min-w-60 max-w-3xl"
+							value={coderRoles}
+							onChange={setCoderRoles}
+							defaultOptions={roles.map((role) => ({
+								label: role.display_name || role.name,
+								value: role.name,
+							}))}
+							hidePlaceholderWhenSelected
+							placeholder="Select role"
+							emptyIndicator={
+								<p className="text-center text-md text-content-primary">
+									All roles selected
+								</p>
+							}
+						/>
+					</div>
+					<div className="grid grid-rows-[28px_auto]">
+						&nbsp;
+						<Button
+							className="mb-px"
+							type="submit"
+							disabled={!idpRoleName || coderRoles.length === 0}
+							onClick={async () => {
+								const newSyncSettings = {
+									...form.values,
+									mapping: {
+										...form.values.mapping,
+										[idpRoleName]: coderRoles.map((role) => role.value),
+									},
+								};
+								void form.setFieldValue("mapping", newSyncSettings.mapping);
+								form.handleSubmit();
+								setIdpRoleName("");
+								setCoderRoles([]);
+							}}
+						>
+							<Plus size={14} />
+							Add IdP role
+						</Button>
+					</div>
+				</div>
+				<div>
+					<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
+						{roleSyncSettings?.mapping &&
+							Object.entries(roleSyncSettings.mapping)
+								.sort()
+								.map(([idpRole, roles]) => (
+									<RoleRow
+										key={idpRole}
+										idpRole={idpRole}
+										coderRoles={roles}
+										onDelete={handleDelete}
+									/>
+								))}
+					</IdpMappingTable>
+					<div className="flex justify-end">
+						<TableRowCount count={roleMappingCount} type="roles" />
 					</div>
 				</div>
 			</fieldset>
