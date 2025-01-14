@@ -1,6 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import { CodeExample } from "components/CodeExample/CodeExample";
-import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
@@ -9,8 +8,8 @@ export const CliInstallPageView: FC = () => {
 	const origin = location.origin;
 
 	return (
-		<SignInLayout>
-			<Welcome className="pb-3">Install the Coder CLI</Welcome>
+		<div css={styles.container}>
+			<Welcome>Install the Coder CLI</Welcome>
 
 			<p css={styles.instructions}>
 				Copy the command below and{" "}
@@ -18,6 +17,8 @@ export const CliInstallPageView: FC = () => {
 			</p>
 
 			<CodeExample
+				css={{ maxWidth: "100%" }}
+				data-chromatic="ignore"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>
@@ -27,20 +28,31 @@ export const CliInstallPageView: FC = () => {
 					Go to workspaces
 				</RouterLink>
 			</div>
-		</SignInLayout>
+			<div css={styles.copyright}>
+				{"\u00a9"} {new Date().getFullYear()} Coder Technologies, Inc.
+			</div>
+		</div>
 	);
 };
 
 const styles = {
+	container: {
+		flex: 1,
+		height: "-webkit-fill-available",
+		display: "flex",
+		flexDirection: "column",
+		justifyContent: "center",
+		alignItems: "center",
+		width: 480,
+		margin: "auto",
+	},
+
 	instructions: (theme) => ({
 		fontSize: 16,
 		color: theme.palette.text.secondary,
 		paddingBottom: 8,
 		textAlign: "center",
 		lineHeight: 1.4,
-
-		// Have to undo styling side effects from <Welcome> component
-		marginTop: -24,
 	}),
 
 	backLink: (theme) => ({
@@ -56,5 +68,11 @@ const styles = {
 		"&:hover": {
 			textDecoration: "none",
 		},
+	}),
+
+	copyright: (theme) => ({
+		fontSize: 12,
+		color: theme.palette.text.secondary,
+		marginTop: 24,
 	}),
 } satisfies Record<string, Interpolation<Theme>>;
