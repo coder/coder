@@ -106,6 +106,7 @@
 		"react-syntax-highlighter": "15.6.1",
 		"react-virtualized-auto-sizer": "1.0.24",
 		"react-window": "1.8.10",
+		"recharts": "2.15.0",
 		"remark-gfm": "4.0.0",
 		"resize-observer-polyfill": "1.5.1",
 		"rollup-plugin-visualizer": "5.12.0",
