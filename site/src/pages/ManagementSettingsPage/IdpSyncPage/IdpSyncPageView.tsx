@@ -95,10 +95,10 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 				<Tabs active={tab}>
 					<TabsList>
 						<TabLink to="?tab=groups" value="groups">
-							Group Sync Settings
+							Group sync settings
 						</TabLink>
 						<TabLink to="?tab=roles" value="roles">
-							Role Sync Settings
+							Role sync settings
 						</TabLink>
 					</TabsList>
 				</Tabs>
@@ -168,6 +168,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 					<TableRow>
 						<TableCell width="45%">IdP {type}</TableCell>
 						<TableCell width="55%">Coder {type}</TableCell>
+						<TableCell width="10%" />
 					</TableRow>
 				</TableHead>
 				<TableBody>
@@ -206,12 +207,29 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	);
 };
 
-const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup }) => {
+interface GroupRowProps {
+	idpGroup: string;
+	coderGroup: readonly string[];
+	onDelete: (idpOrg: string) => void;
+}
+
+const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup, onDelete }) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
 			<TableCell>{idpGroup}</TableCell>
 			<TableCell>
 				<IdpPillList roles={coderGroup} />
+			</TableCell>
+			<TableCell>
+				<Button
+					variant="outline"
+					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					aria-label="delete"
+					onClick={() => onDelete(idpGroup)}
+				>
+					<Trash />
+					<span className="sr-only">Delete IdP mapping</span>
+				</Button>
 			</TableCell>
 		</TableRow>
 	);
@@ -262,6 +280,20 @@ const IdpGroupSyncForm = ({
 
 	const getGroupNames = (groupIds: readonly string[]) => {
 		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
+	};
+
+	const handleDelete = async (idpOrg: string) => {
+		const newMapping = Object.fromEntries(
+			Object.entries(form.values.mapping || {}).filter(
+				([key]) => key !== idpOrg,
+			),
+		);
+		const newSyncSettings = {
+			...form.values,
+			mapping: newMapping,
+		};
+		void form.setFieldValue("mapping", newSyncSettings.mapping);
+		form.handleSubmit();
 	};
 
 	const SYNC_FIELD_ID = "sync-field";
@@ -361,7 +393,7 @@ const IdpGroupSyncForm = ({
 								onChange={setCoderGroups}
 								defaultOptions={groups.map((group) => ({
 									label: group.display_name || group.name,
-									value: group.name,
+									value: group.id,
 								}))}
 								hidePlaceholderWhenSelected
 								placeholder="Select group"
@@ -399,7 +431,7 @@ const IdpGroupSyncForm = ({
 					</div>
 				</div>
 				<div className="flex gap-12">
-					<div className="flex flex-col gap-4 w-full">
+					<div className="flex flex-col w-full">
 						<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
 							{groupSyncSettings?.mapping &&
 								Object.entries(groupSyncSettings.mapping)
@@ -409,15 +441,18 @@ const IdpGroupSyncForm = ({
 											key={idpGroup}
 											idpGroup={idpGroup}
 											coderGroup={getGroupNames(groups)}
+											onDelete={handleDelete}
 										/>
 									))}
 						</IdpMappingTable>
 						<div className="flex justify-between">
-							<ExportPolicyButton
-								syncSettings={groupSyncSettings}
-								organization={organization}
-								type="groups"
-							/>
+							<span className="pt-2">
+								<ExportPolicyButton
+									syncSettings={groupSyncSettings}
+									organization={organization}
+									type="groups"
+								/>
+							</span>
 							<TableRowCount count={groupMappingCount} type="groups" />
 						</div>
 					</div>
@@ -435,6 +470,7 @@ const IdpGroupSyncForm = ({
 											key={idpGroup}
 											idpGroup={idpGroup}
 											coderGroup={getGroupNames([groupId])}
+											onDelete={handleDelete}
 										/>
 									))}
 							</IdpMappingTable>
@@ -481,6 +517,20 @@ const IdpRoleSyncForm = ({
 	});
 	const [idpRoleName, setIdpRoleName] = useState("");
 	const [coderRoles, setCoderRoles] = useState<Option[]>([]);
+
+	const handleDelete = async (idpOrg: string) => {
+		const newMapping = Object.fromEntries(
+			Object.entries(form.values.mapping || {}).filter(
+				([key]) => key !== idpOrg,
+			),
+		);
+		const newSyncSettings = {
+			...form.values,
+			mapping: newMapping,
+		};
+		void form.setFieldValue("mapping", newSyncSettings.mapping);
+		form.handleSubmit();
+	};
 
 	const SYNC_FIELD_ID = "sync-field";
 	const IDP_ROLE_NAME_ID = "idp-role-name";
@@ -592,15 +642,18 @@ const IdpRoleSyncForm = ({
 											key={idpRole}
 											idpRole={idpRole}
 											coderRoles={roles}
+											onDelete={handleDelete}
 										/>
 									))}
 						</IdpMappingTable>
 						<div className="flex justify-between">
-							<ExportPolicyButton
-								syncSettings={roleSyncSettings}
-								organization={organization}
-								type="roles"
-							/>
+							<span className="pt-2">
+								<ExportPolicyButton
+									syncSettings={roleSyncSettings}
+									organization={organization}
+									type="roles"
+								/>
+							</span>
 							<TableRowCount count={roleMappingCount} type="roles" />
 						</div>
 					</div>
@@ -610,22 +663,29 @@ const IdpRoleSyncForm = ({
 	);
 };
 
-interface GroupRowProps {
-	idpGroup: string;
-	coderGroup: readonly string[];
-}
-
 interface RoleRowProps {
 	idpRole: string;
 	coderRoles: readonly string[];
+	onDelete: (idpOrg: string) => void;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles }) => {
+const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles, onDelete }) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>{idpRole}</TableCell>
 			<TableCell>
 				<IdpPillList roles={coderRoles} />
+			</TableCell>
+			<TableCell>
+				<Button
+					variant="outline"
+					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					aria-label="delete"
+					onClick={() => onDelete(idpRole)}
+				>
+					<Trash />
+					<span className="sr-only">Delete IdP mapping</span>
+				</Button>
 			</TableCell>
 		</TableRow>
 	);
