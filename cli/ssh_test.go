@@ -24,6 +24,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
@@ -448,6 +449,78 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
+
+		<-cmdDone
+	})
+
+	t.Run("NetworkInfo", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		fs := afero.NewMemMapFs()
+		//nolint:revive,staticcheck
+		ctx = context.WithValue(ctx, "fs", fs)
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--network-info-dir", "/net", "--network-info-interval", "25ms")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		command := "sh -c exit"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c exit"
+		}
+		err = session.Run(command)
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		assert.Eventually(t, func() bool {
+			entries, err := afero.ReadDir(fs, "/net")
+			if err != nil {
+				return false
+			}
+			return len(entries) > 0
+		}, testutil.WaitLong, testutil.IntervalFast)
 
 		<-cmdDone
 	})
