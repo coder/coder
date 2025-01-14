@@ -134,16 +134,9 @@ interface TableRowCountProps {
 const TableRowCount: FC<TableRowCountProps> = ({ count, type }) => {
 	return (
 		<div
-			css={(theme) => ({
-				margin: 0,
-				fontSize: 13,
-				color: theme.palette.text.secondary,
-				"& strong": {
-					color: theme.palette.text.primary,
-				},
-			})}
+			className="text-content-secondary text-xs"
 		>
-			Showing <strong>{count}</strong> {type}
+			Showing <strong className="text-content-primary">{count}</strong> {type}
 		</div>
 	);
 };
@@ -434,7 +427,7 @@ const IdpGroupSyncForm = ({
 				</div>
 
 				<div className="flex gap-12">
-					<div className="flex flex-col w-full">
+					<div className="flex flex-col w-full gap-2">
 						<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
 							{groupSyncSettings?.mapping &&
 								Object.entries(groupSyncSettings.mapping)
@@ -635,7 +628,7 @@ const IdpRoleSyncForm = ({
 						</Button>
 					</div>
 				</div>
-				<div>
+				<div className="flex flex-col gap-2">
 					<IdpMappingTable type="Role" isEmpty={roleMappingCount === 0}>
 						{roleSyncSettings?.mapping &&
 							Object.entries(roleSyncSettings.mapping)
