@@ -131,18 +131,26 @@ func (r *RootCmd) ssh() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("generate nonce: %w", err)
 				}
-				logFilePath := filepath.Join(
-					logDirPath,
-					fmt.Sprintf(
-						"coder-ssh-%s-%s.log",
-						// The time portion makes it easier to find the right
-						// log file.
-						time.Now().Format("20060102-150405"),
-						// The nonce prevents collisions, as SSH invocations
-						// frequently happen in parallel.
-						nonce,
-					),
+				logFileBaseName := fmt.Sprintf(
+					"coder-ssh-%s-%s",
+					// The time portion makes it easier to find the right
+					// log file.
+					time.Now().Format("20060102-150405"),
+					// The nonce prevents collisions, as SSH invocations
+					// frequently happen in parallel.
+					nonce,
 				)
+				if stdio {
+					// The VS Code extension obtains the PID of the SSH process to
+					// find the log file associated with a SSH session.
+					//
+					// We get the parent PID because it's assumed `ssh` is calling this
+					// command via the ProxyCommand SSH option.
+					logFileBaseName += fmt.Sprintf("-%d", os.Getppid())
+				}
+				logFileBaseName += ".log"
+
+				logFilePath := filepath.Join(logDirPath, logFileBaseName)
 				logFile, err := os.OpenFile(
 					logFilePath,
 					os.O_CREATE|os.O_APPEND|os.O_WRONLY|os.O_EXCL,
