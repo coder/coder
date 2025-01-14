@@ -5,12 +5,12 @@ set -eu
 # See https://github.com/coder/coder#install
 #
 # To run:
-# curl -L {{ .Origin }}/install.sh | sh
+# curl -fsSL "{{ .Origin }}/install.sh" | sh
 
 usage() {
 	arg0="$0"
 	if [ "$0" = sh ]; then
-		arg0="curl -fsSL {{ .Origin }}/install.sh | sh -s --"
+		arg0="curl -fsSL \"{{ .Origin }}/install.sh\" | sh -s --"
 	else
 		not_curl_usage="The latest script is available at {{ .Origin }}/install.sh
 "
