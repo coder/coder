@@ -13,7 +13,7 @@ func ToStrings[T ~string](a []T) []string {
 	return tmp
 }
 
-func ToStringEnums[E ~string](a []string) []E {
+func StringEnums[E ~string](a []string) []E {
 	tmp := make([]E, 0, len(a))
 	for _, v := range a {
 		tmp = append(tmp, E(v))

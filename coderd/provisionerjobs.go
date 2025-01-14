@@ -58,7 +58,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
-		Status:         slice.ToStringEnums[database.ProvisionerJobStatus](status),
+		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 	})
 	if err != nil {
