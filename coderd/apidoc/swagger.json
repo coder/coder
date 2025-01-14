@@ -2598,7 +2598,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Enterprise"],
+				"tags": ["Provisioning"],
 				"summary": "Get provisioner daemons",
 				"operationId": "get-provisioner-daemons",
 				"parameters": [

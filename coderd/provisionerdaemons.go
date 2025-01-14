@@ -8,6 +8,7 @@ import (
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/provisionerdserver"
+	"github.com/coder/coder/v2/coderd/util/ptr"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -15,7 +16,7 @@ import (
 // @ID get-provisioner-daemons
 // @Security CoderSessionToken
 // @Produce json
-// @Tags Enterprise
+// @Tags Provisioning
 // @Param organization path string true "Organization ID" format(uuid)
 // @Param tags query object false "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})"
 // @Success 200 {array} codersdk.ProvisionerDaemon
@@ -70,9 +71,8 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		}
 
 		// Add optional fields.
-		status := codersdk.ProvisionerDaemonStatus(dbDaemon.Status)
 		pd.KeyName = &dbDaemon.KeyName
-		pd.Status = &status
+		pd.Status = ptr.Ref(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
 		pd.CurrentJob = currentJob
 		pd.PreviousJob = previousJob
 

@@ -2963,7 +2963,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Enterprise"
+                    "Provisioning"
                 ],
                 "summary": "Get provisioner daemons",
                 "operationId": "get-provisioner-daemons",
