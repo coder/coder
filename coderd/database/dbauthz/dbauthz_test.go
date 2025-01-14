@@ -3199,12 +3199,12 @@ func (s *MethodTestSuite) TestExtraMethods() {
 		})
 		ds, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
-			StaleIntervalMS: 86400000, // 24 hours.
+			StaleIntervalMS: 24 * time.Hour.Milliseconds(),
 		})
 		s.NoError(err, "get provisioner daemon with status by org")
 		check.Args(database.GetProvisionerDaemonsWithStatusByOrganizationParams{
 			OrganizationID:  org.ID,
-			StaleIntervalMS: 86400000, // 24 hours.
+			StaleIntervalMS: 24 * time.Hour.Milliseconds(),
 		}).Asserts(d, policy.ActionRead).Returns(ds)
 	}))
 	s.Run("GetEligibleProvisionerDaemonsByProvisionerJobIDs", s.Subtest(func(db database.Store, check *expects) {
