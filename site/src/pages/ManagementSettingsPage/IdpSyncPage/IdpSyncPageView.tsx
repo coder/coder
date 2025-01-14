@@ -426,7 +426,7 @@ const IdpGroupSyncForm = ({
 					</div>
 				</div>
 
-				<div className="flex gap-12">
+				<div className="flex flex-col">
 					<div className="flex flex-col w-full gap-2">
 						<IdpMappingTable type="Group" isEmpty={groupMappingCount === 0}>
 							{groupSyncSettings?.mapping &&
@@ -446,7 +446,7 @@ const IdpGroupSyncForm = ({
 						</div>
 					</div>
 					{groupSyncSettings?.legacy_group_name_mapping && (
-						<section>
+						<div>
 							<LegacyGroupSyncHeader />
 							<IdpMappingTable
 								type="Group"
@@ -463,7 +463,7 @@ const IdpGroupSyncForm = ({
 										/>
 									))}
 							</IdpMappingTable>
-						</section>
+						</div>
 					)}
 				</div>
 			</fieldset>
@@ -706,15 +706,15 @@ const LegacyGroupSyncHeader: FC = () => {
 			}}
 		>
 			<div className="flex items-end gap-2">
-				<span>Legacy Group Sync Settings</span>
+				<span>Legacy group sync settings</span>
 				<HelpTooltip>
 					<HelpTooltipTrigger />
 					<HelpTooltipContent>
-						<HelpTooltipTitle>Legacy Group Sync Settings</HelpTooltipTitle>
+						<HelpTooltipTitle>Legacy group sync settings</HelpTooltipTitle>
 						<HelpTooltipText>
 							These settings were configured using environment variables, and
 							only apply to the default organization. It is now recommended to
-							configure IdP sync via the CLI, which enables sync to be
+							configure IdP sync via the CLI or the UI, which enables sync to be
 							configured for any organization, and for those settings to be
 							persisted without manually setting environment variables.{" "}
 							<Link href={docs("/admin/users/idp-sync")}>
