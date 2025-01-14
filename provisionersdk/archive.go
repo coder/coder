@@ -3,11 +3,13 @@ package provisionersdk
 import (
 	"archive/tar"
 	"context"
+	"errors"
 	"io"
 	"os"
 	"path/filepath"
 	"strings"
 
+	"github.com/spf13/afero"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -20,8 +22,19 @@ const (
 	TemplateArchiveLimit = 1 << 20
 )
 
-func dirHasExt(dir string, exts ...string) (bool, error) {
-	dirEnts, err := os.ReadDir(dir)
+// osFS is an afero.Fs implementation that performs real filesystem operations.
+// It's initialized this way because NewOsFs() returns the abstract fs implementation
+// when we require the ability to resolve symbolic links.
+var osFS LinkReaderFS = &afero.OsFs{}
+
+// LinkReaderFS is an afero.Fs that supports reading symlinks.
+type LinkReaderFS interface {
+	afero.Fs
+	afero.LinkReader
+}
+
+func dirHasExt(afs afero.Fs, dir string, exts ...string) (bool, error) {
+	dirEnts, err := afero.ReadDir(afs, dir)
 	if err != nil {
 		return false, err
 	}
@@ -38,17 +51,27 @@ func dirHasExt(dir string, exts ...string) (bool, error) {
 }
 
 func DirHasLockfile(dir string) (bool, error) {
-	return dirHasExt(dir, ".terraform.lock.hcl")
+	return DirHasLockfileFS(osFS, dir)
+}
+
+func DirHasLockfileFS(afs afero.Fs, dir string) (bool, error) {
+	return dirHasExt(afs, dir, ".terraform.lock.hcl")
 }
 
 // Tar archives a Terraform directory.
 func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
+	return TarFS(osFS, w, logger, directory, limit)
+}
+
+// TarFS archives a Terraform directory to afs.
+// The filesystem **must** support reading symbolic links.
+func TarFS(afs LinkReaderFS, w io.Writer, logger slog.Logger, directory string, limit int64) error {
 	// The total bytes written must be under the limit, so use -1
 	w = xio.NewLimitWriter(w, limit-1)
 	tarWriter := tar.NewWriter(w)
 
 	tfExts := []string{".tf", ".tf.json"}
-	hasTf, err := dirHasExt(directory, tfExts...)
+	hasTf, err := dirHasExt(afs, directory, tfExts...)
 	if err != nil {
 		return err
 	}
@@ -66,14 +89,20 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 		)
 	}
 
-	err = filepath.Walk(directory, func(file string, fileInfo os.FileInfo, err error) error {
+	err = afero.Walk(afs, directory, func(file string, fileInfo os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		var link string
 		if fileInfo.Mode()&os.ModeSymlink == os.ModeSymlink {
-			link, err = os.Readlink(file)
-			if err != nil {
+			link, err = afs.ReadlinkIfPossible(file)
+			if errors.Is(err, afero.ErrNoReadlink) {
+				// It's unclear how we could hit this code path -- if the underlying FS implementation
+				// does not support symbolic links, how could there exist a symlink on the FS?
+				// Instead of blocking though, just log the error and continue without resolving the
+				// symlink.
+				logger.Error(context.Background(), "developer error: fs %T should support reading symlinks yet still returned %w", afs, err)
+			} else if err != nil {
 				return err
 			}
 		}
@@ -119,7 +148,7 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 			return nil
 		}
 
-		data, err := os.Open(file)
+		data, err := afs.Open(file)
 		if err != nil {
 			return err
 		}
@@ -149,6 +178,11 @@ func Tar(w io.Writer, logger slog.Logger, directory string, limit int64) error {
 
 // Untar extracts the archive to a provided directory.
 func Untar(directory string, r io.Reader) error {
+	return UntarFS(osFS, directory, r)
+}
+
+// UntarFS extracts the archive to a provided directory in afs.
+func UntarFS(afs afero.Fs, directory string, r io.Reader) error {
 	tarReader := tar.NewReader(r)
 	for {
 		header, err := tarReader.Next()
@@ -165,17 +199,17 @@ func Untar(directory string, r io.Reader) error {
 		target := filepath.Join(directory, filepath.FromSlash(header.Name))
 		switch header.Typeflag {
 		case tar.TypeDir:
-			if _, err := os.Stat(target); err != nil {
-				if err := os.MkdirAll(target, 0o755); err != nil {
+			if _, err := afs.Stat(target); err != nil {
+				if err := afs.MkdirAll(target, 0o755); err != nil {
 					return err
 				}
 			}
 		case tar.TypeReg:
-			err := os.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
+			err := afs.MkdirAll(filepath.Dir(target), os.FileMode(header.Mode)|os.ModeDir|100)
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			file, err := afs.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}

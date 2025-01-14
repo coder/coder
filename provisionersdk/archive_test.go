@@ -1,6 +1,7 @@
 package provisionersdk_test
 
 import (
+	"archive/tar"
 	"bytes"
 	"io"
 	"os"
@@ -8,11 +9,13 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestTar(t *testing.T) {
@@ -184,18 +187,34 @@ func TestTar(t *testing.T) {
 
 func TestUntar(t *testing.T) {
 	t.Parallel()
-	log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
 
-	dir := t.TempDir()
-	file, err := os.CreateTemp(dir, "*.tf")
-	require.NoError(t, err)
-	_ = file.Close()
-	archive := new(bytes.Buffer)
-	err = provisionersdk.Tar(archive, log, dir, 1024)
-	require.NoError(t, err)
-	dir = t.TempDir()
-	err = provisionersdk.Untar(dir, archive)
-	require.NoError(t, err)
-	_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
-	require.NoError(t, err)
+	t.Run("OSFS", func(t *testing.T) {
+		t.Parallel()
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+		dir := t.TempDir()
+		file, err := os.CreateTemp(dir, "*.tf")
+		require.NoError(t, err)
+		_ = file.Close()
+		archive := new(bytes.Buffer)
+		err = provisionersdk.Tar(archive, log, dir, 1024)
+		require.NoError(t, err)
+		dir = t.TempDir()
+		err = provisionersdk.Untar(dir, archive)
+		require.NoError(t, err)
+		_, err = os.Stat(filepath.Join(dir, filepath.Base(file.Name())))
+		require.NoError(t, err)
+	})
+
+	t.Run("MemFS", func(t *testing.T) {
+		t.Parallel()
+		memfs := afero.NewMemMapFs()
+		tarBytes := testutil.CreateTar(t, map[string]string{"main.tf": "testing"})
+		path := filepath.Join(os.TempDir(), t.Name())
+		require.NoError(t, memfs.MkdirAll(path, 0o755))
+		err := provisionersdk.UntarFS(memfs, path, tar.NewReader(bytes.NewReader(tarBytes)))
+		require.NoError(t, err)
+		_, err = memfs.Stat(path)
+		require.NoError(t, err)
+	})
 }
