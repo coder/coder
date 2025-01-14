@@ -353,6 +353,126 @@ func TestGetEligibleProvisionerDaemonsByProvisionerJobIDs(t *testing.T) {
 	})
 }
 
+func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoDaemonsInOrgReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: otherOrg.ID,
+		})
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, daemons)
+	})
+
+	t.Run("MatchesProvisionerIDs", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		matchingDaemon0 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon0",
+			OrganizationID: org.ID,
+		})
+		matchingDaemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon1",
+			OrganizationID: org.ID,
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: org.ID,
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+			IDs:            []uuid.UUID{matchingDaemon0.ID, matchingDaemon1.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+		if daemons[0].ProvisionerDaemon.ID != matchingDaemon0.ID {
+			daemons[0], daemons[1] = daemons[1], daemons[0]
+		}
+		require.Equal(t, matchingDaemon0.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, matchingDaemon1.ID, daemons[1].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesTags", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		fooDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"foo": "bar",
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "baz-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"baz": "qux",
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+			Tags:           database.StringMap{"foo": "bar"},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, fooDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("UsesStaleInterval", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		daemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "stale-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		daemon2 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "idle-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+
+		if daemons[0].ProvisionerDaemon.ID != daemon1.ID {
+			daemons[0], daemons[1] = daemons[1], daemons[0]
+		}
+		require.Equal(t, daemon1.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, daemon2.ID, daemons[1].ProvisionerDaemon.ID)
+		require.Equal(t, database.ProvisionerDaemonStatusOffline, daemons[0].Status)
+		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
+	})
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 

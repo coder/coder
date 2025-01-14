@@ -2963,7 +2963,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Enterprise"
+                    "Provisioning"
                 ],
                 "summary": "Get provisioner daemons",
                 "operationId": "get-provisioner-daemons",
@@ -12463,6 +12463,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "current_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -12470,6 +12473,10 @@ const docTemplate = `{
                 "key_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "key_name": {
+                    "description": "Optional fields.",
+                    "type": "string"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -12482,11 +12489,26 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "previous_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "provisioners": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "status": {
+                    "enum": [
+                        "offline",
+                        "idle",
+                        "busy"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
+                        }
+                    ]
                 },
                 "tags": {
                     "type": "object",
@@ -12498,6 +12520,43 @@ const docTemplate = `{
                     "type": "string"
                 }
             }
+        },
+        "codersdk.ProvisionerDaemonJob": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "running",
+                        "succeeded",
+                        "canceling",
+                        "canceled",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                        }
+                    ]
+                }
+            }
+        },
+        "codersdk.ProvisionerDaemonStatus": {
+            "type": "string",
+            "enum": [
+                "offline",
+                "idle",
+                "busy"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerDaemonOffline",
+                "ProvisionerDaemonIdle",
+                "ProvisionerDaemonBusy"
+            ]
         },
         "codersdk.ProvisionerJob": {
             "type": "object",

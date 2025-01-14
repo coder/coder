@@ -2598,7 +2598,7 @@
 					}
 				],
 				"produces": ["application/json"],
-				"tags": ["Enterprise"],
+				"tags": ["Provisioning"],
 				"summary": "Get provisioner daemons",
 				"operationId": "get-provisioner-daemons",
 				"parameters": [
@@ -11244,6 +11244,9 @@
 					"type": "string",
 					"format": "date-time"
 				},
+				"current_job": {
+					"$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+				},
 				"id": {
 					"type": "string",
 					"format": "uuid"
@@ -11251,6 +11254,10 @@
 				"key_id": {
 					"type": "string",
 					"format": "uuid"
+				},
+				"key_name": {
+					"description": "Optional fields.",
+					"type": "string"
 				},
 				"last_seen_at": {
 					"type": "string",
@@ -11263,11 +11270,22 @@
 					"type": "string",
 					"format": "uuid"
 				},
+				"previous_job": {
+					"$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+				},
 				"provisioners": {
 					"type": "array",
 					"items": {
 						"type": "string"
 					}
+				},
+				"status": {
+					"enum": ["offline", "idle", "busy"],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
+						}
+					]
 				},
 				"tags": {
 					"type": "object",
@@ -11279,6 +11297,39 @@
 					"type": "string"
 				}
 			}
+		},
+		"codersdk.ProvisionerDaemonJob": {
+			"type": "object",
+			"properties": {
+				"id": {
+					"type": "string",
+					"format": "uuid"
+				},
+				"status": {
+					"enum": [
+						"pending",
+						"running",
+						"succeeded",
+						"canceling",
+						"canceled",
+						"failed"
+					],
+					"allOf": [
+						{
+							"$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+						}
+					]
+				}
+			}
+		},
+		"codersdk.ProvisionerDaemonStatus": {
+			"type": "string",
+			"enum": ["offline", "idle", "busy"],
+			"x-enum-varnames": [
+				"ProvisionerDaemonOffline",
+				"ProvisionerDaemonIdle",
+				"ProvisionerDaemonBusy"
+			]
 		},
 		"codersdk.ProvisionerJob": {
 			"type": "object",
