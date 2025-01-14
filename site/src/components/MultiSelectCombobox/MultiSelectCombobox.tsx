@@ -454,7 +454,7 @@ export const MultiSelectCombobox = forwardRef<
 				{/* biome-ignore lint/a11y/useKeyWithClickEvents: onKeyDown is not needed here */}
 				<div
 					className={cn(
-						`*:min-h-9 rounded-md border border-solid border-border text-sm pr-3
+						`min-h-10 rounded-md border border-solid border-border text-sm pr-3
 						focus-within:ring-2 focus-within:ring-content-link`,
 						{
 							"pl-3 py-1": selected.length !== 0,
@@ -568,7 +568,7 @@ export const MultiSelectCombobox = forwardRef<
 							>
 								<X className="h-5 w-5" />
 							</button>
-							<ChevronDown className="h-6 w-6 cursor-pointer text-content-secondary hover:text-content-primary" />
+							<ChevronDown className="h-5	w-5 cursor-pointer text-content-secondary hover:text-content-primary" />
 						</div>
 					</div>
 				</div>
