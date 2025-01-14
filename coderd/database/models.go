@@ -2480,8 +2480,9 @@ type NotificationTemplate struct {
 	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
 	// NULL defers to the deployment-level method
-	Method NullNotificationMethod   `db:"method" json:"method"`
-	Kind   NotificationTemplateKind `db:"kind" json:"kind"`
+	Method           NullNotificationMethod   `db:"method" json:"method"`
+	Kind             NotificationTemplateKind `db:"kind" json:"kind"`
+	EnabledByDefault bool                     `db:"enabled_by_default" json:"enabled_by_default"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.

@@ -3550,6 +3550,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 {
   "actions": "string",
   "body_template": "string",
+  "enabled_by_default": true,
   "group": "string",
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "kind": "string",
@@ -3561,16 +3562,17 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name             | Type   | Required | Restrictions | Description |
-|------------------|--------|----------|--------------|-------------|
-| `actions`        | string | false    |              |             |
-| `body_template`  | string | false    |              |             |
-| `group`          | string | false    |              |             |
-| `id`             | string | false    |              |             |
-| `kind`           | string | false    |              |             |
-| `method`         | string | false    |              |             |
-| `name`           | string | false    |              |             |
-| `title_template` | string | false    |              |             |
+| Name                 | Type    | Required | Restrictions | Description |
+|----------------------|---------|----------|--------------|-------------|
+| `actions`            | string  | false    |              |             |
+| `body_template`      | string  | false    |              |             |
+| `enabled_by_default` | boolean | false    |              |             |
+| `group`              | string  | false    |              |             |
+| `id`                 | string  | false    |              |             |
+| `kind`               | string  | false    |              |             |
+| `method`             | string  | false    |              |             |
+| `name`               | string  | false    |              |             |
+| `title_template`     | string  | false    |              |             |
 
 ## codersdk.NotificationsConfig
 

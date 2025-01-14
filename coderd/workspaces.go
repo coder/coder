@@ -1029,6 +1029,26 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
 		}
 
+		// If autostop has been disabled, we want to remove the deadline from the
+		// existing workspace build (if there is one).
+		if !dbTTL.Valid {
+			build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return xerrors.Errorf("get latest workspace build: %w", err)
+			}
+
+			if build.Transition == database.WorkspaceTransitionStart {
+				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          build.ID,
+					Deadline:    time.Time{},
+					MaxDeadline: build.MaxDeadline,
+					UpdatedAt:   dbtime.Time(api.Clock.Now()),
+				}); err != nil {
+					return xerrors.Errorf("update workspace build deadline: %w", err)
+				}
+			}
+		}
+
 		return nil
 	}, nil)
 	if err != nil {
