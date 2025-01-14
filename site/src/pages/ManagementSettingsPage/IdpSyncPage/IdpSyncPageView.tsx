@@ -404,7 +404,7 @@ const IdpGroupSyncForm = ({
 								}
 							/>
 						</div>
-						<div className="grid items-center gap-1">
+						<div className="grid grid-rows-[28px_auto]">
 							&nbsp;
 							<Button
 								className="mb-px"
@@ -607,7 +607,7 @@ const IdpRoleSyncForm = ({
 								}
 							/>
 						</div>
-						<div className="grid items-center gap-1">
+						<div className="grid grid-rows-[28px_auto]">
 							&nbsp;
 							<Button
 								className="mb-px"

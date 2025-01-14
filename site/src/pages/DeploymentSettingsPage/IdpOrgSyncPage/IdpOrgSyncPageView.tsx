@@ -201,7 +201,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}
 								/>
 							</div>
-							<div className="grid items-center gap-1">
+							<div className="grid grid-rows-[28px_auto]">
 								&nbsp;
 								<Button
 									className="mb-px"
