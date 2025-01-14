@@ -223,11 +223,10 @@ RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygi
 	tar xf lazygit.tar.gz -C /usr/local/bin lazygit
 
 # Install doctl
-# See
+# See https://docs.digitalocean.com/reference/doctl/how-to/install
 RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
     curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
     tar xf doctl.tar.gz -C /usr/local/bin doctl
-
 
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm
