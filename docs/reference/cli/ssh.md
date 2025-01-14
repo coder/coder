@@ -20,6 +20,15 @@ coder ssh [flags] <workspace>
 
 Specifies whether to emit SSH output over stdin/stdout.
 
+### --ssh-host-prefix
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_SSH_SSH_HOST_PREFIX</code> |
+
+Strip this prefix from the provided hostname to determine the workspace name. This is useful when used as part of an OpenSSH proxy command.
+
 ### -A, --forward-agent
 
 |             |                                       |
@@ -102,6 +111,23 @@ Enable remote port forwarding (remote_port:local_address:local_port).
 | Environment | <code>$CODER_SSH_ENV</code> |
 
 Set environment variable(s) for session (key1=value1,key2=value2,...).
+
+### --network-info-dir
+
+|      |                     |
+|------|---------------------|
+| Type | <code>string</code> |
+
+Specifies a directory to write network information periodically.
+
+### --network-info-interval
+
+|         |                       |
+|---------|-----------------------|
+| Type    | <code>duration</code> |
+| Default | <code>5s</code>       |
+
+Specifies the interval to update network information.
 
 ### --disable-autostart
 

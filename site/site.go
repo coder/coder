@@ -162,7 +162,7 @@ func New(opts *Options) *Handler {
 
 	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
 	if err != nil {
-		_ = xerrors.Errorf("install.sh will be unavailable: %w", err)
+		_, _ = fmt.Fprintf(os.Stderr, "install.sh will be unavailable: %v", err.Error())
 	}
 
 	return handler
@@ -222,8 +222,8 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		// If the asset does not exist, this will return a 404.
 		h.handler.ServeHTTP(rw, r)
 		return
-	// If requesting the install.sh script, fill in the template with the
-	// appropriate hostname and version info.
+	// If requesting the install.sh script, respond with the preprocessed version
+	// which contains the correct hostname and version information.
 	case reqFile == "install.sh":
 		if h.installScript == nil {
 			http.NotFound(rw, r)
