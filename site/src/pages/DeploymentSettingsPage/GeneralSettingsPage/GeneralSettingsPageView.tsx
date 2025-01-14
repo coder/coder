@@ -1,15 +1,11 @@
 import AlertTitle from "@mui/material/AlertTitle";
 import LinearProgress from "@mui/material/LinearProgress";
 import type {
-	DAUsResponse,
 	Entitlements,
 	Experiments,
 	SerpentOption,
+	UserStatusChangeCount,
 } from "api/typesGenerated";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
@@ -18,12 +14,12 @@ import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
+import { UserEngagementChart } from "./UserEngagementChart";
 import { ChartSection } from "./ChartSection";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
-	deploymentDAUs?: DAUsResponse;
-	deploymentDAUsError: unknown;
+	activeUsersCount: UserStatusChangeCount[] | undefined;
 	entitlements: Entitlements | undefined;
 	readonly invalidExperiments: Experiments | string[];
 	readonly safeExperiments: Experiments | string[];
@@ -31,8 +27,7 @@ export type GeneralSettingsPageViewProps = {
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 	deploymentOptions,
-	deploymentDAUs,
-	deploymentDAUsError,
+	activeUsersCount,
 	entitlements,
 	safeExperiments,
 	invalidExperiments,
@@ -51,16 +46,12 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 				docsHref={docs("/admin/setup")}
 			/>
 			<Stack spacing={4}>
-				{Boolean(deploymentDAUsError) && (
-					<ErrorAlert error={deploymentDAUsError} />
-				)}
-				{deploymentDAUs && (
-					<div css={{ marginBottom: 24, height: 200 }}>
-						<ChartSection title={<ActiveUsersTitle interval="day" />}>
-							<ActiveUserChart data={deploymentDAUs.entries} interval="day" />
-						</ChartSection>
-					</div>
-				)}
+				<UserEngagementChart
+					data={activeUsersCount?.map((i) => ({
+						date: i.date,
+						users: i.count,
+					}))}
+				/>
 				{licenseUtilizationPercentage && (
 					<ChartSection title="License Utilization">
 						<LinearProgress

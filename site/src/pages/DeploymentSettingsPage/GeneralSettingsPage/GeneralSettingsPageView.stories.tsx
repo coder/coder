@@ -39,7 +39,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
 				hidden: false,
 			},
 		],
-		deploymentDAUs: MockDeploymentDAUResponse,
+		activeUsersCount: [],
 		invalidExperiments: [],
 		safeExperiments: [],
 		entitlements: undefined,
@@ -50,21 +50,6 @@ export default meta;
 type Story = StoryObj<typeof GeneralSettingsPageView>;
 
 export const Page: Story = {};
-
-export const NoDAUs: Story = {
-	args: {
-		deploymentDAUs: undefined,
-	},
-};
-
-export const DAUError: Story = {
-	args: {
-		deploymentDAUs: undefined,
-		deploymentDAUsError: mockApiError({
-			message: "Error fetching DAUs.",
-		}),
-	},
-};
 
 export const allExperimentsEnabled: Story = {
 	args: {

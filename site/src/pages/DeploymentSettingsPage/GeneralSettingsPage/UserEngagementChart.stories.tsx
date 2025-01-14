@@ -20,4 +20,16 @@ const meta: Meta<typeof UserEngagementChart> = {
 export default meta;
 type Story = StoryObj<typeof UserEngagementChart>;
 
-export const Default: Story = {};
+export const Loaded: Story = {};
+
+export const Empty: Story = {
+	args: {
+		data: [],
+	},
+};
+
+export const Loading: Story = {
+	args: {
+		data: undefined,
+	},
+};
