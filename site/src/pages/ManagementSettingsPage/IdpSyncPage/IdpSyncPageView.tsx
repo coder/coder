@@ -697,12 +697,7 @@ const TableLoader = () => {
 
 const LegacyGroupSyncHeader: FC = () => {
 	return (
-		<h4
-			css={{
-				fontSize: 20,
-				fontWeight: 500,
-			}}
-		>
+		<h4 className="text-xl font-medium">
 			<div className="flex items-end gap-2">
 				<span>Legacy group sync settings</span>
 				<HelpTooltip>
