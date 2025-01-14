@@ -207,6 +207,9 @@ func TestServingFiles(t *testing.T) {
 		"dashboard.css": &fstest.MapFile{
 			Data: []byte("dashboard-css-bytes"),
 		},
+		"install.sh": &fstest.MapFile{
+			Data: []byte("install-sh-bytes"),
+		},
 	}
 	binFS := http.FS(fstest.MapFS{})
 
@@ -248,6 +251,9 @@ func TestServingFiles(t *testing.T) {
 		// JS, CSS cases
 		{"/dashboard.js", "dashboard-js-bytes"},
 		{"/dashboard.css", "dashboard-css-bytes"},
+
+		// Install script
+		{"/install.sh", "install-sh-bytes"},
 	}
 
 	for _, testCase := range testCases {
