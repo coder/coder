@@ -128,6 +128,7 @@ func ProvisionerJobStatusEnums() []ProvisionerJobStatus {
 type ProvisionerJobInput struct {
 	TemplateVersionID *uuid.UUID `json:"template_version_id,omitempty" format:"uuid" table:"template version id"`
 	WorkspaceBuildID  *uuid.UUID `json:"workspace_build_id,omitempty" format:"uuid" table:"workspace build id"`
+	Error             string     `json:"error,omitempty" table:"-"`
 }
 
 // ProvisionerJobType represents the type of job.

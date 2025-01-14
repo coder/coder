@@ -1601,6 +1601,7 @@ export interface ProvisionerJob {
 export interface ProvisionerJobInput {
 	readonly template_version_id?: string;
 	readonly workspace_build_id?: string;
+	readonly error?: string;
 }
 
 // From codersdk/provisionerdaemons.go

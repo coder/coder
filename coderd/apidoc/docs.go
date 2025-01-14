@@ -12716,6 +12716,9 @@ const docTemplate = `{
         "codersdk.ProvisionerJobInput": {
             "type": "object",
             "properties": {
+                "error": {
+                    "type": "string"
+                },
                 "template_version_id": {
                     "type": "string",
                     "format": "uuid"

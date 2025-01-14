@@ -44,7 +44,7 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
 	limit := p.PositiveInt32(qp, 0, "limit")
-	status := p.Strings(qp, []string(nil), "status")
+	status := p.Strings(qp, nil, "status")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {
 		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
@@ -53,8 +53,6 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
-
-	api.Logger.Debug(ctx, "fetching provisioner jobs", slog.F("organization_id", org.ID), slog.F("status", status), slog.F("limit", limit))
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
@@ -317,8 +315,9 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	}
 	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
-	// Hope this never breaks to avoid changing function signature.
-	_ = json.Unmarshal(provisionerJob.Input, &job.Input)
+	if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
+		job.Input.Error = xerrors.Errorf("decode input: %w", err).Error()
+	}
 
 	return job
 }
