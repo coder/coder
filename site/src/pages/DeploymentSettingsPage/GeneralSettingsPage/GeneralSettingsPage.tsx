@@ -1,6 +1,9 @@
 import { deploymentDAUs } from "api/queries/deployment";
 import { entitlements } from "api/queries/entitlements";
 import { availableExperiments, experiments } from "api/queries/experiments";
+import { insightsUserStatusCounts } from "api/queries/insights";
+import type { UserStatusChangeCount } from "api/typesGenerated";
+import { eachDayOfInterval, isSameDay } from "date-fns";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { useDeploymentSettings } from "modules/management/DeploymentSettingsProvider";
 import type { FC } from "react";
@@ -8,9 +11,6 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { pageTitle } from "utils/page";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
-import { insightsUserStatusCounts } from "api/queries/insights";
-import type { UserStatusChangeCount } from "api/typesGenerated";
-import { eachDayOfInterval, isSameDay } from "date-fns";
 
 const GeneralSettingsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();

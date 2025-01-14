@@ -14,8 +14,8 @@ import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
-import { UserEngagementChart } from "./UserEngagementChart";
 import { ChartSection } from "./ChartSection";
+import { UserEngagementChart } from "./UserEngagementChart";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];

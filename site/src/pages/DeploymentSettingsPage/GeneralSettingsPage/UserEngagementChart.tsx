@@ -1,9 +1,9 @@
 import { Button } from "components/Button/Button";
 import {
+	type ChartConfig,
 	ChartContainer,
 	ChartTooltip,
 	ChartTooltipContent,
-	type ChartConfig,
 } from "components/Chart/Chart";
 import {
 	Collapsible,
@@ -14,7 +14,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
-import { CartesianGrid, XAxis, Area, AreaChart, YAxis } from "recharts";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const chartConfig = {
 	users: {
