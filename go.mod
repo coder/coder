@@ -79,7 +79,7 @@ require (
 	github.com/briandowns/spinner v1.18.1
 	github.com/cakturk/go-netstat v0.0.0-20200220111822-e5b49efee7a5
 	github.com/cenkalti/backoff/v4 v4.3.0
-	github.com/cespare/xxhash v1.1.0
+	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/charmbracelet/bubbles v0.20.0
 	github.com/charmbracelet/bubbletea v1.1.0
 	github.com/charmbracelet/glamour v0.8.0
@@ -257,7 +257,6 @@ require (
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bep/godartsass/v2 v2.3.2 // indirect
 	github.com/bep/golibsass v1.2.0 // indirect
-	github.com/cespare/xxhash/v2 v2.3.0 // indirect
 	github.com/charmbracelet/x/ansi v0.4.5 // indirect
 	github.com/charmbracelet/x/term v0.2.0 // indirect
 	github.com/chromedp/sysutil v1.0.0 // indirect
