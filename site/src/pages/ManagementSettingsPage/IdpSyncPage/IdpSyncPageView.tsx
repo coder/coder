@@ -166,13 +166,12 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 							<TableRow>
 								<TableCell colSpan={999}>
 									<EmptyState
-										message={`No ${type} Mappings`}
+										message={`No ${type.toLocaleLowerCase()} mappings`}
 										isCompact
 										cta={
-											<Link
-												text={`How to setup IdP ${type} sync`}
-												href={docs("/admin/users/idp-sync")}
-											/>
+											<Link href={docs("/admin/users/idp-sync")}>
+												How to setup IdP {type.toLocaleLowerCase()} sync
+											</Link>
 										}
 									/>
 								</TableCell>
@@ -202,7 +201,7 @@ const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup, onDelete }) => {
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					className="w-8 h-8 min-w-10 text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpGroup)}
 				>
@@ -655,7 +654,7 @@ const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles, onDelete }) => {
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					className="w-8 h-8 min-w-10 text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpRole)}
 				>
@@ -700,10 +699,9 @@ const LegacyGroupSyncHeader: FC = () => {
 							configure IdP sync via the CLI or the UI, which enables sync to be
 							configured for any organization, and for those settings to be
 							persisted without manually setting environment variables.{" "}
-							<Link
-								text="Learn more&hellip;"
-								href={docs("/admin/users/idp-sync")}
-							/>
+							<Link href={docs("/admin/users/idp-sync")}>
+								Learn more&hellip;
+							</Link>
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>
