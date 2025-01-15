@@ -19,9 +19,15 @@ module.exports = {
 				"3xl": ["2rem", "2.5rem"],
 			},
 			borderRadius: {
-				lg: "var(--radius)",
-				md: "calc(var(--radius) - 2px)",
-				sm: "calc(var(--radius) - 4px)",
+				// In Tailwind's border radius configuration, the default value differs
+				// from the `md` size. In our setup, the default value should align with
+				// `md`.
+				DEFAULT: "0.5rem",
+				lg: "0.75rem",
+				md: "0.5rem",
+				sm: "0.375rem",
+				xs: "0.25rem",
+				xxs: "0.125rem",
 			},
 			colors: {
 				content: {
