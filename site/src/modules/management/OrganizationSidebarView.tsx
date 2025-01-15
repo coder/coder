@@ -1,18 +1,27 @@
-import { cx } from "@emotion/css";
-import AddIcon from "@mui/icons-material/Add";
 import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
+import {
+	Command,
+	CommandGroup,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
 import { Loader } from "components/Loader/Loader";
 import {
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
+import {
 	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem as SidebarNavSubItem,
+	SettingsSidebarNavItem,
 } from "components/Sidebar/Sidebar";
-import { Stack } from "components/Stack/Stack";
 import type { Permissions } from "contexts/auth/permissions";
-import { type ClassName, useClassName } from "hooks/useClassName";
+import { ChevronDown, Plus } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
-import type { FC, ReactNode } from "react";
-import { Link, NavLink } from "react-router-dom";
+import { type FC, useState } from "react";
+import { useNavigate } from "react-router-dom";
 
 export interface OrganizationWithPermissions extends Organization {
 	permissions: AuthorizationResponse;
@@ -20,7 +29,7 @@ export interface OrganizationWithPermissions extends Organization {
 
 interface SidebarProps {
 	/** The active org name, if any.  Overrides activeSettings. */
-	activeOrganizationName: string | undefined;
+	activeOrganization: OrganizationWithPermissions | undefined;
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
@@ -31,7 +40,7 @@ interface SidebarProps {
  * Organization settings left sidebar menu.
  */
 export const OrganizationSidebarView: FC<SidebarProps> = ({
-	activeOrganizationName,
+	activeOrganization,
 	organizations,
 	permissions,
 }) => {
@@ -41,7 +50,7 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 		<BaseSidebar>
 			{showOrganizations && (
 				<OrganizationsSettingsNavigation
-					activeOrganizationName={activeOrganizationName}
+					activeOrganization={activeOrganization}
 					organizations={organizations}
 					permissions={permissions}
 				/>
@@ -56,7 +65,7 @@ function urlForSubpage(organizationName: string, subpage = ""): string {
 
 interface OrganizationsSettingsNavigationProps {
 	/** The active org name if an org is being viewed. */
-	activeOrganizationName: string | undefined;
+	activeOrganization: OrganizationWithPermissions | undefined;
 	/** Organizations and their permissions or undefined if still fetching. */
 	organizations: OrganizationWithPermissions[] | undefined;
 	/** Site-wide permissions. */
@@ -64,187 +73,158 @@ interface OrganizationsSettingsNavigationProps {
 }
 
 /**
- * Displays navigation for all organizations and a create organization link.
+ * Displays navigation items for the active organization and a combobox to
+ * switch between organizations.
  *
  * If organizations or their permissions are still loading, show a loader.
- *
- * If there are no organizations and the user does not have the create org
- * permission, nothing is displayed.
  */
 const OrganizationsSettingsNavigation: FC<
 	OrganizationsSettingsNavigationProps
-> = ({ activeOrganizationName, organizations, permissions }) => {
-	// Wait for organizations and their permissions to load in.
-	if (!organizations) {
+> = ({ activeOrganization, organizations, permissions }) => {
+	// Wait for organizations and their permissions to load
+	if (!organizations || !activeOrganization) {
 		return <Loader />;
 	}
 
-	if (organizations.length <= 0 && !permissions.createOrganization) {
-		return null;
-	}
+	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
+	const navigate = useNavigate();
 
 	return (
 		<>
-			{permissions.createOrganization && (
-				<SidebarNavItem
-					active="auto"
-					href="/organizations/new"
-					icon={<AddIcon />}
-				>
-					New organization
-				</SidebarNavItem>
-			)}
-			{organizations.map((org) => (
-				<OrganizationSettingsNavigation
-					key={org.id}
-					organization={org}
-					active={org.name === activeOrganizationName}
-				/>
-			))}
+			<Popover open={isPopoverOpen} onOpenChange={setIsPopoverOpen}>
+				<PopoverTrigger asChild>
+					<Button
+						variant="outline"
+						aria-expanded={isPopoverOpen}
+						className="w-60 justify-between p-2 h-11"
+					>
+						<div className="flex flex-row gap-2 items-center p-2 truncate">
+							{activeOrganization && (
+								<Avatar
+									size="sm"
+									src={activeOrganization.icon}
+									fallback={activeOrganization.display_name}
+								/>
+							)}
+							<span className="truncate">
+								{activeOrganization?.display_name || activeOrganization?.name}
+							</span>
+						</div>
+						<ChevronDown />
+					</Button>
+				</PopoverTrigger>
+				<PopoverContent align="start" className="w-60">
+					<Command loop>
+						<CommandList>
+							<CommandGroup className="pb-2">
+								{organizations.length > 1 && (
+									<div className="flex flex-col max-h-[260px] overflow-y-auto">
+										{organizations.map((organization) => (
+											<CommandItem
+												key={organization.id}
+												value={organization.name}
+												onSelect={() => {
+													setIsPopoverOpen(false);
+													navigate(urlForSubpage(organization.name));
+												}}
+												// There is currently an issue with the cmdk component for keyboard navigation
+												// https://github.com/pacocoursey/cmdk/issues/322
+												tabIndex={0}
+											>
+												<Avatar
+													size="sm"
+													src={organization.icon}
+													fallback={organization.display_name}
+												/>
+												<span className="truncate">
+													{organization?.display_name || organization?.name}
+												</span>
+											</CommandItem>
+										))}
+									</div>
+								)}
+								{permissions.createOrganization && (
+									<>
+										{organizations.length > 1 && (
+											<hr className="h-px my-2 border-none bg-border -mx-2" />
+										)}
+										<CommandItem
+											className="flex justify-center data-[selected=true]:bg-transparent"
+											onSelect={() => {
+												setIsPopoverOpen(false);
+												setTimeout(() => {
+													navigate("/organizations/new");
+												}, 200);
+											}}
+										>
+											<Plus /> Create Organization
+										</CommandItem>
+									</>
+								)}
+							</CommandGroup>
+						</CommandList>
+					</Command>
+				</PopoverContent>
+			</Popover>
+			<OrganizationSettingsNavigation
+				key={activeOrganization.id}
+				organization={activeOrganization}
+			/>
 		</>
 	);
 };
 
 interface OrganizationSettingsNavigationProps {
-	/** Whether this organization is currently selected. */
-	active: boolean;
-	/** The organization to display in the navigation. */
 	organization: OrganizationWithPermissions;
 }
 
-/**
- * Displays navigation for a single organization.
- *
- * If inactive, no sub-menu items will be shown, just the organization name.
- *
- * If active, it will show sub-menu items based on the permissions.
- */
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
-> = ({ active, organization }) => {
+> = ({ organization }) => {
 	return (
 		<>
-			<SidebarNavItem
-				active={active}
-				href={urlForSubpage(organization.name)}
-				icon={
-					<Avatar
-						variant="icon"
-						src={organization.icon}
-						fallback={organization.display_name}
-					/>
-				}
-			>
-				{organization.display_name}
-			</SidebarNavItem>
-			{active && (
-				<div className="flex flex-col gap-1 my-2 ml-11">
-					{organization.permissions.editOrganization && (
-						<SidebarNavSubItem end href={urlForSubpage(organization.name)}>
-							Settings
-						</SidebarNavSubItem>
-					)}
-					{organization.permissions.editMembers && (
-						<SidebarNavSubItem
-							href={urlForSubpage(organization.name, "members")}
-						>
-							Members
-						</SidebarNavSubItem>
-					)}
-					{organization.permissions.editGroups && (
-						<SidebarNavSubItem
-							href={urlForSubpage(organization.name, "groups")}
-						>
-							Groups
-						</SidebarNavSubItem>
-					)}
-					{organization.permissions.assignOrgRole && (
-						<SidebarNavSubItem href={urlForSubpage(organization.name, "roles")}>
-							Roles
-						</SidebarNavSubItem>
-					)}
-					{organization.permissions.viewProvisioners && (
-						<SidebarNavSubItem
-							href={urlForSubpage(organization.name, "provisioners")}
-						>
-							Provisioners
-						</SidebarNavSubItem>
-					)}
-					{organization.permissions.viewIdpSyncSettings && (
-						<SidebarNavSubItem
-							href={urlForSubpage(organization.name, "idp-sync")}
-						>
-							IdP Sync
-						</SidebarNavSubItem>
-					)}
-				</div>
-			)}
+			<div className="flex flex-col gap-1 my-2">
+				{organization.permissions.editMembers && (
+					<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
+						Members
+					</SettingsSidebarNavItem>
+				)}
+				{organization.permissions.editGroups && (
+					<SettingsSidebarNavItem
+						href={urlForSubpage(organization.name, "groups")}
+					>
+						Groups
+					</SettingsSidebarNavItem>
+				)}
+				{organization.permissions.assignOrgRole && (
+					<SettingsSidebarNavItem
+						href={urlForSubpage(organization.name, "roles")}
+					>
+						Roles
+					</SettingsSidebarNavItem>
+				)}
+				{organization.permissions.viewProvisioners && (
+					<SettingsSidebarNavItem
+						href={urlForSubpage(organization.name, "provisioners")}
+					>
+						Provisioners
+					</SettingsSidebarNavItem>
+				)}
+				{organization.permissions.viewIdpSyncSettings && (
+					<SettingsSidebarNavItem
+						href={urlForSubpage(organization.name, "idp-sync")}
+					>
+						IdP Sync
+					</SettingsSidebarNavItem>
+				)}
+				{organization.permissions.editOrganization && (
+					<SettingsSidebarNavItem
+						href={urlForSubpage(organization.name, "settings")}
+					>
+						Settings
+					</SettingsSidebarNavItem>
+				)}
+			</div>
 		</>
 	);
 };
-
-interface SidebarNavItemProps {
-	active?: boolean | "auto";
-	children?: ReactNode;
-	icon?: ReactNode;
-	href: string;
-}
-
-const SidebarNavItem: FC<SidebarNavItemProps> = ({
-	active,
-	children,
-	href,
-	icon,
-}) => {
-	const link = useClassName(classNames.link, []);
-	const activeLink = useClassName(classNames.activeLink, []);
-
-	const content = (
-		<Stack alignItems="center" spacing={1.5} direction="row">
-			{icon}
-			{children}
-		</Stack>
-	);
-
-	if (active === "auto") {
-		return (
-			<NavLink
-				to={href}
-				className={({ isActive }) => cx([link, isActive && activeLink])}
-			>
-				{content}
-			</NavLink>
-		);
-	}
-
-	return (
-		<Link to={href} className={cx([link, active && activeLink])}>
-			{content}
-		</Link>
-	);
-};
-
-const classNames = {
-	link: (css, theme) => css`
-    color: inherit;
-    display: block;
-    font-size: 14px;
-    text-decoration: none;
-    padding: 10px 12px 10px 16px;
-    border-radius: 4px;
-    transition: background-color 0.15s ease-in-out;
-    position: relative;
-
-    &:hover {
-      background-color: ${theme.palette.action.hover};
-    }
-
-    border-left: 3px solid transparent;
-  `,
-
-	activeLink: (css, theme) => css`
-    border-left-color: ${theme.palette.primary.main};
-    border-top-left-radius: 0;
-    border-bottom-left-radius: 0;
-  `,
-} satisfies Record<string, ClassName>;

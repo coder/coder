@@ -149,6 +149,17 @@ module "code-server" {
   auto_install_extensions = true
 }
 
+module "vscode-web" {
+  count                   = data.coder_workspace.me.start_count
+  source                  = "registry.coder.com/modules/vscode-web/coder"
+  version                 = ">= 1.0.0"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  extensions              = ["github.copilot"]
+  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
+  accept_license          = true
+}
+
 module "jetbrains_gateway" {
   count          = data.coder_workspace.me.start_count
   source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"

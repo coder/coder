@@ -139,6 +139,11 @@ resource "google_container_node_pool" "node_pool" {
     metadata = {
       disable-legacy-endpoints = "true"
     }
+    kubelet_config {
+      cpu_manager_policy = ""
+      cpu_cfs_quota      = false
+      pod_pids_limit     = 0
+    }
   }
   lifecycle {
     ignore_changes = [management[0].auto_repair, management[0].auto_upgrade, timeouts]

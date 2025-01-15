@@ -728,6 +728,20 @@ func (mr *MockStoreMockRecorder) DeleteWorkspaceAgentPortSharesByTemplate(arg0, 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteWorkspaceAgentPortSharesByTemplate", reflect.TypeOf((*MockStore)(nil).DeleteWorkspaceAgentPortSharesByTemplate), arg0, arg1)
 }
 
+// DisableForeignKeysAndTriggers mocks base method.
+func (m *MockStore) DisableForeignKeysAndTriggers(arg0 context.Context) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DisableForeignKeysAndTriggers", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// DisableForeignKeysAndTriggers indicates an expected call of DisableForeignKeysAndTriggers.
+func (mr *MockStoreMockRecorder) DisableForeignKeysAndTriggers(arg0 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DisableForeignKeysAndTriggers", reflect.TypeOf((*MockStore)(nil).DisableForeignKeysAndTriggers), arg0)
+}
+
 // EnqueueNotificationMessage mocks base method.
 func (m *MockStore) EnqueueNotificationMessage(arg0 context.Context, arg1 database.EnqueueNotificationMessageParams) error {
 	m.ctrl.T.Helper()
@@ -2016,6 +2030,21 @@ func (mr *MockStoreMockRecorder) GetProvisionerDaemonsByOrganization(arg0, arg1 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsByOrganization", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsByOrganization), arg0, arg1)
 }
 
+// GetProvisionerDaemonsWithStatusByOrganization mocks base method.
+func (m *MockStore) GetProvisionerDaemonsWithStatusByOrganization(arg0 context.Context, arg1 database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetProvisionerDaemonsWithStatusByOrganization", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetProvisionerDaemonsWithStatusByOrganizationRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetProvisionerDaemonsWithStatusByOrganization indicates an expected call of GetProvisionerDaemonsWithStatusByOrganization.
+func (mr *MockStoreMockRecorder) GetProvisionerDaemonsWithStatusByOrganization(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetProvisionerDaemonsWithStatusByOrganization", reflect.TypeOf((*MockStore)(nil).GetProvisionerDaemonsWithStatusByOrganization), arg0, arg1)
+}
+
 // GetProvisionerJobByID mocks base method.
 func (m *MockStore) GetProvisionerJobByID(arg0 context.Context, arg1 uuid.UUID) (database.ProvisionerJob, error) {
 	m.ctrl.T.Helper()
@@ -2809,6 +2838,21 @@ func (m *MockStore) GetUserNotificationPreferences(arg0 context.Context, arg1 uu
 func (mr *MockStoreMockRecorder) GetUserNotificationPreferences(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserNotificationPreferences", reflect.TypeOf((*MockStore)(nil).GetUserNotificationPreferences), arg0, arg1)
+}
+
+// GetUserStatusCounts mocks base method.
+func (m *MockStore) GetUserStatusCounts(arg0 context.Context, arg1 database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserStatusCounts", arg0, arg1)
+	ret0, _ := ret[0].([]database.GetUserStatusCountsRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserStatusCounts indicates an expected call of GetUserStatusCounts.
+func (mr *MockStoreMockRecorder) GetUserStatusCounts(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserStatusCounts", reflect.TypeOf((*MockStore)(nil).GetUserStatusCounts), arg0, arg1)
 }
 
 // GetUserWorkspaceBuildParameters mocks base method.

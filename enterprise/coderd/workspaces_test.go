@@ -6,6 +6,7 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
+	"runtime"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1398,8 +1399,12 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 // real Terraform provisioner and validate that the workspace is created
 // successfully. The workspace itself does not specify any resources, and
 // this is fine.
+// nolint:paralleltest // this test tends to time out on windows runners
+// when run in parallel
 func TestWorkspaceTagsTerraform(t *testing.T) {
-	t.Parallel()
+	if runtime.GOOS != "windows" {
+		t.Parallel()
+	}
 
 	mainTfTemplate := `
 		terraform {
@@ -1428,7 +1433,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		createTemplateVersionRequestTags map[string]string
 		// the coder_workspace_tags bit of main.tf.
 		// you can add more stuff here if you need
-		tfWorkspaceTags string
+		tfWorkspaceTags     string
+		skipCreateWorkspace bool
 	}{
 		{
 			name:            "no tags",
@@ -1515,8 +1521,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}`,
 		},
 		{
-			name:                             "does not override static tag",
-			provisionerTags:                  map[string]string{"foo": "bar"},
+			name:                             "overrides static tag from request",
+			provisionerTags:                  map[string]string{"foo": "baz"},
 			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
 			tfWorkspaceTags: `
 				data "coder_workspace_tags" "tags" {
@@ -1524,11 +1530,16 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 						"foo" = "bar"
 					}
 				}`,
+			// When we go to create the workspace, there won't be any provisioner
+			// matching tag foo=bar.
+			skipCreateWorkspace: true,
 		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			t.Parallel()
+			if runtime.GOOS != "windows" {
+				t.Parallel()
+			}
 			ctx := testutil.Context(t, testutil.WaitSuperLong)
 
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
@@ -1563,13 +1574,15 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
-			// Creating a workspace as a non-privileged user must succeed
-			ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-				TemplateID: tpl.ID,
-				Name:       coderdtest.RandomUsername(t),
-			})
-			require.NoError(t, err, "failed to create workspace")
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+			if !tc.skipCreateWorkspace {
+				// Creating a workspace as a non-privileged user must succeed
+				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+					TemplateID: tpl.ID,
+					Name:       coderdtest.RandomUsername(t),
+				})
+				require.NoError(t, err, "failed to create workspace")
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+			}
 		})
 	}
 }

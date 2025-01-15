@@ -104,7 +104,13 @@ ARG DEBIAN_FRONTEND="noninteractive"
 # Updated certificates are necessary to use the teraswitch mirror.
 # This must be ran before copying in configuration since the config replaces
 # the default mirror with teraswitch.
-RUN apt-get update && apt-get install --yes ca-certificates
+# Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
+# and unminimize to include man pages.
+RUN apt-get update && \
+	apt-get install --yes ca-certificates locales && \
+	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
+	locale-gen && \
+	yes | unminimize
 
 COPY files /
 

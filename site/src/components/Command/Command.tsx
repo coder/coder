@@ -69,7 +69,7 @@ export const CommandList = forwardRef<
 >(({ className, ...props }, ref) => (
 	<CommandPrimitive.List
 		ref={ref}
-		className={cn("max-h-[300px] overflow-y-auto overflow-x-hidden", className)}
+		className={cn("max-h-96 overflow-y-auto overflow-x-hidden", className)}
 		{...props}
 	/>
 ));
@@ -92,7 +92,7 @@ export const CommandGroup = forwardRef<
 	<CommandPrimitive.Group
 		ref={ref}
 		className={cn(
-			`overflow-hidden p-1 text-content-primary
+			`overflow-hidden p-2 text-content-primary
 			[&_[cmdk-group-heading]]:px-2 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-xs
 			[&_[cmdk-group-heading]]:font-medium [&_[cmdk-group-heading]]:text-content-secondary`,
 			className,
@@ -119,7 +119,7 @@ export const CommandItem = forwardRef<
 	<CommandPrimitive.Item
 		ref={ref}
 		className={cn(
-			`relative flex cursor-default gap-2 select-none items-center rounded-sm px-2 py-1.5 text-sm outline-none
+			`relative flex cursor-default gap-2 select-none text-content-secondary items-center rounded-sm px-2 py-2 text-sm font-medium outline-none
 			data-[disabled=true]:pointer-events-none data-[disabled=true]:opacity-50
 			data-[selected=true]:bg-surface-secondary data-[selected=true]:text-content-primary
 			[&_svg]:pointer-events-none [&_svg]:size-4 [&_svg]:shrink-0`,

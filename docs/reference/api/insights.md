@@ -260,3 +260,53 @@ curl -X GET http://coder-server:8080/api/v2/insights/user-latency?start_time=201
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.UserLatencyInsightsResponse](schemas.md#codersdkuserlatencyinsightsresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get insights about user status counts
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/insights/user-status-counts?tz_offset=0 \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /insights/user-status-counts`
+
+### Parameters
+
+| Name        | In    | Type    | Required | Description                |
+|-------------|-------|---------|----------|----------------------------|
+| `tz_offset` | query | integer | true     | Time-zone offset (e.g. -2) |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "status_counts": {
+    "property1": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ],
+    "property2": [
+      {
+        "count": 10,
+        "date": "2019-08-24T14:15:22Z"
+      }
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                                 |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GetUserStatusCountsResponse](schemas.md#codersdkgetuserstatuscountsresponse) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
