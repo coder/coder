@@ -56,7 +56,7 @@ To log in to an existing Coder deployment:
 coder login https://coder.example.com
 ```
 
-## Downloading the CLI from your deployment
+## Download the CLI from your deployment
 
 > NOTE:
 >
