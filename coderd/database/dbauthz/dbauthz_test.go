@@ -3259,31 +3259,28 @@ func (s *MethodTestSuite) TestExtraMethods() {
 	}))
 	s.Run("GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
 		tags := database.StringMap(map[string]string{
 			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 		})
-		t := dbgen.Template(s.T(), db, database.Template{})
-		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
-		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: t.ID})
-		wb := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{WorkspaceID: w.ID, TemplateVersionID: tv.ID})
-		j1, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID, TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		j1 := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Type:           database.ProvisionerJobTypeTemplateVersionImport,
 			Input:          []byte(`{"template_version_id":"` + tv.ID.String() + `"}`),
 			Tags:           tags,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
 		})
-		s.NoError(err, "insert provisioner job")
-		j2, err := db.InsertProvisionerJob(context.Background(), database.InsertProvisionerJobParams{
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: user.ID, TemplateID: t.ID})
+		wbID := uuid.New()
+		j2 := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
 			OrganizationID: org.ID,
 			Type:           database.ProvisionerJobTypeWorkspaceBuild,
-			Input:          []byte(`{"workspace_build_id":"` + wb.ID.String() + `"}`),
+			Input:          []byte(`{"workspace_build_id":"` + wbID.String() + `"}`),
 			Tags:           tags,
-			Provisioner:    database.ProvisionerTypeEcho,
-			StorageMethod:  database.ProvisionerStorageMethodFile,
 		})
-		s.NoError(err, "insert provisioner job")
+		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{ID: wbID, WorkspaceID: w.ID, TemplateVersionID: tv.ID, JobID: j2.ID})
+
 		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
 		})

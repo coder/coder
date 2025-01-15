@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -48,7 +47,11 @@ type NotAuthorizedError struct {
 var _ httpapiconstraints.IsUnauthorizedError = (*NotAuthorizedError)(nil)
 
 func (e NotAuthorizedError) Error() string {
-	return fmt.Sprintf("unauthorized: %s", e.Err.Error())
+	var detail string
+	if e.Err != nil {
+		detail = ": " + e.Err.Error()
+	}
+	return "unauthorized" + detail
 }
 
 // IsUnauthorized implements the IsUnauthorized interface.
