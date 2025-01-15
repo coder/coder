@@ -1219,8 +1219,10 @@ func TestSSH(t *testing.T) {
 		// started and accepting input on stdin.
 		_ = pty.Peek(ctx, 1)
 
-		pty.WriteLine(fmt.Sprintf("netstat -an | grep -q %s; echo \"returned $?\"", remoteSock))
-		pty.ExpectMatchContext(ctx, "returned 0")
+		// This needs to support most shells on Linux or macOS
+		// We can't include exactly what's expected in the input, as that will always be matched
+		pty.WriteLine(fmt.Sprintf(`echo "results: $(netstat -an | grep %s | wc -l | tr -d ' ')"`, remoteSock))
+		pty.ExpectMatchContext(ctx, "results: 1")
 
 		// And we're done.
 		pty.WriteLine("exit")
