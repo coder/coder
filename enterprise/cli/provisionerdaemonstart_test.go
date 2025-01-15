@@ -440,7 +440,6 @@ func TestProvisionerDaemon_ProvisionerKey(t *testing.T) {
 		clitest.Start(t, inv)
 		pty.ExpectNoMatchBefore(ctx, "check entitlement", "starting provisioner daemon")
 		pty.ExpectMatchContext(ctx, "matt-daemon")
-
 		var daemons []codersdk.ProvisionerDaemon
 		require.Eventually(t, func() bool {
 			daemons, err = client.OrganizationProvisionerDaemons(ctx, anotherOrg.ID, nil)

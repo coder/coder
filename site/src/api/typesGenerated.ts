@@ -1532,6 +1532,16 @@ export interface ProvisionerDaemon {
 	readonly api_version: string;
 	readonly provisioners: readonly ProvisionerType[];
 	readonly tags: Record<string, string>;
+	readonly key_name: string | null;
+	readonly status: ProvisionerDaemonStatus | null;
+	readonly current_job: ProvisionerDaemonJob | null;
+	readonly previous_job: ProvisionerDaemonJob | null;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerDaemonJob {
+	readonly id: string;
+	readonly status: ProvisionerJobStatus;
 }
 
 // From codersdk/client.go
@@ -1539,6 +1549,15 @@ export const ProvisionerDaemonKey = "Coder-Provisioner-Daemon-Key";
 
 // From codersdk/client.go
 export const ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK";
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerDaemonStatus = "busy" | "idle" | "offline";
+
+export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = [
+	"busy",
+	"idle",
+	"offline",
+];
 
 // From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport extends BaseReport {
@@ -2999,13 +3018,9 @@ export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
 ];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
+export type WorkspaceAppOpenIn = "slim-window" | "tab";
 
-export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
-	"slim-window",
-	"tab",
-	"window",
-];
+export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";

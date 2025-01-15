@@ -58,20 +58,22 @@
 
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
-          # google-chrome is not available on OSX and aarch64 linux
-          (if pkgs.stdenv.hostPlatform.isDarwin || pkgs.stdenv.hostPlatform.isAarch64 then null else google-chrome)
+          # google-chrome is not available on aarch64 linux
+          (lib.optionalDrvAttr ( !stdenv.isLinux || !stdenv.isAarch64 ) google-chrome)
           # strace is not available on OSX
-          (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
+          (lib.optionalDrvAttr ( !pkgs.stdenv.isDarwin ) strace)
           bat
           cairo
           curl
           delve
           drpc.defaultPackage.${system}
+          fzf
           gcc
           gdk
           getopt
           gh
           git
+          (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
           gnumake
           gnused
           go_1_22
@@ -85,8 +87,10 @@
           kubernetes-helm
           less
           mockgen
+          moreutils
           nfpm
           nodejs
+          neovim
           pnpm
           openssh
           openssl
@@ -98,8 +102,6 @@
           protobuf
           proto_gen_go_1_30
           ripgrep
-          # This doesn't build on latest nixpkgs (July 10 2024)
-          (pinnedPkgs.sapling)
           shellcheck
           (pinnedPkgs.shfmt)
           sqlc
@@ -165,6 +167,8 @@
             export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
             export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
           '';
+
+          LOCALE_ARCHIVE = with pkgs; lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
         };
         packages = {
           proto_gen_go = proto_gen_go_1_30;
