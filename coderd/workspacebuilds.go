@@ -449,21 +449,18 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 		// nolint:gocritic // Need system context to fetch admins
 		admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
 		if err != nil {
-			httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-				Message: "Internal error fetching template admins.",
-				Detail:  err.Error(),
-			})
-			return
-		}
+			api.Logger.Error(ctx, "find template admins", slog.Error(err))
+		} else {
+			for _, admin := range admins {
+				// Don't send notifications to user which initiated the event.
+				if admin.ID == apiKey.UserID {
+					continue
+				}
 
-		for _, admin := range admins {
-			// Don't send notifications to user which initiated the event.
-			if admin.ID == apiKey.UserID {
-				continue
+				api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
 			}
-
-			api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
 		}
+
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
