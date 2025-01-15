@@ -595,7 +595,7 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 			receivers[idx] = notif.UserID
 		}
 
-		// Check the notification was sent to the owner and template admin
+		// Check the notification was sent to the first user and template admin
 		require.Contains(t, receivers, templateAdmin.ID)
 		require.Contains(t, receivers, user.UserID)
 		require.NotContains(t, receivers, memberUser.ID)
