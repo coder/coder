@@ -85,6 +85,7 @@
           kubectl
           kubectx
           kubernetes-helm
+          lazygit
           less
           mockgen
           moreutils
@@ -144,7 +145,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-Tsajkkp+NMjYRCpRX5HlSy/sCSpuABIGDM1jeavVe+w=";
+            vendorHash = "sha256-ykLZqtALSvDpBc2yEjRGdOyCFNsnLZiGid0d4s27e8Q=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
@@ -156,12 +157,15 @@
               runHook preBuild
 
               # Unpack the site contents.
-              mkdir -p ./site/out
+              mkdir -p ./site/out ./site/node_modules/
               cp -r ${buildSite.out}/* ./site/out
+              touch ./site/node_modules/.installed
 
               # Build and copy the binary!
               export CODER_FORCE_VERSION=${version}
-              make -j build/coder_${osArch}
+              # Flagging 'site/node_modules/.installed' as an old file,
+              # as we do not want to trigger codegen during a build.
+              make -j -o 'site/node_modules/.installed' build/coder_${osArch}
             '';
             installPhase = ''
               mkdir -p $out/bin
