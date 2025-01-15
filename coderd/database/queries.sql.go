@@ -3211,6 +3211,7 @@ SELECT
 FROM ranked_status_change_per_user_per_date rscpupd
 CROSS JOIN statuses
 GROUP BY rscpupd.date, statuses.new_status
+ORDER BY rscpupd.date
 `
 
 type GetUserStatusCountsParams struct {
