@@ -88,6 +88,42 @@ export const createOrganizationSyncSettings = async () => {
 	return settings;
 };
 
+export const createGroupSyncSettings = async (orgId: string) => {
+	const settings = await API.patchGroupIdpSyncSettings(
+		{
+			field: "group-field-test",
+			mapping: {
+				"idp-group-1": [
+					"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+					"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+				],
+				"idp-group-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+			},
+			regex_filter: "@[a-zA-Z0-9]+",
+			auto_create_missing_groups: true,
+		},
+		orgId,
+	);
+	return settings;
+};
+
+export const createRoleSyncSettings = async (orgId: string) => {
+	const settings = await API.patchRoleIdpSyncSettings(
+		{
+			field: "role-field-test",
+			mapping: {
+				"idp-role-1": [
+					"fbd2116a-8961-4954-87ae-e4575bd29ce0",
+					"13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
+				],
+				"idp-role-2": ["fbd2116a-8961-4954-87ae-e4575bd29ce0"],
+			},
+		},
+		orgId,
+	);
+	return settings;
+};
+
 export const createCustomRole = async (
 	orgId: string,
 	name: string,
