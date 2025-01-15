@@ -347,7 +347,7 @@ const IdpGroupSyncForm = ({
 						id={AUTO_CREATE_MISSING_GROUPS_ID}
 						checked={form.values.auto_create_missing_groups}
 						onCheckedChange={async (checked) => {
-							void form.setFieldValue("organization_assign_default", checked);
+							void form.setFieldValue("auto_create_missing_groups", checked);
 							form.handleSubmit();
 						}}
 					/>
