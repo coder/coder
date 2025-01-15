@@ -1,4 +1,3 @@
-import Link from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -26,6 +25,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import {
 	MultiSelectCombobox,
@@ -38,7 +38,7 @@ import {
 } from "components/TableLoader/TableLoader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useFormik } from "formik";
-import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
+import { Plus, Trash } from "lucide-react";
 import { type FC, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -174,15 +174,10 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({
 										message={`No ${type} Mappings`}
 										isCompact
 										cta={
-											<Button variant="outline" asChild>
-												<a
-													href={docs("/admin/users/idp-sync")}
-													className="no-underline"
-												>
-													<SquareArrowOutUpRight size={14} />
-													How to setup IdP {type} sync
-												</a>
-											</Button>
+											<Link
+												text={`How to setup IdP ${type} sync`}
+												href={docs("/admin/users/idp-sync")}
+											/>
 										}
 									/>
 								</TableCell>
@@ -710,9 +705,10 @@ const LegacyGroupSyncHeader: FC = () => {
 							configure IdP sync via the CLI or the UI, which enables sync to be
 							configured for any organization, and for those settings to be
 							persisted without manually setting environment variables.{" "}
-							<Link href={docs("/admin/users/idp-sync")}>
-								Learn more&hellip;
-							</Link>
+							<Link
+								text="Learn more&hellip;"
+								href={docs("/admin/users/idp-sync")}
+							/>
 						</HelpTooltipText>
 					</HelpTooltipContent>
 				</HelpTooltip>
