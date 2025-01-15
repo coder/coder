@@ -5,17 +5,29 @@ const meta: Meta<typeof Link> = {
 	title: "components/Link",
 	component: Link,
 	args: {
-		text: "Learn more",
+		children: "Learn more",
 	},
 };
 
 export default meta;
 type Story = StoryObj<typeof Link>;
 
-export const Default: Story = {};
+export const Large: Story = {};
 
 export const Small: Story = {
 	args: {
 		size: "sm",
+	},
+};
+
+export const InlineUsage: Story = {
+	render: () => {
+		return (
+			<p className="text-sm">
+				A <Link>workspace</Link> is your personal, customized development
+				environment. It's based on a <Link>template</Link> that configures your
+				workspace using Terraform.
+			</p>
+		);
 	},
 };
