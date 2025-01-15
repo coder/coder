@@ -460,7 +460,6 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 				api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
 			}
 		}
-
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
