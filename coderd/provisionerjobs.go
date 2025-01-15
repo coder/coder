@@ -315,8 +315,11 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	}
 	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
-	if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
-		job.Input.Error = xerrors.Errorf("decode input: %w", err).Error()
+	// Only unmarshal input if it exists, this should only be zero in testing.
+	if len(provisionerJob.Input) > 0 {
+		if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
+			job.Input.Error = xerrors.Errorf("decode input %s: %w", provisionerJob.Input, err).Error()
+		}
 	}
 
 	return job
