@@ -13964,10 +13964,9 @@
 		},
 		"codersdk.WorkspaceAppOpenIn": {
 			"type": "string",
-			"enum": ["slim-window", "window", "tab"],
+			"enum": ["slim-window", "tab"],
 			"x-enum-varnames": [
 				"WorkspaceAppOpenInSlimWindow",
-				"WorkspaceAppOpenInWindow",
 				"WorkspaceAppOpenInTab"
 			]
 		},
