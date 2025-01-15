@@ -61,8 +61,8 @@ pages.
 | 2.14.x       | August 06, 2024    | Not Supported    |
 | 2.15.x       | September 03, 2024 | Not Supported    |
 | 2.16.x       | October 01, 2024   | Security Support |
-| 2.17.x       | November 05, 2024  | Stable           |
-| 2.18.x       | December 03, 2024  | Mainline         |
+| 2.17.x       | November 05, 2024  | Security Support |
+| 2.18.x       | December 03, 2024  | Stable           |
 | 2.19.x       | February 04, 2024  | Not Released     |
 
 > **Tip**: We publish a
@@ -71,4 +71,11 @@ pages.
 > used to test under-development features and bug fixes that have not yet been
 > released to [`mainline`](#mainline-releases) or [`stable`](#stable-releases).
 >
-> > **Important**: The `preview` image is not intended for production use.
+> The `preview` image is not intended for production use.
+
+### A note about January releases
+
+v2.18 was promoted to stable on January 7th, 2025.
+
+Effective starting January, 2025 we will skip the January release each year because most of our engineering team is out for the December holiday period.
+We'll return to our regular release cadence on February 4th.
