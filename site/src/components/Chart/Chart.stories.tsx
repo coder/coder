@@ -19,7 +19,7 @@ const chartData = [
 const chartConfig = {
 	users: {
 		label: "Users",
-		color: "hsl(var(--chart-1))",
+		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
 

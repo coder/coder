@@ -11,7 +11,7 @@ import {
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
 import { Spinner } from "components/Spinner/Spinner";
-import { ChevronDownIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
@@ -19,7 +19,7 @@ import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 const chartConfig = {
 	users: {
 		label: "Users",
-		color: "hsl(var(--chart-1))",
+		color: "hsl(var(--highlight-purple))",
 	},
 } satisfies ChartConfig;
 
@@ -41,40 +41,32 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 						<h3 className="text-md m-0 font-medium">User Engagement</h3>
 
 						<CollapsibleTrigger asChild>
-							<Button className="h-auto p-0 border-0 bg-transparent font-medium text-content-secondary hover:bg-transparent hover:text-content-primary">
-								<ChevronDownIcon />
+							<Button
+								className={`
+									h-auto p-0 border-0 bg-transparent font-medium text-content-secondary
+									hover:bg-transparent hover:text-content-primary
+									[&[data-state=open]_svg]:rotate-90
+								`}
+							>
+								<ChevronRightIcon />
 								How we calculate engaged users
 							</Button>
 						</CollapsibleTrigger>
 					</header>
 
-					<CollapsibleContent className="pt-2 pl-7 pr-5 space-y-4 [&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary font-medium">
+					<CollapsibleContent
+						className={`
+							pt-2 pl-7 pr-5 space-y-4 font-medium max-w-[720px]
+							[&_p]:m-0 [&_p]:text-sm [&_p]:text-content-secondary
+						`}
+					>
 						<p>
-							We consider a user “engaged” if they initiate a connection to
-							their workspace. The connection can be made through apps, web
-							terminal or SSH.
+							A user is considered "engaged" if they initiate a connection to
+							their workspace via apps, web terminal, or SSH. The graph displays
+							the daily count of unique users who engaged at least once, with
+							additional insights available through the Activity Audit and
+							License Consumption tools.
 						</p>
-						<p>
-							The graph shows the number of unique users who were engaged at
-							least once during the day.
-						</p>
-						<div>
-							<p>You might also check:</p>
-							<ul className="list-none p-0 m-0 [&_a]:text-sm [&_a]:font-medium [&_a]:text-content-link [&_a]:no-underline [&_a]:flex [&_a]:items-center [&_a]:gap-0.5 [&_svg]:p-[2px]">
-								<li>
-									<Link to="/audit">
-										Activity Audit
-										<ExternalLinkIcon className="size-icon-sm" />
-									</Link>
-								</li>
-								<li>
-									<Link to="/deployment/licenses">
-										License Consumption
-										<ExternalLinkIcon className="size-icon-sm" />
-									</Link>
-								</li>
-							</ul>
-						</div>
 					</CollapsibleContent>
 				</Collapsible>
 			</div>
@@ -163,7 +155,12 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 								</AreaChart>
 							</ChartContainer>
 						) : (
-							<div className="w-full h-full flex items-center justify-center text-content-secondary text-sm font-medium">
+							<div
+								className={`
+									w-full h-full flex items-center justify-center
+									text-content-secondary text-sm font-medium
+								`}
+							>
 								No data available
 							</div>
 						)
