@@ -4875,6 +4875,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `organization`            |
 | `organization_member`     |
 | `provisioner_daemon`      |
+| `provisioner_jobs`        |
 | `provisioner_keys`        |
 | `replicas`                |
 | `system`                  |

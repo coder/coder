@@ -60,6 +60,11 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
 	})
 	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner jobs.",
 			Detail:  err.Error(),

@@ -464,7 +464,6 @@ func (p ProvisionerJob) RBACObject() rbac.Object {
 	var input codersdk.ProvisionerJobInput
 	_ = json.Unmarshal(p.Input, &input) // Best effort.
 
-	// TODO(mafredri): Do we need to check provisioner permissions as well (p.AvailableProvisioners?).
 	id := uuid.Nil
 	switch p.Type {
 	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun:

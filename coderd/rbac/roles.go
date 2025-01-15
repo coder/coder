@@ -324,6 +324,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceWorkspace.Type: {policy.ActionRead},
 			// CRUD to provisioner daemons for now.
 			ResourceProvisionerDaemon.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			// Read to provisioner jobs for now.
+			ResourceProvisionerJobs.Type: {policy.ActionRead},
 			// Needs to read all organizations since
 			ResourceOrganization.Type: {policy.ActionRead},
 			ResourceUser.Type:         {policy.ActionRead},
@@ -422,6 +424,9 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganization.Type: {policy.ActionRead},
 						// Can read available roles.
 						ResourceAssignOrgRole.Type: {policy.ActionRead},
+
+						// Users can read provisioner jobs scoped to themselves.
+						ResourceProvisionerJobs.Type: {policy.ActionRead},
 					}),
 				},
 				User: []Permission{
