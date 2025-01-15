@@ -58,9 +58,11 @@ coder login https://coder.example.com
 
 ## Download the CLI from your deployment
 
-> NOTE:
->
-> This method is only available to users to Coder 2.19 and newer.
+<blockquote class="admonition note">
+
+Available in Coder 2.19 and newer.
+
+</blockquote>
 
 Every Coder deployment contains binaries for the CLI on all supported platforms.
 We provide a script that can be run to download the appropriate CLI for your
