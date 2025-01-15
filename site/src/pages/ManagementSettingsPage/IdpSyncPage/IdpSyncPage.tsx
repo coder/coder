@@ -85,7 +85,7 @@ export const IdpSyncPage: FC = () => {
 						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
 							Automatically assign groups or roles to a user based on their IdP
 							claims.
-							<Link text="View docs" href={docs("/admin/users/idp-sync")} />
+							<Link href={docs("/admin/users/idp-sync")}>View docs</Link>
 						</p>
 					</div>
 				</header>
