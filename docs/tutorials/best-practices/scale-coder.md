@@ -19,7 +19,7 @@ deployment.
   - Capture log output from from Coder Server instances and external provisioner daemons
   and store them in a searchable log store like Loki, CloudWatch logs, or other tools.
   - Retain logs for a minimum of thirty days, ideally ninety days.
-  This allows you to look back to see when anomalous behaviors began.
+  This allows you investigate when anomalous behaviors began.
 
 - Metrics
   - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
