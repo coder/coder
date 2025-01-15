@@ -71,8 +71,11 @@ pages.
 > used to test under-development features and bug fixes that have not yet been
 > released to [`mainline`](#mainline-releases) or [`stable`](#stable-releases).
 >
-> > **Important**: The `preview` image is not intended for production use.
+> The `preview` image is not intended for production use.
 
-> **Note**: v2.18 was promoted to stable on January 7th, 2025. We'll be skipping
-> the January release each year as most of our engineering team is out for the
-> holiday period. We'll return to our regular release cadence on February 4th.
+### A note about January releases
+
+v2.18 was promoted to stable on January 7th, 2025.
+
+Effective starting January, 2025 we will skip the January release each year because most of our engineering team is out for the December holiday period.
+We'll return to our regular release cadence on February 4th.
