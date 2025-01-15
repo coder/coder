@@ -306,6 +306,7 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	p := httpapi.NewQueryParamParser()
 	vals := r.URL.Query()
 	tzOffset := p.Int(vals, 0, "tz_offset")
+	interval := p.Int(vals, int((24 * time.Hour).Seconds()), "interval")
 	p.ErrorExcessParams(vals)
 
 	if len(p.Errors) > 0 {
@@ -327,6 +328,8 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
+		Interval:  int32(interval),
+		TzOffset:  int32(tzOffset),
 	})
 	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {

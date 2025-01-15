@@ -789,25 +789,12 @@ WITH
 	-- dates_of_interest defines all points in time that are relevant to the query.
 	-- It includes the start_time, all status changes, all deletions, and the end_time.
 dates_of_interest AS (
-	SELECT @start_time::timestamptz AS date
-
-	UNION
-
-    SELECT DISTINCT changed_at AS date
-    FROM user_status_changes
-    WHERE changed_at > @start_time::timestamptz
-        AND changed_at < @end_time::timestamptz
-
-	UNION
-
-	SELECT DISTINCT deleted_at AS date
-	FROM user_deleted
-	WHERE deleted_at > @start_time::timestamptz
-		AND deleted_at < @end_time::timestamptz
-
-	UNION
-
-	SELECT @end_time::timestamptz AS date
+	SELECT
+		(generate_series(
+			@start_time::timestamptz,
+			@end_time::timestamptz,
+			(@interval::int || ' seconds')::interval
+		) + (@tz_offset::int || ' seconds')::interval)::timestamptz AS date
 ),
 	-- latest_status_before_range defines the status of each user before the start_time.
 	-- We do not include users who were deleted before the start_time. We use this to ensure that
