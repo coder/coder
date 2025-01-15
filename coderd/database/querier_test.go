@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -2743,8 +2742,8 @@ func TestGetUserStatusCounts(t *testing.T) {
 				for _, tc := range testCases {
 					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
-						t.SkipNow()
 						t.Parallel()
+
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -2776,66 +2775,48 @@ func TestGetUserStatusCounts(t *testing.T) {
 						require.NoError(t, err)
 
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: createdAt,
-							EndTime:   today,
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
 						})
 						require.NoError(t, err)
 						require.NotEmpty(t, userStatusChanges)
-						gotCounts := map[time.Time]map[database.UserStatus]int64{
-							createdAt.In(location):            {},
-							firstTransitionTime.In(location):  {},
-							secondTransitionTime.In(location): {},
-							today.In(location):                {},
-						}
+						gotCounts := map[time.Time]map[database.UserStatus]int64{}
 						for _, row := range userStatusChanges {
 							dateInLocation := row.Date.In(location)
-							switch {
-							case dateInLocation.Equal(createdAt.In(location)):
-								gotCounts[createdAt][row.Status] = row.Count
-							case dateInLocation.Equal(firstTransitionTime.In(location)):
-								gotCounts[firstTransitionTime][row.Status] = row.Count
-							case dateInLocation.Equal(secondTransitionTime.In(location)):
-								gotCounts[secondTransitionTime][row.Status] = row.Count
-							case dateInLocation.Equal(today.In(location)):
-								gotCounts[today][row.Status] = row.Count
-							default:
-								t.Fatalf("unexpected date %s", row.Date)
+							if gotCounts[dateInLocation] == nil {
+								gotCounts[dateInLocation] = map[database.UserStatus]int64{}
 							}
+							gotCounts[dateInLocation][row.Status] = row.Count
 						}
 
 						expectedCounts := map[time.Time]map[database.UserStatus]int64{}
-						for _, status := range []database.UserStatus{
-							tc.user1Transition.from,
-							tc.user1Transition.to,
-							tc.user2Transition.from,
-							tc.user2Transition.to,
-						} {
-							if _, ok := expectedCounts[createdAt]; !ok {
-								expectedCounts[createdAt] = map[database.UserStatus]int64{}
+						for d := dbtime.StartOfDay(createdAt); !d.After(dbtime.StartOfDay(today)); d = d.AddDate(0, 0, 1) {
+							expectedCounts[d] = map[database.UserStatus]int64{}
+
+							// Default values
+							expectedCounts[d][tc.user1Transition.from] = 0
+							expectedCounts[d][tc.user1Transition.to] = 0
+							expectedCounts[d][tc.user2Transition.from] = 0
+							expectedCounts[d][tc.user2Transition.to] = 0
+
+							// Counted Values
+							if d.Before(createdAt) {
+								continue
+							} else if d.Before(firstTransitionTime) {
+								expectedCounts[d][tc.user1Transition.from]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(secondTransitionTime) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(today) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.to]++
+							} else {
+								t.Fatalf("date %q beyond expected range end %q", d, today)
 							}
-							expectedCounts[createdAt][status] = 0
 						}
 
-						expectedCounts[createdAt][tc.user1Transition.from]++
-						expectedCounts[createdAt][tc.user2Transition.from]++
-
-						expectedCounts[firstTransitionTime] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[firstTransitionTime], expectedCounts[createdAt])
-						expectedCounts[firstTransitionTime][tc.user1Transition.from]--
-						expectedCounts[firstTransitionTime][tc.user1Transition.to]++
-
-						expectedCounts[secondTransitionTime] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[secondTransitionTime], expectedCounts[firstTransitionTime])
-						expectedCounts[secondTransitionTime][tc.user2Transition.from]--
-						expectedCounts[secondTransitionTime][tc.user2Transition.to]++
-
-						expectedCounts[today] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[today], expectedCounts[secondTransitionTime])
-
-						require.Equal(t, expectedCounts[createdAt], gotCounts[createdAt])
-						require.Equal(t, expectedCounts[firstTransitionTime], gotCounts[firstTransitionTime])
-						require.Equal(t, expectedCounts[secondTransitionTime], gotCounts[secondTransitionTime])
-						require.Equal(t, expectedCounts[today], gotCounts[today])
+						require.Equal(t, expectedCounts, gotCounts)
 					})
 				}
 			})
