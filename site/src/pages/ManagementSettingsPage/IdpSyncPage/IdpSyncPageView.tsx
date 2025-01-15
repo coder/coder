@@ -81,48 +81,43 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(roleSyncSettings.mapping).length
 		: 0;
 
-	if (error) {
-		return <ErrorAlert error={error} />;
-	}
-
 	if (!groupSyncSettings || !roleSyncSettings || !groups) {
 		return <Loader />;
 	}
 
 	return (
-		<>
-			<div className="flex flex-col gap-4">
-				<Tabs active={tab}>
-					<TabsList>
-						<TabLink to="?tab=groups" value="groups">
-							Group sync settings
-						</TabLink>
-						<TabLink to="?tab=roles" value="roles">
-							Role sync settings
-						</TabLink>
-					</TabsList>
-				</Tabs>
-				{tab === "groups" ? (
-					<IdpGroupSyncForm
-						groupSyncSettings={groupSyncSettings}
-						groupMappingCount={groupMappingCount}
-						legacyGroupMappingCount={legacyGroupMappingCount}
-						groups={groups}
-						groupsMap={groupsMap}
-						organization={organization}
-						onSubmit={onSubmitGroupSyncSettings}
-					/>
-				) : (
-					<IdpRoleSyncForm
-						roleSyncSettings={roleSyncSettings}
-						roleMappingCount={roleMappingCount}
-						roles={roles || []}
-						organization={organization}
-						onSubmit={onSubmitRoleSyncSettings}
-					/>
-				)}
-			</div>
-		</>
+		<div className="flex flex-col gap-4">
+			{Boolean(error) && <ErrorAlert error={error} />}
+			<Tabs active={tab}>
+				<TabsList>
+					<TabLink to="?tab=groups" value="groups">
+						Group sync settings
+					</TabLink>
+					<TabLink to="?tab=roles" value="roles">
+						Role sync settings
+					</TabLink>
+				</TabsList>
+			</Tabs>
+			{tab === "groups" ? (
+				<IdpGroupSyncForm
+					groupSyncSettings={groupSyncSettings}
+					groupMappingCount={groupMappingCount}
+					legacyGroupMappingCount={legacyGroupMappingCount}
+					groups={groups}
+					groupsMap={groupsMap}
+					organization={organization}
+					onSubmit={onSubmitGroupSyncSettings}
+				/>
+			) : (
+				<IdpRoleSyncForm
+					roleSyncSettings={roleSyncSettings}
+					roleMappingCount={roleMappingCount}
+					roles={roles || []}
+					organization={organization}
+					onSubmit={onSubmitRoleSyncSettings}
+				/>
+			)}
+		</div>
 	);
 };
 

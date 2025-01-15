@@ -58,28 +58,6 @@ export const IdpSyncPage: FC = () => {
 		patchRoleSyncSettings(organizationName, queryClient),
 	);
 
-	useEffect(() => {
-		if (patchGroupSyncSettingsMutation.error) {
-			displayError(
-				getErrorMessage(
-					patchGroupSyncSettingsMutation.error,
-					"Error updating IdP group sync settings.",
-				),
-			);
-		}
-	}, [patchGroupSyncSettingsMutation.error]);
-
-	useEffect(() => {
-		if (patchRoleSyncSettingsMutation.error) {
-			displayError(
-				getErrorMessage(
-					patchRoleSyncSettingsMutation.error,
-					"Error updating IdP role sync settings.",
-				),
-			);
-		}
-	}, [patchRoleSyncSettingsMutation.error]);
-
 	const error =
 		groupIdpSyncSettingsQuery.error ||
 		roleIdpSyncSettingsQuery.error ||
