@@ -5,7 +5,7 @@ A single CLI (`coder`) is used for both the Coder server and the client.
 We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
-## Downloading the latest release from GitHub
+## Download the latest release from GitHub
 
 <div class="tabs">
 
