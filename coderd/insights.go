@@ -4,10 +4,11 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"net/http"
 	"strings"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 
 	"github.com/google/uuid"
 	"golang.org/x/exp/slices"
