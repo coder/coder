@@ -23,8 +23,10 @@ export enum AppSharingLevel {
 }
 
 export enum AppOpenIn {
-  SLIM_WINDOW = 0,
-  TAB = 1,
+  /** @deprecated */
+  WINDOW = 0,
+  SLIM_WINDOW = 1,
+  TAB = 2,
   UNRECOGNIZED = -1,
 }
 
