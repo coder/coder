@@ -4,6 +4,7 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"net/http"
 	"strings"
 	"time"
@@ -318,18 +319,13 @@ func (api *API) insightsUserStatusCounts(rw http.ResponseWriter, r *http.Request
 	}
 
 	loc := time.FixedZone("", tzOffset*3600)
-	// If the time is 14:01 or 14:31, we still want to include all the
-	// data between 14:00 and 15:00. Our rollups buckets are 30 minutes
-	// so this works nicely. It works just as well for 23:59 as well.
-	nextHourInLoc := time.Now().In(loc).Truncate(time.Hour).Add(time.Hour)
-	// Always return 60 days of data (2 months).
-	sixtyDaysAgo := nextHourInLoc.In(loc).Truncate(24*time.Hour).AddDate(0, 0, -60)
+	nextHourInLoc := dbtime.Now().Truncate(time.Hour).Add(time.Hour).In(loc)
+	sixtyDaysAgo := dbtime.StartOfDay(nextHourInLoc).AddDate(0, 0, -60)
 
 	rows, err := api.Database.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
 		StartTime: sixtyDaysAgo,
 		EndTime:   nextHourInLoc,
 		Interval:  int32(interval),
-		TzOffset:  int32(tzOffset),
 	})
 	if err != nil {
 		if httpapi.IsUnauthorizedError(err) {

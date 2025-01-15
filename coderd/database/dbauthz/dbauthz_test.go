@@ -1713,7 +1713,6 @@ func (s *MethodTestSuite) TestUser() {
 			StartTime: time.Now().Add(-time.Hour * 24 * 30),
 			EndTime:   time.Now(),
 			Interval:  int32((time.Hour * 24).Seconds()),
-			TzOffset:  0,
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
 	}))
 }
