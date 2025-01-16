@@ -33,7 +33,7 @@ export const AnnouncementBannerSettings: FC<
 	const addBanner = () => {
 		setBanners([
 			...banners,
-			{ enabled: true, message: "", background_color: "#004852" },
+			{ enabled: true, message: "", background_color: "#ABB8C3" },
 		]);
 		setEditingBannerId(banners.length);
 	};
