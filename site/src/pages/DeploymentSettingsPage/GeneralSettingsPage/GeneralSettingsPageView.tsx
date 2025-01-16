@@ -1,12 +1,11 @@
 import AlertTitle from "@mui/material/AlertTitle";
 import LinearProgress from "@mui/material/LinearProgress";
 import type {
+	DAUsResponse,
 	Entitlements,
 	Experiments,
 	SerpentOption,
-	UserStatusChangeCount,
 } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -19,7 +18,7 @@ import { UserEngagementChart } from "./UserEngagementChart";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
-	activeUsersCount: UserStatusChangeCount[] | undefined;
+	dailyActiveUsers: DAUsResponse | undefined;
 	entitlements: Entitlements | undefined;
 	readonly invalidExperiments: Experiments | string[];
 	readonly safeExperiments: Experiments | string[];
@@ -27,7 +26,7 @@ export type GeneralSettingsPageViewProps = {
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 	deploymentOptions,
-	activeUsersCount,
+	dailyActiveUsers,
 	entitlements,
 	safeExperiments,
 	invalidExperiments,
@@ -47,9 +46,9 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 			/>
 			<Stack spacing={4}>
 				<UserEngagementChart
-					data={activeUsersCount?.map((i) => ({
+					data={dailyActiveUsers?.entries.map((i) => ({
 						date: i.date,
-						users: i.count,
+						users: i.amount,
 					}))}
 				/>
 				{licenseUtilizationPercentage && (
