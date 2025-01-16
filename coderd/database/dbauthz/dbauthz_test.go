@@ -1712,6 +1712,7 @@ func (s *MethodTestSuite) TestUser() {
 		check.Args(database.GetUserStatusCountsParams{
 			StartTime: time.Now().Add(-time.Hour * 24 * 30),
 			EndTime:   time.Now(),
+			Interval:  int32((time.Hour * 24).Seconds()),
 		}).Asserts(rbac.ResourceUser, policy.ActionRead)
 	}))
 }

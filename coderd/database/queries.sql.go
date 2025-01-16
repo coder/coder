@@ -3099,25 +3099,11 @@ WITH
 	-- dates_of_interest defines all points in time that are relevant to the query.
 	-- It includes the start_time, all status changes, all deletions, and the end_time.
 dates_of_interest AS (
-	SELECT $1::timestamptz AS date
-
-	UNION
-
-    SELECT DISTINCT changed_at AS date
-    FROM user_status_changes
-    WHERE changed_at > $1::timestamptz
-        AND changed_at < $2::timestamptz
-
-	UNION
-
-	SELECT DISTINCT deleted_at AS date
-	FROM user_deleted
-	WHERE deleted_at > $1::timestamptz
-		AND deleted_at < $2::timestamptz
-
-	UNION
-
-	SELECT $2::timestamptz AS date
+	SELECT date FROM generate_series(
+		$1::timestamptz,
+		$2::timestamptz,
+		(CASE WHEN $3::int <= 0 THEN 3600 * 24 ELSE $3::int END || ' seconds')::interval
+	) AS date
 ),
 	-- latest_status_before_range defines the status of each user before the start_time.
 	-- We do not include users who were deleted before the start_time. We use this to ensure that
@@ -3193,7 +3179,7 @@ ranked_status_change_per_user_per_date AS (
 	LEFT JOIN relevant_status_changes rsc1 ON rsc1.changed_at <= d.date
 )
 SELECT
-	rscpupd.date,
+	rscpupd.date::timestamptz AS date,
 	statuses.new_status AS status,
 	COUNT(rscpupd.user_id) FILTER (
 		WHERE rscpupd.rn = 1
@@ -3217,6 +3203,7 @@ ORDER BY rscpupd.date
 type GetUserStatusCountsParams struct {
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
+	Interval  int32     `db:"interval" json:"interval"`
 }
 
 type GetUserStatusCountsRow struct {
@@ -3238,7 +3225,7 @@ type GetUserStatusCountsRow struct {
 // We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 // the result shows the total number of users in each status on any particular day.
 func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime, arg.Interval)
 	if err != nil {
 		return nil, err
 	}
