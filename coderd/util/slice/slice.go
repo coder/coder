@@ -14,6 +14,9 @@ func ToStrings[T ~string](a []T) []string {
 }
 
 func StringEnums[E ~string](a []string) []E {
+	if a == nil {
+		return nil
+	}
 	tmp := make([]E, 0, len(a))
 	for _, v := range a {
 		tmp = append(tmp, E(v))

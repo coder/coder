@@ -2,6 +2,7 @@ package coderd_test
 
 import (
 	"context"
+	"database/sql"
 	"encoding/json"
 	"testing"
 	"time"
@@ -13,6 +14,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
 	"github.com/coder/coder/v2/provisionersdk/proto"
@@ -22,25 +25,6 @@ import (
 func TestProvisionerJobs(t *testing.T) {
 	t.Parallel()
 
-	// encode := func(v interface{}) []byte {
-	// 	b, err := json.Marshal(v)
-	// 	require.NoError(t, err)
-	// 	return b
-	// }
-
-	// db, ps := dbtestutil.NewDB(t,
-	// 	dbtestutil.WithDumpOnFailure(),
-	// 	//nolint:gocritic // Use UTC for consistent timestamp length in golden files.
-	// 	dbtestutil.WithTimezone("UTC"),
-	// )
-	// client, _, coderdAPI := coderdtest.NewWithAPI(t, &coderdtest.Options{
-	// 	IncludeProvisionerDaemon: true,
-	// 	Database:                 db,
-	// 	Pubsub:                   ps,
-	// })
-	// owner := coderdtest.CreateFirstUser(t, client)
-	// _, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
 	client := coderdtest.New(t, &coderdtest.Options{
 		IncludeProvisionerDaemon: true,
@@ -48,10 +32,8 @@ func TestProvisionerJobs(t *testing.T) {
 		Pubsub:                   ps,
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-
-	// client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
-	// user := coderdtest.CreateFirstUser(t, client)
 
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -70,6 +52,7 @@ func TestProvisionerJobs(t *testing.T) {
 	wbID := uuid.New()
 	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
 		OrganizationID: w.OrganizationID,
+		StartedAt:      sql.NullTime{Time: dbtime.Now(), Valid: true},
 		Type:           database.ProvisionerJobTypeWorkspaceBuild,
 		Input:          json.RawMessage(`{"workspace_build_id":"` + wbID.String() + `"}`),
 	})
@@ -83,20 +66,17 @@ func TestProvisionerJobs(t *testing.T) {
 	t.Run("All", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 		require.NoError(t, err)
 		require.Len(t, jobs, 3)
 	})
 
-	t.Run("Pending", func(t *testing.T) {
+	t.Run("Status", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
-			Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobPending},
+		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+			Status: []codersdk.ProvisionerJobStatus{codersdk.ProvisionerJobRunning},
 		})
-		for _, job := range jobs {
-			t.Logf("job: %#v", job)
-		}
 		require.NoError(t, err)
 		require.Len(t, jobs, 1)
 	})
@@ -104,11 +84,22 @@ func TestProvisionerJobs(t *testing.T) {
 	t.Run("Limit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
-		jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
+		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, &codersdk.OrganizationProvisionerJobsOptions{
 			Limit: 1,
 		})
 		require.NoError(t, err)
 		require.Len(t, jobs, 1)
+	})
+
+	// For now, this is not allowed even though the member has created a
+	// workspace. Once member-level permissions for jobs are supported
+	// by RBAC, this test should be updated.
+	t.Run("MemberDenied", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		jobs, err := memberClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
+		require.Error(t, err)
+		require.Len(t, jobs, 0)
 	})
 }
 

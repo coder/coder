@@ -20,6 +20,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
@@ -40,6 +42,12 @@ import (
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
+
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
 
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
