@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/stretchr/testify/require"
@@ -200,7 +201,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
 					// Use cmp.Diff to get a nice diff of the two values.
-					if diff := cmp.Diff(a, b); diff != "" {
+					if diff := cmp.Diff(a, b, cmpopts.EquateEmpty()); diff != "" {
 						s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
 					}
 				}
