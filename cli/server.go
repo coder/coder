@@ -413,7 +413,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if !vals.InMemoryDatabase && vals.PostgresURL == "" {
 				var closeFunc func() error
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
-				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, cacheDir)
+				customPostgresCacheDir := ""
+				// By default, built-in PostgreSQL will use the Coder root directory
+				// for its cache. However, when a deployment is ephemeral, the root
+				// directory is wiped clean on shutdown, defeating the purpose of using
+				// it as a cache. So here we use a cache directory that will not get
+				// removed on restart.
+				if vals.EphemeralDeployment.Value() {
+					customPostgresCacheDir = cacheDir
+				}
+				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir)
 				if err != nil {
 					return err
 				}
@@ -1964,7 +1973,7 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
 }
 
-func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, cacheDir string) (string, func() error, error) {
+func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", nil, err
@@ -1992,8 +2001,8 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 	}
 
 	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
-	if cacheDir != "" {
-		cachePath = filepath.Join(cacheDir, "postgres")
+	if customCacheDir != "" {
+		cachePath = filepath.Join(customCacheDir, "postgres")
 	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 	ep := embeddedpostgres.NewDatabase(
