@@ -381,6 +381,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			code := http.StatusInternalServerError
 			if rbac.IsUnauthorizedError(err) {
 				code = http.StatusForbidden
+			} else if database.IsUniqueViolation(err) {
+				// Concurrent builds may result in duplicate
+				// workspace_builds_workspace_id_build_number_key.
+				code = http.StatusConflict
 			}
 			return BuildError{code, "insert workspace build", err}
 		}

@@ -34,11 +34,15 @@ const DeploymentSettingsLayout = lazy(
 const DeploymentSettingsProvider = lazy(
 	() => import("./modules/management/DeploymentSettingsProvider"),
 );
+const OrganizationSidebarLayout = lazy(
+	() => import("./modules/management/OrganizationSidebarLayout"),
+);
 const OrganizationSettingsLayout = lazy(
 	() => import("./modules/management/OrganizationSettingsLayout"),
 );
-const CliAuthenticationPage = lazy(
-	() => import("./pages/CliAuthPage/CliAuthPage"),
+const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
+const CliInstallPage = lazy(
+	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
 const AccountPage = lazy(
 	() => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
@@ -427,9 +431,8 @@ export const router = createBrowserRouter(
 						{/* General settings for the default org can omit the organization name */}
 						<Route index element={<OrganizationSettingsPage />} />
 
-						<Route path=":organization">
-							<Route index element={<OrganizationSettingsPage />} />
-							<Route path="members" element={<OrganizationMembersPage />} />
+						<Route path=":organization" element={<OrganizationSidebarLayout />}>
+							<Route index element={<OrganizationMembersPage />} />
 							{groupsRouter()}
 							<Route path="roles">
 								<Route index element={<OrganizationCustomRolesPage />} />
@@ -441,6 +444,7 @@ export const router = createBrowserRouter(
 								element={<OrganizationProvisionersPage />}
 							/>
 							<Route path="idp-sync" element={<OrganizationIdPSyncPage />} />
+							<Route path="settings" element={<OrganizationSettingsPage />} />
 						</Route>
 					</Route>
 
@@ -539,6 +543,9 @@ export const router = createBrowserRouter(
 							element={<ProvisionerDaemonsHealthPage />}
 						/>
 					</Route>
+
+					<Route path="/install" element={<CliInstallPage />} />
+
 					{/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
               routes for. */}
@@ -559,7 +566,7 @@ export const router = createBrowserRouter(
 					path="/:username/:workspace/terminal"
 					element={<TerminalPage />}
 				/>
-				<Route path="/cli-auth" element={<CliAuthenticationPage />} />
+				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 			</Route>
 		</Route>,

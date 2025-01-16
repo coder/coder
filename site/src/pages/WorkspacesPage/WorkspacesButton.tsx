@@ -1,9 +1,8 @@
-import AddIcon from "@mui/icons-material/AddOutlined";
 import OpenIcon from "@mui/icons-material/OpenInNewOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { MenuSearch } from "components/Menu/MenuSearch";
 import { OverflowY } from "components/OverflowY/OverflowY";
@@ -13,6 +12,7 @@ import {
 	PopoverContent,
 	PopoverTrigger,
 } from "components/deprecated/Popover/Popover";
+import { ChevronDownIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { type FC, type ReactNode, useState } from "react";
 import type { UseQueryResult } from "react-query";
@@ -56,8 +56,9 @@ export const WorkspacesButton: FC<WorkspacesButtonProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<Button startIcon={<AddIcon />} variant="contained">
+				<Button size="lg">
 					{children}
+					<ChevronDownIcon />
 				</Button>
 			</PopoverTrigger>
 			<PopoverContent

@@ -771,3 +771,120 @@ SELECT
 FROM unique_template_params utp
 JOIN workspace_build_parameters wbp ON (utp.workspace_build_ids @> ARRAY[wbp.workspace_build_id] AND utp.name = wbp.name)
 GROUP BY utp.num, utp.template_ids, utp.name, utp.type, utp.display_name, utp.description, utp.options, wbp.value;
+
+-- name: GetUserStatusCounts :many
+-- GetUserStatusCounts returns the count of users in each status over time.
+-- The time range is inclusively defined by the start_time and end_time parameters.
+--
+-- Bucketing:
+-- Between the start_time and end_time, we include each timestamp where a user's status changed or they were deleted.
+-- We do not bucket these results by day or some other time unit. This is because such bucketing would hide potentially
+-- important patterns. If a user was active for 23 hours and 59 minutes, and then suspended, a daily bucket would hide this.
+-- A daily bucket would also have required us to carefully manage the timezone of the bucket based on the timezone of the user.
+--
+-- Accumulation:
+-- We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
+-- the result shows the total number of users in each status on any particular day.
+WITH
+	-- dates_of_interest defines all points in time that are relevant to the query.
+	-- It includes the start_time, all status changes, all deletions, and the end_time.
+dates_of_interest AS (
+	SELECT date FROM generate_series(
+		@start_time::timestamptz,
+		@end_time::timestamptz,
+		(CASE WHEN @interval::int <= 0 THEN 3600 * 24 ELSE @interval::int END || ' seconds')::interval
+	) AS date
+),
+	-- latest_status_before_range defines the status of each user before the start_time.
+	-- We do not include users who were deleted before the start_time. We use this to ensure that
+	-- we correctly count users prior to the start_time for a complete graph.
+latest_status_before_range AS (
+    SELECT
+        DISTINCT usc.user_id,
+        usc.new_status,
+        usc.changed_at,
+        ud.deleted
+    FROM user_status_changes usc
+	LEFT JOIN LATERAL (
+		SELECT COUNT(*) > 0 AS deleted
+		FROM user_deleted ud
+		WHERE ud.user_id = usc.user_id AND (ud.deleted_at < usc.changed_at OR ud.deleted_at < @start_time)
+	) AS ud ON true
+    WHERE usc.changed_at < @start_time::timestamptz
+    ORDER BY usc.user_id, usc.changed_at DESC
+),
+	-- status_changes_during_range defines the status of each user during the start_time and end_time.
+	-- If a user is deleted during the time range, we count status changes between the start_time and the deletion date.
+	-- Theoretically, it should probably not be possible to update the status of a deleted user, but we
+	-- need to ensure that this is enforced, so that a change in business logic later does not break this graph.
+status_changes_during_range AS (
+    SELECT
+        usc.user_id,
+        usc.new_status,
+        usc.changed_at,
+        ud.deleted
+    FROM user_status_changes usc
+	LEFT JOIN LATERAL (
+		SELECT COUNT(*) > 0 AS deleted
+		FROM user_deleted ud
+		WHERE ud.user_id = usc.user_id AND ud.deleted_at < usc.changed_at
+	) AS ud ON true
+    WHERE usc.changed_at >= @start_time::timestamptz
+        AND usc.changed_at <= @end_time::timestamptz
+),
+	-- relevant_status_changes defines the status of each user at any point in time.
+	-- It includes the status of each user before the start_time, and the status of each user during the start_time and end_time.
+relevant_status_changes AS (
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM latest_status_before_range
+    WHERE NOT deleted
+
+    UNION ALL
+
+    SELECT
+        user_id,
+        new_status,
+        changed_at
+    FROM status_changes_during_range
+    WHERE NOT deleted
+),
+	-- statuses defines all the distinct statuses that were present just before and during the time range.
+	-- This is used to ensure that we have a series for every relevant status.
+statuses AS (
+	SELECT DISTINCT new_status FROM relevant_status_changes
+),
+	-- We only want to count the latest status change for each user on each date and then filter them by the relevant status.
+	-- We use the row_number function to ensure that we only count the latest status change for each user on each date.
+	-- We then filter the status changes by the relevant status in the final select statement below.
+ranked_status_change_per_user_per_date AS (
+	SELECT
+	d.date,
+	rsc1.user_id,
+	ROW_NUMBER() OVER (PARTITION BY d.date, rsc1.user_id ORDER BY rsc1.changed_at DESC) AS rn,
+	rsc1.new_status
+	FROM dates_of_interest d
+	LEFT JOIN relevant_status_changes rsc1 ON rsc1.changed_at <= d.date
+)
+SELECT
+	rscpupd.date::timestamptz AS date,
+	statuses.new_status AS status,
+	COUNT(rscpupd.user_id) FILTER (
+		WHERE rscpupd.rn = 1
+		AND (
+			rscpupd.new_status = statuses.new_status
+			AND (
+				-- Include users who haven't been deleted
+				NOT EXISTS (SELECT 1 FROM user_deleted WHERE user_id = rscpupd.user_id)
+				OR
+				-- Or users whose deletion date is after the current date we're looking at
+				rscpupd.date < (SELECT deleted_at FROM user_deleted WHERE user_id = rscpupd.user_id)
+			)
+		)
+	) AS count
+FROM ranked_status_change_per_user_per_date rscpupd
+CROSS JOIN statuses
+GROUP BY rscpupd.date, statuses.new_status
+ORDER BY rscpupd.date;

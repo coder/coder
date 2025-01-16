@@ -160,6 +160,11 @@ func New(opts *Options) *Handler {
 	handler.buildInfoJSON = html.EscapeString(string(buildInfoResponse))
 	handler.handler = mux.ServeHTTP
 
+	handler.installScript, err = parseInstallScript(opts.SiteFS, opts.BuildInfo)
+	if err != nil {
+		_, _ = fmt.Fprintf(os.Stderr, "install.sh will be unavailable: %v", err.Error())
+	}
+
 	return handler
 }
 
@@ -169,8 +174,8 @@ type Handler struct {
 	secureHeaders *secure.Secure
 	handler       http.HandlerFunc
 	htmlTemplates *template.Template
-
 	buildInfoJSON string
+	installScript []byte
 
 	// RegionsFetcher will attempt to fetch the more detailed WorkspaceProxy data, but will fall back to the
 	// regions if the user does not have the correct permissions.
@@ -216,6 +221,16 @@ func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 		}
 		// If the asset does not exist, this will return a 404.
 		h.handler.ServeHTTP(rw, r)
+		return
+	// If requesting the install.sh script, respond with the preprocessed version
+	// which contains the correct hostname and version information.
+	case reqFile == "install.sh":
+		if h.installScript == nil {
+			http.NotFound(rw, r)
+			return
+		}
+		rw.Header().Add("Content-Type", "text/plain; charset=utf-8")
+		http.ServeContent(rw, r, reqFile, time.Time{}, bytes.NewReader(h.installScript))
 		return
 	// If the original file path exists we serve it.
 	case h.exists(reqFile):
@@ -531,6 +546,32 @@ func findAndParseHTMLFiles(files fs.FS) (*template.Template, error) {
 		return nil, err
 	}
 	return root, nil
+}
+
+type installScriptState struct {
+	Origin  string
+	Version string
+}
+
+func parseInstallScript(files fs.FS, buildInfo codersdk.BuildInfoResponse) ([]byte, error) {
+	scriptFile, err := fs.ReadFile(files, "install.sh")
+	if err != nil {
+		return nil, err
+	}
+
+	script, err := template.New("install.sh").Parse(string(scriptFile))
+	if err != nil {
+		return nil, err
+	}
+
+	var buf bytes.Buffer
+	state := installScriptState{Origin: buildInfo.DashboardURL, Version: buildInfo.Version}
+	err = script.Execute(&buf, state)
+	if err != nil {
+		return nil, err
+	}
+
+	return buf.Bytes(), nil
 }
 
 // ExtractOrReadBinFS checks the provided fs for compressed coder binaries and

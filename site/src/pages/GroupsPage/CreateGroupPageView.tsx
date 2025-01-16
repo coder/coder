@@ -2,19 +2,25 @@ import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type { CreateGroupRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FormFooter } from "components/FormFooter/FormFooter";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { IconField } from "components/IconField/IconField";
 import { Margins } from "components/Margins/Margins";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { useNavigate } from "react-router-dom";
-import { getFormHelpers, onChangeTrimmed } from "utils/formUtils";
+import {
+	getFormHelpers,
+	nameValidator,
+	onChangeTrimmed,
+} from "utils/formUtils";
 import * as Yup from "yup";
 
 const validationSchema = Yup.object({
-	name: Yup.string().required().label("Name"),
+	name: nameValidator("Name"),
 });
 
 export type CreateGroupPageViewProps = {
@@ -60,6 +66,8 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							autoFocus
 							fullWidth
 							label="Name"
+							onChange={onChangeTrimmed(form)}
+							autoComplete="name"
 						/>
 						<TextField
 							{...getFieldHelpers("display_name", {
@@ -67,6 +75,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							})}
 							fullWidth
 							label="Display Name"
+							autoComplete="display_name"
 						/>
 						<IconField
 							{...getFieldHelpers("avatar_url")}
@@ -76,7 +85,17 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 							onPickEmoji={(value) => form.setFieldValue("avatar_url", value)}
 						/>
 					</Stack>
-					<FormFooter onCancel={onCancel} isLoading={isLoading} />
+
+					<FormFooter className="mt-8">
+						<Button onClick={onCancel} variant="outline">
+							Cancel
+						</Button>
+
+						<Button type="submit" disabled={isLoading}>
+							{isLoading && <Spinner />}
+							Save
+						</Button>
+					</FormFooter>
 				</form>
 			</FullPageForm>
 		</Margins>

@@ -65,20 +65,16 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			{open && (
-				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-content-primary/50" />
+				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-surface-primary/50" />
 			)}
 			<DropdownMenuTrigger asChild>
 				<Button
 					aria-label={open ? "Close menu" : "Open menu"}
-					size="icon"
-					variant="ghost"
-					className="ml-auto md:hidden [&_svg]:size-6"
+					size="lg"
+					variant="subtle"
+					className="ml-auto md:hidden"
 				>
-					{open ? (
-						<XIcon className="size-icon-lg" />
-					) : (
-						<MenuIcon className="size-icon-lg" />
-					)}
+					{open ? <XIcon /> : <MenuIcon />}
 				</Button>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent

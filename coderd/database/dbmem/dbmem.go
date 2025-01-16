@@ -88,6 +88,7 @@ func New() database.Store {
 			customRoles:               make([]database.CustomRole, 0),
 			locks:                     map[int64]struct{}{},
 			runtimeConfig:             map[string]string{},
+			userStatusChanges:         make([]database.UserStatusChange, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -256,6 +257,7 @@ type data struct {
 	lastLicenseID                    int32
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
+	userStatusChanges                []database.UserStatusChange
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -2206,6 +2208,11 @@ func (q *FakeQuerier) DeleteWorkspaceAgentPortSharesByTemplate(_ context.Context
 	return nil
 }
 
+func (*FakeQuerier) DisableForeignKeysAndTriggers(_ context.Context) error {
+	// This is a no-op in the in-memory database.
+	return nil
+}
+
 func (q *FakeQuerier) EnqueueNotificationMessage(_ context.Context, arg database.EnqueueNotificationMessageParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -3747,6 +3754,100 @@ func (q *FakeQuerier) GetProvisionerDaemonsByOrganization(_ context.Context, arg
 	}
 
 	return daemons, nil
+}
+
+func (q *FakeQuerier) GetProvisionerDaemonsWithStatusByOrganization(_ context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	var rows []database.GetProvisionerDaemonsWithStatusByOrganizationRow
+	for _, daemon := range q.provisionerDaemons {
+		if daemon.OrganizationID != arg.OrganizationID {
+			continue
+		}
+		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, daemon.ID) {
+			continue
+		}
+
+		if len(arg.Tags) > 0 {
+			// Special case for untagged provisioners: only match untagged jobs.
+			// Ref: coderd/database/queries/provisionerjobs.sql:24-30
+			// CASE WHEN nested.tags :: jsonb = '{"scope": "organization", "owner": ""}' :: jsonb
+			//      THEN nested.tags :: jsonb = @tags :: jsonb
+			if tagsEqual(arg.Tags, tagsUntagged) && !tagsEqual(arg.Tags, daemon.Tags) {
+				continue
+			}
+			// ELSE nested.tags :: jsonb <@ @tags :: jsonb
+			if !tagsSubset(arg.Tags, daemon.Tags) {
+				continue
+			}
+		}
+
+		var status database.ProvisionerDaemonStatus
+		var currentJob database.ProvisionerJob
+		if !daemon.LastSeenAt.Valid || daemon.LastSeenAt.Time.Before(time.Now().Add(-time.Duration(arg.StaleIntervalMS)*time.Millisecond)) {
+			status = database.ProvisionerDaemonStatusOffline
+		} else {
+			for _, job := range q.provisionerJobs {
+				if job.WorkerID.Valid && job.WorkerID.UUID == daemon.ID && !job.CompletedAt.Valid && !job.Error.Valid {
+					currentJob = job
+					break
+				}
+			}
+
+			if currentJob.ID != uuid.Nil {
+				status = database.ProvisionerDaemonStatusBusy
+			} else {
+				status = database.ProvisionerDaemonStatusIdle
+			}
+		}
+
+		var previousJob database.ProvisionerJob
+		for _, job := range q.provisionerJobs {
+			if !job.WorkerID.Valid || job.WorkerID.UUID != daemon.ID {
+				continue
+			}
+
+			if job.StartedAt.Valid ||
+				job.CanceledAt.Valid ||
+				job.CompletedAt.Valid ||
+				job.Error.Valid {
+				if job.CompletedAt.Time.After(previousJob.CompletedAt.Time) {
+					previousJob = job
+				}
+			}
+		}
+
+		// Get the provisioner key name
+		var keyName string
+		for _, key := range q.provisionerKeys {
+			if key.ID == daemon.KeyID {
+				keyName = key.Name
+				break
+			}
+		}
+
+		rows = append(rows, database.GetProvisionerDaemonsWithStatusByOrganizationRow{
+			ProvisionerDaemon: daemon,
+			Status:            status,
+			KeyName:           keyName,
+			CurrentJobID:      uuid.NullUUID{UUID: currentJob.ID, Valid: currentJob.ID != uuid.Nil},
+			CurrentJobStatus:  database.NullProvisionerJobStatus{ProvisionerJobStatus: currentJob.JobStatus, Valid: currentJob.ID != uuid.Nil},
+			PreviousJobID:     uuid.NullUUID{UUID: previousJob.ID, Valid: previousJob.ID != uuid.Nil},
+			PreviousJobStatus: database.NullProvisionerJobStatus{ProvisionerJobStatus: previousJob.JobStatus, Valid: previousJob.ID != uuid.Nil},
+		})
+	}
+
+	slices.SortFunc(rows, func(a, b database.GetProvisionerDaemonsWithStatusByOrganizationRow) int {
+		return a.ProvisionerDaemon.CreatedAt.Compare(b.ProvisionerDaemon.CreatedAt)
+	})
+
+	return rows, nil
 }
 
 func (q *FakeQuerier) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
@@ -5662,6 +5763,42 @@ func (q *FakeQuerier) GetUserNotificationPreferences(_ context.Context, userID u
 	}
 
 	return out, nil
+}
+
+func (q *FakeQuerier) GetUserStatusCounts(_ context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return nil, err
+	}
+
+	result := make([]database.GetUserStatusCountsRow, 0)
+	for _, change := range q.userStatusChanges {
+		if change.ChangedAt.Before(arg.StartTime) || change.ChangedAt.After(arg.EndTime) {
+			continue
+		}
+		date := time.Date(change.ChangedAt.Year(), change.ChangedAt.Month(), change.ChangedAt.Day(), 0, 0, 0, 0, time.UTC)
+		if !slices.ContainsFunc(result, func(r database.GetUserStatusCountsRow) bool {
+			return r.Status == change.NewStatus && r.Date.Equal(date)
+		}) {
+			result = append(result, database.GetUserStatusCountsRow{
+				Status: change.NewStatus,
+				Date:   date,
+				Count:  1,
+			})
+		} else {
+			for i, r := range result {
+				if r.Status == change.NewStatus && r.Date.Equal(date) {
+					result[i].Count++
+					break
+				}
+			}
+		}
+	}
+
+	return result, nil
 }
 
 func (q *FakeQuerier) GetUserWorkspaceBuildParameters(_ context.Context, params database.GetUserWorkspaceBuildParametersParams) ([]database.GetUserWorkspaceBuildParametersRow, error) {
@@ -8016,6 +8153,12 @@ func (q *FakeQuerier) InsertUser(_ context.Context, arg database.InsertUserParam
 	sort.Slice(q.users, func(i, j int) bool {
 		return q.users[i].CreatedAt.Before(q.users[j].CreatedAt)
 	})
+
+	q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+		UserID:    user.ID,
+		NewStatus: user.Status,
+		ChangedAt: user.UpdatedAt,
+	})
 	return user, nil
 }
 
@@ -9057,12 +9200,18 @@ func (q *FakeQuerier) UpdateInactiveUsersToDormant(_ context.Context, params dat
 				Username:   user.Username,
 				LastSeenAt: user.LastSeenAt,
 			})
+			q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+				UserID:    user.ID,
+				NewStatus: database.UserStatusDormant,
+				ChangedAt: params.UpdatedAt,
+			})
 		}
 	}
 
 	if len(updated) == 0 {
 		return nil, sql.ErrNoRows
 	}
+
 	return updated, nil
 }
 
@@ -9863,6 +10012,12 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 		user.Status = arg.Status
 		user.UpdatedAt = arg.UpdatedAt
 		q.users[index] = user
+
+		q.userStatusChanges = append(q.userStatusChanges, database.UserStatusChange{
+			UserID:    user.ID,
+			NewStatus: user.Status,
+			ChangedAt: user.UpdatedAt,
+		})
 		return user, nil
 	}
 	return database.User{}, sql.ErrNoRows

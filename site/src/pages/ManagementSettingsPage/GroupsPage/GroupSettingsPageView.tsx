@@ -1,5 +1,6 @@
 import TextField from "@mui/material/TextField";
 import type { Group } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -9,6 +10,7 @@ import {
 import { IconField } from "components/IconField/IconField";
 import { Loader } from "components/Loader/Loader";
 import { ResourcePageHeader } from "components/PageHeader/PageHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import type { FC } from "react";
 import {
@@ -116,7 +118,16 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 				</FormFields>
 			</FormSection>
 
-			<FormFooter onCancel={onCancel} isLoading={isLoading} />
+			<FormFooter className="mt-8">
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button type="submit" disabled={isLoading}>
+					{isLoading && <Spinner />}
+					Save
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

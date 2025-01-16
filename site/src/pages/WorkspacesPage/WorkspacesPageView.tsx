@@ -38,7 +38,6 @@ export const Language = {
 	yourWorkspacesButton: "Your workspaces",
 	allWorkspacesButton: "All workspaces",
 	runningWorkspacesButton: "Running workspaces",
-	createWorkspace: <>Create Workspace&hellip;</>,
 	seeAllTemplates: "See all templates",
 	template: "Template",
 };
@@ -103,7 +102,7 @@ export const WorkspacesPageView: FC<WorkspacesPageViewProps> = ({
 						templates={templates}
 						templatesFetchStatus={templatesFetchStatus}
 					>
-						{Language.createWorkspace}
+						New workspace
 					</WorkspacesButton>
 				}
 			>

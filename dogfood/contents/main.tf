@@ -20,7 +20,6 @@ locals {
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
-    "ja-tokyo"      = "tcp://reuenthal-tokyo-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -83,11 +82,6 @@ data "coder_parameter" "region" {
     name  = "Cape Town"
     value = "za-cpt"
   }
-  option {
-    icon  = "/emojis/1f1ef-1f1f5.png"
-    name  = "Tokyo"
-    value = "ja-tokyo"
-  }
 }
 
 provider "docker" {
@@ -147,6 +141,17 @@ module "code-server" {
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
+}
+
+module "vscode-web" {
+  count                   = data.coder_workspace.me.start_count
+  source                  = "registry.coder.com/modules/vscode-web/coder"
+  version                 = ">= 1.0.0"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  extensions              = ["github.copilot"]
+  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
+  accept_license          = true
 }
 
 module "jetbrains_gateway" {

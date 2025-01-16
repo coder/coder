@@ -255,7 +255,6 @@ func AppFromProto(protoApp *proto.WorkspaceApp) (codersdk.WorkspaceApp, error) {
 		},
 		Health: health,
 		Hidden: protoApp.Hidden,
-		OpenIn: protoApp.OpenIn,
 	}, nil
 }
 
@@ -286,7 +285,6 @@ func ProtoFromApp(a codersdk.WorkspaceApp) (*proto.WorkspaceApp, error) {
 		},
 		Health: proto.WorkspaceApp_Health(health),
 		Hidden: a.Hidden,
-		OpenIn: a.OpenIn,
 	}, nil
 }
 

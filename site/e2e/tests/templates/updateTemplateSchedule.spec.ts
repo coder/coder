@@ -36,7 +36,7 @@ test("update template schedule settings without override other settings", async 
 		waitUntil: "domcontentloaded",
 	});
 	await page.getByLabel("Default autostop (hours)").fill("48");
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expect(page.getByText("Template updated successfully")).toBeVisible();
 
 	const updatedTemplate = await API.getTemplate(template.id);

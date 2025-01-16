@@ -352,6 +352,126 @@ func TestGetEligibleProvisionerDaemonsByProvisionerJobIDs(t *testing.T) {
 	})
 }
 
+func TestGetProvisionerDaemonsWithStatusByOrganization(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoDaemonsInOrgReturnsEmpty", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+		otherOrg := dbgen.Organization(t, db, database.Organization{})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: otherOrg.ID,
+		})
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+		})
+		require.NoError(t, err)
+		require.Empty(t, daemons)
+	})
+
+	t.Run("MatchesProvisionerIDs", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		matchingDaemon0 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon0",
+			OrganizationID: org.ID,
+		})
+		matchingDaemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "matching-daemon1",
+			OrganizationID: org.ID,
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "non-matching-daemon",
+			OrganizationID: org.ID,
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+			IDs:            []uuid.UUID{matchingDaemon0.ID, matchingDaemon1.ID},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+		if daemons[0].ProvisionerDaemon.ID != matchingDaemon0.ID {
+			daemons[0], daemons[1] = daemons[1], daemons[0]
+		}
+		require.Equal(t, matchingDaemon0.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, matchingDaemon1.ID, daemons[1].ProvisionerDaemon.ID)
+	})
+
+	t.Run("MatchesTags", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		fooDaemon := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "foo-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"foo": "bar",
+			},
+		})
+		dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "baz-daemon",
+			OrganizationID: org.ID,
+			Tags: database.StringMap{
+				"baz": "qux",
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID: org.ID,
+			Tags:           database.StringMap{"foo": "bar"},
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 1)
+		require.Equal(t, fooDaemon.ID, daemons[0].ProvisionerDaemon.ID)
+	})
+
+	t.Run("UsesStaleInterval", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		org := dbgen.Organization(t, db, database.Organization{})
+
+		daemon1 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "stale-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-time.Hour),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-time.Hour),
+			},
+		})
+		daemon2 := dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{
+			Name:           "idle-daemon",
+			OrganizationID: org.ID,
+			CreatedAt:      dbtime.Now().Add(-(30 * time.Minute)),
+			LastSeenAt: sql.NullTime{
+				Valid: true,
+				Time:  dbtime.Now().Add(-(30 * time.Minute)),
+			},
+		})
+
+		daemons, err := db.GetProvisionerDaemonsWithStatusByOrganization(context.Background(), database.GetProvisionerDaemonsWithStatusByOrganizationParams{
+			OrganizationID:  org.ID,
+			StaleIntervalMS: 45 * time.Minute.Milliseconds(),
+		})
+		require.NoError(t, err)
+		require.Len(t, daemons, 2)
+
+		if daemons[0].ProvisionerDaemon.ID != daemon1.ID {
+			daemons[0], daemons[1] = daemons[1], daemons[0]
+		}
+		require.Equal(t, daemon1.ID, daemons[0].ProvisionerDaemon.ID)
+		require.Equal(t, daemon2.ID, daemons[1].ProvisionerDaemon.ID)
+		require.Equal(t, database.ProvisionerDaemonStatusOffline, daemons[0].Status)
+		require.Equal(t, database.ProvisionerDaemonStatusIdle, daemons[1].Status)
+	})
+}
+
 func TestGetWorkspaceAgentUsageStats(t *testing.T) {
 	t.Parallel()
 
@@ -2253,6 +2373,547 @@ func TestGroupRemovalTrigger(t *testing.T) {
 		orgA.ID, orgB.ID, // Everyone groups
 		groupA1.ID, groupA2.ID, groupB1.ID, groupB2.ID, // Org groups
 	}, db2sdk.List(extraUserGroups, onlyGroupIDs))
+}
+
+func TestGetUserStatusCounts(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.SkipNow()
+	}
+
+	timezones := []string{
+		"Canada/Newfoundland",
+		"Africa/Johannesburg",
+		"America/New_York",
+		"Europe/London",
+		"Asia/Tokyo",
+		"Australia/Sydney",
+	}
+
+	for _, tz := range timezones {
+		tz := tz
+		t.Run(tz, func(t *testing.T) {
+			t.Parallel()
+
+			location, err := time.LoadLocation(tz)
+			if err != nil {
+				t.Fatalf("failed to load location: %v", err)
+			}
+			today := dbtime.Now().In(location)
+			createdAt := today.Add(-5 * 24 * time.Hour)
+			firstTransitionTime := createdAt.Add(2 * 24 * time.Hour)
+			secondTransitionTime := firstTransitionTime.Add(2 * 24 * time.Hour)
+
+			t.Run("No Users", func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+					StartTime: createdAt,
+					EndTime:   today,
+				})
+				require.NoError(t, err)
+				require.Empty(t, counts, "should return no results when there are no users")
+			})
+
+			t.Run("One User/Creation Only", func(t *testing.T) {
+				t.Parallel()
+
+				testCases := []struct {
+					name   string
+					status database.UserStatus
+				}{
+					{
+						name:   "Active Only",
+						status: database.UserStatusActive,
+					},
+					{
+						name:   "Dormant Only",
+						status: database.UserStatusDormant,
+					},
+					{
+						name:   "Suspended Only",
+						status: database.UserStatusSuspended,
+					},
+				}
+
+				for _, tc := range testCases {
+					tc := tc
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						db, _ := dbtestutil.NewDB(t)
+						ctx := testutil.Context(t, testutil.WaitShort)
+
+						// Create a user that's been in the specified status for the past 30 days
+						dbgen.User(t, db, database.User{
+							Status:    tc.status,
+							CreatedAt: createdAt,
+							UpdatedAt: createdAt,
+						})
+
+						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
+						})
+						require.NoError(t, err)
+
+						numDays := int(dbtime.StartOfDay(today).Sub(dbtime.StartOfDay(createdAt)).Hours() / 24)
+						require.Len(t, userStatusChanges, numDays+1, "should have 1 entry per day between the start and end time, including the end time")
+
+						for i, row := range userStatusChanges {
+							require.Equal(t, tc.status, row.Status, "should have the correct status")
+							require.True(
+								t,
+								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+								"expected date %s, but got %s for row %n",
+								dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
+								row.Date.In(location).String(),
+								i,
+							)
+							if row.Date.Before(createdAt) {
+								require.Equal(t, int64(0), row.Count, "should have 0 users before creation")
+							} else {
+								require.Equal(t, int64(1), row.Count, "should have 1 user after creation")
+							}
+						}
+					})
+				}
+			})
+
+			t.Run("One User/One Transition", func(t *testing.T) {
+				t.Parallel()
+
+				testCases := []struct {
+					name           string
+					initialStatus  database.UserStatus
+					targetStatus   database.UserStatus
+					expectedCounts map[time.Time]map[database.UserStatus]int64
+				}{
+					{
+						name:          "Active to Dormant",
+						initialStatus: database.UserStatusActive,
+						targetStatus:  database.UserStatusDormant,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusActive:  1,
+								database.UserStatusDormant: 0,
+							},
+							firstTransitionTime: {
+								database.UserStatusDormant: 1,
+								database.UserStatusActive:  0,
+							},
+							today: {
+								database.UserStatusDormant: 1,
+								database.UserStatusActive:  0,
+							},
+						},
+					},
+					{
+						name:          "Active to Suspended",
+						initialStatus: database.UserStatusActive,
+						targetStatus:  database.UserStatusSuspended,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusActive:    1,
+								database.UserStatusSuspended: 0,
+							},
+							firstTransitionTime: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusActive:    0,
+							},
+							today: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusActive:    0,
+							},
+						},
+					},
+					{
+						name:          "Dormant to Active",
+						initialStatus: database.UserStatusDormant,
+						targetStatus:  database.UserStatusActive,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusDormant: 1,
+								database.UserStatusActive:  0,
+							},
+							firstTransitionTime: {
+								database.UserStatusActive:  1,
+								database.UserStatusDormant: 0,
+							},
+							today: {
+								database.UserStatusActive:  1,
+								database.UserStatusDormant: 0,
+							},
+						},
+					},
+					{
+						name:          "Dormant to Suspended",
+						initialStatus: database.UserStatusDormant,
+						targetStatus:  database.UserStatusSuspended,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusDormant:   1,
+								database.UserStatusSuspended: 0,
+							},
+							firstTransitionTime: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusDormant:   0,
+							},
+							today: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusDormant:   0,
+							},
+						},
+					},
+					{
+						name:          "Suspended to Active",
+						initialStatus: database.UserStatusSuspended,
+						targetStatus:  database.UserStatusActive,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusActive:    0,
+							},
+							firstTransitionTime: {
+								database.UserStatusActive:    1,
+								database.UserStatusSuspended: 0,
+							},
+							today: {
+								database.UserStatusActive:    1,
+								database.UserStatusSuspended: 0,
+							},
+						},
+					},
+					{
+						name:          "Suspended to Dormant",
+						initialStatus: database.UserStatusSuspended,
+						targetStatus:  database.UserStatusDormant,
+						expectedCounts: map[time.Time]map[database.UserStatus]int64{
+							createdAt: {
+								database.UserStatusSuspended: 1,
+								database.UserStatusDormant:   0,
+							},
+							firstTransitionTime: {
+								database.UserStatusDormant:   1,
+								database.UserStatusSuspended: 0,
+							},
+							today: {
+								database.UserStatusDormant:   1,
+								database.UserStatusSuspended: 0,
+							},
+						},
+					},
+				}
+
+				for _, tc := range testCases {
+					tc := tc
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+						db, _ := dbtestutil.NewDB(t)
+						ctx := testutil.Context(t, testutil.WaitShort)
+
+						// Create a user that starts with initial status
+						user := dbgen.User(t, db, database.User{
+							Status:    tc.initialStatus,
+							CreatedAt: createdAt,
+							UpdatedAt: createdAt,
+						})
+
+						// After 2 days, change status to target status
+						user, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+							ID:        user.ID,
+							Status:    tc.targetStatus,
+							UpdatedAt: firstTransitionTime,
+						})
+						require.NoError(t, err)
+
+						// Query for the last 5 days
+						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
+						})
+						require.NoError(t, err)
+
+						for i, row := range userStatusChanges {
+							require.True(
+								t,
+								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2)),
+								"expected date %s, but got %s for row %n",
+								dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2),
+								row.Date.In(location).String(),
+								i,
+							)
+							if row.Date.Before(createdAt) {
+								require.Equal(t, int64(0), row.Count)
+							} else if row.Date.Before(firstTransitionTime) {
+								if row.Status == tc.initialStatus {
+									require.Equal(t, int64(1), row.Count)
+								} else if row.Status == tc.targetStatus {
+									require.Equal(t, int64(0), row.Count)
+								}
+							} else if !row.Date.After(today) {
+								if row.Status == tc.initialStatus {
+									require.Equal(t, int64(0), row.Count)
+								} else if row.Status == tc.targetStatus {
+									require.Equal(t, int64(1), row.Count)
+								}
+							} else {
+								t.Errorf("date %q beyond expected range end %q", row.Date, today)
+							}
+						}
+					})
+				}
+			})
+
+			t.Run("Two Users/One Transition", func(t *testing.T) {
+				t.Parallel()
+
+				type transition struct {
+					from database.UserStatus
+					to   database.UserStatus
+				}
+
+				type testCase struct {
+					name            string
+					user1Transition transition
+					user2Transition transition
+				}
+
+				testCases := []testCase{
+					{
+						name: "Active->Dormant and Dormant->Suspended",
+						user1Transition: transition{
+							from: database.UserStatusActive,
+							to:   database.UserStatusDormant,
+						},
+						user2Transition: transition{
+							from: database.UserStatusDormant,
+							to:   database.UserStatusSuspended,
+						},
+					},
+					{
+						name: "Suspended->Active and Active->Dormant",
+						user1Transition: transition{
+							from: database.UserStatusSuspended,
+							to:   database.UserStatusActive,
+						},
+						user2Transition: transition{
+							from: database.UserStatusActive,
+							to:   database.UserStatusDormant,
+						},
+					},
+					{
+						name: "Dormant->Active and Suspended->Dormant",
+						user1Transition: transition{
+							from: database.UserStatusDormant,
+							to:   database.UserStatusActive,
+						},
+						user2Transition: transition{
+							from: database.UserStatusSuspended,
+							to:   database.UserStatusDormant,
+						},
+					},
+					{
+						name: "Active->Suspended and Suspended->Active",
+						user1Transition: transition{
+							from: database.UserStatusActive,
+							to:   database.UserStatusSuspended,
+						},
+						user2Transition: transition{
+							from: database.UserStatusSuspended,
+							to:   database.UserStatusActive,
+						},
+					},
+					{
+						name: "Dormant->Suspended and Dormant->Active",
+						user1Transition: transition{
+							from: database.UserStatusDormant,
+							to:   database.UserStatusSuspended,
+						},
+						user2Transition: transition{
+							from: database.UserStatusDormant,
+							to:   database.UserStatusActive,
+						},
+					},
+				}
+
+				for _, tc := range testCases {
+					tc := tc
+					t.Run(tc.name, func(t *testing.T) {
+						t.Parallel()
+
+						db, _ := dbtestutil.NewDB(t)
+						ctx := testutil.Context(t, testutil.WaitShort)
+
+						user1 := dbgen.User(t, db, database.User{
+							Status:    tc.user1Transition.from,
+							CreatedAt: createdAt,
+							UpdatedAt: createdAt,
+						})
+						user2 := dbgen.User(t, db, database.User{
+							Status:    tc.user2Transition.from,
+							CreatedAt: createdAt,
+							UpdatedAt: createdAt,
+						})
+
+						// First transition at 2 days
+						user1, err := db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+							ID:        user1.ID,
+							Status:    tc.user1Transition.to,
+							UpdatedAt: firstTransitionTime,
+						})
+						require.NoError(t, err)
+
+						// Second transition at 4 days
+						user2, err = db.UpdateUserStatus(ctx, database.UpdateUserStatusParams{
+							ID:        user2.ID,
+							Status:    tc.user2Transition.to,
+							UpdatedAt: secondTransitionTime,
+						})
+						require.NoError(t, err)
+
+						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
+						})
+						require.NoError(t, err)
+						require.NotEmpty(t, userStatusChanges)
+						gotCounts := map[time.Time]map[database.UserStatus]int64{}
+						for _, row := range userStatusChanges {
+							dateInLocation := row.Date.In(location)
+							if gotCounts[dateInLocation] == nil {
+								gotCounts[dateInLocation] = map[database.UserStatus]int64{}
+							}
+							gotCounts[dateInLocation][row.Status] = row.Count
+						}
+
+						expectedCounts := map[time.Time]map[database.UserStatus]int64{}
+						for d := dbtime.StartOfDay(createdAt); !d.After(dbtime.StartOfDay(today)); d = d.AddDate(0, 0, 1) {
+							expectedCounts[d] = map[database.UserStatus]int64{}
+
+							// Default values
+							expectedCounts[d][tc.user1Transition.from] = 0
+							expectedCounts[d][tc.user1Transition.to] = 0
+							expectedCounts[d][tc.user2Transition.from] = 0
+							expectedCounts[d][tc.user2Transition.to] = 0
+
+							// Counted Values
+							if d.Before(createdAt) {
+								continue
+							} else if d.Before(firstTransitionTime) {
+								expectedCounts[d][tc.user1Transition.from]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(secondTransitionTime) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(today) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.to]++
+							} else {
+								t.Fatalf("date %q beyond expected range end %q", d, today)
+							}
+						}
+
+						require.Equal(t, expectedCounts, gotCounts)
+					})
+				}
+			})
+
+			t.Run("User precedes and survives query range", func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				_ = dbgen.User(t, db, database.User{
+					Status:    database.UserStatusActive,
+					CreatedAt: createdAt,
+					UpdatedAt: createdAt,
+				})
+
+				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+					StartTime: dbtime.StartOfDay(createdAt.Add(time.Hour * 24)),
+					EndTime:   dbtime.StartOfDay(today),
+				})
+				require.NoError(t, err)
+
+				for i, row := range userStatusChanges {
+					require.True(
+						t,
+						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i)),
+						"expected date %s, but got %s for row %n",
+						dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i),
+						row.Date.In(location).String(),
+						i,
+					)
+					require.Equal(t, database.UserStatusActive, row.Status)
+					require.Equal(t, int64(1), row.Count)
+				}
+			})
+
+			t.Run("User deleted before query range", func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				user := dbgen.User(t, db, database.User{
+					Status:    database.UserStatusActive,
+					CreatedAt: createdAt,
+					UpdatedAt: createdAt,
+				})
+
+				err = db.UpdateUserDeletedByID(ctx, user.ID)
+				require.NoError(t, err)
+
+				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+					StartTime: today.Add(time.Hour * 24),
+					EndTime:   today.Add(time.Hour * 48),
+				})
+				require.NoError(t, err)
+				require.Empty(t, userStatusChanges)
+			})
+
+			t.Run("User deleted during query range", func(t *testing.T) {
+				t.Parallel()
+				db, _ := dbtestutil.NewDB(t)
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				user := dbgen.User(t, db, database.User{
+					Status:    database.UserStatusActive,
+					CreatedAt: createdAt,
+					UpdatedAt: createdAt,
+				})
+
+				err := db.UpdateUserDeletedByID(ctx, user.ID)
+				require.NoError(t, err)
+
+				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
+					StartTime: dbtime.StartOfDay(createdAt),
+					EndTime:   dbtime.StartOfDay(today.Add(time.Hour * 24)),
+				})
+				require.NoError(t, err)
+				for i, row := range userStatusChanges {
+					require.True(
+						t,
+						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+						"expected date %s, but got %s for row %n",
+						dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
+						row.Date.In(location).String(),
+						i,
+					)
+					require.Equal(t, database.UserStatusActive, row.Status)
+					if row.Date.Before(createdAt) {
+						require.Equal(t, int64(0), row.Count)
+					} else if i == len(userStatusChanges)-1 {
+						require.Equal(t, int64(0), row.Count)
+					} else {
+						require.Equal(t, int64(1), row.Count)
+					}
+				}
+			})
+		})
+	}
 }
 
 func requireUsersMatch(t testing.TB, expected []database.User, found []database.GetUsersRow, msg string) {
