@@ -1978,7 +1978,7 @@ func (q *querier) GetProvisionerJobTimingsByJobID(ctx context.Context, jobID uui
 	return q.db.GetProvisionerJobTimingsByJobID(ctx, jobID)
 }
 
-// TODO: we need to add a provisioner job resource
+// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
 func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 	// 	return nil, err
@@ -1986,17 +1986,16 @@ func (q *querier) GetProvisionerJobsByIDs(ctx context.Context, ids []uuid.UUID) 
 	return q.db.GetProvisionerJobsByIDs(ctx, ids)
 }
 
-// TODO: we need to add a provisioner job resource
+// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
 func (q *querier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Context, ids []uuid.UUID) ([]database.GetProvisionerJobsByIDsWithQueuePositionRow, error) {
 	return q.db.GetProvisionerJobsByIDsWithQueuePosition(ctx, ids)
 }
 
-// TODO: we need to add a provisioner job resource
 func (q *querier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
-	return q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, arg)
+	return fetchWithPostFilter(q.auth, policy.ActionRead, q.db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner)(ctx, arg)
 }
 
-// TODO: We need to create a ProvisionerJob resource type
+// TODO: We have a ProvisionerJobs resource, but it hasn't been checked for this use-case.
 func (q *querier) GetProvisionerJobsCreatedAfter(ctx context.Context, createdAt time.Time) ([]database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
 	// return nil, err

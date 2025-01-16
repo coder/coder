@@ -2,7 +2,6 @@ package database
 
 import (
 	"encoding/hex"
-	"encoding/json"
 	"sort"
 	"strconv"
 	"time"
@@ -15,7 +14,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
-	"github.com/coder/coder/v2/codersdk"
 )
 
 type WorkspaceStatus string
@@ -461,25 +459,12 @@ func (g Group) IsEveryone() bool {
 }
 
 func (p ProvisionerJob) RBACObject() rbac.Object {
-	var input codersdk.ProvisionerJobInput
-	_ = json.Unmarshal(p.Input, &input) // Best effort.
-
-	id := uuid.Nil
 	switch p.Type {
-	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun:
-		if input.TemplateVersionID != nil {
-			id = *input.TemplateVersionID
-		}
-		return rbac.ResourceTemplate.
-			WithID(id).
-			InOrg(p.OrganizationID)
-	case ProvisionerJobTypeWorkspaceBuild:
-		if input.WorkspaceBuildID != nil {
-			id = *input.WorkspaceBuildID
-		}
-		return rbac.ResourceWorkspace.
-			WithID(id).
-			InOrg(p.OrganizationID)
+	// Only acceptable for known job types at this time because template
+	// admins may not be allowed to view new types.
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild:
+		return rbac.ResourceProvisionerJobs.InOrg(p.OrganizationID)
+
 	default:
 		panic("developer error: unknown provisioner job type " + string(p.Type))
 	}
@@ -537,4 +522,8 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := k.Secret.Valid
 	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time)
 	return hasSecret && isBeforeDeletion
+}
+
+func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
+	return r.ProvisionerJob.RBACObject()
 }
