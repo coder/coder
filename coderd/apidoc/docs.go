@@ -10875,6 +10875,9 @@ const docTemplate = `{
                 "enable_terraform_debug_mode": {
                     "type": "boolean"
                 },
+                "ephemeral_deployment": {
+                    "type": "boolean"
+                },
                 "experiments": {
                     "type": "array",
                     "items": {
