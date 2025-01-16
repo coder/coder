@@ -45,7 +45,6 @@ export const CustomRolesPageView: FC<CustomRolesPageViewProps> = ({
 	canAssignOrgRole,
 	isCustomRolesEnabled,
 }) => {
-	const theme = useTheme();
 	return (
 		<Stack spacing={4}>
 			{!isCustomRolesEnabled && (
