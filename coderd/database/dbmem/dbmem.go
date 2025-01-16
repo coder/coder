@@ -4110,7 +4110,9 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 	slices.SortFunc(rows, func(a, b database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) int {
 		return b.ProvisionerJob.CreatedAt.Compare(a.ProvisionerJob.CreatedAt)
 	})
-
+	if arg.Limit.Valid && arg.Limit.Int32 > 0 && len(rows) > int(arg.Limit.Int32) {
+		rows = rows[:arg.Limit.Int32]
+	}
 	return rows, nil
 }
 
