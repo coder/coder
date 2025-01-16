@@ -9,6 +9,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	"github.com/google/uuid"
 	"github.com/open-policy-agent/opa/topdown"
 	"github.com/stretchr/testify/require"
@@ -198,11 +199,9 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
-					if reflect.TypeOf(a).Kind() == reflect.Slice || reflect.TypeOf(a).Kind() == reflect.Array {
-						// Order does not matter
-						s.ElementsMatch(a, b, "method %q returned unexpected output %d", methodName, i)
-					} else {
-						s.Equal(a, b, "method %q returned unexpected output %d", methodName, i)
+					// Use cmp.Diff to get a nice diff of the two values.
+					if diff := cmp.Diff(a, b); diff != "" {
+						s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
 					}
 				}
 			}
