@@ -14,8 +14,8 @@ import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
 import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 import { Link as RouterLink } from "react-router-dom";
+import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
 
 const chartConfig = {
 	users: {

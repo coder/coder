@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
+import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
@@ -9,7 +10,6 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
-import { insightsUserStatusCounts } from "api/queries/insights";
 
 const LicensesSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
