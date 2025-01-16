@@ -10,11 +10,12 @@ import {
 	CollapsibleContent,
 	CollapsibleTrigger,
 } from "components/Collapsible/Collapsible";
+import { Link } from "components/Link/Link";
 import { Spinner } from "components/Spinner/Spinner";
-import { ChevronRightIcon, ExternalLinkIcon } from "lucide-react";
+import { ChevronRightIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
 import { Area, AreaChart, CartesianGrid, XAxis, YAxis } from "recharts";
+import { Link as RouterLink } from "react-router-dom";
 
 const chartConfig = {
 	users: {
@@ -64,8 +65,17 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 							A user is considered "engaged" if they initiate a connection to
 							their workspace via apps, web terminal, or SSH. The graph displays
 							the daily count of unique users who engaged at least once, with
-							additional insights available through the Activity Audit and
-							License Consumption tools.
+							additional insights available through the{" "}
+							<Link size="sm" asChild>
+								<RouterLink to="/audit">Activity Audit</RouterLink>
+							</Link>{" "}
+							and{" "}
+							<Link size="sm" asChild>
+								<RouterLink to="/deployment/licenses">
+									License Consumption
+								</RouterLink>
+							</Link>{" "}
+							tools.
 						</p>
 					</CollapsibleContent>
 				</Collapsible>
@@ -83,6 +93,7 @@ export const UserEngagementChart: FC<UserEngagementChartProps> = ({ data }) => {
 									accessibilityLayer
 									data={data}
 									margin={{
+										top: 10,
 										left: 0,
 										right: 0,
 									}}
