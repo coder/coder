@@ -90,9 +90,8 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
-      nodePort: 
+      nodePort: 30080
   externalTrafficPolicy: "Cluster"
-  loadBalancerClass: "test"
   selector:
     app.kubernetes.io/name: coder
     app.kubernetes.io/instance: release-name
