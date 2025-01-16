@@ -8,6 +8,7 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
 import { type FC, useState } from "react";
@@ -105,6 +106,7 @@ export const IdpRoleSyncForm = ({
 									form.handleSubmit();
 								}}
 							>
+								<Spinner loading={form.isSubmitting} />
 								Save
 							</Button>
 						</div>
@@ -168,7 +170,9 @@ export const IdpRoleSyncForm = ({
 								setCoderRoles([]);
 							}}
 						>
-							<Plus size={14} />
+							<Spinner loading={form.isSubmitting}>
+								<Plus size={14} />
+							</Spinner>
 							Add IdP role
 						</Button>
 					</div>

@@ -32,6 +32,7 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
@@ -132,6 +133,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											form.handleSubmit();
 										}}
 									>
+										<Spinner loading={form.isSubmitting} />
 										Save
 									</Button>
 								</div>
@@ -221,7 +223,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										setCoderOrgs([]);
 									}}
 								>
-									<Plus size={14} />
+									<Spinner loading={form.isSubmitting}>
+										<Plus size={14} />
+									</Spinner>
 									Add IdP organization
 								</Button>
 							</div>
@@ -267,6 +271,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							}}
 							type="submit"
 						>
+							<Spinner loading={form.isSubmitting} />
 							Confirm
 						</Button>
 					</DialogFooter>
@@ -344,7 +349,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					className="w-8 h-8 min-w-10 text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>

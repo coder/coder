@@ -20,6 +20,7 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
@@ -144,6 +145,7 @@ export const IdpGroupSyncForm = ({
 										form.handleSubmit();
 									}}
 								>
+									<Spinner loading={form.isSubmitting} />
 									Save
 								</Button>
 							</div>
@@ -154,14 +156,16 @@ export const IdpGroupSyncForm = ({
 					</div>
 				</div>
 				<div className="flex flex-row items-center gap-3">
-					<Switch
-						id={AUTO_CREATE_MISSING_GROUPS_ID}
-						checked={form.values.auto_create_missing_groups}
-						onCheckedChange={async (checked) => {
-							void form.setFieldValue("auto_create_missing_groups", checked);
-							form.handleSubmit();
-						}}
-					/>
+					<Spinner size="sm" loading={form.isSubmitting} className="w-9">
+						<Switch
+							id={AUTO_CREATE_MISSING_GROUPS_ID}
+							checked={form.values.auto_create_missing_groups}
+							onCheckedChange={async (checked) => {
+								void form.setFieldValue("auto_create_missing_groups", checked);
+								form.handleSubmit();
+							}}
+						/>
+					</Spinner>
 					<span className="flex flex-row items-center gap-1">
 						<Label htmlFor={AUTO_CREATE_MISSING_GROUPS_ID}>
 							Auto create missing groups
@@ -224,7 +228,9 @@ export const IdpGroupSyncForm = ({
 								setCoderGroups([]);
 							}}
 						>
-							<Plus size={14} />
+							<Spinner loading={form.isSubmitting}>
+								<Plus size={14} />
+							</Spinner>
 							Add IdP group
 						</Button>
 					</div>
