@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type {
@@ -119,7 +119,7 @@ export const OrganizationSettingsPageView: FC<
 
 				<FormFooter>
 					<Button type="submit" disabled={form.isSubmitting}>
-						{form.isSubmitting && <Spinner />}
+						<Spinner loading={form.isSubmitting} />
 						Save
 					</Button>
 				</FormFooter>
@@ -134,8 +134,7 @@ export const OrganizationSettingsPageView: FC<
 						<div css={styles.dangerSettings}>
 							<span>Deleting an organization is irreversible.</span>
 							<Button
-								css={styles.dangerButton}
-								color="warning"
+								variant="destructive"
 								onClick={() => setIsDeleting(true)}
 							>
 								Delete this organization

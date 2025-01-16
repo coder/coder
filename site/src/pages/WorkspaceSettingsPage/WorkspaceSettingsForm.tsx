@@ -123,7 +123,7 @@ export const WorkspaceSettingsForm: FC<WorkspaceSettingsFormProps> = ({
 					</Button>
 
 					<Button type="submit" disabled={form.isSubmitting}>
-						{form.isSubmitting && <Spinner />}
+						<Spinner loading={form.isSubmitting} />
 						Save
 					</Button>
 				</FormFooter>
