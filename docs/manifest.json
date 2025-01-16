@@ -1140,8 +1140,18 @@
 						},
 						{
 							"title": "provisioner",
-							"description": "Manage provisioner daemons",
+							"description": "View and manage provisioner daemons and jobs",
 							"path": "reference/cli/provisioner.md"
+						},
+						{
+							"title": "provisioner jobs",
+							"description": "View and manage provisioner jobs",
+							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs list",
+							"description": "List provisioner jobs",
+							"path": "reference/cli/provisioner_jobs_list.md"
 						},
 						{
 							"title": "provisioner keys",
@@ -1162,6 +1172,11 @@
 							"title": "provisioner keys list",
 							"description": "List provisioner keys in an organization",
 							"path": "reference/cli/provisioner_keys_list.md"
+						},
+						{
+							"title": "provisioner list",
+							"description": "List provisioner daemons in an organization",
+							"path": "reference/cli/provisioner_list.md"
 						},
 						{
 							"title": "provisioner start",
