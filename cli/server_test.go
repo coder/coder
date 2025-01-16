@@ -206,7 +206,7 @@ func TestServer(t *testing.T) {
 		require.NotEmpty(t, rootDir)
 		require.DirExists(t, rootDir)
 
-		pty.ExpectMatch("View the Web UI")
+		pty.ExpectMatchContext(ctx, "View the Web UI")
 
 		cancelFunc()
 		<-errCh
