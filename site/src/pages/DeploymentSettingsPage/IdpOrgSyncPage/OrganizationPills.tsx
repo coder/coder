@@ -26,7 +26,7 @@ export const OrganizationPills: FC<OrganizationPillsProps> = ({
 			{orgs.length > 0 ? (
 				<Pill
 					className={cn("border-none w-fit", {
-						"bg-surface-error": orgs[0].isUUID,
+						"bg-surface-destructive": orgs[0].isUUID,
 						"bg-surface-secondary": !orgs[0].isUUID,
 					})}
 				>
@@ -88,7 +88,7 @@ const OverflowPillList: FC<OverflowPillProps> = ({ organizations }) => {
 						<li key={organization.name} className="mb-2 last:mb-0">
 							<Pill
 								className={cn("border-none w-fit", {
-									"bg-surface-error": organization.isUUID,
+									"bg-surface-destructive": organization.isUUID,
 									"bg-surface-secondary": !organization.isUUID,
 								})}
 							>

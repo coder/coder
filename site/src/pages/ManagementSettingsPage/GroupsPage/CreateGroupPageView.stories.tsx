@@ -30,3 +30,13 @@ export const WithError: Story = {
 		});
 	},
 };
+
+export const InvalidName: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const input = await body.findByLabelText("Name");
+		await user.type(input, "$om3 !nv@lid Name");
+		input.blur();
+	},
+};

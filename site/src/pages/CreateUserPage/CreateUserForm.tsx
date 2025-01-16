@@ -4,12 +4,14 @@ import TextField from "@mui/material/TextField";
 import { hasApiFieldErrors, isApiError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FormFooter } from "components/FormFooter/FormFooter";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
 import { PasswordField } from "components/PasswordField/PasswordField";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
-import { type FC, useEffect } from "react";
+import type { FC } from "react";
 import {
 	displayNameValidator,
 	getFormHelpers,
@@ -202,11 +204,16 @@ export const CreateUserForm: FC<
 						label={Language.passwordLabel}
 					/>
 				</Stack>
-				<FormFooter
-					submitLabel="Create user"
-					onCancel={onCancel}
-					isLoading={isLoading}
-				/>
+
+				<FormFooter className="mt-8">
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isLoading}>
+						{isLoading && <Spinner />}
+						Save
+					</Button>
+				</FormFooter>
 			</form>
 		</FullPageForm>
 	);

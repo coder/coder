@@ -11,6 +11,8 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
+- PhpStorm
+- RustRover
 - [JetBrains Fleet](#jetbrains-fleet)
 
 ## JetBrains Gateway

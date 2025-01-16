@@ -413,6 +413,13 @@ func (m queryMetricsStore) DeleteWorkspaceAgentPortSharesByTemplate(ctx context.
 	return r0
 }
 
+func (m queryMetricsStore) DisableForeignKeysAndTriggers(ctx context.Context) error {
+	start := time.Now()
+	r0 := m.s.DisableForeignKeysAndTriggers(ctx)
+	m.queryLatencies.WithLabelValues("DisableForeignKeysAndTriggers").Observe(time.Since(start).Seconds())
+	return r0
+}
+
 func (m queryMetricsStore) EnqueueNotificationMessage(ctx context.Context, arg database.EnqueueNotificationMessageParams) error {
 	start := time.Now()
 	r0 := m.s.EnqueueNotificationMessage(ctx, arg)
@@ -980,6 +987,13 @@ func (m queryMetricsStore) GetProvisionerDaemonsByOrganization(ctx context.Conte
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg database.GetProvisionerDaemonsWithStatusByOrganizationParams) ([]database.GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetProvisionerDaemonsWithStatusByOrganization(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetProvisionerDaemonsWithStatusByOrganization").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetProvisionerJobByID(ctx context.Context, id uuid.UUID) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.GetProvisionerJobByID(ctx, id)
@@ -1334,6 +1348,13 @@ func (m queryMetricsStore) GetUserNotificationPreferences(ctx context.Context, u
 	start := time.Now()
 	r0, r1 := m.s.GetUserNotificationPreferences(ctx, userID)
 	m.queryLatencies.WithLabelValues("GetUserNotificationPreferences").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) GetUserStatusCounts(ctx context.Context, arg database.GetUserStatusCountsParams) ([]database.GetUserStatusCountsRow, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetUserStatusCounts(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetUserStatusCounts").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

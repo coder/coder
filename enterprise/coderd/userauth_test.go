@@ -178,6 +178,14 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.ElementsMatch(t, fields, orgFields)
 
+			fieldValues, err := runner.AdminClient.GetIDPSyncFieldValues(ctx, "organization")
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"first", "second"}, fieldValues)
+
+			orgFieldValues, err := runner.AdminClient.GetOrganizationIDPSyncFieldValues(ctx, orgOne.ID.String(), "organization")
+			require.NoError(t, err)
+			require.ElementsMatch(t, []string{"first", "second"}, orgFieldValues)
+
 			// When: they are manually added to the fourth organization, a new sync
 			// should remove them.
 			_, err = runner.AdminClient.PostOrganizationMember(ctx, orgThree.ID, "alice")

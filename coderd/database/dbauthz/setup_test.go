@@ -22,8 +22,8 @@ import (
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/regosql"
 	"github.com/coder/coder/v2/coderd/util/slice"
@@ -114,7 +114,7 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 		methodName := names[len(names)-1]
 		s.methodAccounting[methodName]++
 
-		db := dbmem.New()
+		db, _ := dbtestutil.NewDB(t)
 		fakeAuthorizer := &coderdtest.FakeAuthorizer{}
 		rec := &coderdtest.RecordingAuthorizer{
 			Wrapped: fakeAuthorizer,
@@ -217,7 +217,11 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				}
 			}
 
-			rec.AssertActor(s.T(), actor, pairs...)
+			if testCase.outOfOrder {
+				rec.AssertOutOfOrder(s.T(), actor, pairs...)
+			} else {
+				rec.AssertActor(s.T(), actor, pairs...)
+			}
 			s.NoError(rec.AllAsserted(), "all rbac calls must be asserted")
 		})
 	}
@@ -236,6 +240,8 @@ func (s *MethodTestSuite) NoActorErrorTest(callMethod func(ctx context.Context) 
 func (s *MethodTestSuite) NotAuthorizedErrorTest(ctx context.Context, az *coderdtest.FakeAuthorizer, testCase expects, callMethod func(ctx context.Context) ([]reflect.Value, error)) {
 	s.Run("NotAuthorized", func() {
 		az.AlwaysReturn(rbac.ForbiddenWithInternal(xerrors.New("Always fail authz"), rbac.Subject{}, "", rbac.Object{}, nil))
+		// Override the SQL filter to always fail.
+		az.OverrideSQLFilter("FALSE")
 
 		// If we have assertions, that means the method should FAIL
 		// if RBAC will disallow the request. The returned error should
@@ -328,6 +334,14 @@ type expects struct {
 	notAuthorizedExpect string
 	cancelledCtxExpect  string
 	successAuthorizer   func(ctx context.Context, subject rbac.Subject, action policy.Action, obj rbac.Object) error
+	outOfOrder          bool
+}
+
+// OutOfOrder is optional. It controls whether the assertions should be
+// asserted in order.
+func (m *expects) OutOfOrder() *expects {
+	m.outOfOrder = true
+	return m
 }
 
 // Asserts is required. Asserts the RBAC authorize calls that should be made.
@@ -355,6 +369,24 @@ func (m *expects) Returns(rets ...any) *expects {
 // Errors is optional. If it is never called, it will not be asserted.
 func (m *expects) Errors(err error) *expects {
 	m.err = err
+	return m
+}
+
+// ErrorsWithPG is optional. If it is never called, it will not be asserted.
+// It will only be asserted if the test is running with a Postgres database.
+func (m *expects) ErrorsWithPG(err error) *expects {
+	if dbtestutil.WillUsePostgres() {
+		return m.Errors(err)
+	}
+	return m
+}
+
+// ErrorsWithInMemDB is optional. If it is never called, it will not be asserted.
+// It will only be asserted if the test is running with an in-memory database.
+func (m *expects) ErrorsWithInMemDB(err error) *expects {
+	if !dbtestutil.WillUsePostgres() {
+		return m.Errors(err)
+	}
 	return m
 }
 

@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { userEvent, within } from "@storybook/test";
 import { mockApiError } from "testHelpers/entities";
 import { CreateGroupPageView } from "./CreateGroupPageView";
 
@@ -19,5 +20,15 @@ export const WithError: Story = {
 			validations: [{ field: "name", detail: "Group names must be unique" }],
 		}),
 		initialTouched: { name: true },
+	},
+};
+
+export const InvalidName: Story = {
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const body = within(canvasElement.ownerDocument.body);
+		const input = await body.findByLabelText("Name");
+		await user.type(input, "$om3 !nv@lid Name");
+		input.blur();
 	},
 };

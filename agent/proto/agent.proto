@@ -42,7 +42,6 @@ message WorkspaceApp {
 	}
 	Health health = 12;
 	bool hidden = 13;
-	string open_in = 14;
 }
 
 message WorkspaceAgentScript {

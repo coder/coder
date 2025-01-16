@@ -164,7 +164,7 @@ message Script {
 }
 
 enum AppOpenIn {
-    WINDOW = 0;
+    WINDOW = 0 [deprecated = true];
     SLIM_WINDOW = 1;
     TAB = 2;
 }

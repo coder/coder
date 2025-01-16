@@ -1,14 +1,13 @@
 {
+	"vcs": {
+		"enabled": true,
+		"useIgnoreFile": true,
+		"clientKind": "git",
+		"root": ".."
+	},
 	"files": {
-		"ignore": [
-			"build/",
-			"node_modules/",
-			"out/",
-			"test-results/",
-			"e2e/**/*Generated.ts",
-			"pnpm-lock.yaml",
-			"storybook-static/"
-		]
+		"ignore": ["e2e/**/*Generated.ts", "pnpm-lock.yaml"],
+		"ignoreUnknown": true
 	},
 	"linter": {
 		"rules": {

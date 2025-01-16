@@ -147,7 +147,7 @@ export const createWorkspace = async (
 		await popup.waitForSelector("text=You are now authenticated.");
 	}
 
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /create workspace/i }).click();
 
 	const user = currentUser(page);
 
@@ -276,7 +276,7 @@ export const createTemplate = async (
 
 	const name = randomName();
 	await page.getByLabel("Name *").fill(name);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expectUrl(page).toHavePathName(
 		organizationsEnabled
 			? `/templates/${orgName}/${name}/files`
@@ -298,7 +298,7 @@ export const createGroup = async (page: Page): Promise<string> => {
 
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expectUrl(page).toHavePathName(`/groups/${name}`);
 	return name;
 };
@@ -982,7 +982,7 @@ export const updateTemplateSettings = async (
 		await page.getByLabel(labelText, { exact: true }).fill(value);
 	}
 
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
 	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
@@ -1003,7 +1003,7 @@ export const updateWorkspace = async (
 	await page.getByTestId("confirm-button").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /update parameters/i }).click();
 
 	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -1024,7 +1024,7 @@ export const updateWorkspaceParameters = async (
 	);
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /submit and restart/i }).click();
 
 	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -1091,7 +1091,7 @@ export async function createUser(
 	// as the label for the currently active option.
 	const passwordField = page.locator("input[name=password]");
 	await passwordField.fill(password);
-	await page.getByRole("button", { name: "Create user" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expect(page.getByText("Successfully created user.")).toBeVisible();
 
 	await expect(page).toHaveTitle("Users - Coder");
@@ -1123,7 +1123,7 @@ export async function createOrganization(page: Page): Promise<{
 	const description = `Org description ${name}`;
 	await page.getByLabel("Description").fill(description);
 	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
-	await page.getByRole("button", { name: "Submit" }).click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await expectUrl(page).toHavePathName(`/organizations/${name}`);
 	await expect(page.getByText("Organization created.")).toBeVisible();

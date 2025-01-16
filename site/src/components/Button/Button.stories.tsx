@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { Trash } from "lucide-react";
+import { PlusIcon } from "lucide-react";
 import { Button } from "./Button";
 
 const meta: Meta<typeof Button> = {
@@ -8,7 +8,7 @@ const meta: Meta<typeof Button> = {
 	args: {
 		children: (
 			<>
-				<Trash />
+				<PlusIcon />
 				Button
 			</>
 		),
@@ -20,27 +20,21 @@ type Story = StoryObj<typeof Button>;
 
 export const Default: Story = {};
 
-export const Outline: Story = {
-	args: {
-		variant: "outline",
-	},
-};
-
-export const Subtle: Story = {
-	args: {
-		variant: "subtle",
-	},
-};
-
-export const Warning: Story = {
-	args: {
-		variant: "warning",
-	},
-};
-
 export const DefaultDisabled: Story = {
 	args: {
 		disabled: true,
+	},
+};
+
+export const DefaultSmall: Story = {
+	args: {
+		size: "sm",
+	},
+};
+
+export const Outline: Story = {
+	args: {
+		variant: "outline",
 	},
 };
 
@@ -51,6 +45,19 @@ export const OutlineDisabled: Story = {
 	},
 };
 
+export const OutlineSmall: Story = {
+	args: {
+		variant: "outline",
+		size: "sm",
+	},
+};
+
+export const Subtle: Story = {
+	args: {
+		variant: "subtle",
+	},
+};
+
 export const SubtleDisabled: Story = {
 	args: {
 		variant: "subtle",
@@ -58,23 +65,51 @@ export const SubtleDisabled: Story = {
 	},
 };
 
+export const SubtleSmall: Story = {
+	args: {
+		variant: "subtle",
+		size: "sm",
+	},
+};
+
+export const Destructive: Story = {
+	args: {
+		variant: "destructive",
+		children: "Delete",
+	},
+};
+
+export const DestructiveDisabled: Story = {
+	args: {
+		...Destructive.args,
+		disabled: true,
+	},
+};
+
+export const DestructiveSmall: Story = {
+	args: {
+		...Destructive.args,
+		size: "sm",
+	},
+};
+
 export const IconButtonDefault: Story = {
 	args: {
 		variant: "default",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };
 
 export const IconButtonOutline: Story = {
 	args: {
 		variant: "outline",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };
 
 export const IconButtonSubtle: Story = {
 	args: {
 		variant: "subtle",
-		children: <Trash />,
+		children: <PlusIcon />,
 	},
 };

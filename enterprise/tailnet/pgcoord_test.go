@@ -31,7 +31,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {

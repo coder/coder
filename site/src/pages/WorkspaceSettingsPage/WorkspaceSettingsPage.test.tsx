@@ -31,7 +31,7 @@ test("Submit the workspace settings page successfully", async () => {
 	const name = within(form).getByLabelText("Name");
 	await user.clear(name);
 	await user.type(within(form).getByLabelText("Name"), "new-name");
-	await user.click(within(form).getByRole("button", { name: "Submit" }));
+	await user.click(within(form).getByRole("button", { name: /save/i }));
 	// Assert that the API calls were made with the correct data
 	await waitFor(() => {
 		expect(patchWorkspaceSpy).toHaveBeenCalledWith(MockWorkspace.id, {

@@ -1,12 +1,12 @@
-import DownloadOutlined from "@mui/icons-material/DownloadOutlined";
-import Button from "@mui/material/Button";
 import type {
 	GroupSyncSettings,
 	Organization,
 	RoleSyncSettings,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { saveAs } from "file-saver";
+import { DownloadIcon } from "lucide-react";
 import { type FC, useState } from "react";
 
 interface DownloadPolicyButtonProps {
@@ -29,7 +29,6 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 
 	return (
 		<Button
-			startIcon={<DownloadOutlined />}
 			disabled={!canCreatePolicyJson || isDownloading}
 			onClick={async () => {
 				if (canCreatePolicyJson) {
@@ -48,6 +47,7 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 				}
 			}}
 		>
+			<DownloadIcon />
 			Export Policy
 		</Button>
 	);

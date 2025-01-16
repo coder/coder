@@ -580,6 +580,10 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	version: MockBuildInfo.version,
 	api_version: MockBuildInfo.provisioner_api_version,
 	last_seen_at: new Date().toISOString(),
+	key_name: "test-provisioner",
+	status: "idle",
+	current_job: null,
+	previous_job: null,
 };
 
 export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
@@ -594,6 +598,7 @@ export const MockPskProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-psk-provisioner",
 	key_id: MockProvisionerPskKey.id,
+	key_name: MockProvisionerPskKey.name,
 	name: "Test psk provisioner",
 };
 
@@ -601,6 +606,7 @@ export const MockKeyProvisioner: TypesGen.ProvisionerDaemon = {
 	...MockProvisioner,
 	id: "test-key-provisioner",
 	key_id: MockProvisionerKey.id,
+	key_name: MockProvisionerKey.name,
 	organization_id: MockProvisionerKey.organization,
 	name: "Test key provisioner",
 	tags: MockProvisionerKey.tags,
@@ -611,6 +617,7 @@ export const MockProvisioner2: TypesGen.ProvisionerDaemon = {
 	id: "test-provisioner-2",
 	name: "Test Provisioner 2",
 	key_id: MockProvisionerKey.id,
+	key_name: MockProvisionerKey.name,
 };
 
 export const MockUserProvisioner: TypesGen.ProvisionerDaemon = {
@@ -3741,6 +3748,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_1: "1",
 						tag_yes: "yes",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [],
 			},
@@ -3763,6 +3774,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_1: "1",
 						tag_YES: "YES",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [],
 			},
@@ -3785,6 +3800,10 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 						tag_0: "0",
 						tag_no: "no",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [
 					{
@@ -3938,6 +3957,10 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 						owner: "",
 						scope: "organization",
 					},
+					key_name: MockProvisionerKey.name,
+					current_job: null,
+					previous_job: null,
+					status: "idle",
 				},
 				warnings: [
 					{
@@ -4052,6 +4075,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "Workspace Events",
 		method: "webhook",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "f517da0b-cdc9-410f-ab89-a86107c420ed",
@@ -4064,6 +4088,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "Workspace Events",
 		method: "smtp",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "f44d9314-ad03-4bc8-95d0-5cad491da6b6",
@@ -4076,6 +4101,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "User Events",
 		method: "",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "4e19c0ac-94e1-4532-9515-d1801aa283b2",
@@ -4088,6 +4114,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "User Events",
 		method: "",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "0ea69165-ec14-4314-91f1-69566ac3c5a0",
@@ -4100,6 +4127,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "Workspace Events",
 		method: "smtp",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "c34a0c09-0704-4cac-bd1c-0c0146811c2b",
@@ -4112,6 +4140,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "Workspace Events",
 		method: "smtp",
 		kind: "system",
+		enabled_by_default: true,
 	},
 	{
 		id: "51ce2fdf-c9ca-4be1-8d70-628674f9bc42",
@@ -4124,6 +4153,7 @@ export const MockNotificationTemplates: TypesGen.NotificationTemplate[] = [
 		group: "Workspace Events",
 		method: "webhook",
 		kind: "system",
+		enabled_by_default: true,
 	},
 ];
 

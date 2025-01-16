@@ -1007,6 +1007,9 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Route("/provisionerdaemons", func(r chi.Router) {
+					r.Get("/", api.provisionerDaemons)
+				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {
@@ -1281,6 +1284,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
 			r.Get("/user-activity", api.insightsUserActivity)
+			r.Get("/user-status-counts", api.insightsUserStatusCounts)
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
 		})

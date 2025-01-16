@@ -16,6 +16,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { type FC, useState } from "react";
 import {
@@ -115,7 +116,13 @@ export const OrganizationSettingsPageView: FC<
 						</FormFields>
 					</fieldset>
 				</FormSection>
-				<FormFooter isLoading={form.isSubmitting} />
+
+				<FormFooter>
+					<Button type="submit" disabled={form.isSubmitting}>
+						{form.isSubmitting && <Spinner />}
+						Save
+					</Button>
+				</FormFooter>
 			</HorizontalForm>
 
 			{!organization.is_default && (
