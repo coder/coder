@@ -7,7 +7,6 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"sort"
 	"testing"
 	"time"
@@ -2411,12 +2410,9 @@ func TestGetUserStatusCounts(t *testing.T) {
 				db, _ := dbtestutil.NewDB(t)
 				ctx := testutil.Context(t, testutil.WaitShort)
 
-				end := dbtime.Now()
-				start := end.Add(-30 * 24 * time.Hour)
-
 				counts, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: start,
-					EndTime:   end,
+					StartTime: createdAt,
+					EndTime:   today,
 				})
 				require.NoError(t, err)
 				require.Empty(t, counts, "should return no results when there are no users")
@@ -2457,23 +2453,31 @@ func TestGetUserStatusCounts(t *testing.T) {
 							UpdatedAt: createdAt,
 						})
 
-						// Query for the last 30 days
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: createdAt,
-							EndTime:   today,
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
 						})
 						require.NoError(t, err)
-						require.NotEmpty(t, userStatusChanges, "should return results")
 
-						require.Len(t, userStatusChanges, 2, "should have 1 entry per status change plus and 1 entry for the end of the range = 2 entries")
+						numDays := int(dbtime.StartOfDay(today).Sub(dbtime.StartOfDay(createdAt)).Hours() / 24)
+						require.Len(t, userStatusChanges, numDays+1, "should have 1 entry per day between the start and end time, including the end time")
 
-						require.Equal(t, userStatusChanges[0].Status, tc.status, "should have the correct status")
-						require.Equal(t, userStatusChanges[0].Count, int64(1), "should have 1 user")
-						require.True(t, userStatusChanges[0].Date.Equal(createdAt), "should have the correct date")
-
-						require.Equal(t, userStatusChanges[1].Status, tc.status, "should have the correct status")
-						require.Equal(t, userStatusChanges[1].Count, int64(1), "should have 1 user")
-						require.True(t, userStatusChanges[1].Date.Equal(today), "should have the correct date")
+						for i, row := range userStatusChanges {
+							require.Equal(t, tc.status, row.Status, "should have the correct status")
+							require.True(
+								t,
+								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+								"expected date %s, but got %s for row %n",
+								dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
+								row.Date.In(location).String(),
+								i,
+							)
+							if row.Date.Before(createdAt) {
+								require.Equal(t, int64(0), row.Count, "should have 0 users before creation")
+							} else {
+								require.Equal(t, int64(1), row.Count, "should have 1 user after creation")
+							}
+						}
 					})
 				}
 			})
@@ -2627,24 +2631,38 @@ func TestGetUserStatusCounts(t *testing.T) {
 
 						// Query for the last 5 days
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: createdAt,
-							EndTime:   today,
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
 						})
 						require.NoError(t, err)
-						require.NotEmpty(t, userStatusChanges, "should return results")
 
-						gotCounts := map[time.Time]map[database.UserStatus]int64{}
-						for _, row := range userStatusChanges {
-							gotDateInLocation := row.Date.In(location)
-							if _, ok := gotCounts[gotDateInLocation]; !ok {
-								gotCounts[gotDateInLocation] = map[database.UserStatus]int64{}
+						for i, row := range userStatusChanges {
+							require.True(
+								t,
+								row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2)),
+								"expected date %s, but got %s for row %n",
+								dbtime.StartOfDay(createdAt).AddDate(0, 0, i/2),
+								row.Date.In(location).String(),
+								i,
+							)
+							if row.Date.Before(createdAt) {
+								require.Equal(t, int64(0), row.Count)
+							} else if row.Date.Before(firstTransitionTime) {
+								if row.Status == tc.initialStatus {
+									require.Equal(t, int64(1), row.Count)
+								} else if row.Status == tc.targetStatus {
+									require.Equal(t, int64(0), row.Count)
+								}
+							} else if !row.Date.After(today) {
+								if row.Status == tc.initialStatus {
+									require.Equal(t, int64(0), row.Count)
+								} else if row.Status == tc.targetStatus {
+									require.Equal(t, int64(1), row.Count)
+								}
+							} else {
+								t.Errorf("date %q beyond expected range end %q", row.Date, today)
 							}
-							if _, ok := gotCounts[gotDateInLocation][row.Status]; !ok {
-								gotCounts[gotDateInLocation][row.Status] = 0
-							}
-							gotCounts[gotDateInLocation][row.Status] += row.Count
 						}
-						require.Equal(t, tc.expectedCounts, gotCounts)
 					})
 				}
 			})
@@ -2725,6 +2743,7 @@ func TestGetUserStatusCounts(t *testing.T) {
 					tc := tc
 					t.Run(tc.name, func(t *testing.T) {
 						t.Parallel()
+
 						db, _ := dbtestutil.NewDB(t)
 						ctx := testutil.Context(t, testutil.WaitShort)
 
@@ -2756,66 +2775,48 @@ func TestGetUserStatusCounts(t *testing.T) {
 						require.NoError(t, err)
 
 						userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-							StartTime: createdAt,
-							EndTime:   today,
+							StartTime: dbtime.StartOfDay(createdAt),
+							EndTime:   dbtime.StartOfDay(today),
 						})
 						require.NoError(t, err)
 						require.NotEmpty(t, userStatusChanges)
-						gotCounts := map[time.Time]map[database.UserStatus]int64{
-							createdAt.In(location):            {},
-							firstTransitionTime.In(location):  {},
-							secondTransitionTime.In(location): {},
-							today.In(location):                {},
-						}
+						gotCounts := map[time.Time]map[database.UserStatus]int64{}
 						for _, row := range userStatusChanges {
 							dateInLocation := row.Date.In(location)
-							switch {
-							case dateInLocation.Equal(createdAt.In(location)):
-								gotCounts[createdAt][row.Status] = row.Count
-							case dateInLocation.Equal(firstTransitionTime.In(location)):
-								gotCounts[firstTransitionTime][row.Status] = row.Count
-							case dateInLocation.Equal(secondTransitionTime.In(location)):
-								gotCounts[secondTransitionTime][row.Status] = row.Count
-							case dateInLocation.Equal(today.In(location)):
-								gotCounts[today][row.Status] = row.Count
-							default:
-								t.Fatalf("unexpected date %s", row.Date)
+							if gotCounts[dateInLocation] == nil {
+								gotCounts[dateInLocation] = map[database.UserStatus]int64{}
 							}
+							gotCounts[dateInLocation][row.Status] = row.Count
 						}
 
 						expectedCounts := map[time.Time]map[database.UserStatus]int64{}
-						for _, status := range []database.UserStatus{
-							tc.user1Transition.from,
-							tc.user1Transition.to,
-							tc.user2Transition.from,
-							tc.user2Transition.to,
-						} {
-							if _, ok := expectedCounts[createdAt]; !ok {
-								expectedCounts[createdAt] = map[database.UserStatus]int64{}
+						for d := dbtime.StartOfDay(createdAt); !d.After(dbtime.StartOfDay(today)); d = d.AddDate(0, 0, 1) {
+							expectedCounts[d] = map[database.UserStatus]int64{}
+
+							// Default values
+							expectedCounts[d][tc.user1Transition.from] = 0
+							expectedCounts[d][tc.user1Transition.to] = 0
+							expectedCounts[d][tc.user2Transition.from] = 0
+							expectedCounts[d][tc.user2Transition.to] = 0
+
+							// Counted Values
+							if d.Before(createdAt) {
+								continue
+							} else if d.Before(firstTransitionTime) {
+								expectedCounts[d][tc.user1Transition.from]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(secondTransitionTime) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.from]++
+							} else if d.Before(today) {
+								expectedCounts[d][tc.user1Transition.to]++
+								expectedCounts[d][tc.user2Transition.to]++
+							} else {
+								t.Fatalf("date %q beyond expected range end %q", d, today)
 							}
-							expectedCounts[createdAt][status] = 0
 						}
 
-						expectedCounts[createdAt][tc.user1Transition.from]++
-						expectedCounts[createdAt][tc.user2Transition.from]++
-
-						expectedCounts[firstTransitionTime] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[firstTransitionTime], expectedCounts[createdAt])
-						expectedCounts[firstTransitionTime][tc.user1Transition.from]--
-						expectedCounts[firstTransitionTime][tc.user1Transition.to]++
-
-						expectedCounts[secondTransitionTime] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[secondTransitionTime], expectedCounts[firstTransitionTime])
-						expectedCounts[secondTransitionTime][tc.user2Transition.from]--
-						expectedCounts[secondTransitionTime][tc.user2Transition.to]++
-
-						expectedCounts[today] = map[database.UserStatus]int64{}
-						maps.Copy(expectedCounts[today], expectedCounts[secondTransitionTime])
-
-						require.Equal(t, expectedCounts[createdAt], gotCounts[createdAt])
-						require.Equal(t, expectedCounts[firstTransitionTime], gotCounts[firstTransitionTime])
-						require.Equal(t, expectedCounts[secondTransitionTime], gotCounts[secondTransitionTime])
-						require.Equal(t, expectedCounts[today], gotCounts[today])
+						require.Equal(t, expectedCounts, gotCounts)
 					})
 				}
 			})
@@ -2832,16 +2833,23 @@ func TestGetUserStatusCounts(t *testing.T) {
 				})
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: createdAt.Add(time.Hour * 24),
-					EndTime:   today,
+					StartTime: dbtime.StartOfDay(createdAt.Add(time.Hour * 24)),
+					EndTime:   dbtime.StartOfDay(today),
 				})
 				require.NoError(t, err)
 
-				require.Len(t, userStatusChanges, 2)
-				require.Equal(t, userStatusChanges[0].Count, int64(1))
-				require.Equal(t, userStatusChanges[0].Status, database.UserStatusActive)
-				require.Equal(t, userStatusChanges[1].Count, int64(1))
-				require.Equal(t, userStatusChanges[1].Status, database.UserStatusActive)
+				for i, row := range userStatusChanges {
+					require.True(
+						t,
+						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i)),
+						"expected date %s, but got %s for row %n",
+						dbtime.StartOfDay(createdAt).AddDate(0, 0, 1+i),
+						row.Date.In(location).String(),
+						i,
+					)
+					require.Equal(t, database.UserStatusActive, row.Status)
+					require.Equal(t, int64(1), row.Count)
+				}
 			})
 
 			t.Run("User deleted before query range", func(t *testing.T) {
@@ -2881,16 +2889,28 @@ func TestGetUserStatusCounts(t *testing.T) {
 				require.NoError(t, err)
 
 				userStatusChanges, err := db.GetUserStatusCounts(ctx, database.GetUserStatusCountsParams{
-					StartTime: createdAt,
-					EndTime:   today.Add(time.Hour * 24),
+					StartTime: dbtime.StartOfDay(createdAt),
+					EndTime:   dbtime.StartOfDay(today.Add(time.Hour * 24)),
 				})
 				require.NoError(t, err)
-				require.Equal(t, userStatusChanges[0].Count, int64(1))
-				require.Equal(t, userStatusChanges[0].Status, database.UserStatusActive)
-				require.Equal(t, userStatusChanges[1].Count, int64(0))
-				require.Equal(t, userStatusChanges[1].Status, database.UserStatusActive)
-				require.Equal(t, userStatusChanges[2].Count, int64(0))
-				require.Equal(t, userStatusChanges[2].Status, database.UserStatusActive)
+				for i, row := range userStatusChanges {
+					require.True(
+						t,
+						row.Date.In(location).Equal(dbtime.StartOfDay(createdAt).AddDate(0, 0, i)),
+						"expected date %s, but got %s for row %n",
+						dbtime.StartOfDay(createdAt).AddDate(0, 0, i),
+						row.Date.In(location).String(),
+						i,
+					)
+					require.Equal(t, database.UserStatusActive, row.Status)
+					if row.Date.Before(createdAt) {
+						require.Equal(t, int64(0), row.Count)
+					} else if i == len(userStatusChanges)-1 {
+						require.Equal(t, int64(0), row.Count)
+					} else {
+						require.Equal(t, int64(1), row.Count)
+					}
+				}
 			})
 		})
 	}

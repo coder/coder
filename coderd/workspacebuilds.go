@@ -446,7 +446,20 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 	// If this workspace build has a different template version ID to the previous build
 	// we can assume it has just been updated.
 	if createBuild.TemplateVersionID != uuid.Nil && createBuild.TemplateVersionID != previousWorkspaceBuild.TemplateVersionID {
-		api.notifyWorkspaceUpdated(ctx, apiKey.UserID, workspace, createBuild.RichParameterValues)
+		// nolint:gocritic // Need system context to fetch admins
+		admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
+		if err != nil {
+			api.Logger.Error(ctx, "find template admins", slog.Error(err))
+		} else {
+			for _, admin := range admins {
+				// Don't send notifications to user which initiated the event.
+				if admin.ID == apiKey.UserID {
+					continue
+				}
+
+				api.notifyWorkspaceUpdated(ctx, apiKey.UserID, admin.ID, workspace, createBuild.RichParameterValues)
+			}
+		}
 	}
 
 	api.publishWorkspaceUpdate(ctx, workspace.OwnerID, wspubsub.WorkspaceEvent{
@@ -460,6 +473,7 @@ func (api *API) postWorkspaceBuilds(rw http.ResponseWriter, r *http.Request) {
 func (api *API) notifyWorkspaceUpdated(
 	ctx context.Context,
 	initiatorID uuid.UUID,
+	receiverID uuid.UUID,
 	workspace database.Workspace,
 	parameters []codersdk.WorkspaceBuildParameter,
 ) {
@@ -500,7 +514,7 @@ func (api *API) notifyWorkspaceUpdated(
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
+		receiverID,
 		notifications.TemplateWorkspaceManuallyUpdated,
 		map[string]string{
 			"organization": template.OrganizationName,

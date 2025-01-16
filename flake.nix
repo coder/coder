@@ -32,7 +32,7 @@
           inherit system;
         };
 
-        nodejs = pkgs.nodejs-18_x;
+        nodejs = pkgs.nodejs_20;
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -85,9 +85,11 @@
           kubectl
           kubectx
           kubernetes-helm
+          lazygit
           less
           mockgen
           moreutils
+          nix-prefetch-git
           nfpm
           nodejs
           neovim
@@ -119,9 +121,17 @@
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
+          inherit nodejs;
+
           src = ./site/.;
           # Required for the `canvas` package!
-          extraBuildInputs = with pkgs; [ pkgs.cairo pkgs.pango pkgs.pixman ];
+          extraBuildInputs = with pkgs; [
+            cairo
+            pango
+            pixman
+            libpng libjpeg giflib librsvg
+            python312Packages.setuptools
+          ] ++ ( lib.optionals stdenv.targetPlatform.isDarwin [ darwin.apple_sdk.frameworks.Foundation xcbuild ] );
           installInPlace = true;
           distDir = "out";
         };
@@ -135,7 +145,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-Tsajkkp+NMjYRCpRX5HlSy/sCSpuABIGDM1jeavVe+w=";
+            vendorHash = "sha256-ykLZqtALSvDpBc2yEjRGdOyCFNsnLZiGid0d4s27e8Q=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
@@ -147,12 +157,15 @@
               runHook preBuild
 
               # Unpack the site contents.
-              mkdir -p ./site/out
+              mkdir -p ./site/out ./site/node_modules/
               cp -r ${buildSite.out}/* ./site/out
+              touch ./site/node_modules/.installed
 
               # Build and copy the binary!
               export CODER_FORCE_VERSION=${version}
-              make -j build/coder_${osArch}
+              # Flagging 'site/node_modules/.installed' as an old file,
+              # as we do not want to trigger codegen during a build.
+              make -j -o 'site/node_modules/.installed' build/coder_${osArch}
             '';
             installPhase = ''
               mkdir -p $out/bin
@@ -161,15 +174,18 @@
           };
       in
       {
-        devShell = pkgs.mkShell {
-          buildInputs = devShellPackages;
-          shellHook = ''
-            export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
-            export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-          '';
+        devShells = {
+          default = pkgs.mkShell {
+            buildInputs = devShellPackages;
+            shellHook = ''
+              export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
+              export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
+            '';
 
-          LOCALE_ARCHIVE = with pkgs; lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+            LOCALE_ARCHIVE = with pkgs; lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+          };
         };
+
         packages = {
           proto_gen_go = proto_gen_go_1_30;
           all = pkgs.buildEnv {

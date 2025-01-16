@@ -6,7 +6,9 @@ import (
 	"database/sql"
 	"fmt"
 	"net/http"
-	"runtime"
+	"os"
+	"os/exec"
+	"path/filepath"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1399,13 +1401,10 @@ func TestTemplateDoesNotAllowUserAutostop(t *testing.T) {
 // real Terraform provisioner and validate that the workspace is created
 // successfully. The workspace itself does not specify any resources, and
 // this is fine.
-// nolint:paralleltest // this test tends to time out on windows runners
-// when run in parallel
+// To improve speed, we pre-download the providers and set a custom Terraform
+// config file so that we only reference those
+// nolint:paralleltest // t.Setenv
 func TestWorkspaceTagsTerraform(t *testing.T) {
-	if runtime.GOOS != "windows" {
-		t.Parallel()
-	}
-
 	mainTfTemplate := `
 		terraform {
 			required_providers {
@@ -1424,6 +1423,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		}
 		%s
 	`
+	tfCliConfigPath := downloadProviders(t, fmt.Sprintf(mainTfTemplate, ""))
+	t.Setenv("TF_CLI_CONFIG_FILE", tfCliConfigPath)
 
 	for _, tc := range []struct {
 		name string
@@ -1537,10 +1538,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
-			if runtime.GOOS != "windows" {
-				t.Parallel()
-			}
-			ctx := testutil.Context(t, testutil.WaitSuperLong)
+			// This can take a while, so set a relatively long timeout.
+			ctx := testutil.Context(t, 2*testutil.WaitSuperLong)
 
 			client, owner := coderdenttest.New(t, &coderdenttest.Options{
 				Options: &coderdtest.Options{
@@ -1585,6 +1584,55 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			}
 		})
 	}
+}
+
+// downloadProviders is a test helper that creates a temporary file and writes a
+// terraform CLI config file with a provider_installation stanza for coder/coder
+// using dev_overrides. It also fetches the latest provider release from GitHub
+// and extracts the binary to the temporary dir. It is the responsibility of the
+// caller to set TF_CLI_CONFIG_FILE.
+func downloadProviders(t *testing.T, providersTf string) string {
+	t.Helper()
+	// We firstly write a Terraform CLI config file to a temporary directory:
+	var (
+		ctx, cancel     = context.WithTimeout(context.Background(), testutil.WaitLong)
+		tempDir         = t.TempDir()
+		cacheDir        = filepath.Join(tempDir, ".cache")
+		providersTfPath = filepath.Join(tempDir, "providers.tf")
+		cliConfigPath   = filepath.Join(tempDir, "local.tfrc")
+	)
+	defer cancel()
+
+	// Write files to disk
+	require.NoError(t, os.MkdirAll(cacheDir, os.ModePerm|os.ModeDir))
+	require.NoError(t, os.WriteFile(providersTfPath, []byte(providersTf), os.ModePerm)) // nolint:gosec
+	cliConfigTemplate := `
+	provider_installation {
+		filesystem_mirror {
+			path = %q
+			include = ["*/*/*"]
+		}
+		direct {
+			exclude = ["*/*/*"]
+		}
+	}`
+	err := os.WriteFile(cliConfigPath, []byte(fmt.Sprintf(cliConfigTemplate, cacheDir)), os.ModePerm) // nolint:gosec
+	require.NoError(t, err, "failed to write %s", cliConfigPath)
+
+	// Run terraform providers mirror to mirror required providers to cacheDir
+	cmd := exec.CommandContext(ctx, "terraform", "providers", "mirror", cacheDir)
+	cmd.Env = os.Environ() // without this terraform may complain about path
+	cmd.Env = append(cmd.Env, "TF_CLI_CONFIG_FILE="+cliConfigPath)
+	cmd.Dir = tempDir
+	out, err := cmd.CombinedOutput()
+	if !assert.NoError(t, err) {
+		t.Log("failed to download providers:")
+		t.Log(string(out))
+		t.FailNow()
+	}
+
+	t.Logf("Set TF_CLI_CONFIG_FILE=%s", cliConfigPath)
+	return cliConfigPath
 }
 
 // Blocked by autostart requirements
