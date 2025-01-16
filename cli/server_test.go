@@ -191,6 +191,7 @@ func TestServer(t *testing.T) {
 		)
 		pty := ptytest.New(t).Attach(inv)
 
+		// Embedded postgres takes a while to fire up.
 		const superDuperLong = testutil.WaitSuperLong * 3
 		ctx, cancelFunc := context.WithCancel(testutil.Context(t, superDuperLong))
 		errCh := make(chan error, 1)
