@@ -146,6 +146,8 @@ export const LicenseSeatConsumptionChart: FC<
 										}
 									/>
 									<YAxis
+										// Adds space on Y to show always show the reference line without overflowing it.
+										domain={[0, limit ? "dataMax + 10" : "auto"]}
 										dataKey="users"
 										tickLine={false}
 										axisLine={false}
@@ -199,8 +201,9 @@ export const LicenseSeatConsumptionChart: FC<
 									/>
 									{limit && (
 										<ReferenceLine
+											isFront
 											ifOverflow="extendDomain"
-											y={70}
+											y={limit}
 											label={{
 												value: "license seat limit",
 												position: "insideBottomRight",
