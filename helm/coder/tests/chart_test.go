@@ -101,7 +101,11 @@ var testCases = []testCase{
 		expectedError: "",
 	},
 	{
-		name:          "svc_loadbalancer_nodeport",
+		name:          "svc_nodeport",
+		expectedError: "",
+	},
+	{
+		name:          "svc_loadbalancer",
 		expectedError: "",
 	},
 }
