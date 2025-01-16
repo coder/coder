@@ -1,5 +1,4 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { Button } from "components/Button/Button";
 import TextField from "@mui/material/TextField";
 import { isApiValidationError } from "api/errors";
 import type {
@@ -7,6 +6,7 @@ import type {
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import {
 	FormFields,
@@ -133,10 +133,7 @@ export const OrganizationSettingsPageView: FC<
 					>
 						<div css={styles.dangerSettings}>
 							<span>Deleting an organization is irreversible.</span>
-							<Button
-								variant="destructive"
-								onClick={() => setIsDeleting(true)}
-							>
+							<Button variant="destructive" onClick={() => setIsDeleting(true)}>
 								Delete this organization
 							</Button>
 						</div>
