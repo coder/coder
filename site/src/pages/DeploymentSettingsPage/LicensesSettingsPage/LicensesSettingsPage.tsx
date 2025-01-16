@@ -9,6 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useSearchParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import LicensesSettingsPageView from "./LicensesSettingsPageView";
+import { insightsUserStatusCounts } from "api/queries/insights";
 
 const LicensesSettingsPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -18,6 +19,8 @@ const LicensesSettingsPage: FC = () => {
 
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+
+	const { data: userStatusCount } = useQuery(insightsUserStatusCounts());
 
 	const refreshEntitlementsMutation = useMutation(
 		refreshEntitlements(queryClient),
@@ -80,6 +83,7 @@ const LicensesSettingsPage: FC = () => {
 				licenses={licenses}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
+				activeUsers={userStatusCount?.active}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();

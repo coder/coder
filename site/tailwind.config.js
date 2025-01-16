@@ -53,6 +53,7 @@ module.exports = {
 				ring: "hsl(var(--ring))",
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
+					green: "hsl(var(--highlight-green))",
 				},
 			},
 			keyframes: {

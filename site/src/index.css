@@ -29,6 +29,7 @@
 		--border-destructive: 0 84% 60%;
 		--radius: 0.5rem;
 		--highlight-purple: 262 83% 58%;
+		--highlight-green: 143 64% 24%;
 		--border: 240 5.9% 90%;
 		--input: 240 5.9% 90%;
 		--ring: 240 10% 3.9%;
@@ -56,6 +57,7 @@
 		--border-success: 142 76% 36%;
 		--border-destructive: 0 91% 71%;
 		--highlight-purple: 252 95% 85%;
+		--highlight-green: 141 79% 85%;
 		--border: 240 3.7% 15.9%;
 		--input: 240 3.7% 15.9%;
 		--ring: 240 4.9% 83.9%;
