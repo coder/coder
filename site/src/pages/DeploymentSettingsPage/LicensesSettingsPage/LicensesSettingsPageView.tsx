@@ -16,6 +16,7 @@ import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
+import { license } from "../../../../e2e/constants";
 
 type Props = {
 	showConfetti: boolean;
@@ -133,14 +134,16 @@ const LicensesSettingsPageView: FC<Props> = ({
 					</div>
 				)}
 
-				<LicenseSeatConsumptionChart
-					limit={userLimitLimit}
-					data={activeUsers?.map((i) => ({
-						date: i.date,
-						users: i.count,
-						limit: 80,
-					}))}
-				/>
+				{licenses && licenses.length > 0 && (
+					<LicenseSeatConsumptionChart
+						limit={userLimitLimit}
+						data={activeUsers?.map((i) => ({
+							date: i.date,
+							users: i.count,
+							limit: 80,
+						}))}
+					/>
+				)}
 			</div>
 		</>
 	);

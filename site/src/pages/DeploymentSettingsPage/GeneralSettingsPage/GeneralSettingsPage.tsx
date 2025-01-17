@@ -14,7 +14,6 @@ const GeneralSettingsPage: FC = () => {
 	const safeExperimentsQuery = useQuery(availableExperiments());
 
 	const { metadata } = useEmbeddedMetadata();
-	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
 	const enabledExperimentsQuery = useQuery(experiments(metadata.experiments));
 
 	const safeExperiments = safeExperimentsQuery.data?.safe ?? [];
@@ -33,7 +32,6 @@ const GeneralSettingsPage: FC = () => {
 			<GeneralSettingsPageView
 				deploymentOptions={deploymentConfig.options}
 				dailyActiveUsers={dailyActiveUsers}
-				entitlements={entitlementsQuery.data}
 				invalidExperiments={invalidExperiments}
 				safeExperiments={safeExperiments}
 			/>

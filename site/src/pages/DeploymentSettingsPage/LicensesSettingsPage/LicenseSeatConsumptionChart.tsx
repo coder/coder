@@ -23,6 +23,7 @@ import {
 	XAxis,
 	YAxis,
 } from "recharts";
+import { docs } from "utils/docs";
 
 const chartConfig = {
 	users: {
@@ -101,13 +102,25 @@ export const LicenseSeatConsumptionChart: FC<
 							You might also check:
 							<ul>
 								<li>
-									<Link>Activity Audit</Link>
+									<Link asChild>
+										<RouterLink to="/audit">Activity Audit</RouterLink>
+									</Link>
 								</li>
 								<li>
-									<Link>Daily user activity</Link>
+									<Link asChild>
+										<RouterLink to="/deployment/general">
+											Daily user activity
+										</RouterLink>
+									</Link>
 								</li>
 								<li>
-									<Link>More details on user account statuses</Link>
+									<Link
+										href={docs("/admin/users#user-status")}
+										target="_blank"
+										rel="noreferrer"
+									>
+										More details on user account statuses
+									</Link>
 								</li>
 							</ul>
 						</div>
