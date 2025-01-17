@@ -1,14 +1,13 @@
 package tfparse
 
 import (
-	"fmt"
-
 	"github.com/aquasecurity/trivy-iac/pkg/scanners/terraform/parser/funcs"
 	"github.com/hashicorp/hcl/v2/ext/tryfunc"
 	ctyyaml "github.com/zclconf/go-cty-yaml"
 	"github.com/zclconf/go-cty/cty"
 	"github.com/zclconf/go-cty/cty/function"
 	"github.com/zclconf/go-cty/cty/function/stdlib"
+	"golang.org/x/xerrors"
 )
 
 // Functions returns a set of functions that are safe to use in the context of
@@ -131,7 +130,8 @@ var (
 		"filesha1":         makeStubFunction("filesha1", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 		"filesha256":       makeStubFunction("filesha256", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 		"filesha512":       makeStubFunction("filesha512", cty.String, function.Parameter{Name: "path", Type: cty.String}),
-		"pathexpand":       makeStubFunction("pathexpand", cty.String, function.Parameter{Name: "path", Type: cty.String})}
+		"pathexpand":       makeStubFunction("pathexpand", cty.String, function.Parameter{Name: "path", Type: cty.String}),
+	}
 
 	allFunctions = mergeMaps(safeFunctions, unsafeFileFunctions)
 )
@@ -155,8 +155,8 @@ func makeStubFunction(name string, returnType cty.Type, params ...function.Param
 	var spec function.Spec
 	spec.Params = params
 	spec.Type = function.StaticReturnType(returnType)
-	spec.Impl = func(args []cty.Value, retType cty.Type) (cty.Value, error) {
-		return cty.UnknownVal(returnType), fmt.Errorf("function %q may not be used here", name)
+	spec.Impl = func(_ []cty.Value, _ cty.Type) (cty.Value, error) {
+		return cty.UnknownVal(returnType), xerrors.Errorf("function %q may not be used here", name)
 	}
 	return function.New(&spec)
 }

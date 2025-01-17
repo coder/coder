@@ -482,7 +482,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 							"cluster"   = "${"devel"}${"opers"}"
 							"region"    = try(split(".", var.region)[1], "placeholder")
 							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
-							"some_path" = pathexpand("file.txt")
+							"some_path" = pathexpand("~/file.txt")
 						}
 					}`,
 			},
