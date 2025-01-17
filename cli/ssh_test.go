@@ -821,9 +821,9 @@ func TestSSH(t *testing.T) {
 		localSock := filepath.Join(tmpdir, "local.sock")
 		remoteSock := path.Join(tmpdir, "remote.sock")
 		for i := 0; i < 2; i++ {
-			//nolint:paralleltest // We want to run these sequentially.
-			t.Logf("Connect %d/2", i+1)
 			func() { // Function scope for defer.
+				t.Logf("Connect %d/2", i+1)
+
 				inv, root := clitest.New(t,
 					"ssh",
 					workspace.Name,
