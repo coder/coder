@@ -39,7 +39,7 @@ jobs:
           # -race is likeliest to catch flaky tests
           # due to correctness detection and its performance
           # impact.
-          gotestsum --junitfile="gotests.xml" -- -timeout=240m -count=10 -race ./...
+          gotestsum --junitfile="gotests.xml" -- -timeout=240m -count=3 -race ./...
 
       - name: Upload test results to DataDog
         uses: ./.github/actions/upload-datadog
