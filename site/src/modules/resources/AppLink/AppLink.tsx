@@ -162,7 +162,7 @@ export const AppLink: FC<AppLinkProps> = ({ app, workspace, agent }) => {
 							);
 							return;
 						}
-						case "tab": {
+						default: {
 							window.open(href);
 							return;
 						}
