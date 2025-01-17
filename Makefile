@@ -864,6 +864,17 @@ test-migrations: test-postgres-docker
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
+	# Make sure to not overallocate work_mem and max_connections as each
+	# connection will be allowed to use this much memory. Try adjusting
+	# shared_buffers instead, if needed.
+	#
+	# - work_mem=8MB * max_connections=1000 = 8GB
+	# - shared_buffers=2GB + effective_cache_size=1GB = 3GB
+	#
+	# This leaves 5GB for the rest of the system _and_ storing the
+	# database in memory (--tmpfs).
+	#
+	# https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -876,9 +887,9 @@ test-postgres-docker:
 		--detach \
 		--memory 16GB \
 		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
-		-c shared_buffers=1GB \
-		-c work_mem=1GB \
+		-c shared_buffers=2GB \
 		-c effective_cache_size=1GB \
+		-c work_mem=8MB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \
