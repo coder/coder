@@ -13,15 +13,7 @@ permissions:
 jobs:
   test-go-pg:
     runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
-
-
-    # TODO: re-enable main check!
-
-
-
-
-
-    # if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
     # `make test-postgres` to ensure we receive a trace of running
     # goroutines. Setting this to the timeout +5m should work quite well
