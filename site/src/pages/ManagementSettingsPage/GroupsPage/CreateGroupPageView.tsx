@@ -100,7 +100,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 					</Button>
 
 					<Button type="submit" disabled={isLoading}>
-						{isLoading && <Spinner />}
+						<Spinner loading={isLoading} />
 						Save
 					</Button>
 				</FormFooter>

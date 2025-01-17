@@ -357,7 +357,7 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting && <Spinner />}
+					<Spinner loading={isSubmitting} />
 					{jobError ? "Retry" : "Save"}
 				</Button>
 				{logs && (

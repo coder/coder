@@ -48,7 +48,7 @@ export const DialogActionButtons: FC<DialogActionButtonsProps> = ({
 					data-testid="confirm-button"
 					type="submit"
 				>
-					{confirmLoading && <Spinner loading />}
+					<Spinner loading={confirmLoading} />
 					{confirmText}
 				</Button>
 			)}

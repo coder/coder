@@ -298,7 +298,7 @@ export const TemplateSettingsForm: FC<TemplateSettingsForm> = ({
 				</Button>
 
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting && <Spinner />}
+					<Spinner loading={isSubmitting} />
 					Save
 				</Button>
 			</FormFooter>
