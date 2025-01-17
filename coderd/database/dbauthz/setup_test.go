@@ -2,6 +2,7 @@ package dbauthz_test
 
 import (
 	"context"
+	"encoding/gob"
 	"errors"
 	"fmt"
 	"reflect"
@@ -200,9 +201,29 @@ func (s *MethodTestSuite) Subtest(testCaseF func(db database.Store, check *expec
 				s.Equal(len(testCase.outputs), len(outputs), "method %q returned unexpected number of outputs", methodName)
 				for i := range outputs {
 					a, b := testCase.outputs[i].Interface(), outputs[i].Interface()
-					// Use cmp.Diff to get a nice diff of the two values.
-					if diff := cmp.Diff(a, b, cmpopts.EquateEmpty()); diff != "" {
-						s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
+
+					// To avoid the extra small overhead of gob encoding, we can
+					// first check if the values are equal with regard to order.
+					// If not, re-check disregarding order and show a nice diff
+					// output of the two values.
+					if !cmp.Equal(a, b, cmpopts.EquateEmpty()) {
+						if diff := cmp.Diff(a, b,
+							// Equate nil and empty slices.
+							cmpopts.EquateEmpty(),
+							// Allow slice order to be ignored.
+							cmpopts.SortSlices(func(a, b any) bool {
+								var ab, bb strings.Builder
+								_ = gob.NewEncoder(&ab).Encode(a)
+								_ = gob.NewEncoder(&bb).Encode(b)
+								// This might seem a bit dubious, but we really
+								// don't care about order and cmp doesn't provide
+								// a generic less function for slices:
+								// https://github.com/google/go-cmp/issues/67
+								return ab.String() < bb.String()
+							}),
+						); diff != "" {
+							s.Failf("compare outputs failed", "method %q returned unexpected output %d (-want +got):\n%s", methodName, i, diff)
+						}
 					}
 				}
 			}
