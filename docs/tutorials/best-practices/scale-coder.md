@@ -24,8 +24,36 @@ deployment.
 - Metrics
   - Capture infrastructure metrics like CPU, memory, open files, and network I/O for all
   Coder Server, external provisioner daemon, workspace proxy, and PostgreSQL instances.
+  - Capture Coder Server and External Provisioner daemons metrics [via Prometheus](#how-to-capture-coder-server-metrics-with-prometheus).
 
-### Capture Coder server metrics with Prometheus
+Retain metric time series for at least six months. This allows you to see
+performance trends relative to user growth.
+
+For a more comprehensive overview, integrate metrics with an observability
+dashboard like [Grafana](../../admin/monitoring/index.md).
+
+### Observability key metrics
+
+Configure alerting based on these metrics to ensure you surface problems before
+they affect the end-user experience.
+
+- CPU and Memory Utilization
+  - Monitor the utilization as a fraction of the available resources on the instance.
+
+     Utilization will vary with use throughout the course of a day, week, and longer timelines.
+     Monitor trends and pay special attention to the daily and weekly peak utilization.
+     Use long-term trends to plan infrastructure upgrades.
+
+- Tail latency of Coder Server API requests
+  - High tail latency can indicate Coder Server or the PostgreSQL database is underprovisioned
+  for the load.
+  - Use the `coderd_api_request_latencies_seconds` metric.
+
+- Tail latency of database queries
+  - High tail latency can indicate the PostgreSQL database is low in resources.
+  - Use the `coderd_db_query_latencies_seconds` metric.
+
+### How to capture Coder server metrics with Prometheus
 
 Edit your Helm `values.yaml` to capture metrics from Coder Server and external provisioner daemons with
 [Prometheus](../../admin/integrations/prometheus.md):
@@ -55,33 +83,6 @@ Edit your Helm `values.yaml` to capture metrics from Coder Server and external p
      ```yaml
      CODER_PROMETHEUS_COLLECT_AGENT_STATS=false
      ```
-
-Retain metric time series for at least six months. This allows you to see
-performance trends relative to user growth.
-
-For a more comprehensive overview, integrate metrics with an observability
-dashboard like [Grafana](../../admin/monitoring/index.md).
-
-### Observability key metrics
-
-Configure alerting based on these metrics to ensure you surface problems before
-they affect the end-user experience.
-
-- CPU and Memory Utilization
-  - Monitor the utilization as a fraction of the available resources on the instance.
-
-     Utilization will vary with use throughout the course of a day, week, and longer timelines.
-     Monitor trends and pay special attention to the daily and weekly peak utilization.
-     Use long-term trends to plan infrastructure upgrades.
-
-- Tail latency of Coder Server API requests
-  - High tail latency can indicate Coder Server or the PostgreSQL database is underprovisioned
-  for the load.
-  - Use the `coderd_api_request_latencies_seconds` metric.
-
-- Tail latency of database queries
-  - High tail latency can indicate the PostgreSQL database is low in resources.
-  - Use the `coderd_db_query_latencies_seconds` metric.
 
 ## Coder Server
 
