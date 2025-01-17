@@ -14,9 +14,9 @@ import { useWindowSize } from "hooks/useWindowSize";
 import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
+import { license } from "../../../../e2e/constants";
 import { LicenseCard } from "./LicenseCard";
 import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
-import { license } from "../../../../e2e/constants";
 
 type Props = {
 	showConfetti: boolean;
