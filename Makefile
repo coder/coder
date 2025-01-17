@@ -399,7 +399,17 @@ site/node_modules/.installed: site/package.json
 	cd site/
 	../scripts/pnpm_install.sh
 
-site/out/index.html: site/node_modules/.installed $(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
+SITE_GEN_FILES := \
+	site/src/api/typesGenerated.ts \
+	site/src/api/rbacresourcesGenerated.ts \
+	site/src/api/countriesGenerated.ts \
+	site/src/theme/icons.json
+
+site/out/index.html: \
+	site/node_modules/.installed \
+	site/static/install.sh \
+	$(SITE_GEN_FILES) \
+	$(shell find ./site $(FIND_EXCLUSIONS) -type f \( -name '*.ts' -o -name '*.tsx' \))
 	cd site/
 	# prevents this directory from getting to big, and causing "too much data" errors
 	rm -rf out/assets/
@@ -541,21 +551,20 @@ GEN_FILES := \
 	provisionersdk/proto/provisioner.pb.go \
 	provisionerd/proto/provisionerd.pb.go \
 	vpn/vpn.pb.go \
-	site/src/api/typesGenerated.ts \
+	$(DB_GEN_FILES) \
+	$(SITE_GEN_FILES) \
 	coderd/rbac/object_gen.go \
 	codersdk/rbacresources_gen.go \
-	site/src/api/rbacresourcesGenerated.ts \
-	site/src/api/countriesGenerated.ts \
 	docs/admin/integrations/prometheus.md \
 	docs/reference/cli/index.md \
 	docs/admin/security/audit-logs.md \
 	coderd/apidoc/swagger.json \
 	provisioner/terraform/testdata/version \
 	site/e2e/provisionerGenerated.ts \
-	site/src/theme/icons.json \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
 	coderd/database/pubsub/psmock/psmock.go
+
 
 # all gen targets should be added here and to gen/mark-fresh
 gen: gen/db $(GEN_FILES)
@@ -855,6 +864,30 @@ test-migrations: test-postgres-docker
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
+
+	# Try pulling up to three times to avoid CI flakes.
+	docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} || {
+		retries=2
+		for try in $(seq 1 ${retries}); do
+			echo "Failed to pull image, retrying (${try}/${retries})..."
+			sleep 1
+			if docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION}; then
+				break
+			fi
+		done
+	}
+
+	# Make sure to not overallocate work_mem and max_connections as each
+	# connection will be allowed to use this much memory. Try adjusting
+	# shared_buffers instead, if needed.
+	#
+	# - work_mem=8MB * max_connections=1000 = 8GB
+	# - shared_buffers=2GB + effective_cache_size=1GB = 3GB
+	#
+	# This leaves 5GB for the rest of the system _and_ storing the
+	# database in memory (--tmpfs).
+	#
+	# https://www.postgresql.org/docs/current/runtime-config-resource.html#GUC-WORK-MEM
 	docker run \
 		--env POSTGRES_PASSWORD=postgres \
 		--env POSTGRES_USER=postgres \
@@ -867,9 +900,9 @@ test-postgres-docker:
 		--detach \
 		--memory 16GB \
 		gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} \
-		-c shared_buffers=1GB \
-		-c work_mem=1GB \
+		-c shared_buffers=2GB \
 		-c effective_cache_size=1GB \
+		-c work_mem=8MB \
 		-c max_connections=1000 \
 		-c fsync=off \
 		-c synchronous_commit=off \

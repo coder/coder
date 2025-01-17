@@ -256,6 +256,7 @@ var (
 	//  - "ActionDelete" :: delete a template
 	//  - "ActionRead" :: read template
 	//  - "ActionUpdate" :: update a template
+	//  - "ActionUse" :: use the template to initially create a workspace, then workspace lifecycle permissions take over
 	//  - "ActionViewInsights" :: view insights
 	ResourceTemplate = Object{
 		Type: "template",

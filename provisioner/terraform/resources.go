@@ -437,8 +437,6 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			switch strings.ToLower(attrs.OpenIn) {
 			case "slim-window":
 				openIn = proto.AppOpenIn_SLIM_WINDOW
-			case "window":
-				openIn = proto.AppOpenIn_WINDOW
 			case "tab":
 				openIn = proto.AppOpenIn_TAB
 			}
