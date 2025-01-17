@@ -66,6 +66,7 @@ func TestSummarize(t *testing.T) {
 		name     string
 		br       healthsdk.BaseReport
 		pfx      string
+		docsURL  string
 		expected []string
 	}{
 		{
@@ -93,9 +94,9 @@ func TestSummarize(t *testing.T) {
 			expected: []string{
 				"Error: testing",
 				"Warn: TEST01: testing one",
-				"See: https://coder.com/docs/admin/healthcheck#test01",
+				"See: https://coder.com/docs/admin/monitoring/health-check#test01",
 				"Warn: TEST02: testing two",
-				"See: https://coder.com/docs/admin/healthcheck#test02",
+				"See: https://coder.com/docs/admin/monitoring/health-check#test02",
 			},
 		},
 		{
@@ -117,16 +118,40 @@ func TestSummarize(t *testing.T) {
 			expected: []string{
 				"TEST: Error: testing",
 				"TEST: Warn: TEST01: testing one",
-				"See: https://coder.com/docs/admin/healthcheck#test01",
+				"See: https://coder.com/docs/admin/monitoring/health-check#test01",
 				"TEST: Warn: TEST02: testing two",
-				"See: https://coder.com/docs/admin/healthcheck#test02",
+				"See: https://coder.com/docs/admin/monitoring/health-check#test02",
+			},
+		},
+		{
+			name: "custom docs url",
+			br: healthsdk.BaseReport{
+				Error: ptr.Ref("testing"),
+				Warnings: []health.Message{
+					{
+						Code:    "TEST01",
+						Message: "testing one",
+					},
+					{
+						Code:    "TEST02",
+						Message: "testing two",
+					},
+				},
+			},
+			docsURL: "https://my.coder.internal/docs",
+			expected: []string{
+				"Error: testing",
+				"Warn: TEST01: testing one",
+				"See: https://my.coder.internal/docs/admin/monitoring/health-check#test01",
+				"Warn: TEST02: testing two",
+				"See: https://my.coder.internal/docs/admin/monitoring/health-check#test02",
 			},
 		},
 	} {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			actual := tt.br.Summarize(tt.pfx, "")
+			actual := tt.br.Summarize(tt.pfx, tt.docsURL)
 			if len(tt.expected) == 0 {
 				assert.Empty(t, actual)
 				return
