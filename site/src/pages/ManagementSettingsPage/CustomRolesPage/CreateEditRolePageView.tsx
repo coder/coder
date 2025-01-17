@@ -99,6 +99,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 								form.handleSubmit();
 							}}
 						>
+							<Spinner loading={isLoading} />
 							{role !== undefined ? "Save" : "Create Role"}
 						</Button>
 					</div>
@@ -141,7 +142,7 @@ export const CreateEditRolePageView: FC<CreateEditRolePageViewProps> = ({
 						</Button>
 
 						<Button type="submit" disabled={isLoading}>
-							{isLoading && <Spinner />}
+							<Spinner loading={isLoading} />
 							{role ? "Save role" : "Create Role"}
 						</Button>
 					</FormFooter>

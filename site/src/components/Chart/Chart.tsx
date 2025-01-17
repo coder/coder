@@ -66,6 +66,8 @@ export const ChartContainer = React.forwardRef<
 					"[&_.recharts-sector[stroke='#fff']]:stroke-transparent",
 					"[&_.recharts-sector]:outline-none",
 					"[&_.recharts-surface]:outline-none",
+					"[&_.recharts-text]:fill-content-secondary [&_.recharts-text]:font-medium",
+					"[&_.recharts-cartesian-axis-line]:stroke-[hsl(var(--border-default))]",
 					className,
 				)}
 				{...props}
@@ -195,7 +197,7 @@ export const ChartTooltipContent = React.forwardRef<
 			<div
 				ref={ref}
 				className={cn(
-					"grid min-w-[8rem] items-start gap-1.5 rounded-lg border border-border/50 bg-background px-2.5 py-1.5 text-xs shadow-xl",
+					"grid min-w-[8rem] items-start gap-1 rounded-lg border border-solid border-border bg-surface-primary px-3 py-2 text-xs shadow-xl",
 					className,
 				)}
 			>
