@@ -3,8 +3,8 @@
 name: nightly-gauntlet
 on:
   schedule:
-    # Every day at midnight
-    - cron: "0 0 * * *"
+    # Every day at 4AM
+    - cron: "0 4 * * *"
   workflow_dispatch:
 
 permissions:
@@ -78,7 +78,7 @@ jobs:
       - go-race
       - go-timing
     runs-on: ubuntu-latest
-    if: failure()
+    if: failure() && github.ref == 'refs/heads/main'
 
     steps:
       - name: Send Slack notification
