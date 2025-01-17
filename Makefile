@@ -864,6 +864,19 @@ test-migrations: test-postgres-docker
 # NOTE: we set --memory to the same size as a GitHub runner.
 test-postgres-docker:
 	docker rm -f test-postgres-docker-${POSTGRES_VERSION} || true
+
+	# Try pulling up to three times to avoid CI flakes.
+	docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION} || {
+		retries=2
+		for try in $(seq 1 ${retries}); do
+			echo "Failed to pull image, retrying (${try}/${retries})..."
+			sleep 1
+			if docker pull gcr.io/coder-dev-1/postgres:${POSTGRES_VERSION}; then
+				break
+			fi
+		done
+	}
+
 	# Make sure to not overallocate work_mem and max_connections as each
 	# connection will be allowed to use this much memory. Try adjusting
 	# shared_buffers instead, if needed.
