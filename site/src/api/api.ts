@@ -2089,6 +2089,19 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getInsightsUserStatusCounts = async (
+		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
+	): Promise<TypesGen.GetUserStatusCountsResponse> => {
+		const searchParams = new URLSearchParams({
+			tz_offset: offset.toString(),
+		});
+		const response = await this.axios.get(
+			`/api/v2/insights/user-status-counts?${searchParams}`,
+		);
+
+		return response.data;
+	};
+
 	getInsightsTemplate = async (
 		params: InsightsTemplateParams,
 	): Promise<TypesGen.TemplateInsightsResponse> => {

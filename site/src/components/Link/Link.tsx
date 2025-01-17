@@ -1,4 +1,4 @@
-import { Slot } from "@radix-ui/react-slot";
+import { Slot, Slottable } from "@radix-ui/react-slot";
 import { type VariantProps, cva } from "class-variance-authority";
 import { SquareArrowOutUpRightIcon } from "lucide-react";
 import { forwardRef } from "react";
@@ -38,7 +38,7 @@ export const Link = forwardRef<HTMLAnchorElement, LinkProps>(
 				ref={ref}
 				{...props}
 			>
-				{children}
+				<Slottable>{children}</Slottable>
 				<SquareArrowOutUpRightIcon aria-hidden="true" />
 			</Comp>
 		);
