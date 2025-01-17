@@ -349,7 +349,8 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 min-w-10 text-content-primary"
+					size="icon"
+					className="text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>
