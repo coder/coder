@@ -41,22 +41,22 @@ func TestSummarize(t *testing.T) {
 		expected := []string{
 			"Access URL: Error: test error",
 			"Access URL: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Database: Error: test error",
 			"Database: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"DERP: Error: test error",
 			"DERP: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Provisioner Daemons: Error: test error",
 			"Provisioner Daemons: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Websocket: Error: test error",
 			"Websocket: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 			"Workspace Proxies: Error: test error",
 			"Workspace Proxies: Warn: TEST: testing",
-			"See: https://coder.com/docs/admin/healthcheck#test",
+			"See: https://coder.com/docs/admin/monitoring/health-check#test",
 		}
 		actual := hr.Summarize("")
 		assert.Equal(t, expected, actual)
