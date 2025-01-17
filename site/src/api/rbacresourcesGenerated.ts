@@ -144,6 +144,7 @@ export const RBACResourceActions: Partial<
 		delete: "delete a template",
 		read: "read template",
 		update: "update a template",
+		use: "use the template to initially create a workspace, then workspace lifecycle permissions take over",
 		view_insights: "view insights",
 	},
 	user: {

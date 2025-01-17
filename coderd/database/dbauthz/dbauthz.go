@@ -3169,6 +3169,14 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
+	tpl, err := q.GetTemplateByID(ctx, arg.TemplateID)
+	if err != nil {
+		return database.WorkspaceTable{}, xerrors.Errorf("verify template by id: %w", err)
+	}
+	if err := q.authorizeContext(ctx, policy.ActionUse, tpl); err != nil {
+		return database.WorkspaceTable{}, xerrors.Errorf("use template for workspace: %w", err)
+	}
+
 	return insert(q.log, q.auth, obj, q.db.InsertWorkspace)(ctx, arg)
 }
 

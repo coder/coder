@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -693,4 +694,14 @@ func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now ti
 		}
 	}
 	return matched
+}
+
+func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []policy.Action{policy.WildcardSymbol}
+	case codersdk.TemplateRoleUse:
+		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
 }

@@ -2459,7 +2459,7 @@ func (s *MethodTestSuite) TestWorkspace() {
 			OrganizationID:   o.ID,
 			AutomaticUpdates: database.AutomaticUpdatesNever,
 			TemplateID:       tpl.ID,
-		}).Asserts(rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), policy.ActionCreate)
+		}).Asserts(tpl, policy.ActionRead, tpl, policy.ActionUse, rbac.ResourceWorkspace.WithOwner(u.ID.String()).InOrg(o.ID), policy.ActionCreate)
 	}))
 	s.Run("Start/InsertWorkspaceBuild", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})

@@ -165,7 +165,7 @@ export const WorkspaceParametersForm: FC<WorkspaceParameterFormProps> = ({
 						type="submit"
 						disabled={isSubmitting || disabled || !form.dirty}
 					>
-						{isSubmitting && <Spinner />}
+						<Spinner loading={isSubmitting} />
 						Submit and restart
 					</Button>
 				</FormFooter>

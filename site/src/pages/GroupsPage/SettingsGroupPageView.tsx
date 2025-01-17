@@ -113,7 +113,7 @@ const UpdateGroupForm: FC<UpdateGroupFormProps> = ({
 					</Button>
 
 					<Button type="submit" disabled={isLoading}>
-						{isLoading && <Spinner />}
+						<Spinner loading={isLoading} />
 						Save
 					</Button>
 				</FormFooter>

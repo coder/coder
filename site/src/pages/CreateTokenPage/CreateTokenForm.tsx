@@ -152,7 +152,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					Cancel
 				</Button>
 				<Button type="submit" disabled={isCreating}>
-					{isCreating && <Spinner />}
+					<Spinner loading={isCreating} />
 					{creationFailed ? "Retry" : "Create token"}
 				</Button>
 			</FormFooter>

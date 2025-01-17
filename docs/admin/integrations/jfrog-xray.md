@@ -24,7 +24,7 @@ workspaces using Coder's [JFrog Xray Integration](https://github.com/coder/coder
 1. Create a JFrog Platform [Access Token](https://jfrog.com/help/r/jfrog-platform-administration-documentation/access-tokens) with a user that has the `read` [permission](https://jfrog.com/help/r/jfrog-platform-administration-documentation/permissions)
    for the repositories you want to scan.
 
-1. Create a Coder [token](../../reference/cli/tokens_create.md#tokens-create) with a user that has the [`owner`](../users#roles) role.
+1. Create a Coder [token](../../reference/cli/tokens_create.md#tokens-create) with a user that has the [`owner`](../users/index.md#roles) role.
 
 1. Create Kubernetes secrets for the JFrog Xray and Coder tokens.
 
