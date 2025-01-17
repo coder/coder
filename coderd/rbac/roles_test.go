@@ -233,6 +233,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:    "UseTemplates",
+			Actions: []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceTemplate.InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				groupID.String(): {policy.ActionUse},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin, groupMemberMe},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, userAdmin, orgMemberMe},
+			},
+		},
+		{
 			Name:     "Files",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceFile.WithID(fileID),

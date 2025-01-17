@@ -525,6 +525,18 @@ func createWorkspace(
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	// The user also needs permission to use the template. At this point they have
+	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
+	// Doing this up front can save some work below if the user doesn't have permission.
+	if !api.Authorize(r, policy.ActionUse, template) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
+			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+			Validations: nil,
+		})
+		return
+	}
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {

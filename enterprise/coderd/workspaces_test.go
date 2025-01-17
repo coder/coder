@@ -193,6 +193,53 @@ func TestCreateWorkspace(t *testing.T) {
 		require.Equal(t, http.StatusBadRequest, apiErr.StatusCode())
 		require.Contains(t, apiErr.Message, "doesn't exist")
 	})
+
+	// Auditors cannot "use" templates, they can only read them.
+	t.Run("Auditor", func(t *testing.T) {
+		t.Parallel()
+
+		owner, first := coderdenttest.New(t, &coderdenttest.Options{
+			Options: &coderdtest.Options{
+				IncludeProvisionerDaemon: true,
+			},
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureTemplateRBAC:          1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		// A member of the org as an auditor
+		auditor, _ := coderdtest.CreateAnotherUser(t, owner, first.OrganizationID, rbac.RoleAuditor())
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		// Given: a template with a version without the "use" permission on everyone
+		version := coderdtest.CreateTemplateVersion(t, owner, first.OrganizationID, nil)
+		_ = coderdtest.AwaitTemplateVersionJobCompleted(t, owner, version.ID)
+		template := coderdtest.CreateTemplate(t, owner, first.OrganizationID, version.ID)
+
+		//nolint:gocritic // This should be run as the owner user.
+		err := owner.UpdateTemplateACL(ctx, template.ID, codersdk.UpdateTemplateACL{
+			UserPerms: nil,
+			GroupPerms: map[string]codersdk.TemplateRole{
+				first.OrganizationID.String(): codersdk.TemplateRoleDeleted,
+			},
+		})
+		require.NoError(t, err)
+
+		_, err = auditor.CreateUserWorkspace(ctx, codersdk.Me, codersdk.CreateWorkspaceRequest{
+			TemplateID: template.ID,
+			Name:       "workspace",
+		})
+		require.Error(t, err)
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusForbidden, apiErr.StatusCode())
+		require.Contains(t, apiErr.Message, "Unauthorized access to use the template")
+	})
 }
 
 func TestCreateUserWorkspace(t *testing.T) {
