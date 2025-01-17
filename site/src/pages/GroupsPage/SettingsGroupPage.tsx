@@ -18,7 +18,7 @@ export const SettingsGroupPage: FC = () => {
 	const navigate = useNavigate();
 
 	const navigateToGroup = () => {
-		navigate(`/groups/${groupName}`);
+		navigate(`/deployment/groups/${groupName}`);
 	};
 
 	const helmet = (
@@ -56,7 +56,7 @@ export const SettingsGroupPage: FC = () => {
 							add_users: [],
 							remove_users: [],
 						});
-						navigate(`/groups/${data.name}`, { replace: true });
+						navigate(`/deployment/groups/${data.name}`, { replace: true });
 					} catch (error) {
 						displayError(getErrorMessage(error, "Failed to update group"));
 					}

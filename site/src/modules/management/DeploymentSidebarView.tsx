@@ -99,6 +99,9 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 				{permissions.viewAllUsers && (
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
+				{permissions.viewAnyGroup && (
+					<SidebarNavItem href="/deployment/groups">Groups</SidebarNavItem>
+				)}
 				{permissions.viewNotificationTemplate && (
 					<SidebarNavItem href="/deployment/notifications">
 						<div className="flex flex-row items-center gap-2">
