@@ -19,5 +19,6 @@ ignorePatterns:
   - pattern: "code.visualstudio.com"
   - pattern: "www.emacswiki.org"
   - pattern: "linux.die.net/man"
+  - pattern: "www.gnu.org"
 aliveStatusCodes:
   - 200
