@@ -3099,25 +3099,11 @@ WITH
 	-- dates_of_interest defines all points in time that are relevant to the query.
 	-- It includes the start_time, all status changes, all deletions, and the end_time.
 dates_of_interest AS (
-	SELECT $1::timestamptz AS date
-
-	UNION
-
-    SELECT DISTINCT changed_at AS date
-    FROM user_status_changes
-    WHERE changed_at > $1::timestamptz
-        AND changed_at < $2::timestamptz
-
-	UNION
-
-	SELECT DISTINCT deleted_at AS date
-	FROM user_deleted
-	WHERE deleted_at > $1::timestamptz
-		AND deleted_at < $2::timestamptz
-
-	UNION
-
-	SELECT $2::timestamptz AS date
+	SELECT date FROM generate_series(
+		$1::timestamptz,
+		$2::timestamptz,
+		(CASE WHEN $3::int <= 0 THEN 3600 * 24 ELSE $3::int END || ' seconds')::interval
+	) AS date
 ),
 	-- latest_status_before_range defines the status of each user before the start_time.
 	-- We do not include users who were deleted before the start_time. We use this to ensure that
@@ -3193,7 +3179,7 @@ ranked_status_change_per_user_per_date AS (
 	LEFT JOIN relevant_status_changes rsc1 ON rsc1.changed_at <= d.date
 )
 SELECT
-	rscpupd.date,
+	rscpupd.date::timestamptz AS date,
 	statuses.new_status AS status,
 	COUNT(rscpupd.user_id) FILTER (
 		WHERE rscpupd.rn = 1
@@ -3211,11 +3197,13 @@ SELECT
 FROM ranked_status_change_per_user_per_date rscpupd
 CROSS JOIN statuses
 GROUP BY rscpupd.date, statuses.new_status
+ORDER BY rscpupd.date
 `
 
 type GetUserStatusCountsParams struct {
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
+	Interval  int32     `db:"interval" json:"interval"`
 }
 
 type GetUserStatusCountsRow struct {
@@ -3237,7 +3225,7 @@ type GetUserStatusCountsRow struct {
 // We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 // the result shows the total number of users in each status on any particular day.
 func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime, arg.Interval)
 	if err != nil {
 		return nil, err
 	}
@@ -4134,7 +4122,7 @@ func (q *sqlQuerier) GetNotificationReportGeneratorLogByTemplate(ctx context.Con
 }
 
 const getNotificationTemplateByID = `-- name: GetNotificationTemplateByID :one
-SELECT id, name, title_template, body_template, actions, "group", method, kind
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 FROM notification_templates
 WHERE id = $1::uuid
 `
@@ -4151,12 +4139,13 @@ func (q *sqlQuerier) GetNotificationTemplateByID(ctx context.Context, id uuid.UU
 		&i.Group,
 		&i.Method,
 		&i.Kind,
+		&i.EnabledByDefault,
 	)
 	return i, err
 }
 
 const getNotificationTemplatesByKind = `-- name: GetNotificationTemplatesByKind :many
-SELECT id, name, title_template, body_template, actions, "group", method, kind
+SELECT id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 FROM notification_templates
 WHERE kind = $1::notification_template_kind
 ORDER BY name ASC
@@ -4180,6 +4169,7 @@ func (q *sqlQuerier) GetNotificationTemplatesByKind(ctx context.Context, kind No
 			&i.Group,
 			&i.Method,
 			&i.Kind,
+			&i.EnabledByDefault,
 		); err != nil {
 			return nil, err
 		}
@@ -4233,7 +4223,7 @@ const updateNotificationTemplateMethodByID = `-- name: UpdateNotificationTemplat
 UPDATE notification_templates
 SET method = $1::notification_method
 WHERE id = $2::uuid
-RETURNING id, name, title_template, body_template, actions, "group", method, kind
+RETURNING id, name, title_template, body_template, actions, "group", method, kind, enabled_by_default
 `
 
 type UpdateNotificationTemplateMethodByIDParams struct {
@@ -4253,6 +4243,7 @@ func (q *sqlQuerier) UpdateNotificationTemplateMethodByID(ctx context.Context, a
 		&i.Group,
 		&i.Method,
 		&i.Kind,
+		&i.EnabledByDefault,
 	)
 	return i, err
 }
@@ -5555,6 +5546,118 @@ func (q *sqlQuerier) GetProvisionerDaemonsByOrganization(ctx context.Context, ar
 			&i.APIVersion,
 			&i.OrganizationID,
 			&i.KeyID,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProvisionerDaemonsWithStatusByOrganization = `-- name: GetProvisionerDaemonsWithStatusByOrganization :many
+SELECT
+	pd.id, pd.created_at, pd.name, pd.provisioners, pd.replica_id, pd.tags, pd.last_seen_at, pd.version, pd.api_version, pd.organization_id, pd.key_id,
+	CASE
+		WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - ($1::bigint || ' ms')::interval)
+		THEN 'offline'
+		ELSE CASE
+			WHEN current_job.id IS NOT NULL THEN 'busy'
+			ELSE 'idle'
+		END
+	END::provisioner_daemon_status AS status,
+	pk.name AS key_name,
+	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
+	current_job.id AS current_job_id,
+	current_job.job_status AS current_job_status,
+	previous_job.id AS previous_job_id,
+	previous_job.job_status AS previous_job_status
+FROM
+	provisioner_daemons pd
+JOIN
+	provisioner_keys pk ON pk.id = pd.key_id
+LEFT JOIN
+	provisioner_jobs current_job ON (
+		current_job.worker_id = pd.id
+		AND current_job.completed_at IS NULL
+	)
+LEFT JOIN
+	provisioner_jobs previous_job ON (
+		previous_job.id = (
+			SELECT
+				id
+			FROM
+				provisioner_jobs
+			WHERE
+				worker_id = pd.id
+				AND completed_at IS NOT NULL
+			ORDER BY
+				completed_at DESC
+			LIMIT 1
+		)
+	)
+WHERE
+	pd.organization_id = $2::uuid
+	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
+	AND ($4::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, $4::tagset))
+ORDER BY
+	pd.created_at ASC
+`
+
+type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
+	StaleIntervalMS int64       `db:"stale_interval_ms" json:"stale_interval_ms"`
+	OrganizationID  uuid.UUID   `db:"organization_id" json:"organization_id"`
+	IDs             []uuid.UUID `db:"ids" json:"ids"`
+	Tags            StringMap   `db:"tags" json:"tags"`
+}
+
+type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
+	ProvisionerDaemon ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status            ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName           string                   `db:"key_name" json:"key_name"`
+	CurrentJobID      uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus  NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID     uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+}
+
+func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerDaemonsWithStatusByOrganization,
+		arg.StaleIntervalMS,
+		arg.OrganizationID,
+		pq.Array(arg.IDs),
+		arg.Tags,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProvisionerDaemonsWithStatusByOrganizationRow
+	for rows.Next() {
+		var i GetProvisionerDaemonsWithStatusByOrganizationRow
+		if err := rows.Scan(
+			&i.ProvisionerDaemon.ID,
+			&i.ProvisionerDaemon.CreatedAt,
+			&i.ProvisionerDaemon.Name,
+			pq.Array(&i.ProvisionerDaemon.Provisioners),
+			&i.ProvisionerDaemon.ReplicaID,
+			&i.ProvisionerDaemon.Tags,
+			&i.ProvisionerDaemon.LastSeenAt,
+			&i.ProvisionerDaemon.Version,
+			&i.ProvisionerDaemon.APIVersion,
+			&i.ProvisionerDaemon.OrganizationID,
+			&i.ProvisionerDaemon.KeyID,
+			&i.Status,
+			&i.KeyName,
+			&i.CurrentJobID,
+			&i.CurrentJobStatus,
+			&i.PreviousJobID,
+			&i.PreviousJobStatus,
 		); err != nil {
 			return nil, err
 		}

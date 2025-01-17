@@ -1209,6 +1209,68 @@ func AllPortShareProtocolValues() []PortShareProtocol {
 	}
 }
 
+// The status of a provisioner daemon.
+type ProvisionerDaemonStatus string
+
+const (
+	ProvisionerDaemonStatusOffline ProvisionerDaemonStatus = "offline"
+	ProvisionerDaemonStatusIdle    ProvisionerDaemonStatus = "idle"
+	ProvisionerDaemonStatusBusy    ProvisionerDaemonStatus = "busy"
+)
+
+func (e *ProvisionerDaemonStatus) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = ProvisionerDaemonStatus(s)
+	case string:
+		*e = ProvisionerDaemonStatus(s)
+	default:
+		return fmt.Errorf("unsupported scan type for ProvisionerDaemonStatus: %T", src)
+	}
+	return nil
+}
+
+type NullProvisionerDaemonStatus struct {
+	ProvisionerDaemonStatus ProvisionerDaemonStatus `json:"provisioner_daemon_status"`
+	Valid                   bool                    `json:"valid"` // Valid is true if ProvisionerDaemonStatus is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullProvisionerDaemonStatus) Scan(value interface{}) error {
+	if value == nil {
+		ns.ProvisionerDaemonStatus, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.ProvisionerDaemonStatus.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullProvisionerDaemonStatus) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.ProvisionerDaemonStatus), nil
+}
+
+func (e ProvisionerDaemonStatus) Valid() bool {
+	switch e {
+	case ProvisionerDaemonStatusOffline,
+		ProvisionerDaemonStatusIdle,
+		ProvisionerDaemonStatusBusy:
+		return true
+	}
+	return false
+}
+
+func AllProvisionerDaemonStatusValues() []ProvisionerDaemonStatus {
+	return []ProvisionerDaemonStatus{
+		ProvisionerDaemonStatusOffline,
+		ProvisionerDaemonStatusIdle,
+		ProvisionerDaemonStatusBusy,
+	}
+}
+
 // Computed status of a provisioner job. Jobs could be stuck in a hung state, these states do not guarantee any transition to another state.
 type ProvisionerJobStatus string
 
@@ -2480,8 +2542,9 @@ type NotificationTemplate struct {
 	Actions       []byte         `db:"actions" json:"actions"`
 	Group         sql.NullString `db:"group" json:"group"`
 	// NULL defers to the deployment-level method
-	Method NullNotificationMethod   `db:"method" json:"method"`
-	Kind   NotificationTemplateKind `db:"kind" json:"kind"`
+	Method           NullNotificationMethod   `db:"method" json:"method"`
+	Kind             NotificationTemplateKind `db:"kind" json:"kind"`
+	EnabledByDefault bool                     `db:"enabled_by_default" json:"enabled_by_default"`
 }
 
 // A table used to configure apps that can use Coder as an OAuth2 provider, the reverse of what we are calling external authentication.

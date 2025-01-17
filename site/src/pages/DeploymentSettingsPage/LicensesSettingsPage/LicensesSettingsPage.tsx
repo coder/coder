@@ -1,6 +1,7 @@
 import { API } from "api/api";
 import { getErrorMessage } from "api/errors";
 import { entitlements, refreshEntitlements } from "api/queries/entitlements";
+import { insightsUserStatusCounts } from "api/queries/insights";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
 import { type FC, useEffect, useState } from "react";
@@ -18,6 +19,8 @@ const LicensesSettingsPage: FC = () => {
 
 	const { metadata } = useEmbeddedMetadata();
 	const entitlementsQuery = useQuery(entitlements(metadata.entitlements));
+
+	const { data: userStatusCount } = useQuery(insightsUserStatusCounts());
 
 	const refreshEntitlementsMutation = useMutation(
 		refreshEntitlements(queryClient),
@@ -80,6 +83,7 @@ const LicensesSettingsPage: FC = () => {
 				licenses={licenses}
 				isRemovingLicense={isRemovingLicense}
 				removeLicense={(licenseId: number) => removeLicenseApi(licenseId)}
+				activeUsers={userStatusCount?.active}
 				refreshEntitlements={async () => {
 					try {
 						await refreshEntitlementsMutation.mutateAsync();

@@ -677,9 +677,6 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
-
-	api.notifyWorkspaceCreated(ctx, workspace, req.RichParameterValues)
-
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
@@ -699,6 +696,21 @@ func createWorkspace(
 	if err != nil {
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	}
+
+	// nolint:gocritic // Need system context to fetch admins
+	admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
+	if err != nil {
+		api.Logger.Error(ctx, "find template admins", slog.Error(err))
+	} else {
+		for _, admin := range admins {
+			// Don't send notifications to user which initiated the event.
+			if admin.ID == initiatorID {
+				continue
+			}
+
+			api.notifyWorkspaceCreated(ctx, admin.ID, workspace, req.RichParameterValues)
+		}
 	}
 
 	auditReq.New = workspace.WorkspaceTable()
@@ -751,6 +763,7 @@ func createWorkspace(
 
 func (api *API) notifyWorkspaceCreated(
 	ctx context.Context,
+	receiverID uuid.UUID,
 	workspace database.Workspace,
 	parameters []codersdk.WorkspaceBuildParameter,
 ) {
@@ -785,7 +798,7 @@ func (api *API) notifyWorkspaceCreated(
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
+		receiverID,
 		notifications.TemplateWorkspaceCreated,
 		map[string]string{
 			"workspace": workspace.Name,
@@ -1039,6 +1052,26 @@ func (api *API) putWorkspaceTTL(rw http.ResponseWriter, r *http.Request) {
 			Ttl: dbTTL,
 		}); err != nil {
 			return xerrors.Errorf("update workspace time until shutdown: %w", err)
+		}
+
+		// If autostop has been disabled, we want to remove the deadline from the
+		// existing workspace build (if there is one).
+		if !dbTTL.Valid {
+			build, err := s.GetLatestWorkspaceBuildByWorkspaceID(ctx, workspace.ID)
+			if err != nil {
+				return xerrors.Errorf("get latest workspace build: %w", err)
+			}
+
+			if build.Transition == database.WorkspaceTransitionStart {
+				if err = s.UpdateWorkspaceBuildDeadlineByID(ctx, database.UpdateWorkspaceBuildDeadlineByIDParams{
+					ID:          build.ID,
+					Deadline:    time.Time{},
+					MaxDeadline: build.MaxDeadline,
+					UpdatedAt:   dbtime.Time(api.Clock.Now()),
+				}); err != nil {
+					return xerrors.Errorf("update workspace build deadline: %w", err)
+				}
+			}
 		}
 
 		return nil

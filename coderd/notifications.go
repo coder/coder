@@ -271,14 +271,15 @@ func (api *API) putUserNotificationPreferences(rw http.ResponseWriter, r *http.R
 func convertNotificationTemplates(in []database.NotificationTemplate) (out []codersdk.NotificationTemplate) {
 	for _, tmpl := range in {
 		out = append(out, codersdk.NotificationTemplate{
-			ID:            tmpl.ID,
-			Name:          tmpl.Name,
-			TitleTemplate: tmpl.TitleTemplate,
-			BodyTemplate:  tmpl.BodyTemplate,
-			Actions:       string(tmpl.Actions),
-			Group:         tmpl.Group.String,
-			Method:        string(tmpl.Method.NotificationMethod),
-			Kind:          string(tmpl.Kind),
+			ID:               tmpl.ID,
+			Name:             tmpl.Name,
+			TitleTemplate:    tmpl.TitleTemplate,
+			BodyTemplate:     tmpl.BodyTemplate,
+			Actions:          string(tmpl.Actions),
+			Group:            tmpl.Group.String,
+			Method:           string(tmpl.Method.NotificationMethod),
+			Kind:             string(tmpl.Kind),
+			EnabledByDefault: tmpl.EnabledByDefault,
 		})
 	}
 

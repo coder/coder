@@ -364,7 +364,6 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = testutil.Context(t, testutil.WaitShort)
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
@@ -388,6 +387,8 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 
 	// Given: workspace is stopped, and the user is suspended.
 	workspace = coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
 	require.NoError(t, err, "update user status")
@@ -660,7 +661,6 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = testutil.Context(t, testutil.WaitShort)
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
@@ -681,6 +681,9 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	// Given: workspace is running, and the user is suspended.
 	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
 	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
 	require.NoError(t, err, "update user status")
 
@@ -722,45 +725,17 @@ func TestExecutorWorkspaceAutostopNoWaitChangedMyMind(t *testing.T) {
 	err := client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: nil})
 	require.NoError(t, err)
 
-	// Then: the deadline should still be the original value
+	// Then: the deadline should be set to zero
 	updated := coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.WithinDuration(t, workspace.LatestBuild.Deadline.Time, updated.LatestBuild.Deadline.Time, time.Minute)
+	assert.True(t, !updated.LatestBuild.Deadline.Valid)
 
 	// When: the autobuild executor ticks after the original deadline
 	go func() {
 		tickCh <- workspace.LatestBuild.Deadline.Time.Add(time.Minute)
 	}()
 
-	// Then: the workspace should stop
-	stats := <-statsCh
-	assert.Len(t, stats.Errors, 0)
-	assert.Len(t, stats.Transitions, 1)
-	assert.Equal(t, stats.Transitions[workspace.ID], database.WorkspaceTransitionStop)
-
-	// Wait for stop to complete
-	updated = coderdtest.MustWorkspace(t, client, workspace.ID)
-	_ = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, updated.LatestBuild.ID)
-
-	// Start the workspace again
-	workspace = coderdtest.MustTransitionWorkspace(t, client, workspace.ID, database.WorkspaceTransitionStop, database.WorkspaceTransitionStart)
-
-	// Given: the user changes their mind again and wants to enable autostop
-	newTTL := 8 * time.Hour
-	err = client.UpdateWorkspaceTTL(ctx, workspace.ID, codersdk.UpdateWorkspaceTTLRequest{TTLMillis: ptr.Ref(newTTL.Milliseconds())})
-	require.NoError(t, err)
-
-	// Then: the deadline should remain at the zero value
-	updated = coderdtest.MustWorkspace(t, client, workspace.ID)
-	assert.Zero(t, updated.LatestBuild.Deadline)
-
-	// When: the relentless onward march of time continues
-	go func() {
-		tickCh <- workspace.LatestBuild.Deadline.Time.Add(newTTL + time.Minute)
-		close(tickCh)
-	}()
-
 	// Then: the workspace should not stop
-	stats = <-statsCh
+	stats := <-statsCh
 	assert.Len(t, stats.Errors, 0)
 	assert.Len(t, stats.Transitions, 0)
 }
@@ -1008,6 +983,9 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
 	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, activeVersion.ID)
+
+	ctx = testutil.Context(t, testutil.WaitShort) // Reset context after setting up the template.
+
 	//nolint We need to set this in the database directly, because the API will return an error
 	// letting you know that this feature requires an enterprise license.
 	err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(me, owner.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{

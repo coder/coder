@@ -809,7 +809,6 @@ Status Code **200**
 | `health`                  | `healthy`          |
 | `health`                  | `unhealthy`        |
 | `open_in`                 | `slim-window`      |
-| `open_in`                 | `window`           |
 | `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
@@ -1447,7 +1446,6 @@ Status Code **200**
 | `health`                  | `healthy`                     |
 | `health`                  | `unhealthy`                   |
 | `open_in`                 | `slim-window`                 |
-| `open_in`                 | `window`                      |
 | `open_in`                 | `tab`                         |
 | `sharing_level`           | `owner`                       |
 | `sharing_level`           | `authenticated`               |
