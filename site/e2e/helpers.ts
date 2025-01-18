@@ -231,13 +231,15 @@ export const createTemplate = async (
  * random name.
  */
 export const createGroup = async (page: Page): Promise<string> => {
-	await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
-	await expectUrl(page).toHavePathName("/groups/create");
+	await page.goto("/deployment/groups/create", {
+		waitUntil: "domcontentloaded",
+	});
+	await expectUrl(page).toHavePathName("/deployment/groups/create");
 
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
-	await page.getByTestId("form-submit").click();
-	await expectUrl(page).toHavePathName(`/groups/${name}`);
+	await page.getByRole("button", { name: /save/i }).click();
+	await expectUrl(page).toHavePathName(`/deployment/groups/${name}`);
 	return name;
 };
 
@@ -465,10 +467,10 @@ export const waitUntilUrlIsNotResponding = async (url: string) => {
 // Allows users to more easily define properties they want for agents and resources!
 type RecursivePartial<T> = {
 	[P in keyof T]?: T[P] extends (infer U)[]
-		? RecursivePartial<U>[]
-		: T[P] extends object | undefined
-			? RecursivePartial<T[P]>
-			: T[P];
+	? RecursivePartial<U>[]
+	: T[P] extends object | undefined
+	? RecursivePartial<T[P]>
+	: T[P];
 };
 
 interface EchoProvisionerResponses {
