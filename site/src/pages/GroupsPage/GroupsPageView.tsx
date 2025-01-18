@@ -80,7 +80,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 														canCreateGroup && (
 															<Button
 																component={RouterLink}
-																to="/groups/create"
+																to="/deployment/groups/create"
 																startIcon={<AddOutlined />}
 																variant="contained"
 															>
@@ -95,7 +95,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 
 									<Cond>
 										{groups?.map((group) => {
-											const groupPageLink = `/groups/${group.name}`;
+											const groupPageLink = `/deployment/groups/${group.name}`;
 
 											return (
 												<TableRow

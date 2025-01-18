@@ -353,7 +353,7 @@ const templateRouter = () => {
 	);
 };
 
-const groupsRouter = () => {
+const organizationGroupsRouter = () => {
 	return (
 		<Route path="groups">
 			<Route index element={<OrganizationGroupsPage />} />
@@ -433,7 +433,7 @@ export const router = createBrowserRouter(
 
 						<Route path=":organization" element={<OrganizationSidebarLayout />}>
 							<Route index element={<OrganizationMembersPage />} />
-							{groupsRouter()}
+							{organizationGroupsRouter()}
 							<Route path="roles">
 								<Route index element={<OrganizationCustomRolesPage />} />
 								<Route path="create" element={<CreateEditRolePage />} />
@@ -488,7 +488,18 @@ export const router = createBrowserRouter(
 
 						<Route path="users" element={<UsersPage />} />
 						<Route path="users/create" element={<CreateUserPage />} />
-						{groupsRouter()}
+						<Route path="groups">
+							<Route element={<UsersLayout />}>
+								<Route index element={<GroupsPage />} />
+							</Route>
+
+							<Route path="create" element={<CreateGroupPage />} />
+							<Route path=":groupName" element={<GroupPage />} />
+							<Route
+								path=":groupName/settings"
+								element={<SettingsGroupPage />}
+							/>
+						</Route>
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>

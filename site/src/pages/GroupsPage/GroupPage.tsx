@@ -211,7 +211,7 @@ export const GroupPage: FC = () => {
 						try {
 							await deleteGroupMutation.mutateAsync(groupId);
 							displaySuccess("Group deleted successfully.");
-							navigate("/groups");
+							navigate("/deployment/groups");
 						} catch (error) {
 							displayError(getErrorMessage(error, "Failed to delete group."));
 						}
