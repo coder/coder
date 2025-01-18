@@ -470,10 +470,10 @@ export const waitUntilUrlIsNotResponding = async (url: string) => {
 // Allows users to more easily define properties they want for agents and resources!
 type RecursivePartial<T> = {
 	[P in keyof T]?: T[P] extends (infer U)[]
-	? RecursivePartial<U>[]
-	: T[P] extends object | undefined
-	? RecursivePartial<T[P]>
-	: T[P];
+		? RecursivePartial<U>[]
+		: T[P] extends object | undefined
+			? RecursivePartial<T[P]>
+			: T[P];
 };
 
 interface EchoProvisionerResponses {
