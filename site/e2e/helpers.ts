@@ -293,7 +293,9 @@ export const createTemplate = async (
  * random name.
  */
 export const createGroup = async (page: Page): Promise<string> => {
-	await page.goto("/deployment/groups/create", { waitUntil: "domcontentloaded" });
+	await page.goto("/deployment/groups/create", {
+		waitUntil: "domcontentloaded",
+	});
 	await expectUrl(page).toHavePathName("/deployment/groups/create");
 
 	const name = randomName();
