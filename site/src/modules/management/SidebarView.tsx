@@ -147,6 +147,9 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					{permissions.viewAllUsers && (
 						<SidebarNavSubItem href="users">Users</SidebarNavSubItem>
 					)}
+					{permissions.viewAnyGroup && (
+						<SidebarNavSubItem href="groups">Groups</SidebarNavSubItem>
+					)}
 					{permissions.viewNotificationTemplate && (
 						<SidebarNavSubItem href="notifications">
 							<Stack direction="row" alignItems="center" spacing={1}>
