@@ -175,7 +175,7 @@ require (
 	github.com/valyala/fasthttp v1.58.0
 	github.com/wagslane/go-password-validator v0.3.0
 	go.mozilla.org/pkcs7 v0.9.0
-	go.nhat.io/otelsql v0.14.0
+	go.nhat.io/otelsql v0.15.0
 	go.opentelemetry.io/otel v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.33.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.33.0
