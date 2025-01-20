@@ -1,4 +1,3 @@
-import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
 import TableCell from "@mui/material/TableCell";
@@ -8,10 +7,6 @@ import TableRow from "@mui/material/TableRow";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
-import {
-	TableLoaderSkeleton,
-	TableRowSkeleton,
-} from "components/TableLoader/TableLoader";
 import type { FC } from "react";
 import { docs } from "utils/docs";
 
@@ -26,8 +21,6 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 	rowCount,
 	children,
 }) => {
-	const isLoading = false;
-
 	return (
 		<div className="flex flex-col w-full gap-2">
 			<TableContainer>
@@ -43,9 +36,6 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 					</TableHead>
 					<TableBody>
 						<ChooseOne>
-							<Cond condition={isLoading}>
-								<TableLoader />
-							</Cond>
 							<Cond condition={rowCount === 0}>
 								<TableRow>
 									<TableCell colSpan={999}>
@@ -73,23 +63,5 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 				</div>
 			</div>
 		</div>
-	);
-};
-
-const TableLoader = () => {
-	return (
-		<TableLoaderSkeleton>
-			<TableRowSkeleton>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
-				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
-				</TableCell>
-				<TableCell>
-					<Skeleton variant="text" width="25%" />
-				</TableCell>
-			</TableRowSkeleton>
-		</TableLoaderSkeleton>
 	);
 };

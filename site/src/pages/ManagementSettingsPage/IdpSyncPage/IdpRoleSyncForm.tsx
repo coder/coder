@@ -69,6 +69,7 @@ export const IdpRoleSyncForm = ({
 
 	const SYNC_FIELD_ID = "sync-field";
 	const IDP_ROLE_NAME_ID = "idp-role-name";
+	const CODER_ROLE_ID = "coder-role";
 
 	return (
 		<form onSubmit={form.handleSubmit}>
@@ -130,10 +131,13 @@ export const IdpRoleSyncForm = ({
 						/>
 					</div>
 					<div className="grid items-center gap-1 flex-1">
-						<Label className="text-sm" htmlFor=":r1d:">
+						<Label className="text-sm" htmlFor={CODER_ROLE_ID}>
 							Coder role
 						</Label>
 						<MultiSelectCombobox
+							inputProps={{
+								id: CODER_ROLE_ID,
+							}}
 							className="min-w-60 max-w-3xl"
 							value={coderRoles}
 							onChange={setCoderRoles}
@@ -151,9 +155,8 @@ export const IdpRoleSyncForm = ({
 						/>
 					</div>
 					<div className="grid grid-rows-[28px_auto]">
-						&nbsp;
+						<div />
 						<Button
-							className="mb-px"
 							type="submit"
 							disabled={!idpRoleName || coderRoles.length === 0}
 							onClick={async () => {
@@ -180,7 +183,7 @@ export const IdpRoleSyncForm = ({
 				<IdpMappingTable type="Role" rowCount={roleMappingCount}>
 					{roleSyncSettings?.mapping &&
 						Object.entries(roleSyncSettings.mapping)
-							.sort()
+							.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
 							.map(([idpRole, roles]) => (
 								<RoleRow
 									key={idpRole}

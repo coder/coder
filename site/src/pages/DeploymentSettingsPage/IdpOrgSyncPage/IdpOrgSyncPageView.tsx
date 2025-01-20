@@ -104,6 +104,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const SYNC_FIELD_ID = "sync-field";
 	const ORGANIZATION_ASSIGN_DEFAULT_ID = "organization-assign-default";
 	const IDP_ORGANIZATION_NAME_ID = "idp-organization-name";
+	const CODER_ORG_ID = "coder-org";
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -183,10 +184,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor=":r1d:">
+								<Label className="text-sm" htmlFor={CODER_ORG_ID}>
 									Coder organization
 								</Label>
 								<MultiSelectCombobox
+									inputProps={{
+										id: CODER_ORG_ID,
+									}}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
@@ -204,9 +208,8 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid grid-rows-[28px_auto]">
-								&nbsp;
+								<div />
 								<Button
-									className="mb-px"
 									type="submit"
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
@@ -233,7 +236,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{form.values.mapping &&
 								Object.entries(form.values.mapping)
-									.sort()
+									.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
 											key={idpOrg}

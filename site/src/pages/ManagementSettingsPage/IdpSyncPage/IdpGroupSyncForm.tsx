@@ -96,6 +96,7 @@ export const IdpGroupSyncForm = ({
 	const REGEX_FILTER_ID = "regex-filter";
 	const AUTO_CREATE_MISSING_GROUPS_ID = "auto-create-missing-groups";
 	const IDP_GROUP_NAME_ID = "idp-group-name";
+	const CODER_GROUP_ID = "coder-group";
 
 	return (
 		<form onSubmit={form.handleSubmit}>
@@ -116,7 +117,7 @@ export const IdpGroupSyncForm = ({
 							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
 								Group sync field
 							</Label>
-							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+							<Label className="text-sm" htmlFor={REGEX_FILTER_ID}>
 								Regex filter
 							</Label>
 							<Input
@@ -188,10 +189,13 @@ export const IdpGroupSyncForm = ({
 						/>
 					</div>
 					<div className="grid items-center gap-1 flex-1">
-						<Label className="text-sm" htmlFor=":r1d:">
+						<Label className="text-sm" htmlFor={CODER_GROUP_ID}>
 							Coder group
 						</Label>
 						<MultiSelectCombobox
+							inputProps={{
+								id: CODER_GROUP_ID,
+							}}
 							className="min-w-60 max-w-3xl"
 							value={coderGroups}
 							onChange={setCoderGroups}
@@ -209,9 +213,8 @@ export const IdpGroupSyncForm = ({
 						/>
 					</div>
 					<div className="grid grid-rows-[28px_auto]">
-						&nbsp;
+						<div />
 						<Button
-							className="mb-px"
 							type="submit"
 							disabled={!idpGroupName || coderGroups.length === 0}
 							onClick={async () => {
@@ -240,7 +243,7 @@ export const IdpGroupSyncForm = ({
 					<IdpMappingTable type="Group" rowCount={groupMappingCount}>
 						{groupSyncSettings?.mapping &&
 							Object.entries(groupSyncSettings.mapping)
-								.sort()
+							.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
 								.map(([idpGroup, groups]) => (
 									<GroupRow
 										key={idpGroup}
@@ -256,10 +259,10 @@ export const IdpGroupSyncForm = ({
 							<LegacyGroupSyncHeader />
 							<IdpMappingTable type="Group" rowCount={legacyGroupMappingCount}>
 								{Object.entries(groupSyncSettings.legacy_group_name_mapping)
-									.sort()
+									.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
 									.map(([idpGroup, groupId]) => (
 										<GroupRow
-											key={idpGroup}
+											key={groupId}
 											idpGroup={idpGroup}
 											coderGroup={getGroupNames([groupId])}
 											onDelete={handleDelete}
