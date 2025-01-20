@@ -156,7 +156,7 @@ func JobIsMissingParameterErrorCode(code JobErrorCode) bool {
 // ProvisionerJob describes the job executed by the provisioning daemon.
 type ProvisionerJob struct {
 	ID               uuid.UUID            `json:"id" format:"uuid" table:"id"`
-	CreatedAt        time.Time            `json:"created_at" format:"date-time" table:"created at,default_sort"`
+	CreatedAt        time.Time            `json:"created_at" format:"date-time" table:"created at"`
 	StartedAt        *time.Time           `json:"started_at,omitempty" format:"date-time" table:"started at"`
 	CompletedAt      *time.Time           `json:"completed_at,omitempty" format:"date-time" table:"completed at"`
 	CanceledAt       *time.Time           `json:"canceled_at,omitempty" format:"date-time" table:"canceled at"`

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -69,7 +70,8 @@ func TestProvisioners_Golden(t *testing.T) {
 		Pubsub:                   ps,
 	})
 	owner := coderdtest.CreateFirstUser(t, client)
-	member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+	templateAdminClient, _ := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	// Create initial resources with a running provisioner.
 	firstProvisioner := coderdtest.NewProvisionerDaemon(t, coderdAPI)
@@ -78,7 +80,6 @@ func TestProvisioners_Golden(t *testing.T) {
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 	template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-	time.Sleep(1500 * time.Millisecond) // Ensure the workspace build job has a different timestamp for sorting.
 	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
 	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
@@ -94,9 +95,10 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:      "provisioner-1",
 		CreatedAt: dbtime.Now().Add(1 * time.Second),
 		KeyID:     uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		Tags:      database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
 	w1 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
-		OwnerID:    memberUser.ID,
+		OwnerID:    member.ID,
 		TemplateID: template.ID,
 	})
 	wb1ID := uuid.MustParse("00000000-0000-0000-dddd-000000000001")
@@ -105,7 +107,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Input:     json.RawMessage(`{"workspace_build_id":"` + wb1ID.String() + `"}`),
 		CreatedAt: dbtime.Now().Add(2 * time.Second),
 		StartedAt: sql.NullTime{Time: coderdAPI.Clock.Now(), Valid: true},
-		Tags:      database.StringMap{"owner": "", "scope": "organization"},
+		Tags:      database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
 	dbgen.WorkspaceBuild(t, coderdAPI.Database, database.WorkspaceBuild{
 		ID:                wb1ID,
@@ -120,9 +122,10 @@ func TestProvisioners_Golden(t *testing.T) {
 		CreatedAt:  dbtime.Now().Add(2 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
 		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 	w2 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
-		OwnerID:    memberUser.ID,
+		OwnerID:    member.ID,
 		TemplateID: template.ID,
 	})
 	wb2ID := uuid.MustParse("00000000-0000-0000-dddd-000000000002")
@@ -143,7 +146,7 @@ func TestProvisioners_Golden(t *testing.T) {
 
 	// Create a pending job.
 	w3 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
-		OwnerID:    memberUser.ID,
+		OwnerID:    member.ID,
 		TemplateID: template.ID,
 	})
 	wb3ID := uuid.MustParse("00000000-0000-0000-dddd-000000000003")
@@ -164,6 +167,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:      "provisioner-3",
 		CreatedAt: dbtime.Now().Add(3 * time.Second),
 		KeyID:     uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		Tags:      database.StringMap{"owner": "", "scope": "organization"},
 	})
 
 	updateReplaceUUIDs(coderdAPI)
@@ -172,6 +176,8 @@ func TestProvisioners_Golden(t *testing.T) {
 		t.Logf("replace[%q] = %q", id, replaceID)
 	}
 
+	// Test provisioners list with member as members can access
+	// provisioner daemons.
 	t.Run("list", func(t *testing.T) {
 		t.Parallel()
 
@@ -179,16 +185,19 @@ func TestProvisioners_Golden(t *testing.T) {
 		inv, root := clitest.New(t,
 			"provisioners",
 			"list",
-			"--column", "id,created at,last seen at,name,version,api version,tags,status,current job id,previous job id,previous job status,organization",
+			"--column", "id,created at,last seen at,name,version,tags,key name,status,current job id,current job status,previous job id,previous job status,organization",
 		)
 		inv.Stdout = &got
-		clitest.SetupConfig(t, member, root)
+		clitest.SetupConfig(t, memberClient, root)
 		err := inv.Run()
 		require.NoError(t, err)
 
 		clitest.TestGoldenFile(t, t.Name(), got.Bytes(), replace)
 	})
 
+	// Test jobs list with template admin as members are currently
+	// unable to access provisioner jobs. In the future (with RBAC
+	// changes), we may allow them to view _their_ jobs.
 	t.Run("jobs list", func(t *testing.T) {
 		t.Parallel()
 
@@ -200,7 +209,7 @@ func TestProvisioners_Golden(t *testing.T) {
 			"--column", "id,created at,status,worker id,tags,template version id,workspace build id,type,available workers,organization,queue",
 		)
 		inv.Stdout = &got
-		clitest.SetupConfig(t, member, root)
+		clitest.SetupConfig(t, templateAdminClient, root)
 		err := inv.Run()
 		require.NoError(t, err)
 

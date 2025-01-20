@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"slices"
 
 	"golang.org/x/xerrors"
 
@@ -28,7 +29,7 @@ func (r *RootCmd) provisionerJobs() *serpent.Command {
 
 func (r *RootCmd) provisionerJobsList() *serpent.Command {
 	type provisionerJobRow struct {
-		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline"`
+		codersdk.ProvisionerJob `table:"provisioner_job,recursive_inline,nosort"`
 		OrganizationName        string `json:"organization_name" table:"organization"`
 		Queue                   string `json:"-" table:"queue"`
 	}
@@ -83,6 +84,11 @@ func (r *RootCmd) provisionerJobsList() *serpent.Command {
 				}
 				rows = append(rows, row)
 			}
+			// Sort manually because the cliui table truncates timestamps and
+			// produces an unstable sort with timestamps that are all the same.
+			slices.SortStableFunc(rows, func(a provisionerJobRow, b provisionerJobRow) int {
+				return a.CreatedAt.Compare(b.CreatedAt)
+			})
 
 			out, err := formatter.Format(ctx, rows)
 			if err != nil {
