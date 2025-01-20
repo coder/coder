@@ -118,7 +118,7 @@ var (
 
 	// the below functions are not safe for usage in the context of tfparse, as their return
 	// values may change depending on the underlying filesystem.
-	unsafeFileFunctions = map[string]function.Function{
+	stubFileFunctions = map[string]function.Function{
 		"abspath":          makeStubFunction("abspath", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 		"file":             makeStubFunction("file", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 		"fileexists":       makeStubFunction("fileexists", cty.String, function.Parameter{Name: "path", Type: cty.String}),
@@ -133,7 +133,7 @@ var (
 		"pathexpand":       makeStubFunction("pathexpand", cty.String, function.Parameter{Name: "path", Type: cty.String}),
 	}
 
-	allFunctions = mergeMaps(safeFunctions, unsafeFileFunctions)
+	allFunctions = mergeMaps(safeFunctions, stubFileFunctions)
 )
 
 // mergeMaps returns a new map which is the result of merging each key and value
