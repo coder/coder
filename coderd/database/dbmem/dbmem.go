@@ -4091,10 +4091,14 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		if row.QueuePosition > 0 {
 			var availableWorkers []database.ProvisionerDaemon
 			for _, daemon := range q.provisionerDaemons {
-				if daemon.OrganizationID == job.OrganizationID &&
-					slices.Contains(daemon.Provisioners, job.Provisioner) &&
-					tagsSubset(job.Tags, daemon.Tags) {
-					availableWorkers = append(availableWorkers, daemon)
+				if daemon.OrganizationID == job.OrganizationID && slices.Contains(daemon.Provisioners, job.Provisioner) {
+					if tagsEqual(job.Tags, tagsUntagged) {
+						if tagsEqual(job.Tags, daemon.Tags) {
+							availableWorkers = append(availableWorkers, daemon)
+						}
+					} else if tagsSubset(job.Tags, daemon.Tags) {
+						availableWorkers = append(availableWorkers, daemon)
+					}
 				}
 			}
 			slices.SortFunc(availableWorkers, func(a, b database.ProvisionerDaemon) int {
