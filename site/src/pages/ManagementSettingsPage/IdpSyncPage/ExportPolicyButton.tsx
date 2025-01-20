@@ -29,6 +29,8 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 
 	return (
 		<Button
+			size="sm"
+			variant="outline"
 			disabled={!canCreatePolicyJson || isDownloading}
 			onClick={async () => {
 				if (canCreatePolicyJson) {
@@ -48,7 +50,7 @@ export const ExportPolicyButton: FC<DownloadPolicyButtonProps> = ({
 			}}
 		>
 			<DownloadIcon />
-			Export Policy
+			Export policy
 		</Button>
 	);
 };

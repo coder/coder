@@ -32,6 +32,7 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
@@ -103,6 +104,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	const SYNC_FIELD_ID = "sync-field";
 	const ORGANIZATION_ASSIGN_DEFAULT_ID = "organization-assign-default";
 	const IDP_ORGANIZATION_NAME_ID = "idp-organization-name";
+	const CODER_ORG_ID = "coder-org";
 
 	return (
 		<div className="flex flex-col gap-2">
@@ -132,6 +134,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											form.handleSubmit();
 										}}
 									>
+										<Spinner loading={form.isSubmitting} />
 										Save
 									</Button>
 								</div>
@@ -181,10 +184,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor=":r1d:">
+								<Label className="text-sm" htmlFor={CODER_ORG_ID}>
 									Coder organization
 								</Label>
 								<MultiSelectCombobox
+									inputProps={{
+										id: CODER_ORG_ID,
+									}}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
@@ -201,10 +207,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}
 								/>
 							</div>
-							<div className="grid items-center gap-1">
-								&nbsp;
+							<div className="grid grid-rows-[28px_auto]">
+								<div />
 								<Button
-									className="mb-px"
 									type="submit"
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
@@ -221,7 +226,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										setCoderOrgs([]);
 									}}
 								>
-									<Plus size={14} />
+									<Spinner loading={form.isSubmitting}>
+										<Plus size={14} />
+									</Spinner>
 									Add IdP organization
 								</Button>
 							</div>
@@ -229,7 +236,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{form.values.mapping &&
 								Object.entries(form.values.mapping)
-									.sort()
+									.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
 											key={idpOrg}
@@ -267,6 +274,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							}}
 							type="submit"
 						>
+							<Spinner loading={form.isSubmitting} />
 							Confirm
 						</Button>
 					</DialogFooter>
@@ -344,7 +352,8 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					size="icon"
+					className="text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>

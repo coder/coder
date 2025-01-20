@@ -32,7 +32,7 @@ export const ClickExportGroupPolicy: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Export Policy" }),
+			canvas.getByRole("button", { name: "Export policy" }),
 		);
 		await waitFor(() =>
 			expect(args.download).toHaveBeenCalledWith(
@@ -58,7 +58,7 @@ export const ClickExportRolePolicy: Story = {
 	play: async ({ canvasElement, args }) => {
 		const canvas = within(canvasElement);
 		await userEvent.click(
-			canvas.getByRole("button", { name: "Export Policy" }),
+			canvas.getByRole("button", { name: "Export policy" }),
 		);
 		await waitFor(() =>
 			expect(args.download).toHaveBeenCalledWith(
