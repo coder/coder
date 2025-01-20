@@ -807,6 +807,10 @@ test:
 	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./...
 .PHONY: test
 
+test-cli:
+	$(GIT_FLAGS) gotestsum --format standard-quiet -- -v -short -count=1 ./cli/...
+.PHONY: test-cli
+
 # sqlc-cloud-is-setup will fail if no SQLc auth token is set. Use this as a
 # dependency for any sqlc-cloud related targets.
 sqlc-cloud-is-setup:

@@ -378,8 +378,62 @@ jobs:
         with:
           api-key: ${{ secrets.DATADOG_API_KEY }}
 
+  # We don't run the full test-suite for Windows & MacOS, so we just run the CLI tests on every PR.
+  # We run the test suite in test-go-pg, including CLI.
+  test-cli:
+    runs-on: ${{ matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    needs: changes
+    if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
+    strategy:
+      matrix:
+        os:
+          - macos-latest
+          - windows-2022
+    steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
+        with:
+          egress-policy: audit
+
+      - name: Checkout
+        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        with:
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: ./.github/actions/setup-go
+
+      - name: Setup Terraform
+        uses: ./.github/actions/setup-tf
+
+      # Sets up the ImDisk toolkit for Windows and creates a RAM disk on drive R:.
+      - name: Setup ImDisk
+        if: runner.os == 'Windows'
+        uses: ./.github/actions/setup-imdisk
+
+      - name: Test CLI
+        env:
+          TS_DEBUG_DISCO: "true"
+          LC_CTYPE: "en_US.UTF-8"
+          LC_ALL: "en_US.UTF-8"
+        shell: bash
+        run: |
+          # By default Go will use the number of logical CPUs, which
+          # is a fine default.
+          PARALLEL_FLAG=""
+
+          make test-cli
+
+      - name: Upload test stats to Datadog
+        timeout-minutes: 1
+        continue-on-error: true
+        uses: ./.github/actions/upload-datadog
+        if: success() || failure()
+        with:
+          api-key: ${{ secrets.DATADOG_API_KEY }}
+
   test-go-pg:
-    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os == 'macos-latest' && github.repository_owner == 'coder' && 'depot-macos-latest' || matrix.os == 'windows-2022' && github.repository_owner == 'coder' && 'windows-latest-16-cores' || matrix.os }}
+    runs-on: ${{ matrix.os == 'ubuntu-latest' && github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || matrix.os }}
     needs: changes
     if: needs.changes.outputs.go == 'true' || needs.changes.outputs.ci == 'true' || github.ref == 'refs/heads/main'
     # This timeout must be greater than the timeout set by `go test` in
@@ -391,8 +445,6 @@ jobs:
       matrix:
         os:
           - ubuntu-latest
-          - macos-latest
-          - windows-2022
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@0080882f6c36860b6ba35c610c98ce87d4e2f26f # v2.10.2
@@ -423,39 +475,11 @@ jobs:
           LC_ALL: "en_US.UTF-8"
         shell: bash
         run: |
-          # if macOS, install google-chrome for scaletests
-          # As another concern, should we really have this kind of external dependency
-          # requirement on standard CI?
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            brew install google-chrome
-          fi
-
           # By default Go will use the number of logical CPUs, which
           # is a fine default.
           PARALLEL_FLAG=""
 
-          # macOS will output "The default interactive shell is now zsh"
-          # intermittently in CI...
-          if [ "${{ matrix.os }}" == "macos-latest" ]; then
-            touch ~/.bash_profile && echo "export BASH_SILENCE_DEPRECATION_WARNING=1" >> ~/.bash_profile
-          fi
-
-          if [ "${{ runner.os }}" == "Linux" ]; then
-            make test-postgres
-          elif [ "${{ runner.os }}" == "Windows" ]; then
-            # Create a temp dir on the R: ramdisk drive for Windows. The default
-            # C: drive is extremely slow: https://github.com/actions/runner-images/issues/8755
-            mkdir -p "R:/temp/embedded-pg"
-            go run scripts/embedded-pg/main.go -path "R:/temp/embedded-pg"
-            # Reduce test parallelism, mirroring what we do for race tests.
-            # We'd been encountering issues with timing related flakes, and
-            # this seems to help.
-            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
-          else
-            go run scripts/embedded-pg/main.go
-            # Reduce test parallelism, like for Windows above.
-            DB=ci gotestsum --format standard-quiet -- -v -short -count=1 -parallel 4 -p 4 ./...
-          fi
+          make test-postgres
 
       - name: Upload test stats to Datadog
         timeout-minutes: 1
