@@ -90,9 +90,7 @@ spec:
       port: 80
       targetPort: "http"
       protocol: TCP
-      
       nodePort: 
-      
   selector:
     app.kubernetes.io/name: coder
     app.kubernetes.io/instance: release-name

@@ -83,16 +83,14 @@ metadata:
   annotations:
     {}
 spec:
-  type: LoadBalancer
+  type: NodePort
   sessionAffinity: None
   ports:
     - name: "http"
       port: 80
       targetPort: "http"
       protocol: TCP
-      nodePort: 
-  externalTrafficPolicy: "Cluster"
-  loadBalancerClass: "test"
+      nodePort: 30080
   selector:
     app.kubernetes.io/name: coder
     app.kubernetes.io/instance: release-name
