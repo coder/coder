@@ -3913,10 +3913,10 @@ func TestWorkspaceTimings(t *testing.T) {
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+		scripts := dbgen.WorkspaceAgentScripts(t, db, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
-		})
-		dbgen.WorkspaceAgentScriptTimings(t, db, script, 3)
+		}, 3)
+		dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching the timings
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
