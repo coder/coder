@@ -438,6 +438,11 @@ require (
 )
 
 require (
+	github.com/aquasecurity/trivy-iac v0.8.0
+	github.com/zclconf/go-cty-yaml v1.0.3
+)
+
+require (
 	github.com/DataDog/datadog-agent/pkg/proto v0.58.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/trace v0.58.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.58.0 // indirect
@@ -445,6 +450,8 @@ require (
 	github.com/DataDog/go-runtime-metrics-internal v0.0.0-20241106155157-194426bbbd59 // indirect
 	github.com/DataDog/go-sqllexer v0.0.14 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0 // indirect
+	github.com/apparentlymart/go-cidr v1.1.0 // indirect
+	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect

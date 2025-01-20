@@ -477,7 +477,7 @@ func BuildEvalContext(vars map[string]string, params map[string]string) *hcl.Eva
 		// The default function map for Terraform is not exposed, so we would essentially
 		// have to re-implement or copy the entire map or a subset thereof.
 		// ref: https://github.com/hashicorp/terraform/blob/e044e569c5bc81f82e9a4d7891f37c6fbb0a8a10/internal/lang/functions.go#L54
-		Functions: nil,
+		Functions: Functions(),
 	}
 	if len(varDefaultsM) != 0 {
 		evalCtx.Variables["var"] = cty.MapVal(varDefaultsM)
