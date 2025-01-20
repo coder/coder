@@ -90,6 +90,8 @@ func New() database.Store {
 			runtimeConfig:             map[string]string{},
 			userStatusChanges:         make([]database.UserStatusChange, 0),
 			telemetryItems:            make([]database.TelemetryItem, 0),
+			presets:                   make([]database.TemplateVersionPreset, 0),
+			presetParameters:          make([]database.TemplateVersionPresetParameter, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -262,6 +264,8 @@ type data struct {
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
 	telemetryItems                   []database.TelemetryItem
+	presets                          []database.TemplateVersionPreset
+	presetParameters                 []database.TemplateVersionPresetParameter
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -3774,6 +3778,45 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 		return parameters[i].Index < parameters[j].Index
 	})
 	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+	panic("not implemented")
+}
+
+func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	parameters := make([]database.GetPresetParametersByPresetIDRow, 0)
+	for _, parameter := range q.presetParameters {
+		if parameter.TemplateVersionPresetID == templateVersionPresetID {
+			parameters = append(parameters, database.GetPresetParametersByPresetIDRow{
+				ID:    parameter.ID,
+				Name:  parameter.Name,
+				Value: parameter.Value,
+			})
+		}
+	}
+	return parameters, nil
+}
+
+func (q *FakeQuerier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	presets := make([]database.GetPresetsByTemplateVersionIDRow, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID == templateVersionID {
+			presets = append(presets, database.GetPresetsByTemplateVersionIDRow{
+				ID:        preset.ID,
+				Name:      preset.Name,
+				CreatedAt: preset.CreatedAt,
+				UpdatedAt: preset.UpdatedAt,
+			})
+		}
+	}
+	return presets, nil
 }
 
 func (q *FakeQuerier) GetPreviousTemplateVersion(_ context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
@@ -8040,6 +8083,26 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	}
 	q.organizationMembers = append(q.organizationMembers, organizationMember)
 	return organizationMember, nil
+}
+
+func (q *FakeQuerier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	preset := database.TemplateVersionPreset{
+		// TODO (sasswart): double check how we generate these IDs in postgres.
+		// They should not be params here.
+		Name:      arg.Name,
+		CreatedAt: arg.CreatedAt,
+		UpdatedAt: arg.UpdatedAt,
+	}
+	q.presets = append(q.presets, preset)
+	return preset, nil
 }
 
 func (q *FakeQuerier) InsertProvisionerJob(_ context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {

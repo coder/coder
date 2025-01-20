@@ -1930,6 +1930,30 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+	// TODO (sasswart): Double check when to and not to call .InOrg?
+	// TODO (sasswart): it makes sense to me that a caller can read a preset if they can read the template, but double check this.
+	// TODO (sasswart): apply these todos to GetPresetParametersByPresetID and GetPresetsByTemplateVersionID.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return database.GetPresetByWorkspaceBuildIDRow{}, err
+	}
+	return q.db.GetPresetByWorkspaceBuildID(ctx, workspaceID)
+}
+
+func (q *querier) GetPresetParametersByPresetID(ctx context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetParametersByPresetID(ctx, templateVersionPresetID)
+}
+
+func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsByTemplateVersionID(ctx, templateVersionID)
+}
+
 func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	// An actor can read the previous template version if they can read the related template.
 	// If no linked template exists, we check if the actor can read *a* template.
@@ -3086,6 +3110,13 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
+}
+
+func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceTemplate); err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+	return q.db.InsertPreset(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
