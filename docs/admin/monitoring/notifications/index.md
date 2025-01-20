@@ -3,23 +3,6 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
-## Enable experiment
-
-In order to activate the notifications feature on Coder v2.15.X, you'll need to
-enable the `notifications` experiment. Notifications are enabled by default
-starting in v2.16.0.
-
-```bash
-# Using the CLI flag
-$ coder server --experiments=notifications
-
-# Alternatively, using the `CODER_EXPERIMENTS` environment variable
-$ CODER_EXPERIMENTS=notifications coder server
-```
-
-More information on experiments can be found
-[here](https://coder.com/docs/contributing/feature-stages#experimental-features).
-
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
@@ -268,11 +251,15 @@ If notifications are not being delivered, use the following methods to
 troubleshoot:
 
 1. Ensure notifications are being added to the `notification_messages` table
-2. Review any error messages in the `status_reason` column, should an error have
-   occurred
+2. Review any error messages in the `status_reason` column, should an error
+    have occurred
 3. Review the logs (search for the term `notifications`) for diagnostic
-   information<br> _If you do not see any relevant logs, set
-   `CODER_VERBOSE=true` or `--verbose` to output debug logs_
+    information<br> _If you do not see any relevant logs, set
+    `CODER_VERBOSE=true` or `--verbose` to output debug logs_
+4. If you are on version 2.15.x, notifications must be enabled using the
+    `notifications`
+    [experiment](https://coder.com/docs/contributing/feature-stages#experimental-features).
+    Notifications are enabled by default starting in v2.16.0.
 
 ## Internals
 
