@@ -439,7 +439,7 @@ require (
 
 require (
 	github.com/aquasecurity/trivy-iac v0.8.0
-	github.com/zclconf/go-cty-yaml v1.0.3
+	github.com/zclconf/go-cty-yaml v1.1.0
 )
 
 require (
