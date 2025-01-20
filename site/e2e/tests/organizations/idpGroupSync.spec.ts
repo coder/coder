@@ -16,6 +16,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpGroupSyncPage", () => {
+
+	test("show empty table when no group mappings are present", async ({ page }) => {
+		requiresLicense();
+		const org = await createOrganizationWithName(randomName());
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
+			waitUntil: "domcontentloaded",
+		});
+
+		await expect(page.getByRole("row", { name: "idp-group-1" })).not.toBeVisible();
+		await expect(page.getByRole("heading", { name: "No group mappings" })).toBeVisible();
+
+		await deleteOrganization(org.name);
+	});
+
 	test("add new IdP group mapping with API", async ({ page }) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
@@ -29,14 +43,14 @@ test.describe("IdpGroupSyncPage", () => {
 			page.getByRole("switch", { name: "Auto create missing groups" }),
 		).toBeChecked();
 
-		await expect(page.getByText("idp-group-1")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-group-1" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").first(),
+			page.getByRole("row", { name: "fbd2116a-8961-4954-87ae-e4575bd29ce0" }),
 		).toBeVisible();
 
-		await expect(page.getByText("idp-group-2")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-group-2" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").last(),
+			page.getByRole("row", { name: "6b39f0f1-6ad8-4981-b2fc-d52aef53ff1b" }),
 		).toBeVisible();
 
 		await deleteOrganization(org.name);
@@ -51,12 +65,14 @@ test.describe("IdpGroupSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByText("idp-group-1")).toBeVisible();
-		await page
+		const row = page.getByTestId("group-idp-group-1");
+		await expect(row.getByRole("cell", { name: "idp-group-1" })).toBeVisible();
+		await row
 			.getByRole("button", { name: /delete/i })
-			.first()
 			.click();
-		await expect(page.getByText("idp-group-1")).not.toBeVisible();
+		await expect(
+			row.getByRole("cell", { name: "idp-group-1" }),
+		).not.toBeVisible();
 		await expect(
 			page.getByText("IdP Group sync settings updated."),
 		).toBeVisible();
@@ -72,7 +88,7 @@ test.describe("IdpGroupSyncPage", () => {
 		const syncField = page.getByRole("textbox", {
 			name: "Group sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i }).first();
+		const saveButton = page.getByRole("button", { name: /save/i });
 
 		await expect(saveButton).toBeDisabled();
 
@@ -151,8 +167,10 @@ test.describe("IdpGroupSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId("group-new-idp-group");
 		await expect(newRow).toBeVisible();
-		await expect(newRow.getByText("new-idp-group")).toBeVisible();
-		await expect(newRow.getByText("Everyone")).toBeVisible();
+		await expect(
+			newRow.getByRole("cell", { name: "new-idp-group" }),
+		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: "Everyone" })).toBeVisible();
 
 		await expect(
 			page.getByText("IdP Group sync settings updated."),
