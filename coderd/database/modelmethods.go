@@ -458,6 +458,18 @@ func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
 }
 
+func (p ProvisionerJob) RBACObject() rbac.Object {
+	switch p.Type {
+	// Only acceptable for known job types at this time because template
+	// admins may not be allowed to view new types.
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild:
+		return rbac.ResourceProvisionerJobs.InOrg(p.OrganizationID)
+
+	default:
+		panic("developer error: unknown provisioner job type " + string(p.Type))
+	}
+}
+
 func (p ProvisionerJob) Finished() bool {
 	return p.CanceledAt.Valid || p.CompletedAt.Valid
 }
@@ -510,4 +522,8 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := k.Secret.Valid
 	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time)
 	return hasSecret && isBeforeDeletion
+}
+
+func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
+	return r.ProvisionerJob.RBACObject()
 }

@@ -565,6 +565,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "ProvisionerJobs",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceProvisionerJobs.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgTemplateAdmin, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			Name:     "System",
 			Actions:  crud,
 			Resource: rbac.ResourceSystem,

@@ -1428,6 +1428,12 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly global_roles: readonly SlimRole[];
 }
 
+// From codersdk/organizations.go
+export interface OrganizationProvisionerJobsOptions {
+	readonly Limit: number;
+	readonly Status: readonly ProvisionerJobStatus[];
+}
+
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	readonly field: string;
@@ -1585,6 +1591,17 @@ export interface ProvisionerJob {
 	readonly tags: Record<string, string>;
 	readonly queue_position: number;
 	readonly queue_size: number;
+	readonly organization_id: string;
+	readonly input: ProvisionerJobInput;
+	readonly type: ProvisionerJobType;
+	readonly available_workers?: readonly string[];
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerJobInput {
+	readonly template_version_id?: string;
+	readonly workspace_build_id?: string;
+	readonly error?: string;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1615,6 +1632,18 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 	"running",
 	"succeeded",
 	"unknown",
+];
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerJobType =
+	| "template_version_dry_run"
+	| "template_version_import"
+	| "workspace_build";
+
+export const ProvisionerJobTypes: ProvisionerJobType[] = [
+	"template_version_dry_run",
+	"template_version_import",
+	"workspace_build",
 ];
 
 // From codersdk/provisionerdaemons.go
@@ -1767,6 +1796,7 @@ export type RBACResource =
 	| "organization"
 	| "organization_member"
 	| "provisioner_daemon"
+	| "provisioner_jobs"
 	| "provisioner_keys"
 	| "replicas"
 	| "system"
@@ -1801,6 +1831,7 @@ export const RBACResources: RBACResource[] = [
 	"organization",
 	"organization_member",
 	"provisioner_daemon",
+	"provisioner_jobs",
 	"provisioner_keys",
 	"replicas",
 	"system",

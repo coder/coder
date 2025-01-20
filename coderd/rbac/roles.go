@@ -483,6 +483,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 						ResourceOrganizationMember.Type: {policy.ActionRead},
 						ResourceGroup.Type:              {policy.ActionRead},
 						ResourceGroupMember.Type:        {policy.ActionRead},
+						ResourceProvisionerJobs.Type:    {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},

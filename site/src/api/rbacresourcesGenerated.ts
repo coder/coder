@@ -119,6 +119,9 @@ export const RBACResourceActions: Partial<
 		read: "read provisioner daemon",
 		update: "update a provisioner daemon",
 	},
+	provisioner_jobs: {
+		read: "read provisioner jobs",
+	},
 	provisioner_keys: {
 		create: "create a provisioner key",
 		delete: "delete a provisioner key",

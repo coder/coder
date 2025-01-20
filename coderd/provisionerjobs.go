@@ -19,11 +19,77 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/websocket"
 )
+
+// @Summary Get provisioner jobs
+// @ID get-provisioner-jobs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
+// @Success 200 {array} codersdk.ProvisionerJob
+// @Router /organizations/{organization}/provisionerjobs [get]
+func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	limit := p.PositiveInt32(qp, 0, "limit")
+	status := p.Strings(qp, nil, "status")
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return
+	}
+
+	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
+		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner jobs.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, func(dbJob database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
+		job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+			ProvisionerJob: dbJob.ProvisionerJob,
+			QueuePosition:  dbJob.QueuePosition,
+			QueueSize:      dbJob.QueueSize,
+		})
+		job.AvailableWorkers = dbJob.AvailableWorkers
+		return job
+	}))
+}
 
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
@@ -236,14 +302,16 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
 	provisionerJob := pj.ProvisionerJob
 	job := codersdk.ProvisionerJob{
-		ID:            provisionerJob.ID,
-		CreatedAt:     provisionerJob.CreatedAt,
-		Error:         provisionerJob.Error.String,
-		ErrorCode:     codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
-		FileID:        provisionerJob.FileID,
-		Tags:          provisionerJob.Tags,
-		QueuePosition: int(pj.QueuePosition),
-		QueueSize:     int(pj.QueueSize),
+		ID:             provisionerJob.ID,
+		OrganizationID: provisionerJob.OrganizationID,
+		CreatedAt:      provisionerJob.CreatedAt,
+		Type:           codersdk.ProvisionerJobType(provisionerJob.Type),
+		Error:          provisionerJob.Error.String,
+		ErrorCode:      codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
+		FileID:         provisionerJob.FileID,
+		Tags:           provisionerJob.Tags,
+		QueuePosition:  int(pj.QueuePosition),
+		QueueSize:      int(pj.QueueSize),
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
@@ -259,6 +327,13 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		job.WorkerID = &provisionerJob.WorkerID.UUID
 	}
 	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
+
+	// Only unmarshal input if it exists, this should only be zero in testing.
+	if len(provisionerJob.Input) > 0 {
+		if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
+			job.Input.Error = xerrors.Errorf("decode input %s: %w", provisionerJob.Input, err).Error()
+		}
+	}
 
 	return job
 }

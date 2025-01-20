@@ -214,6 +214,13 @@ var (
 		Type: "provisioner_daemon",
 	}
 
+	// ResourceProvisionerJobs
+	// Valid Actions
+	//  - "ActionRead" :: read provisioner jobs
+	ResourceProvisionerJobs = Object{
+		Type: "provisioner_jobs",
+	}
+
 	// ResourceProvisionerKeys
 	// Valid Actions
 	//  - "ActionCreate" :: create a provisioner key
@@ -338,6 +345,7 @@ func AllResources() []Objecter {
 		ResourceOrganization,
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
+		ResourceProvisionerJobs,
 		ResourceProvisionerKeys,
 		ResourceReplicas,
 		ResourceSystem,

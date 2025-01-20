@@ -3258,6 +3258,38 @@ func (s *MethodTestSuite) TestExtraMethods() {
 			LastSeenAt: sql.NullTime{Time: dbtime.Now(), Valid: true},
 		}).Asserts(rbac.ResourceProvisionerDaemon, policy.ActionUpdate)
 	}))
+	s.Run("GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		tags := database.StringMap(map[string]string{
+			provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+		})
+		t := dbgen.Template(s.T(), db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
+		tv := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{OrganizationID: org.ID, CreatedBy: user.ID, TemplateID: uuid.NullUUID{UUID: t.ID, Valid: true}})
+		j1 := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeTemplateVersionImport,
+			Input:          []byte(`{"template_version_id":"` + tv.ID.String() + `"}`),
+			Tags:           tags,
+		})
+		w := dbgen.Workspace(s.T(), db, database.WorkspaceTable{OrganizationID: org.ID, OwnerID: user.ID, TemplateID: t.ID})
+		wbID := uuid.New()
+		j2 := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+			Type:           database.ProvisionerJobTypeWorkspaceBuild,
+			Input:          []byte(`{"workspace_build_id":"` + wbID.String() + `"}`),
+			Tags:           tags,
+		})
+		dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{ID: wbID, WorkspaceID: w.ID, TemplateVersionID: tv.ID, JobID: j2.ID})
+
+		ds, err := db.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(context.Background(), database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+		})
+		s.NoError(err, "get provisioner jobs by org")
+		check.Args(database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+			OrganizationID: uuid.NullUUID{Valid: true, UUID: org.ID},
+		}).Asserts(j1, policy.ActionRead, j2, policy.ActionRead).Returns(ds)
+	}))
 }
 
 func (s *MethodTestSuite) TestTailnetFunctions() {
