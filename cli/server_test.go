@@ -177,6 +177,43 @@ func TestServer(t *testing.T) {
 			return err == nil && rawURL != ""
 		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
 	})
+	t.Run("EphemeralDeployment", func(t *testing.T) {
+		t.Parallel()
+		if testing.Short() {
+			t.SkipNow()
+		}
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--ephemeral",
+		)
+		pty := ptytest.New(t).Attach(inv)
+
+		// Embedded postgres takes a while to fire up.
+		const superDuperLong = testutil.WaitSuperLong * 3
+		ctx, cancelFunc := context.WithCancel(testutil.Context(t, superDuperLong))
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- inv.WithContext(ctx).Run()
+		}()
+		pty.ExpectMatch("Using an ephemeral deployment directory")
+		rootDirLine := pty.ReadLine(ctx)
+		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment directory")
+		rootDir = strings.TrimSpace(rootDir)
+		rootDir = strings.TrimPrefix(rootDir, "(")
+		rootDir = strings.TrimSuffix(rootDir, ")")
+		require.NotEmpty(t, rootDir)
+		require.DirExists(t, rootDir)
+
+		pty.ExpectMatchContext(ctx, "View the Web UI")
+
+		cancelFunc()
+		<-errCh
+
+		require.NoDirExists(t, rootDir)
+	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
 		root, _ := clitest.New(t, "server", "postgres-builtin-url")

@@ -446,6 +446,10 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
+# Controls whether Coder data, including built-in Postgres, will be stored in a
+# temporary directory and deleted when the server is stopped.
+# (default: <unset>, type: bool)
+ephemeralDeployment: false
 # Type of auth to use when connecting to postgres. For AWS RDS, using IAM
 # authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
