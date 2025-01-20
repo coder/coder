@@ -52,13 +52,14 @@ func TestDriver(t *testing.T) {
 
 	ps, err := pubsub.New(ctx, logger, db, url)
 	require.NoError(t, err)
+	defer ps.Close()
 
 	gotChan := make(chan struct{})
 	subCancel, err := ps.Subscribe("test", func(_ context.Context, _ []byte) {
 		close(gotChan)
 	})
-	defer subCancel()
 	require.NoError(t, err)
+	defer subCancel()
 
 	err = ps.Publish("test", []byte("hello"))
 	require.NoError(t, err)
