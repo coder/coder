@@ -16,6 +16,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpRoleSyncPage", () => {
+
+	test("show empty table when no role mappings are present", async ({ page }) => {
+		requiresLicense();
+		const org = await createOrganizationWithName(randomName());
+		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
+			waitUntil: "domcontentloaded",
+		});
+
+		await expect(page.getByRole("row", { name: "idp-role-1" })).not.toBeVisible();
+		await expect(page.getByRole("heading", { name: "No role mappings" })).toBeVisible();
+
+		await deleteOrganization(org.name);
+	});
+
 	test("add new IdP role mapping with API", async ({ page }) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
@@ -25,14 +39,14 @@ test.describe("IdpRoleSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByText("idp-role-1")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-role-1" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").first(),
+			page.getByRole("row", { name: "fbd2116a-8961-4954-87ae-e4575bd29ce0" }),
 		).toBeVisible();
 
-		await expect(page.getByText("idp-role-2")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-role-2" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").last(),
+			page.getByRole("row", { name: "fbd2116a-8961-4954-87ae-e4575bd29ce0" }),
 		).toBeVisible();
 
 		await deleteOrganization(org.name);
@@ -46,13 +60,12 @@ test.describe("IdpRoleSyncPage", () => {
 		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
-
-		await expect(page.getByText("idp-role-1")).toBeVisible();
-		await page
+		const row = page.getByTestId("role-idp-role-1");
+		await expect(row.getByRole("cell", { name: "idp-role-1" })).toBeVisible();
+		await row
 			.getByRole("button", { name: /delete/i })
-			.first()
 			.click();
-		await expect(page.getByText("idp-role-1")).not.toBeVisible();
+		await expect(row.getByRole("cell", { name: "idp-role-1" })).not.toBeVisible();
 		await expect(
 			page.getByText("IdP Role sync settings updated."),
 		).toBeVisible();
@@ -70,7 +83,7 @@ test.describe("IdpRoleSyncPage", () => {
 		const syncField = page.getByRole("textbox", {
 			name: "Role sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i }).first();
+		const saveButton = page.getByRole("button", { name: /save/i });
 
 		await expect(saveButton).toBeDisabled();
 
@@ -133,8 +146,8 @@ test.describe("IdpRoleSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId("role-new-idp-role");
 		await expect(newRow).toBeVisible();
-		await expect(newRow.getByText("new-idp-role")).toBeVisible();
-		await expect(newRow.getByText("organization-admin")).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: "new-idp-role" })).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: "organization-admin" })).toBeVisible();
 
 		await expect(
 			page.getByText("IdP Role sync settings updated."),
