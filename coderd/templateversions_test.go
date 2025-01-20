@@ -489,11 +489,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 								"foo": "bar",
 								"a": var.a,
 								"b": data.coder_parameter.b.value,
-								"test": try(null_resource.test.name, "whatever"),
+								"test": pathexpand("~/file.txt"),
 							}
 						}`,
 				},
-				expectError: `Function calls not allowed; Functions may not be called here.`,
+				expectError: `function "pathexpand" may not be used here`,
 			},
 			// We will allow coder_workspace_tags to set the scope on a template version import job
 			// BUT the user ID will be ultimately determined by the API key in the scope.
