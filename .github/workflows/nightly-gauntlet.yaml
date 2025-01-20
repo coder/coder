@@ -4,7 +4,7 @@ name: nightly-gauntlet
 on:
   schedule:
     # Every day at 4AM
-    - cron: "0 4 * * *"
+    - cron: "0 4 * * 1-5"
   workflow_dispatch:
 
 permissions:
