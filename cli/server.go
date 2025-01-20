@@ -396,7 +396,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				if err := os.MkdirAll(r.globalConfig, 0o700); err != nil {
 					return xerrors.Errorf("create ephemeral deployment directory: %w", err)
 				}
-				cliui.Infof(inv.Stdout, "Using an ephemeral deployment (%s)", r.globalConfig)
+				cliui.Infof(inv.Stdout, "Using an ephemeral deployment directory (%s)", r.globalConfig)
 				defer func() {
 					cliui.Infof(inv.Stdout, "Removing ephemeral deployment directory...")
 					if err := os.RemoveAll(r.globalConfig); err != nil {

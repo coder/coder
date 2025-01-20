@@ -198,9 +198,9 @@ func TestServer(t *testing.T) {
 		go func() {
 			errCh <- inv.WithContext(ctx).Run()
 		}()
-		pty.ExpectMatch("Using an ephemeral deployment")
+		pty.ExpectMatch("Using an ephemeral deployment directory")
 		rootDirLine := pty.ReadLine(ctx)
-		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment")
+		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment directory")
 		rootDir = strings.TrimSpace(rootDir)
 		rootDir = strings.TrimPrefix(rootDir, "(")
 		rootDir = strings.TrimSuffix(rootDir, ")")
