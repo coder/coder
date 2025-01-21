@@ -1,5 +1,4 @@
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
 import { Loader } from "components/Loader/Loader";
@@ -13,6 +12,7 @@ import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
+import { Button } from "components/Button/Button";
 
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();
@@ -92,7 +92,7 @@ export const DashboardLayout: FC = () => {
 						</div>
 					}
 					action={
-						<Button variant="text" size="small" onClick={updateCheck.dismiss}>
+						<Button variant="subtle" size="sm" onClick={updateCheck.dismiss}>
 							Dismiss
 						</Button>
 					}

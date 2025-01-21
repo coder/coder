@@ -4,7 +4,6 @@ import KeyboardArrowDownOutlined from "@mui/icons-material/KeyboardArrowDownOutl
 import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import StopOutlined from "@mui/icons-material/StopOutlined";
 import LoadingButton from "@mui/lab/LoadingButton";
-import Button from "@mui/material/Button";
 import Divider from "@mui/material/Divider";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
@@ -32,6 +31,7 @@ import {
 	type WorkspaceFilterProps,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
+import { Button } from "components/Button/Button";
 
 export const Language = {
 	pageTitle: "Workspaces",

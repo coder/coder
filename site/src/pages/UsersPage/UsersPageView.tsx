@@ -1,5 +1,3 @@
-import PersonAdd from "@mui/icons-material/PersonAdd";
-import Button from "@mui/material/Button";
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
@@ -8,9 +6,10 @@ import {
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
 import type { ComponentProps, FC } from "react";
-import { useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
+import { Button } from "components/Button/Button";
 
 export interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];
@@ -65,19 +64,14 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 	usersQuery,
 	canCreateUser,
 }) => {
-	const navigate = useNavigate();
-
 	return (
 		<>
 			<PageHeader
 				css={{ paddingTop: 0 }}
 				actions={
 					canCreateUser && (
-						<Button
-							onClick={() => navigate("create")}
-							startIcon={<PersonAdd />}
-						>
-							Create user
+						<Button asChild>
+							<Link to="create">Create user</Link>
 						</Button>
 					)
 				}

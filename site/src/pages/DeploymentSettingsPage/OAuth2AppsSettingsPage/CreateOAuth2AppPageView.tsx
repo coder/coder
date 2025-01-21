@@ -1,5 +1,4 @@
 import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import Button from "@mui/material/Button";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
@@ -7,6 +6,8 @@ import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
 import { Link } from "react-router-dom";
 import { OAuth2AppForm } from "./OAuth2AppForm";
+import { Button } from "components/Button/Button";
+import { ChevronLeftIcon } from "lucide-react";
 
 type CreateOAuth2AppProps = {
 	isUpdating: boolean;
@@ -30,12 +31,11 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 					title="Add an OAuth2 application"
 					description="Configure an application to use Coder as an OAuth2 provider."
 				/>
-				<Button
-					component={Link}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/oauth2-provider/apps"
-				>
-					All OAuth2 Applications
+				<Button variant="outline" asChild>
+					<Link to="/deployment/oauth2-provider/apps">
+						<ChevronLeftIcon />
+						All OAuth2 Applications
+					</Link>
 				</Button>
 			</Stack>
 

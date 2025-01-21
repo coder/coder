@@ -1,5 +1,3 @@
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
-import Button from "@mui/material/Button";
 import TextField from "@mui/material/TextField";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { FileUpload } from "components/FileUpload/FileUpload";
@@ -10,6 +8,8 @@ import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
+import { Button } from "components/Button/Button";
+import { ChevronLeftIcon } from "lucide-react";
 
 type AddNewLicenseProps = {
 	onSaveLicenseKey: (license: string) => void;
@@ -54,12 +54,11 @@ export const AddNewLicensePageView: FC<AddNewLicenseProps> = ({
 					title="Add a license"
 					description="Get access to high availability, RBAC, quotas, and more."
 				/>
-				<Button
-					component={RouterLink}
-					startIcon={<KeyboardArrowLeft />}
-					to="/deployment/licenses"
-				>
-					All Licenses
+				<Button asChild variant="outline">
+					<RouterLink to="/deployment/licenses">
+						<ChevronLeftIcon />
+						All Licenses
+					</RouterLink>
 				</Button>
 			</Stack>
 

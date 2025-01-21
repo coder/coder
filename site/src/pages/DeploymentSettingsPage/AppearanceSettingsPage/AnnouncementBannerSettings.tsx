@@ -1,6 +1,4 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -15,6 +13,8 @@ import { Stack } from "components/Stack/Stack";
 import { type FC, useState } from "react";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
+import { Button } from "components/Button/Button";
+import { PlusIcon } from "lucide-react";
 
 interface AnnouncementBannersettingsProps {
 	isEntitled: boolean;
@@ -86,11 +86,8 @@ export const AnnouncementBannerSettings: FC<
 						>
 							Announcement Banners
 						</h3>
-						<Button
-							disabled={!isEntitled}
-							onClick={() => addBanner()}
-							startIcon={<AddIcon />}
-						>
+						<Button disabled={!isEntitled} onClick={() => addBanner()}>
+							<PlusIcon />
 							New
 						</Button>
 					</Stack>

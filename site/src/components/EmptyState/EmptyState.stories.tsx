@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import type { Meta, StoryObj } from "@storybook/react";
 import { EmptyState } from "./EmptyState";
+import { Button } from "components/Button/Button";
 
 const meta: Meta<typeof EmptyState> = {
 	title: "components/EmptyState",
