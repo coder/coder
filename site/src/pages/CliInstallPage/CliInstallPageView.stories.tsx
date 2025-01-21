@@ -4,6 +4,9 @@ import { CliInstallPageView } from "./CliInstallPageView";
 const meta: Meta<typeof CliInstallPageView> = {
 	title: "pages/CliInstallPage",
 	component: CliInstallPageView,
+	args: {
+		origin: "https://example.com",
+	},
 };
 
 export default meta;
