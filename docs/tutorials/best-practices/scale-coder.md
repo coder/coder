@@ -125,9 +125,10 @@ Although Coder Server persists no internal state, it operates as a proxy for end
 users to their workspaces in two capacities:
 
 1. As an HTTP proxy when they access workspace applications in their browser via
-   the Coder Dashboard
+the Coder Dashboard.
 
-1. As a DERP proxy when establishing tunneled connections with CLI tools like `coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
+1. As a DERP proxy when establishing tunneled connections with CLI tools like
+`coder ssh`, `coder port-forward`, and others, and with desktop IDEs.
 
 Stopping a Coder Server instance will (momentarily) disconnect any users
 currently connecting through that instance. Adding a new instance is not
@@ -313,3 +314,8 @@ Coder customers have had success with both:
 Set up your network so that most users can get direct, peer-to-peer connections
 to their workspaces. This drastically reduces the load on Coder Server and
 workspace proxy instances.
+
+## Next steps
+
+- [Scale Tests and Utilities](../../admin/infrastructure/scale-utility.md)
+- [Scale Testing](../../admin/infrastructure/scale-testing.md)
