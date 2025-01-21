@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -1547,6 +1548,47 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
+	t.Run("MultipleTimingsForSameAgentScript", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with multiple timings for the same script
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		timings := make([]database.WorkspaceAgentScriptTiming, 3)
+		scriptStartedAt := dbtime.Now()
+		for i := range timings {
+			timings[i] = dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				StartedAt: scriptStartedAt,
+				EndedAt:   scriptStartedAt.Add(1 * time.Minute),
+				ScriptID:  script.ID,
+			})
+
+			// Add an hour to the previous "started at" so we can
+			// reliably differentiate the scripts from each other.
+			scriptStartedAt = scriptStartedAt.Add(1 * time.Hour)
+		}
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the first agent script timing
+		require.Len(t, res.AgentScriptTimings, 1)
+
+		require.Equal(t, timings[0].StartedAt.UnixMilli(), res.AgentScriptTimings[0].StartedAt.UnixMilli())
+		require.Equal(t, timings[0].EndedAt.UnixMilli(), res.AgentScriptTimings[0].EndedAt.UnixMilli())
+	})
+
 	t.Run("AgentScriptTimings", func(t *testing.T) {
 		t.Parallel()
 
@@ -1558,10 +1600,10 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
+		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1571,6 +1613,12 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// Then: return a response with the expected timings
 		require.Len(t, res.AgentScriptTimings, 5)
+		slices.SortFunc(res.AgentScriptTimings, func(a, b codersdk.AgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
+		slices.SortFunc(agentScriptTimings, func(a, b database.WorkspaceAgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
 		for i := range res.AgentScriptTimings {
 			timingRes := res.AgentScriptTimings[i]
 			genTiming := agentScriptTimings[i]

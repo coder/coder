@@ -12095,7 +12095,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 
 const getWorkspaceAgentScriptTimingsByBuildID = `-- name: GetWorkspaceAgentScriptTimingsByBuildID :many
 SELECT
-	workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status,
+	DISTINCT ON (workspace_agent_script_timings.script_id) workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status,
 	workspace_agent_scripts.display_name,
 	workspace_agents.id as workspace_agent_id,
 	workspace_agents.name as workspace_agent_name
@@ -12105,6 +12105,7 @@ INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.wor
 INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 WHERE workspace_builds.id = $1
+ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at
 `
 
 type GetWorkspaceAgentScriptTimingsByBuildIDRow struct {

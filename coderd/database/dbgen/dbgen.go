@@ -211,9 +211,17 @@ func WorkspaceAgentScript(t testing.TB, db database.Store, orig database.Workspa
 	return scripts[0]
 }
 
-func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, script database.WorkspaceAgentScript, count int) []database.WorkspaceAgentScriptTiming {
-	timings := make([]database.WorkspaceAgentScriptTiming, count)
-	for i := range count {
+func WorkspaceAgentScripts(t testing.TB, db database.Store, count int, orig database.WorkspaceAgentScript) []database.WorkspaceAgentScript {
+	scripts := make([]database.WorkspaceAgentScript, 0, count)
+	for range count {
+		scripts = append(scripts, WorkspaceAgentScript(t, db, orig))
+	}
+	return scripts
+}
+
+func WorkspaceAgentScriptTimings(t testing.TB, db database.Store, scripts []database.WorkspaceAgentScript) []database.WorkspaceAgentScriptTiming {
+	timings := make([]database.WorkspaceAgentScriptTiming, len(scripts))
+	for i, script := range scripts {
 		timings[i] = WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
 			ScriptID: script.ID,
 		})
