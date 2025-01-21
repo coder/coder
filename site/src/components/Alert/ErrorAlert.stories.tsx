@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { Button } from "components/Button/Button";
 import { mockApiError } from "testHelpers/entities";
 import { ErrorAlert } from "./ErrorAlert";
-import { Button } from "components/Button/Button";
 
 const mockError = mockApiError({
 	message: "Email or password was invalid",
