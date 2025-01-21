@@ -6018,6 +6018,15 @@ func (q *FakeQuerier) GetWorkspaceAgentScriptTimingsByBuildID(ctx context.Contex
 			WorkspaceAgentName: agent.Name,
 		})
 	}
+
+	// We want to only return the first script run for each Script ID.
+	slices.SortFunc(rows, func(a, b database.GetWorkspaceAgentScriptTimingsByBuildIDRow) int {
+		return a.StartedAt.Compare(b.StartedAt)
+	})
+	rows = slices.CompactFunc(rows, func(e1, e2 database.GetWorkspaceAgentScriptTimingsByBuildIDRow) bool {
+		return e1.ScriptID == e2.ScriptID
+	})
+
 	return rows, nil
 }
 
