@@ -8,6 +8,7 @@ import Button from "@mui/material/Button";
 import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ProvisionerJobLog,
 	Template,
@@ -26,6 +27,7 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
@@ -132,8 +134,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
 	const triggerPreview = useCallback(async () => {
-		await onPreview(fileTree);
-		setSelectedTab("logs");
+		try {
+			await onPreview(fileTree);
+			setSelectedTab("logs");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Error on previewing the template"),
+				getErrorDetail(error),
+			);
+		}
 	}, [fileTree, onPreview]);
 
 	// Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
