@@ -58,12 +58,7 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 	return (
 		<Popover>
 			<PopoverTrigger>
-				<TopbarButton
-					data-testid="build-parameters-button"
-					disabled={disabled}
-					color="neutral"
-					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
-				>
+				<TopbarButton data-testid="build-parameters-button" disabled={disabled}>
 					<ExpandMoreOutlined css={{ fontSize: 14 }} />
 					<span css={{ ...visuallyHidden }}>{label}</span>
 				</TopbarButton>
