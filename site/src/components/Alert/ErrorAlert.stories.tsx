@@ -1,7 +1,7 @@
-import Button from "@mui/material/Button";
 import type { Meta, StoryObj } from "@storybook/react";
 import { mockApiError } from "testHelpers/entities";
 import { ErrorAlert } from "./ErrorAlert";
+import { Button } from "components/Button/Button";
 
 const mockError = mockApiError({
 	message: "Email or password was invalid",
@@ -21,7 +21,7 @@ export default meta;
 type Story = StoryObj<typeof ErrorAlert>;
 
 const ExampleAction = (
-	<Button onClick={() => null} size="small" variant="text">
+	<Button onClick={() => null} size="sm" variant="subtle">
 		Button
 	</Button>
 );

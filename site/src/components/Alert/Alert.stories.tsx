@@ -1,6 +1,6 @@
-import Button from "@mui/material/Button";
 import type { Meta, StoryObj } from "@storybook/react";
 import { Alert } from "./Alert";
+import { Button } from "components/Button/Button";
 
 const meta: Meta<typeof Alert> = {
 	title: "components/Alert",
@@ -11,7 +11,7 @@ export default meta;
 type Story = StoryObj<typeof Alert>;
 
 const ExampleAction = (
-	<Button onClick={() => null} size="small" variant="text">
+	<Button onClick={() => null} size="sm" variant="subtle">
 		Button
 	</Button>
 );
