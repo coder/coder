@@ -1,8 +1,8 @@
+import isChromatic from "chromatic/*";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
 import { CliInstallPageView } from "./CliInstallPageView";
-import isChromatic from "chromatic/*";
 
 export const CliInstallPage: FC = () => {
 	const origin = isChromatic() ? "https://example.com" : window.location.origin;
