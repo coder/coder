@@ -3785,16 +3785,17 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 	defer q.mutex.RUnlock()
 
 	for _, workspaceBuild := range q.workspaceBuilds {
-		if workspaceBuild.ID == workspaceBuildID {
-			for _, preset := range q.presets {
-				if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
-					return database.GetPresetByWorkspaceBuildIDRow{
-						ID:        uuid.NullUUID{UUID: preset.ID, Valid: true},
-						Name:      sql.NullString{String: preset.Name, Valid: true},
-						CreatedAt: sql.NullTime{Time: preset.CreatedAt, Valid: true},
-						UpdatedAt: preset.UpdatedAt,
-					}, nil
-				}
+		if workspaceBuild.ID != workspaceBuildID {
+			continue
+		}
+		for _, preset := range q.presets {
+			if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
+				return database.GetPresetByWorkspaceBuildIDRow{
+					ID:        uuid.NullUUID{UUID: preset.ID, Valid: true},
+					Name:      sql.NullString{String: preset.Name, Valid: true},
+					CreatedAt: sql.NullTime{Time: preset.CreatedAt, Valid: true},
+					UpdatedAt: preset.UpdatedAt,
+				}, nil
 			}
 		}
 	}
@@ -8112,11 +8113,10 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 	defer q.mutex.Unlock()
 
 	preset := database.TemplateVersionPreset{
-		// TODO (sasswart): double check how we generate these IDs in postgres.
-		// They should not be params here.
-		Name:      arg.Name,
-		CreatedAt: arg.CreatedAt,
-		UpdatedAt: arg.UpdatedAt,
+		TemplateVersionID: arg.TemplateVersionID,
+		Name:              arg.Name,
+		CreatedAt:         arg.CreatedAt,
+		UpdatedAt:         arg.UpdatedAt,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil
