@@ -8102,7 +8102,7 @@ func (q *FakeQuerier) InsertOrganizationMember(_ context.Context, arg database.I
 	return organizationMember, nil
 }
 
-func (q *FakeQuerier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.TemplateVersionPreset{}, err
