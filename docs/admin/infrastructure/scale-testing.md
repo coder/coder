@@ -65,7 +65,7 @@ The test is deemed successful if:
 - Users did not experience interruptions in their
 workflows,
 - `coderd` did not crash or require restarts, and
-- Noo other internal errors were observed.
+- No other internal errors were observed.
 
 ## Traffic Projections
 

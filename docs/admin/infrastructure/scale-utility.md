@@ -119,7 +119,7 @@ The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
    Terminal.
 1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app
    behavior.
-   
+
    - `wsdi`: WebSocket discard
    - `wsec`: WebSocket echo
    - `wsra`: WebSocket read
