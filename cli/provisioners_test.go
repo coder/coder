@@ -74,7 +74,7 @@ func TestProvisioners_Golden(t *testing.T) {
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
 
 	// Create initial resources with a running provisioner.
-	firstProvisioner := coderdtest.NewProvisionerDaemon(t, coderdAPI)
+	firstProvisioner := coderdtest.NewTaggedProvisionerDaemon(t, coderdAPI, "default-provisioner", map[string]string{"owner": "", "scope": "organization"})
 	t.Cleanup(func() { _ = firstProvisioner.Close() })
 	version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, completeWithAgent())
 	coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
@@ -92,10 +92,11 @@ func TestProvisioners_Golden(t *testing.T) {
 
 	// Create a provisioner that's working on a job.
 	pd1 := dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
-		Name:      "provisioner-1",
-		CreatedAt: dbtime.Now().Add(1 * time.Second),
-		KeyID:     uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
-		Tags:      database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
+		Name:       "provisioner-1",
+		CreatedAt:  dbtime.Now().Add(1 * time.Second),
+		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
+		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		Tags:       database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
 	w1 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
 		OwnerID:    member.ID,
@@ -164,10 +165,11 @@ func TestProvisioners_Golden(t *testing.T) {
 
 	// Create a provisioner that is idle.
 	_ = dbgen.ProvisionerDaemon(t, coderdAPI.Database, database.ProvisionerDaemon{
-		Name:      "provisioner-3",
-		CreatedAt: dbtime.Now().Add(3 * time.Second),
-		KeyID:     uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
-		Tags:      database.StringMap{"owner": "", "scope": "organization"},
+		Name:       "provisioner-3",
+		CreatedAt:  dbtime.Now().Add(3 * time.Second),
+		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
+		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 
 	updateReplaceUUIDs(coderdAPI)
