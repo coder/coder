@@ -1,4 +1,4 @@
-import isChromatic from "chromatic/*";
+import isChromatic from "chromatic/isChromatic";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
