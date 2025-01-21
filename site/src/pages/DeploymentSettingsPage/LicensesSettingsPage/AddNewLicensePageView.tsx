@@ -1,15 +1,15 @@
 import TextField from "@mui/material/TextField";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { FileUpload } from "components/FileUpload/FileUpload";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
+import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { Fieldset } from "../Fieldset";
 import { DividerWithText } from "./DividerWithText";
-import { Button } from "components/Button/Button";
-import { ChevronLeftIcon } from "lucide-react";
 
 type AddNewLicenseProps = {
 	onSaveLicenseKey: (license: string) => void;

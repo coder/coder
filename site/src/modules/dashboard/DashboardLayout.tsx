@@ -1,6 +1,7 @@
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
@@ -12,7 +13,6 @@ import { docs } from "utils/docs";
 import { DeploymentBanner } from "./DeploymentBanner/DeploymentBanner";
 import { Navbar } from "./Navbar/Navbar";
 import { useUpdateCheck } from "./useUpdateCheck";
-import { Button } from "components/Button/Button";
 
 export const DashboardLayout: FC = () => {
 	const { permissions } = useAuthenticated();

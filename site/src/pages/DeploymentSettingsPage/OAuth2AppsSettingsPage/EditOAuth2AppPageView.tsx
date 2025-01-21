@@ -12,6 +12,7 @@ import TableRow from "@mui/material/TableRow";
 import type * as TypesGen from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { CodeExample } from "components/CodeExample/CodeExample";
 import { CopyableValue } from "components/CopyableValue/CopyableValue";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
@@ -20,12 +21,11 @@ import { Loader } from "components/Loader/Loader";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
+import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { Link, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
-import { ChevronLeftIcon } from "lucide-react";
-import { Button } from "components/Button/Button";
 
 export type MutatingResource = {
 	updateApp: boolean;

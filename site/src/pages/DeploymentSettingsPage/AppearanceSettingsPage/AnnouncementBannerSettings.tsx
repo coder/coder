@@ -7,14 +7,14 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
-import { Button } from "components/Button/Button";
-import { PlusIcon } from "lucide-react";
 
 interface AnnouncementBannersettingsProps {
 	isEntitled: boolean;

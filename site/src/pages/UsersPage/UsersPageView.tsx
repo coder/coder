@@ -1,5 +1,6 @@
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
@@ -9,7 +10,6 @@ import type { ComponentProps, FC } from "react";
 import { Link } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
-import { Button } from "components/Button/Button";
 
 export interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];

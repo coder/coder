@@ -8,6 +8,7 @@ import Divider from "@mui/material/Divider";
 import { hasError, isApiValidationError } from "api/errors";
 import type { Template, Workspace } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Margins } from "components/Margins/Margins";
 import {
@@ -31,7 +32,6 @@ import {
 	type WorkspaceFilterProps,
 	WorkspacesFilter,
 } from "./filter/WorkspacesFilter";
-import { Button } from "components/Button/Button";
 
 export const Language = {
 	pageTitle: "Workspaces",
