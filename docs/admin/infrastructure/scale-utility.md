@@ -1,20 +1,23 @@
 # Scale Tests and Utilities
 
-We scale-test Coder with [a built-in utility](#scale-testing-utility) that can
+We scale-test Coder with a built-in utility that can
 be used in your environment for insights into how Coder scales with your
-infrastructure. For scale-testing Kubernetes clusters we recommend to install
+infrastructure. For scale-testing Kubernetes clusters we recommend that you install
 and use the dedicated Coder template,
 [scaletest-runner](https://github.com/coder/coder/tree/main/scaletest/templates/scaletest-runner).
 
 Learn more about [Coder’s architecture](./architecture.md) and our
 [scale-testing methodology](./scale-testing.md).
 
+For more information about scaling, see our [Coder scaling best practices](../../tutorials/best-practices/scale-coder.md).
+
 ## Recent scale tests
 
-> Note: the below information is for reference purposes only, and are not
-> intended to be used as guidelines for infrastructure sizing. Review the
-> [Reference Architectures](./validated-architectures/index.md#node-sizing) for
-> hardware sizing recommendations.
+The information in this doc is for reference purposes only, and is not intended
+to be used as guidelines for infrastructure sizing.
+
+Review the [Reference Architectures](./validated-architectures/index.md#node-sizing) for
+hardware sizing recommendations.
 
 | Environment      | Coder CPU | Coder RAM | Coder Replicas | Database          | Users | Concurrent builds | Concurrent connections (Terminal/SSH) | Coder Version | Last tested  |
 |------------------|-----------|-----------|----------------|-------------------|-------|-------------------|---------------------------------------|---------------|--------------|
@@ -25,8 +28,7 @@ Learn more about [Coder’s architecture](./architecture.md) and our
 | Kubernetes (GKE) | 4 cores   | 16 GB     | 2              | db-custom-8-30720 | 2000  | 50                | 2000 simulated                        | `v2.8.4`      | Feb 28, 2024 |
 | Kubernetes (GKE) | 2 cores   | 4 GB      | 2              | db-custom-2-7680  | 1000  | 50                | 1000 simulated                        | `v2.10.2`     | Apr 26, 2024 |
 
-> Note: a simulated connection reads and writes random data at 40KB/s per
-> connection.
+> Note: A simulated connection reads and writes random data at 40KB/s per connection.
 
 ## Scale testing utility
 
@@ -34,17 +36,24 @@ Since Coder's performance is highly dependent on the templates and workflows you
 support, you may wish to use our internal scale testing utility against your own
 environments.
 
-> Note: This utility is experimental. It is not subject to any compatibility
-> guarantees, and may cause interruptions for your users. To avoid potential
-> outages and orphaned resources, we recommend running scale tests on a
-> secondary "staging" environment or a dedicated
-> [Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
-> Run it against a production environment at your own risk.
+<blockquote class="admonition important">
+
+This utility is experimental.
+
+It is not subject to any compatibility guarantees and may cause interruptions
+for your users.
+To avoid potential outages and orphaned resources, we recommend that you run
+scale tests on a secondary "staging" environment or a dedicated
+[Kubernetes playground cluster](https://github.com/coder/coder/tree/main/scaletest/terraform).
+
+Run it against a production environment at your own risk.
+
+</blockquote>
 
 ### Create workspaces
 
 The following command will provision a number of Coder workspaces using the
-specified template and extra parameters.
+specified template and extra parameters:
 
 ```shell
 coder exp scaletest create-workspaces \
@@ -56,8 +65,6 @@ coder exp scaletest create-workspaces \
         --job-timeout 5h \
         --no-cleanup \
         --output json:"${SCALETEST_RESULTS_DIR}/create-workspaces.json"
-
-# Run `coder exp scaletest create-workspaces --help` for all usage
 ```
 
 The command does the following:
@@ -69,6 +76,12 @@ The command does the following:
 1. Store provisioning results in JSON format.
 1. If you don't want the creation process to be interrupted by any errors, use
    the `--retry 5` flag.
+
+For more built-in `scaletest` options, use the `--help` flag:
+
+```shell
+coder exp scaletest create-workspaces --help
+```
 
 ### Traffic Generation
 
@@ -105,7 +118,11 @@ The `workspace-traffic` supports also other modes - SSH traffic, workspace app:
 1. For SSH traffic: Use `--ssh` flag to generate SSH traffic instead of Web
    Terminal.
 1. For workspace app traffic: Use `--app [wsdi|wsec|wsra]` flag to select app
-   behavior. (modes: _WebSocket discard_, _WebSocket echo_, _WebSocket read_).
+   behavior.
+
+   - `wsdi`: WebSocket discard
+   - `wsec`: WebSocket echo
+   - `wsra`: WebSocket read
 
 ### Cleanup
 
