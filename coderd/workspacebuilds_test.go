@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -565,19 +566,20 @@ func TestWorkspaceBuildResources(t *testing.T) {
 func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T) {
 	t.Parallel()
 
-	t.Run("OnlyOneNotification", func(t *testing.T) {
+	t.Run("NoRepeatedNotifications", func(t *testing.T) {
 		t.Parallel()
 
 		notify := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
 		first := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		// Create a template with an initial version
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, first.OrganizationID, version.ID)
 
 		// Create a workspace using this template
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
@@ -585,10 +587,10 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 		// Create a new version of the template
-		newVersion := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, newVersion.ID)
 
 		// Create a workspace build using this new template version
 		build := coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
@@ -597,21 +599,45 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// Create the workspace build _again_. We are doing this to ensure we only create 1 notification.
+		// Create the workspace build _again_. We are doing this to
+		// ensure we do not create _another_ notification. This is
+		// separate to the notifications subsystem dedupe mechanism
+		// as this build shouldn't create a notification. It shouldn't
+		// create another notification as this new build isn't changing
+		// the template version.
 		build = coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
 			cwbr.TemplateVersionID = newVersion.ID
 		})
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
-		// Ensure we receive only 1 workspace manually updated notification
+		// We're going to have two notifications (one for the first user and one for the template admin)
+		// By ensuring we only have these two, we are sure the second build didn't trigger more
+		// notifications.
 		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
-		require.Len(t, sent, 1)
-		require.Equal(t, user.ID, sent[0].UserID)
+		require.Len(t, sent, 2)
+
+		receivers := make([]uuid.UUID, len(sent))
+		for idx, notif := range sent {
+			receivers[idx] = notif.UserID
+		}
+
+		// Check the notification was sent to the first user and template admin
+		// (both of whom have the "template admin" role), and explicitly not the
+		// workspace owner (since they initiated the workspace build).
+		require.Contains(t, receivers, templateAdmin.ID)
+		require.Contains(t, receivers, first.UserID)
+		require.NotContains(t, receivers, user.ID)
+
 		require.Contains(t, sent[0].Targets, template.ID)
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		require.Contains(t, sent[1].Targets, template.ID)
+		require.Contains(t, sent[1].Targets, workspace.ID)
+		require.Contains(t, sent[1].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[1].Targets, workspace.OwnerID)
 	})
 
 	t.Run("ToCorrectUser", func(t *testing.T) {
@@ -621,12 +647,13 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 
 		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
 		first := coderdtest.CreateFirstUser(t, client)
-		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+		userClient, _ := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
 
 		// Create a template with an initial version
-		version := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil)
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
-		template := coderdtest.CreateTemplate(t, client, first.OrganizationID, version.ID)
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, first.OrganizationID, version.ID)
 
 		// Create a workspace using this template
 		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
@@ -634,10 +661,10 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
 
 		// Create a new version of the template
-		newVersion := coderdtest.CreateTemplateVersion(t, client, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
 			ctvr.TemplateID = template.ID
 		})
-		coderdtest.AwaitTemplateVersionJobCompleted(t, client, newVersion.ID)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, newVersion.ID)
 
 		// Create a workspace build using this new template version from a different user
 		ctx := testutil.Context(t, testutil.WaitShort)
@@ -652,7 +679,7 @@ func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T)
 		// Ensure we receive only 1 workspace manually updated notification and to the right user
 		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
 		require.Len(t, sent, 1)
-		require.Equal(t, user.ID, sent[0].UserID)
+		require.Equal(t, templateAdmin.ID, sent[0].UserID)
 		require.Contains(t, sent[0].Targets, template.ID)
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
@@ -1521,6 +1548,47 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
+	t.Run("MultipleTimingsForSameAgentScript", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with multiple timings for the same script
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		timings := make([]database.WorkspaceAgentScriptTiming, 3)
+		scriptStartedAt := dbtime.Now()
+		for i := range timings {
+			timings[i] = dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				StartedAt: scriptStartedAt,
+				EndedAt:   scriptStartedAt.Add(1 * time.Minute),
+				ScriptID:  script.ID,
+			})
+
+			// Add an hour to the previous "started at" so we can
+			// reliably differentiate the scripts from each other.
+			scriptStartedAt = scriptStartedAt.Add(1 * time.Hour)
+		}
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the first agent script timing
+		require.Len(t, res.AgentScriptTimings, 1)
+
+		require.Equal(t, timings[0].StartedAt.UnixMilli(), res.AgentScriptTimings[0].StartedAt.UnixMilli())
+		require.Equal(t, timings[0].EndedAt.UnixMilli(), res.AgentScriptTimings[0].EndedAt.UnixMilli())
+	})
+
 	t.Run("AgentScriptTimings", func(t *testing.T) {
 		t.Parallel()
 
@@ -1532,10 +1600,10 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
+		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
@@ -1545,6 +1613,12 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 		// Then: return a response with the expected timings
 		require.Len(t, res.AgentScriptTimings, 5)
+		slices.SortFunc(res.AgentScriptTimings, func(a, b codersdk.AgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
+		slices.SortFunc(agentScriptTimings, func(a, b database.WorkspaceAgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
 		for i := range res.AgentScriptTimings {
 			timingRes := res.AgentScriptTimings[i]
 			genTiming := agentScriptTimings[i]

@@ -3099,25 +3099,11 @@ WITH
 	-- dates_of_interest defines all points in time that are relevant to the query.
 	-- It includes the start_time, all status changes, all deletions, and the end_time.
 dates_of_interest AS (
-	SELECT $1::timestamptz AS date
-
-	UNION
-
-    SELECT DISTINCT changed_at AS date
-    FROM user_status_changes
-    WHERE changed_at > $1::timestamptz
-        AND changed_at < $2::timestamptz
-
-	UNION
-
-	SELECT DISTINCT deleted_at AS date
-	FROM user_deleted
-	WHERE deleted_at > $1::timestamptz
-		AND deleted_at < $2::timestamptz
-
-	UNION
-
-	SELECT $2::timestamptz AS date
+	SELECT date FROM generate_series(
+		$1::timestamptz,
+		$2::timestamptz,
+		(CASE WHEN $3::int <= 0 THEN 3600 * 24 ELSE $3::int END || ' seconds')::interval
+	) AS date
 ),
 	-- latest_status_before_range defines the status of each user before the start_time.
 	-- We do not include users who were deleted before the start_time. We use this to ensure that
@@ -3193,7 +3179,7 @@ ranked_status_change_per_user_per_date AS (
 	LEFT JOIN relevant_status_changes rsc1 ON rsc1.changed_at <= d.date
 )
 SELECT
-	rscpupd.date,
+	rscpupd.date::timestamptz AS date,
 	statuses.new_status AS status,
 	COUNT(rscpupd.user_id) FILTER (
 		WHERE rscpupd.rn = 1
@@ -3211,11 +3197,13 @@ SELECT
 FROM ranked_status_change_per_user_per_date rscpupd
 CROSS JOIN statuses
 GROUP BY rscpupd.date, statuses.new_status
+ORDER BY rscpupd.date
 `
 
 type GetUserStatusCountsParams struct {
 	StartTime time.Time `db:"start_time" json:"start_time"`
 	EndTime   time.Time `db:"end_time" json:"end_time"`
+	Interval  int32     `db:"interval" json:"interval"`
 }
 
 type GetUserStatusCountsRow struct {
@@ -3237,7 +3225,7 @@ type GetUserStatusCountsRow struct {
 // We do not start counting from 0 at the start_time. We check the last status change before the start_time for each user. As such,
 // the result shows the total number of users in each status on any particular day.
 func (q *sqlQuerier) GetUserStatusCounts(ctx context.Context, arg GetUserStatusCountsParams) ([]GetUserStatusCountsRow, error) {
-	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime)
+	rows, err := q.db.QueryContext(ctx, getUserStatusCounts, arg.StartTime, arg.EndTime, arg.Interval)
 	if err != nil {
 		return nil, err
 	}
@@ -6220,6 +6208,128 @@ func (q *sqlQuerier) GetProvisionerJobsByIDsWithQueuePosition(ctx context.Contex
 			&i.ProvisionerJob.JobStatus,
 			&i.QueuePosition,
 			&i.QueueSize,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner = `-- name: GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner :many
+WITH pending_jobs AS (
+    SELECT
+        id, created_at
+    FROM
+        provisioner_jobs
+    WHERE
+        started_at IS NULL
+    AND
+        canceled_at IS NULL
+    AND
+        completed_at IS NULL
+    AND
+        error IS NULL
+),
+queue_position AS (
+    SELECT
+        id,
+        ROW_NUMBER() OVER (ORDER BY created_at ASC) AS queue_position
+    FROM
+        pending_jobs
+),
+queue_size AS (
+	SELECT COUNT(*) AS count FROM pending_jobs
+)
+SELECT
+	pj.id, pj.created_at, pj.updated_at, pj.started_at, pj.canceled_at, pj.completed_at, pj.error, pj.organization_id, pj.initiator_id, pj.provisioner, pj.storage_method, pj.type, pj.input, pj.worker_id, pj.file_id, pj.tags, pj.error_code, pj.trace_metadata, pj.job_status,
+    COALESCE(qp.queue_position, 0) AS queue_position,
+    COALESCE(qs.count, 0) AS queue_size,
+	-- Use subquery to utilize ORDER BY in array_agg since it cannot be
+	-- combined with FILTER.
+	(
+		SELECT
+			-- Order for stable output.
+			array_agg(pd.id ORDER BY pd.created_at ASC)::uuid[]
+		FROM
+			provisioner_daemons pd
+		WHERE
+			-- See AcquireProvisionerJob.
+			pj.started_at IS NULL
+			AND pj.organization_id = pd.organization_id
+			AND pj.provisioner = ANY(pd.provisioners)
+			AND provisioner_tagset_contains(pd.tags, pj.tags)
+	) AS available_workers
+FROM
+	provisioner_jobs pj
+LEFT JOIN
+	queue_position qp ON qp.id = pj.id
+LEFT JOIN
+	queue_size qs ON TRUE
+WHERE
+	($1::uuid IS NULL OR pj.organization_id = $1)
+	AND (COALESCE(array_length($2::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($2::provisioner_job_status[]))
+GROUP BY
+	pj.id,
+	qp.queue_position,
+	qs.count
+ORDER BY
+	pj.created_at DESC
+LIMIT
+	$3::int
+`
+
+type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
+	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	Status         []ProvisionerJobStatus `db:"status" json:"status"`
+	Limit          sql.NullInt32          `db:"limit" json:"limit"`
+}
+
+type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow struct {
+	ProvisionerJob   ProvisionerJob `db:"provisioner_job" json:"provisioner_job"`
+	QueuePosition    int64          `db:"queue_position" json:"queue_position"`
+	QueueSize        int64          `db:"queue_size" json:"queue_size"`
+	AvailableWorkers []uuid.UUID    `db:"available_workers" json:"available_workers"`
+}
+
+func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner, arg.OrganizationID, pq.Array(arg.Status), arg.Limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+	for rows.Next() {
+		var i GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
+		if err := rows.Scan(
+			&i.ProvisionerJob.ID,
+			&i.ProvisionerJob.CreatedAt,
+			&i.ProvisionerJob.UpdatedAt,
+			&i.ProvisionerJob.StartedAt,
+			&i.ProvisionerJob.CanceledAt,
+			&i.ProvisionerJob.CompletedAt,
+			&i.ProvisionerJob.Error,
+			&i.ProvisionerJob.OrganizationID,
+			&i.ProvisionerJob.InitiatorID,
+			&i.ProvisionerJob.Provisioner,
+			&i.ProvisionerJob.StorageMethod,
+			&i.ProvisionerJob.Type,
+			&i.ProvisionerJob.Input,
+			&i.ProvisionerJob.WorkerID,
+			&i.ProvisionerJob.FileID,
+			&i.ProvisionerJob.Tags,
+			&i.ProvisionerJob.ErrorCode,
+			&i.ProvisionerJob.TraceMetadata,
+			&i.ProvisionerJob.JobStatus,
+			&i.QueuePosition,
+			&i.QueueSize,
+			pq.Array(&i.AvailableWorkers),
 		); err != nil {
 			return nil, err
 		}
@@ -11985,7 +12095,7 @@ func (q *sqlQuerier) GetWorkspaceAgentMetadata(ctx context.Context, arg GetWorks
 
 const getWorkspaceAgentScriptTimingsByBuildID = `-- name: GetWorkspaceAgentScriptTimingsByBuildID :many
 SELECT
-	workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status,
+	DISTINCT ON (workspace_agent_script_timings.script_id) workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at, workspace_agent_script_timings.ended_at, workspace_agent_script_timings.exit_code, workspace_agent_script_timings.stage, workspace_agent_script_timings.status,
 	workspace_agent_scripts.display_name,
 	workspace_agents.id as workspace_agent_id,
 	workspace_agents.name as workspace_agent_name
@@ -11995,6 +12105,7 @@ INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.wor
 INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
 WHERE workspace_builds.id = $1
+ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at
 `
 
 type GetWorkspaceAgentScriptTimingsByBuildIDRow struct {

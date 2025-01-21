@@ -16,3 +16,9 @@ func Now() time.Time {
 func Time(t time.Time) time.Time {
 	return t.Round(time.Microsecond)
 }
+
+// StartOfDay returns the first timestamp of the day of the input timestamp in its location.
+func StartOfDay(t time.Time) time.Time {
+	year, month, day := t.Date()
+	return time.Date(year, month, day, 0, 0, 0, 0, t.Location())
+}

@@ -133,8 +133,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"template": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a template"),
-			// TODO: Create a use permission maybe?
+			ActionCreate:       actDef("create a template"),
+			ActionUse:          actDef("use the template to initially create a workspace, then workspace lifecycle permissions take over"),
 			ActionRead:         actDef("read template"),
 			ActionUpdate:       actDef("update a template"),
 			ActionDelete:       actDef("delete a template"),
@@ -167,6 +167,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read provisioner daemon"),
 			ActionUpdate: actDef("update a provisioner daemon"),
 			ActionDelete: actDef("delete a provisioner daemon"),
+		},
+	},
+	"provisioner_jobs": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead: actDef("read provisioner jobs"),
 		},
 	},
 	"provisioner_keys": {

@@ -456,7 +456,7 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 						(!template.allow_user_autostart && !template.allow_user_autostop)
 					}
 				>
-					{isLoading && <Spinner />}
+					<Spinner loading={isLoading} />
 					Save
 				</Button>
 			</FormFooter>

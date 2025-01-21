@@ -27,6 +27,7 @@ const (
 	ResourceOrganization           RBACResource = "organization"
 	ResourceOrganizationMember     RBACResource = "organization_member"
 	ResourceProvisionerDaemon      RBACResource = "provisioner_daemon"
+	ResourceProvisionerJobs        RBACResource = "provisioner_jobs"
 	ResourceProvisionerKeys        RBACResource = "provisioner_keys"
 	ResourceReplicas               RBACResource = "replicas"
 	ResourceSystem                 RBACResource = "system"
@@ -82,11 +83,12 @@ var RBACResourceActions = map[RBACResource][]RBACAction{
 	ResourceOrganization:           {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceOrganizationMember:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceProvisionerDaemon:      {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
+	ResourceProvisionerJobs:        {ActionRead},
 	ResourceProvisionerKeys:        {ActionCreate, ActionDelete, ActionRead},
 	ResourceReplicas:               {ActionRead},
 	ResourceSystem:                 {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
 	ResourceTailnetCoordinator:     {ActionCreate, ActionDelete, ActionRead, ActionUpdate},
-	ResourceTemplate:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionViewInsights},
+	ResourceTemplate:               {ActionCreate, ActionDelete, ActionRead, ActionUpdate, ActionUse, ActionViewInsights},
 	ResourceUser:                   {ActionCreate, ActionDelete, ActionRead, ActionReadPersonal, ActionUpdate, ActionUpdatePersonal},
 	ResourceWorkspace:              {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},
 	ResourceWorkspaceDormant:       {ActionApplicationConnect, ActionCreate, ActionDelete, ActionRead, ActionSSH, ActionWorkspaceStart, ActionWorkspaceStop, ActionUpdate},

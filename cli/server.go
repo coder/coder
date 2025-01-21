@@ -391,6 +391,21 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 			defer httpServers.Close()
 
+			if vals.EphemeralDeployment.Value() {
+				r.globalConfig = filepath.Join(os.TempDir(), fmt.Sprintf("coder_ephemeral_%d", time.Now().UnixMilli()))
+				if err := os.MkdirAll(r.globalConfig, 0o700); err != nil {
+					return xerrors.Errorf("create ephemeral deployment directory: %w", err)
+				}
+				cliui.Infof(inv.Stdout, "Using an ephemeral deployment directory (%s)", r.globalConfig)
+				defer func() {
+					cliui.Infof(inv.Stdout, "Removing ephemeral deployment directory...")
+					if err := os.RemoveAll(r.globalConfig); err != nil {
+						cliui.Errorf(inv.Stderr, "Failed to remove ephemeral deployment directory: %v", err)
+					} else {
+						cliui.Infof(inv.Stdout, "Removed ephemeral deployment directory")
+					}
+				}()
+			}
 			config := r.createConfig()
 
 			builtinPostgres := false
@@ -398,7 +413,16 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			if !vals.InMemoryDatabase && vals.PostgresURL == "" {
 				var closeFunc func() error
 				cliui.Infof(inv.Stdout, "Using built-in PostgreSQL (%s)", config.PostgresPath())
-				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger)
+				customPostgresCacheDir := ""
+				// By default, built-in PostgreSQL will use the Coder root directory
+				// for its cache. However, when a deployment is ephemeral, the root
+				// directory is wiped clean on shutdown, defeating the purpose of using
+				// it as a cache. So here we use a cache directory that will not get
+				// removed on restart.
+				if vals.EphemeralDeployment.Value() {
+					customPostgresCacheDir = cacheDir
+				}
+				pgURL, closeFunc, err := startBuiltinPostgres(ctx, config, logger, customPostgresCacheDir)
 				if err != nil {
 					return err
 				}
@@ -1202,7 +1226,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			ctx, cancel := inv.SignalNotifyContext(ctx, InterruptSignals...)
 			defer cancel()
 
-			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger)
+			url, closePg, err := startBuiltinPostgres(ctx, cfg, logger, "")
 			if err != nil {
 				return err
 			}
@@ -1949,7 +1973,7 @@ func embeddedPostgresURL(cfg config.Root) (string, error) {
 	return fmt.Sprintf("postgres://coder@localhost:%s/coder?sslmode=disable&password=%s", pgPort, pgPassword), nil
 }
 
-func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger) (string, func() error, error) {
+func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logger, customCacheDir string) (string, func() error, error) {
 	usr, err := user.Current()
 	if err != nil {
 		return "", nil, err
@@ -1976,6 +2000,10 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 		return "", nil, xerrors.Errorf("parse postgres port: %w", err)
 	}
 
+	cachePath := filepath.Join(cfg.PostgresPath(), "cache")
+	if customCacheDir != "" {
+		cachePath = filepath.Join(customCacheDir, "postgres")
+	}
 	stdlibLogger := slog.Stdlib(ctx, logger.Named("postgres"), slog.LevelDebug)
 	ep := embeddedpostgres.NewDatabase(
 		embeddedpostgres.DefaultConfig().
@@ -1983,7 +2011,7 @@ func startBuiltinPostgres(ctx context.Context, cfg config.Root, logger slog.Logg
 			BinariesPath(filepath.Join(cfg.PostgresPath(), "bin")).
 			DataPath(filepath.Join(cfg.PostgresPath(), "data")).
 			RuntimePath(filepath.Join(cfg.PostgresPath(), "runtime")).
-			CachePath(filepath.Join(cfg.PostgresPath(), "cache")).
+			CachePath(cachePath).
 			Username("coder").
 			Password(pgPassword).
 			Database("coder").

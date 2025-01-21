@@ -34,14 +34,15 @@ const DeploymentSettingsLayout = lazy(
 const DeploymentSettingsProvider = lazy(
 	() => import("./modules/management/DeploymentSettingsProvider"),
 );
-const OrganizationSettingsLayout = lazy(
-	() => import("./modules/management/OrganizationSettingsLayout"),
-);
 const OrganizationSidebarLayout = lazy(
 	() => import("./modules/management/OrganizationSidebarLayout"),
 );
-const CliAuthenticationPage = lazy(
-	() => import("./pages/CliAuthPage/CliAuthPage"),
+const OrganizationSettingsLayout = lazy(
+	() => import("./modules/management/OrganizationSettingsLayout"),
+);
+const CliAuthPage = lazy(() => import("./pages/CliAuthPage/CliAuthPage"));
+const CliInstallPage = lazy(
+	() => import("./pages/CliInstallPage/CliInstallPage"),
 );
 const AccountPage = lazy(
 	() => import("./pages/UserSettingsPage/AccountPage/AccountPage"),
@@ -352,7 +353,7 @@ const templateRouter = () => {
 	);
 };
 
-const groupsRouter = () => {
+const organizationGroupsRouter = () => {
 	return (
 		<Route path="groups">
 			<Route index element={<OrganizationGroupsPage />} />
@@ -432,7 +433,7 @@ export const router = createBrowserRouter(
 
 						<Route path=":organization" element={<OrganizationSidebarLayout />}>
 							<Route index element={<OrganizationMembersPage />} />
-							{groupsRouter()}
+							{organizationGroupsRouter()}
 							<Route path="roles">
 								<Route index element={<OrganizationCustomRolesPage />} />
 								<Route path="create" element={<CreateEditRolePage />} />
@@ -487,7 +488,18 @@ export const router = createBrowserRouter(
 
 						<Route path="users" element={<UsersPage />} />
 						<Route path="users/create" element={<CreateUserPage />} />
-						{groupsRouter()}
+						<Route path="groups">
+							<Route element={<UsersLayout />}>
+								<Route index element={<GroupsPage />} />
+							</Route>
+
+							<Route path="create" element={<CreateGroupPage />} />
+							<Route path=":groupName" element={<GroupPage />} />
+							<Route
+								path=":groupName/settings"
+								element={<SettingsGroupPage />}
+							/>
+						</Route>
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
@@ -542,6 +554,9 @@ export const router = createBrowserRouter(
 							element={<ProvisionerDaemonsHealthPage />}
 						/>
 					</Route>
+
+					<Route path="/install" element={<CliInstallPage />} />
+
 					{/* Using path="*"" means "match anything", so this route
               acts like a catch-all for URLs that we don't have explicit
               routes for. */}
@@ -562,7 +577,7 @@ export const router = createBrowserRouter(
 					path="/:username/:workspace/terminal"
 					element={<TerminalPage />}
 				/>
-				<Route path="/cli-auth" element={<CliAuthenticationPage />} />
+				<Route path="/cli-auth" element={<CliAuthPage />} />
 				<Route path="/icons" element={<IconsPage />} />
 			</Route>
 		</Route>,

@@ -9,7 +9,7 @@ import { cn } from "utils/cn";
 
 export const buttonVariants = cva(
 	`inline-flex items-center justify-center gap-1 whitespace-nowrap
-	border-solid rounded-md transition-colors
+	border-solid rounded-md transition-colors min-w-20
 	text-sm font-semibold font-medium  cursor-pointer no-underline
 	focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-content-link
 	disabled:pointer-events-none disabled:text-content-disabled

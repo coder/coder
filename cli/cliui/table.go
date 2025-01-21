@@ -203,6 +203,10 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				} else {
 					v = nil
 				}
+			case *string:
+				if val != nil {
+					v = *val
+				}
 			case *int64:
 				if val != nil {
 					v = *val
@@ -238,6 +242,18 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				default:
 					// Leave it as it is
 				}
+			}
+
+			// Last resort, just get the interface value to avoid printing
+			// pointer values. For example, if we have a `*MyType("value")`
+			// which is defined as `type MyType string`, we want to print
+			// the string value, not the pointer.
+			if v != nil {
+				vv := reflect.ValueOf(v)
+				for vv.Kind() == reflect.Ptr && !vv.IsNil() {
+					vv = vv.Elem()
+				}
+				v = vv.Interface()
 			}
 
 			rowSlice[i] = v

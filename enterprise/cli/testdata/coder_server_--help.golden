@@ -625,9 +625,9 @@ updating, and deleting workspace resources.
           in queued state for a long time, consider increasing this.
 
 TELEMETRY OPTIONS: 
-Telemetry is critical to our ability to improve Coder. We strip all
-personalinformation before sending data to our servers. Please only disable
-telemetrywhen required by your organization's security policy.
+Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage

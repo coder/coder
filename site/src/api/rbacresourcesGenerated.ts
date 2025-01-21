@@ -119,6 +119,9 @@ export const RBACResourceActions: Partial<
 		read: "read provisioner daemon",
 		update: "update a provisioner daemon",
 	},
+	provisioner_jobs: {
+		read: "read provisioner jobs",
+	},
 	provisioner_keys: {
 		create: "create a provisioner key",
 		delete: "delete a provisioner key",
@@ -144,6 +147,7 @@ export const RBACResourceActions: Partial<
 		delete: "delete a template",
 		read: "read template",
 		update: "update a template",
+		use: "use the template to initially create a workspace, then workspace lifecycle permissions take over",
 		view_insights: "view insights",
 	},
 	user: {

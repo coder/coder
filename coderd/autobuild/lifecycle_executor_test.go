@@ -364,7 +364,6 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = testutil.Context(t, testutil.WaitShort)
 		sched   = mustSchedule(t, "CRON_TZ=UTC 0 * * * *")
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
@@ -388,6 +387,8 @@ func TestExecutorAutostartUserSuspended(t *testing.T) {
 
 	// Given: workspace is stopped, and the user is suspended.
 	workspace = coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
 
 	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
 	require.NoError(t, err, "update user status")
@@ -660,7 +661,6 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	t.Parallel()
 
 	var (
-		ctx     = testutil.Context(t, testutil.WaitShort)
 		tickCh  = make(chan time.Time)
 		statsCh = make(chan autobuild.Stats)
 		client  = coderdtest.New(t, &coderdtest.Options{
@@ -681,6 +681,9 @@ func TestExecuteAutostopSuspendedUser(t *testing.T) {
 	// Given: workspace is running, and the user is suspended.
 	workspace = coderdtest.MustWorkspace(t, userClient, workspace.ID)
 	require.Equal(t, codersdk.WorkspaceStatusRunning, workspace.LatestBuild.Status)
+
+	ctx := testutil.Context(t, testutil.WaitShort)
+
 	_, err := client.UpdateUserStatus(ctx, user.ID.String(), codersdk.UserStatusSuspended)
 	require.NoError(t, err, "update user status")
 
@@ -980,6 +983,9 @@ func TestExecutorRequireActiveVersion(t *testing.T) {
 	activeVersion := coderdtest.CreateTemplateVersion(t, ownerClient, owner.OrganizationID, nil)
 	coderdtest.AwaitTemplateVersionJobCompleted(t, ownerClient, activeVersion.ID)
 	template := coderdtest.CreateTemplate(t, ownerClient, owner.OrganizationID, activeVersion.ID)
+
+	ctx = testutil.Context(t, testutil.WaitShort) // Reset context after setting up the template.
+
 	//nolint We need to set this in the database directly, because the API will return an error
 	// letting you know that this feature requires an enterprise license.
 	err = db.UpdateTemplateAccessControlByID(dbauthz.As(ctx, coderdtest.AuthzUserSubject(me, owner.OrganizationID)), database.UpdateTemplateAccessControlByIDParams{

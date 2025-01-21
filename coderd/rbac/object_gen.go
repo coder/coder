@@ -214,6 +214,13 @@ var (
 		Type: "provisioner_daemon",
 	}
 
+	// ResourceProvisionerJobs
+	// Valid Actions
+	//  - "ActionRead" :: read provisioner jobs
+	ResourceProvisionerJobs = Object{
+		Type: "provisioner_jobs",
+	}
+
 	// ResourceProvisionerKeys
 	// Valid Actions
 	//  - "ActionCreate" :: create a provisioner key
@@ -256,6 +263,7 @@ var (
 	//  - "ActionDelete" :: delete a template
 	//  - "ActionRead" :: read template
 	//  - "ActionUpdate" :: update a template
+	//  - "ActionUse" :: use the template to initially create a workspace, then workspace lifecycle permissions take over
 	//  - "ActionViewInsights" :: view insights
 	ResourceTemplate = Object{
 		Type: "template",
@@ -337,6 +345,7 @@ func AllResources() []Objecter {
 		ResourceOrganization,
 		ResourceOrganizationMember,
 		ResourceProvisionerDaemon,
+		ResourceProvisionerJobs,
 		ResourceProvisionerKeys,
 		ResourceReplicas,
 		ResourceSystem,

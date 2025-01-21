@@ -50,7 +50,7 @@ export const CreateGroupPageView: FC<CreateGroupPageViewProps> = ({
 		initialTouched,
 	});
 	const getFieldHelpers = getFormHelpers<CreateGroupRequest>(form, error);
-	const onCancel = () => navigate("/groups");
+	const onCancel = () => navigate("/deployment/groups");
 
 	return (
 		<Margins>

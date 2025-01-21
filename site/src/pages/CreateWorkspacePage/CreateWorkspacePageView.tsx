@@ -322,7 +322,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 						type="submit"
 						disabled={creatingWorkspace || !hasAllRequiredExternalAuth}
 					>
-						{creatingWorkspace && <Spinner />}
+						<Spinner loading={creatingWorkspace} />
 						Create workspace
 					</Button>
 				</FormFooter>

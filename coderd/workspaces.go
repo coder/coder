@@ -525,6 +525,18 @@ func createWorkspace(
 		httpapi.ResourceNotFound(rw)
 		return
 	}
+	// The user also needs permission to use the template. At this point they have
+	// read perms, but not necessarily "use". This is also checked in `db.InsertWorkspace`.
+	// Doing this up front can save some work below if the user doesn't have permission.
+	if !api.Authorize(r, policy.ActionUse, template) {
+		httpapi.Write(ctx, rw, http.StatusForbidden, codersdk.Response{
+			Message: fmt.Sprintf("Unauthorized access to use the template %q.", template.Name),
+			Detail: "Although you are able to view the template, you are unable to create a workspace using it. " +
+				"Please contact an administrator about your permissions if you feel this is an error.",
+			Validations: nil,
+		})
+		return
+	}
 
 	templateAccessControl := (*(api.AccessControlStore.Load())).GetTemplateAccessControl(template)
 	if templateAccessControl.IsDeprecated() {
@@ -665,9 +677,6 @@ func createWorkspace(
 		)
 		return err
 	}, nil)
-
-	api.notifyWorkspaceCreated(ctx, workspace, req.RichParameterValues)
-
 	var bldErr wsbuilder.BuildError
 	if xerrors.As(err, &bldErr) {
 		httpapi.Write(ctx, rw, bldErr.Status, codersdk.Response{
@@ -687,6 +696,21 @@ func createWorkspace(
 	if err != nil {
 		// Client probably doesn't care about this error, so just log it.
 		api.Logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	}
+
+	// nolint:gocritic // Need system context to fetch admins
+	admins, err := findTemplateAdmins(dbauthz.AsSystemRestricted(ctx), api.Database)
+	if err != nil {
+		api.Logger.Error(ctx, "find template admins", slog.Error(err))
+	} else {
+		for _, admin := range admins {
+			// Don't send notifications to user which initiated the event.
+			if admin.ID == initiatorID {
+				continue
+			}
+
+			api.notifyWorkspaceCreated(ctx, admin.ID, workspace, req.RichParameterValues)
+		}
 	}
 
 	auditReq.New = workspace.WorkspaceTable()
@@ -739,6 +763,7 @@ func createWorkspace(
 
 func (api *API) notifyWorkspaceCreated(
 	ctx context.Context,
+	receiverID uuid.UUID,
 	workspace database.Workspace,
 	parameters []codersdk.WorkspaceBuildParameter,
 ) {
@@ -773,7 +798,7 @@ func (api *API) notifyWorkspaceCreated(
 	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
 		// nolint:gocritic // Need notifier actor to enqueue notifications
 		dbauthz.AsNotifier(ctx),
-		workspace.OwnerID,
+		receiverID,
 		notifications.TemplateWorkspaceCreated,
 		map[string]string{
 			"workspace": workspace.Name,

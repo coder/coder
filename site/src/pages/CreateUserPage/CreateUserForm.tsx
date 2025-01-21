@@ -210,7 +210,7 @@ export const CreateUserForm: FC<
 						Cancel
 					</Button>
 					<Button type="submit" disabled={isLoading}>
-						{isLoading && <Spinner />}
+						<Spinner loading={isLoading} />
 						Save
 					</Button>
 				</FormFooter>
