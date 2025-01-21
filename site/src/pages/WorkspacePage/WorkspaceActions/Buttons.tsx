@@ -186,7 +186,7 @@ export const FavoriteButton: FC<FavoriteButtonProps> = ({
 }) => {
 	return (
 		<TopbarButton onClick={() => onToggle(workspaceID)}>
-			{isFavorite ? <StarIcon /> : <StarOffIcon />}
+			{isFavorite ? <StarOffIcon /> : <StarIcon />}
 			{isFavorite ? "Unfavorite" : "Favorite"}
 		</TopbarButton>
 	);
