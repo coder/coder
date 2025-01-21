@@ -122,7 +122,7 @@ export const ProvisionerGroup: FC<ProvisionerGroupProps> = ({
 					padding: 24,
 					display: "flex",
 					alignItems: "center",
-					justifyContext: "space-between",
+					justifyContent: "space-between",
 					gap: 24,
 				}}
 			>

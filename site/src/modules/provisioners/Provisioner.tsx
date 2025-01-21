@@ -42,7 +42,7 @@ export const Provisioner: FC<ProvisionerProps> = ({
 					padding: 24,
 					display: "flex",
 					alignItems: "center",
-					justifyContext: "space-between",
+					justifyContent: "space-between",
 					gap: 24,
 				}}
 			>
