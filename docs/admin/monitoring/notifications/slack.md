@@ -72,94 +72,94 @@ To build the server to receive webhooks and interact with Slack:
 
    // Create a Bolt Receiver
    const receiver = new ExpressReceiver({
-   	signingSecret: process.env.SLACK_SIGNING_SECRET,
+       signingSecret: process.env.SLACK_SIGNING_SECRET,
    });
    receiver.router.use(bodyParser.json());
 
    // Create the Bolt App, using the receiver
    const app = new App({
-   	token: process.env.SLACK_BOT_TOKEN,
-   	logLevel: LogLevel.DEBUG,
-   	receiver,
+       token: process.env.SLACK_BOT_TOKEN,
+       logLevel: LogLevel.DEBUG,
+       receiver,
    });
 
    receiver.router.post("/v1/webhook", async (req, res) => {
-   	try {
-   		if (!req.body) {
-   			return res.status(400).send("Error: request body is missing");
-   		}
+       try {
+           if (!req.body) {
+               return res.status(400).send("Error: request body is missing");
+           }
 
-   		const { title, body } = req.body;
-   		if (!title || !body) {
-   			return res
-   				.status(400)
-   				.send('Error: missing fields: "title", or "body"');
-   		}
+           const { title, body } = req.body;
+           if (!title || !body) {
+               return res
+                   .status(400)
+                   .send('Error: missing fields: "title", or "body"');
+           }
 
-   		const payload = req.body.payload;
-   		if (!payload) {
-   			return res.status(400).send('Error: missing "payload" field');
-   		}
+           const payload = req.body.payload;
+           if (!payload) {
+               return res.status(400).send('Error: missing "payload" field');
+           }
 
-   		const { user_email, actions } = payload;
-   		if (!user_email || !actions) {
-   			return res
-   				.status(400)
-   				.send('Error: missing fields: "user_email", "actions"');
-   		}
+           const { user_email, actions } = payload;
+           if (!user_email || !actions) {
+               return res
+                   .status(400)
+                   .send('Error: missing fields: "user_email", "actions"');
+           }
 
-   		// Get the user ID using Slack API
-   		const userByEmail = await app.client.users.lookupByEmail({
-   			email: user_email,
-   		});
+           // Get the user ID using Slack API
+           const userByEmail = await app.client.users.lookupByEmail({
+               email: user_email,
+           });
 
-   		const slackMessage = {
-   			channel: userByEmail.user.id,
-   			text: body,
-   			blocks: [
-   				{
-   					type: "header",
-   					text: { type: "plain_text", text: title },
-   				},
-   				{
-   					type: "section",
-   					text: { type: "mrkdwn", text: body },
-   				},
-   			],
-   		};
+           const slackMessage = {
+               channel: userByEmail.user.id,
+               text: body,
+               blocks: [
+                   {
+                       type: "header",
+                       text: { type: "plain_text", text: title },
+                   },
+                   {
+                       type: "section",
+                       text: { type: "mrkdwn", text: body },
+                   },
+               ],
+           };
 
-   		// Add action buttons if they exist
-   		if (actions && actions.length > 0) {
-   			slackMessage.blocks.push({
-   				type: "actions",
-   				elements: actions.map((action) => ({
-   					type: "button",
-   					text: { type: "plain_text", text: action.label },
-   					url: action.url,
-   				})),
-   			});
-   		}
+           // Add action buttons if they exist
+           if (actions && actions.length > 0) {
+               slackMessage.blocks.push({
+                   type: "actions",
+                   elements: actions.map((action) => ({
+                       type: "button",
+                       text: { type: "plain_text", text: action.label },
+                       url: action.url,
+                   })),
+               });
+           }
 
-   		// Post message to the user on Slack
-   		await app.client.chat.postMessage(slackMessage);
+           // Post message to the user on Slack
+           await app.client.chat.postMessage(slackMessage);
 
-   		res.status(204).send();
-   	} catch (error) {
-   		console.error("Error sending message:", error);
-   		res.status(500).send();
-   	}
+           res.status(204).send();
+       } catch (error) {
+           console.error("Error sending message:", error);
+           res.status(500).send();
+       }
    });
 
    // Acknowledge clicks on link_button, otherwise Slack UI
    // complains about missing events.
    app.action("button_click", async ({ body, ack, say }) => {
-   	await ack(); // no specific action needed
+       await ack(); // no specific action needed
    });
 
    // Start the Bolt app
    (async () => {
-   	await app.start(port);
-   	console.log("⚡️ Coder Slack bot is running!");
+       await app.start(port);
+       console.log("⚡️ Coder Slack bot is running!");
    })();
    ```
 
