@@ -3780,8 +3780,25 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
-	panic("not implemented")
+func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, workspaceBuild := range q.workspaceBuilds {
+		if workspaceBuild.ID == workspaceBuildID {
+			for _, preset := range q.presets {
+				if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
+					return database.GetPresetByWorkspaceBuildIDRow{
+						ID:        uuid.NullUUID{UUID: preset.ID, Valid: true},
+						Name:      sql.NullString{String: preset.Name, Valid: true},
+						CreatedAt: sql.NullTime{Time: preset.CreatedAt, Valid: true},
+						UpdatedAt: preset.UpdatedAt,
+					}, nil
+				}
+			}
+		}
+	}
+	return database.GetPresetByWorkspaceBuildIDRow{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
@@ -3801,7 +3818,7 @@ func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, templateV
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
