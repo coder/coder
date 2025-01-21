@@ -5,6 +5,7 @@ import type {
 	Experiments,
 	SerpentOption,
 } from "api/typesGenerated";
+import { Link } from "components/Link/Link";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -13,7 +14,6 @@ import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
-import { Link } from "components/Link/Link";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
