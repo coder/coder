@@ -1571,7 +1571,7 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 				ScriptID:  script.ID,
 			})
 
-			// Add an hour to the previous started so we can
+			// Add an hour to the previous "started at" so we can
 			// reliably differentiate the scripts from each other.
 			scriptStartedAt = scriptStartedAt.Add(1 * time.Hour)
 		}
@@ -1600,9 +1600,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
 			ResourceID: resource.ID,
 		})
-		scripts := dbgen.WorkspaceAgentScripts(t, db, database.WorkspaceAgentScript{
+		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
-		}, 5)
+		})
 		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
 
 		// When: fetching timings for the build
