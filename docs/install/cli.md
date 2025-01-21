@@ -64,18 +64,19 @@ Available in Coder 2.19 and newer.
 
 </blockquote>
 
-Every Coder deployment contains binaries for the CLI on all supported platforms.
-We provide a script that can be run to download the appropriate CLI for your
-machine from your Coder deployment.
+Every Coder deployment contains a script and binaries to install the Coder
+deployment-specific CLI on all supported platforms.
+
+Use the following `curl` command to run the script from your Coder deployment:
 
 ```sh
 curl -L https://coder.example.com/install.sh | sh
 ```
 
-This script works even within air-gapped deployments and is useful for ensuring
-that the version of the CLI you have installed on your machine matches the
-version of the server. When authoring a template, this script can also be useful
-for installing the correct CLI within the workspaces of your users.
+This script works within air-gapped deployments and ensures that the version of the
+CLI you have installed on your machine matches the version of the server.
+
+You can include this script in templates to install a matching CLI within user workspaces.
 
 ### Next up
 
