@@ -13,6 +13,7 @@ import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
 import { UserEngagementChart } from "./UserEngagementChart";
+import { Link } from "components/Link/Link";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
@@ -53,13 +54,13 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 						</ul>
 						It is recommended that you remove these experiments from your
 						configuration as they have no effect. See{" "}
-						<a
+						<Link
 							href="https://coder.com/docs/cli/server#--experiments"
 							target="_blank"
 							rel="noreferrer"
 						>
 							the documentation
-						</a>{" "}
+						</Link>{" "}
 						for more details.
 					</Alert>
 				)}
