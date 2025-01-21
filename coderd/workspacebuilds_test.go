@@ -1548,6 +1548,47 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
+	t.Run("MultipleTimingsForSameAgentScript", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with multiple timings for the same script
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		timings := make([]database.WorkspaceAgentScriptTiming, 3)
+		scriptStartedAt := dbtime.Now()
+		for i := range timings {
+			timings[i] = dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				StartedAt: scriptStartedAt,
+				EndedAt:   scriptStartedAt.Add(1 * time.Minute),
+				ScriptID:  script.ID,
+			})
+
+			// Add an hour to the previous started so we can
+			// reliably differentiate the scripts from each other.
+			scriptStartedAt = scriptStartedAt.Add(1 * time.Hour)
+		}
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the first agent script timing
+		require.Len(t, res.AgentScriptTimings, 1)
+
+		require.Equal(t, timings[0].StartedAt.UnixMilli(), res.AgentScriptTimings[0].StartedAt.UnixMilli())
+		require.Equal(t, timings[0].EndedAt.UnixMilli(), res.AgentScriptTimings[0].EndedAt.UnixMilli())
+	})
+
 	t.Run("AgentScriptTimings", func(t *testing.T) {
 		t.Parallel()
 
