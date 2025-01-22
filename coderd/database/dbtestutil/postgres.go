@@ -468,7 +468,7 @@ func OpenContainerized(t TBSubset, opts DBContainerOptions) (string, func(), err
 		return "", nil, xerrors.Errorf("open container: %w", err)
 	}
 	defer func() {
-		if err != nil {
+		if err != nil && containerCleanup != nil {
 			containerCleanup()
 		}
 	}()
