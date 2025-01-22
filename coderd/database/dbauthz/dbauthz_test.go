@@ -3741,7 +3741,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-		_, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
+		preset, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
@@ -3754,10 +3754,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID: org.ID,
 		})
 		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			InitiatorID:       user.ID,
-			JobID:             job.ID,
+			WorkspaceID:             workspace.ID,
+			TemplateVersionID:       templateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+			InitiatorID:             user.ID,
+			JobID:                   job.ID,
 		})
 		require.NoError(s.T(), err)
 		db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)

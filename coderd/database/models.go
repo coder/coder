@@ -2955,11 +2955,10 @@ type TemplateVersionParameter struct {
 }
 
 type TemplateVersionPreset struct {
-	ID                uuid.UUID    `db:"id" json:"id"`
-	TemplateVersionID uuid.UUID    `db:"template_version_id" json:"template_version_id"`
-	Name              string       `db:"name" json:"name"`
-	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt         sql.NullTime `db:"updated_at" json:"updated_at"`
+	ID                uuid.UUID `db:"id" json:"id"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 }
 
 type TemplateVersionPresetParameter struct {
