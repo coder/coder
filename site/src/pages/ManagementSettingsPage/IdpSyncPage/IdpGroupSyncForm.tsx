@@ -243,7 +243,9 @@ export const IdpGroupSyncForm = ({
 					<IdpMappingTable type="Group" rowCount={groupMappingCount}>
 						{groupSyncSettings?.mapping &&
 							Object.entries(groupSyncSettings.mapping)
-							.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+								.sort(([a], [b]) =>
+									a.toLowerCase().localeCompare(b.toLowerCase()),
+								)
 								.map(([idpGroup, groups]) => (
 									<GroupRow
 										key={idpGroup}
@@ -259,7 +261,9 @@ export const IdpGroupSyncForm = ({
 							<LegacyGroupSyncHeader />
 							<IdpMappingTable type="Group" rowCount={legacyGroupMappingCount}>
 								{Object.entries(groupSyncSettings.legacy_group_name_mapping)
-									.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
 									.map(([idpGroup, groupId]) => (
 										<GroupRow
 											key={groupId}

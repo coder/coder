@@ -183,7 +183,9 @@ export const IdpRoleSyncForm = ({
 				<IdpMappingTable type="Role" rowCount={roleMappingCount}>
 					{roleSyncSettings?.mapping &&
 						Object.entries(roleSyncSettings.mapping)
-							.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+							.sort(([a], [b]) =>
+								a.toLowerCase().localeCompare(b.toLowerCase()),
+							)
 							.map(([idpRole, roles]) => (
 								<RoleRow
 									key={idpRole}

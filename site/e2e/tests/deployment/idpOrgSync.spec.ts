@@ -16,15 +16,20 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpOrgSyncPage", () => {
-
-	test("show empty table when no org mappings are present", async ({ page }) => {
+	test("show empty table when no org mappings are present", async ({
+		page,
+	}) => {
 		requiresLicense();
 		await page.goto("/deployment/idp-org-sync", {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByRole("row", { name: "idp-org-1" })).not.toBeVisible();
-		await expect(page.getByRole("heading", { name: "No organization mappings" })).toBeVisible();
+		await expect(
+			page.getByRole("row", { name: "idp-org-1" }),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "No organization mappings" }),
+		).toBeVisible();
 	});
 
 	test("add new IdP organization mapping with API", async ({ page }) => {
@@ -60,10 +65,10 @@ test.describe("IdpOrgSyncPage", () => {
 
 		const row = page.getByTestId("idp-org-idp-org-1");
 		await expect(row.getByRole("cell", { name: "idp-org-1" })).toBeVisible();
-		await row
-			.getByRole("button", { name: /delete/i })
-			.click();
-		await expect(row.getByRole("cell", { name: "idp-org-1" })).not.toBeVisible();
+		await row.getByRole("button", { name: /delete/i }).click();
+		await expect(
+			row.getByRole("cell", { name: "idp-org-1" }),
+		).not.toBeVisible();
 		await expect(
 			page.getByText("Organization sync settings updated."),
 		).toBeVisible();
@@ -165,7 +170,9 @@ test.describe("IdpOrgSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId("idp-org-new-idp-org");
 		await expect(newRow).toBeVisible();
-		await expect(newRow.getByRole("cell", { name: "new-idp-org" })).toBeVisible();
+		await expect(
+			newRow.getByRole("cell", { name: "new-idp-org" }),
+		).toBeVisible();
 		await expect(newRow.getByRole("cell", { name: orgName })).toBeVisible();
 
 		await expect(

@@ -236,7 +236,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{form.values.mapping &&
 								Object.entries(form.values.mapping)
-									.sort(([a], [b]) => a.toLowerCase().localeCompare(b.toLowerCase()))
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
 											key={idpOrg}

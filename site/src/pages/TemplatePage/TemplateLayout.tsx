@@ -108,10 +108,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				}}
 			/>
 
-			<Tabs
-				active={activeTab}
-				className="mb-10 -mt-3"
-			>
+			<Tabs active={activeTab} className="mb-10 -mt-3">
 				<Margins>
 					<TabsList>
 						<TabLink to="" value="summary">

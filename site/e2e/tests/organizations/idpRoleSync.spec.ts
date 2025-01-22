@@ -16,16 +16,21 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpRoleSyncPage", () => {
-
-	test("show empty table when no role mappings are present", async ({ page }) => {
+	test("show empty table when no role mappings are present", async ({
+		page,
+	}) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
 		await page.goto(`/organizations/${org.name}/idp-sync?tab=roles`, {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByRole("row", { name: "idp-role-1" })).not.toBeVisible();
-		await expect(page.getByRole("heading", { name: "No role mappings" })).toBeVisible();
+		await expect(
+			page.getByRole("row", { name: "idp-role-1" }),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "No role mappings" }),
+		).toBeVisible();
 
 		await deleteOrganization(org.name);
 	});
@@ -62,10 +67,10 @@ test.describe("IdpRoleSyncPage", () => {
 		});
 		const row = page.getByTestId("role-idp-role-1");
 		await expect(row.getByRole("cell", { name: "idp-role-1" })).toBeVisible();
-		await row
-			.getByRole("button", { name: /delete/i })
-			.click();
-		await expect(row.getByRole("cell", { name: "idp-role-1" })).not.toBeVisible();
+		await row.getByRole("button", { name: /delete/i }).click();
+		await expect(
+			row.getByRole("cell", { name: "idp-role-1" }),
+		).not.toBeVisible();
 		await expect(
 			page.getByText("IdP Role sync settings updated."),
 		).toBeVisible();
@@ -146,8 +151,12 @@ test.describe("IdpRoleSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId("role-new-idp-role");
 		await expect(newRow).toBeVisible();
-		await expect(newRow.getByRole("cell", { name: "new-idp-role" })).toBeVisible();
-		await expect(newRow.getByRole("cell", { name: "organization-admin" })).toBeVisible();
+		await expect(
+			newRow.getByRole("cell", { name: "new-idp-role" }),
+		).toBeVisible();
+		await expect(
+			newRow.getByRole("cell", { name: "organization-admin" }),
+		).toBeVisible();
 
 		await expect(
 			page.getByText("IdP Role sync settings updated."),

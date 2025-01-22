@@ -16,16 +16,21 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpGroupSyncPage", () => {
-
-	test("show empty table when no group mappings are present", async ({ page }) => {
+	test("show empty table when no group mappings are present", async ({
+		page,
+	}) => {
 		requiresLicense();
 		const org = await createOrganizationWithName(randomName());
 		await page.goto(`/organizations/${org.name}/idp-sync?tab=groups`, {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByRole("row", { name: "idp-group-1" })).not.toBeVisible();
-		await expect(page.getByRole("heading", { name: "No group mappings" })).toBeVisible();
+		await expect(
+			page.getByRole("row", { name: "idp-group-1" }),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "No group mappings" }),
+		).toBeVisible();
 
 		await deleteOrganization(org.name);
 	});
@@ -67,9 +72,7 @@ test.describe("IdpGroupSyncPage", () => {
 
 		const row = page.getByTestId("group-idp-group-1");
 		await expect(row.getByRole("cell", { name: "idp-group-1" })).toBeVisible();
-		await row
-			.getByRole("button", { name: /delete/i })
-			.click();
+		await row.getByRole("button", { name: /delete/i }).click();
 		await expect(
 			row.getByRole("cell", { name: "idp-group-1" }),
 		).not.toBeVisible();
