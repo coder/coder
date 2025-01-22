@@ -15,7 +15,7 @@ import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { type FC, useEffect } from "react";
+import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
@@ -59,11 +59,11 @@ export const IdpSyncPage: FC = () => {
 	);
 
 	const error =
+		patchGroupSyncSettingsMutation.error ||
+		patchRoleSyncSettingsMutation.error ||
 		groupIdpSyncSettingsQuery.error ||
 		roleIdpSyncSettingsQuery.error ||
-		groupsQuery.error ||
-		patchGroupSyncSettingsMutation.error ||
-		patchRoleSyncSettingsMutation.error;
+		groupsQuery.error;
 
 	const groupsMap = new Map<string, string>();
 	if (groupsQuery.data) {
