@@ -3,7 +3,7 @@ name: contrib
 on:
   issue_comment:
     types: [created]
-  pull_request_target:
+  pull_request:
     types:
       - opened
       - closed
@@ -24,33 +24,38 @@ concurrency: pr-${{ github.ref }}
 
 jobs:
   # Dependabot is annoying, but this makes it a bit less so.
-  auto-approve-dependabot:
+  dependabot:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
-    steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+    steps:  
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d # v2.2.0
         with:
-          egress-policy: audit
-
-      - name: auto-approve dependabot
-        uses: hmarr/auto-approve-action@f0939ea97e9205ef24d872e76833fa908a770363 # v4.0.0
-        if: github.actor == 'dependabot[bot]'
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+  
+      - name: Approve the PR
+        run: gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+          
+      - name: Enable auto-merge for Dependabot PRs
+        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
+        run: gh pr merge --auto --merge "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
   cla:
     runs-on: ubuntu-latest
     permissions:
       pull-requests: write
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
-        with:
-          egress-policy: audit
-
       - name: cla
-        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request_target'
+        if: (github.event.comment.body == 'recheck' || github.event.comment.body == 'I have read the CLA Document and I hereby sign the CLA') || github.event_name == 'pull_request'
         uses: contributor-assistant/github-action@ca4a40a7d1004f18d9960b404b97e5f30a505a08 # v2.6.1
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -69,13 +74,8 @@ jobs:
   release-labels:
     runs-on: ubuntu-latest
     # Skip tagging for draft PRs.
-    if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
+    if: ${{ github.event_name == 'pull_request' && !github.event.pull_request.draft }}
     steps:
-      - name: Harden Runner
-        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
-        with:
-          egress-policy: audit
-
       - name: release-labels
         uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
         with:
