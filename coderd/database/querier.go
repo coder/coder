@@ -265,6 +265,8 @@ type sqlcQuerier interface {
 	// created in the timeframe and return the aggregate usage counts of parameter
 	// values.
 	GetTemplateParameterInsights(ctx context.Context, arg GetTemplateParameterInsightsParams) ([]GetTemplateParameterInsightsRow, error)
+	// TODO: need to store the desired instances & autoscaling schedules in db; use desired value here
+	GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]GetTemplatePrebuildStateRow, error)
 	GetTemplateUsageStats(ctx context.Context, arg GetTemplateUsageStatsParams) ([]TemplateUsageStat, error)
 	GetTemplateVersionByID(ctx context.Context, id uuid.UUID) (TemplateVersion, error)
 	GetTemplateVersionByJobID(ctx context.Context, jobID uuid.UUID) (TemplateVersion, error)

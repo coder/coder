@@ -3035,6 +3035,8 @@ type User struct {
 	HashedOneTimePasscode []byte `db:"hashed_one_time_passcode" json:"hashed_one_time_passcode"`
 	// The time when the one-time-passcode expires.
 	OneTimePasscodeExpiresAt sql.NullTime `db:"one_time_passcode_expires_at" json:"one_time_passcode_expires_at"`
+	// Determines if a user is a system user, and therefore cannot login or perform normal actions
+	IsSystem sql.NullBool `db:"is_system" json:"is_system"`
 }
 
 // Tracks when users were deleted
@@ -3350,6 +3352,29 @@ type WorkspaceModule struct {
 	Version    string              `db:"version" json:"version"`
 	Key        string              `db:"key" json:"key"`
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
+}
+
+type WorkspacePrebuild struct {
+	ID                uuid.UUID        `db:"id" json:"id"`
+	CreatedAt         time.Time        `db:"created_at" json:"created_at"`
+	UpdatedAt         time.Time        `db:"updated_at" json:"updated_at"`
+	OwnerID           uuid.UUID        `db:"owner_id" json:"owner_id"`
+	OrganizationID    uuid.UUID        `db:"organization_id" json:"organization_id"`
+	TemplateID        uuid.UUID        `db:"template_id" json:"template_id"`
+	Deleted           bool             `db:"deleted" json:"deleted"`
+	Name              string           `db:"name" json:"name"`
+	AutostartSchedule sql.NullString   `db:"autostart_schedule" json:"autostart_schedule"`
+	Ttl               sql.NullInt64    `db:"ttl" json:"ttl"`
+	LastUsedAt        time.Time        `db:"last_used_at" json:"last_used_at"`
+	DormantAt         sql.NullTime     `db:"dormant_at" json:"dormant_at"`
+	DeletingAt        sql.NullTime     `db:"deleting_at" json:"deleting_at"`
+	AutomaticUpdates  AutomaticUpdates `db:"automatic_updates" json:"automatic_updates"`
+	Favorite          bool             `db:"favorite" json:"favorite"`
+	NextStartAt       sql.NullTime     `db:"next_start_at" json:"next_start_at"`
+}
+
+type WorkspacePrebuildBuild struct {
+	WorkspaceID uuid.UUID `db:"workspace_id" json:"workspace_id"`
 }
 
 type WorkspaceProxy struct {

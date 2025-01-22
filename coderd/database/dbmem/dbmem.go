@@ -5464,6 +5464,10 @@ func (q *FakeQuerier) GetTemplateParameterInsights(ctx context.Context, arg data
 	return rows, nil
 }
 
+func (q *FakeQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetTemplateUsageStats(_ context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

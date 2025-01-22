@@ -769,6 +769,7 @@ CREATE TABLE users (
     github_com_user_id bigint,
     hashed_one_time_passcode bytea,
     one_time_passcode_expires_at timestamp with time zone,
+    is_system boolean DEFAULT false,
     CONSTRAINT one_time_passcode_set CHECK ((((hashed_one_time_passcode IS NULL) AND (one_time_passcode_expires_at IS NULL)) OR ((hashed_one_time_passcode IS NOT NULL) AND (one_time_passcode_expires_at IS NOT NULL))))
 );
 
@@ -783,6 +784,8 @@ COMMENT ON COLUMN users.github_com_user_id IS 'The GitHub.com numerical user ID.
 COMMENT ON COLUMN users.hashed_one_time_passcode IS 'A hash of the one-time-passcode given to the user.';
 
 COMMENT ON COLUMN users.one_time_passcode_expires_at IS 'The time when the one-time-passcode expires.';
+
+COMMENT ON COLUMN users.is_system IS 'Determines if a user is a system user, and therefore cannot login or perform normal actions';
 
 CREATE VIEW group_members_expanded AS
  WITH all_members AS (
@@ -1780,6 +1783,52 @@ CREATE TABLE workspace_modules (
     created_at timestamp with time zone NOT NULL
 );
 
+CREATE VIEW workspace_prebuild_builds AS
+ SELECT workspace_builds.workspace_id
+   FROM workspace_builds
+  WHERE (workspace_builds.initiator_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
+CREATE TABLE workspaces (
+    id uuid NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    owner_id uuid NOT NULL,
+    organization_id uuid NOT NULL,
+    template_id uuid NOT NULL,
+    deleted boolean DEFAULT false NOT NULL,
+    name character varying(64) NOT NULL,
+    autostart_schedule text,
+    ttl bigint,
+    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    dormant_at timestamp with time zone,
+    deleting_at timestamp with time zone,
+    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
+    favorite boolean DEFAULT false NOT NULL,
+    next_start_at timestamp with time zone
+);
+
+COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
+
+CREATE VIEW workspace_prebuilds AS
+ SELECT workspaces.id,
+    workspaces.created_at,
+    workspaces.updated_at,
+    workspaces.owner_id,
+    workspaces.organization_id,
+    workspaces.template_id,
+    workspaces.deleted,
+    workspaces.name,
+    workspaces.autostart_schedule,
+    workspaces.ttl,
+    workspaces.last_used_at,
+    workspaces.dormant_at,
+    workspaces.deleting_at,
+    workspaces.automatic_updates,
+    workspaces.favorite,
+    workspaces.next_start_at
+   FROM workspaces
+  WHERE (workspaces.owner_id = 'c42fdf75-3097-471c-8c33-fb52454d81c0'::uuid);
+
 CREATE TABLE workspace_proxies (
     id uuid NOT NULL,
     name text NOT NULL,
@@ -1849,27 +1898,6 @@ CREATE TABLE workspace_resources (
     daily_cost integer DEFAULT 0 NOT NULL,
     module_path text
 );
-
-CREATE TABLE workspaces (
-    id uuid NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    owner_id uuid NOT NULL,
-    organization_id uuid NOT NULL,
-    template_id uuid NOT NULL,
-    deleted boolean DEFAULT false NOT NULL,
-    name character varying(64) NOT NULL,
-    autostart_schedule text,
-    ttl bigint,
-    last_used_at timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
-    dormant_at timestamp with time zone,
-    deleting_at timestamp with time zone,
-    automatic_updates automatic_updates DEFAULT 'never'::automatic_updates NOT NULL,
-    favorite boolean DEFAULT false NOT NULL,
-    next_start_at timestamp with time zone
-);
-
-COMMENT ON COLUMN workspaces.favorite IS 'Favorite is true if the workspace owner has favorited the workspace.';
 
 CREATE VIEW workspaces_expanded AS
  SELECT workspaces.id,
@@ -2246,6 +2274,8 @@ CREATE UNIQUE INDEX template_usage_stats_start_time_template_id_user_id_idx ON t
 COMMENT ON INDEX template_usage_stats_start_time_template_id_user_id_idx IS 'Index for primary key.';
 
 CREATE UNIQUE INDEX templates_organization_id_name_idx ON templates USING btree (organization_id, lower((name)::text)) WHERE (deleted = false);
+
+CREATE INDEX user_is_system_idx ON users USING btree (is_system);
 
 CREATE UNIQUE INDEX user_links_linked_id_login_type_idx ON user_links USING btree (linked_id, login_type) WHERE (linked_id <> ''::text);
 
