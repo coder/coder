@@ -63,7 +63,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Dependabot PR auto merged",
+                  "text": ":pr-merged: Auto merged Dependabot PR #${{ github.event.pull_request.number }}",
                   "emoji": true
                 }
               },
