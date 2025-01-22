@@ -36,7 +36,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
@@ -79,6 +79,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(form.values.mapping).length
 		: 0;
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
+	const id = useId();
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -101,11 +102,6 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
-	const SYNC_FIELD_ID = "sync-field";
-	const ORGANIZATION_ASSIGN_DEFAULT_ID = "organization-assign-default";
-	const IDP_ORGANIZATION_NAME_ID = "idp-organization-name";
-	const CODER_ORG_ID = "coder-org";
-
 	return (
 		<div className="flex flex-col gap-2">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -113,13 +109,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 				<fieldset disabled={form.isSubmitting} className="border-none">
 					<div className="flex flex-row">
 						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+							<Label className="text-sm" htmlFor={`${id}-sync-field`}>
 								Organization sync field
 							</Label>
 							<div className="flex flex-row items-center gap-5">
 								<div className="flex flex-row gap-2 w-72">
 									<Input
-										id={SYNC_FIELD_ID}
+										id={`${id}-sync-field`}
 										value={form.values.field}
 										onChange={async (event) => {
 											void form.setFieldValue("field", event.target.value);
@@ -140,7 +136,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</div>
 								<div className="flex flex-row items-center gap-3">
 									<Switch
-										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
+										id={`${id}-assign-default-org`}
 										checked={form.values.organization_assign_default}
 										onCheckedChange={async (checked) => {
 											if (!checked) {
@@ -155,7 +151,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										}}
 									/>
 									<span className="flex flex-row items-center gap-1">
-										<Label htmlFor={ORGANIZATION_ASSIGN_DEFAULT_ID}>
+										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
 										<AssignDefaultOrgHelpTooltip />
@@ -171,11 +167,11 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
-								<Label className="text-sm" htmlFor={IDP_ORGANIZATION_NAME_ID}>
+								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>
 								<Input
-									id={IDP_ORGANIZATION_NAME_ID}
+									id={`${id}-idp-org-name`}
 									value={idpOrgName}
 									className="min-w-72 w-72"
 									onChange={(event) => {
@@ -184,12 +180,12 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor={CODER_ORG_ID}>
+								<Label className="text-sm" htmlFor={`${id}-coder-org`}>
 									Coder organization
 								</Label>
 								<MultiSelectCombobox
 									inputProps={{
-										id: CODER_ORG_ID,
+										id: `${id}-coder-org`,
 									}}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}

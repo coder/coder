@@ -11,7 +11,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
@@ -52,6 +52,7 @@ export const IdpRoleSyncForm = ({
 	});
 	const [idpRoleName, setIdpRoleName] = useState("");
 	const [coderRoles, setCoderRoles] = useState<Option[]>([]);
+	const id = useId();
 
 	const handleDelete = async (idpOrg: string) => {
 		const newMapping = Object.fromEntries(
@@ -67,10 +68,6 @@ export const IdpRoleSyncForm = ({
 		form.handleSubmit();
 	};
 
-	const SYNC_FIELD_ID = "sync-field";
-	const IDP_ROLE_NAME_ID = "idp-role-name";
-	const CODER_ROLE_ID = "coder-role";
-
 	return (
 		<form onSubmit={form.handleSubmit}>
 			<fieldset
@@ -85,13 +82,13 @@ export const IdpRoleSyncForm = ({
 					/>
 				</div>
 				<div className="grid items-center gap-1">
-					<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+					<Label className="text-sm" htmlFor={`${id}-sync-field`}>
 						Role sync field
 					</Label>
 					<div className="flex flex-row items-center gap-5">
 						<div className="flex flex-row gap-2 w-72">
 							<Input
-								id={SYNC_FIELD_ID}
+								id={`${id}-sync-field`}
 								value={form.values.field}
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
@@ -118,11 +115,11 @@ export const IdpRoleSyncForm = ({
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1">
-						<Label className="text-sm" htmlFor={IDP_ROLE_NAME_ID}>
+						<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 							IdP role name
 						</Label>
 						<Input
-							id={IDP_ROLE_NAME_ID}
+							id={`${id}-idp-role-name`}
 							value={idpRoleName}
 							className="min-w-72 w-72"
 							onChange={(event) => {
@@ -131,12 +128,12 @@ export const IdpRoleSyncForm = ({
 						/>
 					</div>
 					<div className="grid items-center gap-1 flex-1">
-						<Label className="text-sm" htmlFor={CODER_ROLE_ID}>
+						<Label className="text-sm" htmlFor={`${id}-coder-role`}>
 							Coder role
 						</Label>
 						<MultiSelectCombobox
 							inputProps={{
-								id: CODER_ROLE_ID,
+								id: `${id}-coder-role`,
 							}}
 							className="min-w-60 max-w-3xl"
 							value={coderRoles}

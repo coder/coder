@@ -24,7 +24,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
-import { type FC, useState } from "react";
+import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
@@ -73,6 +73,7 @@ export const IdpGroupSyncForm = ({
 	});
 	const [idpGroupName, setIdpGroupName] = useState("");
 	const [coderGroups, setCoderGroups] = useState<Option[]>([]);
+	const id = useId();
 
 	const getGroupNames = (groupIds: readonly string[]) => {
 		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
@@ -92,12 +93,6 @@ export const IdpGroupSyncForm = ({
 		form.handleSubmit();
 	};
 
-	const SYNC_FIELD_ID = "sync-field";
-	const REGEX_FILTER_ID = "regex-filter";
-	const AUTO_CREATE_MISSING_GROUPS_ID = "auto-create-missing-groups";
-	const IDP_GROUP_NAME_ID = "idp-group-name";
-	const CODER_GROUP_ID = "coder-group";
-
 	return (
 		<form onSubmit={form.handleSubmit}>
 			<fieldset
@@ -114,14 +109,14 @@ export const IdpGroupSyncForm = ({
 				<div className="grid items-center gap-3">
 					<div className="flex flex-row items-center gap-5">
 						<div className="grid grid-cols-2 gap-2 grid-rows-[20px_auto_20px]">
-							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+							<Label className="text-sm" htmlFor={`${id}-sync-field`}>
 								Group sync field
 							</Label>
-							<Label className="text-sm" htmlFor={REGEX_FILTER_ID}>
+							<Label className="text-sm" htmlFor={`${id}-regex-filter`}>
 								Regex filter
 							</Label>
 							<Input
-								id={SYNC_FIELD_ID}
+								id={`${id}-sync-field`}
 								value={form.values.field}
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
@@ -130,7 +125,7 @@ export const IdpGroupSyncForm = ({
 							/>
 							<div className="flex flex-row gap-2">
 								<Input
-									id={REGEX_FILTER_ID}
+									id={`${id}-regex-filter`}
 									value={form.values.regex_filter ?? ""}
 									onChange={async (event) => {
 										void form.setFieldValue("regex_filter", event.target.value);
@@ -159,7 +154,7 @@ export const IdpGroupSyncForm = ({
 				<div className="flex flex-row items-center gap-3">
 					<Spinner size="sm" loading={form.isSubmitting} className="w-9">
 						<Switch
-							id={AUTO_CREATE_MISSING_GROUPS_ID}
+							id={`${id}-auto-create-missing-groups`}
 							checked={form.values.auto_create_missing_groups}
 							onCheckedChange={async (checked) => {
 								void form.setFieldValue("auto_create_missing_groups", checked);
@@ -168,7 +163,7 @@ export const IdpGroupSyncForm = ({
 						/>
 					</Spinner>
 					<span className="flex flex-row items-center gap-1">
-						<Label htmlFor={AUTO_CREATE_MISSING_GROUPS_ID}>
+						<Label htmlFor={`${id}-auto-create-missing-groups`}>
 							Auto create missing groups
 						</Label>
 						<AutoCreateMissingGroupsHelpTooltip />
@@ -176,11 +171,11 @@ export const IdpGroupSyncForm = ({
 				</div>
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1">
-						<Label className="text-sm" htmlFor={IDP_GROUP_NAME_ID}>
+						<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 							IdP group name
 						</Label>
 						<Input
-							id={IDP_GROUP_NAME_ID}
+							id={`${id}-idp-group-name`}
 							value={idpGroupName}
 							className="min-w-72 w-72"
 							onChange={(event) => {
@@ -189,12 +184,12 @@ export const IdpGroupSyncForm = ({
 						/>
 					</div>
 					<div className="grid items-center gap-1 flex-1">
-						<Label className="text-sm" htmlFor={CODER_GROUP_ID}>
+						<Label className="text-sm" htmlFor={`${id}-coder-group`}>
 							Coder group
 						</Label>
 						<MultiSelectCombobox
 							inputProps={{
-								id: CODER_GROUP_ID,
+								id: `${id}-coder-group`,
 							}}
 							className="min-w-60 max-w-3xl"
 							value={coderGroups}
