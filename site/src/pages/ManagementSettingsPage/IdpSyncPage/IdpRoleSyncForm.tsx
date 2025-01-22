@@ -86,14 +86,14 @@ export const IdpRoleSyncForm = ({
 						Role sync field
 					</Label>
 					<div className="flex flex-row items-center gap-5">
-						<div className="flex flex-row gap-2 w-72">
+						<div className="flex flex-row gap-2">
 							<Input
 								id={`${id}-sync-field`}
 								value={form.values.field}
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
-								className="min-w-72 w-72"
+								className="w-72"
 							/>
 							<Button
 								className="px-6"
@@ -121,7 +121,7 @@ export const IdpRoleSyncForm = ({
 						<Input
 							id={`${id}-idp-role-name`}
 							value={idpRoleName}
-							className="min-w-72 w-72"
+							className="w-72"
 							onChange={(event) => {
 								setIdpRoleName(event.target.value);
 							}}

@@ -121,7 +121,7 @@ export const IdpGroupSyncForm = ({
 								onChange={async (event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
-								className="min-w-72 w-72"
+								className="w-72"
 							/>
 							<div className="flex flex-row gap-2">
 								<Input
@@ -133,7 +133,6 @@ export const IdpGroupSyncForm = ({
 									className="min-w-40"
 								/>
 								<Button
-									className="w-20"
 									type="submit"
 									disabled={form.isSubmitting || !form.dirty}
 									onClick={(event) => {
@@ -177,7 +176,7 @@ export const IdpGroupSyncForm = ({
 						<Input
 							id={`${id}-idp-group-name`}
 							value={idpGroupName}
-							className="min-w-72 w-72"
+							className="w-72"
 							onChange={(event) => {
 								setIdpGroupName(event.target.value);
 							}}
