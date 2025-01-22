@@ -15,7 +15,7 @@ jobs:
   # Dependabot is annoying, but this makes it a bit less so.
   dependabot:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request_target'
+    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
     steps:  
