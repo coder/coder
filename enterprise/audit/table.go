@@ -150,6 +150,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"github_com_user_id":           ActionIgnore,
 		"hashed_one_time_passcode":     ActionIgnore,
 		"one_time_passcode_expires_at": ActionTrack,
+		"is_system":                    ActionTrack, // Should never change, but track it anyway.
 	},
 	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
