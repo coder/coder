@@ -5399,31 +5399,24 @@ const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
 	template_version_presets.id,
 	template_version_presets.name,
-	template_version_presets.created_at,
-	template_version_presets.updated_at
+	template_version_presets.created_at
 FROM
 	workspace_builds
-	LEFT JOIN template_version_presets ON workspace_builds.template_version_preset_id = template_version_presets.id
+	INNER JOIN template_version_presets ON workspace_builds.template_version_preset_id = template_version_presets.id
 WHERE
 	workspace_builds.id = $1
 `
 
 type GetPresetByWorkspaceBuildIDRow struct {
-	ID        uuid.NullUUID  `db:"id" json:"id"`
-	Name      sql.NullString `db:"name" json:"name"`
-	CreatedAt sql.NullTime   `db:"created_at" json:"created_at"`
-	UpdatedAt sql.NullTime   `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (GetPresetByWorkspaceBuildIDRow, error) {
 	row := q.db.QueryRowContext(ctx, getPresetByWorkspaceBuildID, workspaceBuildID)
 	var i GetPresetByWorkspaceBuildIDRow
-	err := row.Scan(
-		&i.ID,
-		&i.Name,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-	)
+	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
 	return i, err
 }
 
@@ -5471,8 +5464,7 @@ const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :m
 SELECT
 	id,
 	name,
-	created_at,
-	updated_at
+	created_at
 FROM
 	template_version_presets
 WHERE
@@ -5480,10 +5472,9 @@ WHERE
 `
 
 type GetPresetsByTemplateVersionIDRow struct {
-	ID        uuid.UUID    `db:"id" json:"id"`
-	Name      string       `db:"name" json:"name"`
-	CreatedAt time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt sql.NullTime `db:"updated_at" json:"updated_at"`
+	ID        uuid.UUID `db:"id" json:"id"`
+	Name      string    `db:"name" json:"name"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]GetPresetsByTemplateVersionIDRow, error) {
@@ -5495,12 +5486,7 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 	var items []GetPresetsByTemplateVersionIDRow
 	for rows.Next() {
 		var i GetPresetsByTemplateVersionIDRow
-		if err := rows.Scan(
-			&i.ID,
-			&i.Name,
-			&i.CreatedAt,
-			&i.UpdatedAt,
-		); err != nil {
+		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -5516,32 +5502,25 @@ func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, template
 
 const insertPreset = `-- name: InsertPreset :one
 INSERT INTO
-	template_version_presets (template_version_id, name, created_at, updated_at)
+	template_version_presets (template_version_id, name, created_at)
 VALUES
-	($1, $2, $3, $4) RETURNING id, template_version_id, name, created_at, updated_at
+	($1, $2, $3) RETURNING id, template_version_id, name, created_at
 `
 
 type InsertPresetParams struct {
-	TemplateVersionID uuid.UUID    `db:"template_version_id" json:"template_version_id"`
-	Name              string       `db:"name" json:"name"`
-	CreatedAt         time.Time    `db:"created_at" json:"created_at"`
-	UpdatedAt         sql.NullTime `db:"updated_at" json:"updated_at"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
 }
 
 func (q *sqlQuerier) InsertPreset(ctx context.Context, arg InsertPresetParams) (TemplateVersionPreset, error) {
-	row := q.db.QueryRowContext(ctx, insertPreset,
-		arg.TemplateVersionID,
-		arg.Name,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-	)
+	row := q.db.QueryRowContext(ctx, insertPreset, arg.TemplateVersionID, arg.Name, arg.CreatedAt)
 	var i TemplateVersionPreset
 	err := row.Scan(
 		&i.ID,
 		&i.TemplateVersionID,
 		&i.Name,
 		&i.CreatedAt,
-		&i.UpdatedAt,
 	)
 	return i, err
 }

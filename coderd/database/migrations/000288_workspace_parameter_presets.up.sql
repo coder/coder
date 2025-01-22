@@ -2,16 +2,9 @@ CREATE TABLE template_version_presets
 (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
 	template_version_id UUID NOT NULL,
-	-- TODO (sasswart): TEXT vs VARCHAR? Check with Mr Kopping.
-	-- TODO (sasswart): A comment on the presets RFC mentioned that we may need to
-	-- aggregate presets by name because we want statistics for related presets across
-	-- template versions. This makes me uncomfortable. It couples constraints to a user
-	-- facing field that could be avoided.
 	name TEXT NOT NULL,
 	created_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	-- TODO (sasswart): What do we need updated_at for? Is it worth it to have a history table?
 	-- TODO (sasswart): Will auditing have any relevance to presets?
-	updated_at TIMESTAMP WITH TIME ZONE,
 	FOREIGN KEY (template_version_id) REFERENCES template_versions (id) ON DELETE CASCADE
 );
 
@@ -29,6 +22,15 @@ CREATE TABLE template_version_preset_parameters
 
 ALTER TABLE workspace_builds
 ADD COLUMN template_version_preset_id UUID NULL;
+
+ALTER TABLE workspace_builds
+ADD CONSTRAINT workspace_builds_template_version_preset_id_fkey
+FOREIGN KEY (template_version_preset_id)
+REFERENCES template_version_presets (id)
+-- TODO (sasswart): SET NULL might not be the best choice here. The rest of the hierarchy has ON DELETE CASCADE.
+-- We don't want CASCADE here, because we don't want to delete the workspace build if the preset is deleted.
+-- However, do we want to lose record of the preset id for a workspace build?
+ON DELETE SET NULL;
 
 -- Recreate the view to include the new column.
 DROP VIEW workspace_build_with_user;

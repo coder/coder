@@ -3765,10 +3765,9 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 		for _, preset := range q.presets {
 			if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
 				return database.GetPresetByWorkspaceBuildIDRow{
-					ID:        uuid.NullUUID{UUID: preset.ID, Valid: true},
-					Name:      sql.NullString{String: preset.Name, Valid: true},
-					CreatedAt: sql.NullTime{Time: preset.CreatedAt, Valid: true},
-					UpdatedAt: preset.UpdatedAt,
+					ID:        preset.ID,
+					Name:      preset.Name,
+					CreatedAt: preset.CreatedAt,
 				}, nil
 			}
 		}
@@ -3804,7 +3803,6 @@ func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateV
 				ID:        preset.ID,
 				Name:      preset.Name,
 				CreatedAt: preset.CreatedAt,
-				UpdatedAt: preset.UpdatedAt,
 			})
 		}
 	}
@@ -8055,7 +8053,6 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
-		UpdatedAt:         arg.UpdatedAt,
 	}
 	q.presets = append(q.presets, preset)
 	return preset, nil

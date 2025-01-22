@@ -1,4 +1,8 @@
--- Recreate the view to exclude the new column.
+-- DROP the workspace_build_with_user view so that we can recreate without
+-- workspace_builds.template_version_preset_id below. We need to drop the view
+-- before dropping workspace_builds.template_version_preset_id because the view
+-- references it. We can only recreate the view after dropping the column,
+-- because the view needs to be created without the column.
 DROP VIEW workspace_build_with_user;
 
 ALTER TABLE workspace_builds
