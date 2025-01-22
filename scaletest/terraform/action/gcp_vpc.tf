@@ -1,6 +1,6 @@
 locals {
-  vpc_name = "scaletest"
-  vpc_id = "projects/${var.project_id}/global/networks/${local.vpc_name}"
+  vpc_name    = "scaletest"
+  vpc_id      = "projects/${var.project_id}/global/networks/${local.vpc_name}"
   subnet_name = "scaletest"
 }
 

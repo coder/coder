@@ -1,8 +1,8 @@
 locals {
-  prometheus_helm_repo             = "oci://registry-1.docker.io/bitnamicharts"
-  prometheus_helm_chart            = "kube-prometheus"
-  prometheus_release_name          = "prometheus"
-  prometheus_namespace             = "prometheus"
+  prometheus_helm_repo                  = "oci://registry-1.docker.io/bitnamicharts"
+  prometheus_helm_chart                 = "kube-prometheus"
+  prometheus_release_name               = "prometheus"
+  prometheus_namespace                  = "prometheus"
   prometheus_remote_write_send_interval = "15s"
   prometheus_remote_write_metrics_regex = ".*"
 }
@@ -26,9 +26,9 @@ resource "helm_release" "prometheus_chart_primary" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.prometheus_namespace_primary.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
-    nodepool = google_container_node_pool.node_pool["primary_misc"].name,
-    cluster = "primary",
-    prometheus_remote_write_url = var.prometheus_remote_write_url,
+    nodepool                              = google_container_node_pool.node_pool["primary_misc"].name,
+    cluster                               = "primary",
+    prometheus_remote_write_url           = var.prometheus_remote_write_url,
     prometheus_remote_write_metrics_regex = local.prometheus_remote_write_metrics_regex,
     prometheus_remote_write_send_interval = local.prometheus_remote_write_send_interval,
   })]
@@ -52,7 +52,7 @@ spec:
       interval: 30s
 YAML
 
-  depends_on = [ helm_release.prometheus_chart_primary ]
+  depends_on = [helm_release.prometheus_chart_primary]
 }
 
 resource "kubernetes_namespace" "prometheus_namespace_europe" {
@@ -74,9 +74,9 @@ resource "helm_release" "prometheus_chart_europe" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.prometheus_namespace_europe.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
-    nodepool = google_container_node_pool.node_pool["europe_misc"].name,
-    cluster = "europe",
-    prometheus_remote_write_url = var.prometheus_remote_write_url,
+    nodepool                              = google_container_node_pool.node_pool["europe_misc"].name,
+    cluster                               = "europe",
+    prometheus_remote_write_url           = var.prometheus_remote_write_url,
     prometheus_remote_write_metrics_regex = local.prometheus_remote_write_metrics_regex,
     prometheus_remote_write_send_interval = local.prometheus_remote_write_send_interval,
   })]
@@ -100,7 +100,7 @@ spec:
       interval: 30s
 YAML
 
-  depends_on = [ helm_release.prometheus_chart_europe ]
+  depends_on = [helm_release.prometheus_chart_europe]
 }
 
 resource "kubernetes_namespace" "prometheus_namespace_asia" {
@@ -122,9 +122,9 @@ resource "helm_release" "prometheus_chart_asia" {
   name       = local.prometheus_release_name
   namespace  = kubernetes_namespace.prometheus_namespace_asia.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
-    nodepool = google_container_node_pool.node_pool["asia_misc"].name,
-    cluster = "asia",
-    prometheus_remote_write_url = var.prometheus_remote_write_url,
+    nodepool                              = google_container_node_pool.node_pool["asia_misc"].name,
+    cluster                               = "asia",
+    prometheus_remote_write_url           = var.prometheus_remote_write_url,
     prometheus_remote_write_metrics_regex = local.prometheus_remote_write_metrics_regex,
     prometheus_remote_write_send_interval = local.prometheus_remote_write_send_interval,
   })]
@@ -148,5 +148,5 @@ spec:
       interval: 30s
 YAML
 
-  depends_on = [ helm_release.prometheus_chart_asia ]
+  depends_on = [helm_release.prometheus_chart_asia]
 }

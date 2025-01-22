@@ -5,20 +5,20 @@ locals {
 
   traffic_types = {
     ssh = {
-      duration      = "30m"
-      job_timeout   = "35m"
+      duration    = "30m"
+      job_timeout = "35m"
       flags = [
         "--ssh",
       ]
     }
     webterminal = {
-      duration      = "25m"
-      job_timeout   = "30m"
-      flags         = []
+      duration    = "25m"
+      job_timeout = "30m"
+      flags       = []
     }
     app = {
-      duration      = "20m"
-      job_timeout   = "25m"
+      duration    = "20m"
+      job_timeout = "25m"
       flags = [
         "--app=wsec",
       ]
