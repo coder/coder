@@ -217,12 +217,12 @@ export const IdpGroupSyncForm = ({
 						<Button
 							type="submit"
 							disabled={!idpGroupName || coderGroups.length === 0}
-							onClick={async () => {
+							onClick={() => {
 								const newSyncSettings = {
 									...form.values,
 									mapping: {
 										...form.values.mapping,
-										[idpGroupName]: coderGroups.map((role) => role.value),
+										[idpGroupName]: coderGroups.map((group) => group.value),
 									},
 								};
 								void form.setFieldValue("mapping", newSyncSettings.mapping);

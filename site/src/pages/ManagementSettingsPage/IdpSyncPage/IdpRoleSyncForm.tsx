@@ -159,7 +159,7 @@ export const IdpRoleSyncForm = ({
 						<Button
 							type="submit"
 							disabled={!idpRoleName || coderRoles.length === 0}
-							onClick={async () => {
+							onClick={() => {
 								const newSyncSettings = {
 									...form.values,
 									mapping: {
