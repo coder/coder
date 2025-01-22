@@ -2,7 +2,7 @@ import { type FC, type HTMLAttributes, createContext, useContext } from "react";
 import { Link, type LinkProps } from "react-router-dom";
 import { cn } from "utils/cn";
 
-export const TAB_PADDING_Y = 12;
+// Keeping this for now because of a workaround in WorkspaceBUildPageView
 export const TAB_PADDING_X = 16;
 
 type TabsContextValue = {
@@ -13,11 +13,13 @@ const TabsContext = createContext<TabsContextValue | undefined>(undefined);
 
 type TabsProps = HTMLAttributes<HTMLDivElement> & TabsContextValue;
 
-export const Tabs: FC<TabsProps> = ({ active, ...htmlProps }) => {
+export const Tabs: FC<TabsProps> = ({ className, active, ...htmlProps }) => {
 	return (
 		<TabsContext.Provider value={{ active }}>
 			<div
-				className="border-b border-solid border-border border-t-0 border-l-0 border-r-0"
+				// Because the Tailwind preflight is not used, its necessary to set border style to solid and
+				// reset all border widths to 0 https://tailwindcss.com/docs/border-width#using-without-preflight
+				className={cn("border-0 border-b border-solid border-border", className)}
 				{...htmlProps}
 			/>
 		</TabsContext.Provider>
