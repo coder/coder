@@ -4,6 +4,17 @@ on:
   issue_comment:
     types: [created]
   pull_request:
+    types:
+      - opened
+      - closed
+      - synchronize
+      - labeled
+      - unlabeled
+      - opened
+      - reopened
+      - edited
+      # For jobs that don't run on draft PRs.
+      - ready_for_review
 
 permissions:
   contents: read
