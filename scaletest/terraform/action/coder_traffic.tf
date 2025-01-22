@@ -5,7 +5,6 @@ locals {
 
   traffic_types = {
     ssh = {
-      wait_duration = "0m"
       duration      = "30m"
       job_timeout   = "35m"
       flags = [
@@ -13,13 +12,11 @@ locals {
       ]
     }
     webterminal = {
-      wait_duration = "5m"
       duration      = "25m"
       job_timeout   = "30m"
       flags         = []
     }
     app = {
-      wait_duration = "10m"
       duration      = "20m"
       job_timeout   = "25m"
       flags = [
@@ -37,14 +34,6 @@ resource "time_sleep" "wait_baseline" {
   ]
 
   create_duration = local.wait_baseline_duration
-}
-
-resource "time_sleep" "wait_traffic" {
-  for_each = local.traffic_types
-
-  depends_on = [time_sleep.wait_baseline]
-
-  create_duration = local.traffic_types[each.key].wait_duration
 }
 
 resource "kubernetes_job" "workspace_traffic_primary" {
@@ -106,7 +95,7 @@ resource "kubernetes_job" "workspace_traffic_primary" {
     create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
+  depends_on = [time_sleep.wait_baseline]
 }
 
 resource "kubernetes_job" "workspace_traffic_europe" {
@@ -169,7 +158,7 @@ resource "kubernetes_job" "workspace_traffic_europe" {
     create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
+  depends_on = [time_sleep.wait_baseline]
 }
 
 resource "kubernetes_job" "workspace_traffic_asia" {
@@ -232,5 +221,5 @@ resource "kubernetes_job" "workspace_traffic_asia" {
     create = local.traffic_types[each.key].job_timeout
   }
 
-  depends_on = [time_sleep.wait_baseline, time_sleep.wait_traffic[each.key]]
+  depends_on = [time_sleep.wait_baseline]
 }
