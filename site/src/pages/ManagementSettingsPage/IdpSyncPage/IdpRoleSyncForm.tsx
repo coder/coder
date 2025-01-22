@@ -155,6 +155,7 @@ export const IdpRoleSyncForm = ({
 						<div />
 						<Button
 							type="submit"
+							className="min-w-fit"
 							disabled={!idpRoleName || coderRoles.length === 0}
 							onClick={() => {
 								const newSyncSettings = {

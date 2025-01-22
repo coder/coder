@@ -210,6 +210,7 @@ export const IdpGroupSyncForm = ({
 						<div />
 						<Button
 							type="submit"
+							className="min-w-fit"
 							disabled={!idpGroupName || coderGroups.length === 0}
 							onClick={() => {
 								const newSyncSettings = {

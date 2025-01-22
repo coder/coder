@@ -43,7 +43,11 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 											message={`No ${type.toLocaleLowerCase()} mappings`}
 											isCompact
 											cta={
-												<Link href={docs("/admin/users/idp-sync")}>
+												<Link
+													href={docs(
+														`/admin/users/idp-sync#${type.toLocaleLowerCase()}-sync`,
+													)}
+												>
 													How to setup IdP {type.toLocaleLowerCase()} sync
 												</Link>
 											}

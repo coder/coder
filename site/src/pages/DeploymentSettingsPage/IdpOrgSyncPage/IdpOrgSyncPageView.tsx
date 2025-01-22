@@ -28,6 +28,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
@@ -35,7 +36,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
-import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
+import { Plus, Trash } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
 import * as Yup from "yup";
@@ -207,6 +208,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								<div />
 								<Button
 									type="submit"
+									className="min-w-fit"
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
 										const newSyncSettings = {
@@ -307,15 +309,11 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 										message={"No organization mappings"}
 										isCompact
 										cta={
-											<Button variant="outline" asChild>
-												<a
-													href={docs("/admin/users/idp-sync")}
-													className="no-underline"
-												>
-													<SquareArrowOutUpRight size={14} />
-													How to set up IdP organization sync
-												</a>
-											</Button>
+											<Link
+												href={docs("/admin/users/idp-sync#organization-sync")}
+											>
+												How to set up IdP organization sync
+											</Link>
 										}
 									/>
 								</TableCell>
