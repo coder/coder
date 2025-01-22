@@ -98,13 +98,6 @@ const TemplateSummaryPage = lazy(
 const CreateWorkspacePage = lazy(
 	() => import("./pages/CreateWorkspacePage/CreateWorkspacePage"),
 );
-const CreateGroupPage = lazy(
-	() => import("./pages/GroupsPage/CreateGroupPage"),
-);
-const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"));
-const SettingsGroupPage = lazy(
-	() => import("./pages/GroupsPage/SettingsGroupPage"),
-);
 const GeneralSettingsPage = lazy(
 	() =>
 		import(
@@ -242,16 +235,16 @@ const CreateOrganizationPage = lazy(
 const OrganizationSettingsPage = lazy(
 	() => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
 );
-const OrganizationGroupsPage = lazy(
+const GroupsPage = lazy(
 	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupsPage"),
 );
-const CreateOrganizationGroupPage = lazy(
+const CreateGroupPage = lazy(
 	() => import("./pages/ManagementSettingsPage/GroupsPage/CreateGroupPage"),
 );
-const OrganizationGroupPage = lazy(
+const GroupPage = lazy(
 	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupPage"),
 );
-const OrganizationGroupSettingsPage = lazy(
+const GroupSettingsPage = lazy(
 	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupSettingsPage"),
 );
 const OrganizationMembersPage = lazy(
@@ -281,7 +274,6 @@ const TemplateInsightsPage = lazy(
 const PremiumPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/PremiumPage/PremiumPage"),
 );
-const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const IconsPage = lazy(() => import("./pages/IconsPage/IconsPage"));
 const AccessURLPage = lazy(() => import("./pages/HealthPage/AccessURLPage"));
 const DatabasePage = lazy(() => import("./pages/HealthPage/DatabasePage"));
@@ -353,17 +345,14 @@ const templateRouter = () => {
 	);
 };
 
-const organizationGroupsRouter = () => {
+const groupsRouter = () => {
 	return (
 		<Route path="groups">
-			<Route index element={<OrganizationGroupsPage />} />
+			<Route index element={<GroupsPage />} />
 
-			<Route path="create" element={<CreateOrganizationGroupPage />} />
-			<Route path=":groupName" element={<OrganizationGroupPage />} />
-			<Route
-				path=":groupName/settings"
-				element={<OrganizationGroupSettingsPage />}
-			/>
+			<Route path="create" element={<CreateGroupPage />} />
+			<Route path=":groupName" element={<GroupPage />} />
+			<Route path=":groupName/settings" element={<GroupSettingsPage />} />
 		</Route>
 	);
 };
@@ -413,15 +402,10 @@ export const router = createBrowserRouter(
 						<Route path="create" element={<CreateUserPage />} />
 					</Route>
 
-					<Route path="/groups">
-						<Route element={<UsersLayout />}>
-							<Route index element={<GroupsPage />} />
-						</Route>
-
-						<Route path="create" element={<CreateGroupPage />} />
-						<Route path=":groupName" element={<GroupPage />} />
-						<Route path=":groupName/settings" element={<SettingsGroupPage />} />
-					</Route>
+					<Route
+						path="/groups/*"
+						element={<Navigate to="/deployment/groups" replace />}
+					/>
 
 					<Route path="/audit" element={<AuditPage />} />
 
@@ -433,7 +417,7 @@ export const router = createBrowserRouter(
 
 						<Route path=":organization" element={<OrganizationSidebarLayout />}>
 							<Route index element={<OrganizationMembersPage />} />
-							{organizationGroupsRouter()}
+							{groupsRouter()}
 							<Route path="roles">
 								<Route index element={<OrganizationCustomRolesPage />} />
 								<Route path="create" element={<CreateEditRolePage />} />
@@ -497,7 +481,18 @@ export const router = createBrowserRouter(
 							<Route path=":groupName" element={<GroupPage />} />
 							<Route
 								path=":groupName/settings"
-								element={<SettingsGroupPage />}
+								element={<GroupSettingsPage />}
+							/>
+						</Route>
+
+						<Route path="groups">
+							<Route index element={<GroupsPage />} />
+
+							<Route path="create" element={<CreateGroupPage />} />
+							<Route path=":groupName" element={<GroupPage />} />
+							<Route
+								path=":groupName/settings"
+								element={<GroupSettingsPage />}
 							/>
 						</Route>
 					</Route>
