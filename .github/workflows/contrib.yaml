@@ -55,6 +55,10 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder' && github.event.pull_request.merged
     steps:
       - name: Send Slack notification
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          PR_TITLE: ${{github.event.pull_request.title}}
+          PR_NUMBER: ${{github.event.pull_request.number}}
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{
@@ -63,7 +67,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merged Dependabot PR #${{ github.event.pull_request.number }}",
+                  "text": ":pr-merged: Auto merged Dependabot PR #${{ env.PR_NUMBER }}",
                   "emoji": true
                 }
               },
@@ -72,7 +76,7 @@ jobs:
                 "fields": [
                   {
                     "type": "mrkdwn",
-                    "text": "${{ github.event.pull_request.title }}"
+                    "text": "${{ env.PR_TITLE }}"
                   }
                 ]
               },
@@ -85,7 +89,7 @@ jobs:
                       "type": "plain_text",
                       "text": "View PR"
                     },
-                    "url": "${{ github.event.pull_request.html_url }}"
+                    "url": "${{ env.PR_URL }}"
                   }
                 ]
               }
