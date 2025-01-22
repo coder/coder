@@ -259,8 +259,8 @@ importers:
         specifier: npm:@leeoniya/ufuzzy@1.0.10
         version: '@leeoniya/ufuzzy@1.0.10'
       undici:
-        specifier: 6.19.7
-        version: 6.19.7
+        specifier: 6.21.1
+        version: 6.21.1
       unique-names-generator:
         specifier: 4.7.1
         version: 4.7.1
@@ -6149,8 +6149,8 @@ packages:
   undici-types@6.19.8:
     resolution: {integrity: sha512-ve2KP6f/JnbPBFyobGHuerC9g1FYGn/F8n1LWTwNxCEzd6IfqTwUQcNXgEtmmQ6DlRrC1hrSrBnCZPokRrDHjw==, tarball: https://registry.npmjs.org/undici-types/-/undici-types-6.19.8.tgz}
 
-  undici@6.19.7:
-    resolution: {integrity: sha512-HR3W/bMGPSr90i8AAp2C4DM3wChFdJPLrWYpIS++LxS8K+W535qftjt+4MyjNYHeWabMj1nvtmLIi7l++iq91A==, tarball: https://registry.npmjs.org/undici/-/undici-6.19.7.tgz}
+  undici@6.21.1:
+    resolution: {integrity: sha512-q/1rj5D0/zayJB2FraXdaWxbhWiNKDvu8naDT2dl1yTlvJp4BLtOcp2a5BvgGNQpYYJzau7tf1WgKv3b+7mqpQ==, tarball: https://registry.npmjs.org/undici/-/undici-6.21.1.tgz}
     engines: {node: '>=18.17'}
 
   unified@11.0.4:
@@ -12806,7 +12806,7 @@ snapshots:
 
   undici-types@6.19.8: {}
 
-  undici@6.19.7: {}
+  undici@6.21.1: {}
 
   unified@11.0.4:
     dependencies:
