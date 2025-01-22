@@ -22,7 +22,7 @@ resource "google_sql_database_instance" "db" {
 
     ip_configuration {
       ipv4_enabled    = false
-      private_network = "scaletest"
+      private_network = google_compute_network.vpc.id
     }
 
     insights_config {
