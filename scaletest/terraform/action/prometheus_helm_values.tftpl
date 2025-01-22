@@ -1,0 +1,44 @@
+alertmanager:
+  enabled: false
+blackboxExporter:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${nodepool}"]
+operator:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${nodepool}"]
+prometheus:
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${nodepool}"]
+  externalLabels:
+    cluster: "${cluster}"
+  persistence:
+    enabled: true
+    storageClass: standard
+  remoteWrite:
+    - url: "${prometheus_remote_write_url}"
+      tlsConfig:
+        insecureSkipVerify: true
+      writeRelabelConfigs:
+        - sourceLabels: [__name__]
+          regex: "${prometheus_remote_write_metrics_regex}"
+          action: keep
+      metadataConfig:
+        sendInterval: "${prometheus_remote_write_send_interval}"

@@ -23,7 +23,7 @@ resource "google_sql_database_instance" "db" {
 
     ip_configuration {
       ipv4_enabled    = false
-      private_network = "projects/${var.project_id}/global/networks/${local.vpc_name}"
+      private_network = local.vpc_id
     }
 
     insights_config {

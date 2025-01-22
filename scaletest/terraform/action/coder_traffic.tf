@@ -31,6 +31,9 @@ resource "time_sleep" "wait_baseline" {
     kubernetes_job.create_workspaces_primary,
     kubernetes_job.create_workspaces_europe,
     kubernetes_job.create_workspaces_asia,
+    helm_release.prometheus_chart_primary,
+    helm_release.prometheus_chart_europe,
+    helm_release.prometheus_chart_asia,
   ]
 
   create_duration = local.wait_baseline_duration
