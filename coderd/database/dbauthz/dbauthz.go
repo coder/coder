@@ -2221,6 +2221,14 @@ func (q *querier) GetTemplateParameterInsights(ctx context.Context, arg database
 	return q.db.GetTemplateParameterInsights(ctx, arg)
 }
 
+func (q *querier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+	// TODO: authz
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.GetTemplatePrebuildState(ctx, templateID)
+}
+
 func (q *querier) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
