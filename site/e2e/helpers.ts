@@ -479,19 +479,15 @@ export const startAgentWithCommand = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stdout] ${data.toString().replace(/\n$/g, "")}`);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stderr] ${data.toString().replace(/\n$/g, "")}`);
 	});
 
 	await page
 		.getByTestId("agent-status-ready")
-		.waitFor({ state: "visible", timeout: 45_000 });
+		.waitFor({ state: "visible", timeout: 15_000 });
 	return cp;
 };
 
