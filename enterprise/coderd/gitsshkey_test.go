@@ -41,6 +41,7 @@ func TestAgentGitSSHKeyCustomRoles(t *testing.T) {
 	})
 
 	ctx := testutil.Context(t, testutil.WaitShort)
+	//nolint:gocritic // required to make orgs
 	newRole, err := owner.CreateOrganizationRole(ctx, codersdk.Role{
 		Name:            "custom",
 		OrganizationID:  org.ID.String(),
