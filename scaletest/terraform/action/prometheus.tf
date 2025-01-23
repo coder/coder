@@ -1,21 +1,9 @@
 locals {
-  prometheus_helm_repo                  = "oci://registry-1.docker.io/bitnamicharts"
-  prometheus_helm_chart                 = "kube-prometheus"
+  prometheus_helm_repo                  = "https://prometheus-community.github.io/helm-charts"
+  prometheus_helm_chart                 = "kube-prometheus-stack"
   prometheus_release_name               = "prometheus"
-  prometheus_namespace                  = "prometheus"
   prometheus_remote_write_send_interval = "15s"
   prometheus_remote_write_metrics_regex = ".*"
-}
-
-resource "kubernetes_namespace" "prometheus_namespace_primary" {
-  provider = kubernetes.primary
-
-  metadata {
-    name = local.prometheus_namespace
-  }
-  lifecycle {
-    ignore_changes = [timeouts, wait_for_default_service_account]
-  }
 }
 
 resource "helm_release" "prometheus_chart_primary" {
@@ -24,7 +12,7 @@ resource "helm_release" "prometheus_chart_primary" {
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  namespace  = kubernetes_namespace.prometheus_namespace_primary.metadata.0.name
+  namespace  = kubernetes_namespace.coder_primary.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
     nodepool                              = google_container_node_pool.node_pool["primary_misc"].name,
     cluster                               = "primary",
@@ -55,24 +43,13 @@ YAML
   depends_on = [helm_release.prometheus_chart_primary]
 }
 
-resource "kubernetes_namespace" "prometheus_namespace_europe" {
-  provider = kubernetes.europe
-
-  metadata {
-    name = local.prometheus_namespace
-  }
-  lifecycle {
-    ignore_changes = [timeouts, wait_for_default_service_account]
-  }
-}
-
 resource "helm_release" "prometheus_chart_europe" {
   provider = helm.europe
 
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  namespace  = kubernetes_namespace.prometheus_namespace_europe.metadata.0.name
+  namespace  = kubernetes_namespace.coder_europe.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
     nodepool                              = google_container_node_pool.node_pool["europe_misc"].name,
     cluster                               = "europe",
@@ -103,24 +80,13 @@ YAML
   depends_on = [helm_release.prometheus_chart_europe]
 }
 
-resource "kubernetes_namespace" "prometheus_namespace_asia" {
-  provider = kubernetes.asia
-
-  metadata {
-    name = local.prometheus_namespace
-  }
-  lifecycle {
-    ignore_changes = [timeouts, wait_for_default_service_account]
-  }
-}
-
 resource "helm_release" "prometheus_chart_asia" {
   provider = helm.asia
 
   repository = local.prometheus_helm_repo
   chart      = local.prometheus_helm_chart
   name       = local.prometheus_release_name
-  namespace  = kubernetes_namespace.prometheus_namespace_asia.metadata.0.name
+  namespace  = kubernetes_namespace.coder_asia.metadata.0.name
   values = [templatefile("${path.module}/prometheus_helm_values.tftpl", {
     nodepool                              = google_container_node_pool.node_pool["asia_misc"].name,
     cluster                               = "asia",
