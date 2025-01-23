@@ -1,9 +1,9 @@
 locals {
-  prometheus_helm_repo                  = "https://prometheus-community.github.io/helm-charts"
-  prometheus_helm_chart                 = "kube-prometheus-stack"
-  prometheus_release_name               = "prometheus"
-  prometheus_remote_write_send_interval = "15s"
-  prometheus_remote_write_metrics_regex = ".*"
+  prometheus_helm_repo                      = "https://prometheus-community.github.io/helm-charts"
+  prometheus_helm_chart                     = "kube-prometheus-stack"
+  prometheus_release_name                   = "prometheus"
+  prometheus_remote_write_send_interval     = "15s"
+  prometheus_remote_write_metrics_regex     = ".*"
   prometheus_postgres_exporter_helm_repo    = "https://prometheus-community.github.io/helm-charts"
   prometheus_postgres_exporter_helm_chart   = "prometheus-postgres-exporter"
   prometheus_postgres_exporter_release_name = "prometheus-postgres-exporter"
@@ -93,7 +93,7 @@ serviceMonitor:
 EOF
   ]
 
-  depends_on = [ helm_release.prometheus_chart_primary ]
+  depends_on = [helm_release.prometheus_chart_primary]
 }
 
 resource "helm_release" "prometheus_chart_europe" {
