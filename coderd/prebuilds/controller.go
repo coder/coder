@@ -149,12 +149,12 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 
 			// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
 			// scale those prebuilds down to zero.
-			if result.Deleted || result.Deprecated == "" {
+			if result.Deleted || result.Deprecated {
 				desired = 0
 			}
 
 			c.logger.Info(innerCtx, "template prebuild state retrieved",
-				slog.F("template_id", template.ID), slog.F("template_version_id", result.TemplateVersionID),
+				slog.F("template_id", template.ID),
 				slog.F("desired", desired), slog.F("actual", actual), slog.F("extraneous", extraneous))
 		}
 
