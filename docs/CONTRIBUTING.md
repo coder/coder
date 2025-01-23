@@ -72,6 +72,11 @@ the following tools by hand:
 - [`pg_dump`](https://stackoverflow.com/a/49689589)
   - on macOS, run `brew install libpq zstd`
   - on Linux, install [`zstd`](https://github.com/horta/zstd.install)
+- PostgreSQL 13 (optional if Docker is available)
+  - *Note*: If you are using Docker, you can skip this step
+  - on macOS, run `brew install postgresql@13` and `brew services start postgresql@13`
+  - To enable schema generation with non-containerized PostgreSQL, set the following environment variable:
+    - `export DB_DUMP_CONNECTION_URL="postgres://postgres@localhost:5432/postgres?password=postgres&sslmode=disable"`
 - `pkg-config`
   - on macOS, run `brew install pkg-config`
 - `pixman`
