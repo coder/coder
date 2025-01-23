@@ -1275,6 +1275,21 @@ CREATE TABLE template_version_preset_parameters (
     value text NOT NULL
 );
 
+CREATE TABLE template_version_preset_prebuild_schedules (
+    id uuid NOT NULL,
+    preset_prebuild_id uuid NOT NULL,
+    timezone text NOT NULL,
+    cron_schedule text NOT NULL,
+    desired_instances integer NOT NULL
+);
+
+CREATE TABLE template_version_preset_prebuilds (
+    id uuid NOT NULL,
+    preset_id uuid NOT NULL,
+    desired_instances integer NOT NULL,
+    invalidate_after_secs integer DEFAULT 0
+);
+
 CREATE TABLE template_version_presets (
     id uuid DEFAULT gen_random_uuid() NOT NULL,
     template_version_id uuid NOT NULL,
@@ -1773,6 +1788,30 @@ CREATE VIEW workspace_build_with_user AS
 
 COMMENT ON VIEW workspace_build_with_user IS 'Joins in the username + avatar url of the initiated by user.';
 
+CREATE VIEW workspace_latest_build AS
+ SELECT wb.id,
+    wb.created_at,
+    wb.updated_at,
+    wb.workspace_id,
+    wb.template_version_id,
+    wb.build_number,
+    wb.transition,
+    wb.initiator_id,
+    wb.provisioner_state,
+    wb.job_id,
+    wb.deadline,
+    wb.reason,
+    wb.daily_cost,
+    wb.max_deadline,
+    wb.template_version_preset_id
+   FROM (( SELECT tv.template_id,
+            wbmax_1.workspace_id,
+            max(wbmax_1.build_number) AS max_build_number
+           FROM (workspace_builds wbmax_1
+             JOIN template_versions tv ON ((tv.id = wbmax_1.template_version_id)))
+          GROUP BY tv.template_id, wbmax_1.workspace_id) wbmax
+     JOIN workspace_builds wb ON (((wb.workspace_id = wbmax.workspace_id) AND (wb.build_number = wbmax.max_build_number))));
+
 CREATE TABLE workspace_modules (
     id uuid NOT NULL,
     job_id uuid NOT NULL,
@@ -2103,6 +2142,12 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedules_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
@@ -2501,6 +2546,12 @@ ALTER TABLE ONLY template_version_parameters
 
 ALTER TABLE ONLY template_version_preset_parameters
     ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuild_schedules
+    ADD CONSTRAINT template_version_preset_prebuild_schedu_preset_prebuild_id_fkey FOREIGN KEY (preset_prebuild_id) REFERENCES template_version_preset_prebuilds(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_preset_prebuilds
+    ADD CONSTRAINT template_version_preset_prebuilds_preset_id_fkey FOREIGN KEY (preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY template_version_presets
     ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
