@@ -24,6 +24,7 @@ prometheus:
     externalLabels:
       cluster: "${cluster}"
     podMonitorSelectorNilUsesHelmValues: false
+    serviceMonitorSelectorNilUsesHelmValues: false
     remoteWrite:
       - url: "${prometheus_remote_write_url}"
         tlsConfig:
