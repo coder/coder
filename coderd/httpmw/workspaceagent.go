@@ -115,6 +115,13 @@ func ExtractWorkspaceAgentAndLatestBuild(opts ExtractWorkspaceAgentAndLatestBuil
 				TemplateID:  row.WorkspaceTable.TemplateID,
 				VersionID:   row.WorkspaceBuild.TemplateVersionID,
 			}))
+			if err != nil {
+				httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+					Message: "Internal error with workspace agent authorization context.",
+					Detail:  err.Error(),
+				})
+				return
+			}
 
 			ctx = context.WithValue(ctx, workspaceAgentContextKey{}, row.WorkspaceAgent)
 			ctx = context.WithValue(ctx, latestBuildContextKey{}, row.WorkspaceBuild)
