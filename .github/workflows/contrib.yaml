@@ -62,6 +62,8 @@ jobs:
         run: |
           curl -X POST -H 'Content-type: application/json' \
           --data '{
+            "username": "dependabot",
+            "icon_url": "https://avatars.githubusercontent.com/u/27347476",
             "blocks": [
               {
                 "type": "header",
