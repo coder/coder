@@ -2355,6 +2355,10 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
+func (q *FakeQuerier) FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (database.AgentResourcesMonitoring, error) {
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -2385,6 +2389,10 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
+}
+
+func (q *FakeQuerier) FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -7507,6 +7515,15 @@ func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	}
 	q.apiKeys = append(q.apiKeys, key)
 	return key, nil
+}
+
+func (q *FakeQuerier) InsertAgentResourcesMonitoring(ctx context.Context, arg database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.AgentResourcesMonitoring{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {

@@ -112,8 +112,10 @@ type sqlcQuerier interface {
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
+	FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (AgentResourcesMonitoring, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
+	FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
 	// there is no unique constraint on empty token names
 	GetAPIKeyByName(ctx context.Context, arg GetAPIKeyByNameParams) (APIKey, error)
@@ -372,6 +374,7 @@ type sqlcQuerier interface {
 	GetWorkspacesByTemplateID(ctx context.Context, templateID uuid.UUID) ([]WorkspaceTable, error)
 	GetWorkspacesEligibleForTransition(ctx context.Context, now time.Time) ([]GetWorkspacesEligibleForTransitionRow, error)
 	InsertAPIKey(ctx context.Context, arg InsertAPIKeyParams) (APIKey, error)
+	InsertAgentResourcesMonitoring(ctx context.Context, arg InsertAgentResourcesMonitoringParams) (AgentResourcesMonitoring, error)
 	// We use the organization_id as the id
 	// for simplicity since all users is
 	// every member of the org.

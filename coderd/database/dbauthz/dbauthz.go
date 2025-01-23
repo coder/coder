@@ -1391,11 +1391,19 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
+func (q *querier) FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (database.AgentResourcesMonitoring, error) {
+	return q.db.FetchAgentResourcesMonitoringByAgentID(ctx, agentID)
+}
+
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceNotificationMessage); err != nil {
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
+}
+
+func (q *querier) FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error {
+	return q.db.FlushAgentResourcesMonitoringForAgentID(ctx, agentID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2892,6 +2900,10 @@ func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyPar
 	return insert(q.log, q.auth,
 		rbac.ResourceApiKey.WithOwner(arg.UserID.String()),
 		q.db.InsertAPIKey)(ctx, arg)
+}
+
+func (q *querier) InsertAgentResourcesMonitoring(ctx context.Context, arg database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
+	return q.db.InsertAgentResourcesMonitoring(ctx, arg)
 }
 
 func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {

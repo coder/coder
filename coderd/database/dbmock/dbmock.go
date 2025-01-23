@@ -770,6 +770,21 @@ func (mr *MockStoreMockRecorder) FavoriteWorkspace(arg0, arg1 any) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), arg0, arg1)
 }
 
+// FetchAgentResourcesMonitoringByAgentID mocks base method.
+func (m *MockStore) FetchAgentResourcesMonitoringByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.AgentResourcesMonitoring, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchAgentResourcesMonitoringByAgentID", arg0, arg1)
+	ret0, _ := ret[0].(database.AgentResourcesMonitoring)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchAgentResourcesMonitoringByAgentID indicates an expected call of FetchAgentResourcesMonitoringByAgentID.
+func (mr *MockStoreMockRecorder) FetchAgentResourcesMonitoringByAgentID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchAgentResourcesMonitoringByAgentID", reflect.TypeOf((*MockStore)(nil).FetchAgentResourcesMonitoringByAgentID), arg0, arg1)
+}
+
 // FetchNewMessageMetadata mocks base method.
 func (m *MockStore) FetchNewMessageMetadata(arg0 context.Context, arg1 database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	m.ctrl.T.Helper()
@@ -783,6 +798,20 @@ func (m *MockStore) FetchNewMessageMetadata(arg0 context.Context, arg1 database.
 func (mr *MockStoreMockRecorder) FetchNewMessageMetadata(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchNewMessageMetadata", reflect.TypeOf((*MockStore)(nil).FetchNewMessageMetadata), arg0, arg1)
+}
+
+// FlushAgentResourcesMonitoringForAgentID mocks base method.
+func (m *MockStore) FlushAgentResourcesMonitoringForAgentID(arg0 context.Context, arg1 uuid.UUID) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FlushAgentResourcesMonitoringForAgentID", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FlushAgentResourcesMonitoringForAgentID indicates an expected call of FlushAgentResourcesMonitoringForAgentID.
+func (mr *MockStoreMockRecorder) FlushAgentResourcesMonitoringForAgentID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushAgentResourcesMonitoringForAgentID", reflect.TypeOf((*MockStore)(nil).FlushAgentResourcesMonitoringForAgentID), arg0, arg1)
 }
 
 // GetAPIKeyByID mocks base method.
@@ -3677,6 +3706,21 @@ func (m *MockStore) InsertAPIKey(arg0 context.Context, arg1 database.InsertAPIKe
 func (mr *MockStoreMockRecorder) InsertAPIKey(arg0, arg1 any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAPIKey", reflect.TypeOf((*MockStore)(nil).InsertAPIKey), arg0, arg1)
+}
+
+// InsertAgentResourcesMonitoring mocks base method.
+func (m *MockStore) InsertAgentResourcesMonitoring(arg0 context.Context, arg1 database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertAgentResourcesMonitoring", arg0, arg1)
+	ret0, _ := ret[0].(database.AgentResourcesMonitoring)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertAgentResourcesMonitoring indicates an expected call of InsertAgentResourcesMonitoring.
+func (mr *MockStoreMockRecorder) InsertAgentResourcesMonitoring(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertAgentResourcesMonitoring", reflect.TypeOf((*MockStore)(nil).InsertAgentResourcesMonitoring), arg0, arg1)
 }
 
 // InsertAllUsersGroup mocks base method.
