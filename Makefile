@@ -946,7 +946,7 @@ test-clean:
 
 site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
 	go build -o $@ \
-		-tags slim,ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
 		./enterprise/cmd/coder
 
 test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
