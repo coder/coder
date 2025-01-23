@@ -15,7 +15,7 @@ import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
 import {
 	agentPProfPort,
-	coderMain,
+	coderBinary,
 	coderPort,
 	defaultOrganizationName,
 	defaultPassword,
@@ -311,12 +311,9 @@ export const createGroup = async (page: Page): Promise<string> => {
 export const sshIntoWorkspace = async (
 	page: Page,
 	workspace: string,
-	binaryPath = "go",
+	binaryPath = coderBinary,
 	binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
-	if (binaryPath === "go") {
-		binaryArgs = ["run", coderMain];
-	}
 	const sessionToken = await findSessionToken(page);
 	return new Promise<ssh.Client>((resolve, reject) => {
 		const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
@@ -398,7 +395,7 @@ export const startAgent = async (
 	page: Page,
 	token: string,
 ): Promise<ChildProcess> => {
-	return startAgentWithCommand(page, token, "go", "run", coderMain);
+	return startAgentWithCommand(page, token, coderBinary);
 };
 
 /**
@@ -479,27 +476,21 @@ export const startAgentWithCommand = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stdout] ${data.toString().replace(/\n$/g, "")}`);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stderr] ${data.toString().replace(/\n$/g, "")}`);
 	});
 
 	await page
 		.getByTestId("agent-status-ready")
-		.waitFor({ state: "visible", timeout: 45_000 });
+		.waitFor({ state: "visible", timeout: 15_000 });
 	return cp;
 };
 
-export const stopAgent = async (cp: ChildProcess, goRun = true) => {
-	// When the web server is started with `go run`, it spawns a child process with coder server.
-	// `pkill -P` terminates child processes belonging the same group as `go run`.
-	// The command `kill` is used to terminate a web server started as a standalone binary.
-	exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+export const stopAgent = async (cp: ChildProcess) => {
+	// The command `kill` is used to terminate an agent started as a standalone binary.
+	exec(`kill ${cp.pid}`, (error) => {
 		if (error) {
 			throw new Error(`exec error: ${JSON.stringify(error)}`);
 		}
@@ -922,10 +913,8 @@ export const updateTemplate = async (
 
 	const sessionToken = await findSessionToken(page);
 	const child = spawn(
-		"go",
+		coderBinary,
 		[
-			"run",
-			coderMain,
 			"templates",
 			"push",
 			"--test.provisioner",

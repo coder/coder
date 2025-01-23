@@ -704,6 +704,9 @@ jobs:
       - run: make gen/mark-fresh
         name: make gen
 
+      - run: make site/e2e/bin/coder
+        name: make coder
+
       - run: pnpm build
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
