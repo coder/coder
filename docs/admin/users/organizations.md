@@ -24,13 +24,13 @@ All Coder deployments start with one organization called `coder`. All new users
 are added to this organization by default.
 
 To edit the organization details, select **Administration** from the top bar, then
-**Organizations**.
+**Organizations**:
 
 ![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
 
 From there, you can manage the name, icon, description, users, and groups:
 
-![Organization Settings](../../images/admin/users/organizations/default-organization.png)
+![Organization Settings](../../images/admin/users/organizations/default-organization-settings.png)
 
 ## Additional organizations
 
