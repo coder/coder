@@ -24,30 +24,79 @@ concurrency: pr-${{ github.ref }}
 
 jobs:
   # Dependabot is annoying, but this makes it a bit less so.
-  dependabot:
+  dependabot-automerge:
     runs-on: ubuntu-latest
-    if: github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
-    steps:  
+    steps:
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@4c5d6e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d # v2.2.0
+        uses: dependabot/fetch-metadata@dbb049abf0d677abbd7f7eee0375145b417fdd34 # v2.2.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
-  
+
       - name: Approve the PR
         run: gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
-          
+
       - name: Enable auto-merge for Dependabot PRs
         if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
         run: gh pr merge --auto --merge "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+  dependabot-automerge-notify:
+    # Send a slack notification when a dependabot PR is merged.
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder' && github.event.pull_request.merged
+    steps:
+      - name: Send Slack notification
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          PR_TITLE: ${{github.event.pull_request.title}}
+          PR_NUMBER: ${{github.event.pull_request.number}}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "username": "dependabot",
+            "icon_url": "https://avatars.githubusercontent.com/u/27347476",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":pr-merged: Auto merged Dependabot PR #${{ env.PR_NUMBER }}",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "${{ env.PR_TITLE }}"
+                  }
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View PR"
+                    },
+                    "url": "${{ env.PR_URL }}"
+                  }
+                ]
+              }
+            ]
+          }' ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}
 
   cla:
     runs-on: ubuntu-latest
