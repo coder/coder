@@ -17,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 	await login(page);
 });
 
-test.skip("app", async ({ context, page }) => {
+test("app", async ({ context, page }) => {
 	test.setTimeout(75_000);
 
 	const appContent = "Hello World";
