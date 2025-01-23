@@ -150,6 +150,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
 				},
