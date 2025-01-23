@@ -3,6 +3,7 @@ package prebuilds
 import (
 	"context"
 	"fmt"
+	"math"
 	"time"
 
 	"cdr.dev/slog"
@@ -145,7 +146,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 		}
 
 		for _, result := range results {
-			desired, actual, extraneous := result.Desired, result.Actual, result.Extraneous
+			desired, actual, extraneous, inProgress := result.Desired, result.Actual, result.Extraneous, result.InProgress
 
 			// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
 			// scale those prebuilds down to zero.
@@ -153,9 +154,14 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 				desired = 0
 			}
 
+			toCreate := math.Max(0, float64(desired-(actual+inProgress)))
+			// TODO: we might need to get inProgress here by job type (i.e. create or destroy), then we wouldn't have this ambiguity
+			toDestroy := math.Max(0, float64(extraneous-inProgress))
+
 			c.logger.Info(innerCtx, "template prebuild state retrieved",
-				slog.F("template_id", template.ID),
-				slog.F("desired", desired), slog.F("actual", actual), slog.F("extraneous", extraneous))
+				slog.F("template_id", template.ID), slog.F("to_create", toCreate), slog.F("to_destroy", toDestroy),
+				slog.F("desired", desired), slog.F("actual", actual),
+				slog.F("extraneous", extraneous), slog.F("in_progress", inProgress))
 		}
 
 		return nil
