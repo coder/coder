@@ -26,8 +26,8 @@ export const startWorkspaceProxy = async (
 	return cp;
 };
 
-export const stopWorkspaceProxy = async (cp: ChildProcess, goRun = true) => {
-	exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+export const stopWorkspaceProxy = async (cp: ChildProcess) => {
+	exec(`kill ${cp.pid}`, (error) => {
 		if (error) {
 			throw new Error(`exec error: ${JSON.stringify(error)}`);
 		}
