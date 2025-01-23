@@ -18,8 +18,6 @@ test.beforeEach(async ({ page }) => {
 });
 
 test("app", async ({ context, page }) => {
-	test.setTimeout(75_000);
-
 	const appContent = "Hello World";
 	const token = randomUUID();
 	const srv = http

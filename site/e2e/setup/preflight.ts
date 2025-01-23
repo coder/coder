@@ -37,7 +37,7 @@ export default function () {
 	}
 
 	if (!process.env.CI) {
-		console.log("==> make site/e2e/bin/coder");
+		console.info("==> make site/e2e/bin/coder");
 		execSync("make site/e2e/bin/coder", {
 			cwd: path.join(__dirname, "../../../"),
 		});
