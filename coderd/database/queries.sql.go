@@ -6274,7 +6274,8 @@ LEFT JOIN
 	queue_size qs ON TRUE
 WHERE
 	($1::uuid IS NULL OR pj.organization_id = $1)
-	AND (COALESCE(array_length($2::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($2::provisioner_job_status[]))
+	AND (COALESCE(array_length($2::uuid[], 1), 0) = 0 OR pj.id = ANY($2::uuid[]))
+	AND (COALESCE(array_length($3::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY($3::provisioner_job_status[]))
 GROUP BY
 	pj.id,
 	qp.queue_position,
@@ -6282,11 +6283,12 @@ GROUP BY
 ORDER BY
 	pj.created_at DESC
 LIMIT
-	$3::int
+	$4::int
 `
 
 type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams struct {
 	OrganizationID uuid.NullUUID          `db:"organization_id" json:"organization_id"`
+	IDs            []uuid.UUID            `db:"ids" json:"ids"`
 	Status         []ProvisionerJobStatus `db:"status" json:"status"`
 	Limit          sql.NullInt32          `db:"limit" json:"limit"`
 }
@@ -6299,7 +6301,12 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
 }
 
 func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx context.Context, arg GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams) ([]GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, error) {
-	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner, arg.OrganizationID, pq.Array(arg.Status), arg.Limit)
+	rows, err := q.db.QueryContext(ctx, getProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner,
+		arg.OrganizationID,
+		pq.Array(arg.IDs),
+		pq.Array(arg.Status),
+		arg.Limit,
+	)
 	if err != nil {
 		return nil, err
 	}
