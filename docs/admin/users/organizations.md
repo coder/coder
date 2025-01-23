@@ -23,8 +23,8 @@ guide.
 All Coder deployments start with one organization called `coder`. All new users
 are added to this organization by default.
 
-To edit the organization details, select **Deployment** from the top bar, then
-**Organizations**:
+To edit the organization details, select **Administration** from the top bar, then
+**Organizations**.
 
 ![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
 
@@ -52,10 +52,17 @@ identity provider to avoid manually assigning users to organizations.
 
 ### 1. Create the organization
 
-In the sidebar, select **New organization** to create an organization. In this
-example, we'll create the `data-platform` org.
+To create a new organization:
 
-![New Organization](../../images/admin/users/organizations/new-organization.png)
+1. Select **Administration** from the top bar, then **Organizations**.
+
+1. Select **Create organization**.
+
+1. Enter the details and select **Save** to continue:
+
+   ![New Organization](../../images/admin/users/organizations/new-organization.png)
+
+In this example, we'll create the `data-platform` org.
 
 Next deploy a provisioner and template for this organization.
 
