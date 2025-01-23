@@ -1217,7 +1217,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		createTemplateVersionRequestTags map[string]string
 		// the coder_workspace_tags bit of main.tf.
 		// you can add more stuff here if you need
-		tfWorkspaceTags string
+		tfWorkspaceTags     string
+		skipCreateWorkspace bool
 	}{
 		{
 			name:            "no tags",
@@ -1304,8 +1305,8 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 				}`,
 		},
 		{
-			name:                             "does not override static tag",
-			provisionerTags:                  map[string]string{"foo": "bar"},
+			name:                             "overrides static tag from request",
+			provisionerTags:                  map[string]string{"foo": "baz"},
 			createTemplateVersionRequestTags: map[string]string{"foo": "baz"},
 			tfWorkspaceTags: `
 				data "coder_workspace_tags" "tags" {
@@ -1313,6 +1314,9 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 						"foo" = "bar"
 					}
 				}`,
+			// When we go to create the workspace, there won't be any provisioner
+			// matching tag foo=bar.
+			skipCreateWorkspace: true,
 		},
 	} {
 		tc := tc
@@ -1352,13 +1356,15 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
 			tpl := coderdtest.CreateTemplate(t, templateAdmin, owner.OrganizationID, tv.ID)
 
-			// Creating a workspace as a non-privileged user must succeed
-			ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-				TemplateID: tpl.ID,
-				Name:       coderdtest.RandomUsername(t),
-			})
-			require.NoError(t, err, "failed to create workspace")
-			coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+			if !tc.skipCreateWorkspace {
+				// Creating a workspace as a non-privileged user must succeed
+				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
+					TemplateID: tpl.ID,
+					Name:       coderdtest.RandomUsername(t),
+				})
+				require.NoError(t, err, "failed to create workspace")
+				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
+			}
 		})
 	}
 }
