@@ -179,6 +179,11 @@ CREATE TYPE provisioner_type AS ENUM (
     'terraform'
 );
 
+CREATE TYPE resource_monitoring_type AS ENUM (
+    'memory',
+    'volume'
+);
+
 CREATE TYPE resource_type AS ENUM (
     'organization',
     'template',
@@ -603,6 +608,15 @@ BEGIN
 	END IF;
 END;
 $$;
+
+CREATE TABLE agent_resources_monitoring (
+    agent_id uuid NOT NULL,
+    rtype resource_monitoring_type NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL
+);
 
 CREATE TABLE api_keys (
     id text NOT NULL,
