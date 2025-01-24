@@ -2,7 +2,6 @@ package cli_test
 
 import (
 	"bytes"
-	"context"
 	"database/sql"
 	"encoding/json"
 	"fmt"
@@ -21,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestProvisionerJobs(t *testing.T) {
@@ -172,7 +172,7 @@ func TestProvisionerJobs(t *testing.T) {
 					assert.NoError(t, err)
 				}
 
-				job, err = db.GetProvisionerJobByID(context.Background(), job.ID)
+				job, err = db.GetProvisionerJobByID(testutil.Context(t, testutil.WaitShort), job.ID)
 				require.NoError(t, err)
 				assert.Equal(t, tt.wantCancelled, job.CanceledAt.Valid, "job.CanceledAt.Valid")
 				assert.Equal(t, tt.wantCancelled, job.CanceledAt.Time.After(job.StartedAt.Time), "job.CanceledAt.Time")
