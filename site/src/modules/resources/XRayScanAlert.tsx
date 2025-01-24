@@ -1,6 +1,6 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import Button from "@mui/material/Button";
 import type { JFrogXrayScan } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ExternalImage } from "components/ExternalImage/ExternalImage";
 import type { FC } from "react";
 
@@ -39,15 +39,10 @@ export const XRayScanAlert: FC<XRayScanAlertProps> = ({ scan }) => {
 				</ul>
 			</div>
 			<div css={styles.link}>
-				<Button
-					component="a"
-					size="small"
-					variant="text"
-					href={scan.results_url}
-					target="_blank"
-					rel="noreferrer"
-				>
-					Review results
+				<Button size="sm" variant="subtle" asChild>
+					<a href={scan.results_url} target="_blank" rel="noreferrer">
+						Review results
+					</a>
 				</Button>
 			</div>
 		</div>

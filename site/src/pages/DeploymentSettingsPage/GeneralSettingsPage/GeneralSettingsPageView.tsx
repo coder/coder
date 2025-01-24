@@ -5,6 +5,7 @@ import type {
 	Experiments,
 	SerpentOption,
 } from "api/typesGenerated";
+import { Link } from "components/Link/Link";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -53,13 +54,13 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 						</ul>
 						It is recommended that you remove these experiments from your
 						configuration as they have no effect. See{" "}
-						<a
+						<Link
 							href="https://coder.com/docs/cli/server#--experiments"
 							target="_blank"
 							rel="noreferrer"
 						>
 							the documentation
-						</a>{" "}
+						</Link>{" "}
 						for more details.
 					</Alert>
 				)}

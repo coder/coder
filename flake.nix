@@ -6,7 +6,7 @@
     nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
     pnpm2nix = {
-      url = "github:nzbr/pnpm2nix-nzbr";
+      url = "github:ThomasK33/pnpm2nix-nzbr";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
@@ -33,6 +33,10 @@
         };
 
         nodejs = pkgs.nodejs_20;
+        pnpm = pkgs.pnpm_9.override {
+          inherit nodejs;  # Ensure it points to the above nodejs version
+        };
+
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
@@ -89,20 +93,20 @@
           less
           mockgen
           moreutils
-          nix-prefetch-git
-          nfpm
-          nodejs
           neovim
-          pnpm
+          nfpm
+          nix-prefetch-git
+          nodejs
           openssh
           openssl
           pango
           pixman
           pkg-config
           playwright-driver.browsers
+          pnpm
           postgresql_16
-          protobuf
           proto_gen_go_1_30
+          protobuf
           ripgrep
           shellcheck
           (pinnedPkgs.shfmt)
@@ -121,7 +125,7 @@
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
-          inherit nodejs;
+          inherit nodejs pnpm;
 
           src = ./site/.;
           # Required for the `canvas` package!
@@ -145,7 +149,7 @@
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-ykLZqtALSvDpBc2yEjRGdOyCFNsnLZiGid0d4s27e8Q=";
+            vendorHash = "sha256-DNQ3UPQoiiWEatMPj6B7QGGy9qOSvOmjADsrr+drCBY=";
             proxyVendor = true;
             src = ./.;
             nativeBuildInputs = with pkgs; [ getopt openssl zstd ];

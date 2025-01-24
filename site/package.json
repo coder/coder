@@ -116,7 +116,7 @@
 		"tzdata": "1.0.40",
 		"ua-parser-js": "1.0.33",
 		"ufuzzy": "npm:@leeoniya/ufuzzy@1.0.10",
-		"undici": "6.19.7",
+		"undici": "6.21.1",
 		"unique-names-generator": "4.7.1",
 		"uuid": "9.0.1",
 		"yup": "1.4.0"
@@ -184,7 +184,7 @@
 		"ts-proto": "1.164.0",
 		"ts-prune": "0.10.3",
 		"typescript": "5.6.3",
-		"vite": "5.4.11",
+		"vite": "5.4.12",
 		"vite-plugin-checker": "0.8.0",
 		"vite-plugin-turbosnap": "1.0.3"
 	},
