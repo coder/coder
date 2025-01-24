@@ -92,7 +92,7 @@ func (r *RootCmd) gitssh() *serpent.Command {
 					_, _ = fmt.Fprintln(inv.Stderr,
 						"\n"+pretty.Sprintf(
 							cliui.DefaultStyles.Wrap,
-							"Coder authenticates with "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+
+							"%s", "Coder authenticates with "+pretty.Sprint(cliui.DefaultStyles.Field, "git")+
 								" using the public key below. All clones with SSH are authenticated automatically 🪄.")+"\n",
 					)
 					_, _ = fmt.Fprintln(inv.Stderr, pretty.Sprint(cliui.DefaultStyles.Code, strings.TrimSpace(key.PublicKey))+"\n")
