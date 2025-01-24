@@ -45,9 +45,6 @@ func TestProvisionerJobs(t *testing.T) {
 		req.AllowUserCancelWorkspaceJobs = ptr.Bool(true)
 	})
 
-	workspace := coderdtest.CreateWorkspace(t, client, template.ID)
-	coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
-
 	// Stop the provisioner so it doesn't grab any more jobs.
 	firstProvisioner.Close()
 
@@ -82,13 +79,13 @@ func TestProvisionerJobs(t *testing.T) {
 
 			var (
 				tags = database.StringMap{"owner": "", "scope": "organization", "foo": uuid.New().String()}
-				pd   = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{Tags: tags})
+				_    = dbgen.ProvisionerDaemon(t, db, database.ProvisionerDaemon{Tags: tags})
 				job  = dbgen.ProvisionerJob(t, db, coderdAPI.Pubsub, database.ProvisionerJob{
-					WorkerID:  uuid.NullUUID{UUID: pd.ID, Valid: true},
-					Input:     json.RawMessage(inputBytes),
-					Type:      typ,
-					Tags:      tags,
-					StartedAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Minute), Valid: true},
+					InitiatorID: member.ID,
+					Input:       json.RawMessage(inputBytes),
+					Type:        typ,
+					Tags:        tags,
+					StartedAt:   sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Minute), Valid: true},
 				})
 			)
 			return job
@@ -99,9 +96,14 @@ func TestProvisionerJobs(t *testing.T) {
 			var (
 				wbID = uuid.New()
 				job  = prepareJob(t, jobInput{WorkspaceBuildID: wbID.String()})
-				w    = dbgen.Workspace(t, db, database.WorkspaceTable{OwnerID: member.ID, TemplateID: template.ID})
-				_    = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+				w    = dbgen.Workspace(t, db, database.WorkspaceTable{
+					OrganizationID: owner.OrganizationID,
+					OwnerID:        member.ID,
+					TemplateID:     template.ID,
+				})
+				_ = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
 					ID:                wbID,
+					InitiatorID:       member.ID,
 					WorkspaceID:       w.ID,
 					TemplateVersionID: version.ID,
 					JobID:             job.ID,
@@ -166,10 +168,10 @@ func TestProvisionerJobs(t *testing.T) {
 				var buf bytes.Buffer
 				inv.Stdout = &buf
 				err := inv.Run()
-				if !tt.wantCancelled {
-					assert.Error(t, err)
-				} else {
+				if tt.wantCancelled {
 					assert.NoError(t, err)
+				} else {
+					assert.Error(t, err)
 				}
 
 				job, err = db.GetProvisionerJobByID(testutil.Context(t, testutil.WaitShort), job.ID)
