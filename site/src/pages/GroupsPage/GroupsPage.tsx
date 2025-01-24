@@ -54,11 +54,7 @@ export const GroupsPage: FC = () => {
 		<>
 			<Helmet>
 				<title>
-					{pageTitle(
-						"Groups",
-						showOrganizations &&
-							(organization.display_name || organization.name),
-					)}
+					{pageTitle("Groups", organization.display_name || organization.name)}
 				</title>
 			</Helmet>
 

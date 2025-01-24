@@ -3,6 +3,7 @@ import { createUser, getCurrentOrgId, setupApiCalls } from "../../api";
 import { requiresLicense } from "../../helpers";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { defaultOrganizationName } from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
@@ -17,13 +18,17 @@ test(`Every user should be automatically added to the default '${DEFAULT_GROUP_N
 }) => {
 	requiresLicense();
 	await setupApiCalls(page);
+
+	const orgName = defaultOrganizationName;
 	const orgId = await getCurrentOrgId();
 	const numberOfMembers = 3;
 	const users = await Promise.all(
 		Array.from({ length: numberOfMembers }, () => createUser(orgId)),
 	);
 
-	await page.goto(`${baseURL}/groups`, { waitUntil: "domcontentloaded" });
+	await page.goto(`${baseURL}/organization/${orgName}/groups`, {
+		waitUntil: "domcontentloaded",
+	});
 	await expect(page).toHaveTitle("Groups - Coder");
 
 	const groupRow = page.getByRole("row", { name: DEFAULT_GROUP_NAME });

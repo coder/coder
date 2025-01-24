@@ -9,6 +9,7 @@ import {
 import { requiresLicense } from "../../helpers";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
+import { defaultOrganizationName } from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
@@ -19,6 +20,7 @@ test.beforeEach(async ({ page }) => {
 test("remove member", async ({ page, baseURL }) => {
 	requiresLicense();
 
+	const orgName = defaultOrganizationName;
 	const orgId = await getCurrentOrgId();
 	const [group, member] = await Promise.all([
 		createGroup(orgId),
@@ -26,7 +28,7 @@ test("remove member", async ({ page, baseURL }) => {
 	]);
 	await API.addMember(group.id, member.id);
 
-	await page.goto(`${baseURL}/groups/${group.name}`, {
+	await page.goto(`${baseURL}/organizations/${orgName}/groups/${group.name}`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expect(page).toHaveTitle(`${group.display_name} - Coder`);
