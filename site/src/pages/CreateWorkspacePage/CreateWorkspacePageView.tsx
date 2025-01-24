@@ -43,6 +43,7 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
+import { SelectFilter } from "components/Filter/SelectFilter";
 
 export const Language = {
 	duplicationWarning:
@@ -64,6 +65,8 @@ export interface CreateWorkspacePageViewProps {
 	hasAllRequiredExternalAuth: boolean;
 	parameters: TypesGen.TemplateVersionParameter[];
 	autofillParameters: AutofillBuildParameter[];
+	presets: TypesGen.Preset[];
+	presetParameters: TypesGen.PresetParameter[];
 	permissions: CreateWSPermissions;
 	creatingWorkspace: boolean;
 	onCancel: () => void;
@@ -88,6 +91,8 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	hasAllRequiredExternalAuth,
 	parameters,
 	autofillParameters,
+	presets = [],
+	presetParameters = [],
 	permissions,
 	creatingWorkspace,
 	onSubmit,
@@ -145,6 +150,47 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
+	const presetOptions = [
+		{ label: "None", value: "" },
+		...presets.map((preset) => ({
+			label: preset.Name,
+			value: preset.ID,
+		})),
+	];
+
+	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+
+	useEffect(() => {
+		if (!presetParameters) {
+			return;
+		}
+
+		const selectedPreset = presetOptions[selectedPresetIndex];
+		console.log("selectedPreset", selectedPreset);
+
+		const selectedPresetParameters = presetParameters.filter(
+			(param) => param.PresetID === selectedPreset.value,
+		);
+		console.log("selectedPresetParameters", selectedPresetParameters);
+		// TODO (sasswart): test case: what if immutable parameters are used in the preset?
+		// TODO (sasswart): test case: what if presets are defined for a template version with no params?
+		// TODO (sasswart): test case: what if a non active version is selected?
+		// TODO (sasswart): test case: what if a preset is selected that has no parameters?
+		// TODO (sasswart): what if we have preset params and autofill params on the same param?
+		// TODO (sasswart): test case: if we move from preset to no preset, do we reset the params?
+		// If so, how should it behave? Reset to initial value? reset to last set value?
+
+		for (const param of selectedPresetParameters) {
+			const paramIndex = parameters.findIndex((p) => p.name === param.Name);
+			if (paramIndex !== -1) {
+				form.setFieldValue(`rich_parameter_values.${paramIndex}`, {
+					name: param.Name,
+					value: param.Value
+				});
+			}
+		}
+	}, [selectedPresetIndex, presetParameters]);
+
 	return (
 		<Margins size="medium">
 			<PageHeader
@@ -187,6 +233,31 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 					<Alert severity="info" dismissible data-testid="duplication-warning">
 						{Language.duplicationWarning}
 					</Alert>
+				)}
+
+				{presets.length > 0 && (
+					<FormSection
+						title="Presets"
+						description="A list of preset workspace configurations to get you started."
+					>
+						<FormFields>
+							<Stack direction="row" spacing={2}>
+								<SelectFilter
+									label="Preset"
+									options={presetOptions}
+									onSelect={(option) => {
+										setSelectedPresetIndex(
+											presetOptions.findIndex(
+												(preset) => preset.value === option?.value,
+											),
+										);
+									}}
+									placeholder="Select a preset"
+									selectedOption={presetOptions[selectedPresetIndex]}
+								/>
+							</Stack>
+						</FormFields>
+					</FormSection>
 				)}
 
 				{/* General info */}
