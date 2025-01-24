@@ -61,6 +61,7 @@ func (api *API) templateVersionPresetParameters(rw http.ResponseWriter, r *http.
 			Message: "Internal error fetching template version presets.",
 			Detail:  err.Error(),
 		})
+		return
 	}
 
 	var res []codersdk.PresetParameter

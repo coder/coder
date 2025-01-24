@@ -64,8 +64,8 @@ const CreateWorkspacePage: FC = () => {
 			: { enabled: false },
 	);
 	const templateVersionPresetParametersQuery = useQuery(
-		templateVersionPresetsQuery.data
-			? templateVersionPresetParameters(templateVersionPresetsQuery.data)
+		templateQuery.data
+			? templateVersionPresetParameters(templateQuery.data.active_version_id)
 			: { enabled: false },
 	);
 	const permissionsQuery = useQuery(

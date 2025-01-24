@@ -6,6 +6,7 @@ import { Alert } from "components/Alert/Alert";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import { Button } from "components/Button/Button";
+import { SelectFilter } from "components/Filter/SelectFilter";
 import {
 	FormFields,
 	FormFooter,
@@ -43,7 +44,6 @@ import type {
 } from "./CreateWorkspacePage";
 import { ExternalAuthButton } from "./ExternalAuthButton";
 import type { CreateWSPermissions } from "./permissions";
-import { SelectFilter } from "components/Filter/SelectFilter";
 
 export const Language = {
 	duplicationWarning:
@@ -150,28 +150,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		[autofillParameters],
 	);
 
-	const presetOptions = [
-		{ label: "None", value: "" },
-		...presets.map((preset) => ({
-			label: preset.Name,
-			value: preset.ID,
-		})),
-	];
+	const presetOptions = useMemo(() => {
+		return [
+			{ label: "None", value: "" },
+			...presets.map((preset) => ({
+				label: preset.Name,
+				value: preset.ID,
+			})),
+		];
+	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
 
 	useEffect(() => {
-		if (!presetParameters) {
-			return;
-		}
-
-		const selectedPreset = presetOptions[selectedPresetIndex];
-		console.log("selectedPreset", selectedPreset);
-
-		const selectedPresetParameters = presetParameters.filter(
-			(param) => param.PresetID === selectedPreset.value,
-		);
-		console.log("selectedPresetParameters", selectedPresetParameters);
 		// TODO (sasswart): test case: what if immutable parameters are used in the preset?
 		// TODO (sasswart): test case: what if presets are defined for a template version with no params?
 		// TODO (sasswart): test case: what if a non active version is selected?
@@ -180,16 +171,26 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		// TODO (sasswart): test case: if we move from preset to no preset, do we reset the params?
 		// If so, how should it behave? Reset to initial value? reset to last set value?
 
+		if (!presetParameters) {
+			return;
+		}
+
+		const selectedPreset = presetOptions[selectedPresetIndex];
+
+		const selectedPresetParameters = presetParameters.filter(
+			(param) => param.PresetID === selectedPreset.value,
+		);
+
 		for (const param of selectedPresetParameters) {
 			const paramIndex = parameters.findIndex((p) => p.name === param.Name);
 			if (paramIndex !== -1) {
 				form.setFieldValue(`rich_parameter_values.${paramIndex}`, {
 					name: param.Name,
-					value: param.Value
+					value: param.Value,
 				});
 			}
 		}
-	}, [selectedPresetIndex, presetParameters]);
+	}, [selectedPresetIndex, presetParameters, presetOptions, parameters, form]);
 
 	return (
 		<Margins size="medium">
