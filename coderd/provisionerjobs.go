@@ -57,7 +57,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 	if len(jobs) > 1 || jobs[0].ProvisionerJob.ID != jobID {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner job.",
-			Detail:  "Database returned an unexpected expected job.",
+			Detail:  "Database returned an unexpected job.",
 		})
 		return
 	}
