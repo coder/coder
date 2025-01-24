@@ -60,7 +60,7 @@ export const PopoverPaywall: FC<PopoverPaywallProps> = ({
 					</li>
 				</ul>
 				<div css={styles.learnButton}>
-					<Button variant="outline" asChild>
+					<Button asChild>
 						<a
 							href="https://coder.com/pricing#compare-plans"
 							target="_blank"
