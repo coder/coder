@@ -1,9 +1,9 @@
 import { expect, test } from "@playwright/test";
 import { createGroup, getCurrentOrgId, setupApiCalls } from "../../api";
+import { defaultOrganizationName } from "../../constants";
 import { requiresLicense } from "../../helpers";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
-import { defaultOrganizationName } from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

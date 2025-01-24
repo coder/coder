@@ -5,13 +5,13 @@ import {
 	PaginationContainer,
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import { UserPlusIcon } from "lucide-react";
 import type { ComponentProps, FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
 
 export interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];

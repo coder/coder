@@ -24,7 +24,7 @@ test("create group", async ({ page }) => {
 
 	// Navigate to groups page
 	await page.getByRole("link", { name: "Groups" }).click();
-	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
+	await expect(page).toHaveTitle("Groups - Coder");
 
 	// Create a new group
 	await page.getByText("Create group").click();
@@ -72,7 +72,7 @@ test("create group", async ({ page }) => {
 	await expect(page.getByText("Group deleted successfully.")).toBeVisible();
 
 	await expectUrl(page).toHavePathName(`/organizations/${org.name}/groups`);
-	await expect(page).toHaveTitle(`Groups - Org ${org.name} - Coder`);
+	await expect(page).toHaveTitle("Groups - Coder");
 });
 
 test("change quota settings", async ({ page }) => {

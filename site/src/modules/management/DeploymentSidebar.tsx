@@ -1,7 +1,7 @@
 import { useAuthenticated } from "contexts/auth/RequireAuth";
+import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
 import { DeploymentSidebarView } from "./DeploymentSidebarView";
-import { useDashboard } from "modules/dashboard/useDashboard";
 
 /**
  * A sidebar for deployment settings.

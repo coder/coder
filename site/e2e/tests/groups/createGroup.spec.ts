@@ -1,8 +1,8 @@
 import { expect, test } from "@playwright/test";
+import { defaultOrganizationName } from "../../constants";
 import { randomName, requiresLicense } from "../../helpers";
 import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
-import { defaultOrganizationName } from "../../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);

@@ -1,8 +1,8 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
-import { Button } from "components/Button/Button";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
+import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
@@ -14,8 +14,8 @@ import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
 import { pageTitle } from "utils/page";
-import GroupsPageView from "./GroupsPageView";
 import { useGroupsSettings } from "./GroupsPageProvider";
+import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
 	const feats = useFeatureVisibility();
@@ -53,9 +53,7 @@ export const GroupsPage: FC = () => {
 	return (
 		<>
 			<Helmet>
-				<title>
-					{pageTitle("Groups", organization.display_name || organization.name)}
-				</title>
+				<title>{pageTitle("Groups")}</title>
 			</Helmet>
 
 			<Stack
