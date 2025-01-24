@@ -1062,7 +1062,7 @@ export async function createUser(
 	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
-	await page.getByRole("button", { name: "Create user" }).click();
+	await page.getByRole("link", { name: "Create user" }).click();
 	await expect(page).toHaveTitle("Create User - Coder");
 
 	const username = userValues.username ?? randomName();
