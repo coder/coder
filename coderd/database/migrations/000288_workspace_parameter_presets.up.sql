@@ -1,3 +1,4 @@
+-- TODO (sasswart): add IF NOT EXISTS and other clauses to make the migration more robust
 CREATE TABLE template_version_presets
 (
 	id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
