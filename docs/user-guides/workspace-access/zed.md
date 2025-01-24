@@ -14,7 +14,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    <div class="tabs">
 
-   ## Linux/macOS
+   ### Linux/macOS
 
    Our install script is the fastest way to install Coder on Linux/macOS:
 
@@ -25,7 +25,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    Refer to [GitHub releases](https://github.com/coder/coder/releases) for
    alternate installation methods (e.g. standalone binaries, system packages).
 
-   ## Windows
+   ### Windows
 
    > **Important:** If you plan to use the built-in PostgreSQL database, you will
    > need to ensure that the
