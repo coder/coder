@@ -8,7 +8,7 @@ import {
 	createContext,
 	useContext,
 } from "react";
-import { Outlet, useParams } from "react-router-dom";
+import { Navigate, Outlet, useParams } from "react-router-dom";
 
 export const GroupsPageContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -39,6 +39,16 @@ const GroupsPageProvider: FC = () => {
 	const organization = orgName
 		? organizations.find((org) => org.name === orgName)
 		: getOrganizationByDefault(organizations);
+
+	if (
+		location.pathname.startsWith("/deployment/groups") &&
+		showOrganizations &&
+		organization
+	) {
+		return (
+			<Navigate to={`/organizations/${organization.name}/groups`} replace />
+		);
+	}
 
 	return (
 		<GroupsPageContext.Provider value={{ organization, showOrganizations }}>

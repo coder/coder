@@ -1,5 +1,5 @@
 import GroupAdd from "@mui/icons-material/GroupAddOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import { organizationPermissions } from "api/queries/organizations";
@@ -72,8 +72,11 @@ export const GroupsPage: FC = () => {
 					description={`Manage groups for this ${showOrganizations ? "organization" : "deployment"}.`}
 				/>
 				{permissions.createGroup && feats.template_rbac && (
-					<Button component={RouterLink} startIcon={<GroupAdd />} to="create">
-						Create group
+					<Button asChild>
+						<RouterLink to="create">
+							<GroupAdd />
+							Create group
+						</RouterLink>
 					</Button>
 				)}
 			</Stack>

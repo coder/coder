@@ -1,7 +1,6 @@
 import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { Button } from "components/Button/Button";
-import { PageHeader, PageHeaderTitle } from "components/PageHeader/PageHeader";
 import {
 	PaginationContainer,
 	type PaginationResult,
@@ -11,6 +10,8 @@ import type { ComponentProps, FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 
 export interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];
@@ -67,21 +68,24 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 }) => {
 	return (
 		<>
-			<PageHeader
-				css={{ paddingTop: 0 }}
-				actions={
-					canCreateUser && (
-						<Button asChild>
-							<RouterLink to="create">
-								<UserPlusIcon />
-								Create user
-							</RouterLink>
-						</Button>
-					)
-				}
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
 			>
-				<PageHeaderTitle>Users</PageHeaderTitle>
-			</PageHeader>
+				<SettingsHeader
+					title="Users"
+					description="Manage user accounts and permissions."
+				/>
+				{canCreateUser && (
+					<Button asChild>
+						<RouterLink to="create">
+							<UserPlusIcon />
+							Create user
+						</RouterLink>
+					</Button>
+				)}
+			</Stack>
 
 			<UsersFilter {...filterProps} />
 
