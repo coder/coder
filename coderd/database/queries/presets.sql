@@ -4,13 +4,13 @@ INSERT INTO
 VALUES
 	(@template_version_id, @name, @created_at) RETURNING *;
 
--- InsertPresetParameter :one
+-- name: InsertPresetParameters :many
 INSERT INTO
 	template_version_preset_parameters (template_version_preset_id, name, value)
 SELECT
 	@template_version_preset_id,
-	unnest(@name),
-	unnest(@value)
+	unnest(@names :: TEXT[]),
+	unnest(@values :: TEXT[])
 RETURNING *;
 
 -- name: GetPresetsByTemplateVersionID :many

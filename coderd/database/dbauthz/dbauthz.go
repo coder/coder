@@ -3119,6 +3119,13 @@ func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetPar
 	return q.db.InsertPreset(ctx, arg)
 }
 
+func (q *querier) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceTemplate); err != nil {
+		return nil, err
+	}
+	return q.db.InsertPresetParameters(ctx, arg)
+}
+
 // TODO: We need to create a ProvisionerJob resource type
 func (q *querier) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
