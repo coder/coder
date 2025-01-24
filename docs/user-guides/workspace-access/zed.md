@@ -35,7 +35,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
    Use [GitHub releases](https://github.com/coder/coder/releases) to download the
    Windows installer (`.msi`) or standalone binary (`.exe`).
 
-   ![Windows setup wizard](../images/install/windows-installer.png)
+   ![Windows setup wizard](../../images/install/windows-installer.png)
 
    Alternatively, you can use the
    [`winget`](https://learn.microsoft.com/en-us/windows/package-manager/winget/#use-winget)
