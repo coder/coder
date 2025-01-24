@@ -39,7 +39,6 @@ const meta: Meta<typeof MobileMenu> = {
 		},
 		user: MockUser,
 		supportLinks: MockSupportLinks,
-		docsHref: "https://coder.com/docs",
 		onSignOut: fn(),
 		isDefaultOpen: true,
 		canViewAuditLog: true,

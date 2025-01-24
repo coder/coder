@@ -944,7 +944,12 @@ test-clean:
 	go clean -testcache
 .PHONY: test-clean
 
-test-e2e: site/node_modules/.installed site/out/index.html
+site/e2e/bin/coder: go.mod go.sum $(GO_SRC_FILES)
+	go build -o $@ \
+		-tags ts_omit_aws,ts_omit_bird,ts_omit_tap,ts_omit_kube \
+		./enterprise/cmd/coder
+
+test-e2e: site/e2e/bin/coder site/node_modules/.installed site/out/index.html
 	cd site/
 ifdef CI
 	DEBUG=pw:api pnpm playwright:test --forbid-only --workers 1
