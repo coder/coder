@@ -394,13 +394,10 @@ export const router = createBrowserRouter(
 						{templateRouter()}
 					</Route>
 
-					<Route path="/users">
-						<Route element={<UsersLayout />}>
-							<Route index element={<UsersPage />} />
-						</Route>
-
-						<Route path="create" element={<CreateUserPage />} />
-					</Route>
+					<Route
+						path="/users/*"
+						element={<Navigate to="/deployment/users" replace />}
+					/>
 
 					<Route
 						path="/groups/*"
