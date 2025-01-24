@@ -19,7 +19,6 @@ import { TemplateLayout } from "./pages/TemplatePage/TemplateLayout";
 import { TemplateSettingsLayout } from "./pages/TemplateSettingsPage/TemplateSettingsLayout";
 import TemplatesPage from "./pages/TemplatesPage/TemplatesPage";
 import UserSettingsLayout from "./pages/UserSettingsPage/Layout";
-import { UsersLayout } from "./pages/UsersPage/UsersLayout";
 import UsersPage from "./pages/UsersPage/UsersPage";
 import { WorkspaceSettingsLayout } from "./pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import WorkspacesPage from "./pages/WorkspacesPage/WorkspacesPage";
@@ -230,39 +229,40 @@ const AddNewLicensePage = lazy(
 		),
 );
 const CreateOrganizationPage = lazy(
-	() => import("./pages/ManagementSettingsPage/CreateOrganizationPage"),
+	() => import("./pages/OrganizationSettingsPage/CreateOrganizationPage"),
 );
 const OrganizationSettingsPage = lazy(
-	() => import("./pages/ManagementSettingsPage/OrganizationSettingsPage"),
+	() => import("./pages/OrganizationSettingsPage/OrganizationSettingsPage"),
 );
-const GroupsPage = lazy(
-	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupsPage"),
+const GroupsPageProvider = lazy(
+	() => import("./pages/GroupsPage/GroupsPageProvider"),
 );
+const GroupsPage = lazy(() => import("./pages/GroupsPage/GroupsPage"));
 const CreateGroupPage = lazy(
-	() => import("./pages/ManagementSettingsPage/GroupsPage/CreateGroupPage"),
+	() => import("./pages/GroupsPage/CreateGroupPage"),
 );
-const GroupPage = lazy(
-	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupPage"),
-);
+const GroupPage = lazy(() => import("./pages/GroupsPage/GroupPage"));
 const GroupSettingsPage = lazy(
-	() => import("./pages/ManagementSettingsPage/GroupsPage/GroupSettingsPage"),
+	() => import("./pages/GroupsPage/GroupSettingsPage"),
 );
 const OrganizationMembersPage = lazy(
-	() => import("./pages/ManagementSettingsPage/OrganizationMembersPage"),
+	() => import("./pages/OrganizationSettingsPage/OrganizationMembersPage"),
 );
 const OrganizationCustomRolesPage = lazy(
 	() =>
-		import("./pages/ManagementSettingsPage/CustomRolesPage/CustomRolesPage"),
+		import("./pages/OrganizationSettingsPage/CustomRolesPage/CustomRolesPage"),
 );
 const OrganizationIdPSyncPage = lazy(
-	() => import("./pages/ManagementSettingsPage/IdpSyncPage/IdpSyncPage"),
+	() => import("./pages/OrganizationSettingsPage/IdpSyncPage/IdpSyncPage"),
 );
 const CreateEditRolePage = lazy(
 	() =>
-		import("./pages/ManagementSettingsPage/CustomRolesPage/CreateEditRolePage"),
+		import(
+			"./pages/OrganizationSettingsPage/CustomRolesPage/CreateEditRolePage"
+		),
 );
 const OrganizationProvisionersPage = lazy(
-	() => import("./pages/ManagementSettingsPage/OrganizationProvisionersPage"),
+	() => import("./pages/OrganizationSettingsPage/OrganizationProvisionersPage"),
 );
 const TemplateEmbedPage = lazy(
 	() => import("./pages/TemplatePage/TemplateEmbedPage/TemplateEmbedPage"),
@@ -348,11 +348,13 @@ const templateRouter = () => {
 const groupsRouter = () => {
 	return (
 		<Route path="groups">
-			<Route index element={<GroupsPage />} />
+			<Route element={<GroupsPageProvider />}>
+				<Route index element={<GroupsPage />} />
 
-			<Route path="create" element={<CreateGroupPage />} />
-			<Route path=":groupName" element={<GroupPage />} />
-			<Route path=":groupName/settings" element={<GroupSettingsPage />} />
+				<Route path="create" element={<CreateGroupPage />} />
+				<Route path=":groupName" element={<GroupPage />} />
+				<Route path=":groupName/settings" element={<GroupSettingsPage />} />
+			</Route>
 		</Route>
 	);
 };
@@ -469,29 +471,8 @@ export const router = createBrowserRouter(
 
 						<Route path="users" element={<UsersPage />} />
 						<Route path="users/create" element={<CreateUserPage />} />
-						<Route path="groups">
-							<Route element={<UsersLayout />}>
-								<Route index element={<GroupsPage />} />
-							</Route>
 
-							<Route path="create" element={<CreateGroupPage />} />
-							<Route path=":groupName" element={<GroupPage />} />
-							<Route
-								path=":groupName/settings"
-								element={<GroupSettingsPage />}
-							/>
-						</Route>
-
-						<Route path="groups">
-							<Route index element={<GroupsPage />} />
-
-							<Route path="create" element={<CreateGroupPage />} />
-							<Route path=":groupName" element={<GroupPage />} />
-							<Route
-								path=":groupName/settings"
-								element={<GroupSettingsPage />}
-							/>
-						</Route>
+						{groupsRouter()}
 					</Route>
 
 					<Route path="/settings" element={<UserSettingsLayout />}>
