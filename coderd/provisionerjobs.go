@@ -46,7 +46,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	jobs, ok := api.getProvisionerJobs(rw, r, []uuid.UUID{jobID})
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, []uuid.UUID{jobID})
 	if !ok {
 		return
 	}
@@ -78,7 +78,7 @@ func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 
-	jobs, ok := api.getProvisionerJobs(rw, r, nil)
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, nil)
 	if !ok {
 		return
 	}
@@ -86,7 +86,10 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
 }
 
-func (api *API) getProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) ([]database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, bool) {
+// handleAuthAndFetchProvisionerJobs is an internal method shared by
+// provisionerJob and provisionerJobs. If ok is false the caller should
+// return immediately because the response has already been written.
+func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
