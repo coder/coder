@@ -128,7 +128,9 @@ const ErrorStack: FC<ErrorStackProps> = ({ error }) => {
 					</p>
 					{error.stack && (
 						<pre className="m-0 py-2 px-0 overflow-x-auto text-xs">
-							<code data-testid="code">{error.stack}</code>
+							<code data-testid="code" data-chromatic="ignore">
+								{error.stack}
+							</code>
 						</pre>
 					)}
 				</>
