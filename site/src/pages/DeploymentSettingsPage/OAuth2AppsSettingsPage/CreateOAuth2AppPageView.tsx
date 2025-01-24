@@ -6,7 +6,7 @@ import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { ChevronLeftIcon } from "lucide-react";
 import type { FC } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
 type CreateOAuth2AppProps = {
@@ -32,10 +32,10 @@ export const CreateOAuth2AppPageView: FC<CreateOAuth2AppProps> = ({
 					description="Configure an application to use Coder as an OAuth2 provider."
 				/>
 				<Button variant="outline" asChild>
-					<Link to="/deployment/oauth2-provider/apps">
+					<RouterLink to="/deployment/oauth2-provider/apps">
 						<ChevronLeftIcon />
 						All OAuth2 Applications
-					</Link>
+					</RouterLink>
 				</Button>
 			</Stack>
 

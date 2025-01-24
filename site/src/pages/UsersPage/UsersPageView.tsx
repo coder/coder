@@ -7,9 +7,10 @@ import {
 	type PaginationResult,
 } from "components/PaginationWidget/PaginationContainer";
 import type { ComponentProps, FC } from "react";
-import { Link } from "react-router-dom";
+import { Link as RouterLink } from "react-router-dom";
 import { UsersFilter } from "./UsersFilter";
 import { UsersTable } from "./UsersTable/UsersTable";
+import { UserPlusIcon } from "lucide-react";
 
 export interface UsersPageViewProps {
 	users?: readonly TypesGen.User[];
@@ -71,7 +72,10 @@ export const UsersPageView: FC<UsersPageViewProps> = ({
 				actions={
 					canCreateUser && (
 						<Button asChild>
-							<Link to="create">Create user</Link>
+							<RouterLink to="create">
+								<UserPlusIcon />
+								Create user
+							</RouterLink>
 						</Button>
 					)
 				}

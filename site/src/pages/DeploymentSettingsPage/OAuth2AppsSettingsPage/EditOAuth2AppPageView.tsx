@@ -1,6 +1,5 @@
 import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CopyIcon from "@mui/icons-material/FileCopyOutlined";
-import KeyboardArrowLeft from "@mui/icons-material/KeyboardArrowLeft";
 import LoadingButton from "@mui/lab/LoadingButton";
 import Divider from "@mui/material/Divider";
 import Table from "@mui/material/Table";
@@ -23,7 +22,7 @@ import { Stack } from "components/Stack/Stack";
 import { TableLoader } from "components/TableLoader/TableLoader";
 import { ChevronLeftIcon } from "lucide-react";
 import { type FC, useState } from "react";
-import { Link, useSearchParams } from "react-router-dom";
+import { Link as RouterLink, useSearchParams } from "react-router-dom";
 import { createDayString } from "utils/createDayString";
 import { OAuth2AppForm } from "./OAuth2AppForm";
 
@@ -80,11 +79,11 @@ export const EditOAuth2AppPageView: FC<EditOAuth2AppProps> = ({
 					title="Edit OAuth2 application"
 					description="Configure an application to use Coder as an OAuth2 provider."
 				/>
-				<Button variant="outline">
-					<Link to="/deployment/oauth2-provider/apps">
+				<Button variant="outline" asChild>
+					<RouterLink to="/deployment/oauth2-provider/apps">
 						<ChevronLeftIcon />
 						All OAuth2 Applications
-					</Link>
+					</RouterLink>
 				</Button>
 			</Stack>
 

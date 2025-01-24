@@ -86,7 +86,11 @@ export const AnnouncementBannerSettings: FC<
 						>
 							Announcement Banners
 						</h3>
-						<Button disabled={!isEntitled} onClick={() => addBanner()}>
+						<Button
+							disabled={!isEntitled}
+							onClick={() => addBanner()}
+							variant="outline"
+						>
 							<PlusIcon />
 							New
 						</Button>
