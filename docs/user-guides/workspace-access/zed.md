@@ -10,7 +10,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 1. [Install Zed](https://zed.dev/docs/)
 1. Install Coder CLI:
 
-   <!-- copied from docs/install/cli.md make changes there -->
+   <!-- copied from docs/install/cli.md - make changes there -->
 
    <div class="tabs">
 
@@ -47,7 +47,7 @@ Use the Coder CLI to log in and configure SSH, then connect to your workspace wi
 
    </div>
 
-   Consult the [Coder CLI](../../install/cli.md) for more options.
+   Consult the [Coder CLI documentation](../../install/cli.md) for more options.
 
 1. Log in to your Coder deployment and authenticate when prompted:
 
