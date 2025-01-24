@@ -5397,56 +5397,51 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
 SELECT
-	template_version_presets.id,
-	template_version_presets.name,
-	template_version_presets.created_at
+	template_version_presets.id, template_version_presets.template_version_id, template_version_presets.name, template_version_presets.created_at
 FROM
-	workspace_builds
-	INNER JOIN template_version_presets ON workspace_builds.template_version_preset_id = template_version_presets.id
+	template_version_presets
+	INNER JOIN workspace_builds ON workspace_builds.template_version_preset_id = template_version_presets.id
 WHERE
 	workspace_builds.id = $1
 `
 
-type GetPresetByWorkspaceBuildIDRow struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (GetPresetByWorkspaceBuildIDRow, error) {
+func (q *sqlQuerier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (TemplateVersionPreset, error) {
 	row := q.db.QueryRowContext(ctx, getPresetByWorkspaceBuildID, workspaceBuildID)
-	var i GetPresetByWorkspaceBuildIDRow
-	err := row.Scan(&i.ID, &i.Name, &i.CreatedAt)
+	var i TemplateVersionPreset
+	err := row.Scan(
+		&i.ID,
+		&i.TemplateVersionID,
+		&i.Name,
+		&i.CreatedAt,
+	)
 	return i, err
 }
 
-const getPresetParametersByPresetID = `-- name: GetPresetParametersByPresetID :many
+const getPresetParametersByTemplateVersionID = `-- name: GetPresetParametersByTemplateVersionID :many
 SELECT
-	id,
-	name,
-	value
+	template_version_preset_parameters.id, template_version_preset_parameters.template_version_preset_id, template_version_preset_parameters.name, template_version_preset_parameters.value
 FROM
 	template_version_preset_parameters
+	INNER JOIN template_version_presets ON template_version_preset_parameters.template_version_preset_id = template_version_presets.id
 WHERE
-	template_version_preset_id = $1
+	template_version_presets.template_version_id = $1
 `
 
-type GetPresetParametersByPresetIDRow struct {
-	ID    uuid.UUID `db:"id" json:"id"`
-	Name  string    `db:"name" json:"name"`
-	Value string    `db:"value" json:"value"`
-}
-
-func (q *sqlQuerier) GetPresetParametersByPresetID(ctx context.Context, templateVersionPresetID uuid.UUID) ([]GetPresetParametersByPresetIDRow, error) {
-	rows, err := q.db.QueryContext(ctx, getPresetParametersByPresetID, templateVersionPresetID)
+func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPresetParameter, error) {
+	rows, err := q.db.QueryContext(ctx, getPresetParametersByTemplateVersionID, templateVersionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetPresetParametersByPresetIDRow
+	var items []TemplateVersionPresetParameter
 	for rows.Next() {
-		var i GetPresetParametersByPresetIDRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.Value); err != nil {
+		var i TemplateVersionPresetParameter
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateVersionPresetID,
+			&i.Name,
+			&i.Value,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)
@@ -15020,26 +15015,28 @@ INSERT INTO
 		provisioner_state,
 		deadline,
 		max_deadline,
-		reason
+		reason,
+		template_version_preset_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14)
 `
 
 type InsertWorkspaceBuildParams struct {
-	ID                uuid.UUID           `db:"id" json:"id"`
-	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber       int32               `db:"build_number" json:"build_number"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
-	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
-	Deadline          time.Time           `db:"deadline" json:"deadline"`
-	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
-	Reason            BuildReason         `db:"reason" json:"reason"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
 func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspaceBuildParams) error {
@@ -15057,6 +15054,7 @@ func (q *sqlQuerier) InsertWorkspaceBuild(ctx context.Context, arg InsertWorkspa
 		arg.Deadline,
 		arg.MaxDeadline,
 		arg.Reason,
+		arg.TemplateVersionPresetID,
 	)
 	return err
 }

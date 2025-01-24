@@ -3745,6 +3745,7 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
+		require.NoError(s.T(), err)
 		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
 			OrganizationID: org.ID,
 			OwnerID:        user.ID,
@@ -3760,11 +3761,11 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			InitiatorID:             user.ID,
 			JobID:                   job.ID,
 		})
+		_, err = db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)
 		require.NoError(s.T(), err)
-		db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)
 		check.Args(workspaceBuild.ID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
 	}))
-	s.Run("GetPresetParametersByPresetID", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("GetPresetParametersByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		user := dbgen.User(s.T(), db, database.User{})
 		template := dbgen.Template(s.T(), db, database.Template{
@@ -3776,31 +3777,17 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			OrganizationID: org.ID,
 			CreatedBy:      user.ID,
 		})
-		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
-			OrganizationID: org.ID,
-			OwnerID:        user.ID,
-			TemplateID:     template.ID,
-		})
-		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
-			OrganizationID: org.ID,
-		})
-		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
-			WorkspaceID:       workspace.ID,
-			TemplateVersionID: templateVersion.ID,
-			InitiatorID:       user.ID,
-			JobID:             job.ID,
-		})
 		_, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
-			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
 		preset, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
-			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
-		db.GetPresetParametersByPresetID(context.Background(), preset.ID)
+		db.GetPresetParametersByTemplateVersionID(context.Background(), templateVersion.ID)
 		check.Args(preset.ID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
 	}))
 	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {

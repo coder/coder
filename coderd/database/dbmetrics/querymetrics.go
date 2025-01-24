@@ -980,17 +980,17 @@ func (m queryMetricsStore) GetParameterSchemasByJobID(ctx context.Context, jobID
 	return schemas, err
 }
 
-func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+func (m queryMetricsStore) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetPresetByWorkspaceBuildID(ctx, workspaceBuildID)
 	m.queryLatencies.WithLabelValues("GetPresetByWorkspaceBuildID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetPresetParametersByPresetID(ctx context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
+func (m queryMetricsStore) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	start := time.Now()
-	r0, r1 := m.s.GetPresetParametersByPresetID(ctx, templateVersionPresetID)
-	m.queryLatencies.WithLabelValues("GetPresetParametersByPresetID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+	m.queryLatencies.WithLabelValues("GetPresetParametersByTemplateVersionID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 

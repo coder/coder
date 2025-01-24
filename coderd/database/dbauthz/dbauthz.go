@@ -1930,21 +1930,21 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
-func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
 	// TODO (sasswart): Double check when to and not to call .InOrg?
 	// TODO (sasswart): it makes sense to me that a caller can read a preset if they can read the template, but double check this.
 	// TODO (sasswart): apply these todos to GetPresetParametersByPresetID and GetPresetsByTemplateVersionID.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
-		return database.GetPresetByWorkspaceBuildIDRow{}, err
+		return database.TemplateVersionPreset{}, err
 	}
 	return q.db.GetPresetByWorkspaceBuildID(ctx, workspaceID)
 }
 
-func (q *querier) GetPresetParametersByPresetID(ctx context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
+func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return nil, err
 	}
-	return q.db.GetPresetParametersByPresetID(ctx, templateVersionPresetID)
+	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 }
 
 func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {

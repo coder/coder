@@ -5,6 +5,8 @@ import {
 	richParameters,
 	templateByName,
 	templateVersionExternalAuth,
+	templateVersionPresetParameters,
+	templateVersionPresets,
 } from "api/queries/templates";
 import { autoCreateWorkspace, createWorkspace } from "api/queries/workspaces";
 import type {
@@ -55,6 +57,16 @@ const CreateWorkspacePage: FC = () => {
 
 	const templateQuery = useQuery(
 		templateByName(organizationName, templateName),
+	);
+	const templateVersionPresetsQuery = useQuery(
+		templateQuery.data
+			? templateVersionPresets(templateQuery.data.active_version_id)
+			: { enabled: false },
+	);
+	const templateVersionPresetParametersQuery = useQuery(
+		templateVersionPresetsQuery.data
+			? templateVersionPresetParameters(templateVersionPresetsQuery.data)
+			: { enabled: false },
 	);
 	const permissionsQuery = useQuery(
 		templateQuery.data
@@ -203,6 +215,8 @@ const CreateWorkspacePage: FC = () => {
 					hasAllRequiredExternalAuth={hasAllRequiredExternalAuth}
 					permissions={permissionsQuery.data as CreateWSPermissions}
 					parameters={realizedParameters as TemplateVersionParameter[]}
+					presets={templateVersionPresetsQuery.data ?? []}
+					presetParameters={templateVersionPresetParametersQuery.data ?? []}
 					creatingWorkspace={createWorkspaceMutation.isLoading}
 					onCancel={() => {
 						navigate(-1);

@@ -3780,7 +3780,7 @@ func (q *FakeQuerier) GetParameterSchemasByJobID(_ context.Context, jobID uuid.U
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.GetPresetByWorkspaceBuildIDRow, error) {
+func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBuildID uuid.UUID) (database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -3790,31 +3790,35 @@ func (q *FakeQuerier) GetPresetByWorkspaceBuildID(_ context.Context, workspaceBu
 		}
 		for _, preset := range q.presets {
 			if preset.TemplateVersionID == workspaceBuild.TemplateVersionID {
-				return database.GetPresetByWorkspaceBuildIDRow{
-					ID:        preset.ID,
-					Name:      preset.Name,
-					CreatedAt: preset.CreatedAt,
-				}, nil
+				return preset, nil
 			}
 		}
 	}
-	return database.GetPresetByWorkspaceBuildIDRow{}, sql.ErrNoRows
+	return database.TemplateVersionPreset{}, sql.ErrNoRows
 }
 
-func (q *FakeQuerier) GetPresetParametersByPresetID(_ context.Context, templateVersionPresetID uuid.UUID) ([]database.GetPresetParametersByPresetIDRow, error) {
+func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	parameters := make([]database.GetPresetParametersByPresetIDRow, 0)
+	presets := make([]database.TemplateVersionPreset, 0)
+	parameters := make([]database.TemplateVersionPresetParameter, 0)
+	for _, preset := range q.presets {
+		if preset.TemplateVersionID != templateVersionID {
+			continue
+		}
+		presets = append(presets, preset)
+	}
 	for _, parameter := range q.presetParameters {
-		if parameter.TemplateVersionPresetID == templateVersionPresetID {
-			parameters = append(parameters, database.GetPresetParametersByPresetIDRow{
-				ID:    parameter.ID,
-				Name:  parameter.Name,
-				Value: parameter.Value,
-			})
+		for _, preset := range presets {
+			if parameter.TemplateVersionPresetID != preset.ID {
+				continue
+			}
+			parameters = append(parameters, parameter)
+			break
 		}
 	}
+
 	return parameters, nil
 }
 
