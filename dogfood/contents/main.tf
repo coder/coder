@@ -189,6 +189,13 @@ module "cursor" {
   folder   = local.repo_dir
 }
 
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "./zed"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
