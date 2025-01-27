@@ -548,7 +548,7 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			lines = append(lines, s)
 		}
 		t.Logf("You can paste this into docs/admin/provisioners.md")
-		t.Log("%s", strings.Join(lines, "\n"))
+		t.Logf(strings.Join(lines, "\n"))
 	})
 }
 
