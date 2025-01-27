@@ -26,6 +26,7 @@ import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
@@ -45,9 +46,23 @@ const groupSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
 	regex_filter: Yup.string().trim(),
 	auto_create_missing_groups: Yup.boolean(),
-	mapping: Yup.object().shape({
-		[`${String}`]: Yup.array().of(Yup.string()),
-	}),
+	mapping: Yup.object()
+		.test(
+			"valid-mapping",
+			"Invalid group sync settings mapping structure",
+			(value) => {
+				if (!value) return true;
+				return Object.entries(value).every(
+					([key, arr]) =>
+						typeof key === "string" &&
+						Array.isArray(arr) &&
+						arr.every((item) => {
+							return typeof item === "string" && isUUID(item);
+						}),
+				);
+			},
+		)
+		.default({}),
 });
 
 export const IdpGroupSyncForm = ({
@@ -149,6 +164,11 @@ export const IdpGroupSyncForm = ({
 							</p>
 						</div>
 					</div>
+					{form.errors && (
+						<p className="text-content-danger text-sm m-0">
+							{form?.errors?.field || form?.errors?.regex_filter}
+						</p>
+					)}
 				</div>
 				<div className="flex flex-row items-center gap-3">
 					<Spinner size="sm" loading={form.isSubmitting} className="w-9">
@@ -233,7 +253,11 @@ export const IdpGroupSyncForm = ({
 						</Button>
 					</div>
 				</div>
-
+				{form.errors && (
+					<p className="text-content-danger text-sm m-0">
+						{Object.values(form?.errors?.mapping || {})}
+					</p>
+				)}
 				<div className="flex flex-col">
 					<IdpMappingTable type="Group" rowCount={groupMappingCount}>
 						{groupSyncSettings?.mapping &&

@@ -12,6 +12,7 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
 import { type FC, useId, useState } from "react";
+import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
@@ -25,13 +26,27 @@ interface IdpRoleSyncFormProps {
 	onSubmit: (data: RoleSyncSettings) => void;
 }
 
-const roleyncValidationSchema = Yup.object({
+const roleSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
 	regex_filter: Yup.string().trim(),
 	auto_create_missing_groups: Yup.boolean(),
-	mapping: Yup.object().shape({
-		[`${String}`]: Yup.array().of(Yup.string()),
-	}),
+	mapping: Yup.object()
+		.test(
+			"valid-mapping",
+			"Invalid role sync settings mapping structure",
+			(value) => {
+				if (!value) return true;
+				return Object.entries(value).every(
+					([key, arr]) =>
+						typeof key === "string" &&
+						Array.isArray(arr) &&
+						arr.every((item) => {
+							return typeof item === "string";
+						}),
+				);
+			},
+		)
+		.default({}),
 });
 
 export const IdpRoleSyncForm = ({
@@ -46,7 +61,7 @@ export const IdpRoleSyncForm = ({
 			field: roleSyncSettings?.field ?? "",
 			mapping: roleSyncSettings?.mapping ?? {},
 		},
-		validationSchema: roleyncValidationSchema,
+		validationSchema: roleSyncValidationSchema,
 		onSubmit,
 		enableReinitialize: Boolean(roleSyncSettings),
 	});
@@ -113,6 +128,11 @@ export const IdpRoleSyncForm = ({
 						If empty, role sync is deactivated
 					</p>
 				</div>
+				{form.errors && (
+					<p className="text-content-danger text-sm m-0">
+						{form?.errors?.field}
+					</p>
+				)}
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1">
 						<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
@@ -178,6 +198,11 @@ export const IdpRoleSyncForm = ({
 						</Button>
 					</div>
 				</div>
+				{form.errors && (
+					<p className="text-content-danger text-sm m-0">
+						{Object.values(form?.errors?.mapping || {})}
+					</p>
+				)}
 				<IdpMappingTable type="Role" rowCount={roleMappingCount}>
 					{roleSyncSettings?.mapping &&
 						Object.entries(roleSyncSettings.mapping)

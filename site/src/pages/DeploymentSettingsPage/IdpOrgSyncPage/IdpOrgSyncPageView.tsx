@@ -39,6 +39,7 @@ import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
 
@@ -52,9 +53,23 @@ interface IdpSyncPageViewProps {
 const validationSchema = Yup.object({
 	field: Yup.string().trim(),
 	organization_assign_default: Yup.boolean(),
-	mapping: Yup.object().shape({
-		[`${String}`]: Yup.array().of(Yup.string()),
-	}),
+	mapping: Yup.object()
+		.test(
+			"valid-mapping",
+			"Invalid organization sync settings mapping structure",
+			(value) => {
+				if (!value) return true;
+				return Object.entries(value).every(
+					([key, arr]) =>
+						typeof key === "string" &&
+						Array.isArray(arr) &&
+						arr.every((item) => {
+							return typeof item === "string" && isUUID(item);
+						}),
+				);
+			},
+		)
+		.default({}),
 });
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
@@ -164,7 +179,11 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</p>
 						</div>
 					</div>
-
+					{form.errors && (
+						<p className="text-content-danger text-sm m-0">
+							{form?.errors?.field}
+						</p>
+					)}
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
@@ -231,6 +250,11 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</Button>
 							</div>
 						</div>
+						{form.errors && (
+							<p className="text-content-danger text-sm m-0">
+								{Object.values(form?.errors?.mapping || {})}
+							</p>
+						)}
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{form.values.mapping &&
 								Object.entries(form.values.mapping)
