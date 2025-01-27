@@ -3,6 +3,18 @@ INSERT INTO users (id, email, username, name, created_at, updated_at, status, rb
 VALUES ('c42fdf75-3097-471c-8c33-fb52454d81c0', 'prebuilds@system', 'prebuilds', 'Prebuilds Owner', now(), now(),
 		'active', '{}', 'none', true);
 
+-- TODO: do we *want* to use the default org here? how do we handle multi-org?
+WITH default_org AS (
+	SELECT id FROM organizations WHERE is_default = true LIMIT 1
+)
+INSERT INTO organization_members (organization_id, user_id, created_at, updated_at)
+SELECT
+	default_org.id,
+	'c42fdf75-3097-471c-8c33-fb52454d81c0',
+	NOW(),
+	NOW()
+FROM default_org;
+
 CREATE VIEW workspace_prebuilds AS
 SELECT *
 FROM workspaces
