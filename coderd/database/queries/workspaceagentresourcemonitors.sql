@@ -1,4 +1,4 @@
--- name: FetchAgentResourceMonitorsByAgentID :one
+-- name: FetchAgentResourceMonitorsByAgentID :many
 SELECT
 	*
 FROM

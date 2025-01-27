@@ -1391,8 +1391,8 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
-	panic("not implemented")
+func (q *querier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
+	return q.db.FetchAgentResourceMonitorsByAgentID(ctx, agentID)
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -3219,7 +3219,7 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 }
 
 func (q *querier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
-	panic("not implemented")
+	return q.db.InsertWorkspaceAgentResourceMonitor(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

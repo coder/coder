@@ -771,10 +771,10 @@ func (mr *MockStoreMockRecorder) FavoriteWorkspace(arg0, arg1 any) *gomock.Call 
 }
 
 // FetchAgentResourceMonitorsByAgentID mocks base method.
-func (m *MockStore) FetchAgentResourceMonitorsByAgentID(arg0 context.Context, arg1 uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
+func (m *MockStore) FetchAgentResourceMonitorsByAgentID(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "FetchAgentResourceMonitorsByAgentID", arg0, arg1)
-	ret0, _ := ret[0].(database.WorkspaceAgentResourceMonitor)
+	ret0, _ := ret[0].([]database.WorkspaceAgentResourceMonitor)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

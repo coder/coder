@@ -11678,7 +11678,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 	return i, err
 }
 
-const fetchAgentResourceMonitorsByAgentID = `-- name: FetchAgentResourceMonitorsByAgentID :one
+const fetchAgentResourceMonitorsByAgentID = `-- name: FetchAgentResourceMonitorsByAgentID :many
 SELECT
 	agent_id, rtype, enabled, threshold, metadata, created_at
 FROM
@@ -11687,18 +11687,34 @@ WHERE
 	agent_id = $1
 `
 
-func (q *sqlQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentResourceMonitor, error) {
-	row := q.db.QueryRowContext(ctx, fetchAgentResourceMonitorsByAgentID, agentID)
-	var i WorkspaceAgentResourceMonitor
-	err := row.Scan(
-		&i.AgentID,
-		&i.Rtype,
-		&i.Enabled,
-		&i.Threshold,
-		&i.Metadata,
-		&i.CreatedAt,
-	)
-	return i, err
+func (q *sqlQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchAgentResourceMonitorsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Rtype,
+			&i.Enabled,
+			&i.Threshold,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
 }
 
 const insertWorkspaceAgentResourceMonitor = `-- name: InsertWorkspaceAgentResourceMonitor :one

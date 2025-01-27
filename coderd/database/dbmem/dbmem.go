@@ -227,6 +227,7 @@ type data struct {
 	workspaceAgentScriptTimings     []database.WorkspaceAgentScriptTiming
 	workspaceAgentScripts           []database.WorkspaceAgentScript
 	workspaceAgentStats             []database.WorkspaceAgentStat
+	workspaceAgentResourceMonitors  []database.WorkspaceAgentResourceMonitor
 	workspaceApps                   []database.WorkspaceApp
 	workspaceAppStatsLastInsertID   int64
 	workspaceAppStats               []database.WorkspaceAppStat
@@ -2355,8 +2356,18 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
-	panic("not implemented")
+func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	monitors := make([]database.WorkspaceAgentResourceMonitor, 0)
+	for _, monitor := range q.workspaceAgentResourceMonitors {
+		if monitor.AgentID == agentID {
+			monitors = append(monitors, monitor)
+		}
+	}
+
+	return monitors, nil
 }
 
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -8535,7 +8546,14 @@ func (q *FakeQuerier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, a
 		return database.WorkspaceAgentResourceMonitor{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	monitor := database.WorkspaceAgentResourceMonitor(arg)
+
+	q.workspaceAgentResourceMonitors = append(q.workspaceAgentResourceMonitors, monitor)
+
+	return monitor, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

@@ -434,7 +434,7 @@ func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
+func (m queryMetricsStore) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
 	start := time.Now()
 	r0, r1 := m.s.FetchAgentResourceMonitorsByAgentID(ctx, agentID)
 	m.queryLatencies.WithLabelValues("FetchAgentResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())

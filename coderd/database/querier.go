@@ -112,7 +112,7 @@ type sqlcQuerier interface {
 	DisableForeignKeysAndTriggers(ctx context.Context) error
 	EnqueueNotificationMessage(ctx context.Context, arg EnqueueNotificationMessageParams) error
 	FavoriteWorkspace(ctx context.Context, id uuid.UUID) error
-	FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentResourceMonitor, error)
+	FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentResourceMonitor, error)
 	// This is used to build up the notification_message's JSON payload.
 	FetchNewMessageMetadata(ctx context.Context, arg FetchNewMessageMetadataParams) (FetchNewMessageMetadataRow, error)
 	GetAPIKeyByID(ctx context.Context, id string) (APIKey, error)
