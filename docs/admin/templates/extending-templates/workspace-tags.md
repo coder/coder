@@ -62,11 +62,6 @@ variables and parameters. This is illustrated in the table below:
 
 ## Constraints
 
-### Default Values
-
-All template variables and `coder_parameter` data sources **must** provide a
-default value. Failure to do so will result in an error.
-
 ### Tagged provisioners
 
 It is possible to choose tag combinations that no provisioner can handle. This
@@ -127,6 +122,6 @@ variables, and references to other resources.
 
 #### Not supported
 
-- Function calls: `try(var.foo, "default")`
+- Function calls that reference files on disk: `abspath`, `file*`, `pathexpand`
 - Resources: `compute_instance.dev.name`
 - Data sources other than `coder_parameter`: `data.local_file.hostname.content`
