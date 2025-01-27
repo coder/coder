@@ -127,9 +127,9 @@ export const IdpRoleSyncForm = ({
 						If empty, role sync is deactivated
 					</p>
 				</div>
-				{form.errors && (
+				{form.errors.field && (
 					<p className="text-content-danger text-sm m-0">
-						{form?.errors?.field}
+						{form.errors.field}
 					</p>
 				)}
 				<div className="flex flex-row gap-2 justify-between items-start">
@@ -197,9 +197,9 @@ export const IdpRoleSyncForm = ({
 						</Button>
 					</div>
 				</div>
-				{form.errors && (
+				{form.errors.mapping && (
 					<p className="text-content-danger text-sm m-0">
-						{Object.values(form?.errors?.mapping || {})}
+						{Object.values(form.errors.mapping || {})}
 					</p>
 				)}
 				<IdpMappingTable type="Role" rowCount={roleMappingCount}>

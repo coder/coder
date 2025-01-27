@@ -164,9 +164,9 @@ export const IdpGroupSyncForm = ({
 							</p>
 						</div>
 					</div>
-					{form.errors && (
+					{form.errors.field || form.errors.regex_filter && (
 						<p className="text-content-danger text-sm m-0">
-							{form?.errors?.field || form?.errors?.regex_filter}
+							{form.errors.field || form.errors.regex_filter}
 						</p>
 					)}
 				</div>
@@ -253,9 +253,9 @@ export const IdpGroupSyncForm = ({
 						</Button>
 					</div>
 				</div>
-				{form.errors && (
+				{form.errors.mapping && (
 					<p className="text-content-danger text-sm m-0">
-						{Object.values(form?.errors?.mapping || {})}
+						{Object.values(form.errors.mapping || {})}
 					</p>
 				)}
 				<div className="flex flex-col">
