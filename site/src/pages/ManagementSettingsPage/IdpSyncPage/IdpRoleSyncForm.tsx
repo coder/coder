@@ -12,7 +12,6 @@ import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import { Plus, Trash } from "lucide-react";
 import { type FC, useId, useState } from "react";
-import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
@@ -105,7 +104,7 @@ export const IdpRoleSyncForm = ({
 							<Input
 								id={`${id}-sync-field`}
 								value={form.values.field}
-								onChange={async (event) => {
+								onChange={(event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
 								className="w-72"

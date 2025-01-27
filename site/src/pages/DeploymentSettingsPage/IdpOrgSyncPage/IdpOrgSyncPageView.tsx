@@ -133,7 +133,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									<Input
 										id={`${id}-sync-field`}
 										value={form.values.field}
-										onChange={async (event) => {
+										onChange={(event) => {
 											void form.setFieldValue("field", event.target.value);
 										}}
 									/>
@@ -154,7 +154,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									<Switch
 										id={`${id}-assign-default-org`}
 										checked={form.values.organization_assign_default}
-										onCheckedChange={async (checked) => {
+										onCheckedChange={(checked) => {
 											if (!checked) {
 												setIsDialogOpen(true);
 											} else {

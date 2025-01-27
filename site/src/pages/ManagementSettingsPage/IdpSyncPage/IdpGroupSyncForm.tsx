@@ -133,7 +133,7 @@ export const IdpGroupSyncForm = ({
 							<Input
 								id={`${id}-sync-field`}
 								value={form.values.field}
-								onChange={async (event) => {
+								onChange={(event) => {
 									void form.setFieldValue("field", event.target.value);
 								}}
 								className="w-72"
@@ -142,7 +142,7 @@ export const IdpGroupSyncForm = ({
 								<Input
 									id={`${id}-regex-filter`}
 									value={form.values.regex_filter ?? ""}
-									onChange={async (event) => {
+									onChange={(event) => {
 										void form.setFieldValue("regex_filter", event.target.value);
 									}}
 									className="min-w-40"
@@ -175,7 +175,7 @@ export const IdpGroupSyncForm = ({
 						<Switch
 							id={`${id}-auto-create-missing-groups`}
 							checked={form.values.auto_create_missing_groups}
-							onCheckedChange={async (checked) => {
+							onCheckedChange={(checked) => {
 								void form.setFieldValue("auto_create_missing_groups", checked);
 								form.handleSubmit();
 							}}
