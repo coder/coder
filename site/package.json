@@ -96,7 +96,7 @@
 		"react": "18.3.1",
 		"react-chartjs-2": "5.2.0",
 		"react-color": "2.19.3",
-		"react-confetti": "6.1.0",
+		"react-confetti": "6.2.2",
 		"react-date-range": "1.4.0",
 		"react-dom": "18.3.1",
 		"react-helmet-async": "2.0.5",
