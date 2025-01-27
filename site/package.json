@@ -176,7 +176,7 @@
 		"protobufjs": "7.4.0",
 		"rxjs": "7.8.1",
 		"ssh2": "1.16.0",
-		"storybook": "8.4.6",
+		"storybook": "8.5.2",
 		"storybook-addon-remix-react-router": "3.1.0",
 		"storybook-react-context": "0.7.0",
 		"tailwindcss": "3.4.13",
