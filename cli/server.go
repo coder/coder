@@ -944,7 +944,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			// TODO: implement experiment and configs
-			prebuildsCtrl := prebuilds.NewController(logger.Named("prebuilds.controller"), options.Database)
+			prebuildsCtrl := prebuilds.NewController(options.Database, options.Pubsub, logger.Named("prebuilds.controller"))
 			go prebuildsCtrl.Loop(ctx)
 			defer prebuildsCtrl.Stop()
 
