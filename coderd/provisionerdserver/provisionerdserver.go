@@ -1929,13 +1929,16 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 
 		if prAgent.ResourcesMonitoring != nil {
 			if prAgent.ResourcesMonitoring.Memory != nil {
-				db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
+				_, err = db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
 					AgentID:   agentID,
 					Rtype:     database.WorkspaceAgentMonitoredResourceTypeMemory,
 					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
 					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
 					CreatedAt: dbtime.Now(),
 				})
+				if err != nil {
+					return xerrors.Errorf("insert agent resource monitor: %w", err)
+				}
 			}
 
 			for volume, monitor := range prAgent.ResourcesMonitoring.Volumes {
@@ -1946,7 +1949,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					return xerrors.Errorf("marshal metadata: %w", err)
 				}
 
-				db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
+				_, err = db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
 					AgentID:   agentID,
 					Rtype:     database.WorkspaceAgentMonitoredResourceTypeVolume,
 					Enabled:   monitor.Enabled,
@@ -1954,6 +1957,9 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					Metadata:  marshaledMetadata,
 					CreatedAt: dbtime.Now(),
 				})
+				if err != nil {
+					return xerrors.Errorf("insert agent resource monitor: %w", err)
+				}
 			}
 		}
 
