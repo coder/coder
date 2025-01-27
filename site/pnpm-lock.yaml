@@ -199,8 +199,8 @@ importers:
         specifier: 2.19.3
         version: 2.19.3(react@18.3.1)
       react-confetti:
-        specifier: 6.1.0
-        version: 6.1.0(react@18.3.1)
+        specifier: 6.2.2
+        version: 6.2.2(react@18.3.1)
       react-date-range:
         specifier: 1.4.0
         version: 1.4.0(date-fns@2.30.0)(react@18.3.1)
@@ -5478,11 +5478,11 @@ packages:
     peerDependencies:
       react: '*'
 
-  react-confetti@6.1.0:
-    resolution: {integrity: sha512-7Ypx4vz0+g8ECVxr88W9zhcQpbeujJAVqL14ZnXJ3I23mOI9/oBVTQ3dkJhUmB0D6XOtCZEM6N0Gm9PMngkORw==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.1.0.tgz}
-    engines: {node: '>=10.18'}
+  react-confetti@6.2.2:
+    resolution: {integrity: sha512-K+kTyOPgX+ZujMZ+Rmb7pZdHBvg+DzinG/w4Eh52WOB8/pfO38efnnrtEZNJmjTvLxc16RBYO+tPM68Fg8viBA==, tarball: https://registry.npmjs.org/react-confetti/-/react-confetti-6.2.2.tgz}
+    engines: {node: '>=16'}
     peerDependencies:
-      react: ^16.3.0 || ^17.0.1 || ^18.0.0
+      react: ^16.3.0 || ^17.0.1 || ^18.0.0 || ^19.0.0
 
   react-date-range@1.4.0:
     resolution: {integrity: sha512-+9t0HyClbCqw1IhYbpWecjsiaftCeRN5cdhsi9v06YdimwyMR2yYHWcgVn3URwtN/txhqKpEZB6UX1fHpvK76w==, tarball: https://registry.npmjs.org/react-date-range/-/react-date-range-1.4.0.tgz}
@@ -6917,7 +6917,7 @@ snapshots:
       chromatic: 11.16.3
       filesize: 10.1.2
       jsonfile: 6.1.0
-      react-confetti: 6.1.0(react@18.3.1)
+      react-confetti: 6.2.2(react@18.3.1)
       storybook: 8.4.6(prettier@3.4.1)
       strip-ansi: 7.1.0
     transitivePeerDependencies:
@@ -12277,7 +12277,7 @@ snapshots:
       reactcss: 1.2.3(react@18.3.1)
       tinycolor2: 1.6.0
 
-  react-confetti@6.1.0(react@18.3.1):
+  react-confetti@6.2.2(react@18.3.1):
     dependencies:
       react: 18.3.1
       tween-functions: 1.2.0
