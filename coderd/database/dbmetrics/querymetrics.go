@@ -434,10 +434,10 @@ func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (database.AgentResourcesMonitoring, error) {
+func (m queryMetricsStore) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
 	start := time.Now()
-	r0, r1 := m.s.FetchAgentResourcesMonitoringByAgentID(ctx, agentID)
-	m.queryLatencies.WithLabelValues("FetchAgentResourcesMonitoringByAgentID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.FetchAgentResourceMonitorsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("FetchAgentResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -446,13 +446,6 @@ func (m queryMetricsStore) FetchNewMessageMetadata(ctx context.Context, arg data
 	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("FetchNewMessageMetadata").Observe(time.Since(start).Seconds())
 	return r0, r1
-}
-
-func (m queryMetricsStore) FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error {
-	start := time.Now()
-	r0 := m.s.FlushAgentResourcesMonitoringForAgentID(ctx, agentID)
-	m.queryLatencies.WithLabelValues("FlushAgentResourcesMonitoringForAgentID").Observe(time.Since(start).Seconds())
-	return r0
 }
 
 func (m queryMetricsStore) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -1750,13 +1743,6 @@ func (m queryMetricsStore) InsertAPIKey(ctx context.Context, arg database.Insert
 	return key, err
 }
 
-func (m queryMetricsStore) InsertAgentResourcesMonitoring(ctx context.Context, arg database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertAgentResourcesMonitoring(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertAgentResourcesMonitoring").Observe(time.Since(start).Seconds())
-	return r0, r1
-}
-
 func (m queryMetricsStore) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	start := time.Now()
 	group, err := m.s.InsertAllUsersGroup(ctx, organizationID)
@@ -2028,6 +2014,13 @@ func (m queryMetricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceAgentResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

@@ -1927,6 +1927,36 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		if prAgent.ResourcesMonitoring != nil {
+			if prAgent.ResourcesMonitoring.Memory != nil {
+				db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
+					AgentID:   agentID,
+					Rtype:     database.WorkspaceAgentMonitoredResourceTypeMemory,
+					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
+					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
+					CreatedAt: dbtime.Now(),
+				})
+			}
+
+			for volume, monitor := range prAgent.ResourcesMonitoring.Volumes {
+				marshaledMetadata, err := json.Marshal(map[string]string{
+					volume: volume,
+				})
+				if err != nil {
+					return xerrors.Errorf("marshal metadata: %w", err)
+				}
+
+				db.InsertWorkspaceAgentResourceMonitor(ctx, database.InsertWorkspaceAgentResourceMonitorParams{
+					AgentID:   agentID,
+					Rtype:     database.WorkspaceAgentMonitoredResourceTypeVolume,
+					Enabled:   monitor.Enabled,
+					Threshold: monitor.Threshold,
+					Metadata:  marshaledMetadata,
+					CreatedAt: dbtime.Now(),
+				})
+			}
+		}
+
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))

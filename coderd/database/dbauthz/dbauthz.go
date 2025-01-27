@@ -1391,8 +1391,8 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (database.AgentResourcesMonitoring, error) {
-	return q.db.FetchAgentResourcesMonitoringByAgentID(ctx, agentID)
+func (q *querier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -1400,10 +1400,6 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
-}
-
-func (q *querier) FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error {
-	return q.db.FlushAgentResourcesMonitoringForAgentID(ctx, agentID)
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2902,10 +2898,6 @@ func (q *querier) InsertAPIKey(ctx context.Context, arg database.InsertAPIKeyPar
 		q.db.InsertAPIKey)(ctx, arg)
 }
 
-func (q *querier) InsertAgentResourcesMonitoring(ctx context.Context, arg database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
-	return q.db.InsertAgentResourcesMonitoring(ctx, arg)
-}
-
 func (q *querier) InsertAllUsersGroup(ctx context.Context, organizationID uuid.UUID) (database.Group, error) {
 	// This method creates a new group.
 	return insert(q.log, q.auth, rbac.ResourceGroup.InOrg(organizationID), q.db.InsertAllUsersGroup)(ctx, organizationID)
@@ -3224,6 +3216,10 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	}
 
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

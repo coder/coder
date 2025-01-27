@@ -2355,7 +2355,7 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchAgentResourcesMonitoringByAgentID(ctx context.Context, agentID uuid.UUID) (database.AgentResourcesMonitoring, error) {
+func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentResourceMonitor, error) {
 	panic("not implemented")
 }
 
@@ -2389,10 +2389,6 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
-}
-
-func (q *FakeQuerier) FlushAgentResourcesMonitoringForAgentID(ctx context.Context, agentID uuid.UUID) error {
-	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -7517,15 +7513,6 @@ func (q *FakeQuerier) InsertAPIKey(_ context.Context, arg database.InsertAPIKeyP
 	return key, nil
 }
 
-func (q *FakeQuerier) InsertAgentResourcesMonitoring(ctx context.Context, arg database.InsertAgentResourcesMonitoringParams) (database.AgentResourcesMonitoring, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.AgentResourcesMonitoring{}, err
-	}
-
-	panic("not implemented")
-}
-
 func (q *FakeQuerier) InsertAllUsersGroup(ctx context.Context, orgID uuid.UUID) (database.Group, error) {
 	return q.InsertGroup(ctx, database.InsertGroupParams{
 		ID:             orgID,
@@ -8540,6 +8527,15 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentResourceMonitor{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {
