@@ -430,11 +430,9 @@ export const MultiSelectCombobox = forwardRef<
 			return undefined;
 		};
 
-		useEffect(() => {
-			if (inputRef.current && inputProps?.id) {
-				inputRef.current.id = inputProps?.id;
-			}
-		}, [inputProps?.id]);
+		if (inputRef.current && inputProps?.id) {
+			inputRef.current.id = inputProps?.id;
+		}
 
 		const fixedOptions = selected.filter((s) => s.fixed);
 
