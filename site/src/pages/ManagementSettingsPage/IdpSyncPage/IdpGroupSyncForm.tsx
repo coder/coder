@@ -164,11 +164,12 @@ export const IdpGroupSyncForm = ({
 							</p>
 						</div>
 					</div>
-					{form.errors.field || form.errors.regex_filter && (
-						<p className="text-content-danger text-sm m-0">
-							{form.errors.field || form.errors.regex_filter}
-						</p>
-					)}
+					{form.errors.field ||
+						(form.errors.regex_filter && (
+							<p className="text-content-danger text-sm m-0">
+								{form.errors.field || form.errors.regex_filter}
+							</p>
+						))}
 				</div>
 				<div className="flex flex-row items-center gap-3">
 					<Spinner size="sm" loading={form.isSubmitting} className="w-9">

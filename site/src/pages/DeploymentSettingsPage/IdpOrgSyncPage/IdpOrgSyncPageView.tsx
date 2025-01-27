@@ -179,9 +179,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</p>
 						</div>
 					</div>
-					{form.errors && (
+					{form.errors.field && (
 						<p className="text-content-danger text-sm m-0">
-							{form?.errors?.field}
+							{form.errors.field}
 						</p>
 					)}
 					<div className="flex flex-col gap-4">
@@ -250,9 +250,9 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</Button>
 							</div>
 						</div>
-						{form.errors && (
+						{form.errors.mapping && (
 							<p className="text-content-danger text-sm m-0">
-								{Object.values(form?.errors?.mapping || {})}
+								{Object.values(form.errors.mapping || {})}
 							</p>
 						)}
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>

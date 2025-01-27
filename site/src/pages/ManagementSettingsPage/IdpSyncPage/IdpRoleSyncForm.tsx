@@ -128,9 +128,7 @@ export const IdpRoleSyncForm = ({
 					</p>
 				</div>
 				{form.errors.field && (
-					<p className="text-content-danger text-sm m-0">
-						{form.errors.field}
-					</p>
+					<p className="text-content-danger text-sm m-0">{form.errors.field}</p>
 				)}
 				<div className="flex flex-row gap-2 justify-between items-start">
 					<div className="grid items-center gap-1">
