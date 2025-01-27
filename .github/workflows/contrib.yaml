@@ -29,6 +29,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
+      contents: write
     steps:
       - name: Dependabot metadata
         id: metadata
