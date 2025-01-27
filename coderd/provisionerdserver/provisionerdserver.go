@@ -1934,6 +1934,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					Rtype:     database.WorkspaceAgentMonitoredResourceTypeMemory,
 					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
 					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
+					Metadata:  []byte("{}"),
 					CreatedAt: dbtime.Now(),
 				})
 				if err != nil {

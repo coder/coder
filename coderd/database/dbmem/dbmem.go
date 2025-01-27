@@ -2356,7 +2356,7 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
+func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
@@ -8540,7 +8540,7 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 	return nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
+func (q *FakeQuerier) InsertWorkspaceAgentResourceMonitor(_ context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceAgentResourceMonitor{}, err
