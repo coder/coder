@@ -1164,6 +1164,11 @@
 							"path": "reference/cli/provisioner_jobs.md"
 						},
 						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
+						},
+						{
 							"title": "provisioner jobs list",
 							"description": "List provisioner jobs",
 							"path": "reference/cli/provisioner_jobs_list.md"

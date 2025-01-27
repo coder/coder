@@ -29,6 +29,42 @@ import (
 	"github.com/coder/websocket"
 )
 
+// @Summary Get provisioner job
+// @ID get-provisioner-job
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param job path string true "Job ID" format(uuid)
+// @Success 200 {object} codersdk.ProvisionerJob
+// @Router /organizations/{organization}/provisionerjobs/{job} [get]
+func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	jobID, ok := httpmw.ParseUUIDParam(rw, r, "job")
+	if !ok {
+		return
+	}
+
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, []uuid.UUID{jobID})
+	if !ok {
+		return
+	}
+	if len(jobs) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if len(jobs) > 1 || jobs[0].ProvisionerJob.ID != jobID {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  "Database returned an unexpected job.",
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobWithQueuePosition(jobs[0]))
+}
+
 // @Summary Get provisioner jobs
 // @ID get-provisioner-jobs
 // @Security CoderSessionToken
@@ -41,12 +77,26 @@ import (
 // @Router /organizations/{organization}/provisionerjobs [get]
 func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
+
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, nil)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
+}
+
+// handleAuthAndFetchProvisionerJobs is an internal method shared by
+// provisionerJob and provisionerJobs. If ok is false the caller should
+// return immediately because the response has already been written.
+func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
+	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
 
 	// For now, only owners and template admins can access provisioner jobs.
 	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
 		httpapi.ResourceNotFound(rw)
-		return
+		return nil, false
 	}
 
 	qp := r.URL.Query()
@@ -59,36 +109,29 @@ func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
 			Message:     "Invalid query parameters.",
 			Validations: p.Errors,
 		})
-		return
+		return nil, false
 	}
 
 	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
 		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
 		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
 		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
+		IDs:            ids,
 	})
 	if err != nil {
 		if httpapi.Is404Error(err) {
 			httpapi.ResourceNotFound(rw)
-			return
+			return nil, false
 		}
 
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching provisioner jobs.",
 			Detail:  err.Error(),
 		})
-		return
+		return nil, false
 	}
 
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, func(dbJob database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
-		job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
-			ProvisionerJob: dbJob.ProvisionerJob,
-			QueuePosition:  dbJob.QueuePosition,
-			QueueSize:      dbJob.QueueSize,
-		})
-		job.AvailableWorkers = dbJob.AvailableWorkers
-		return job
-	}))
+	return jobs, true
 }
 
 // Returns provisioner logs based on query parameters.
@@ -335,6 +378,16 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 		}
 	}
 
+	return job
+}
+
+func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
+	job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+		ProvisionerJob: pj.ProvisionerJob,
+		QueuePosition:  pj.QueuePosition,
+		QueueSize:      pj.QueueSize,
+	})
+	job.AvailableWorkers = pj.AvailableWorkers
 	return job
 }
 

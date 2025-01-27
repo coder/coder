@@ -2718,6 +2718,45 @@
 				}
 			}
 		},
+		"/organizations/{organization}/provisionerjobs/{job}": {
+			"get": {
+				"security": [
+					{
+						"CoderSessionToken": []
+					}
+				],
+				"produces": ["application/json"],
+				"tags": ["Organizations"],
+				"summary": "Get provisioner job",
+				"operationId": "get-provisioner-job",
+				"parameters": [
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Organization ID",
+						"name": "organization",
+						"in": "path",
+						"required": true
+					},
+					{
+						"type": "string",
+						"format": "uuid",
+						"description": "Job ID",
+						"name": "job",
+						"in": "path",
+						"required": true
+					}
+				],
+				"responses": {
+					"200": {
+						"description": "OK",
+						"schema": {
+							"$ref": "#/definitions/codersdk.ProvisionerJob"
+						}
+					}
+				}
+			}
+		},
 		"/organizations/{organization}/provisionerkeys": {
 			"get": {
 				"security": [
