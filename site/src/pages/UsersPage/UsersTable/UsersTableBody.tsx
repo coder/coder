@@ -30,7 +30,7 @@ import {
 import dayjs from "dayjs";
 import relativeTime from "dayjs/plugin/relativeTime";
 import type { FC } from "react";
-import { UserRoleCell } from "../../ManagementSettingsPage/UserTable/UserRoleCell";
+import { UserRoleCell } from "../../OrganizationSettingsPage/UserTable/UserRoleCell";
 import { UserGroupsCell } from "./UserGroupsCell";
 
 dayjs.extend(relativeTime);

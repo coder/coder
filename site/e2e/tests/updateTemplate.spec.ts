@@ -31,7 +31,7 @@ test("add and remove a group", async ({ page }) => {
 
 	const orgName = defaultOrganizationName;
 	const templateName = await createTemplate(page);
-	const groupName = await createGroup(page);
+	const groupName = await createGroup(page, orgName);
 
 	await page.goto(
 		`/templates/${orgName}/${templateName}/settings/permissions`,

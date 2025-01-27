@@ -3,7 +3,7 @@ import type { CSSObject, Interpolation, Theme } from "@emotion/react";
 import { Stack } from "components/Stack/Stack";
 import { type ClassName, useClassName } from "hooks/useClassName";
 import type { ElementType, FC, ReactNode } from "react";
-import { Link, NavLink, useMatch } from "react-router-dom";
+import { Link, NavLink } from "react-router-dom";
 import { cn } from "utils/cn";
 
 interface SidebarProps {
@@ -61,21 +61,16 @@ export const SettingsSidebarNavItem: FC<SettingsSidebarNavItemProps> = ({
 	href,
 	end,
 }) => {
-	// 2025-01-10: useMatch is a workaround for a bug we encountered when you
-	// pass a render function to NavLink's className prop, and try to access
-	// NavLinks's isActive state value for the conditional styling. isActive
-	// wasn't always evaluating to true when it should be, but useMatch worked
-	const matchResult = useMatch(href);
 	return (
 		<NavLink
 			end={end}
 			to={href}
-			className={cn(
-				"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
-				{
-					"font-semibold text-content-primary": matchResult !== null,
-				},
-			)}
+			className={({ isActive }) =>
+				cn(
+					"relative text-sm text-content-secondary no-underline font-medium py-2 px-3 hover:bg-surface-secondary rounded-md transition ease-in-out duration-150",
+					isActive && "font-semibold text-content-primary",
+				)
+			}
 		>
 			{children}
 		</NavLink>
