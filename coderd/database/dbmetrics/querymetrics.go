@@ -1253,7 +1253,7 @@ func (m queryMetricsStore) GetTemplateParameterInsights(ctx context.Context, arg
 	return r0, r1
 }
 
-func (m queryMetricsStore) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+func (m queryMetricsStore) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) (database.GetTemplatePrebuildStateRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplatePrebuildState(ctx, templateID)
 	m.queryLatencies.WithLabelValues("GetTemplatePrebuildState").Observe(time.Since(start).Seconds())

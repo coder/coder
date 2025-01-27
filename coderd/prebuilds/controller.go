@@ -1,8 +1,16 @@
 package prebuilds
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/audit"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
+	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"math"
 	"time"
 
@@ -17,15 +25,17 @@ import (
 
 type Controller struct {
 	store  database.Store
+	pubsub pubsub.Pubsub
 	logger slog.Logger
 
 	nudgeCh chan *uuid.UUID
 	closeCh chan struct{}
 }
 
-func NewController(logger slog.Logger, store database.Store) *Controller {
+func NewController(store database.Store, pubsub pubsub.Pubsub, logger slog.Logger) *Controller {
 	return &Controller{
 		store:   store,
+		pubsub:  pubsub,
 		logger:  logger,
 		nudgeCh: make(chan *uuid.UUID, 1),
 		closeCh: make(chan struct{}, 1),
@@ -33,31 +43,44 @@ func NewController(logger slog.Logger, store database.Store) *Controller {
 }
 
 func (c Controller) Loop(ctx context.Context) {
-	ticker := time.NewTicker(time.Second * 15) // TODO: configurable? 1m probably lowest valid value
+	ticker := time.NewTicker(time.Second * 5) // TODO: configurable? 1m probably lowest valid value
 	defer ticker.Stop()
 
 	// TODO: create new authz role
 	ctx = dbauthz.AsSystemRestricted(ctx)
 
+	// TODO: bounded concurrency?
+	var eg errgroup.Group
 	for {
 		select {
 		// Accept nudges from outside the control loop to trigger a new iteration.
 		case template := <-c.nudgeCh:
-			c.reconcile(ctx, template)
+			eg.Go(func() error {
+				c.reconcile(ctx, template)
+				return nil
+			})
 		// Trigger a new iteration on each tick.
 		case <-ticker.C:
-			c.reconcile(ctx, nil)
+			eg.Go(func() error {
+				c.reconcile(ctx, nil)
+				return nil
+			})
 		case <-c.closeCh:
 			c.logger.Info(ctx, "control loop stopped")
-			return
+			goto wait
 		case <-ctx.Done():
 			c.logger.Error(context.Background(), "control loop exited: %w", ctx.Err())
-			return
+			goto wait
 		}
 	}
+
+	// TODO: no gotos
+wait:
+	_ = eg.Wait()
 }
 
 func (c Controller) ReconcileTemplate(templateID uuid.UUID) {
+	// TODO: replace this with pubsub listening
 	c.nudgeCh <- &templateID
 }
 
@@ -96,12 +119,12 @@ func (c Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 			IDs: ids,
 		})
 		if err != nil {
-			c.logger.Debug(innerCtx, "could not fetch template(s)", slog.F("template_id", templateID), slog.F("all", templateID == nil))
+			c.logger.Debug(innerCtx, "could not fetch template(s)")
 			return xerrors.Errorf("fetch template(s): %w", err)
 		}
 
 		if len(templates) == 0 {
-			c.logger.Debug(innerCtx, "no templates found", slog.F("template_id", templateID), slog.F("all", templateID == nil))
+			c.logger.Debug(innerCtx, "no templates found")
 			return nil
 		}
 
@@ -126,6 +149,65 @@ func (c Controller) reconcile(ctx context.Context, templateID *uuid.UUID) {
 	}
 }
 
+type reconciliationActions struct {
+	deleteIDs []uuid.UUID
+	createIDs []uuid.UUID
+
+	meta database.GetTemplatePrebuildStateRow
+}
+
+// calculeActions MUST be called within the context of a transaction (TODO: isolation)
+// with an advisory lock to prevent TOCTOU races.
+func (c Controller) calculeActions(ctx context.Context, db database.Store, template database.Template) (*reconciliationActions, error) {
+	// TODO: change to "many" and return 1 or more rows, but only one should be returned
+	// 		 more than 1 response is indicative of a query problem
+	state, err := db.GetTemplatePrebuildState(ctx, template.ID)
+	if err != nil {
+		return nil, xerrors.Errorf("failed to retrieve template's prebuild state: %w", err)
+	}
+
+	toCreate := int(math.Max(0, float64(state.Desired-(state.Actual+state.Starting))))
+	toDelete := int(math.Max(0, float64(state.Extraneous-state.Deleting-state.Stopping)))
+
+	actions := &reconciliationActions{meta: state}
+
+	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
+	// scale those prebuilds down to zero.
+	if state.TemplateDeleted || state.TemplateDeprecated {
+		toCreate = 0
+		toDelete = int(state.Actual + state.Extraneous)
+	}
+
+	for i := 0; i < toCreate; i++ {
+		actions.createIDs = append(actions.createIDs, uuid.New())
+	}
+
+	runningIDs := bytes.Split(state.RunningPrebuildIds, []byte{','})
+	if toDelete > 0 && len(runningIDs) != toDelete {
+		c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
+			slog.F("template_id", template.ID), slog.F("running", len(runningIDs)), slog.F("to_destroy", toDelete))
+	}
+
+	for i := 0; i < toDelete; i++ {
+		if i >= len(runningIDs) {
+			// Above warning will have already addressed this.
+			continue
+		}
+
+		running := runningIDs[i]
+		id, err := uuid.ParseBytes(running)
+		if err != nil {
+			c.logger.Warn(ctx, "invalid prebuild ID", slog.F("template_id", template.ID),
+				slog.F("id", string(running)), slog.Error(err))
+			continue
+		}
+
+		actions.deleteIDs = append(actions.deleteIDs, id)
+	}
+
+	return actions, nil
+}
+
 func (c Controller) reconcileTemplate(ctx context.Context, template database.Template) error {
 	logger := c.logger.With(slog.F("template_id", template.ID.String()))
 
@@ -140,40 +222,108 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 		innerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
-		results, err := db.GetTemplatePrebuildState(innerCtx, template.ID)
-		if err != nil {
-			return xerrors.Errorf("failed to retrieve template's prebuild state: %w", err)
-		}
+		actions, err := c.calculeActions(innerCtx, db, template)
 
-		for _, result := range results {
-			desired, actual, extraneous, starting, deleting := result.Desired, result.Actual, result.Extraneous, result.Starting, result.Deleting
+		logger.Info(innerCtx, "template prebuild state retrieved",
+			slog.F("to_create", len(actions.createIDs)), slog.F("to_destroy", len(actions.deleteIDs)),
+			slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual), slog.F("extraneous", actions.meta.Extraneous),
+			slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
 
-			// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
-			// scale those prebuilds down to zero.
-			if result.TemplateDeleted || result.TemplateDeprecated {
-				desired = 0
+		for _, id := range actions.createIDs {
+			// Provision workspaces within the same tx so we don't get any timing issues here.
+			// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
+
+			// TODO: loop
+			// TODO: max per reconciliation iteration?
+
+			// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
+			var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+				ID:     "owner",
+				Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Groups: []string{},
+				Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+			})
+
+			if err := c.provision(ownerCtx, template, id, db); err != nil {
+				logger.Error(ctx, "failed to provision prebuild", slog.Error(err))
 			}
-
-			toCreate := math.Max(0, float64(desired-(actual+starting)))
-			toDestroy := math.Max(0, float64(extraneous-deleting))
-
-			c.logger.Info(innerCtx, "template prebuild state retrieved",
-				slog.F("template_id", template.ID), slog.F("to_create", toCreate), slog.F("to_destroy", toDestroy),
-				slog.F("desired", desired), slog.F("actual", actual),
-				slog.F("extraneous", extraneous), slog.F("starting", starting), slog.F("deleting", deleting))
+		}
+		for _, id := range actions.deleteIDs {
+			// TODO: actually delete
+			logger.Info(ctx, "would've deleted prebuild", slog.F("workspace_id", id))
 		}
 
 		return nil
 	}, &database.TxOptions{
 		// TODO: isolation
-		ReadOnly:     true,
-		TxIdentifier: "template_prebuilds",
+		TxIdentifier: "tempdlate_prebuilds",
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to acquire database transaction", slog.Error(err))
 	}
 
 	// trigger n InsertProvisionerJob calls to scale up or down instances
+	return nil
+}
+
+func (c Controller) provision(ctx context.Context, template database.Template, prebuildID uuid.UUID, db database.Store) error {
+	var (
+		provisionerJob *database.ProvisionerJob
+	)
+
+	name := fmt.Sprintf("prebuild-%s", prebuildID)
+
+	now := dbtime.Now()
+	// Workspaces are created without any versions.
+	minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+		ID:               prebuildID,
+		CreatedAt:        now,
+		UpdatedAt:        now,
+		OwnerID:          PrebuildOwnerUUID,
+		OrganizationID:   template.OrganizationID,
+		TemplateID:       template.ID,
+		Name:             name,
+		LastUsedAt:       dbtime.Now(),
+		AutomaticUpdates: database.AutomaticUpdatesNever,
+	})
+	if err != nil {
+		return xerrors.Errorf("insert workspace: %w", err)
+	}
+
+	// We have to refetch the workspace for the joined in fields.
+	workspace, err := db.GetWorkspaceByID(ctx, minimumWorkspace.ID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by ID: %w", err)
+	}
+
+	builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+		Reason(database.BuildReasonInitiator).
+		Initiator(PrebuildOwnerUUID).
+		ActiveVersion().
+		VersionID(template.ActiveVersionID)
+	// RichParameterValues(req.RichParameterValues) // TODO: fetch preset's params
+
+	_, provisionerJob, _, err = builder.Build(
+		ctx,
+		db,
+		func(action policy.Action, object rbac.Objecter) bool {
+			return true // TODO: harden?
+		},
+		audit.WorkspaceBuildBaggage{},
+	)
+	if err != nil {
+		return xerrors.Errorf("provision workspace: %w", err)
+	}
+
+	err = provisionerjobs.PostJob(c.pubsub, *provisionerJob)
+	if err != nil {
+		// Client probably doesn't care about this error, so just log it.
+		c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
+	}
+
+	c.logger.Info(ctx, "provisioned new prebuild", slog.F("prebuild_id", prebuildID.String()),
+		slog.F("job_id", provisionerJob.ID))
+
 	return nil
 }
 

@@ -5395,13 +5395,14 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
-const getTemplatePrebuildState = `-- name: GetTemplatePrebuildState :many
+const getTemplatePrebuildState = `-- name: GetTemplatePrebuildState :one
 WITH
 	-- All prebuilds currently running
-	running_prebuilds AS (SELECT p.id, p.created_at, p.updated_at, p.owner_id, p.organization_id, p.template_id, p.deleted, p.name, p.autostart_schedule, p.ttl, p.last_used_at, p.dormant_at, p.deleting_at, p.automatic_updates, p.favorite, p.next_start_at, b.template_version_id
+	running_prebuilds AS (SELECT p.template_id, b.template_version_id, COUNT(*) AS count, STRING_AGG(p.id::text, ',') AS ids
 						  FROM workspace_prebuilds p
 								   INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
-						  WHERE b.transition = 'start'::workspace_transition),
+						  WHERE b.transition = 'start'::workspace_transition
+						  GROUP BY p.template_id, b.template_version_id),
 	-- All templates which have been configured for prebuilds (any version)
 	templates_with_prebuilds AS (SELECT t.id                        AS template_id,
 										tv.id                       AS template_version_id,
@@ -5415,72 +5416,65 @@ WITH
 										  INNER JOIN template_version_preset_prebuilds tvpp ON tvpp.preset_id = tvp.id
 								 WHERE t.id = $1::uuid
 								 GROUP BY t.id, tv.id, tvpp.id),
-	prebuilds_in_progress AS (SELECT wpb.template_version_id, pj.id AS job_id, pj.type, pj.job_status, wpb.transition
+	prebuilds_in_progress AS (SELECT wpb.template_version_id, wpb.transition, COUNT(wpb.transition) AS count
 							  FROM workspace_prebuild_builds wpb
 									   INNER JOIN workspace_latest_build wlb ON wpb.workspace_id = wlb.workspace_id
 									   INNER JOIN provisioner_jobs pj ON wlb.job_id = pj.id
 							  WHERE pj.job_status NOT IN
 									('succeeded'::provisioner_job_status, 'canceled'::provisioner_job_status,
-									 'failed'::provisioner_job_status))
+									 'failed'::provisioner_job_status)
+							  GROUP BY wpb.template_version_id, wpb.transition)
 SELECT t.template_id,
-	   CAST(COUNT(p.id) AS INT)                                                                      AS actual,     -- running prebuilds for active version
-	   CAST(MAX(CASE WHEN t.using_active_version THEN t.desired_instances ELSE 0 END) AS int)        AS desired,    -- we only care about the active version's desired instances
-	   CAST(SUM(CASE WHEN t.using_active_version THEN 0 ELSE 1 END) AS INT)                          AS extraneous, -- running prebuilds for inactive version
-	   CAST(SUM(CASE
-					WHEN pip.transition = 'start'::workspace_transition THEN 1
-					ELSE 0 END) AS INT)                                                              AS starting,
-	   CAST(SUM(CASE
-					WHEN pip.transition = 'delete'::workspace_transition THEN 1
-					ELSE 0 END) AS INT)                                                              AS deleting,
-	   t.deleted AS template_deleted,
-	   t.deprecated AS template_deprecated
+	   p.ids AS running_prebuild_ids,
+	   CAST(SUM(CASE WHEN t.using_active_version THEN p.count ELSE 0 END) AS INT)             AS actual,     -- running prebuilds for active version
+	   CAST(MAX(CASE WHEN t.using_active_version THEN t.desired_instances ELSE 0 END) AS int) AS desired,    -- we only care about the active version's desired instances
+	   CAST(SUM(CASE WHEN t.using_active_version THEN 0 ELSE p.count END) AS INT)             AS extraneous, -- running prebuilds for inactive version
+	   CAST(MAX(CASE
+					WHEN pip.transition = 'start'::workspace_transition THEN pip.count
+					ELSE 0 END) AS INT)                                                       AS starting,
+	   CAST(MAX(CASE
+					WHEN pip.transition = 'stop'::workspace_transition THEN pip.count
+					ELSE 0 END) AS INT)                                                       AS stopping,   -- not strictly needed, since prebuilds should never be left if a "stopped" state, but useful to know
+	   CAST(MAX(CASE
+					WHEN pip.transition = 'delete'::workspace_transition THEN pip.count
+					ELSE 0 END) AS INT)                                                       AS deleting,
+	   t.deleted                                                                              AS template_deleted,
+	   t.deprecated                                                                           AS template_deprecated
 FROM templates_with_prebuilds t
 		 LEFT JOIN running_prebuilds p ON p.template_version_id = t.template_version_id
 		 LEFT JOIN prebuilds_in_progress pip ON pip.template_version_id = t.template_version_id
-GROUP BY t.template_id, p.id, t.deleted, t.deprecated, pip.template_version_id
+GROUP BY t.template_id, p.count, p.ids, t.deleted, t.deprecated
 `
 
 type GetTemplatePrebuildStateRow struct {
 	TemplateID         uuid.UUID `db:"template_id" json:"template_id"`
+	RunningPrebuildIds []byte    `db:"running_prebuild_ids" json:"running_prebuild_ids"`
 	Actual             int32     `db:"actual" json:"actual"`
 	Desired            int32     `db:"desired" json:"desired"`
 	Extraneous         int32     `db:"extraneous" json:"extraneous"`
 	Starting           int32     `db:"starting" json:"starting"`
+	Stopping           int32     `db:"stopping" json:"stopping"`
 	Deleting           int32     `db:"deleting" json:"deleting"`
 	TemplateDeleted    bool      `db:"template_deleted" json:"template_deleted"`
 	TemplateDeprecated bool      `db:"template_deprecated" json:"template_deprecated"`
 }
 
-func (q *sqlQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]GetTemplatePrebuildStateRow, error) {
-	rows, err := q.db.QueryContext(ctx, getTemplatePrebuildState, templateID)
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
-	var items []GetTemplatePrebuildStateRow
-	for rows.Next() {
-		var i GetTemplatePrebuildStateRow
-		if err := rows.Scan(
-			&i.TemplateID,
-			&i.Actual,
-			&i.Desired,
-			&i.Extraneous,
-			&i.Starting,
-			&i.Deleting,
-			&i.TemplateDeleted,
-			&i.TemplateDeprecated,
-		); err != nil {
-			return nil, err
-		}
-		items = append(items, i)
-	}
-	if err := rows.Close(); err != nil {
-		return nil, err
-	}
-	if err := rows.Err(); err != nil {
-		return nil, err
-	}
-	return items, nil
+func (q *sqlQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) (GetTemplatePrebuildStateRow, error) {
+	row := q.db.QueryRowContext(ctx, getTemplatePrebuildState, templateID)
+	var i GetTemplatePrebuildStateRow
+	err := row.Scan(
+		&i.TemplateID,
+		&i.RunningPrebuildIds,
+		&i.Actual,
+		&i.Desired,
+		&i.Extraneous,
+		&i.Starting,
+		&i.Stopping,
+		&i.Deleting,
+		&i.TemplateDeleted,
+		&i.TemplateDeprecated,
+	)
+	return i, err
 }
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one
