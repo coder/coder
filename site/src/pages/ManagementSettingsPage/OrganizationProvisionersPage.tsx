@@ -29,7 +29,7 @@ const OrganizationProvisionersPage: FC = () => {
 		<>
 			<Helmet>
 				<title>
-					{pageTitle("Members", organization.display_name || organization.name)}
+					{pageTitle("Provisioners", organization.display_name || organization.name)}
 				</title>
 			</Helmet>
 			<OrganizationProvisionersPageView
