@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -536,7 +537,9 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		// no longer be reported, and there will be no other indicator that it
 		// was deleted. This requires special handling when interpreting the
 		// telemetry data later.
-		orgs, err := r.options.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		// nolint:gocritic // AsSystemRestricted is fine here because it's a read-only operation
+		// used for telemetry reporting.
+		orgs, err := r.options.Database.GetOrganizations(dbauthz.AsSystemRestricted(r.ctx), database.GetOrganizationsParams{})
 		if err != nil {
 			return xerrors.Errorf("get organizations: %w", err)
 		}
