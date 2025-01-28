@@ -1,9 +1,9 @@
 <!-- markdownlint-disable MD024 -->
-# IDP Sync
+# IdP Sync
 
 <blockquote class="info">
 
-IDP sync is an Enterprise and Premium feature.
+IdP sync is an Enterprise and Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
 
 </blockquote>
@@ -200,7 +200,7 @@ coder organizations settings set group-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../../images/admin/users/organizations/group-sync.png)
+![IdP Sync](../../images/admin/users/organizations/group-sync.png)
 
 </div>
 
@@ -316,7 +316,7 @@ will be able to configure this in the UI. For now, you must use CLI commands.
    ```
 
 Below is an example that uses the `roles` claim and maps `coder-admins` from the
-IDP as an `Organization Admin` and also maps to a custom `provisioner-admin`
+IdP as an `Organization Admin` and also maps to a custom `provisioner-admin`
 role:
 
 ```json
@@ -347,7 +347,7 @@ coder organizations settings set role-sync \
 
 Visit the Coder UI to confirm these changes:
 
-![IDP Sync](../../images/admin/users/organizations/role-sync.png)
+![IdP Sync](../../images/admin/users/organizations/role-sync.png)
 
 </div>
 
@@ -552,7 +552,7 @@ The application '<oidc_application>' asked for scope 'groups' that doesn't exist
 
 This can happen because the identity provider has a different name for the
 scope. For example, Azure AD uses `GroupMember.Read.All` instead of `groups`.
-You can find the correct scope name in the IDP's documentation. Some IDP's allow
+You can find the correct scope name in the IdP's documentation. Some IdPs allow
 configuring the name of this scope.
 
 The solution is to update the value of `CODER_OIDC_SCOPES` to the correct value
@@ -562,15 +562,15 @@ for the identity provider.
 
 Steps to troubleshoot.
 
-1. Ensure the user is a part of a group in the IDP. If the user has 0 groups, no
+1. Ensure the user is a part of a group in the IdP. If the user has 0 groups, no
    `groups` claim will be sent.
 2. Check if another claim appears to be the correct claim with a different name.
    A common name is `memberOf` instead of `groups`. If this is present, update
    `CODER_OIDC_GROUP_FIELD=memberOf`.
-3. Make sure the number of groups being sent is under the limit of the IDP. Some
-   IDPs will return an error, while others will just omit the `groups` claim. A
+3. Make sure the number of groups being sent is under the limit of the IdP. Some
+   IdPs will return an error, while others will just omit the `groups` claim. A
    common solution is to create a filter on the identity provider that returns
-   less than the limit for your IDP.
+   less than the limit for your IdP.
    - [Azure AD limit is 200, and omits groups if exceeded.](https://learn.microsoft.com/en-us/azure/active-directory/hybrid/connect/how-to-connect-fed-group-claims#options-for-applications-to-consume-group-information)
    - [Okta limit is 100, and returns an error if exceeded.](https://developer.okta.com/docs/reference/api/oidc/#scope-dependent-claims-not-always-returned)
 
