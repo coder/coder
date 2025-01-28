@@ -238,6 +238,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_monitored_resource_type AS ENUM (
+    'memory',
+    'volume'
+);
+
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'start',
     'stop',
@@ -1500,6 +1505,15 @@ CREATE TABLE workspace_agent_port_share (
     port integer NOT NULL,
     share_level app_sharing_level NOT NULL,
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
+);
+
+CREATE TABLE workspace_agent_resource_monitors (
+    agent_id uuid NOT NULL,
+    rtype workspace_agent_monitored_resource_type NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agent_script_timings (

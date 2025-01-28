@@ -771,6 +771,21 @@ func (mr *MockStoreMockRecorder) FavoriteWorkspace(ctx, id any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FavoriteWorkspace", reflect.TypeOf((*MockStore)(nil).FavoriteWorkspace), ctx, id)
 }
 
+// FetchAgentResourceMonitorsByAgentID mocks base method.
+func (m *MockStore) FetchAgentResourceMonitorsByAgentID(arg0 context.Context, arg1 uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FetchAgentResourceMonitorsByAgentID", arg0, arg1)
+	ret0, _ := ret[0].([]database.WorkspaceAgentResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// FetchAgentResourceMonitorsByAgentID indicates an expected call of FetchAgentResourceMonitorsByAgentID.
+func (mr *MockStoreMockRecorder) FetchAgentResourceMonitorsByAgentID(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FetchAgentResourceMonitorsByAgentID", reflect.TypeOf((*MockStore)(nil).FetchAgentResourceMonitorsByAgentID), arg0, arg1)
+}
+
 // FetchNewMessageMetadata mocks base method.
 func (m *MockStore) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
 	m.ctrl.T.Helper()
@@ -4255,6 +4270,21 @@ func (m *MockStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg databa
 func (mr *MockStoreMockRecorder) InsertWorkspaceAgentMetadata(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentMetadata", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentMetadata), ctx, arg)
+}
+
+// InsertWorkspaceAgentResourceMonitor mocks base method.
+func (m *MockStore) InsertWorkspaceAgentResourceMonitor(arg0 context.Context, arg1 database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertWorkspaceAgentResourceMonitor", arg0, arg1)
+	ret0, _ := ret[0].(database.WorkspaceAgentResourceMonitor)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertWorkspaceAgentResourceMonitor indicates an expected call of InsertWorkspaceAgentResourceMonitor.
+func (mr *MockStoreMockRecorder) InsertWorkspaceAgentResourceMonitor(arg0, arg1 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceAgentResourceMonitor", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceAgentResourceMonitor), arg0, arg1)
 }
 
 // InsertWorkspaceAgentScriptTimings mocks base method.

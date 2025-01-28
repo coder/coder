@@ -1958,6 +1958,64 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentMonitoredResourceType string
+
+const (
+	WorkspaceAgentMonitoredResourceTypeMemory WorkspaceAgentMonitoredResourceType = "memory"
+	WorkspaceAgentMonitoredResourceTypeVolume WorkspaceAgentMonitoredResourceType = "volume"
+)
+
+func (e *WorkspaceAgentMonitoredResourceType) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMonitoredResourceType(s)
+	case string:
+		*e = WorkspaceAgentMonitoredResourceType(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMonitoredResourceType: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMonitoredResourceType struct {
+	WorkspaceAgentMonitoredResourceType WorkspaceAgentMonitoredResourceType `json:"workspace_agent_monitored_resource_type"`
+	Valid                               bool                                `json:"valid"` // Valid is true if WorkspaceAgentMonitoredResourceType is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMonitoredResourceType) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMonitoredResourceType, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMonitoredResourceType.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMonitoredResourceType) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMonitoredResourceType), nil
+}
+
+func (e WorkspaceAgentMonitoredResourceType) Valid() bool {
+	switch e {
+	case WorkspaceAgentMonitoredResourceTypeMemory,
+		WorkspaceAgentMonitoredResourceTypeVolume:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMonitoredResourceTypeValues() []WorkspaceAgentMonitoredResourceType {
+	return []WorkspaceAgentMonitoredResourceType{
+		WorkspaceAgentMonitoredResourceTypeMemory,
+		WorkspaceAgentMonitoredResourceTypeVolume,
+	}
+}
+
 // What stage the script was ran in.
 type WorkspaceAgentScriptTimingStage string
 
@@ -3165,6 +3223,15 @@ type WorkspaceAgentPortShare struct {
 	Port        int32             `db:"port" json:"port"`
 	ShareLevel  AppSharingLevel   `db:"share_level" json:"share_level"`
 	Protocol    PortShareProtocol `db:"protocol" json:"protocol"`
+}
+
+type WorkspaceAgentResourceMonitor struct {
+	AgentID   uuid.UUID                           `db:"agent_id" json:"agent_id"`
+	Rtype     WorkspaceAgentMonitoredResourceType `db:"rtype" json:"rtype"`
+	Enabled   bool                                `db:"enabled" json:"enabled"`
+	Threshold int32                               `db:"threshold" json:"threshold"`
+	Metadata  json.RawMessage                     `db:"metadata" json:"metadata"`
+	CreatedAt time.Time                           `db:"created_at" json:"created_at"`
 }
 
 type WorkspaceAgentScript struct {

@@ -6,9 +6,12 @@ import "github.com/coder/coder/v2/apiversion"
 //
 // API v1.2:
 //   - Add support for `open_in` parameters in the workspace apps.
+//
+// API v1.3:
+//   - Add new field named `resources_monitoring` in the Agent with resources monitoring..
 const (
 	CurrentMajor = 1
-	CurrentMinor = 2
+	CurrentMinor = 3
 )
 
 // CurrentVersion is the current provisionerd API version.

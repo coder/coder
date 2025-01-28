@@ -11685,6 +11685,89 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 	return i, err
 }
 
+const fetchAgentResourceMonitorsByAgentID = `-- name: FetchAgentResourceMonitorsByAgentID :many
+SELECT
+	agent_id, rtype, enabled, threshold, metadata, created_at
+FROM
+	workspace_agent_resource_monitors
+WHERE
+	agent_id = $1
+`
+
+func (q *sqlQuerier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchAgentResourceMonitorsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Rtype,
+			&i.Enabled,
+			&i.Threshold,
+			&i.Metadata,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertWorkspaceAgentResourceMonitor = `-- name: InsertWorkspaceAgentResourceMonitor :one
+INSERT INTO
+	workspace_agent_resource_monitors (
+		agent_id,
+		rtype,
+		enabled,
+		threshold,
+		metadata,
+		created_at
+	)
+VALUES
+	($1, $2, $3, $4, $5, $6) RETURNING agent_id, rtype, enabled, threshold, metadata, created_at
+`
+
+type InsertWorkspaceAgentResourceMonitorParams struct {
+	AgentID   uuid.UUID                           `db:"agent_id" json:"agent_id"`
+	Rtype     WorkspaceAgentMonitoredResourceType `db:"rtype" json:"rtype"`
+	Enabled   bool                                `db:"enabled" json:"enabled"`
+	Threshold int32                               `db:"threshold" json:"threshold"`
+	Metadata  json.RawMessage                     `db:"metadata" json:"metadata"`
+	CreatedAt time.Time                           `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg InsertWorkspaceAgentResourceMonitorParams) (WorkspaceAgentResourceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceAgentResourceMonitor,
+		arg.AgentID,
+		arg.Rtype,
+		arg.Enabled,
+		arg.Threshold,
+		arg.Metadata,
+		arg.CreatedAt,
+	)
+	var i WorkspaceAgentResourceMonitor
+	err := row.Scan(
+		&i.AgentID,
+		&i.Rtype,
+		&i.Enabled,
+		&i.Threshold,
+		&i.Metadata,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
 WITH
 	latest_builds AS (
