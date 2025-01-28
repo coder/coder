@@ -54,15 +54,33 @@ type Options struct {
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
-	// We pass this function instead of the IDPSync interface because it creates
-	// a circular import. We don't need all the other methods, and this approach
-	// is simpler than refactoring the package structure.
-	OrganizationSyncEnabled func() bool
+
+	// OrganizationSyncEnabled is stored as a function pointer for two reasons:
+	//
+	// 1. It avoids a circular import with the IDPSync interface. We only need the
+	//    OrganizationSyncEnabled() method, so passing it as a function pointer is
+	//    simpler than including the entire interface, which would require restructuring
+	//    packages.
+	//
+	// 2. It works with Coder's initialization order:
+	//    - Telemetry is created first (so this pointer starts as nil).
+	//    - Next, the IDPSync interface is created by the Coder API, which depends
+	//      on the telemetry reporter being created first.
+	//    - Finally, this function pointer is set to a closure that calls
+	//      IDPSync’s OrganizationSyncEnabled method.
+	//
+	// This is extremely janky, but we'd need to refactor the entire initialization
+	// process to avoid it.
+	OrganizationSyncEnabled *func() bool
 }
 
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
+//
+// The reporter has to be started with Start() before it will begin sending data.
+// This allows for the deferred initialization of the OrganizationSyncEnabled
+// function on the Options struct.
 func New(options Options) (Reporter, error) {
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
@@ -87,7 +105,6 @@ func New(options Options) (Reporter, error) {
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Now(),
 	}
-	go reporter.runSnapshotter()
 	return reporter, nil
 }
 
@@ -105,13 +122,16 @@ type Reporter interface {
 	Report(snapshot *Snapshot)
 	Enabled() bool
 	Close()
+	Start()
 }
 
 type remoteReporter struct {
-	ctx        context.Context
-	closed     chan struct{}
-	closeMutex sync.Mutex
-	closeFunc  context.CancelFunc
+	ctx         context.Context
+	closed      chan struct{}
+	closeMutex  sync.Mutex
+	closeFunc   context.CancelFunc
+	startedOnce sync.Once
+	started     bool
 
 	options Options
 	deploymentURL,
@@ -120,8 +140,15 @@ type remoteReporter struct {
 	shutdownAt *time.Time
 }
 
-func (*remoteReporter) Enabled() bool {
-	return true
+func (r *remoteReporter) Start() {
+	r.startedOnce.Do(func() {
+		r.started = true
+		go r.runSnapshotter()
+	})
+}
+
+func (r *remoteReporter) Enabled() bool {
+	return r.started
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
@@ -250,8 +277,8 @@ func (r *remoteReporter) deployment() error {
 	}
 
 	idpOrgSync := false
-	if r.options.OrganizationSyncEnabled != nil {
-		idpOrgSync = r.options.OrganizationSyncEnabled()
+	if r.options.OrganizationSyncEnabled != nil && *r.options.OrganizationSyncEnabled != nil {
+		idpOrgSync = (*r.options.OrganizationSyncEnabled)()
 	} else {
 		r.options.Logger.Debug(r.ctx, "organization sync enabled function is nil, skipping IDP org sync check")
 	}
@@ -1509,3 +1536,4 @@ type noopReporter struct{}
 func (*noopReporter) Report(_ *Snapshot) {}
 func (*noopReporter) Enabled() bool      { return false }
 func (*noopReporter) Close()             {}
+func (*noopReporter) Start()             {}

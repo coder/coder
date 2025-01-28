@@ -781,6 +781,47 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
+			// We set this to a valid function pointer later
+			orgSyncEnabledFn := new(func() bool)
+			if vals.Telemetry.Enable {
+				vals, err := vals.WithoutSecrets()
+				if err != nil {
+					return xerrors.Errorf("remove secrets from deployment values: %w", err)
+				}
+				options.Telemetry, err = telemetry.New(telemetry.Options{
+					BuiltinPostgres:  builtinPostgres,
+					DeploymentID:     deploymentID,
+					Database:         options.Database,
+					Logger:           logger.Named("telemetry"),
+					URL:              vals.Telemetry.URL.Value(),
+					Tunnel:           tunnel != nil,
+					DeploymentConfig: vals,
+					ParseLicenseJWT: func(lic *telemetry.License) error {
+						// This will be nil when running in AGPL-only mode.
+						if options.ParseLicenseClaims == nil {
+							return nil
+						}
+
+						email, trial, err := options.ParseLicenseClaims(lic.JWT)
+						if err != nil {
+							return err
+						}
+						if email != "" {
+							lic.Email = &email
+						}
+						lic.Trial = &trial
+						return nil
+					},
+					OrganizationSyncEnabled: orgSyncEnabledFn,
+				})
+				if err != nil {
+					return xerrors.Errorf("create telemetry reporter: %w", err)
+				}
+				defer options.Telemetry.Close()
+			} else {
+				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
+			}
+
 			// This prevents the pprof import from being accidentally deleted.
 			_ = pprof.Handler
 			if vals.Pprof.Enable {
@@ -822,50 +863,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("create coder API: %w", err)
 			}
 
-			if vals.Telemetry.Enable {
-				vals, err := vals.WithoutSecrets()
-				if err != nil {
-					return xerrors.Errorf("remove secrets from deployment values: %w", err)
+			if vals.Telemetry.Enable && options.Telemetry != nil {
+				// We can initialize this pointer only now because the function
+				// depends on the coderAPI. Read the docstring on
+				// Options.OrganizationSyncEnabled in coderd/telemetry/telemetry.go
+				// for more context.
+				*orgSyncEnabledFn = func() bool {
+					// Sanity check just in case.
+					if coderAPI == nil || coderAPI.IDPSync == nil {
+						return false
+					}
+					// nolint:gocritic // AsSystemRestricted is fine here because it's a read-only operation
+					// used for telemetry reporting.
+					return coderAPI.IDPSync.OrganizationSyncEnabled(dbauthz.AsSystemRestricted(ctx), options.Database)
 				}
-				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:  builtinPostgres,
-					DeploymentID:     deploymentID,
-					Database:         options.Database,
-					Logger:           logger.Named("telemetry"),
-					URL:              vals.Telemetry.URL.Value(),
-					Tunnel:           tunnel != nil,
-					DeploymentConfig: vals,
-					ParseLicenseJWT: func(lic *telemetry.License) error {
-						// This will be nil when running in AGPL-only mode.
-						if options.ParseLicenseClaims == nil {
-							return nil
-						}
 
-						email, trial, err := options.ParseLicenseClaims(lic.JWT)
-						if err != nil {
-							return err
-						}
-						if email != "" {
-							lic.Email = &email
-						}
-						lic.Trial = &trial
-						return nil
-					},
-					OrganizationSyncEnabled: func() bool {
-						if coderAPI == nil || coderAPI.IDPSync == nil {
-							return false
-						}
-						// nolint:gocritic // AsSystemRestricted is fine here because it's a read-only operation
-						// used for telemetry reporting.
-						return coderAPI.IDPSync.OrganizationSyncEnabled(dbauthz.AsSystemRestricted(ctx), options.Database)
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("create telemetry reporter: %w", err)
-				}
-				defer options.Telemetry.Close()
-			} else {
-				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
+				options.Telemetry.Start()
 			}
 
 			if vals.Prometheus.Enable {
