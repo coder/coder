@@ -10,28 +10,27 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -68,16 +67,14 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -85,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -136,7 +135,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "cbec5bff-b81a-4815-99c0-40c0629779fb",
+              "id": "051532f3-719b-4268-91a6-a4d7b0607fd6",
               "mutable": false,
               "name": "Example",
               "option": [
@@ -180,7 +179,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "dd1c36b7-a961-4eb2-9687-c32b5ee54fbc",
+              "id": "b010a50c-ce09-4ae0-a211-1479c46276d0",
               "mutable": false,
               "name": "number_example",
               "option": null,
@@ -207,7 +206,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "f1bcac54-a58c-44b2-94f5-243a0b1492d3",
+              "id": "429eb922-edf8-4261-b97a-dcc5df295dfd",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -246,7 +245,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "79c76ac1-8e71-4872-9107-d7a9529f7dce",
+              "id": "629371d3-5ae2-4804-a601-efe4da369f53",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -285,7 +284,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "da7a8aff-ffe3-402f-bf7e-b369ae04b041",
+              "id": "57e52542-557d-4b02-ad1e-9acf7c541f10",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -324,7 +323,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "5fe2dad0-e11f-46f0-80ae-c0c3a29cd1fd",
+              "id": "849e5d40-f3e0-45ce-9a38-5d998a23c4fd",
               "mutable": false,
               "name": "Sample",
               "option": null,
@@ -355,7 +354,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "920f98a1-3a6f-4602-8c87-ebbbef0310c5",
+                  "id": "9acf8c1b-2154-41d4-9032-8a03bf7da173",
                   "mutable": true,
                   "name": "First parameter from module",
                   "option": null,
@@ -382,7 +381,7 @@
                   "display_name": null,
                   "ephemeral": false,
                   "icon": null,
-                  "id": "f438d9ad-6c3e-44f3-95cd-1d423a9b09e5",
+                  "id": "06953561-1163-4002-abd2-9bce05bac7c0",
                   "mutable": true,
                   "name": "Second parameter from module",
                   "option": null,
@@ -414,7 +413,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "b2c53701-be53-4591-aacf-1c83f75bcf15",
+                      "id": "b80bd599-31cd-4210-80a7-8ec921c1603e",
                       "mutable": true,
                       "name": "First parameter from child module",
                       "option": null,
@@ -441,7 +440,7 @@
                       "display_name": null,
                       "ephemeral": false,
                       "icon": null,
-                      "id": "038b18d4-d430-4703-886a-b7e10e01f856",
+                      "id": "2042eaa9-b1a8-45d0-b3ba-4d40fdca861c",
                       "mutable": true,
                       "name": "Second parameter from child module",
                       "option": null,
@@ -498,7 +497,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev",
@@ -794,7 +793,7 @@
       }
     }
   },
-  "timestamp": "2024-10-28T20:08:15Z",
+  "timestamp": "2025-01-28T15:12:54Z",
   "applyable": true,
   "complete": true,
   "errored": false
