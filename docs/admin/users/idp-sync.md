@@ -27,6 +27,14 @@ There are two ways you can configure group sync:
 
 ### Server Flags
 
+<blockquote class="admonition note">
+
+This method is deprecated.
+
+You can use the dashboard to configure group sync instead.
+
+</blockquote>
+
 1. Confirm that your OIDC provider is sending claims.
 
    Log in with OIDC and visit the following URL with an `Owner` account:
@@ -97,13 +105,6 @@ From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
 ### Runtime (Organizations)
-
-<blockquote class="admonition note">
-
-You must have a Premium license with Organizations enabled to use this.
-[Contact your account team](https://coder.com/contact) for more details.
-
-</blockquote>
 
 For deployments with multiple [organizations](./organizations.md), you must
 configure group sync at the organization level. In future Coder versions, you
@@ -214,29 +215,20 @@ Users who are not in a matching group will see the following error:
 
 ## Role Sync
 
-<blockquote class="info">
-
-Role sync is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
-
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to roles within Coder.
-
-There are 2 ways to do role sync. Server Flags assign site wide roles, and
-runtime org role sync assigns organization roles
-
-<blockquote class="admonition note">
-
-You must have a Premium license with Organizations enabled to use this.
-[Contact your account team](https://coder.com/contact) for more details.
-
-</blockquote>
 
 <div class="tabs">
 
 ### Server Flags
+
+<blockquote class="admonition note">
+
+This method is deprecated.
+
+You can use the dashboard to configure role sync instead.
+
+</blockquote>
 
 1. Confirm that your OIDC provider is sending a roles claim by logging in with
    OIDC and visiting the following URL with an `Owner` account:
@@ -352,13 +344,6 @@ Visit the Coder UI to confirm these changes:
 </div>
 
 ## Organization Sync
-
-<blockquote class="info">
-
-Organization sync is an Enterprise and Premium feature.
-[Learn more](https://coder.com/pricing#compare-plans).
-
-</blockquote>
 
 If your OpenID Connect provider supports groups/role claims, you can configure
 Coder to synchronize claims in your auth provider to organizations within Coder.
