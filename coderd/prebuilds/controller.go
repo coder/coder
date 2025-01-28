@@ -1,7 +1,6 @@
 package prebuilds
 
 import (
-	"bytes"
 	"context"
 	"fmt"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -12,6 +11,7 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
 	"math"
+	"strings"
 	"time"
 
 	"cdr.dev/slog"
@@ -175,10 +175,10 @@ func (c Controller) calculateActions(ctx context.Context, template database.Temp
 		actions.createIDs = append(actions.createIDs, uuid.New())
 	}
 
-	runningIDs := bytes.Split(state.RunningPrebuildIds, []byte{','})
+	runningIDs := strings.Split(state.RunningPrebuildIds, ",")
 	if toDelete > 0 && len(runningIDs) != toDelete {
 		c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
-			slog.F("template_id", template.ID), slog.F("running", len(runningIDs)), slog.F("to_destroy", toDelete))
+			slog.F("template_id", template.ID), slog.F("running", len(runningIDs)), slog.F("to_delete", toDelete))
 	}
 
 	// TODO: implement lookup to not perform same action on workspace multiple times in $period
@@ -190,7 +190,7 @@ func (c Controller) calculateActions(ctx context.Context, template database.Temp
 		}
 
 		running := runningIDs[i]
-		id, err := uuid.ParseBytes(running)
+		id, err := uuid.Parse(running)
 		if err != nil {
 			c.logger.Warn(ctx, "invalid prebuild ID", slog.F("template_id", template.ID),
 				slog.F("id", string(running)), slog.Error(err))
@@ -217,63 +217,64 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 		innerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
-		// TODO: change to "many" and return 1 or more rows, but only one should be returned
-		// 		 more than 1 response is indicative of a query problem
-		state, err := db.GetTemplatePrebuildState(ctx, template.ID)
+		versionStates, err := db.GetTemplatePrebuildState(ctx, template.ID)
 		if err != nil {
 			return xerrors.Errorf("failed to retrieve template's prebuild states: %w", err)
 		}
 
-		actions, err := c.calculateActions(innerCtx, template, state)
-		if err != nil {
-			logger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
-			return nil
-		}
+		for _, state := range versionStates {
+			vlogger := logger.With(slog.F("template_version_id", state.TemplateVersionID))
 
-		// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-		var ownerCtx = dbauthz.As(ctx, rbac.Subject{
-			ID:     "owner",
-			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-			Groups: []string{},
-			Scope:  rbac.ExpandableScope(rbac.ScopeAll),
-		})
-
-		levelFn := logger.Debug
-		if len(actions.createIDs) > 0 || len(actions.deleteIDs) > 0 {
-			// Only log with info level when there's a change that needs to be effected.
-			levelFn = logger.Info
-		}
-		levelFn(innerCtx, "template prebuild state retrieved",
-			slog.F("to_create", len(actions.createIDs)), slog.F("to_destroy", len(actions.deleteIDs)),
-			slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual), slog.F("extraneous", actions.meta.Extraneous),
-			slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
-
-		// Provision workspaces within the same tx so we don't get any timing issues here.
-		// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
-		// TODO: max per reconciliation iteration?
-
-		for _, id := range actions.createIDs {
-			if err := c.createPrebuild(ownerCtx, db, id, template); err != nil {
-				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
+			actions, err := c.calculateActions(innerCtx, template, state)
+			if err != nil {
+				vlogger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
+				continue
 			}
-		}
 
-		for _, id := range actions.deleteIDs {
-			if err := c.deletePrebuild(ownerCtx, db, id, template); err != nil {
-				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+			// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
+			var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+				ID:     "owner",
+				Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Groups: []string{},
+				Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+			})
+
+			levelFn := vlogger.Debug
+			if len(actions.createIDs) > 0 || len(actions.deleteIDs) > 0 {
+				// Only log with info level when there's a change that needs to be effected.
+				levelFn = vlogger.Info
+			}
+			levelFn(innerCtx, "template prebuild state retrieved",
+				slog.F("to_create", len(actions.createIDs)), slog.F("to_delete", len(actions.deleteIDs)),
+				slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual), slog.F("extraneous", actions.meta.Extraneous),
+				slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
+
+			// Provision workspaces within the same tx so we don't get any timing issues here.
+			// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
+			// TODO: max per reconciliation iteration?
+
+			for _, id := range actions.createIDs {
+				if err := c.createPrebuild(ownerCtx, db, id, template); err != nil {
+					vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
+				}
+			}
+
+			for _, id := range actions.deleteIDs {
+				if err := c.deletePrebuild(ownerCtx, db, id, template); err != nil {
+					vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+				}
 			}
 		}
 
 		return nil
 	}, &database.TxOptions{
 		// TODO: isolation
-		TxIdentifier: "tempdlate_prebuilds",
+		TxIdentifier: "template_prebuilds",
 	})
 	if err != nil {
 		logger.Error(ctx, "failed to acquire database transaction", slog.Error(err))
 	}
 
-	// trigger n InsertProvisionerJob calls to scale up or down instances
 	return nil
 }
 
