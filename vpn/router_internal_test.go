@@ -13,12 +13,12 @@ func TestConvertRouterConfig(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		cfg      *router.Config
+		cfg      router.Config
 		expected *NetworkSettingsRequest
 	}{
 		{
 			name: "IPv4 and IPv6 configuration",
-			cfg: &router.Config{
+			cfg: router.Config{
 				LocalAddrs:  []netip.Prefix{netip.MustParsePrefix("100.64.0.1/32"), netip.MustParsePrefix("fd7a:115c:a1e0::1/128")},
 				Routes:      []netip.Prefix{netip.MustParsePrefix("192.168.0.0/24"), netip.MustParsePrefix("fd00::/64")},
 				LocalRoutes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("2001:db8::/32")},
@@ -48,7 +48,7 @@ func TestConvertRouterConfig(t *testing.T) {
 		},
 		{
 			name: "Empty",
-			cfg:  &router.Config{},
+			cfg:  router.Config{},
 			expected: &NetworkSettingsRequest{
 				Ipv4Settings: &NetworkSettingsRequest_IPv4Settings{
 					Addrs:          []string{},

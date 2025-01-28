@@ -22,7 +22,10 @@ func (*vpnRouter) Up() error {
 }
 
 func (v *vpnRouter) Set(cfg *router.Config) error {
-	req := convertRouterConfig(cfg)
+	if cfg == nil {
+		return nil
+	}
+	req := convertRouterConfig(*cfg)
 	return v.tunnel.ApplyNetworkSettings(v.tunnel.ctx, req)
 }
 
@@ -31,7 +34,7 @@ func (*vpnRouter) Close() error {
 	return nil
 }
 
-func convertRouterConfig(cfg *router.Config) *NetworkSettingsRequest {
+func convertRouterConfig(cfg router.Config) *NetworkSettingsRequest {
 	v4LocalAddrs := make([]string, 0)
 	v6LocalAddrs := make([]string, 0)
 	for _, addrs := range cfg.LocalAddrs {
