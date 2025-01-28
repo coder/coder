@@ -851,7 +851,14 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						lic.Trial = &trial
 						return nil
 					},
-					OrganizationSyncEnabled: coderAPI.IDPSync.OrganizationSyncEnabled,
+					OrganizationSyncEnabled: func() bool {
+						if coderAPI == nil || coderAPI.IDPSync == nil {
+							return false
+						}
+						// AsSystemRestricted is fine here because it's a read-only operation
+						// used for telemetry reporting.
+						return coderAPI.IDPSync.OrganizationSyncEnabled(dbauthz.AsSystemRestricted(ctx), options.Database)
+					},
 				})
 				if err != nil {
 					return xerrors.Errorf("create telemetry reporter: %w", err)

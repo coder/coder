@@ -56,7 +56,7 @@ type Options struct {
 	// We pass this function instead of the IDPSync interface because it creates
 	// a circular import. We don't need all the other methods, and this approach
 	// is simpler than refactoring the package structure.
-	OrganizationSyncEnabled func(ctx context.Context, db database.Store) bool
+	OrganizationSyncEnabled func() bool
 }
 
 // New constructs a reporter for telemetry data.
@@ -250,7 +250,7 @@ func (r *remoteReporter) deployment() error {
 
 	idpOrgSync := false
 	if r.options.OrganizationSyncEnabled != nil {
-		idpOrgSync = r.options.OrganizationSyncEnabled(r.ctx, r.options.Database)
+		idpOrgSync = r.options.OrganizationSyncEnabled()
 	} else {
 		r.options.Logger.Debug(r.ctx, "organization sync enabled function is nil, skipping IDP org sync check")
 	}
