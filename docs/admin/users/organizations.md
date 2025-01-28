@@ -26,6 +26,7 @@ are added to this organization by default.
 To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
+<Image height="412px" src="../images/templates/coder-login-web.png" alt="Log in to your Coder deployment" align="center" />
 ![Organizations Menu](../../images/admin/users/organizations/admin-settings-orgs.png)
 
 From there, you can manage the name, icon, description, users, and groups:
@@ -58,11 +59,11 @@ To create a new organization:
 
 1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
 
-   ![Organizations dropdown and Create Organization](../../images/admin/users/organizations/org-dropdown-create.png)
+   <Image height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt=Organizations dropdown and Create Organization" align="center" />
 
 1. Enter the details and select **Save** to continue:
 
-   ![New Organization](../../images/admin/users/organizations/new-organization.png)
+   <Image height="579px" src="../../images/admin/users/organizations/new-organization.png" alt="New Organization" align="center" />
 
 In this example, we'll create the `data-platform` org.
 
@@ -110,7 +111,7 @@ From **Admin settings**, select **Organizations**, then **Members** to add membe
 your organization. Once added, members will be able to see the
 organization-specific templates.
 
-![Add members](../../images/admin/users/organizations/organization-members.png)
+<Image height="365px" src="../../images/admin/users/organizations/organization-members.png" alt="Add members" align="center" />
 
 ### 5. Create a workspace
 
