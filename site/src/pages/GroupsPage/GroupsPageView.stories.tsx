@@ -14,7 +14,7 @@ export const NotEnabled: Story = {
 	args: {
 		groups: [MockGroup],
 		canCreateGroup: true,
-		isTemplateRBACEnabled: false,
+		groupsEnabled: false,
 	},
 };
 
@@ -22,7 +22,7 @@ export const WithGroups: Story = {
 	args: {
 		groups: [MockGroup],
 		canCreateGroup: true,
-		isTemplateRBACEnabled: true,
+		groupsEnabled: true,
 	},
 };
 
@@ -30,7 +30,7 @@ export const WithDisplayGroup: Story = {
 	args: {
 		groups: [{ ...MockGroup, name: "front-end" }],
 		canCreateGroup: true,
-		isTemplateRBACEnabled: true,
+		groupsEnabled: true,
 	},
 };
 
@@ -38,7 +38,7 @@ export const EmptyGroup: Story = {
 	args: {
 		groups: [],
 		canCreateGroup: false,
-		isTemplateRBACEnabled: true,
+		groupsEnabled: true,
 	},
 };
 
@@ -46,6 +46,6 @@ export const EmptyGroupWithPermission: Story = {
 	args: {
 		groups: [],
 		canCreateGroup: true,
-		isTemplateRBACEnabled: true,
+		groupsEnabled: true,
 	},
 };
