@@ -2,6 +2,8 @@ package prebuilds
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/base32"
 	"fmt"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
@@ -279,7 +281,10 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 }
 
 func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template) error {
-	name := fmt.Sprintf("prebuild-%s", prebuildID)
+	name, err := generateName()
+	if err != nil {
+		return xerrors.Errorf("failed to generate unique prebuild ID: %w", err)
+	}
 
 	now := dbtime.Now()
 	// Workspaces are created without any versions.
@@ -354,4 +359,22 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 
 func (c Controller) Stop() {
 	c.closeCh <- struct{}{}
+}
+
+// generateName generates a 20-byte prebuild name which should safe to use without truncation in most situations.
+// UUIDs may be too long for a resource name in cloud providers (since this ID will be used in the prebuild's name).
+//
+// We're generating a 9-byte suffix (72 bits of entry):
+// 1 - e^(-1e9^2 / (2 * 2^72)) = ~0.01% likelihood of collision in 1 billion IDs.
+// See https://en.wikipedia.org/wiki/Birthday_attack.
+func generateName() (string, error) {
+	b := make([]byte, 9)
+
+	_, err := rand.Read(b)
+	if err != nil {
+		return "", err
+	}
+
+	// Encode the bytes to Base32 (A-Z2-7), strip any '=' padding
+	return fmt.Sprintf("prebuild-%s", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
 }
