@@ -1387,26 +1387,6 @@ func TestServer(t *testing.T) {
 		})
 	})
 
-	waitFile := func(t *testing.T, fiName string, dur time.Duration) {
-		var lastStat os.FileInfo
-		require.Eventually(t, func() bool {
-			var err error
-			lastStat, err = os.Stat(fiName)
-			if err != nil {
-				if !os.IsNotExist(err) {
-					t.Fatalf("unexpected error: %v", err)
-				}
-				return false
-			}
-			return lastStat.Size() > 0
-		},
-			dur, //nolint:gocritic
-			testutil.IntervalFast,
-			"file at %s should exist, last stat: %+v",
-			fiName, lastStat,
-		)
-	}
-
 	t.Run("Logging", func(t *testing.T) {
 		t.Parallel()
 
@@ -1426,7 +1406,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fiName, testutil.WaitLong)
+			loggingWaitFile(t, fiName, testutil.WaitLong)
 		})
 
 		t.Run("Human", func(t *testing.T) {
@@ -1445,7 +1425,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fi, testutil.WaitShort)
+			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("JSON", func(t *testing.T) {
@@ -1464,77 +1444,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fi, testutil.WaitShort)
-		})
-
-		t.Run("Stackdriver", func(t *testing.T) {
-			t.Parallel()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-			defer cancelFunc()
-
-			fi := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			inv, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				"--in-memory",
-				"--http-address", ":0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-stackdriver", fi,
-			)
-			// Attach pty so we get debug output from the command if this test
-			// fails.
-			pty := ptytest.New(t).Attach(inv)
-
-			clitest.Start(t, inv.WithContext(ctx))
-
-			// Wait for server to listen on HTTP, this is a good
-			// starting point for expecting logs.
-			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
-
-			waitFile(t, fi, testutil.WaitSuperLong)
-		})
-
-		t.Run("Multiple", func(t *testing.T) {
-			t.Parallel()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-			defer cancelFunc()
-
-			fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
-			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
-			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			// NOTE(mafredri): This test might end up downloading Terraform
-			// which can take a long time and end up failing the test.
-			// This is why we wait extra long below for server to listen on
-			// HTTP.
-			inv, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				"--in-memory",
-				"--http-address", ":0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-human", fi1,
-				"--log-json", fi2,
-				"--log-stackdriver", fi3,
-			)
-			// Attach pty so we get debug output from the command if this test
-			// fails.
-			pty := ptytest.New(t).Attach(inv)
-
-			clitest.Start(t, inv)
-
-			// Wait for server to listen on HTTP, this is a good
-			// starting point for expecting logs.
-			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
-
-			waitFile(t, fi1, testutil.WaitSuperLong)
-			waitFile(t, fi2, testutil.WaitSuperLong)
-			waitFile(t, fi3, testutil.WaitSuperLong)
+			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
 	})
 
@@ -1627,6 +1537,119 @@ func TestServer(t *testing.T) {
 			w.RequireSuccess()
 		})
 	})
+}
+
+//nolint:tparallel,paralleltest // This test sets environment variables.
+func TestServer_Logging_NoParallel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	// Speed up stackdriver test by using custom host. This is like
+	// saying we're running on GCE, so extra checks are skipped.
+	//
+	// Note, that the server isn't actually hit by the test, unsure why
+	// but kept just in case.
+	//
+	// From cloud.google.com/go/compute/metadata/metadata.go (used by coder/slog):
+	//
+	// metadataHostEnv is the environment variable specifying the
+	// GCE metadata hostname.  If empty, the default value of
+	// metadataIP ("169.254.169.254") is used instead.
+	// This is variable name is not defined by any spec, as far as
+	// I know; it was made up for the Go package.
+	t.Setenv("GCE_METADATA_HOST", server.URL)
+
+	t.Run("Stackdriver", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancelFunc()
+
+		fi := testutil.TempFile(t, "", "coder-logging-test-*")
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--log-filter=.*",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--provisioner-daemons=3",
+			"--provisioner-types=echo",
+			"--log-stackdriver", fi,
+		)
+		// Attach pty so we get debug output from the command if this test
+		// fails.
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv.WithContext(ctx))
+
+		// Wait for server to listen on HTTP, this is a good
+		// starting point for expecting logs.
+		_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+
+		loggingWaitFile(t, fi, testutil.WaitSuperLong)
+	})
+
+	t.Run("Multiple", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancelFunc()
+
+		fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
+		fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
+		fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
+
+		// NOTE(mafredri): This test might end up downloading Terraform
+		// which can take a long time and end up failing the test.
+		// This is why we wait extra long below for server to listen on
+		// HTTP.
+		inv, _ := clitest.New(t,
+			"server",
+			"--log-filter=.*",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--provisioner-daemons=3",
+			"--provisioner-types=echo",
+			"--log-human", fi1,
+			"--log-json", fi2,
+			"--log-stackdriver", fi3,
+		)
+		// Attach pty so we get debug output from the command if this test
+		// fails.
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
+
+		// Wait for server to listen on HTTP, this is a good
+		// starting point for expecting logs.
+		_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+
+		loggingWaitFile(t, fi1, testutil.WaitSuperLong)
+		loggingWaitFile(t, fi2, testutil.WaitSuperLong)
+		loggingWaitFile(t, fi3, testutil.WaitSuperLong)
+	})
+}
+
+func loggingWaitFile(t *testing.T, fiName string, dur time.Duration) {
+	var lastStat os.FileInfo
+	require.Eventually(t, func() bool {
+		var err error
+		lastStat, err = os.Stat(fiName)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			return false
+		}
+		return lastStat.Size() > 0
+	},
+		dur, //nolint:gocritic
+		testutil.IntervalFast,
+		"file at %s should exist, last stat: %+v",
+		fiName, lastStat,
+	)
 }
 
 func TestServer_Production(t *testing.T) {
