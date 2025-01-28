@@ -23,7 +23,7 @@ guide.
 All Coder deployments start with one organization called `coder`. All new users
 are added to this organization by default.
 
-To edit the organization details, select **Administration** from the top bar, then
+To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
 ![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
@@ -54,9 +54,11 @@ identity provider to avoid manually assigning users to organizations.
 
 To create a new organization:
 
-1. Select **Administration** from the top bar, then **Organizations**.
+1. Select **Admin settings** from the top bar, then **Organizations**.
 
-1. Select **Create organization**.
+1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
+
+   ![Organizations dropdown and Create Organization](../../images/admin/users/organizations/org-dropdown-create.png)
 
 1. Enter the details and select **Save** to continue:
 
@@ -104,8 +106,8 @@ Once you've started a provisioner, you can create a template. You'll notice the
 
 ### 4. Add members
 
-From **Administration > Settings**, select **Organizations** to add members to
-your organization. Once added, they will be able to see the
+From **Admin settings**, select **Organizations**, then **Members** to add members to
+your organization. Once added, members will be able to see the
 organization-specific templates.
 
 ![Add members](../../images/admin/users/organizations/organization-members.png)
