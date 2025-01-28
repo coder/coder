@@ -249,13 +249,12 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		cancelCtx, cancelFunc := context.WithCancel(ctx)
+		runnerCtx, runnerCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 
 		done := make(chan struct{})
 		logs := bytes.NewBuffer(nil)
 		go func() {
-			err := runner.Run(cancelCtx, "1", logs)
+			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
 			require.ErrorIs(t, err, context.Canceled)
@@ -263,9 +262,10 @@ func Test_Runner(t *testing.T) {
 		}()
 
 		// Wait for the workspace build job to be picked up.
+		checkJobStartedCtx := testutil.Context(t, testutil.WaitLong)
 		jobCh := make(chan codersdk.ProvisionerJob, 1)
 		require.Eventually(t, func() bool {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			workspaces, err := client.Workspaces(checkJobStartedCtx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
 			}
@@ -289,7 +289,7 @@ func Test_Runner(t *testing.T) {
 		}, testutil.WaitLong, testutil.IntervalSlow)
 
 		t.Log("canceling scaletest workspace creation")
-		cancelFunc()
+		runnerCancel()
 		<-done
 		t.Log("canceled scaletest workspace creation")
 		// Ensure we have a job to interrogate
@@ -299,17 +299,18 @@ func Test_Runner(t *testing.T) {
 		// When we run the cleanup, it should be canceled
 		cleanupLogs := bytes.NewBuffer(nil)
 		// Reset ctx to avoid timeouts.
-		cancelCtx, cancelFunc = context.WithTimeout(context.Background(), testutil.WaitLong)
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		done = make(chan struct{})
 		go func() {
 			// This will return an error as the "delete" operation will never complete.
-			_ = runner.Cleanup(cancelCtx, "1", cleanupLogs)
+			_ = runner.Cleanup(cleanupCtx, "1", cleanupLogs)
 			close(done)
 		}()
 
 		// Ensure the job has been marked as canceled
+		checkJobCanceledCtx := testutil.Context(t, testutil.WaitLong)
 		require.Eventually(t, func() bool {
-			pj, err := client.OrganizationProvisionerJob(ctx, runningJob.OrganizationID, runningJob.ID)
+			pj, err := client.OrganizationProvisionerJob(checkJobCanceledCtx, runningJob.OrganizationID, runningJob.ID)
 			if !assert.NoError(t, err) {
 				return false
 			}
@@ -324,7 +325,7 @@ func Test_Runner(t *testing.T) {
 
 			return true
 		}, testutil.WaitLong, testutil.IntervalSlow)
-		cancelFunc()
+		cleanupCancel()
 		<-done
 		cleanupLogsStr := cleanupLogs.String()
 		require.Contains(t, cleanupLogsStr, "canceling workspace build")
