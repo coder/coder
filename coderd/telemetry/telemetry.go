@@ -530,6 +530,22 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		// Warning: When an organization is deleted, it's completely removed from
+		// the database. This means that if an organization is deleted, it will
+		// no longer be reported, and there will be no other indicator that it
+		// was deleted. This requires special handling when interpreting the
+		// telemetry data later.
+		orgs, err := r.options.Database.GetOrganizations(ctx, database.GetOrganizationsParams{})
+		if err != nil {
+			return xerrors.Errorf("get organizations: %w", err)
+		}
+		snapshot.Organizations = make([]Organization, 0, len(orgs))
+		for _, org := range orgs {
+			snapshot.Organizations = append(snapshot.Organizations, ConvertOrganization(org))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -928,6 +944,14 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
+func ConvertOrganization(org database.Organization) Organization {
+	return Organization{
+		ID:        org.ID,
+		CreatedAt: org.CreatedAt,
+		IsDefault: org.IsDefault,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -954,6 +978,7 @@ type Snapshot struct {
 	WorkspaceModules          []WorkspaceModule           `json:"workspace_modules"`
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
+	Organizations             []Organization              `json:"organizations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1468,6 +1493,12 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		P2PLatency:      protoDurationNil(proto.P2PLatency),
 		ThroughputMbits: protoFloat(proto.ThroughputMbits),
 	}, nil
+}
+
+type Organization struct {
+	ID        uuid.UUID `json:"id"`
+	IsDefault bool      `json:"is_default"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type noopReporter struct{}
