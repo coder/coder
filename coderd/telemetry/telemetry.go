@@ -53,6 +53,10 @@ type Options struct {
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
+	// We pass this function instead of the IDPSync interface because it creates
+	// a circular import. We don't need all the other methods, and this approach
+	// is simpler than refactoring the package structure.
+	OrganizationSyncEnabled func(ctx context.Context, db database.Store) bool
 }
 
 // New constructs a reporter for telemetry data.
@@ -244,6 +248,13 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
 	}
 
+	idpOrgSync := false
+	if r.options.OrganizationSyncEnabled != nil {
+		idpOrgSync = r.options.OrganizationSyncEnabled(r.ctx, r.options.Database)
+	} else {
+		r.options.Logger.Debug(r.ctx, "organization sync enabled function is nil, skipping IDP org sync check")
+	}
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -263,6 +274,7 @@ func (r *remoteReporter) deployment() error {
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
+		IDPOrgSync:      idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -964,6 +976,7 @@ type Deployment struct {
 	MachineID       string                     `json:"machine_id"`
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
+	IDPOrgSync      bool                       `json:"idp_org_sync"`
 }
 
 type APIKey struct {
