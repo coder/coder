@@ -72,6 +72,7 @@ type Builder struct {
 	lastBuildJob                 *database.ProvisionerJob
 	parameterNames               *[]string
 	parameterValues              *[]string
+	prebuild                     bool
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -165,6 +166,12 @@ func (b Builder) Reason(r database.BuildReason) Builder {
 func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Builder {
 	// nolint: revive
 	b.richParameterValues = p
+	return b
+}
+
+func (b Builder) MarkPrebuild() Builder {
+	// nolint: revive
+	b.prebuild = true
 	return b
 }
 
@@ -295,6 +302,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
 		WorkspaceBuildID: workspaceBuildID,
 		LogLevel:         b.logLevel,
+		IsPrebuild:       b.prebuild,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{

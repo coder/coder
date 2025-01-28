@@ -262,6 +262,9 @@ func provisionEnv(
 		"CODER_WORKSPACE_TEMPLATE_VERSION="+metadata.GetTemplateVersion(),
 		"CODER_WORKSPACE_BUILD_ID="+metadata.GetWorkspaceBuildId(),
 	)
+	if metadata.GetIsPrebuild() {
+		env = append(env, "CODER_WORKSPACE_IS_PREBUILD=true")
+	}
 	for key, value := range provisionersdk.AgentScriptEnv() {
 		env = append(env, key+"="+value)
 	}
@@ -278,6 +281,7 @@ func provisionEnv(
 		// The idea behind using TF_LOG=JSON instead of TF_LOG=debug is ensuring the proper log format.
 		env = append(env, "TF_LOG=JSON")
 	}
+
 	return env, nil
 }
 

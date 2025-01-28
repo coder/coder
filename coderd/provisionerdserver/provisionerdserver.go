@@ -621,6 +621,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceOwnerSshPrivateKey:   ownerSSHPrivateKey,
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
+					IsPrebuild:                    input.IsPrebuild,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -2345,6 +2346,7 @@ type TemplateVersionImportJob struct {
 type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
+	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
 	LogLevel         string    `json:"log_level,omitempty"`
 }
 
