@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "216e062b-1778-42a9-86cd-6b1ba5b4840d",
+            "id": "69fb8a6e-f9ae-4cea-be42-75b1b973be54",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -36,7 +36,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "40fffa78-90f6-47cb-bee5-2252a6e89de3",
+            "token": "4a3b1048-0fd9-4a28-a9d8-54baa02fcc99",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -70,17 +70,27 @@
               }
             ],
             "env": null,
-            "id": "c8d5a3b4-2b1c-4afe-916b-600a3b7c7fa8",
+            "id": "9d09c249-ae24-4434-bc6e-606f35021b90",
             "init_script": "",
             "metadata": [],
             "motd_file": "/etc/motd",
             "order": null,
             "os": "darwin",
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 80
+                  }
+                ],
+                "volume": []
+              }
+            ],
             "shutdown_script": "echo bye bye",
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "90f0b12e-9b60-4278-952c-ea4fd2153b69",
+            "token": "5ca992c1-a782-48f4-b633-a1429ef5ea33",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -88,7 +98,14 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": []
+              }
+            ],
             "token": true
           }
         },
@@ -114,7 +131,7 @@
               }
             ],
             "env": null,
-            "id": "844b38d9-acb4-4440-9ef1-16c56060b97f",
+            "id": "740c1396-07f0-4cc7-b545-7db9ac9c4825",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -124,7 +141,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "blocking",
-            "token": "47ac740e-6d68-41f8-85b4-a34c0915d0bd",
+            "token": "161768ea-099f-4dc8-987c-dd41e4e713bf",
             "troubleshooting_url": "https://coder.com/troubleshoot"
           },
           "sensitive_values": {
@@ -158,7 +175,7 @@
               }
             ],
             "env": null,
-            "id": "934f46a0-1e2b-4db0-ab42-1d16f9e101e2",
+            "id": "66751aee-57db-4976-917e-7632e3475429",
             "init_script": "",
             "metadata": [],
             "motd_file": null,
@@ -168,7 +185,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "a4d0a60a-839b-487e-bcba-384fe70431fb",
+            "token": "38677312-ab2c-444c-b634-32d24bc2d5c8",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -188,7 +205,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "3765671728718250839",
+            "id": "5587887822236427037",
             "triggers": null
           },
           "sensitive_values": {},

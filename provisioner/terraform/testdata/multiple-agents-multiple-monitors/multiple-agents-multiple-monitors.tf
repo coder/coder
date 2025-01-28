@@ -19,6 +19,12 @@ resource "coder_agent" "dev2" {
   motd_file               = "/etc/motd"
   startup_script_behavior = "non-blocking"
   shutdown_script         = "echo bye bye"
+  resources_monitoring {
+    memory {
+      enabled   = true
+      threshold = 80
+    }
+  }
 }
 
 resource "coder_agent" "dev3" {
