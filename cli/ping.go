@@ -120,7 +120,9 @@ func (r *RootCmd) ping() *serpent.Command {
 			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
 			spin.Writer = inv.Stderr
 			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
-			spin.Start()
+			if !r.verbose {
+				spin.Start()
+			}
 
 			opts := &workspacesdk.DialAgentOptions{}
 
