@@ -106,7 +106,9 @@ func TestTelemetry(t *testing.T) {
 
 		_ = dbgen.WorkspaceModule(t, db, database.WorkspaceModule{})
 
-		_, snapshot := collectSnapshot(t, db, nil)
+		deployment, snapshot := collectSnapshot(t, db, nil)
+		require.False(t, deployment.IDPOrgSync)
+
 		require.Len(t, snapshot.ProvisionerJobs, 1)
 		require.Len(t, snapshot.Licenses, 1)
 		require.Len(t, snapshot.Templates, 1)
@@ -153,6 +155,15 @@ func TestTelemetry(t *testing.T) {
 		for _, entity := range snapshot.Templates {
 			require.Equal(t, entity.OrganizationID, org.ID)
 		}
+
+		deployment2, _ := collectSnapshot(t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.OrganizationSyncEnabled = new(func() bool)
+			*opts.OrganizationSyncEnabled = func() bool {
+				return true
+			}
+			return opts
+		})
+		require.True(t, deployment2.IDPOrgSync)
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
