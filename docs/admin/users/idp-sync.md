@@ -25,7 +25,7 @@ There are two ways you can configure group sync:
 
 <div class="tabs">
 
-## Server Flags
+### Server Flags
 
 1. Confirm that your OIDC provider is sending claims.
 
@@ -96,7 +96,7 @@ coder:
 From the example above, users that belong to the `myOIDCGroupID` group in your
 OIDC provider will be added to the `myCoderGroupName` group in Coder.
 
-## Runtime (Organizations)
+### Runtime (Organizations)
 
 <blockquote class="admonition note">
 
@@ -236,7 +236,7 @@ You must have a Premium license with Organizations enabled to use this.
 
 <div class="tabs">
 
-## Server Flags
+### Server Flags
 
 1. Confirm that your OIDC provider is sending a roles claim by logging in with
    OIDC and visiting the following URL with an `Owner` account:
@@ -273,7 +273,7 @@ You must have a Premium license with Organizations enabled to use this.
 One role from your identity provider can be mapped to many roles in Coder. The
 example above maps to two roles in Coder.
 
-## Runtime (Organizations)
+### Runtime (Organizations)
 
 For deployments with multiple [organizations](./organizations.md), you can
 configure role sync at the organization level. In future Coder versions, you
@@ -375,7 +375,7 @@ dashboard:
 
 <div class="tabs">
 
-## Dashboard
+### Dashboard
 
 1. Confirm that your OIDC provider is sending claims. Log in with OIDC and visit
    the following URL with an `Owner` account:
@@ -415,7 +415,7 @@ dashboard:
 
    ![IdP organization sync](../../images/admin/users/organizations/idp-org-sync.png)
 
-## CLI
+### CLI
 
 Use the Coder CLI to show and adjust the settings.
 
