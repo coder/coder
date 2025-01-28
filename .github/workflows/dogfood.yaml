@@ -24,7 +24,7 @@ permissions:
 jobs:
   build_image:
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
         uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
@@ -33,6 +33,12 @@ jobs:
 
       - name: Checkout
         uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+
+      - name: Setup Nix
+        uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
+
+      - name: Setup GHA Nix cache
+        uses: DeterminateSystems/magic-nix-cache-action@6221693898146dc97e38ad0e013488a16477a4c4 # v9
 
       - name: Get branch name
         id: branch-name
@@ -71,18 +77,21 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
 
-      - name: Build and push Nix image
-        uses: depot/build-push-action@636daae76684e38c301daa0c5eca1c095b24e780 # v1.14.0
-        with:
-          project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
-          buildx-fallback: true
-          context: "."
-          file: "dogfood/contents/Dockerfile.nix"
-          pull: true
-          save: true
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-nix:latest"
+      - name: Build Nix image
+        run: nix build .#dev_image
+
+      - name: Push Nix image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker load -i result
+
+          CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
+
+          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+          docker image push codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+
+          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:latest
+          docker image push codercom/oss-dogfood-nix:latest
 
   deploy_template:
     needs: build_image

@@ -957,3 +957,6 @@ else
 	pnpm playwright:test
 endif
 .PHONY: test-e2e
+
+dogfood/contents/nix.hash: flake.nix flake.lock
+	sha256sum flake.nix flake.lock >./dogfood/contents/nix.hash
