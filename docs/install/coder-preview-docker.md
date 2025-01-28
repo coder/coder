@@ -31,7 +31,10 @@ If you want to install the latest version of Coder, use the [quickstart guide](.
 
     You might need to log out and back in or restart the machine for changes to take effect.
 
-1. Install Coder via `docker run` with latest preview from [coder-preview](https://github.com/coder/coder/pkgs/container/coder-preview):
+1. Install Coder via `docker run` with latest preview from
+   [coder-preview](https://github.com/coder/coder/pkgs/container/coder-preview).
+   Replace the `ghcr.io/coder/coder-preview:latest` in the URL of the `docker run`
+   step with the URL for the latest coder-preview package:
 
    1. ```shell
       export CODER_DATA=$HOME/.config/coderv2-docker
@@ -50,5 +53,5 @@ If you want to install the latest version of Coder, use the [quickstart guide](.
         -v $CODER_DATA:/home/coder/.config \
         -v /var/run/docker.sock:/var/run/docker.sock \
         --group-add $DOCKER_GROUP \
-        ghcr.io/coder/coder-preview:pr16309
+        ghcr.io/coder/coder-preview:latest
       ```
