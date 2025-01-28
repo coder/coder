@@ -40,22 +40,33 @@ func TestTelemetry(t *testing.T) {
 		db := dbmem.New()
 
 		ctx := testutil.Context(t, testutil.WaitMedium)
+
+		org, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+
 		_, _ = dbgen.APIKey(t, db, database.APIKey{})
 		_ = dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
-			Provisioner:   database.ProvisionerTypeTerraform,
-			StorageMethod: database.ProvisionerStorageMethodFile,
-			Type:          database.ProvisionerJobTypeTemplateVersionDryRun,
+			Provisioner:    database.ProvisionerTypeTerraform,
+			StorageMethod:  database.ProvisionerStorageMethodFile,
+			Type:           database.ProvisionerJobTypeTemplateVersionDryRun,
+			OrganizationID: org.ID,
 		})
 		_ = dbgen.Template(t, db, database.Template{
-			Provisioner: database.ProvisionerTypeTerraform,
+			Provisioner:    database.ProvisionerTypeTerraform,
+			OrganizationID: org.ID,
 		})
 		sourceExampleID := uuid.NewString()
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			SourceExampleID: sql.NullString{String: sourceExampleID, Valid: true},
+			OrganizationID:  org.ID,
 		})
-		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{})
+		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
+			OrganizationID: org.ID,
+		})
 		user := dbgen.User(t, db, database.User{})
-		_ = dbgen.Workspace(t, db, database.WorkspaceTable{})
+		_ = dbgen.Workspace(t, db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+		})
 		_ = dbgen.WorkspaceApp(t, db, database.WorkspaceApp{
 			SharingLevel: database.AppSharingLevelOwner,
 			Health:       database.WorkspaceAppHealthDisabled,
@@ -112,6 +123,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceAgentStats, 1)
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
+		require.Len(t, snapshot.Organizations, 1)
 
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
@@ -128,6 +140,19 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.Equal(t, tvs[0].SourceExampleID, &sourceExampleID)
 		require.Nil(t, tvs[1].SourceExampleID)
+
+		for _, entity := range snapshot.Workspaces {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.ProvisionerJobs {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.TemplateVersions {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.Templates {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()

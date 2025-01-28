@@ -29,6 +29,7 @@ import (
 	"github.com/coder/coder/v2/buildinfo"
 	clitelemetry "github.com/coder/coder/v2/cli/telemetry"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/codersdk"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
@@ -53,6 +54,10 @@ type Options struct {
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
+	// We pass this function instead of the IDPSync interface because it creates
+	// a circular import. We don't need all the other methods, and this approach
+	// is simpler than refactoring the package structure.
+	OrganizationSyncEnabled func() bool
 }
 
 // New constructs a reporter for telemetry data.
@@ -244,6 +249,13 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
 	}
 
+	idpOrgSync := false
+	if r.options.OrganizationSyncEnabled != nil {
+		idpOrgSync = r.options.OrganizationSyncEnabled()
+	} else {
+		r.options.Logger.Debug(r.ctx, "organization sync enabled function is nil, skipping IDP org sync check")
+	}
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -263,6 +275,7 @@ func (r *remoteReporter) deployment() error {
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
+		IDPOrgSync:      idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -515,6 +528,24 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.WorkspaceProxies = make([]WorkspaceProxy, 0, len(proxies))
 		for _, proxy := range proxies {
 			snapshot.WorkspaceProxies = append(snapshot.WorkspaceProxies, ConvertWorkspaceProxy(proxy))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		// Warning: When an organization is deleted, it's completely removed from
+		// the database. This means that if an organization is deleted, it will
+		// no longer be reported, and there will be no other indicator that it
+		// was deleted. This requires special handling when interpreting the
+		// telemetry data later.
+		// nolint:gocritic // AsSystemRestricted is fine here because it's a read-only operation
+		// used for telemetry reporting.
+		orgs, err := r.options.Database.GetOrganizations(dbauthz.AsSystemRestricted(r.ctx), database.GetOrganizationsParams{})
+		if err != nil {
+			return xerrors.Errorf("get organizations: %w", err)
+		}
+		snapshot.Organizations = make([]Organization, 0, len(orgs))
+		for _, org := range orgs {
+			snapshot.Organizations = append(snapshot.Organizations, ConvertOrganization(org))
 		}
 		return nil
 	})
@@ -916,6 +947,14 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
+func ConvertOrganization(org database.Organization) Organization {
+	return Organization{
+		ID:        org.ID,
+		CreatedAt: org.CreatedAt,
+		IsDefault: org.IsDefault,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -942,6 +981,7 @@ type Snapshot struct {
 	WorkspaceModules          []WorkspaceModule           `json:"workspace_modules"`
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
+	Organizations             []Organization              `json:"organizations"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -964,6 +1004,7 @@ type Deployment struct {
 	MachineID       string                     `json:"machine_id"`
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
+	IDPOrgSync      bool                       `json:"idp_org_sync"`
 }
 
 type APIKey struct {
@@ -1455,6 +1496,12 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 		P2PLatency:      protoDurationNil(proto.P2PLatency),
 		ThroughputMbits: protoFloat(proto.ThroughputMbits),
 	}, nil
+}
+
+type Organization struct {
+	ID        uuid.UUID `json:"id"`
+	IsDefault bool      `json:"is_default"`
+	CreatedAt time.Time `json:"created_at"`
 }
 
 type noopReporter struct{}
