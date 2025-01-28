@@ -1064,6 +1064,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceReachedResourceThreshold",
+			id:   notifications.TemplateWorkspaceReachedResourceThreshold,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace":      "bobby-workspace",
+					"threshold_type": "memory usage",
+					"threshold":      "90%",
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
