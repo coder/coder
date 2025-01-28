@@ -1,7 +1,7 @@
 # Install and test coder-preview
 
 Use Docker to install and test a
-[preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview).
+[preview release of Coder](https://github.com/coder/coder/pkgs/container/coder-preview) using Docker on Linux or Mac.
 
 These steps are not intended for use in production deployments.
 If you want to install the latest version of Coder, use the [quickstart guide](../tutorials/quickstart.md).
