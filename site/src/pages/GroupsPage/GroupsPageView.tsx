@@ -29,13 +29,13 @@ import { docs } from "utils/docs";
 export type GroupsPageViewProps = {
 	groups: Group[] | undefined;
 	canCreateGroup: boolean;
-	isTemplateRBACEnabled: boolean;
+	groupsEnabled: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
 	canCreateGroup,
-	isTemplateRBACEnabled,
+	groupsEnabled,
 }) => {
 	const isLoading = Boolean(groups === undefined);
 	const isEmpty = Boolean(groups && groups.length === 0);
@@ -43,7 +43,7 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	return (
 		<>
 			<ChooseOne>
-				<Cond condition={!isTemplateRBACEnabled}>
+				<Cond condition={!groupsEnabled}>
 					<Paywall
 						message="Groups"
 						description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."

@@ -18,7 +18,7 @@ import { useGroupsSettings } from "./GroupsPageProvider";
 import GroupsPageView from "./GroupsPageView";
 
 export const GroupsPage: FC = () => {
-	const feats = useFeatureVisibility();
+	const { template_rbac: groupsEnabled } = useFeatureVisibility();
 	const { organization, showOrganizations } = useGroupsSettings();
 	const groupsQuery = useQuery(
 		organization ? groupsByOrganization(organization.name) : { enabled: false },
@@ -65,7 +65,7 @@ export const GroupsPage: FC = () => {
 					title="Groups"
 					description={`Manage groups for this ${showOrganizations ? "organization" : "deployment"}.`}
 				/>
-				{permissions.createGroup && feats.template_rbac && (
+				{groupsEnabled && permissions.createGroup && (
 					<Button asChild>
 						<RouterLink to="create">
 							<GroupAdd />
@@ -78,7 +78,7 @@ export const GroupsPage: FC = () => {
 			<GroupsPageView
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
-				isTemplateRBACEnabled={feats.template_rbac}
+				isTemplateRBACEnabled={groupsEnabled}
 			/>
 		</>
 	);
