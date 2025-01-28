@@ -26,7 +26,7 @@ are added to this organization by default.
 To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
-![Organizations Menu](../../images/admin/users/organizations/deployment-organizations.png)
+![Organizations Menu](../../images/admin/users/organizations/admin-settings-orgs.png)
 
 From there, you can manage the name, icon, description, users, and groups:
 
