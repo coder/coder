@@ -314,6 +314,10 @@ func WorkspaceBuild(t testing.TB, db database.Store, orig database.WorkspaceBuil
 			Deadline:          takeFirst(orig.Deadline, dbtime.Now().Add(time.Hour)),
 			MaxDeadline:       takeFirst(orig.MaxDeadline, time.Time{}),
 			Reason:            takeFirst(orig.Reason, database.BuildReasonInitiator),
+			TemplateVersionPresetID: takeFirst(orig.TemplateVersionPresetID, uuid.NullUUID{
+				UUID:  uuid.UUID{},
+				Valid: false,
+			}),
 		})
 		if err != nil {
 			return err
