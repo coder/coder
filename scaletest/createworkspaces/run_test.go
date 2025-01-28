@@ -249,13 +249,12 @@ func Test_Runner(t *testing.T) {
 			},
 		})
 
-		ctx := testutil.Context(t, testutil.WaitLong)
-		cancelCtx, cancelFunc := context.WithCancel(ctx)
+		runnerCtx, runnerCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 
 		done := make(chan struct{})
 		logs := bytes.NewBuffer(nil)
 		go func() {
-			err := runner.Run(cancelCtx, "1", logs)
+			err := runner.Run(runnerCtx, "1", logs)
 			logsStr := logs.String()
 			t.Log("Runner logs:\n\n" + logsStr)
 			require.ErrorIs(t, err, context.Canceled)
@@ -263,8 +262,10 @@ func Test_Runner(t *testing.T) {
 		}()
 
 		// Wait for the workspace build job to be picked up.
+		checkJobStartedCtx := testutil.Context(t, testutil.WaitLong)
+		jobCh := make(chan codersdk.ProvisionerJob, 1)
 		require.Eventually(t, func() bool {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
+			workspaces, err := client.Workspaces(checkJobStartedCtx, codersdk.WorkspaceFilter{})
 			if err != nil {
 				return false
 			}
@@ -273,65 +274,58 @@ func Test_Runner(t *testing.T) {
 			}
 
 			ws := workspaces.Workspaces[0]
-			t.Logf("checking build: %s | %s", ws.LatestBuild.Transition, ws.LatestBuild.Job.Status)
+			t.Logf("checking build: %s | %s | %s", ws.ID, ws.LatestBuild.Transition, ws.LatestBuild.Job.Status)
 			// There should be only one build at present.
 			if ws.LatestBuild.Transition != codersdk.WorkspaceTransitionStart {
 				t.Errorf("expected build transition %s, got %s", codersdk.WorkspaceTransitionStart, ws.LatestBuild.Transition)
 				return false
 			}
-			return ws.LatestBuild.Job.Status == codersdk.ProvisionerJobRunning
-		}, testutil.WaitShort, testutil.IntervalMedium)
 
-		cancelFunc()
+			if ws.LatestBuild.Job.Status != codersdk.ProvisionerJobRunning {
+				return false
+			}
+			jobCh <- ws.LatestBuild.Job
+			return true
+		}, testutil.WaitLong, testutil.IntervalSlow)
+
+		t.Log("canceling scaletest workspace creation")
+		runnerCancel()
 		<-done
-
-		ctx = testutil.Context(t, testutil.WaitLong) // Reset ctx to avoid timeouts.
+		t.Log("canceled scaletest workspace creation")
+		// Ensure we have a job to interrogate
+		runningJob := testutil.RequireRecvCtx(testutil.Context(t, testutil.WaitShort), t, jobCh)
+		require.NotZero(t, runningJob.ID)
 
 		// When we run the cleanup, it should be canceled
 		cleanupLogs := bytes.NewBuffer(nil)
-		cancelCtx, cancelFunc = context.WithCancel(ctx)
+		// Reset ctx to avoid timeouts.
+		cleanupCtx, cleanupCancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		done = make(chan struct{})
 		go func() {
 			// This will return an error as the "delete" operation will never complete.
-			_ = runner.Cleanup(cancelCtx, "1", cleanupLogs)
+			_ = runner.Cleanup(cleanupCtx, "1", cleanupLogs)
 			close(done)
 		}()
 
-		// Ensure the job has been marked as deleted
+		// Ensure the job has been marked as canceled
+		checkJobCanceledCtx := testutil.Context(t, testutil.WaitLong)
 		require.Eventually(t, func() bool {
-			workspaces, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{})
-			if err != nil {
+			pj, err := client.OrganizationProvisionerJob(checkJobCanceledCtx, runningJob.OrganizationID, runningJob.ID)
+			if !assert.NoError(t, err) {
 				return false
 			}
 
-			if len(workspaces.Workspaces) == 0 {
+			t.Logf("provisioner job id:%s status:%s", pj.ID, pj.Status)
+
+			if pj.Status != codersdk.ProvisionerJobFailed &&
+				pj.Status != codersdk.ProvisionerJobCanceling &&
+				pj.Status != codersdk.ProvisionerJobCanceled {
 				return false
 			}
 
-			// There should be two builds
-			builds, err := client.WorkspaceBuilds(ctx, codersdk.WorkspaceBuildsRequest{
-				WorkspaceID: workspaces.Workspaces[0].ID,
-			})
-			if err != nil {
-				return false
-			}
-			for i, build := range builds {
-				t.Logf("checking build #%d: %s | %s", i, build.Transition, build.Job.Status)
-				// One of the builds should be for creating the workspace,
-				if build.Transition != codersdk.WorkspaceTransitionStart {
-					continue
-				}
-
-				// And it should be either failed (Echo returns an error when job is canceled), canceling, or canceled.
-				if build.Job.Status == codersdk.ProvisionerJobFailed ||
-					build.Job.Status == codersdk.ProvisionerJobCanceling ||
-					build.Job.Status == codersdk.ProvisionerJobCanceled {
-					return true
-				}
-			}
-			return false
-		}, testutil.WaitShort, testutil.IntervalMedium)
-		cancelFunc()
+			return true
+		}, testutil.WaitLong, testutil.IntervalSlow)
+		cleanupCancel()
 		<-done
 		cleanupLogsStr := cleanupLogs.String()
 		require.Contains(t, cleanupLogsStr, "canceling workspace build")
