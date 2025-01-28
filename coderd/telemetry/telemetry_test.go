@@ -58,6 +58,7 @@ func TestTelemetry(t *testing.T) {
 		sourceExampleID := uuid.NewString()
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			SourceExampleID: sql.NullString{String: sourceExampleID, Valid: true},
+			OrganizationID:  org.ID,
 		})
 		_ = dbgen.TemplateVersion(t, db, database.TemplateVersion{
 			OrganizationID: org.ID,
@@ -139,6 +140,19 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.Equal(t, tvs[0].SourceExampleID, &sourceExampleID)
 		require.Nil(t, tvs[1].SourceExampleID)
+
+		for _, entity := range snapshot.Workspaces {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.ProvisionerJobs {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.TemplateVersions {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
+		for _, entity := range snapshot.Templates {
+			require.Equal(t, entity.OrganizationID, org.ID)
+		}
 	})
 	t.Run("HashedEmail", func(t *testing.T) {
 		t.Parallel()
