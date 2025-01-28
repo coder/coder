@@ -29,10 +29,11 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
+      contents: write
     steps:
       - name: Dependabot metadata
         id: metadata
-        uses: dependabot/fetch-metadata@dbb049abf0d677abbd7f7eee0375145b417fdd34 # v2.2.0
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7 # v2.3.0
         with:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
@@ -43,8 +44,7 @@ jobs:
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Enable auto-merge for Dependabot PRs
-        if: steps.metadata.outputs.update-type == 'version-update:semver-patch'
-        run: gh pr merge --auto --merge "$PR_URL"
+        run: gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}

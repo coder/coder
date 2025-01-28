@@ -150,6 +150,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
 				},
@@ -1157,6 +1162,11 @@
 							"title": "provisioner jobs",
 							"description": "View and manage provisioner jobs",
 							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
 						},
 						{
 							"title": "provisioner jobs list",

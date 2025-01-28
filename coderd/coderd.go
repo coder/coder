@@ -1011,6 +1011,7 @@ func New(options *Options) *API {
 					r.Get("/", api.provisionerDaemons)
 				})
 				r.Route("/provisionerjobs", func(r chi.Router) {
+					r.Get("/{job}", api.provisionerJob)
 					r.Get("/", api.provisionerJobs)
 				})
 			})

@@ -39,7 +39,7 @@ func OpenTunnel(cReadFD, cWriteFD int32) int32 {
 		return ErrDupWriteFD
 	}
 
-	conn, err := vpn.NewBidirectionalPipe(uintptr(cReadFD), uintptr(cWriteFD))
+	conn, err := vpn.NewBidirectionalPipe(uintptr(readFD), uintptr(writeFD))
 	if err != nil {
 		unix.Close(readFD)
 		unix.Close(writeFD)
