@@ -156,16 +156,9 @@ type reconciliationActions struct {
 	meta database.GetTemplatePrebuildStateRow
 }
 
-// calculeActions MUST be called within the context of a transaction (TODO: isolation)
+// calculateActions MUST be called within the context of a transaction (TODO: isolation)
 // with an advisory lock to prevent TOCTOU races.
-func (c Controller) calculeActions(ctx context.Context, db database.Store, template database.Template) (*reconciliationActions, error) {
-	// TODO: change to "many" and return 1 or more rows, but only one should be returned
-	// 		 more than 1 response is indicative of a query problem
-	state, err := db.GetTemplatePrebuildState(ctx, template.ID)
-	if err != nil {
-		return nil, xerrors.Errorf("failed to retrieve template's prebuild state: %w", err)
-	}
-
+func (c Controller) calculateActions(ctx context.Context, template database.Template, state database.GetTemplatePrebuildStateRow) (*reconciliationActions, error) {
 	toCreate := int(math.Max(0, float64(state.Desired-(state.Actual+state.Starting))))
 	toDelete := int(math.Max(0, float64(state.Extraneous-state.Deleting-state.Stopping)))
 
@@ -188,6 +181,8 @@ func (c Controller) calculeActions(ctx context.Context, db database.Store, templ
 			slog.F("template_id", template.ID), slog.F("running", len(runningIDs)), slog.F("to_destroy", toDelete))
 	}
 
+	// TODO: implement lookup to not perform same action on workspace multiple times in $period
+	// 		 i.e. a workspace cannot be deleted for some reason, which continually makes it eligible for deletion
 	for i := 0; i < toDelete; i++ {
 		if i >= len(runningIDs) {
 			// Above warning will have already addressed this.
@@ -222,35 +217,51 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 		innerCtx, cancel := context.WithTimeout(ctx, time.Second*30)
 		defer cancel()
 
-		actions, err := c.calculeActions(innerCtx, db, template)
+		// TODO: change to "many" and return 1 or more rows, but only one should be returned
+		// 		 more than 1 response is indicative of a query problem
+		state, err := db.GetTemplatePrebuildState(ctx, template.ID)
+		if err != nil {
+			return xerrors.Errorf("failed to retrieve template's prebuild states: %w", err)
+		}
 
-		logger.Info(innerCtx, "template prebuild state retrieved",
+		actions, err := c.calculateActions(innerCtx, template, state)
+		if err != nil {
+			logger.Error(ctx, "failed to calculate reconciliation actions", slog.Error(err))
+			return nil
+		}
+
+		// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
+		var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+			ID:     "owner",
+			Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+			Groups: []string{},
+			Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+		})
+
+		levelFn := logger.Debug
+		if len(actions.createIDs) > 0 || len(actions.deleteIDs) > 0 {
+			// Only log with info level when there's a change that needs to be effected.
+			levelFn = logger.Info
+		}
+		levelFn(innerCtx, "template prebuild state retrieved",
 			slog.F("to_create", len(actions.createIDs)), slog.F("to_destroy", len(actions.deleteIDs)),
 			slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual), slog.F("extraneous", actions.meta.Extraneous),
 			slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
 
+		// Provision workspaces within the same tx so we don't get any timing issues here.
+		// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
+		// TODO: max per reconciliation iteration?
+
 		for _, id := range actions.createIDs {
-			// Provision workspaces within the same tx so we don't get any timing issues here.
-			// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
-
-			// TODO: loop
-			// TODO: max per reconciliation iteration?
-
-			// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
-			var ownerCtx = dbauthz.As(ctx, rbac.Subject{
-				ID:     "owner",
-				Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
-				Groups: []string{},
-				Scope:  rbac.ExpandableScope(rbac.ScopeAll),
-			})
-
-			if err := c.provision(ownerCtx, template, id, db); err != nil {
-				logger.Error(ctx, "failed to provision prebuild", slog.Error(err))
+			if err := c.createPrebuild(ownerCtx, db, id, template); err != nil {
+				logger.Error(ctx, "failed to create prebuild", slog.Error(err))
 			}
 		}
+
 		for _, id := range actions.deleteIDs {
-			// TODO: actually delete
-			logger.Info(ctx, "would've deleted prebuild", slog.F("workspace_id", id))
+			if err := c.deletePrebuild(ownerCtx, db, id, template); err != nil {
+				logger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+			}
 		}
 
 		return nil
@@ -266,11 +277,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 	return nil
 }
 
-func (c Controller) provision(ctx context.Context, template database.Template, prebuildID uuid.UUID, db database.Store) error {
-	var (
-		provisionerJob *database.ProvisionerJob
-	)
-
+func (c Controller) createPrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template) error {
 	name := fmt.Sprintf("prebuild-%s", prebuildID)
 
 	now := dbtime.Now()
@@ -296,14 +303,30 @@ func (c Controller) provision(ctx context.Context, template database.Template, p
 		return xerrors.Errorf("get workspace by ID: %w", err)
 	}
 
-	builder := wsbuilder.New(workspace, database.WorkspaceTransitionStart).
+	c.logger.Info(ctx, "attempting to create prebuild", slog.F("name", name), slog.F("workspace_id", prebuildID.String()))
+
+	return c.provision(ctx, db, prebuildID, template, database.WorkspaceTransitionStart, workspace)
+}
+func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template) error {
+	workspace, err := db.GetWorkspaceByID(ctx, prebuildID)
+	if err != nil {
+		return xerrors.Errorf("get workspace by ID: %w", err)
+	}
+
+	c.logger.Info(ctx, "attempting to delete prebuild", slog.F("workspace_id", prebuildID.String()))
+
+	return c.provision(ctx, db, prebuildID, template, database.WorkspaceTransitionDelete, workspace)
+}
+
+func (c Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, transition database.WorkspaceTransition, workspace database.Workspace) error {
+	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
 		Initiator(PrebuildOwnerUUID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID)
 	// RichParameterValues(req.RichParameterValues) // TODO: fetch preset's params
 
-	_, provisionerJob, _, err = builder.Build(
+	_, provisionerJob, _, err := builder.Build(
 		ctx,
 		db,
 		func(action policy.Action, object rbac.Objecter) bool {
@@ -321,8 +344,8 @@ func (c Controller) provision(ctx context.Context, template database.Template, p
 		c.logger.Error(ctx, "failed to post provisioner job to pubsub", slog.Error(err))
 	}
 
-	c.logger.Info(ctx, "provisioned new prebuild", slog.F("prebuild_id", prebuildID.String()),
-		slog.F("job_id", provisionerJob.ID))
+	c.logger.Info(ctx, "prebuild job scheduled", slog.F("transition", transition),
+		slog.F("prebuild_id", prebuildID.String()), slog.F("job_id", provisionerJob.ID))
 
 	return nil
 }
