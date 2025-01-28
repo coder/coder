@@ -323,7 +323,8 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 		Reason(database.BuildReasonInitiator).
 		Initiator(PrebuildOwnerUUID).
 		ActiveVersion().
-		VersionID(template.ActiveVersionID)
+		VersionID(template.ActiveVersionID).
+		MarkPrebuild()
 	// RichParameterValues(req.RichParameterValues) // TODO: fetch preset's params
 
 	_, provisionerJob, _, err := builder.Build(

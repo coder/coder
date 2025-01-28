@@ -261,6 +261,7 @@ export interface Metadata {
   workspaceOwnerSshPrivateKey: string;
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
+  isPrebuild: boolean;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -865,6 +866,9 @@ export const Metadata = {
     }
     if (message.workspaceOwnerLoginType !== "") {
       writer.uint32(146).string(message.workspaceOwnerLoginType);
+    }
+    if (message.isPrebuild === true) {
+      writer.uint32(152).bool(message.isPrebuild);
     }
     return writer;
   },
