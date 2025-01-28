@@ -86,6 +86,12 @@ const OrganizationsSettingsNavigation: FC<
 		return <Loader />;
 	}
 
+	// Sort organizations to put active organization first
+	const sortedOrganizations = [
+		activeOrganization,
+		...organizations.filter((org) => org.id !== activeOrganization.id),
+	];
+
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
 
@@ -117,9 +123,9 @@ const OrganizationsSettingsNavigation: FC<
 					<Command loop>
 						<CommandList>
 							<CommandGroup className="pb-2">
-								{organizations.length > 1 && (
+								{sortedOrganizations.length > 1 && (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
-										{organizations.map((organization) => (
+										{sortedOrganizations.map((organization) => (
 											<CommandItem
 												key={organization.id}
 												value={organization.name}

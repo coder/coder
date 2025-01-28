@@ -64,7 +64,7 @@ export const CreateOrganizationPageView: FC<
 
 	return (
 		<div className="flex flex-row font-medium">
-			<div className="absolute top-40 left-12">
+			<div className="absolute left-12">
 				<Link
 					to="/organizations"
 					className="flex flex-row items-center gap-2 no-underline text-content-secondary hover:text-content-primary"
@@ -73,7 +73,7 @@ export const CreateOrganizationPageView: FC<
 					Go Back
 				</Link>
 			</div>
-			<div className="flex flex-col gap-4 w-full min-w-72 mx-auto">
+			<div className="flex flex-col gap-4 w-full min-w-96 mx-auto">
 				<div className="flex flex-col items-center">
 					{Boolean(error) && !isApiValidationError(error) && (
 						<div css={{ marginBottom: 32 }}>

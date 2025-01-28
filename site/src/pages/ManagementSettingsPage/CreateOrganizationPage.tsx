@@ -18,7 +18,7 @@ const CreateOrganizationPage: FC = () => {
 	const error = createOrganizationMutation.error;
 
 	return (
-		<main className="py-20 sm:py-7">
+		<main className="py-7">
 			<CreateOrganizationPageView
 				error={error}
 				isEntitled={feats.multiple_organizations}
