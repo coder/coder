@@ -239,13 +239,6 @@ func (p *Parser) WorkspaceTagDefaults(ctx context.Context) (map[string]string, e
 		return nil, xerrors.Errorf("eval provisioner tags: %w", err)
 	}
 
-	// Ensure that none of the tag values are empty after evaluation.
-	for k, v := range evalTags {
-		if len(strings.TrimSpace(v)) > 0 {
-			continue
-		}
-		return nil, xerrors.Errorf("provisioner tag %q evaluated to an empty value, please set a default value", k)
-	}
 	return evalTags, nil
 }
 
