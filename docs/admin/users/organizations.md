@@ -26,8 +26,7 @@ are added to this organization by default.
 To edit the organization details, select **Admin settings** from the top bar, then
 **Organizations**:
 
-<Image height="412px" src="../images/templates/coder-login-web.png" alt="Log in to your Coder deployment" align="center" />
-![Organizations Menu](../../images/admin/users/organizations/admin-settings-orgs.png)
+<Image height="255px" src="../../images/admin/users/organizations/admin-settings-orgs.png" alt="Organizations Menu" align="center" />
 
 From there, you can manage the name, icon, description, users, and groups:
 
@@ -59,7 +58,7 @@ To create a new organization:
 
 1. Select the current organization to expand the organizations dropdown, then select **Create Organization**:
 
-   <Image height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt=Organizations dropdown and Create Organization" align="center" />
+   <Image height="212px" src="../../images/admin/users/organizations/org-dropdown-create.png" alt="Organizations dropdown and Create Organization" align="center" />
 
 1. Enter the details and select **Save** to continue:
 
