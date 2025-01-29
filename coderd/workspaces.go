@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/prebuilds"
 	"net/http"
 	"slices"
 	"strconv"
@@ -628,32 +629,78 @@ func createWorkspace(
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
 	)
 	err = api.Database.InTx(func(db database.Store) error {
+		var claimedWorkspace *database.Workspace
+
+		// TODO: implement matching logic
+		if true {
+			//if req.ClaimPrebuildIfAvailable {
+			// TODO: authz // Can't use existing profiles (i.e. AsSystemRestricted) because of dbauthz rules
+			var ownerCtx = dbauthz.As(ctx, rbac.Subject{
+				ID:     "owner",
+				Roles:  rbac.RoleIdentifiers{rbac.RoleOwner()},
+				Groups: []string{},
+				Scope:  rbac.ExpandableScope(rbac.ScopeAll),
+			})
+
+			claimCtx, cancel := context.WithTimeout(ownerCtx, time.Second*10) // TODO: don't use elevated authz context
+			defer cancel()
+
+			claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID)
+			if err != nil {
+				// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
+				api.Logger.Error(ctx, "failed to claim a prebuild", slog.Error(err))
+				goto regularPath
+			}
+
+			if claimedID == nil {
+				api.Logger.Warn(ctx, "no claimable prebuild available", slog.Error(err))
+				goto regularPath
+			}
+
+			lookup, err := api.Database.GetWorkspaceByID(ownerCtx, *claimedID) // TODO: don't use elevated authz context
+			if err != nil {
+				api.Logger.Warn(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
+				goto regularPath
+			}
+
+			claimedWorkspace = &lookup
+		}
+
+	regularPath:
 		now := dbtime.Now()
-		// Workspaces are created without any versions.
-		minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
-			ID:                uuid.New(),
-			CreatedAt:         now,
-			UpdatedAt:         now,
-			OwnerID:           owner.ID,
-			OrganizationID:    template.OrganizationID,
-			TemplateID:        template.ID,
-			Name:              req.Name,
-			AutostartSchedule: dbAutostartSchedule,
-			NextStartAt:       nextStartAt,
-			Ttl:               dbTTL,
-			// The workspaces page will sort by last used at, and it's useful to
-			// have the newly created workspace at the top of the list!
-			LastUsedAt:       dbtime.Now(),
-			AutomaticUpdates: dbAU,
-		})
-		if err != nil {
-			return xerrors.Errorf("insert workspace: %w", err)
+
+		var workspaceID uuid.UUID
+
+		if claimedWorkspace != nil {
+			workspaceID = claimedWorkspace.ID
+		} else {
+			// Workspaces are created without any versions.
+			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
+				ID:                uuid.New(),
+				CreatedAt:         now,
+				UpdatedAt:         now,
+				OwnerID:           owner.ID,
+				OrganizationID:    template.OrganizationID,
+				TemplateID:        template.ID,
+				Name:              req.Name,
+				AutostartSchedule: dbAutostartSchedule,
+				NextStartAt:       nextStartAt,
+				Ttl:               dbTTL,
+				// The workspaces page will sort by last used at, and it's useful to
+				// have the newly created workspace at the top of the list!
+				LastUsedAt:       dbtime.Now(),
+				AutomaticUpdates: dbAU,
+			})
+			if err != nil {
+				return xerrors.Errorf("insert workspace: %w", err)
+			}
+			workspaceID = minimumWorkspace.ID
 		}
 
 		// We have to refetch the workspace for the joined in fields.
 		// TODO: We can use WorkspaceTable for the builder to not require
 		// this extra fetch.
-		workspace, err = db.GetWorkspaceByID(ctx, minimumWorkspace.ID)
+		workspace, err = db.GetWorkspaceByID(ctx, workspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by ID: %w", err)
 		}

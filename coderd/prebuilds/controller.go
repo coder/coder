@@ -376,5 +376,5 @@ func generateName() (string, error) {
 	}
 
 	// Encode the bytes to Base32 (A-Z2-7), strip any '=' padding
-	return fmt.Sprintf("prebuild-%s", base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b)), nil
+	return fmt.Sprintf("prebuild-%s", strings.ToLower(base32.StdEncoding.WithPadding(base32.NoPadding).EncodeToString(b))), nil
 }
