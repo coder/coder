@@ -181,7 +181,7 @@ func assertLogs(t testing.TB, path string, expected ...string) {
 
 	logs := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if !assert.Len(t, logs, len(expected)) {
-		t.Logf(string(data))
+		t.Log(string(data))
 		t.FailNow()
 	}
 	for i, log := range logs {
@@ -202,7 +202,7 @@ func assertLogsJSON(t testing.TB, path string, levelExpected ...string) {
 
 	logs := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if !assert.Len(t, logs, len(levelExpected)/2) {
-		t.Logf(string(data))
+		t.Log(string(data))
 		t.FailNow()
 	}
 	for i, log := range logs {

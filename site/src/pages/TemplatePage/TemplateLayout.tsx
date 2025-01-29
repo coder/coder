@@ -3,7 +3,7 @@ import type { AuthorizationRequest } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { Margins } from "components/Margins/Margins";
-import { TAB_PADDING_Y, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
+import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import {
 	type FC,
 	type PropsWithChildren,
@@ -108,10 +108,7 @@ export const TemplateLayout: FC<PropsWithChildren> = ({
 				}}
 			/>
 
-			<Tabs
-				active={activeTab}
-				css={{ marginBottom: 40, marginTop: -TAB_PADDING_Y }}
-			>
+			<Tabs active={activeTab} className="mb-10 -mt-3">
 				<Margins>
 					<TabsList>
 						<TabLink to="" value="summary">

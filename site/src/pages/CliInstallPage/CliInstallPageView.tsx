@@ -4,9 +4,11 @@ import { Welcome } from "components/Welcome/Welcome";
 import type { FC } from "react";
 import { Link as RouterLink } from "react-router-dom";
 
-export const CliInstallPageView: FC = () => {
-	const origin = location.origin;
+type CliInstallPageViewProps = {
+	origin: string;
+};
 
+export const CliInstallPageView: FC<CliInstallPageViewProps> = ({ origin }) => {
 	return (
 		<div css={styles.container}>
 			<Welcome>Install the Coder CLI</Welcome>
@@ -18,7 +20,6 @@ export const CliInstallPageView: FC = () => {
 
 			<CodeExample
 				css={{ maxWidth: "100%" }}
-				data-chromatic="ignore"
 				code={`curl -fsSL ${origin}/install.sh | sh`}
 				secret={false}
 			/>

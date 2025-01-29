@@ -51,7 +51,7 @@ export const GlobalSnackbar: FC = () => {
 						<ErrorIcon css={styles.errorIcon} />
 					)}
 
-					<div css={{ maxWidth: 670 }}>
+					<div className="max-w-[670px] flex flex-col">
 						<span css={styles.messageTitle}>{notificationMsg.msg}</span>
 
 						{notificationMsg.additionalMsgs?.map((msg, index) => (
@@ -104,7 +104,10 @@ const styles = {
 		fontWeight: 600,
 	},
 	messageSubtitle: {
-		marginTop: 12,
+		marginTop: 4,
+		"&:first-letter": {
+			textTransform: "uppercase",
+		},
 	},
 	errorIcon: (theme) => ({
 		color: theme.palette.error.contrastText,

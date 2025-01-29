@@ -35,6 +35,7 @@ export const beforeCoderTest = (page: Page) => {
 				responseText = "skipped...";
 			}
 		} catch (error) {
+			console.error(error);
 			responseText = "not_available";
 		}
 

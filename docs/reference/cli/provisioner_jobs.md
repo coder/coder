@@ -15,6 +15,7 @@ coder provisioner jobs
 
 ## Subcommands
 
-| Name                                            | Purpose               |
-|-------------------------------------------------|-----------------------|
-| [<code>list</code>](./provisioner_jobs_list.md) | List provisioner jobs |
+| Name                                                | Purpose                  |
+|-----------------------------------------------------|--------------------------|
+| [<code>cancel</code>](./provisioner_jobs_cancel.md) | Cancel a provisioner job |
+| [<code>list</code>](./provisioner_jobs_list.md)     | List provisioner jobs    |

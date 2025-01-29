@@ -613,7 +613,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "parse job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -711,7 +711,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "template import provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)

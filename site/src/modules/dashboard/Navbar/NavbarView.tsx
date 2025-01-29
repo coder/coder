@@ -13,7 +13,6 @@ import { UserDropdown } from "./UserDropdown/UserDropdown";
 export interface NavbarViewProps {
 	logo_url?: string;
 	user?: TypesGen.User;
-	docsHref: string;
 	buildInfo?: TypesGen.BuildInfoResponse;
 	supportLinks?: readonly TypesGen.LinkConfig[];
 	onSignOut: () => void;
@@ -33,7 +32,6 @@ const linkStyles = {
 export const NavbarView: FC<NavbarViewProps> = ({
 	user,
 	logo_url,
-	docsHref,
 	buildInfo,
 	supportLinks,
 	onSignOut,
@@ -67,15 +65,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 					canViewHealth={canViewHealth}
 				/>
 
-				<a
-					className={linkStyles.default}
-					href={docsHref}
-					target="_blank"
-					rel="noreferrer"
-				>
-					Docs
-				</a>
-
 				{user && (
 					<UserDropdown
 						user={user}
@@ -90,7 +79,6 @@ export const NavbarView: FC<NavbarViewProps> = ({
 				proxyContextValue={proxyContextValue}
 				user={user}
 				supportLinks={supportLinks}
-				docsHref={docsHref}
 				onSignOut={onSignOut}
 				canViewAuditLog={canViewAuditLog}
 				canViewOrganizations={canViewOrganizations}

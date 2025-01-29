@@ -28,15 +28,18 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
+import { Link } from "components/Link/Link";
 import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
-import { Plus, SquareArrowOutUpRight, Trash } from "lucide-react";
-import { type FC, useState } from "react";
+import { Plus, Trash } from "lucide-react";
+import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
+import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
 
@@ -50,9 +53,23 @@ interface IdpSyncPageViewProps {
 const validationSchema = Yup.object({
 	field: Yup.string().trim(),
 	organization_assign_default: Yup.boolean(),
-	mapping: Yup.object().shape({
-		[`${String}`]: Yup.array().of(Yup.string()),
-	}),
+	mapping: Yup.object()
+		.test(
+			"valid-mapping",
+			"Invalid organization sync settings mapping structure",
+			(value) => {
+				if (!value) return true;
+				return Object.entries(value).every(
+					([key, arr]) =>
+						typeof key === "string" &&
+						Array.isArray(arr) &&
+						arr.every((item) => {
+							return typeof item === "string" && isUUID(item);
+						}),
+				);
+			},
+		)
+		.default({}),
 });
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
@@ -78,6 +95,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		? Object.entries(form.values.mapping).length
 		: 0;
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
+	const id = useId();
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -100,10 +118,6 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
-	const SYNC_FIELD_ID = "sync-field";
-	const ORGANIZATION_ASSIGN_DEFAULT_ID = "organization-assign-default";
-	const IDP_ORGANIZATION_NAME_ID = "idp-organization-name";
-
 	return (
 		<div className="flex flex-col gap-2">
 			{Boolean(error) && <ErrorAlert error={error} />}
@@ -111,15 +125,15 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 				<fieldset disabled={form.isSubmitting} className="border-none">
 					<div className="flex flex-row">
 						<div className="grid items-center gap-1">
-							<Label className="text-sm" htmlFor={SYNC_FIELD_ID}>
+							<Label className="text-sm" htmlFor={`${id}-sync-field`}>
 								Organization sync field
 							</Label>
 							<div className="flex flex-row items-center gap-5">
 								<div className="flex flex-row gap-2 w-72">
 									<Input
-										id={SYNC_FIELD_ID}
+										id={`${id}-sync-field`}
 										value={form.values.field}
-										onChange={async (event) => {
+										onChange={(event) => {
 											void form.setFieldValue("field", event.target.value);
 										}}
 									/>
@@ -132,14 +146,15 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											form.handleSubmit();
 										}}
 									>
+										<Spinner loading={form.isSubmitting} />
 										Save
 									</Button>
 								</div>
 								<div className="flex flex-row items-center gap-3">
 									<Switch
-										id={ORGANIZATION_ASSIGN_DEFAULT_ID}
+										id={`${id}-assign-default-org`}
 										checked={form.values.organization_assign_default}
-										onCheckedChange={async (checked) => {
+										onCheckedChange={(checked) => {
 											if (!checked) {
 												setIsDialogOpen(true);
 											} else {
@@ -152,7 +167,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										}}
 									/>
 									<span className="flex flex-row items-center gap-1">
-										<Label htmlFor={ORGANIZATION_ASSIGN_DEFAULT_ID}>
+										<Label htmlFor={`${id}-assign-default-org`}>
 											Assign Default Organization
 										</Label>
 										<AssignDefaultOrgHelpTooltip />
@@ -164,15 +179,19 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							</p>
 						</div>
 					</div>
-
+					{form.errors.field && (
+						<p className="text-content-danger text-sm m-0">
+							{form.errors.field}
+						</p>
+					)}
 					<div className="flex flex-col gap-4">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
-								<Label className="text-sm" htmlFor={IDP_ORGANIZATION_NAME_ID}>
+								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>
 								<Input
-									id={IDP_ORGANIZATION_NAME_ID}
+									id={`${id}-idp-org-name`}
 									value={idpOrgName}
 									className="min-w-72 w-72"
 									onChange={(event) => {
@@ -181,10 +200,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								/>
 							</div>
 							<div className="grid items-center gap-1 flex-1">
-								<Label className="text-sm" htmlFor=":r1d:">
+								<Label className="text-sm" htmlFor={`${id}-coder-org`}>
 									Coder organization
 								</Label>
 								<MultiSelectCombobox
+									inputProps={{
+										id: `${id}-coder-org`,
+									}}
 									className="min-w-60 max-w-3xl"
 									value={coderOrgs}
 									onChange={setCoderOrgs}
@@ -201,11 +223,11 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									}
 								/>
 							</div>
-							<div className="grid items-center gap-1">
-								&nbsp;
+							<div className="grid grid-rows-[28px_auto]">
+								<div />
 								<Button
-									className="mb-px"
 									type="submit"
+									className="min-w-fit"
 									disabled={!idpOrgName || coderOrgs.length === 0}
 									onClick={async () => {
 										const newSyncSettings = {
@@ -221,15 +243,24 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										setCoderOrgs([]);
 									}}
 								>
-									<Plus size={14} />
+									<Spinner loading={form.isSubmitting}>
+										<Plus size={14} />
+									</Spinner>
 									Add IdP organization
 								</Button>
 							</div>
 						</div>
+						{form.errors.mapping && (
+							<p className="text-content-danger text-sm m-0">
+								{Object.values(form.errors.mapping || {})}
+							</p>
+						)}
 						<IdpMappingTable isEmpty={organizationMappingCount === 0}>
 							{form.values.mapping &&
 								Object.entries(form.values.mapping)
-									.sort()
+									.sort(([a], [b]) =>
+										a.toLowerCase().localeCompare(b.toLowerCase()),
+									)
 									.map(([idpOrg, organizations]) => (
 										<OrganizationRow
 											key={idpOrg}
@@ -267,6 +298,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							}}
 							type="submit"
 						>
+							<Spinner loading={form.isSubmitting} />
 							Confirm
 						</Button>
 					</DialogFooter>
@@ -301,15 +333,11 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 										message={"No organization mappings"}
 										isCompact
 										cta={
-											<Button variant="outline" asChild>
-												<a
-													href={docs("/admin/users/idp-sync")}
-													className="no-underline"
-												>
-													<SquareArrowOutUpRight size={14} />
-													How to set up IdP organization sync
-												</a>
-											</Button>
+											<Link
+												href={docs("/admin/users/idp-sync#organization-sync")}
+											>
+												How to set up IdP organization sync
+											</Link>
 										}
 									/>
 								</TableCell>
@@ -344,7 +372,8 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<Button
 					variant="outline"
-					className="w-8 h-8 px-1.5 py-1.5 text-content-secondary"
+					size="icon"
+					className="text-content-primary"
 					aria-label="delete"
 					onClick={() => onDelete(idpOrg)}
 				>

@@ -16,6 +16,22 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpOrgSyncPage", () => {
+	test("show empty table when no org mappings are present", async ({
+		page,
+	}) => {
+		requiresLicense();
+		await page.goto("/deployment/idp-org-sync", {
+			waitUntil: "domcontentloaded",
+		});
+
+		await expect(
+			page.getByRole("row", { name: "idp-org-1" }),
+		).not.toBeVisible();
+		await expect(
+			page.getByRole("heading", { name: "No organization mappings" }),
+		).toBeVisible();
+	});
+
 	test("add new IdP organization mapping with API", async ({ page }) => {
 		requiresLicense();
 
@@ -29,14 +45,14 @@ test.describe("IdpOrgSyncPage", () => {
 			page.getByRole("switch", { name: "Assign Default Organization" }),
 		).toBeChecked();
 
-		await expect(page.getByText("idp-org-1")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-org-1" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").first(),
+			page.getByRole("row", { name: "fbd2116a-8961-4954-87ae-e4575bd29ce0" }),
 		).toBeVisible();
 
-		await expect(page.getByText("idp-org-2")).toBeVisible();
+		await expect(page.getByRole("row", { name: "idp-org-2" })).toBeVisible();
 		await expect(
-			page.getByText("fbd2116a-8961-4954-87ae-e4575bd29ce0").last(),
+			page.getByRole("row", { name: "6b39f0f1-6ad8-4981-b2fc-d52aef53ff1b" }),
 		).toBeVisible();
 	});
 
@@ -47,12 +63,12 @@ test.describe("IdpOrgSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
-		await expect(page.getByText("idp-org-1")).toBeVisible();
-		await page
-			.getByRole("button", { name: /delete/i })
-			.first()
-			.click();
-		await expect(page.getByText("idp-org-1")).not.toBeVisible();
+		const row = page.getByTestId("idp-org-idp-org-1");
+		await expect(row.getByRole("cell", { name: "idp-org-1" })).toBeVisible();
+		await row.getByRole("button", { name: /delete/i }).click();
+		await expect(
+			row.getByRole("cell", { name: "idp-org-1" }),
+		).not.toBeVisible();
 		await expect(
 			page.getByText("Organization sync settings updated."),
 		).toBeVisible();
@@ -67,7 +83,7 @@ test.describe("IdpOrgSyncPage", () => {
 		const syncField = page.getByRole("textbox", {
 			name: "Organization sync field",
 		});
-		const saveButton = page.getByRole("button", { name: /save/i }).first();
+		const saveButton = page.getByRole("button", { name: /save/i });
 
 		await expect(saveButton).toBeDisabled();
 
@@ -154,8 +170,10 @@ test.describe("IdpOrgSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId("idp-org-new-idp-org");
 		await expect(newRow).toBeVisible();
-		await expect(newRow.getByText("new-idp-org")).toBeVisible();
-		await expect(newRow.getByText(orgName)).toBeVisible();
+		await expect(
+			newRow.getByRole("cell", { name: "new-idp-org" }),
+		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: orgName })).toBeVisible();
 
 		await expect(
 			page.getByText("Organization sync settings updated."),

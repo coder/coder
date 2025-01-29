@@ -388,7 +388,7 @@ func TestBackpressure(t *testing.T) {
 			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 	}
-	t.Logf("done advancing")
+	t.Log("done advancing")
 	// The batch completes
 	w.MustWait(ctx)
 

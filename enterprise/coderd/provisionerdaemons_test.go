@@ -285,7 +285,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			daemons, err := client.ProvisionerDaemons(context.Background())
 			assert.NoError(t, err, "failed to get provisioner daemons")
 			return len(daemons) > 0 &&
-				assert.Equal(t, t.Name(), daemons[0].Name) &&
+				assert.NotEmpty(t, daemons[0].Name) &&
 				assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope]) &&
 				assert.Equal(t, user.UserID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		}, testutil.WaitShort, testutil.IntervalMedium)

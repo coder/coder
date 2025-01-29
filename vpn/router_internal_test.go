@@ -13,12 +13,12 @@ func TestConvertRouterConfig(t *testing.T) {
 
 	tests := []struct {
 		name     string
-		cfg      *router.Config
+		cfg      router.Config
 		expected *NetworkSettingsRequest
 	}{
 		{
 			name: "IPv4 and IPv6 configuration",
-			cfg: &router.Config{
+			cfg: router.Config{
 				LocalAddrs:  []netip.Prefix{netip.MustParsePrefix("100.64.0.1/32"), netip.MustParsePrefix("fd7a:115c:a1e0::1/128")},
 				Routes:      []netip.Prefix{netip.MustParsePrefix("192.168.0.0/24"), netip.MustParsePrefix("fd00::/64")},
 				LocalRoutes: []netip.Prefix{netip.MustParsePrefix("10.0.0.0/8"), netip.MustParsePrefix("2001:db8::/32")},
@@ -27,7 +27,8 @@ func TestConvertRouterConfig(t *testing.T) {
 			expected: &NetworkSettingsRequest{
 				Mtu: 1500,
 				Ipv4Settings: &NetworkSettingsRequest_IPv4Settings{
-					Addrs: []string{"100.64.0.1/32"},
+					Addrs:       []string{"100.64.0.1"},
+					SubnetMasks: []string{"255.255.255.255"},
 					IncludedRoutes: []*NetworkSettingsRequest_IPv4Settings_IPv4Route{
 						{Destination: "192.168.0.0", Mask: "255.255.255.0", Router: ""},
 					},
@@ -36,7 +37,8 @@ func TestConvertRouterConfig(t *testing.T) {
 					},
 				},
 				Ipv6Settings: &NetworkSettingsRequest_IPv6Settings{
-					Addrs: []string{"fd7a:115c:a1e0::1/128"},
+					Addrs:         []string{"fd7a:115c:a1e0::1"},
+					PrefixLengths: []uint32{128},
 					IncludedRoutes: []*NetworkSettingsRequest_IPv6Settings_IPv6Route{
 						{Destination: "fd00::", PrefixLength: 64, Router: ""},
 					},
@@ -48,18 +50,10 @@ func TestConvertRouterConfig(t *testing.T) {
 		},
 		{
 			name: "Empty",
-			cfg:  &router.Config{},
+			cfg:  router.Config{},
 			expected: &NetworkSettingsRequest{
-				Ipv4Settings: &NetworkSettingsRequest_IPv4Settings{
-					Addrs:          []string{},
-					IncludedRoutes: []*NetworkSettingsRequest_IPv4Settings_IPv4Route{},
-					ExcludedRoutes: []*NetworkSettingsRequest_IPv4Settings_IPv4Route{},
-				},
-				Ipv6Settings: &NetworkSettingsRequest_IPv6Settings{
-					Addrs:          []string{},
-					IncludedRoutes: []*NetworkSettingsRequest_IPv6Settings_IPv6Route{},
-					ExcludedRoutes: []*NetworkSettingsRequest_IPv6Settings_IPv6Route{},
-				},
+				Ipv4Settings: nil,
+				Ipv6Settings: nil,
 			},
 		},
 	}

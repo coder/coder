@@ -1488,8 +1488,11 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 		createTemplateVersionRequestTags map[string]string
 		// the coder_workspace_tags bit of main.tf.
 		// you can add more stuff here if you need
-		tfWorkspaceTags     string
-		skipCreateWorkspace bool
+		tfWorkspaceTags                  string
+		templateImportUserVariableValues []codersdk.VariableValue
+		// if we need to set parameters on workspace build
+		workspaceBuildParameters []codersdk.WorkspaceBuildParameter
+		skipCreateWorkspace      bool
 	}{
 		{
 			name:            "no tags",
@@ -1589,6 +1592,38 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			// matching tag foo=bar.
 			skipCreateWorkspace: true,
 		},
+		{
+			name:                             "overrides with dynamic option from var",
+			provisionerTags:                  map[string]string{"foo": "bar"},
+			createTemplateVersionRequestTags: map[string]string{"foo": "bar"},
+			templateImportUserVariableValues: []codersdk.VariableValue{{Name: "default_foo", Value: "baz"}, {Name: "foo", Value: "bar,baz"}},
+			workspaceBuildParameters:         []codersdk.WorkspaceBuildParameter{{Name: "foo", Value: "bar"}},
+			tfWorkspaceTags: `
+				variable "default_foo" {
+					type = string
+				}
+				variable "foo" {
+					type = string
+				}
+				data "coder_parameter" "foo" {
+					name = "foo"
+					type = "string"
+					default = var.default_foo
+					mutable = false
+					dynamic "option" {
+						for_each = toset(split(",", var.foo))
+						content {
+							name  = option.value
+							value = option.value
+						}
+					}
+				}
+				data "coder_workspace_tags" "tags" {
+					tags = {
+						"foo" = data.coder_parameter.foo.value
+					}
+				}`,
+		},
 	} {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -1617,11 +1652,12 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			fi, err := templateAdmin.Upload(ctx, "application/x-tar", bytes.NewReader(tarBytes))
 			require.NoError(t, err, "failed to upload file")
 			tv, err := templateAdmin.CreateTemplateVersion(ctx, owner.OrganizationID, codersdk.CreateTemplateVersionRequest{
-				Name:            testutil.GetRandomName(t),
-				FileID:          fi.ID,
-				StorageMethod:   codersdk.ProvisionerStorageMethodFile,
-				Provisioner:     codersdk.ProvisionerTypeTerraform,
-				ProvisionerTags: tc.createTemplateVersionRequestTags,
+				Name:               testutil.GetRandomName(t),
+				FileID:             fi.ID,
+				StorageMethod:      codersdk.ProvisionerStorageMethodFile,
+				Provisioner:        codersdk.ProvisionerTypeTerraform,
+				ProvisionerTags:    tc.createTemplateVersionRequestTags,
+				UserVariableValues: tc.templateImportUserVariableValues,
 			})
 			require.NoError(t, err, "failed to create template version")
 			coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdmin, tv.ID)
@@ -1630,8 +1666,9 @@ func TestWorkspaceTagsTerraform(t *testing.T) {
 			if !tc.skipCreateWorkspace {
 				// Creating a workspace as a non-privileged user must succeed
 				ws, err := member.CreateUserWorkspace(ctx, memberUser.Username, codersdk.CreateWorkspaceRequest{
-					TemplateID: tpl.ID,
-					Name:       coderdtest.RandomUsername(t),
+					TemplateID:          tpl.ID,
+					Name:                coderdtest.RandomUsername(t),
+					RichParameterValues: tc.workspaceBuildParameters,
 				})
 				require.NoError(t, err, "failed to create workspace")
 				coderdtest.AwaitWorkspaceBuildJobCompleted(t, member, ws.LatestBuild.ID)
