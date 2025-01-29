@@ -238,11 +238,6 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
-CREATE TYPE workspace_agent_monitored_resource_type AS ENUM (
-    'memory',
-    'volume'
-);
-
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'start',
     'stop',
@@ -1484,6 +1479,13 @@ CREATE UNLOGGED TABLE workspace_agent_logs (
     log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
+CREATE TABLE workspace_agent_memory_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name character varying(127) NOT NULL,
@@ -1505,15 +1507,6 @@ CREATE TABLE workspace_agent_port_share (
     port integer NOT NULL,
     share_level app_sharing_level NOT NULL,
     protocol port_share_protocol DEFAULT 'http'::port_share_protocol NOT NULL
-);
-
-CREATE TABLE workspace_agent_resource_monitors (
-    agent_id uuid NOT NULL,
-    rtype workspace_agent_monitored_resource_type NOT NULL,
-    enabled boolean NOT NULL,
-    threshold integer NOT NULL,
-    metadata jsonb DEFAULT '{}'::jsonb NOT NULL,
-    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agent_script_timings (
@@ -1568,6 +1561,14 @@ CREATE TABLE workspace_agent_stats (
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
     session_count_ssh bigint DEFAULT 0 NOT NULL,
     usage boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE workspace_agent_volume_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    path text NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (

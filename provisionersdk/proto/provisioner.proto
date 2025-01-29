@@ -139,13 +139,19 @@ enum AppSharingLevel {
 }
 
 message ResourcesMonitoring {
-	Resourcemonitor memory = 1;
-	map<string, Resourcemonitor> volumes = 2;
+	MemoryResourceMonitor memory = 1;
+	repeated VolumeResourceMonitor volumes = 2;
 }
 
-message Resourcemonitor {
+message MemoryResourceMonitor {
 	bool enabled = 1;
 	int32 threshold = 2;
+}
+
+message VolumeResourceMonitor {
+	string path = 1;
+	bool enabled = 2;
+	int32 threshold = 3;
 }
 
 message DisplayApps {

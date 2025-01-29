@@ -190,57 +190,58 @@ type data struct {
 	userLinks           []database.UserLink
 
 	// New tables
-	auditLogs                       []database.AuditLog
-	cryptoKeys                      []database.CryptoKey
-	dbcryptKeys                     []database.DBCryptKey
-	files                           []database.File
-	externalAuthLinks               []database.ExternalAuthLink
-	gitSSHKey                       []database.GitSSHKey
-	groupMembers                    []database.GroupMemberTable
-	groups                          []database.Group
-	jfrogXRayScans                  []database.JfrogXrayScan
-	licenses                        []database.License
-	notificationMessages            []database.NotificationMessage
-	notificationPreferences         []database.NotificationPreference
-	notificationReportGeneratorLogs []database.NotificationReportGeneratorLog
-	oauth2ProviderApps              []database.OAuth2ProviderApp
-	oauth2ProviderAppSecrets        []database.OAuth2ProviderAppSecret
-	oauth2ProviderAppCodes          []database.OAuth2ProviderAppCode
-	oauth2ProviderAppTokens         []database.OAuth2ProviderAppToken
-	parameterSchemas                []database.ParameterSchema
-	provisionerDaemons              []database.ProvisionerDaemon
-	provisionerJobLogs              []database.ProvisionerJobLog
-	provisionerJobs                 []database.ProvisionerJob
-	provisionerKeys                 []database.ProvisionerKey
-	replicas                        []database.Replica
-	templateVersions                []database.TemplateVersionTable
-	templateVersionParameters       []database.TemplateVersionParameter
-	templateVersionVariables        []database.TemplateVersionVariable
-	templateVersionWorkspaceTags    []database.TemplateVersionWorkspaceTag
-	templates                       []database.TemplateTable
-	templateUsageStats              []database.TemplateUsageStat
-	workspaceAgents                 []database.WorkspaceAgent
-	workspaceAgentMetadata          []database.WorkspaceAgentMetadatum
-	workspaceAgentLogs              []database.WorkspaceAgentLog
-	workspaceAgentLogSources        []database.WorkspaceAgentLogSource
-	workspaceAgentPortShares        []database.WorkspaceAgentPortShare
-	workspaceAgentScriptTimings     []database.WorkspaceAgentScriptTiming
-	workspaceAgentScripts           []database.WorkspaceAgentScript
-	workspaceAgentStats             []database.WorkspaceAgentStat
-	workspaceAgentResourceMonitors  []database.WorkspaceAgentResourceMonitor
-	workspaceApps                   []database.WorkspaceApp
-	workspaceAppStatsLastInsertID   int64
-	workspaceAppStats               []database.WorkspaceAppStat
-	workspaceBuilds                 []database.WorkspaceBuild
-	workspaceBuildParameters        []database.WorkspaceBuildParameter
-	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
-	workspaceResources              []database.WorkspaceResource
-	workspaceModules                []database.WorkspaceModule
-	workspaces                      []database.WorkspaceTable
-	workspaceProxies                []database.WorkspaceProxy
-	customRoles                     []database.CustomRole
-	provisionerJobTimings           []database.ProvisionerJobTiming
-	runtimeConfig                   map[string]string
+	auditLogs                            []database.AuditLog
+	cryptoKeys                           []database.CryptoKey
+	dbcryptKeys                          []database.DBCryptKey
+	files                                []database.File
+	externalAuthLinks                    []database.ExternalAuthLink
+	gitSSHKey                            []database.GitSSHKey
+	groupMembers                         []database.GroupMemberTable
+	groups                               []database.Group
+	jfrogXRayScans                       []database.JfrogXrayScan
+	licenses                             []database.License
+	notificationMessages                 []database.NotificationMessage
+	notificationPreferences              []database.NotificationPreference
+	notificationReportGeneratorLogs      []database.NotificationReportGeneratorLog
+	oauth2ProviderApps                   []database.OAuth2ProviderApp
+	oauth2ProviderAppSecrets             []database.OAuth2ProviderAppSecret
+	oauth2ProviderAppCodes               []database.OAuth2ProviderAppCode
+	oauth2ProviderAppTokens              []database.OAuth2ProviderAppToken
+	parameterSchemas                     []database.ParameterSchema
+	provisionerDaemons                   []database.ProvisionerDaemon
+	provisionerJobLogs                   []database.ProvisionerJobLog
+	provisionerJobs                      []database.ProvisionerJob
+	provisionerKeys                      []database.ProvisionerKey
+	replicas                             []database.Replica
+	templateVersions                     []database.TemplateVersionTable
+	templateVersionParameters            []database.TemplateVersionParameter
+	templateVersionVariables             []database.TemplateVersionVariable
+	templateVersionWorkspaceTags         []database.TemplateVersionWorkspaceTag
+	templates                            []database.TemplateTable
+	templateUsageStats                   []database.TemplateUsageStat
+	workspaceAgents                      []database.WorkspaceAgent
+	workspaceAgentMetadata               []database.WorkspaceAgentMetadatum
+	workspaceAgentLogs                   []database.WorkspaceAgentLog
+	workspaceAgentLogSources             []database.WorkspaceAgentLogSource
+	workspaceAgentPortShares             []database.WorkspaceAgentPortShare
+	workspaceAgentScriptTimings          []database.WorkspaceAgentScriptTiming
+	workspaceAgentScripts                []database.WorkspaceAgentScript
+	workspaceAgentStats                  []database.WorkspaceAgentStat
+	workspaceAgentMemoryResourceMonitors []database.WorkspaceAgentMemoryResourceMonitor
+	workspaceAgentVolumeResourceMonitors []database.WorkspaceAgentVolumeResourceMonitor
+	workspaceApps                        []database.WorkspaceApp
+	workspaceAppStatsLastInsertID        int64
+	workspaceAppStats                    []database.WorkspaceAppStat
+	workspaceBuilds                      []database.WorkspaceBuild
+	workspaceBuildParameters             []database.WorkspaceBuildParameter
+	workspaceResourceMetadata            []database.WorkspaceResourceMetadatum
+	workspaceResources                   []database.WorkspaceResource
+	workspaceModules                     []database.WorkspaceModule
+	workspaces                           []database.WorkspaceTable
+	workspaceProxies                     []database.WorkspaceProxy
+	customRoles                          []database.CustomRole
+	provisionerJobTimings                []database.ProvisionerJobTiming
+	runtimeConfig                        map[string]string
 	// Locks is a map of lock names. Any keys within the map are currently
 	// locked.
 	locks                            map[int64]struct{}
@@ -2356,18 +2357,8 @@ func (q *FakeQuerier) FavoriteWorkspace(_ context.Context, arg uuid.UUID) error 
 	return nil
 }
 
-func (q *FakeQuerier) FetchAgentResourceMonitorsByAgentID(_ context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	monitors := make([]database.WorkspaceAgentResourceMonitor, 0)
-	for _, monitor := range q.workspaceAgentResourceMonitors {
-		if monitor.AgentID == agentID {
-			monitors = append(monitors, monitor)
-		}
-	}
-
-	return monitors, nil
+func (q *FakeQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -2400,6 +2391,10 @@ func (q *FakeQuerier) FetchNewMessageMetadata(_ context.Context, arg database.Fe
 		Actions:          actions,
 		UserID:           arg.UserID,
 	}, nil
+}
+
+func (q *FakeQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) GetAPIKeyByID(_ context.Context, id string) (database.APIKey, error) {
@@ -7791,6 +7786,15 @@ func (q *FakeQuerier) InsertLicense(
 	return l, nil
 }
 
+func (q *FakeQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertMissingGroups(_ context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8394,6 +8398,15 @@ func (q *FakeQuerier) InsertUserLink(_ context.Context, args database.InsertUser
 	return link, nil
 }
 
+func (q *FakeQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceAgentVolumeResourceMonitor{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) InsertWorkspace(_ context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceTable{}, err
@@ -8541,22 +8554,6 @@ func (q *FakeQuerier) InsertWorkspaceAgentMetadata(_ context.Context, arg databa
 
 	q.workspaceAgentMetadata = append(q.workspaceAgentMetadata, metadatum)
 	return nil
-}
-
-func (q *FakeQuerier) InsertWorkspaceAgentResourceMonitor(_ context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.WorkspaceAgentResourceMonitor{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	monitor := database.WorkspaceAgentResourceMonitor(arg)
-
-	q.workspaceAgentResourceMonitors = append(q.workspaceAgentResourceMonitors, monitor)
-
-	return monitor, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceAgentScriptTimings(_ context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

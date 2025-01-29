@@ -1,3 +1,2 @@
-DROP TABLE IF EXISTS agent_resources_monitoring;
-
-DROP TYPE IF EXISTS resource_monitoring_type;
+DROP TABLE IF EXISTS workspace_agent_memory_resource_monitors;
+DROP TBALE IF EXISTS workspace_agent_volume_resource_monitors;

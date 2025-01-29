@@ -1391,8 +1391,8 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 	return update(q.log, q.auth, fetch, q.db.FavoriteWorkspace)(ctx, id)
 }
 
-func (q *querier) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
-	return q.db.FetchAgentResourceMonitorsByAgentID(ctx, agentID)
+func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error) {
@@ -1400,6 +1400,10 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 		return database.FetchNewMessageMetadataRow{}, err
 	}
 	return q.db.FetchNewMessageMetadata(ctx, arg)
+}
+
+func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) GetAPIKeyByID(ctx context.Context, id string) (database.APIKey, error) {
@@ -2993,6 +2997,10 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 	return q.db.InsertLicense(ctx, arg)
 }
 
+func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	panic("not implemented")
+}
+
 func (q *querier) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return nil, err
@@ -3178,6 +3186,10 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 	return q.db.InsertUserLink(ctx, arg)
 }
 
+func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	panic("not implemented")
+}
+
 func (q *querier) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	obj := rbac.ResourceWorkspace.WithOwner(arg.OwnerID.String()).InOrg(arg.OrganizationID)
 	tpl, err := q.GetTemplateByID(ctx, arg.TemplateID)
@@ -3216,10 +3228,6 @@ func (q *querier) InsertWorkspaceAgentMetadata(ctx context.Context, arg database
 	}
 
 	return q.db.InsertWorkspaceAgentMetadata(ctx, arg)
-}
-
-func (q *querier) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
-	return q.db.InsertWorkspaceAgentResourceMonitor(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

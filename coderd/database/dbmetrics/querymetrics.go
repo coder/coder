@@ -434,10 +434,10 @@ func (m queryMetricsStore) FavoriteWorkspace(ctx context.Context, arg uuid.UUID)
 	return r0
 }
 
-func (m queryMetricsStore) FetchAgentResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentResourceMonitor, error) {
+func (m queryMetricsStore) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
 	start := time.Now()
-	r0, r1 := m.s.FetchAgentResourceMonitorsByAgentID(ctx, agentID)
-	m.queryLatencies.WithLabelValues("FetchAgentResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
+	r0, r1 := m.s.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("FetchMemoryResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -445,6 +445,13 @@ func (m queryMetricsStore) FetchNewMessageMetadata(ctx context.Context, arg data
 	start := time.Now()
 	r0, r1 := m.s.FetchNewMessageMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("FetchNewMessageMetadata").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
+	m.queryLatencies.WithLabelValues("FetchVolumesResourceMonitorsByAgentID").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -1834,6 +1841,13 @@ func (m queryMetricsStore) InsertLicense(ctx context.Context, arg database.Inser
 	return license, err
 }
 
+func (m queryMetricsStore) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertMemoryResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertMemoryResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertMissingGroups(ctx context.Context, arg database.InsertMissingGroupsParams) ([]database.Group, error) {
 	start := time.Now()
 	r0, r1 := m.s.InsertMissingGroups(ctx, arg)
@@ -1981,6 +1995,13 @@ func (m queryMetricsStore) InsertUserLink(ctx context.Context, arg database.Inse
 	return link, err
 }
 
+func (m queryMetricsStore) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertVolumeResourceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertVolumeResourceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertWorkspace(ctx context.Context, arg database.InsertWorkspaceParams) (database.WorkspaceTable, error) {
 	start := time.Now()
 	workspace, err := m.s.InsertWorkspace(ctx, arg)
@@ -2014,13 +2035,6 @@ func (m queryMetricsStore) InsertWorkspaceAgentMetadata(ctx context.Context, arg
 	err := m.s.InsertWorkspaceAgentMetadata(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentMetadata").Observe(time.Since(start).Seconds())
 	return err
-}
-
-func (m queryMetricsStore) InsertWorkspaceAgentResourceMonitor(ctx context.Context, arg database.InsertWorkspaceAgentResourceMonitorParams) (database.WorkspaceAgentResourceMonitor, error) {
-	start := time.Now()
-	r0, r1 := m.s.InsertWorkspaceAgentResourceMonitor(ctx, arg)
-	m.queryLatencies.WithLabelValues("InsertWorkspaceAgentResourceMonitor").Observe(time.Since(start).Seconds())
-	return r0, r1
 }
 
 func (m queryMetricsStore) InsertWorkspaceAgentScriptTimings(ctx context.Context, arg database.InsertWorkspaceAgentScriptTimingsParams) (database.WorkspaceAgentScriptTiming, error) {

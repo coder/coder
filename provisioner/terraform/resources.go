@@ -56,17 +56,23 @@ type agentAttributes struct {
 	Metadata                 []agentMetadata              `mapstructure:"metadata"`
 	DisplayApps              []agentDisplayAppsAttributes `mapstructure:"display_apps"`
 	Order                    int64                        `mapstructure:"order"`
-	ResourcesMonitoring      agentResourcesMonitoring     `mapstructure:"resources_monitoring"`
+	ResourcesMonitoring      []agentResourcesMonitoring   `mapstructure:"resources_monitoring"`
 }
 
 type agentResourcesMonitoring struct {
-	Memory  agentResourceMonitor            `mapstructure:"memory"`
-	Volumes map[string]agentResourceMonitor `mapstructure:"volumes"`
+	Memory  []agentMemoryResourceMonitor `mapstructure:"memory"`
+	Volumes []agentVolumeResourceMonitor `mapstructure:"volume"`
 }
 
-type agentResourceMonitor struct {
+type agentMemoryResourceMonitor struct {
 	Enabled   bool  `mapstructure:"enabled"`
 	Threshold int32 `mapstructure:"threshold"`
+}
+
+type agentVolumeResourceMonitor struct {
+	Path      string `mapstructure:"path"`
+	Enabled   bool   `mapstructure:"enabled"`
+	Threshold int32  `mapstructure:"threshold"`
 }
 
 type agentDisplayAppsAttributes struct {
@@ -250,24 +256,42 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				}
 			}
 
-			resourcesMonitoring := &proto.ResourcesMonitoring{
-				Memory: func() *proto.Resourcemonitor {
-					return &proto.Resourcemonitor{
-						Enabled:   attrs.ResourcesMonitoring.Memory.Enabled,
-						Threshold: attrs.ResourcesMonitoring.Memory.Threshold,
-					}
-				}(),
-				Volumes: func() map[string]*proto.Resourcemonitor {
-					volumes := make(map[string]*proto.Resourcemonitor)
-					for key, value := range attrs.ResourcesMonitoring.Volumes {
-						volumes[key] = &proto.Resourcemonitor{
-							Enabled:   value.Enabled,
-							Threshold: value.Threshold,
-						}
-					}
+			var (
+				memoryMonitor   *proto.MemoryResourceMonitor
+				volumesMonitors []*proto.VolumeResourceMonitor
+			)
 
-					return volumes
-				}(),
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, memoryResource := range resource.Memory {
+					if memoryMonitor != nil {
+						// We do not allow multiple memory monitor
+						return nil, xerrors.New("multiple memory monitors are not allowed")
+					}
+					memoryMonitor = &proto.MemoryResourceMonitor{
+						Enabled:   memoryResource.Enabled,
+						Threshold: memoryResource.Threshold,
+					}
+				}
+			}
+
+			monitoredPaths := map[string]struct{}{}
+
+			for _, resource := range attrs.ResourcesMonitoring {
+				for _, volume := range resource.Volumes {
+					if _, exists := monitoredPaths[volume.Path]; exists {
+						return nil, xerrors.Errorf("monitoring the same volume path multiple times is not allowed: %q", volume.Path)
+					}
+					volumesMonitors = append(volumesMonitors, &proto.VolumeResourceMonitor{
+						Path:      volume.Path,
+						Enabled:   volume.Enabled,
+						Threshold: volume.Threshold,
+					})
+				}
+			}
+
+			resourcesMonitoring := &proto.ResourcesMonitoring{
+				Memory:  memoryMonitor,
+				Volumes: volumesMonitors,
 			}
 
 			agent := &proto.Agent{

@@ -1,20 +1,38 @@
--- name: FetchAgentResourceMonitorsByAgentID :many
+-- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
 	*
 FROM
-	workspace_agent_resource_monitors
+	workspace_agent_memory_resource_monitors
 WHERE
 	agent_id = $1;
 
--- name: InsertWorkspaceAgentResourceMonitor :one
+-- name: FetchVolumesResourceMonitorsByAgentID :many
+SELECT
+	*
+FROM
+	workspace_agent_volume_resource_monitors
+WHERE
+	agent_id = $1;
+
+-- name: InsertMemoryResourceMonitor :one
 INSERT INTO
-	workspace_agent_resource_monitors (
+	workspace_agent_memory_resource_monitors (
 		agent_id,
-		rtype,
 		enabled,
 		threshold,
-		metadata,
 		created_at
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6) RETURNING *;
+	($1, $2, $3, $4) RETURNING *;
+
+-- name: InsertVolumeResourceMonitor :one
+INSERT INTO
+	workspace_agent_volume_resource_monitors (
+		agent_id,
+		path,
+		enabled,
+		threshold,
+		created_at
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING *;

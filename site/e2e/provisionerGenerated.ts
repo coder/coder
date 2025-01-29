@@ -164,16 +164,17 @@ export interface Agent_EnvEntry {
 }
 
 export interface ResourcesMonitoring {
-  memory: Resourcemonitor | undefined;
-  volumes: { [key: string]: Resourcemonitor };
+  memory: MemoryResourceMonitor | undefined;
+  volumes: VolumeResourceMonitor[];
 }
 
-export interface ResourcesMonitoring_VolumesEntry {
-  key: string;
-  value: Resourcemonitor | undefined;
+export interface MemoryResourceMonitor {
+  enabled: boolean;
+  threshold: number;
 }
 
-export interface Resourcemonitor {
+export interface VolumeResourceMonitor {
+  path: string;
   enabled: boolean;
   threshold: number;
 }
@@ -643,34 +644,37 @@ export const Agent_EnvEntry = {
 export const ResourcesMonitoring = {
   encode(message: ResourcesMonitoring, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.memory !== undefined) {
-      Resourcemonitor.encode(message.memory, writer.uint32(10).fork()).ldelim();
+      MemoryResourceMonitor.encode(message.memory, writer.uint32(10).fork()).ldelim();
     }
-    Object.entries(message.volumes).forEach(([key, value]) => {
-      ResourcesMonitoring_VolumesEntry.encode({ key: key as any, value }, writer.uint32(18).fork()).ldelim();
-    });
-    return writer;
-  },
-};
-
-export const ResourcesMonitoring_VolumesEntry = {
-  encode(message: ResourcesMonitoring_VolumesEntry, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
-    if (message.key !== "") {
-      writer.uint32(10).string(message.key);
-    }
-    if (message.value !== undefined) {
-      Resourcemonitor.encode(message.value, writer.uint32(18).fork()).ldelim();
+    for (const v of message.volumes) {
+      VolumeResourceMonitor.encode(v!, writer.uint32(18).fork()).ldelim();
     }
     return writer;
   },
 };
 
-export const Resourcemonitor = {
-  encode(message: Resourcemonitor, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+export const MemoryResourceMonitor = {
+  encode(message: MemoryResourceMonitor, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
     if (message.enabled === true) {
       writer.uint32(8).bool(message.enabled);
     }
     if (message.threshold !== 0) {
       writer.uint32(16).int32(message.threshold);
+    }
+    return writer;
+  },
+};
+
+export const VolumeResourceMonitor = {
+  encode(message: VolumeResourceMonitor, writer: _m0.Writer = _m0.Writer.create()): _m0.Writer {
+    if (message.path !== "") {
+      writer.uint32(10).string(message.path);
+    }
+    if (message.enabled === true) {
+      writer.uint32(16).bool(message.enabled);
+    }
+    if (message.threshold !== 0) {
+      writer.uint32(24).int32(message.threshold);
     }
     return writer;
   },
