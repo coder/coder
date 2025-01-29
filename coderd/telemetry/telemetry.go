@@ -308,7 +308,7 @@ type idpOrgSyncConfig struct {
 // order of the coder server.
 //
 // We don't check license entitlements because it's also hard to do from the
-// telemetry package, and the config check is sufficient for telemetry purposes.
+// telemetry package, and the config check should be sufficient for telemetry purposes.
 //
 // While this approach duplicates code, it's simpler than the alternative.
 //
