@@ -2,12 +2,14 @@ package prebuilds
 
 import (
 	"context"
+	"database/sql"
+	"errors"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
 )
 
-func Claim(ctx context.Context, store database.Store, userID uuid.UUID) (*uuid.UUID, error) {
+func Claim(ctx context.Context, store database.Store, userID uuid.UUID, name string) (*uuid.UUID, error) {
 	var prebuildID *uuid.UUID
 	err := store.InTx(func(db database.Store) error {
 		// TODO: do we need this?
@@ -17,14 +19,22 @@ func Claim(ctx context.Context, store database.Store, userID uuid.UUID) (*uuid.U
 		//	return xerrors.Errorf("acquire claim lock for user %q: %w", userID.String(), err)
 		//}
 
-		id, err := db.ClaimPrebuild(ctx, userID)
+		result, err := db.ClaimPrebuild(ctx, database.ClaimPrebuildParams{
+			NewUserID: userID,
+			NewName:   name,
+		})
 		if err != nil {
-			return xerrors.Errorf("claim prebuild for user %q: %w", userID.String(), err)
+			switch {
+			// No eligible prebuilds found
+			case errors.Is(err, sql.ErrNoRows):
+				// Exit, this will result in a nil prebuildID being returned, which is fine
+				return nil
+			default:
+				return xerrors.Errorf("claim prebuild for user %q: %w", userID.String(), err)
+			}
 		}
 
-		if id != uuid.Nil {
-			prebuildID = &id
-		}
+		prebuildID = &result.ID
 
 		return nil
 	}, &database.TxOptions{

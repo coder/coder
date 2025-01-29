@@ -5397,25 +5397,37 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 
 const claimPrebuild = `-- name: ClaimPrebuild :one
 UPDATE workspaces w
-SET owner_id = $1::uuid, updated_at = NOW() -- TODO: annoying; having two input params breaks dbgen
+SET owner_id   = $1::uuid,
+    name       = $2::text,
+    updated_at = NOW()
 WHERE w.id IN (SELECT p.id
-			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
-						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-						INNER JOIN templates t ON p.template_id = t.id
-			   WHERE (b.transition = 'start'::workspace_transition
-				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
-				 AND b.template_version_id = t.active_version_id
-			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
-RETURNING w.id
+               FROM workspace_prebuilds p
+                        INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+                        INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+                        INNER JOIN templates t ON p.template_id = t.id
+               WHERE (b.transition = 'start'::workspace_transition
+                   AND pj.job_status IN ('succeeded'::provisioner_job_status))
+                 AND b.template_version_id = t.active_version_id
+               ORDER BY random()
+               LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
+RETURNING w.id, w.name
 `
 
-func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, newOwnerID uuid.UUID) (uuid.UUID, error) {
-	row := q.db.QueryRowContext(ctx, claimPrebuild, newOwnerID)
-	var id uuid.UUID
-	err := row.Scan(&id)
-	return id, err
+type ClaimPrebuildParams struct {
+	NewUserID uuid.UUID `db:"new_user_id" json:"new_user_id"`
+	NewName   string    `db:"new_name" json:"new_name"`
+}
+
+type ClaimPrebuildRow struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error) {
+	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName)
+	var i ClaimPrebuildRow
+	err := row.Scan(&i.ID, &i.Name)
+	return i, err
 }
 
 const getTemplatePrebuildState = `-- name: GetTemplatePrebuildState :many

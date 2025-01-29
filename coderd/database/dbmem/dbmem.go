@@ -1585,7 +1585,7 @@ func (*FakeQuerier) BulkMarkNotificationMessagesSent(_ context.Context, arg data
 	return int64(len(arg.IDs)), nil
 }
 
-func (q *FakeQuerier) ClaimPrebuild(ctx context.Context, newOwnerID uuid.UUID) (uuid.UUID, error) {
+func (q *FakeQuerier) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
 	panic("not implemented")
 }
 
