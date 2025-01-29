@@ -145,7 +145,9 @@ test.describe("IdpRoleSyncPage", () => {
 		await page.getByRole("combobox").click();
 		await page.waitForTimeout(1000);
 
-		const option = await page.getByRole("option", { name: /Organization Admin/i });
+		const option = await page.getByRole("option", {
+			name: /Organization Admin/i,
+		});
 
 		await expect(option).toBeAttached({ timeout: 30000 });
 		await expect(option).toBeVisible();
@@ -159,9 +161,7 @@ test.describe("IdpRoleSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId(`role-${idpRoleName}`);
 		await expect(newRow).toBeVisible();
-		await expect(
-			newRow.getByRole("cell", { name: idpRoleName }),
-		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: idpRoleName })).toBeVisible();
 		await expect(
 			newRow.getByRole("cell", { name: "organization-admin" }),
 		).toBeVisible();
