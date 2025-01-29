@@ -1,44 +1,18 @@
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
 import { FeatureStageBadge } from "components/FeatureStageBadge/FeatureStageBadge";
 import {
 	Sidebar as BaseSidebar,
 	SettingsSidebarNavItem as SidebarNavItem,
 } from "components/Sidebar/Sidebar";
+import { Stack } from "components/Stack/Stack";
 import type { Permissions } from "contexts/auth/permissions";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
+import { ArrowUpRight } from "lucide-react";
 import type { FC } from "react";
 
-export interface OrganizationWithPermissions extends Organization {
-	permissions: AuthorizationResponse;
-}
-
-interface DeploymentSidebarProps {
+interface DeploymentSidebarViewProps {
 	/** Site-wide permissions. */
 	permissions: Permissions;
-}
-
-/**
- * A combined deployment settings and organization menu.
- */
-export const DeploymentSidebarView: FC<DeploymentSidebarProps> = ({
-	permissions,
-}) => {
-	const { multiple_organizations: hasPremiumLicense } = useFeatureVisibility();
-
-	return (
-		<BaseSidebar>
-			<DeploymentSettingsNavigation
-				permissions={permissions}
-				isPremium={hasPremiumLicense}
-			/>
-		</BaseSidebar>
-	);
-};
-
-interface DeploymentSettingsNavigationProps {
-	/** Site-wide permissions. */
-	permissions: Permissions;
-	isPremium: boolean;
+	showOrganizations: boolean;
+	hasPremiumLicense: boolean;
 }
 
 /**
@@ -48,12 +22,13 @@ interface DeploymentSettingsNavigationProps {
  * Menu items are shown based on the permissions.  If organizations can be
  * viewed, groups are skipped since they will show under each org instead.
  */
-const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
+export const DeploymentSidebarView: FC<DeploymentSidebarViewProps> = ({
 	permissions,
-	isPremium,
+	showOrganizations,
+	hasPremiumLicense,
 }) => {
 	return (
-		<div>
+		<BaseSidebar>
 			<div className="flex flex-col gap-1">
 				{permissions.viewDeploymentValues && (
 					<SidebarNavItem href="/deployment/general">General</SidebarNavItem>
@@ -100,7 +75,11 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 					<SidebarNavItem href="/deployment/users">Users</SidebarNavItem>
 				)}
 				{permissions.viewAnyGroup && (
-					<SidebarNavItem href="/deployment/groups">Groups</SidebarNavItem>
+					<SidebarNavItem href="/deployment/groups">
+						<Stack direction="row" alignItems="center" spacing={0.5}>
+							Groups {showOrganizations && <ArrowUpRight size={16} />}
+						</Stack>
+					</SidebarNavItem>
 				)}
 				{permissions.viewNotificationTemplate && (
 					<SidebarNavItem href="/deployment/notifications">
@@ -115,10 +94,10 @@ const DeploymentSettingsNavigation: FC<DeploymentSettingsNavigationProps> = ({
 						IdP Organization Sync
 					</SidebarNavItem>
 				)}
-				{!isPremium && (
+				{!hasPremiumLicense && (
 					<SidebarNavItem href="/deployment/premium">Premium</SidebarNavItem>
 				)}
 			</div>
-		</div>
+		</BaseSidebar>
 	);
 };
