@@ -12,7 +12,9 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
+	"golang.org/x/exp/slices"
 	"math"
+	mrand "math/rand"
 	"strings"
 	"time"
 
@@ -161,23 +163,90 @@ type reconciliationActions struct {
 // calculateActions MUST be called within the context of a transaction (TODO: isolation)
 // with an advisory lock to prevent TOCTOU races.
 func (c Controller) calculateActions(ctx context.Context, template database.Template, state database.GetTemplatePrebuildStateRow) (*reconciliationActions, error) {
-	toCreate := int(math.Max(0, float64(state.Desired-(state.Actual+state.Starting))))
-	toDelete := int(math.Max(0, float64(state.Extraneous-state.Deleting-state.Stopping)))
+	// TODO: align workspace states with how we represent them on the FE and the CLI
+	//	     right now there's some slight differences which can lead to additional prebuilds being created
 
-	actions := &reconciliationActions{meta: state}
+	// TODO: add mechanism to prevent prebuilds being reconciled from being claimable by users; i.e. if a prebuild is
+	// 		 about to be deleted, it should not be deleted if it has been claimed - beware of TOCTOU races!
+
+	var (
+		toCreate = int(math.Max(0, float64(
+			state.Desired- // The number specified in the preset
+				(state.Actual+state.Starting)- // The current number of prebuilds (or builds in-flight)
+				state.Stopping), // The number of prebuilds currently being stopped (should be 0)
+		))
+		toDelete = int(math.Max(0, float64(
+			state.Outdated- // The number of prebuilds running above the desired count for active version
+				state.Deleting), // The number of prebuilds currently being deleted
+		))
+
+		actions    = &reconciliationActions{meta: state}
+		runningIDs = strings.Split(state.RunningPrebuildIds, ",")
+	)
+
+	// Bail early to avoid scheduling new prebuilds while operations are in progress.
+	if (toCreate+toDelete) > 0 && (state.Starting+state.Stopping+state.Deleting) > 0 {
+		c.logger.Warn(ctx, "prebuild operations in progress, skipping reconciliation",
+			slog.F("template_id", template.ID), slog.F("starting", state.Starting),
+			slog.F("stopping", state.Stopping), slog.F("deleting", state.Deleting),
+			slog.F("wanted_to_create", toCreate), slog.F("wanted_to_delete", toDelete))
+		return actions, nil
+	}
+
+	// It's possible that an operator could stop/start prebuilds which interfere with the reconciliation loop, so
+	// we check if there are somehow more prebuilds than we expect, and then pick random victims to be deleted.
+	if len(runningIDs) > 0 && state.Extraneous > 0 {
+		// Sort running IDs randomly so we can pick random victims.
+		slices.SortFunc(runningIDs, func(_, _ string) int {
+			if mrand.Float64() > 0.5 {
+				return -1
+			}
+
+			return 1
+		})
+
+		var victims []uuid.UUID
+		for i := 0; i < int(state.Extraneous); i++ {
+			if i >= len(runningIDs) {
+				// This should never happen.
+				c.logger.Warn(ctx, "unexpected reconciliation state; extraneous count exceeds running prebuilds count!",
+					slog.F("running_count", len(runningIDs)),
+					slog.F("extraneous", state.Extraneous))
+				continue
+			}
+
+			victim := runningIDs[i]
+
+			id, err := uuid.Parse(victim)
+			if err != nil {
+				c.logger.Warn(ctx, "invalid prebuild ID", slog.F("template_id", template.ID),
+					slog.F("id", string(victim)), slog.Error(err))
+			} else {
+				victims = append(victims, id)
+			}
+		}
+
+		actions.deleteIDs = append(actions.deleteIDs, victims...)
+
+		c.logger.Warn(ctx, "found extra prebuilds running, picking random victim(s)",
+			slog.F("template_id", template.ID), slog.F("desired", state.Desired), slog.F("actual", state.Actual), slog.F("extra", state.Extraneous),
+			slog.F("victims", victims))
+
+		// Prevent the rest of the reconciliation from completing
+		return actions, nil
+	}
 
 	// If the template has become deleted or deprecated since the last reconciliation, we need to ensure we
 	// scale those prebuilds down to zero.
 	if state.TemplateDeleted || state.TemplateDeprecated {
 		toCreate = 0
-		toDelete = int(state.Actual + state.Extraneous)
+		toDelete = int(state.Actual + state.Outdated)
 	}
 
 	for i := 0; i < toCreate; i++ {
 		actions.createIDs = append(actions.createIDs, uuid.New())
 	}
 
-	runningIDs := strings.Split(state.RunningPrebuildIds, ",")
 	if toDelete > 0 && len(runningIDs) != toDelete {
 		c.logger.Warn(ctx, "mismatch between running prebuilds and expected deletion count!",
 			slog.F("template_id", template.ID), slog.F("running", len(runningIDs)), slog.F("to_delete", toDelete))
@@ -248,7 +317,8 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 			}
 			levelFn(innerCtx, "template prebuild state retrieved",
 				slog.F("to_create", len(actions.createIDs)), slog.F("to_delete", len(actions.deleteIDs)),
-				slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual), slog.F("extraneous", actions.meta.Extraneous),
+				slog.F("desired", actions.meta.Desired), slog.F("actual", actions.meta.Actual),
+				slog.F("outdated", actions.meta.Outdated), slog.F("extraneous", actions.meta.Extraneous),
 				slog.F("starting", actions.meta.Starting), slog.F("stopping", actions.meta.Stopping), slog.F("deleting", actions.meta.Deleting))
 
 			// Provision workspaces within the same tx so we don't get any timing issues here.
