@@ -136,6 +136,8 @@
           zstd
         ];
 
+        docker = pkgs.callPackage ./nix/docker.nix { };
+
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
           inherit nodejs pnpm;
@@ -237,12 +239,21 @@
             aarch64-windows = buildFat "windows_arm64.exe";
           }
           // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
-            dev_image = pkgs.dockerTools.buildNixShellImage {
+            dev_image = docker.buildNixShellImage {
               name = "codercom/oss-dogfood-nix";
               tag = "latest-${system}";
 
+              maxLayers = 32;
+
               drv = devShells.default.overrideAttrs (oldAttrs: {
-                buildInputs = oldAttrs.buildInputs ++ [ pkgs.nix ];
+                # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
+                # to have issues on dogfood envs.
+                buildInputs =
+                  oldAttrs.buildInputs
+                  ++ (with pkgs; [
+                    nix
+                    coreutils
+                  ]);
               });
             };
           });
