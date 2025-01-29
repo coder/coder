@@ -40,7 +40,7 @@ func TimingsAreEqual(t *testing.T, expected []*proto.Timing, actual []*proto.Tim
 
 	// Shortcut check.
 	if len(expected)+len(actual) == 0 {
-		t.Logf("both timings are empty")
+		t.Log("both timings are empty")
 		return true
 	}
 

@@ -19,6 +19,8 @@ func (e EnterpriseIDPSync) OrganizationSyncEnabled(ctx context.Context, db datab
 		return false
 	}
 
+	// If this logic is ever updated, make sure to update the corresponding
+	// checkIDPOrgSync in coderd/telemetry/telemetry.go.
 	settings, err := e.OrganizationSyncSettings(ctx, db)
 	if err == nil && settings.Field != "" {
 		return true

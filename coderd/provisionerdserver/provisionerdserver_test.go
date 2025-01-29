@@ -101,7 +101,7 @@ func TestHeartbeat(t *testing.T) {
 	ctx := testutil.Context(t, testutil.WaitShort)
 	heartbeatChan := make(chan struct{})
 	heartbeatFn := func(hbCtx context.Context) error {
-		t.Logf("heartbeat")
+		t.Log("heartbeat")
 		select {
 		case <-hbCtx.Done():
 			return hbCtx.Err()

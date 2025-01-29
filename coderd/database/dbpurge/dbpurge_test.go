@@ -66,7 +66,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	defer func() {
 		if t.Failed() {
-			t.Logf("Test failed, printing rows...")
+			t.Log("Test failed, printing rows...")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
