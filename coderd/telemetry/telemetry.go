@@ -298,11 +298,10 @@ type idpOrgSyncConfig struct {
 	Field string `json:"field"`
 }
 
-// checkIDPOrgSync checks if IDP org sync is configured by checking the runtime
-// config. It's based on the OrganizationSyncEnabled function from
-// enterprise/coderd/enidpsync/organizations.go. It has one distinct difference:
-// it doesn't check if the license entitles to the feature, it only checks if the
-// feature is configured.
+// checkIDPOrgSync inspects the server flags and the runtime config. It's based on
+// the OrganizationSyncEnabled function from enterprise/coderd/enidpsync/organizations.go.
+// It has one distinct difference: it doesn't check if the license entitles to the
+// feature, it only checks if the feature is configured.
 //
 // The above function is not used because it's very hard to make it available in
 // the telemetry package due to coder/coder package structure and initialization
