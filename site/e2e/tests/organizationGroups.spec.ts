@@ -5,10 +5,10 @@ import {
 	createUser,
 	setupApiCalls,
 } from "../api";
+import { defaultOrganizationName } from "../constants";
 import { expectUrl } from "../expectUrl";
 import { login, randomName, requiresLicense } from "../helpers";
 import { beforeCoderTest } from "../hooks";
-import { defaultOrganizationName } from "../constants";
 
 test.beforeEach(async ({ page }) => {
 	beforeCoderTest(page);
@@ -16,7 +16,7 @@ test.beforeEach(async ({ page }) => {
 	await setupApiCalls(page);
 });
 
-test.only("redirects", async ({ page }) => {
+test("redirects", async ({ page }) => {
 	requiresLicense();
 
 	const orgName = defaultOrganizationName;
