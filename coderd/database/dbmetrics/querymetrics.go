@@ -147,7 +147,7 @@ func (m queryMetricsStore) BulkMarkNotificationMessagesSent(ctx context.Context,
 	return r0, r1
 }
 
-func (m queryMetricsStore) ClaimPrebuild(ctx context.Context, newOwnerID uuid.UUID) (uuid.UUID, error) {
+func (m queryMetricsStore) ClaimPrebuild(ctx context.Context, newOwnerID database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.ClaimPrebuild(ctx, newOwnerID)
 	m.queryLatencies.WithLabelValues("ClaimPrebuild").Observe(time.Since(start).Seconds())

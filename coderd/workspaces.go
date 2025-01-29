@@ -645,7 +645,8 @@ func createWorkspace(
 			claimCtx, cancel := context.WithTimeout(ownerCtx, time.Second*10) // TODO: don't use elevated authz context
 			defer cancel()
 
-			claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID)
+			// TODO: pass down rich params for matching
+			claimedID, err := prebuilds.Claim(claimCtx, db, owner.ID, req.Name)
 			if err != nil {
 				// TODO: enhance this by clarifying whether this *specific* prebuild failed or whether there are none to claim.
 				api.Logger.Error(ctx, "failed to claim a prebuild", slog.Error(err))

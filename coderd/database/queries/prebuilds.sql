@@ -73,15 +73,17 @@ GROUP BY t.using_active_version, t.template_id, t.template_version_id, p.count, 
 
 -- name: ClaimPrebuild :one
 UPDATE workspaces w
-SET owner_id = @new_owner_id::uuid, updated_at = NOW() -- TODO: annoying; having two input params breaks dbgen
+SET owner_id   = @new_user_id::uuid,
+    name       = @new_name::text,
+    updated_at = NOW()
 WHERE w.id IN (SELECT p.id
-			   FROM workspace_prebuilds p
-						INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
-						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
-						INNER JOIN templates t ON p.template_id = t.id
-			   WHERE (b.transition = 'start'::workspace_transition
-				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
-				 AND b.template_version_id = t.active_version_id
-			   ORDER BY random()
-			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
-RETURNING w.id;
+               FROM workspace_prebuilds p
+                        INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+                        INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+                        INNER JOIN templates t ON p.template_id = t.id
+               WHERE (b.transition = 'start'::workspace_transition
+                   AND pj.job_status IN ('succeeded'::provisioner_job_status))
+                 AND b.template_version_id = t.active_version_id
+               ORDER BY random()
+               LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
+RETURNING w.id, w.name;
