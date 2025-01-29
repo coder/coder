@@ -33,6 +33,13 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
+import {
+	Select,
+	SelectContent,
+	SelectItem,
+	SelectTrigger,
+	SelectValue,
+} from "components/Select/Select";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
@@ -47,6 +54,8 @@ interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
+	onSyncFieldChange: (value: string) => void;
+	claimFieldValues: string[] | undefined;
 	error?: unknown;
 }
 
@@ -76,6 +85,8 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
 	organizations,
 	onSubmit,
+	onSyncFieldChange,
+	claimFieldValues,
 	error,
 }) => {
 	const form = useFormik<OrganizationSyncSettings>({
@@ -135,6 +146,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 										value={form.values.field}
 										onChange={(event) => {
 											void form.setFieldValue("field", event.target.value);
+											onSyncFieldChange(event.target.value);
 										}}
 									/>
 									<Button
@@ -190,14 +202,33 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
 									IdP organization name
 								</Label>
-								<Input
-									id={`${id}-idp-org-name`}
-									value={idpOrgName}
-									className="min-w-72 w-72"
-									onChange={(event) => {
-										setIdpOrgName(event.target.value);
-									}}
-								/>
+
+								{claimFieldValues ? (
+									<Select
+										onValueChange={(event) => setIdpOrgName(event)}
+										value={idpOrgName}
+									>
+										<SelectTrigger id={`${id}-idp-org-name`} className="w-72">
+											<SelectValue placeholder="Select IdP organization" />
+										</SelectTrigger>
+										<SelectContent className="[&_*[role=option]>span]:end-2 [&_*[role=option]>span]:start-auto [&_*[role=option]]:pe-8 [&_*[role=option]]:ps-2">
+											{claimFieldValues.map((value) => (
+												<SelectItem key={value} value={value}>
+													{value}
+												</SelectItem>
+											))}
+										</SelectContent>
+									</Select>
+								) : (
+									<Input
+										id={`${id}-idp-org-name`}
+										value={idpOrgName}
+										className="w-72"
+										onChange={(event) => {
+											setIdpOrgName(event.target.value);
+										}}
+									/>
+								)}
 							</div>
 							<div className="grid items-center gap-1 flex-1">
 								<Label className="text-sm" htmlFor={`${id}-coder-org`}>

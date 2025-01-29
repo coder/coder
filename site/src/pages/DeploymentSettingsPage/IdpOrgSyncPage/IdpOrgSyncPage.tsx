@@ -3,6 +3,7 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
+import { idpSyncClaimFieldValues } from "api/queries/organizations";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -11,7 +12,7 @@ import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
@@ -29,6 +30,11 @@ export const IdpOrgSyncPage: FC = () => {
 		isLoading,
 		error,
 	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+	const [claimField, setClaimField] = useState("");
+
+	const { data: claimFieldValues } = useQuery(
+		idpSyncClaimFieldValues(claimField),
+	);
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
@@ -48,6 +54,10 @@ export const IdpOrgSyncPage: FC = () => {
 	if (isLoading) {
 		return <Loader />;
 	}
+
+	const handleSyncFieldChange = (value: string) => {
+		setClaimField(value);
+	};
 
 	return (
 		<>
@@ -94,6 +104,8 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
+							onSyncFieldChange={handleSyncFieldChange}
+							claimFieldValues={claimFieldValues}
 							error={error || patchOrganizationSyncSettingsMutation.error}
 						/>
 					</Cond>
