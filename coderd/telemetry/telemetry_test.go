@@ -22,7 +22,12 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/entitlements"
+	"github.com/coder/coder/v2/coderd/idpsync"
+	"github.com/coder/coder/v2/coderd/runtimeconfig"
 	"github.com/coder/coder/v2/coderd/telemetry"
+	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/enterprise/coderd/enidpsync"
 	"github.com/coder/coder/v2/testutil"
 )
 
@@ -267,6 +272,51 @@ func TestTelemetry(t *testing.T) {
 		for _, c := range cases {
 			require.Equal(t, c.want, telemetry.GetModuleSourceType(c.source))
 		}
+	})
+	t.Run("IDPOrgSync", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		db, _ := dbtestutil.NewDB(t)
+
+		// 1. No org sync settings
+		deployment, _ := collectSnapshot(t, db, nil)
+		require.False(t, deployment.IDPOrgSync)
+
+		// 2. Org sync settings set in server flags
+		deployment, _ = collectSnapshot(t, db, func(opts telemetry.Options) telemetry.Options {
+			opts.DeploymentConfig = &codersdk.DeploymentValues{
+				OIDC: codersdk.OIDCConfig{
+					OrganizationField: "organizations",
+				},
+			}
+			return opts
+		})
+		require.True(t, deployment.IDPOrgSync)
+
+		// 3. Org sync settings set in runtime config
+		entitled := entitlements.New()
+		entitled.Modify(func(entitlements *codersdk.Entitlements) {
+			entitlements.Features[codersdk.FeatureMultipleOrganizations] = codersdk.Feature{
+				Entitlement: codersdk.EntitlementEntitled,
+				Enabled:     true,
+				Limit:       nil,
+				Actual:      nil,
+			}
+		})
+		org, err := db.GetDefaultOrganization(ctx)
+		require.NoError(t, err)
+		sync := enidpsync.NewSync(testutil.Logger(t), runtimeconfig.NewManager(), entitled, idpsync.DeploymentSyncSettings{})
+		err = sync.UpdateOrganizationSettings(ctx, db, idpsync.OrganizationSyncSettings{
+			Field: "organizations",
+			Mapping: map[string][]uuid.UUID{
+				"first": {org.ID},
+			},
+			AssignDefault: true,
+		})
+		require.NoError(t, err)
+		require.True(t, sync.OrganizationSyncEnabled(ctx, db))
+		deployment, _ = collectSnapshot(t, db, nil)
+		require.True(t, deployment.IDPOrgSync)
 	})
 }
 

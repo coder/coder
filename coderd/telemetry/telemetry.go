@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -245,6 +246,11 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
 	}
 
+	idpOrgSync, err := checkIDPOrgSync(r.ctx, r.options.Database, r.options.DeploymentConfig)
+	if err != nil {
+		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
+	}
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -264,6 +270,7 @@ func (r *remoteReporter) deployment() error {
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
+		IDPOrgSync:      idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -283,6 +290,46 @@ func (r *remoteReporter) deployment() error {
 	}
 	r.options.Logger.Debug(r.ctx, "submitted deployment info")
 	return nil
+}
+
+// idpOrgSyncConfig is a subset of
+// https://github.com/coder/coder/blob/5c6578d84e2940b9cfd04798c45e7c8042c3fe0e/coderd/idpsync/organization.go#L148
+type idpOrgSyncConfig struct {
+	Field string `json:"field"`
+}
+
+// checkIDPOrgSync checks if IDP org sync is configured by checking the runtime
+// config. It's based on the OrganizationSyncEnabled function from
+// enterprise/coderd/enidpsync/organizations.go. It has one distinct difference:
+// it doesn't check if the license entitles to the feature, it only checks if the
+// feature is configured.
+//
+// The above function is not used because it's very hard to make it available in
+// the telemetry package due to coder/coder package structure and initialization
+// order of the coder server.
+//
+// We don't check license entitlements because it's also hard to do from the
+// telemetry package, and the config check is sufficient for telemetry purposes.
+//
+// While this approach duplicates code, it's simpler than the alternative.
+//
+// See https://github.com/coder/coder/pull/16323 for more details.
+func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.DeploymentValues) (bool, error) {
+	// key based on https://github.com/coder/coder/blob/5c6578d84e2940b9cfd04798c45e7c8042c3fe0e/coderd/idpsync/idpsync.go#L168
+	syncConfigRaw, err := db.GetRuntimeConfig(ctx, "organization-sync-settings")
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// If the runtime config is not set, we check if the deployment config
+			// has the organization field set.
+			return values != nil && values.OIDC.OrganizationField != "", nil
+		}
+		return false, xerrors.Errorf("get runtime config: %w", err)
+	}
+	syncConfig := idpOrgSyncConfig{}
+	if err := json.Unmarshal([]byte(syncConfigRaw), &syncConfig); err != nil {
+		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
+	}
+	return syncConfig.Field != "", nil
 }
 
 // createSnapshot collects a full snapshot from the database.
@@ -991,6 +1038,7 @@ type Deployment struct {
 	MachineID       string                     `json:"machine_id"`
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
+	IDPOrgSync      bool                       `json:"idp_org_sync"`
 }
 
 type APIKey struct {
