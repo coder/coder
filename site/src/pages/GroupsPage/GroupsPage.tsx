@@ -78,7 +78,7 @@ export const GroupsPage: FC = () => {
 			<GroupsPageView
 				groups={groupsQuery.data}
 				canCreateGroup={permissions.createGroup}
-				isTemplateRBACEnabled={groupsEnabled}
+				groupsEnabled={groupsEnabled}
 			/>
 		</>
 	);
