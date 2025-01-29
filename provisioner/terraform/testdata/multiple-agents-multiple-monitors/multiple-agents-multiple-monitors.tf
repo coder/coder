@@ -12,7 +12,7 @@ resource "coder_agent" "dev1" {
   arch = "amd64"
   resources_monitoring {
     memory {
-      enabled = true
+      enabled   = true
       threshold = 80
     }
   }
@@ -23,17 +23,17 @@ resource "coder_agent" "dev2" {
   arch = "amd64"
   resources_monitoring {
     memory {
-      enabled = true
+      enabled   = true
       threshold = 99
     }
     volume {
-      path = "volume1"
-      enabled = true
+      path      = "volume1"
+      enabled   = true
       threshold = 80
     }
     volume {
-      path = "volume2"
-      enabled = false
+      path      = "volume2"
+      enabled   = false
       threshold = 50
     }
   }
