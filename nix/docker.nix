@@ -17,6 +17,8 @@
   storeDir ? builtins.storeDir,
   pigz,
   zstd,
+  stdenv,
+  glibc,
 }:
 let
   inherit (lib)
@@ -70,6 +72,7 @@ let
       command ? null,
       run ? null,
       maxLayers ? 100,
+      uname ? "nixbld",
     }:
     assert lib.assertMsg (!(drv.drvAttrs.__structuredAttrs or false))
       "streamNixShellImage: Does not work with the derivation ${drv.name} because it uses __structuredAttrs";
@@ -83,7 +86,14 @@ let
         exec ${lib.escapeShellArg (valueToString drv.drvAttrs.builder)} ${lib.escapeShellArgs (map valueToString drv.drvAttrs.args)}
       '';
 
-      staticPath = "${dirOf shell}:${lib.makeBinPath [ builder ]}";
+      staticPath = "${dirOf shell}:${
+        lib.makeBinPath (
+          lib.flatten [
+            builder
+            drv.buildInputs
+          ]
+        )
+      }";
 
       # https://github.com/NixOS/nix/blob/2.8.0/src/nix-build/nix-build.cc#L493-L526
       rcfile = writeText "nix-shell-rc" ''
@@ -107,6 +117,15 @@ let
           ${optionalString (run != null) run}
           exit
         ''}
+      '';
+
+      nixConfFile = writeText "nix-conf" ''
+        experimental-features = nix-command flakes
+      '';
+
+      etcNixConf = runCommand "etcd-nix-conf" { } ''
+        mkdir -p $out/etc/nix/
+        ln -s ${nixConfFile} $out/etc/nix/nix.conf
       '';
 
       # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/globals.hh#L464-L465
@@ -142,6 +161,8 @@ let
           # TODO: Make configurable?
           NIX_BUILD_CORES = "1";
 
+          # Make sure we get the libraries for C and C++ in.
+          LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc ];
         }
         // drvEnv
         // {
@@ -153,10 +174,10 @@ let
           TMPDIR = sandboxBuildDir;
           TEMPDIR = sandboxBuildDir;
           TMP = sandboxBuildDir;
-          TEMP = sandboxBuildDir;
+          TEMP = "/tmp";
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1015-L1019
-          PWD = sandboxBuildDir;
+          PWD = homeDirectory;
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1071-L1074
           # We don't set it here because the output here isn't handled in any special way
@@ -172,16 +193,17 @@ let
       contents = [
         binSh
         usrBinEnv
+        etcNixConf
         (fakeNss.override {
           # Allows programs to look up the build user's home directory
           # https://github.com/NixOS/nix/blob/ffe155abd36366a870482625543f9bf924a58281/src/libstore/build/local-derivation-goal.cc#L906-L910
           # Slightly differs however: We use the passed-in homeDirectory instead of sandboxBuildDir.
           # We're doing this because it's arguably a bug in Nix that sandboxBuildDir is used here: https://github.com/NixOS/nix/issues/6379
           extraPasswdLines = [
-            "nixbld:x:${toString uid}:${toString gid}:Build user:${homeDirectory}:/noshell"
+            "${toString uname}:x:${toString uid}:${toString gid}:Build user:${homeDirectory}:${lib.escapeShellArg shell}"
           ];
           extraGroupLines = [
-            "nixbld:!:${toString gid}:"
+            "${toString uname}:!:${toString gid}:"
           ];
         })
       ];
@@ -197,6 +219,28 @@ let
         # Gives the user control over the build directory
         mkdir -p .${sandboxBuildDir}
         chown -R ${toString uid}:${toString gid} .${sandboxBuildDir}
+
+        mkdir -p .${homeDirectory}
+        chown -R ${toString uid}:${toString gid} .${homeDirectory}
+
+        mkdir -p ./tmp
+        chown -R ${toString uid}:${toString gid} ./tmp
+
+        mkdir -p ./etc/skel
+        chown -R ${toString uid}:${toString gid} ./etc/skel
+
+        # Create traditional /lib or /lib64 as needed.
+        # For aarch64 (arm64):
+        if [ -e "${glibc}/lib/ld-linux-aarch64.so.1" ]; then
+          mkdir -p ./lib
+          ln -s "${glibc}/lib/ld-linux-aarch64.so.1" ./lib/ld-linux-aarch64.so.1
+        fi
+
+        # For x86_64:
+        if [ -e "${glibc}/lib64/ld-linux-x86-64.so.2" ]; then
+          mkdir -p ./lib64
+          ln -s "${glibc}/lib64/ld-linux-x86-64.so.2" ./lib64/ld-linux-x86-64.so.2
+        fi
       '';
 
       # Run this image as the given uid/gid
@@ -215,11 +259,12 @@ let
             shell
             rcfile
           ];
-      config.WorkingDir = sandboxBuildDir;
+      config.WorkingDir = homeDirectory;
       config.Env = lib.mapAttrsToList (name: value: "${name}=${value}") envVars;
     };
 in
 {
+  inherit streamNixShellImage;
 
   # This function streams a docker image that behaves like a nix-shell for a derivation
   # Docs: doc/build-helpers/images/dockertools.section.md
