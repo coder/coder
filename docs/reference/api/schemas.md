@@ -4180,6 +4180,36 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
+## codersdk.PatchOrganizationIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+
 ## codersdk.PatchTemplateVersionRequest
 
 ```json
