@@ -2346,6 +2346,21 @@ func (mr *MockStoreMockRecorder) GetTailnetTunnelPeerIDs(ctx, srcID any) *gomock
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTailnetTunnelPeerIDs", reflect.TypeOf((*MockStore)(nil).GetTailnetTunnelPeerIDs), ctx, srcID)
 }
 
+// GetTelemetryHTMLFirstServedAt mocks base method.
+func (m *MockStore) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetryHTMLFirstServedAt", ctx)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetryHTMLFirstServedAt indicates an expected call of GetTelemetryHTMLFirstServedAt.
+func (mr *MockStoreMockRecorder) GetTelemetryHTMLFirstServedAt(ctx any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryHTMLFirstServedAt", reflect.TypeOf((*MockStore)(nil).GetTelemetryHTMLFirstServedAt), ctx)
+}
+
 // GetTemplateAppInsights mocks base method.
 func (m *MockStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -4608,6 +4623,20 @@ func (m *MockStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string
 func (mr *MockStoreMockRecorder) RevokeDBCryptKey(ctx, activeKeyDigest any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeDBCryptKey", reflect.TypeOf((*MockStore)(nil).RevokeDBCryptKey), ctx, activeKeyDigest)
+}
+
+// SetTelemetryHTMLFirstServedAt mocks base method.
+func (m *MockStore) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetTelemetryHTMLFirstServedAt", ctx, value)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetTelemetryHTMLFirstServedAt indicates an expected call of SetTelemetryHTMLFirstServedAt.
+func (mr *MockStoreMockRecorder) SetTelemetryHTMLFirstServedAt(ctx, value any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetTelemetryHTMLFirstServedAt", reflect.TypeOf((*MockStore)(nil).SetTelemetryHTMLFirstServedAt), ctx, value)
 }
 
 // TryAcquireLock mocks base method.

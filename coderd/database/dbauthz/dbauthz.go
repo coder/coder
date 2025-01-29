@@ -2096,6 +2096,13 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
+func (q *querier) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return "", err
+	}
+	return q.db.GetTelemetryHTMLFirstServedAt(ctx)
+}
+
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -3426,6 +3433,13 @@ func (q *querier) RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) 
 		return err
 	}
 	return q.db.RevokeDBCryptKey(ctx, activeKeyDigest)
+}
+
+func (q *querier) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.SetTelemetryHTMLFirstServedAt(ctx, value)
 }
 
 func (q *querier) TryAcquireLock(ctx context.Context, id int64) (bool, error) {

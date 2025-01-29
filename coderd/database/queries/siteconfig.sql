@@ -107,3 +107,10 @@ ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1;
 DELETE FROM site_configs
 WHERE site_configs.key = $1;
 
+-- name: SetTelemetryHTMLFirstServedAt :exec
+INSERT INTO site_configs (key, value)
+VALUES ('telemetry_html_first_served_at', $1)
+ON CONFLICT (key) DO NOTHING;
+
+-- name: GetTelemetryHTMLFirstServedAt :one
+SELECT value FROM site_configs WHERE key = 'telemetry_html_first_served_at';

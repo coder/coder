@@ -306,6 +306,25 @@ func TestTelemetry(t *testing.T) {
 		deployment, _ = collectSnapshot(t, db, nil)
 		require.True(t, *deployment.IDPOrgSync)
 	})
+	t.Run("HTMLFirstServedAt", func(t *testing.T) {
+		t.Parallel()
+		db, _ := dbtestutil.NewDB(t)
+		deployment, _ := collectSnapshot(t, db, nil)
+		require.Nil(t, deployment.HTMLFirstServedAt)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		now := time.Now().Format(time.RFC3339)
+		parsedNow, err := time.Parse(time.RFC3339, now)
+		require.NoError(t, err)
+		require.NoError(t, db.SetTelemetryHTMLFirstServedAt(ctx, now))
+		deployment, _ = collectSnapshot(t, db, nil)
+		require.Equal(t, *deployment.HTMLFirstServedAt, parsedNow)
+
+		// Test idempotency
+		require.NoError(t, db.SetTelemetryHTMLFirstServedAt(ctx, time.Now().Add(time.Hour).Format(time.RFC3339)))
+		deployment, _ = collectSnapshot(t, db, nil)
+		require.Equal(t, *deployment.HTMLFirstServedAt, parsedNow)
+	})
 }
 
 // nolint:paralleltest

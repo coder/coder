@@ -99,6 +99,8 @@ type Reporter interface {
 	// database. For example, if a new user is added, a snapshot can
 	// contain just that user entry.
 	Report(snapshot *Snapshot)
+	// ReportDeployment sends deployment information to the telemetry server.
+	ReportDeployment()
 	Enabled() bool
 	Close()
 }
@@ -222,6 +224,12 @@ func (r *remoteReporter) reportWithDeployment() {
 	r.reportSync(snapshot)
 }
 
+func (r *remoteReporter) ReportDeployment() {
+	if err := r.deployment(); err != nil {
+		r.options.Logger.Debug(r.ctx, "failed to report deployment", slog.Error(err))
+	}
+}
+
 // deployment collects host information and reports it to the telemetry server.
 func (r *remoteReporter) deployment() error {
 	sysInfoHost, err := sysinfo.Host()
@@ -250,26 +258,32 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
+	htmlFirstServedAt, err := getHTMLFirstServedAt(r.ctx, r.options.Database)
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		r.options.Logger.Debug(r.ctx, "get telemetry html first served at", slog.Error(err))
+	}
+
 	data, err := json.Marshal(&Deployment{
-		ID:              r.options.DeploymentID,
-		Architecture:    sysInfo.Architecture,
-		BuiltinPostgres: r.options.BuiltinPostgres,
-		Containerized:   containerized,
-		Config:          r.options.DeploymentConfig,
-		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:   installSource,
-		Tunnel:          r.options.Tunnel,
-		OSType:          sysInfo.OS.Type,
-		OSFamily:        sysInfo.OS.Family,
-		OSPlatform:      sysInfo.OS.Platform,
-		OSName:          sysInfo.OS.Name,
-		OSVersion:       sysInfo.OS.Version,
-		CPUCores:        runtime.NumCPU(),
-		MemoryTotal:     mem.Total,
-		MachineID:       sysInfo.UniqueID,
-		StartedAt:       r.startedAt,
-		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      &idpOrgSync,
+		ID:                r.options.DeploymentID,
+		Architecture:      sysInfo.Architecture,
+		BuiltinPostgres:   r.options.BuiltinPostgres,
+		Containerized:     containerized,
+		Config:            r.options.DeploymentConfig,
+		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:     installSource,
+		Tunnel:            r.options.Tunnel,
+		OSType:            sysInfo.OS.Type,
+		OSFamily:          sysInfo.OS.Family,
+		OSPlatform:        sysInfo.OS.Platform,
+		OSName:            sysInfo.OS.Name,
+		OSVersion:         sysInfo.OS.Version,
+		CPUCores:          runtime.NumCPU(),
+		MemoryTotal:       mem.Total,
+		MachineID:         sysInfo.UniqueID,
+		StartedAt:         r.startedAt,
+		ShutdownAt:        r.shutdownAt,
+		IDPOrgSync:        &idpOrgSync,
+		HTMLFirstServedAt: htmlFirstServedAt,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -328,6 +342,18 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
 	}
 	return syncConfig.Field != "", nil
+}
+
+func getHTMLFirstServedAt(ctx context.Context, db database.Store) (*time.Time, error) {
+	htmlFirstServedAtStr, err := db.GetTelemetryHTMLFirstServedAt(ctx)
+	if err != nil {
+		return nil, xerrors.Errorf("get telemetry html first served at: %w", err)
+	}
+	t, err := time.Parse(time.RFC3339, htmlFirstServedAtStr)
+	if err != nil {
+		return nil, xerrors.Errorf("parse telemetry html first served at: %w", err)
+	}
+	return &t, nil
 }
 
 // createSnapshot collects a full snapshot from the database.
@@ -1036,7 +1062,8 @@ type Deployment struct {
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
-	IDPOrgSync *bool `json:"idp_org_sync"`
+	IDPOrgSync        *bool      `json:"idp_org_sync"`
+	HTMLFirstServedAt *time.Time `json:"html_first_served_at"`
 }
 
 type APIKey struct {
@@ -1541,3 +1568,4 @@ type noopReporter struct{}
 func (*noopReporter) Report(_ *Snapshot) {}
 func (*noopReporter) Enabled() bool      { return false }
 func (*noopReporter) Close()             {}
+func (*noopReporter) ReportDeployment()  {}

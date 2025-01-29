@@ -258,6 +258,7 @@ type data struct {
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
+	htmlFirstServedAt                string
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -4328,6 +4329,16 @@ func (*FakeQuerier) GetTailnetTunnelPeerBindings(context.Context, uuid.UUID) ([]
 
 func (*FakeQuerier) GetTailnetTunnelPeerIDs(context.Context, uuid.UUID) ([]database.GetTailnetTunnelPeerIDsRow, error) {
 	return nil, ErrUnimplemented
+}
+
+func (q *FakeQuerier) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+	if q.htmlFirstServedAt == "" {
+		return "", sql.ErrNoRows
+	}
+
+	return q.htmlFirstServedAt, nil
 }
 
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
@@ -9121,6 +9132,16 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+	if q.htmlFirstServedAt != "" {
+		return nil
+	}
+	q.htmlFirstServedAt = value
+	return nil
 }
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {

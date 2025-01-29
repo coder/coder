@@ -224,6 +224,7 @@ type sqlcQuerier interface {
 	GetTailnetPeers(ctx context.Context, id uuid.UUID) ([]TailnetPeer, error)
 	GetTailnetTunnelPeerBindings(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerBindingsRow, error)
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
+	GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.
@@ -449,6 +450,7 @@ type sqlcQuerier interface {
 	RemoveUserFromAllGroups(ctx context.Context, userID uuid.UUID) error
 	RemoveUserFromGroups(ctx context.Context, arg RemoveUserFromGroupsParams) ([]uuid.UUID, error)
 	RevokeDBCryptKey(ctx context.Context, activeKeyDigest string) error
+	SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error
 	// Non blocking lock. Returns true if the lock was acquired, false otherwise.
 	//
 	// This must be called from within a transaction. The lock will be automatically

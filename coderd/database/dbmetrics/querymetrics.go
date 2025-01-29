@@ -1134,6 +1134,13 @@ func (m queryMetricsStore) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uu
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTelemetryHTMLFirstServedAt(ctx)
+	m.queryLatencies.WithLabelValues("GetTelemetryHTMLFirstServedAt").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)
@@ -2160,6 +2167,13 @@ func (m queryMetricsStore) RevokeDBCryptKey(ctx context.Context, activeKeyDigest
 	start := time.Now()
 	r0 := m.s.RevokeDBCryptKey(ctx, activeKeyDigest)
 	m.queryLatencies.WithLabelValues("RevokeDBCryptKey").Observe(time.Since(start).Seconds())
+	return r0
+}
+
+func (m queryMetricsStore) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
+	start := time.Now()
+	r0 := m.s.SetTelemetryHTMLFirstServedAt(ctx, value)
+	m.queryLatencies.WithLabelValues("SetTelemetryHTMLFirstServedAt").Observe(time.Since(start).Seconds())
 	return r0
 }
 

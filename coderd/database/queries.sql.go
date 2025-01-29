@@ -7815,6 +7815,17 @@ func (q *sqlQuerier) GetRuntimeConfig(ctx context.Context, key string) (string, 
 	return value, err
 }
 
+const getTelemetryHTMLFirstServedAt = `-- name: GetTelemetryHTMLFirstServedAt :one
+SELECT value FROM site_configs WHERE key = 'telemetry_html_first_served_at'
+`
+
+func (q *sqlQuerier) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
+	row := q.db.QueryRowContext(ctx, getTelemetryHTMLFirstServedAt)
+	var value string
+	err := row.Scan(&value)
+	return value, err
+}
+
 const insertDERPMeshKey = `-- name: InsertDERPMeshKey :exec
 INSERT INTO site_configs (key, value) VALUES ('derp_mesh_key', $1)
 `
@@ -7830,6 +7841,17 @@ INSERT INTO site_configs (key, value) VALUES ('deployment_id', $1)
 
 func (q *sqlQuerier) InsertDeploymentID(ctx context.Context, value string) error {
 	_, err := q.db.ExecContext(ctx, insertDeploymentID, value)
+	return err
+}
+
+const setTelemetryHTMLFirstServedAt = `-- name: SetTelemetryHTMLFirstServedAt :exec
+INSERT INTO site_configs (key, value)
+VALUES ('telemetry_html_first_served_at', $1)
+ON CONFLICT (key) DO NOTHING
+`
+
+func (q *sqlQuerier) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
+	_, err := q.db.ExecContext(ctx, setTelemetryHTMLFirstServedAt, value)
 	return err
 }
 
