@@ -269,7 +269,7 @@ func (r *remoteReporter) deployment() error {
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
-		IDPOrgSync:      idpOrgSync,
+		IDPOrgSync:      &idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -1034,7 +1034,9 @@ type Deployment struct {
 	MachineID       string                     `json:"machine_id"`
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
-	IDPOrgSync      bool                       `json:"idp_org_sync"`
+	// While IDPOrgSync will always be set, it's nullable to make
+	// the struct backwards compatible with older coder versions.
+	IDPOrgSync *bool `json:"idp_org_sync"`
 }
 
 type APIKey struct {

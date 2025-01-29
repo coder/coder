@@ -278,7 +278,7 @@ func TestTelemetry(t *testing.T) {
 
 		// 1. No org sync settings
 		deployment, _ := collectSnapshot(t, db, nil)
-		require.False(t, deployment.IDPOrgSync)
+		require.False(t, *deployment.IDPOrgSync)
 
 		// 2. Org sync settings set in server flags
 		deployment, _ = collectSnapshot(t, db, func(opts telemetry.Options) telemetry.Options {
@@ -289,7 +289,7 @@ func TestTelemetry(t *testing.T) {
 			}
 			return opts
 		})
-		require.True(t, deployment.IDPOrgSync)
+		require.True(t, *deployment.IDPOrgSync)
 
 		// 3. Org sync settings set in runtime config
 		org, err := db.GetDefaultOrganization(ctx)
@@ -304,7 +304,7 @@ func TestTelemetry(t *testing.T) {
 		})
 		require.NoError(t, err)
 		deployment, _ = collectSnapshot(t, db, nil)
-		require.True(t, deployment.IDPOrgSync)
+		require.True(t, *deployment.IDPOrgSync)
 	})
 }
 
