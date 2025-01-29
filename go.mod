@@ -199,7 +199,7 @@ require (
 	google.golang.org/api v0.218.0
 	google.golang.org/grpc v1.70.0
 	google.golang.org/protobuf v1.36.3
-	gopkg.in/DataDog/dd-trace-go.v1 v1.70.3
+	gopkg.in/DataDog/dd-trace-go.v1 v1.71.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
 	gvisor.dev/gvisor v0.0.0-20240509041132-65b30f7869dc
@@ -446,7 +446,7 @@ require (
 	github.com/DataDog/datadog-agent/pkg/trace v0.58.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/log v0.58.0 // indirect
 	github.com/DataDog/datadog-agent/pkg/util/scrubber v0.58.0 // indirect
-	github.com/DataDog/go-runtime-metrics-internal v0.0.0-20241106155157-194426bbbd59 // indirect
+	github.com/DataDog/go-runtime-metrics-internal v0.0.4-0.20241206090539-a14610dc22b6 // indirect
 	github.com/DataDog/go-sqllexer v0.0.14 // indirect
 	github.com/DataDog/opentelemetry-mapping-go/pkg/otlp/attributes v0.20.0 // indirect
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
