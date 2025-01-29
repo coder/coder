@@ -161,6 +161,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
+	const [presetParameterNames, setPresetParameterNames] = useState<string[]>([]);
 
 	useEffect(() => {
 		// TODO (sasswart): test case: what if immutable parameters are used in the preset?
@@ -170,6 +171,7 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 		// TODO (sasswart): what if we have preset params and autofill params on the same param?
 		// TODO (sasswart): test case: if we move from preset to no preset, do we reset the params?
 		// If so, how should it behave? Reset to initial value? reset to last set value?
+		// TODO (sasswart): test case: rich parameters
 
 		if (!presetParameters) {
 			return;
@@ -181,16 +183,24 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 			(param) => param.PresetID === selectedPreset.value,
 		);
 
-		for (const param of selectedPresetParameters) {
-			const paramIndex = parameters.findIndex((p) => p.name === param.Name);
-			if (paramIndex !== -1) {
-				form.setFieldValue(`rich_parameter_values.${paramIndex}`, {
-					name: param.Name,
-					value: param.Value,
-				});
-			}
-		}
-	}, [selectedPresetIndex, presetParameters, presetOptions, parameters, form]);
+		setPresetParameterNames(selectedPresetParameters.map((p) => p.Name));
+
+		const updatedValues = {
+			...form.values,
+			rich_parameter_values: form.values.rich_parameter_values?.map((param) => {
+				const presetParam = selectedPresetParameters.find((p) => p.Name === param.name);
+				if (presetParam) {
+					return {
+						name: param.name,
+						value: presetParam.Value,
+					};
+				}
+				return param;
+			}) ?? [],
+		};
+
+		form.setValues(updatedValues);
+	}, [selectedPresetIndex, presetParameters, presetOptions, form.setValues]);
 
 	return (
 		<Margins size="medium">
@@ -364,7 +374,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 								const isDisabled =
 									disabledParams?.includes(
 										parameter.name.toLowerCase().replace(/ /g, "_"),
-									) || creatingWorkspace;
+									) ||
+									creatingWorkspace ||
+									presetParameterNames.includes(parameter.name);
 
 								return (
 									<RichParameterInput

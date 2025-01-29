@@ -1340,6 +1340,37 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 			}
 		}
 
+		for _, preset := range jobType.TemplateImport.Presets {
+			s.Logger.Info(ctx, "inserting template import job preset",
+				slog.F("job_id", job.ID.String()),
+				slog.F("preset_name", preset.Name),
+			)
+
+			dbPreset, err := s.Database.InsertPreset(ctx, database.InsertPresetParams{
+				TemplateVersionID: input.TemplateVersionID,
+				Name:              preset.Name,
+				CreatedAt:         s.timeNow(),
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert preset: %w", err)
+			}
+
+			var presetParameterNames []string
+			var presetParameterValues []string
+			for _, parameter := range preset.Parameters {
+				presetParameterNames = append(presetParameterNames, parameter.Name)
+				presetParameterValues = append(presetParameterValues, parameter.Value)
+			}
+			_, err = s.Database.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+				TemplateVersionPresetID: dbPreset.ID,
+				Names:                   presetParameterNames,
+				Values:                  presetParameterValues,
+			})
+			if err != nil {
+				return nil, xerrors.Errorf("insert preset parameters: %w", err)
+			}
+		}
+
 		var completedError sql.NullString
 
 		for _, externalAuthProvider := range jobType.TemplateImport.ExternalAuthProviders {

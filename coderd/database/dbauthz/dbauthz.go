@@ -3113,14 +3113,14 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return database.TemplateVersionPreset{}, err
 	}
 	return q.db.InsertPreset(ctx, arg)
 }
 
 func (q *querier) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceTemplate); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
 		return nil, err
 	}
 	return q.db.InsertPresetParameters(ctx, arg)

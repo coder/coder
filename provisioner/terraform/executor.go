@@ -308,6 +308,7 @@ func (e *executor) plan(ctx, killCtx context.Context, env, vars []string, logr l
 		Resources:             state.Resources,
 		ExternalAuthProviders: state.ExternalAuthProviders,
 		Timings:               append(e.timings.aggregate(), graphTimings.aggregate()...),
+		Presets:               state.Presets,
 	}, nil
 }
 
