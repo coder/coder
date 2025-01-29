@@ -302,4 +302,16 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionUpdate: actDef("update IdP sync settings"),
 		},
 	},
+	"workspace_agent_volume_resource_monitor": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read workspace agent volume resource monitor"),
+			ActionCreate: actDef("create workspace agent volume resource monitor"),
+		},
+	},
+	"workspace_agent_memory_resource_monitor": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read workspace agent memory resource monitor"),
+			ActionCreate: actDef("create workspace agent memory resource monitor"),
+		},
+	},
 }

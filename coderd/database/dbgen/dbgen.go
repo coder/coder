@@ -1032,6 +1032,29 @@ func OAuth2ProviderAppToken(t testing.TB, db database.Store, seed database.OAuth
 	return token
 }
 
+func WorkspaceAgentMemoryResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentMemoryResourceMonitor) database.WorkspaceAgentMemoryResourceMonitor {
+	monitor, err := db.InsertMemoryResourceMonitor(genCtx, database.InsertMemoryResourceMonitorParams{
+		AgentID:   takeFirst(seed.AgentID, uuid.New()),
+		Enabled:   takeFirst(seed.Enabled, true),
+		Threshold: takeFirst(seed.Threshold, 100),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace agent memory resource monitor")
+	return monitor
+}
+
+func WorkspaceAgentVolumeResourceMonitor(t testing.TB, db database.Store, seed database.WorkspaceAgentVolumeResourceMonitor) database.WorkspaceAgentVolumeResourceMonitor {
+	monitor, err := db.InsertVolumeResourceMonitor(genCtx, database.InsertVolumeResourceMonitorParams{
+		AgentID:   takeFirst(seed.AgentID, uuid.New()),
+		Path:      takeFirst(seed.Path, "/"),
+		Enabled:   takeFirst(seed.Enabled, true),
+		Threshold: takeFirst(seed.Threshold, 100),
+		CreatedAt: takeFirst(seed.CreatedAt, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert workspace agent volume resource monitor")
+	return monitor
+}
+
 func CustomRole(t testing.TB, db database.Store, seed database.CustomRole) database.CustomRole {
 	role, err := db.InsertCustomRole(genCtx, database.InsertCustomRoleParams{
 		Name:            takeFirst(seed.Name, strings.ToLower(testutil.GetRandomName(t))),

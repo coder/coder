@@ -295,6 +295,22 @@ var (
 		Type: "workspace",
 	}
 
+	// ResourceWorkspaceAgentMemoryResourceMonitor
+	// Valid Actions
+	//  - "ActionCreate" :: create workspace agent memory resource monitor
+	//  - "ActionRead" :: read workspace agent memory resource monitor
+	ResourceWorkspaceAgentMemoryResourceMonitor = Object{
+		Type: "workspace_agent_memory_resource_monitor",
+	}
+
+	// ResourceWorkspaceAgentVolumeResourceMonitor
+	// Valid Actions
+	//  - "ActionCreate" :: create workspace agent volume resource monitor
+	//  - "ActionRead" :: read workspace agent volume resource monitor
+	ResourceWorkspaceAgentVolumeResourceMonitor = Object{
+		Type: "workspace_agent_volume_resource_monitor",
+	}
+
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -353,6 +369,8 @@ func AllResources() []Objecter {
 		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
+		ResourceWorkspaceAgentMemoryResourceMonitor,
+		ResourceWorkspaceAgentVolumeResourceMonitor,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}
