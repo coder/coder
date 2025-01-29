@@ -5395,6 +5395,29 @@ func (q *sqlQuerier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.
 	return items, nil
 }
 
+const claimPrebuild = `-- name: ClaimPrebuild :one
+UPDATE workspaces w
+SET owner_id = $1::uuid, updated_at = NOW() -- TODO: annoying; having two input params breaks dbgen
+WHERE w.id IN (SELECT p.id
+			   FROM workspace_prebuilds p
+						INNER JOIN workspace_latest_build b ON b.workspace_id = p.id
+						INNER JOIN provisioner_jobs pj ON b.job_id = pj.id
+						INNER JOIN templates t ON p.template_id = t.id
+			   WHERE (b.transition = 'start'::workspace_transition
+				   AND pj.job_status IN ('succeeded'::provisioner_job_status))
+				 AND b.template_version_id = t.active_version_id
+			   ORDER BY random()
+			   LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
+RETURNING w.id
+`
+
+func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, newOwnerID uuid.UUID) (uuid.UUID, error) {
+	row := q.db.QueryRowContext(ctx, claimPrebuild, newOwnerID)
+	var id uuid.UUID
+	err := row.Scan(&id)
+	return id, err
+}
+
 const getTemplatePrebuildState = `-- name: GetTemplatePrebuildState :many
 WITH
 	-- All prebuilds currently running
