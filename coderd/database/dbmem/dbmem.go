@@ -7143,7 +7143,7 @@ func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, created
 	return modules, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+func (*FakeQuerier) GetWorkspaceMonitor(_ context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceMonitor{}, err
@@ -8761,7 +8761,7 @@ func (q *FakeQuerier) InsertWorkspaceModule(_ context.Context, arg database.Inse
 	return workspaceModule, nil
 }
 
-func (q *FakeQuerier) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+func (*FakeQuerier) InsertWorkspaceMonitor(_ context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceMonitor{}, err
@@ -10528,7 +10528,7 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (q *FakeQuerier) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
+func (*FakeQuerier) UpdateWorkspaceMonitor(_ context.Context, arg database.UpdateWorkspaceMonitorParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err

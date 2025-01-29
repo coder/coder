@@ -2741,7 +2741,11 @@ func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt
 }
 
 func (q *querier) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceMonitor{}, err
+	}
+
+	return q.db.GetWorkspaceMonitor(ctx, arg)
 }
 
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
@@ -3323,7 +3327,10 @@ func (q *querier) InsertWorkspaceModule(ctx context.Context, arg database.Insert
 }
 
 func (q *querier) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceMonitor{}, err
+	}
+	return q.db.InsertWorkspaceMonitor(ctx, arg)
 }
 
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -4146,7 +4153,10 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 }
 
 func (q *querier) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
-	panic("not implemented")
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpdateWorkspaceMonitor(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {

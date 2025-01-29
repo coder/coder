@@ -6,6 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/require"
+	"go.uber.org/mock/gomock"
+	"google.golang.org/protobuf/types/known/timestamppb"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
@@ -13,10 +18,6 @@ import (
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/quartz"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
-	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
 func TestWorkspaceMemoryMonitor(t *testing.T) {
@@ -174,7 +175,6 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			}
 		})
 	}
-
 }
 
 func TestWorkspaceVolumeMonitor(t *testing.T) {

@@ -5,14 +5,15 @@ import (
 	"database/sql"
 	"slices"
 
+	"github.com/google/uuid"
+	"golang.org/x/xerrors"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/quartz"
-	"github.com/google/uuid"
-	"golang.org/x/xerrors"
 )
 
 type WorkspaceMonitorAPI struct {
@@ -66,24 +67,28 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 
 	oldState := memoryMonitor.State
 	newState := m.nextState(oldState, memoryUsageStates)
+	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
 
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
-		WorkspaceID: m.WorkspaceID,
-		MonitorType: database.WorkspaceMonitorTypeMemory,
-		State:       newState,
-		UpdatedAt:   dbtime.Time(m.Clock.Now()),
+		WorkspaceID:    m.WorkspaceID,
+		MonitorType:    database.WorkspaceMonitorTypeMemory,
+		VolumePath:     sql.NullString{Valid: false},
+		State:          newState,
+		UpdatedAt:      dbtime.Time(m.Clock.Now()),
+		DebouncedUntil: dbtime.Time(m.Clock.Now()),
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace monitor: %w", err)
 	}
 
-	if oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK {
+	if shouldNotify {
 		workspace, err := m.Database.GetWorkspaceByID(ctx, m.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by id: %w", err)
 		}
 
 		_, err = m.NotificationsEnqueuer.Enqueue(
+			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
 			notifications.TemplateWorkspaceReachedResourceThreshold,
@@ -110,6 +115,7 @@ func (m *WorkspaceMonitorAPI) getOrInsertMemoryMonitor(ctx context.Context) (dat
 				database.InsertWorkspaceMonitorParams{
 					WorkspaceID:    m.WorkspaceID,
 					MonitorType:    database.WorkspaceMonitorTypeMemory,
+					VolumePath:     sql.NullString{Valid: false},
 					State:          database.WorkspaceMonitorStateOK,
 					CreatedAt:      dbtime.Now(),
 					UpdatedAt:      dbtime.Now(),
@@ -154,25 +160,28 @@ func (m *WorkspaceMonitorAPI) monitorVolume(ctx context.Context, path string, da
 
 	oldState := volumeMonitor.State
 	newState := m.nextState(oldState, volumeUsageStates)
+	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
 
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
-		WorkspaceID: m.WorkspaceID,
-		MonitorType: database.WorkspaceMonitorTypeVolume,
-		VolumePath:  sql.NullString{Valid: true, String: path},
-		State:       newState,
-		UpdatedAt:   dbtime.Time(m.Clock.Now()),
+		WorkspaceID:    m.WorkspaceID,
+		MonitorType:    database.WorkspaceMonitorTypeVolume,
+		VolumePath:     sql.NullString{Valid: true, String: path},
+		State:          newState,
+		UpdatedAt:      dbtime.Time(m.Clock.Now()),
+		DebouncedUntil: dbtime.Time(m.Clock.Now()),
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace monitor: %w", err)
 	}
 
-	if oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK {
+	if shouldNotify {
 		workspace, err := m.Database.GetWorkspaceByID(ctx, m.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by id: %w", err)
 		}
 
 		_, err = m.NotificationsEnqueuer.Enqueue(
+			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
 			notifications.TemplateWorkspaceReachedResourceThreshold,
@@ -226,7 +235,7 @@ func (m *WorkspaceMonitorAPI) nextState(oldState database.WorkspaceMonitorState,
 	nokCount := 0
 	for _, state := range states {
 		if state == database.WorkspaceMonitorStateNOK {
-			nokCount += 1
+			nokCount++
 		}
 	}
 
