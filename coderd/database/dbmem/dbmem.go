@@ -7143,6 +7143,15 @@ func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, created
 	return modules, nil
 }
 
+func (q *FakeQuerier) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceMonitor{}, err
+	}
+
+	panic("not implemented")
+}
+
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -8750,6 +8759,15 @@ func (q *FakeQuerier) InsertWorkspaceModule(_ context.Context, arg database.Inse
 	workspaceModule := database.WorkspaceModule(arg)
 	q.workspaceModules = append(q.workspaceModules, workspaceModule)
 	return workspaceModule, nil
+}
+
+func (q *FakeQuerier) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return database.WorkspaceMonitor{}, err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -10508,6 +10526,15 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	}
 
 	return sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	panic("not implemented")
 }
 
 func (q *FakeQuerier) UpdateWorkspaceNextStartAt(_ context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {

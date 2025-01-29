@@ -295,6 +295,31 @@ message Timing {
     Status status = 6;
 }
 
+message WorkspaceMonitorUpdateRequest {
+	message Datapoint {
+		message VolumeUsage {
+			string path = 1;
+			int32 used = 2;
+			int32 total = 3;
+		}
+
+		message MemoryUsage {
+			int32 used = 1;
+			int32 total = 2;
+		}
+
+		google.protobuf.Timestamp collected_at = 1;
+		MemoryUsage memory = 2;
+		repeated VolumeUsage volume = 3;
+	}
+
+	repeated Datapoint datapoints = 1;
+}
+
+message WorkspaceMonitorUpdateResponse {
+
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -306,4 +331,5 @@ service Agent {
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
 	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
+	rpc UpdateWorkspaceMonitor(WorkspaceMonitorUpdateRequest) returns (WorkspaceMonitorUpdateResponse);
 }

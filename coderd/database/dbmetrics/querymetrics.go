@@ -1624,6 +1624,13 @@ func (m queryMetricsStore) GetWorkspaceModulesCreatedAfter(ctx context.Context, 
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetWorkspaceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("GetWorkspaceMonitor").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	start := time.Now()
 	proxies, err := m.s.GetWorkspaceProxies(ctx)
@@ -2062,6 +2069,13 @@ func (m queryMetricsStore) InsertWorkspaceModule(ctx context.Context, arg databa
 	start := time.Now()
 	r0, r1 := m.s.InsertWorkspaceModule(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertWorkspaceModule").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
+func (m queryMetricsStore) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertWorkspaceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertWorkspaceMonitor").Observe(time.Since(start).Seconds())
 	return r0, r1
 }
 
@@ -2588,6 +2602,13 @@ func (m queryMetricsStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg da
 	err := m.s.UpdateWorkspaceLastUsedAt(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpdateWorkspaceLastUsedAt").Observe(time.Since(start).Seconds())
 	return err
+}
+
+func (m queryMetricsStore) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
+	start := time.Now()
+	r0 := m.s.UpdateWorkspaceMonitor(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpdateWorkspaceMonitor").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {

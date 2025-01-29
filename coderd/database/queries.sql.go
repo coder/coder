@@ -14880,6 +14880,116 @@ func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorksp
 	return i, err
 }
 
+const getWorkspaceMonitor = `-- name: GetWorkspaceMonitor :one
+SELECT workspace_id, monitor_type, volume_path, state, created_at, updated_at, debounced_until
+FROM workspace_monitors
+WHERE workspace_id = $1 AND monitor_type = $2 AND volume_path = $3
+`
+
+type GetWorkspaceMonitorParams struct {
+	WorkspaceID uuid.UUID            `db:"workspace_id" json:"workspace_id"`
+	MonitorType WorkspaceMonitorType `db:"monitor_type" json:"monitor_type"`
+	VolumePath  sql.NullString       `db:"volume_path" json:"volume_path"`
+}
+
+func (q *sqlQuerier) GetWorkspaceMonitor(ctx context.Context, arg GetWorkspaceMonitorParams) (WorkspaceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, getWorkspaceMonitor, arg.WorkspaceID, arg.MonitorType, arg.VolumePath)
+	var i WorkspaceMonitor
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.MonitorType,
+		&i.VolumePath,
+		&i.State,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DebouncedUntil,
+	)
+	return i, err
+}
+
+const insertWorkspaceMonitor = `-- name: InsertWorkspaceMonitor :one
+INSERT INTO workspace_monitors (
+	workspace_id,
+	monitor_type,
+	volume_path,
+	state,
+	created_at,
+	updated_at,
+	debounced_until
+) VALUES (
+	$1,
+	$2,
+	$3,
+	$4,
+	$5,
+	$6,
+	$7
+) RETURNING workspace_id, monitor_type, volume_path, state, created_at, updated_at, debounced_until
+`
+
+type InsertWorkspaceMonitorParams struct {
+	WorkspaceID    uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	MonitorType    WorkspaceMonitorType  `db:"monitor_type" json:"monitor_type"`
+	VolumePath     sql.NullString        `db:"volume_path" json:"volume_path"`
+	State          WorkspaceMonitorState `db:"state" json:"state"`
+	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time             `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) InsertWorkspaceMonitor(ctx context.Context, arg InsertWorkspaceMonitorParams) (WorkspaceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, insertWorkspaceMonitor,
+		arg.WorkspaceID,
+		arg.MonitorType,
+		arg.VolumePath,
+		arg.State,
+		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
+	)
+	var i WorkspaceMonitor
+	err := row.Scan(
+		&i.WorkspaceID,
+		&i.MonitorType,
+		&i.VolumePath,
+		&i.State,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.DebouncedUntil,
+	)
+	return i, err
+}
+
+const updateWorkspaceMonitor = `-- name: UpdateWorkspaceMonitor :exec
+UPDATE workspace_monitors
+SET
+	state = $4,
+	updated_at = $5,
+	debounced_until = $6
+WHERE workspace_id = $1 AND monitor_type = $2 AND volume_path = $3
+`
+
+type UpdateWorkspaceMonitorParams struct {
+	WorkspaceID    uuid.UUID             `db:"workspace_id" json:"workspace_id"`
+	MonitorType    WorkspaceMonitorType  `db:"monitor_type" json:"monitor_type"`
+	VolumePath     sql.NullString        `db:"volume_path" json:"volume_path"`
+	State          WorkspaceMonitorState `db:"state" json:"state"`
+	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time             `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateWorkspaceMonitor(ctx context.Context, arg UpdateWorkspaceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateWorkspaceMonitor,
+		arg.WorkspaceID,
+		arg.MonitorType,
+		arg.VolumePath,
+		arg.State,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
+	)
+	return err
+}
+
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one
 SELECT
 	id, created_at, job_id, transition, type, name, hide, icon, instance_type, daily_cost, module_path

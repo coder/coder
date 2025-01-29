@@ -315,6 +315,14 @@ func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.Worksp
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
 }
 
+func (f *FakeAgentAPI) UpdateWorkspaceMonitor(_ context.Context, req *agentproto.WorkspaceMonitorUpdateRequest) (*agentproto.WorkspaceMonitorUpdateResponse, error) {
+	f.Lock()
+	// TODO: Figure out a good way of mocking the logic
+	f.Unlock()
+
+	return &agentproto.WorkspaceMonitorUpdateResponse{}, nil
+}
+
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {
 	return &FakeAgentAPI{
 		t:           t,

@@ -21,6 +21,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
@@ -29,6 +30,7 @@ import (
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/quartz"
 )
 
 // API implements the DRPC agent API interface from agent/proto. This struct is
@@ -44,6 +46,7 @@ type API struct {
 	*MetadataAPI
 	*LogsAPI
 	*ScriptsAPI
+	*WorkspaceMonitorAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -58,7 +61,9 @@ type Options struct {
 
 	Ctx                               context.Context
 	Log                               slog.Logger
+	Clock                             quartz.Clock
 	Database                          database.Store
+	NotificationsEnqueuer             notifications.Enqueuer
 	Pubsub                            pubsub.Pubsub
 	DerpMapFn                         func() *tailcfg.DERPMap
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
@@ -81,6 +86,10 @@ type Options struct {
 }
 
 func New(opts Options) *API {
+	if opts.Clock == nil {
+		opts.Clock = quartz.NewReal()
+	}
+
 	api := &API{
 		opts: opts,
 		mu:   sync.Mutex{},
@@ -143,6 +152,12 @@ func New(opts Options) *API {
 
 	api.ScriptsAPI = &ScriptsAPI{
 		Database: opts.Database,
+	}
+
+	api.WorkspaceMonitorAPI = &WorkspaceMonitorAPI{
+		Clock:                 opts.Clock,
+		Database:              opts.Database,
+		NotificationsEnqueuer: opts.NotificationsEnqueuer,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

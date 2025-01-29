@@ -48,6 +48,7 @@ type DRPCAgentClient interface {
 	BatchCreateLogs(ctx context.Context, in *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(ctx context.Context, in *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
+	UpdateWorkspaceMonitor(ctx context.Context, in *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -150,6 +151,15 @@ func (c *drpcAgentClient) ScriptCompleted(ctx context.Context, in *WorkspaceAgen
 	return out, nil
 }
 
+func (c *drpcAgentClient) UpdateWorkspaceMonitor(ctx context.Context, in *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error) {
+	out := new(WorkspaceMonitorUpdateResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/UpdateWorkspaceMonitor", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 type DRPCAgentServer interface {
 	GetManifest(context.Context, *GetManifestRequest) (*Manifest, error)
 	GetServiceBanner(context.Context, *GetServiceBannerRequest) (*ServiceBanner, error)
@@ -161,6 +171,7 @@ type DRPCAgentServer interface {
 	BatchCreateLogs(context.Context, *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(context.Context, *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 	ScriptCompleted(context.Context, *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
+	UpdateWorkspaceMonitor(context.Context, *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -205,9 +216,13 @@ func (s *DRPCAgentUnimplementedServer) ScriptCompleted(context.Context, *Workspa
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
+func (s *DRPCAgentUnimplementedServer) UpdateWorkspaceMonitor(context.Context, *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error) {
+	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
+}
+
 type DRPCAgentDescription struct{}
 
-func (DRPCAgentDescription) NumMethods() int { return 10 }
+func (DRPCAgentDescription) NumMethods() int { return 11 }
 
 func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver, interface{}, bool) {
 	switch n {
@@ -301,6 +316,15 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 						in1.(*WorkspaceAgentScriptCompletedRequest),
 					)
 			}, DRPCAgentServer.ScriptCompleted, true
+	case 10:
+		return "/coder.agent.v2.Agent/UpdateWorkspaceMonitor", drpcEncoding_File_agent_proto_agent_proto{},
+			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
+				return srv.(DRPCAgentServer).
+					UpdateWorkspaceMonitor(
+						ctx,
+						in1.(*WorkspaceMonitorUpdateRequest),
+					)
+			}, DRPCAgentServer.UpdateWorkspaceMonitor, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -464,6 +488,22 @@ type drpcAgent_ScriptCompletedStream struct {
 }
 
 func (x *drpcAgent_ScriptCompletedStream) SendAndClose(m *WorkspaceAgentScriptCompletedResponse) error {
+	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
+		return err
+	}
+	return x.CloseSend()
+}
+
+type DRPCAgent_UpdateWorkspaceMonitorStream interface {
+	drpc.Stream
+	SendAndClose(*WorkspaceMonitorUpdateResponse) error
+}
+
+type drpcAgent_UpdateWorkspaceMonitorStream struct {
+	drpc.Stream
+}
+
+func (x *drpcAgent_UpdateWorkspaceMonitorStream) SendAndClose(m *WorkspaceMonitorUpdateResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}

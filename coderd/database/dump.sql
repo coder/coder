@@ -275,6 +275,16 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'slim-window'
 );
 
+CREATE TYPE workspace_monitor_state AS ENUM (
+    'OK',
+    'NOK'
+);
+
+CREATE TYPE workspace_monitor_type AS ENUM (
+    'memory',
+    'volume'
+);
+
 CREATE TYPE workspace_transition AS ENUM (
     'start',
     'stop',
@@ -1740,6 +1750,17 @@ CREATE TABLE workspace_modules (
     version text NOT NULL,
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
+);
+
+CREATE TABLE workspace_monitors (
+    workspace_id uuid NOT NULL,
+    monitor_type workspace_monitor_type NOT NULL,
+    volume_path text,
+    state workspace_monitor_state NOT NULL,
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    debounced_until timestamp with time zone NOT NULL,
+    CONSTRAINT workspace_monitors_monitor_type_check CHECK ((monitor_type = 'volume'::workspace_monitor_type))
 );
 
 CREATE TABLE workspace_proxies (

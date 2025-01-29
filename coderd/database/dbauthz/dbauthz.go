@@ -2740,6 +2740,10 @@ func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt
 	return q.db.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
 }
 
+func (q *querier) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	panic("not implemented")
+}
+
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
@@ -3316,6 +3320,10 @@ func (q *querier) InsertWorkspaceModule(ctx context.Context, arg database.Insert
 		return database.WorkspaceModule{}, err
 	}
 	return q.db.InsertWorkspaceModule(ctx, arg)
+}
+
+func (q *querier) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+	panic("not implemented")
 }
 
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -4135,6 +4143,10 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
+}
+
+func (q *querier) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
+	panic("not implemented")
 }
 
 func (q *querier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {
