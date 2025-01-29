@@ -977,7 +977,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
 			strings.Contains(errorMessage, "EOF") ||
 			strings.Contains(errorMessage, "Process exited with status 65")
-		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+		require.True(t, isErr, "Message: "+errorMessage)
 	}
 
 	t.Run("SFTP", func(t *testing.T) {

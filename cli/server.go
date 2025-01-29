@@ -513,7 +513,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			accessURL := vals.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).
