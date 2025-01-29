@@ -317,6 +317,76 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	})
 }
 
+// @Summary Update organization IdP Sync basic configuration
+// @ID update-organization-idp-sync-config
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Param request body codersdk.OrganizationSyncSettings true "New settings"
+// @Router /settings/idpsync/organization [patch]
+func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.OrganizationSyncSettings](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.OrganizationSyncConfig
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var settings *idpsync.OrganizationSyncSettings
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = *existing
+
+		err = api.IDPSync.UpdateOrganizationSettings(sysCtx, tx, idpsync.OrganizationSyncSettings{
+			Field:         req.Field,
+			AssignDefault: req.AssignDefault,
+			Mapping:       existing.Mapping,
+		})
+		if err != nil {
+			return err
+		}
+
+		settings, err = api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
+		if err != nil {
+			httpapi.InternalServerError(rw, err)
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = *settings
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
+}
+
 // @Summary Get the available organization idp sync claim fields
 // @ID get-the-available-organization-idp-sync-claim-fields
 // @Security CoderSessionToken

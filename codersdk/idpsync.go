@@ -137,6 +137,25 @@ func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req Organ
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+type OrganizationSyncConfig struct {
+	Field         string `json:"field"`
+	AssignDefault bool   `json:"assign_default"`
+}
+
+func (c *Client) PatchOrganizationIDPSyncConfig(ctx context.Context, req OrganizationSyncConfig) (OrganizationSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/settings/idpsync/organization/config", req)
+	if err != nil {
+		return OrganizationSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 func (c *Client) GetAvailableIDPSyncFields(ctx context.Context) ([]string, error) {
 	res, err := c.Request(ctx, http.MethodGet, "/api/v2/settings/idpsync/available-fields", nil)
 	if err != nil {
