@@ -429,9 +429,8 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 							}
 						}`,
 				},
-				reqTags: map[string]string{"a": "b"},
-				// wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
-				expectError: `provisioner tag "a" evaluated to an empty value`,
+				reqTags:  map[string]string{"a": "b"},
+				wantTags: map[string]string{"owner": "", "scope": "organization", "a": "b"},
 			},
 			{
 				name: "main.tf with disallowed workspace tag value",
@@ -489,11 +488,11 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 								"foo": "bar",
 								"a": var.a,
 								"b": data.coder_parameter.b.value,
-								"test": try(null_resource.test.name, "whatever"),
+								"test": pathexpand("~/file.txt"),
 							}
 						}`,
 				},
-				expectError: `Function calls not allowed; Functions may not be called here.`,
+				expectError: `function "pathexpand" may not be used here`,
 			},
 			// We will allow coder_workspace_tags to set the scope on a template version import job
 			// BUT the user ID will be ultimately determined by the API key in the scope.
@@ -567,6 +566,42 @@ func TestPostTemplateVersionsByOrganization(t *testing.T) {
 						}`,
 				},
 				wantTags: map[string]string{"owner": "", "scope": "organization"},
+			},
+			{
+				name: "main.tf with tags from parameter with default value from variable no default",
+				files: map[string]string{
+					`main.tf`: `
+						variable "provisioner" {
+						  type        = string
+						}
+						variable "default_provisioner" {
+						  type        = string
+						  default     = "" # intentionally blank, set on template creation
+						}
+						data "coder_parameter" "provisioner" {
+						  name         = "provisioner"
+						  mutable      = false
+						  default      = var.default_provisioner
+						  dynamic "option" {
+							for_each = toset(split(",", var.provisioner))
+							content {
+							  name  = option.value
+							  value = option.value
+							}
+						  }
+						}
+						data "coder_workspace_tags" "tags" {
+						  tags = {
+							"provisioner" : data.coder_parameter.provisioner.value
+						  }
+						}`,
+				},
+				reqTags: map[string]string{
+					"provisioner": "alpha",
+				},
+				wantTags: map[string]string{
+					"provisioner": "alpha", "owner": "", "scope": "organization",
+				},
 			},
 		} {
 			tt := tt
