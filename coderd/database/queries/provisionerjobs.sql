@@ -139,6 +139,7 @@ LEFT JOIN
 	queue_size qs ON TRUE
 WHERE
 	(sqlc.narg('organization_id')::uuid IS NULL OR pj.organization_id = @organization_id)
+	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pj.id = ANY(@ids::uuid[]))
 	AND (COALESCE(array_length(@status::provisioner_job_status[], 1), 0) = 0 OR pj.job_status = ANY(@status::provisioner_job_status[]))
 GROUP BY
 	pj.id,

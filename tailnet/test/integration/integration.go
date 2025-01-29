@@ -592,7 +592,7 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		select {
 		case err := <-waitErr:
 			if err != nil {
-				t.Logf("subprocess exited: " + err.Error())
+				t.Log("subprocess exited: " + err.Error())
 			}
 			return
 		default:

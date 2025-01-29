@@ -977,7 +977,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
 			strings.Contains(errorMessage, "EOF") ||
 			strings.Contains(errorMessage, "Process exited with status 65")
-		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+		require.True(t, isErr, "Message: "+errorMessage)
 	}
 
 	t.Run("SFTP", func(t *testing.T) {
@@ -1962,7 +1962,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	// Push a new DERP map to the agent.
 	err := client.PushDERPMapUpdate(newDerpMap)
 	require.NoError(t, err)
-	t.Logf("pushed DERPMap update to agent")
+	t.Log("pushed DERPMap update to agent")
 
 	require.Eventually(t, func() bool {
 		conn := uut.TailnetConn()
@@ -1974,7 +1974,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
 		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
-	t.Logf("agent got the new DERPMap")
+	t.Log("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")

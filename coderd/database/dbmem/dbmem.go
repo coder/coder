@@ -4082,6 +4082,9 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		if len(arg.Status) > 0 && !slices.Contains(arg.Status, job.JobStatus) {
 			continue
 		}
+		if len(arg.IDs) > 0 && !slices.Contains(arg.IDs, job.ID) {
+			continue
+		}
 
 		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
 			ProvisionerJob: rowQP.ProvisionerJob,

@@ -2,6 +2,8 @@ import { API } from "api/api";
 import type {
 	AuthorizationResponse,
 	CreateOrganizationRequest,
+	GroupSyncSettings,
+	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
@@ -156,6 +158,18 @@ export const groupIdpSyncSettings = (organization: string) => {
 	};
 };
 
+export const patchGroupSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: GroupSyncSettings) =>
+			API.patchGroupIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(groupIdpSyncSettings(organization)),
+	};
+};
+
 export const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
@@ -166,6 +180,20 @@ export const roleIdpSyncSettings = (organization: string) => {
 	return {
 		queryKey: getRoleIdpSyncSettingsKey(organization),
 		queryFn: () => API.getRoleIdpSyncSettingsByOrganization(organization),
+	};
+};
+
+export const patchRoleSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: RoleSyncSettings) =>
+			API.patchRoleIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(
+				getRoleIdpSyncSettingsKey(organization),
+			),
 	};
 };
 

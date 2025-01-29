@@ -78,7 +78,7 @@ func (s *server) Plan(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStagePlan)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 
@@ -113,7 +113,6 @@ func (s *server) Plan(
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
-
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 
@@ -168,7 +167,7 @@ func (s *server) Plan(
 		request.Metadata.GetWorkspaceTransition() == proto.WorkspaceTransition_DESTROY,
 	)
 	if err != nil {
-		return provisionersdk.PlanErrorf(err.Error())
+		return provisionersdk.PlanErrorf("%s", err.Error())
 	}
 
 	// Prepend init timings since they occur prior to plan timings.
@@ -189,7 +188,7 @@ func (s *server) Apply(
 
 	e := s.executor(sess.WorkDirectory, database.ProvisionerJobTimingStageApply)
 	if err := e.checkMinVersion(ctx); err != nil {
-		return provisionersdk.ApplyErrorf(err.Error())
+		return provisionersdk.ApplyErrorf("%s", err.Error())
 	}
 	logTerraformEnvVars(sess)
 

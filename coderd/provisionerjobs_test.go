@@ -63,6 +63,25 @@ func TestProvisionerJobs(t *testing.T) {
 		TemplateVersionID: version.ID,
 	})
 
+	t.Run("Single", func(t *testing.T) {
+		t.Parallel()
+		t.Run("OK", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			// Note this calls the single job endpoint.
+			job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
+			require.NoError(t, err)
+			require.Equal(t, job.ID, job2.ID)
+		})
+		t.Run("Missing", func(t *testing.T) {
+			t.Parallel()
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			// Note this calls the single job endpoint.
+			_, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, uuid.New())
+			require.Error(t, err)
+		})
+	})
+
 	t.Run("All", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
