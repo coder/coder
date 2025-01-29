@@ -95,7 +95,7 @@ func windowsUptime() time.Duration {
 }
 
 // TODO(@dean): implement a way to install/uninstall the wintun driver, most
-//              likely as a CLI command
+// likely as a CLI command
 //
 // This is taken from Tailscale:
 // https://github.com/tailscale/tailscale/blob/3abfbf50aebbe3ba57dc749165edb56be6715c0a/cmd/tailscaled/tailscaled_windows.go#L543

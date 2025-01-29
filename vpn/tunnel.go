@@ -233,13 +233,14 @@ func (t *Tunnel) start(req *StartRequest) error {
 	for _, h := range req.GetHeaders() {
 		header.Add(h.GetName(), h.GetValue())
 	}
-	if t.networkingStackFn == nil {
-		return xerrors.New("dev error: missing networking stack function")
-	}
-
-	networkingStack, err := t.networkingStackFn(t, req, t.clientLogger)
-	if err != nil {
-		return xerrors.Errorf("failed to create networking stack dependencies: %w", err)
+	var networkingStack NetworkStack
+	if t.networkingStackFn != nil {
+		networkingStack, err = t.networkingStackFn(t, req, t.clientLogger)
+		if err != nil {
+			return xerrors.Errorf("failed to create networking stack dependencies: %w", err)
+		}
+	} else {
+		t.logger.Debug(t.ctx, "using default networking stack as no custom stack was provided")
 	}
 
 	conn, err := t.client.NewConn(
