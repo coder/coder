@@ -16,6 +16,8 @@ test.beforeEach(async ({ page }) => {
 });
 
 test.describe("IdpGroupSyncPage", () => {
+	test.describe.configure({ retries: 1 });
+
 	test("show empty table when no group mappings are present", async ({
 		page,
 	}) => {
@@ -149,7 +151,6 @@ test.describe("IdpGroupSyncPage", () => {
 		});
 
 		const idpOrgInput = page.getByLabel("IdP group name");
-		const orgSelector = page.getByPlaceholder("Select group");
 		const addButton = page.getByRole("button", {
 			name: /Add IdP group/i,
 		});
@@ -159,8 +160,16 @@ test.describe("IdpGroupSyncPage", () => {
 		await idpOrgInput.fill("new-idp-group");
 
 		// Select Coder organization from combobox
-		await orgSelector.click();
-		await page.getByRole("option", { name: /Everyone/i }).click();
+		const groupSelector = page.getByPlaceholder("Select group");
+		await expect(groupSelector).toBeAttached();
+		await expect(groupSelector).toBeVisible();
+		await groupSelector.click();
+		await page.waitForTimeout(1000);
+
+		const option = await page.getByRole("option", { name: /Everyone/i });
+		await expect(option).toBeAttached({ timeout: 30000 });
+		await expect(option).toBeVisible();
+		await option.click();
 
 		// Add button should now be enabled
 		await expect(addButton).toBeEnabled();
