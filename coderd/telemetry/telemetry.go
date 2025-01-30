@@ -59,6 +59,9 @@ type Options struct {
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
+//
+// The returned Reporter should be started with RunSnapshotter() to begin
+// reporting.
 func New(options Options) (Reporter, error) {
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
@@ -83,7 +86,6 @@ func New(options Options) (Reporter, error) {
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Now(),
 	}
-	go reporter.runSnapshotter()
 	return reporter, nil
 }
 
@@ -101,6 +103,12 @@ type Reporter interface {
 	Report(snapshot *Snapshot)
 	Enabled() bool
 	Close()
+	// RunSnapshotter runs reporting in a loop. It should be called in a
+	// goroutine to avoid blocking the caller.
+	RunSnapshotter()
+	// ReportDisabledIfNeeded reports disabled telemetry if there was at least one report sent
+	// before the telemetry was disabled, and we haven't sent a report since the telemetry was disabled.
+	ReportDisabledIfNeeded() error
 }
 
 type remoteReporter struct {
@@ -149,6 +157,12 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
 		return
 	}
+	if err := r.options.Database.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
+		Key:   string(TelemetryItemKeyLastTelemetryUpdate),
+		Value: dbtime.Now().Format(time.RFC3339),
+	}); err != nil {
+		r.options.Logger.Debug(r.ctx, "upsert last telemetry update", slog.Error(err))
+	}
 	r.options.Logger.Debug(r.ctx, "submitted snapshot")
 }
 
@@ -177,7 +191,7 @@ func (r *remoteReporter) isClosed() bool {
 	}
 }
 
-func (r *remoteReporter) runSnapshotter() {
+func (r *remoteReporter) RunSnapshotter() {
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
 	defer ticker.Stop()
@@ -328,6 +342,45 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
 	}
 	return syncConfig.Field != "", nil
+}
+
+func (r *remoteReporter) ReportDisabledIfNeeded() error {
+	db := r.options.Database
+	lastTelemetryUpdate, telemetryUpdateErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyLastTelemetryUpdate))
+	if telemetryUpdateErr != nil {
+		r.options.Logger.Debug(r.ctx, "get last telemetry update at", slog.Error(telemetryUpdateErr))
+	}
+	telemetryDisabled, telemetryDisabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
+	if telemetryDisabledErr != nil {
+		r.options.Logger.Debug(r.ctx, "get telemetry disabled", slog.Error(telemetryDisabledErr))
+	}
+	shouldReportDisabledTelemetry :=
+		telemetryUpdateErr == nil &&
+			((telemetryDisabledErr == nil && lastTelemetryUpdate.UpdatedAt.Before(telemetryDisabled.UpdatedAt)) ||
+				errors.Is(telemetryDisabledErr, sql.ErrNoRows))
+	if !shouldReportDisabledTelemetry {
+		return nil
+	}
+
+	if err := db.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
+		Key:   string(TelemetryItemKeyTelemetryDisabled),
+		Value: time.Now().Format(time.RFC3339),
+	}); err != nil {
+		return xerrors.Errorf("upsert telemetry disabled: %w", err)
+	}
+	item, err := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
+	if err != nil {
+		return xerrors.Errorf("get telemetry disabled: %w", err)
+	}
+
+	r.reportSync(
+		&Snapshot{
+			TelemetryItems: []TelemetryItem{
+				ConvertTelemetryItem(item),
+			},
+		},
+	)
+	return nil
 }
 
 // createSnapshot collects a full snapshot from the database.
@@ -1566,7 +1619,9 @@ type telemetryItemKey string
 //
 //revive:disable:exported
 const (
-	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
+	TelemetryItemKeyHTMLFirstServedAt   telemetryItemKey = "html_first_served_at"
+	TelemetryItemKeyLastTelemetryUpdate telemetryItemKey = "last_telemetry_update"
+	TelemetryItemKeyTelemetryDisabled   telemetryItemKey = "telemetry_disabled"
 )
 
 type TelemetryItem struct {
@@ -1578,6 +1633,8 @@ type TelemetryItem struct {
 
 type noopReporter struct{}
 
-func (*noopReporter) Report(_ *Snapshot) {}
-func (*noopReporter) Enabled() bool      { return false }
-func (*noopReporter) Close()             {}
+func (*noopReporter) Report(_ *Snapshot)            {}
+func (*noopReporter) Enabled() bool                 { return false }
+func (*noopReporter) Close()                        {}
+func (*noopReporter) RunSnapshotter()               {}
+func (*noopReporter) ReportDisabledIfNeeded() error { return nil }

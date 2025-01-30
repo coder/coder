@@ -398,6 +398,7 @@ func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts tel
 
 	reporter, err := telemetry.New(options)
 	require.NoError(t, err)
+	go reporter.RunSnapshotter()
 	t.Cleanup(reporter.Close)
 	return <-deployment, <-snapshot
 }
