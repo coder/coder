@@ -1,7 +1,10 @@
 -- name: GetWorkspaceMonitor :one
 SELECT *
 FROM workspace_monitors
-WHERE workspace_id = $1 AND monitor_type = $2 AND volume_path = $3;
+WHERE
+	workspace_id = $1 AND
+	monitor_type = $2 AND
+	volume_path IS NOT DISTINCT FROM $3;
 
 -- name: InsertWorkspaceMonitor :one
 INSERT INTO workspace_monitors (

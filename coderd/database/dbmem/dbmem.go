@@ -235,6 +235,7 @@ type data struct {
 	workspaceResourceMetadata       []database.WorkspaceResourceMetadatum
 	workspaceResources              []database.WorkspaceResource
 	workspaceModules                []database.WorkspaceModule
+	workspaceMonitors               []database.WorkspaceMonitor
 	workspaces                      []database.WorkspaceTable
 	workspaceProxies                []database.WorkspaceProxy
 	customRoles                     []database.CustomRole
@@ -7143,13 +7144,24 @@ func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, created
 	return modules, nil
 }
 
-func (*FakeQuerier) GetWorkspaceMonitor(_ context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+func (q *FakeQuerier) GetWorkspaceMonitor(_ context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceMonitor{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, monitor := range q.workspaceMonitors {
+		if monitor.WorkspaceID == arg.WorkspaceID &&
+			monitor.MonitorType == arg.MonitorType &&
+			monitor.VolumePath == arg.VolumePath {
+			return monitor, nil
+		}
+	}
+
+	return database.WorkspaceMonitor{}, sql.ErrNoRows
 }
 
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
@@ -8761,13 +8773,18 @@ func (q *FakeQuerier) InsertWorkspaceModule(_ context.Context, arg database.Inse
 	return workspaceModule, nil
 }
 
-func (*FakeQuerier) InsertWorkspaceMonitor(_ context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
+func (q *FakeQuerier) InsertWorkspaceMonitor(_ context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return database.WorkspaceMonitor{}, err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	workspaceMonitor := database.WorkspaceMonitor(arg)
+	q.workspaceMonitors = append(q.workspaceMonitors, workspaceMonitor)
+	return workspaceMonitor, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -10528,13 +10545,30 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 	return sql.ErrNoRows
 }
 
-func (*FakeQuerier) UpdateWorkspaceMonitor(_ context.Context, arg database.UpdateWorkspaceMonitorParams) error {
+func (q *FakeQuerier) UpdateWorkspaceMonitor(_ context.Context, arg database.UpdateWorkspaceMonitorParams) error {
 	err := validateDatabaseType(arg)
 	if err != nil {
 		return err
 	}
 
-	panic("not implemented")
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for index, monitor := range q.workspaceMonitors {
+		if monitor.WorkspaceID != arg.WorkspaceID ||
+			monitor.MonitorType != arg.MonitorType ||
+			monitor.VolumePath != arg.VolumePath {
+			continue
+		}
+
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.State = arg.State
+		q.workspaceMonitors[index] = monitor
+		return nil
+	}
+
+	return sql.ErrNoRows
 }
 
 func (q *FakeQuerier) UpdateWorkspaceNextStartAt(_ context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {

@@ -14883,7 +14883,10 @@ func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorksp
 const getWorkspaceMonitor = `-- name: GetWorkspaceMonitor :one
 SELECT workspace_id, monitor_type, volume_path, state, created_at, updated_at, debounced_until
 FROM workspace_monitors
-WHERE workspace_id = $1 AND monitor_type = $2 AND volume_path = $3
+WHERE
+	workspace_id = $1 AND
+	monitor_type = $2 AND
+	volume_path IS NOT DISTINCT FROM $3
 `
 
 type GetWorkspaceMonitorParams struct {

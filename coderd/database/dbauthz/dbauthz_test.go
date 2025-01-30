@@ -4544,3 +4544,71 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 		}).Asserts(rbac.ResourceOauth2AppCodeToken.WithOwner(user.ID.String()), policy.ActionDelete)
 	}))
 }
+
+func (s *MethodTestSuite) TestWorkspaceMonitor() {
+	s.Run("GetWorkspaceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
+		monitor := dbgen.WorkspaceMonitor(s.T(), db, database.WorkspaceMonitor{
+			WorkspaceID: workspace.ID,
+			MonitorType: database.WorkspaceMonitorTypeMemory,
+			VolumePath:  sql.NullString{},
+		})
+
+		check.Args(database.GetWorkspaceMonitorParams{
+			WorkspaceID: monitor.WorkspaceID,
+			MonitorType: monitor.MonitorType,
+			VolumePath:  monitor.VolumePath,
+		}).Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("InsertWorkspaceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
+
+		check.Args(database.InsertWorkspaceMonitorParams{
+			WorkspaceID: workspace.ID,
+			MonitorType: database.WorkspaceMonitorTypeMemory,
+			State:       database.WorkspaceMonitorStateOK,
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("UpdateWorkspaceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		user := dbgen.User(s.T(), db, database.User{})
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OwnerID:        user.ID,
+			OrganizationID: org.ID,
+			TemplateID:     template.ID,
+		})
+		monitor := dbgen.WorkspaceMonitor(s.T(), db, database.WorkspaceMonitor{
+			WorkspaceID: workspace.ID,
+		})
+
+		check.Args(database.UpdateWorkspaceMonitorParams{
+			WorkspaceID: monitor.WorkspaceID,
+			MonitorType: monitor.MonitorType,
+			State:       database.WorkspaceMonitorStateNOK,
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
+}

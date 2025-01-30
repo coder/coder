@@ -370,6 +370,23 @@ func WorkspaceBuildParameters(t testing.TB, db database.Store, orig []database.W
 	return params
 }
 
+func WorkspaceMonitor(t testing.TB, db database.Store, orig database.WorkspaceMonitor) database.WorkspaceMonitor {
+	t.Helper()
+
+	monitor, err := db.InsertWorkspaceMonitor(genCtx, database.InsertWorkspaceMonitorParams{
+		WorkspaceID:    takeFirst(orig.WorkspaceID, uuid.New()),
+		MonitorType:    takeFirst(orig.MonitorType, database.WorkspaceMonitorTypeMemory),
+		VolumePath:     takeFirst(orig.VolumePath, sql.NullString{}),
+		State:          takeFirst(orig.State, database.WorkspaceMonitorStateOK),
+		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
+		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
+		DebouncedUntil: takeFirst(orig.DebouncedUntil, dbtime.Now()),
+	})
+	require.NoError(t, err, "insert monitor")
+
+	return monitor
+}
+
 func User(t testing.TB, db database.Store, orig database.User) database.User {
 	user, err := db.InsertUser(genCtx, database.InsertUserParams{
 		ID:             takeFirst(orig.ID, uuid.New()),
