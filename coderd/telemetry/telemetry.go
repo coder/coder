@@ -258,32 +258,26 @@ func (r *remoteReporter) deployment() error {
 		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
 	}
 
-	htmlFirstServedAt, err := getHTMLFirstServedAt(r.ctx, r.options.Database)
-	if err != nil && !errors.Is(err, sql.ErrNoRows) {
-		r.options.Logger.Debug(r.ctx, "get telemetry html first served at", slog.Error(err))
-	}
-
 	data, err := json.Marshal(&Deployment{
-		ID:                r.options.DeploymentID,
-		Architecture:      sysInfo.Architecture,
-		BuiltinPostgres:   r.options.BuiltinPostgres,
-		Containerized:     containerized,
-		Config:            r.options.DeploymentConfig,
-		Kubernetes:        os.Getenv("KUBERNETES_SERVICE_HOST") != "",
-		InstallSource:     installSource,
-		Tunnel:            r.options.Tunnel,
-		OSType:            sysInfo.OS.Type,
-		OSFamily:          sysInfo.OS.Family,
-		OSPlatform:        sysInfo.OS.Platform,
-		OSName:            sysInfo.OS.Name,
-		OSVersion:         sysInfo.OS.Version,
-		CPUCores:          runtime.NumCPU(),
-		MemoryTotal:       mem.Total,
-		MachineID:         sysInfo.UniqueID,
-		StartedAt:         r.startedAt,
-		ShutdownAt:        r.shutdownAt,
-		IDPOrgSync:        &idpOrgSync,
-		HTMLFirstServedAt: htmlFirstServedAt,
+		ID:              r.options.DeploymentID,
+		Architecture:    sysInfo.Architecture,
+		BuiltinPostgres: r.options.BuiltinPostgres,
+		Containerized:   containerized,
+		Config:          r.options.DeploymentConfig,
+		Kubernetes:      os.Getenv("KUBERNETES_SERVICE_HOST") != "",
+		InstallSource:   installSource,
+		Tunnel:          r.options.Tunnel,
+		OSType:          sysInfo.OS.Type,
+		OSFamily:        sysInfo.OS.Family,
+		OSPlatform:      sysInfo.OS.Platform,
+		OSName:          sysInfo.OS.Name,
+		OSVersion:       sysInfo.OS.Version,
+		CPUCores:        runtime.NumCPU(),
+		MemoryTotal:     mem.Total,
+		MachineID:       sysInfo.UniqueID,
+		StartedAt:       r.startedAt,
+		ShutdownAt:      r.shutdownAt,
+		IDPOrgSync:      &idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -602,6 +596,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.Organizations = make([]Organization, 0, len(orgs))
 		for _, org := range orgs {
 			snapshot.Organizations = append(snapshot.Organizations, ConvertOrganization(org))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		items, err := r.options.Database.GetTelemetryItems(ctx)
+		if err != nil {
+			return xerrors.Errorf("get telemetry items: %w", err)
+		}
+		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
+		for _, item := range items {
+			snapshot.TelemetryItems = append(snapshot.TelemetryItems, ConvertTelemetryItem(item))
 		}
 		return nil
 	})
@@ -1011,6 +1016,15 @@ func ConvertOrganization(org database.Organization) Organization {
 	}
 }
 
+func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
+	return TelemetryItem{
+		Key:       item.Key,
+		Value:     item.Value,
+		CreatedAt: item.CreatedAt,
+		UpdatedAt: item.UpdatedAt,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -1038,6 +1052,7 @@ type Snapshot struct {
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
 	Organizations             []Organization              `json:"organizations"`
+	TelemetryItems            []TelemetryItem             `json:"telemetry_items"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1062,8 +1077,7 @@ type Deployment struct {
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
 	// While IDPOrgSync will always be set, it's nullable to make
 	// the struct backwards compatible with older coder versions.
-	IDPOrgSync        *bool      `json:"idp_org_sync"`
-	HTMLFirstServedAt *time.Time `json:"html_first_served_at"`
+	IDPOrgSync *bool `json:"idp_org_sync"`
 }
 
 type APIKey struct {
@@ -1561,6 +1575,20 @@ type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+//revive:disable:exported
+type TelemetryItemKey string
+
+const (
+	TelemetryItemKeyHTMLFirstServedAt TelemetryItemKey = "html_first_served_at"
+)
+
+type TelemetryItem struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type noopReporter struct{}

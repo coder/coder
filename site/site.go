@@ -330,29 +330,35 @@ func ShouldCacheFile(reqFile string) bool {
 // reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
 // The purpose is to track the first time the first user opens the site.
 func (h *Handler) reportHTMLFirstServedAt() {
-	// `Once` is used to reduce the volume of db calls and telemetry reports.
-	// It's fine to run this multiple times, but it's unnecessary.
-	h.TelemetryHTMLServedOnce.Do(func() {
-		ctx := context.Background()
-		// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
-		_, err := h.opts.Database.GetTelemetryHTMLFirstServedAt(dbauthz.AsSystemRestricted(ctx))
-		if err == nil {
-			// If the value is already set, then we reported it before.
-			// We don't need to report it again.
-			return
-		}
-		if !errors.Is(err, sql.ErrNoRows) {
-			h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
-			return
-		}
-		// SetTelemetryHTMLFirstServedAt is idempotent, so there's no harm in calling it multiple times,
-		// even across restarts. Once it's set for the first time, it will never be changed.
-		// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
-		if err := h.opts.Database.SetTelemetryHTMLFirstServedAt(dbauthz.AsSystemRestricted(ctx), time.Now().Format(time.RFC3339)); err != nil {
-			h.opts.Logger.Debug(ctx, "failed to set telemetry html first served at", slog.Error(err))
-			return
-		}
-		h.opts.Telemetry.ReportDeployment()
+	ctx := context.Background()
+	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
+	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
+	_, err := h.opts.Database.GetTelemetryItem(dbauthz.AsSystemRestricted(ctx), itemKey)
+	if err == nil {
+		// If the value is already set, then we reported it before.
+		// We don't need to report it again.
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
+	if err := h.opts.Database.InsertTelemetryItemIfNotExists(dbauthz.AsSystemRestricted(ctx), database.InsertTelemetryItemIfNotExistsParams{
+		Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+		Value: time.Now().Format(time.RFC3339),
+	}); err != nil {
+		h.opts.Logger.Debug(ctx, "failed to set telemetry html first served at", slog.Error(err))
+		return
+	}
+	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
+	item, err := h.opts.Database.GetTelemetryItem(dbauthz.AsSystemRestricted(ctx), itemKey)
+	if err != nil {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	h.opts.Telemetry.Report(&telemetry.Snapshot{
+		TelemetryItems: []telemetry.TelemetryItem{telemetry.ConvertTelemetryItem(item)},
 	})
 }
 
@@ -362,7 +368,11 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
 		}
-		go h.reportHTMLFirstServedAt()
+		// `Once` is used to reduce the volume of db calls and telemetry reports.
+		// It's fine to run the enclosed function multiple times, but it's unnecessary.
+		h.TelemetryHTMLServedOnce.Do(func() {
+			go h.reportHTMLFirstServedAt()
+		})
 		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
 		return true
 	}
