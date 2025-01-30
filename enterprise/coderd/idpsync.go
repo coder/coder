@@ -347,7 +347,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 	}
 	aReq.Old = *existing
 
-	err = api.IDPSync.UpdateRoleSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
+	err = api.IDPSync.UpdateRoleSyncSettings(sysCtx, org.ID, api.Database, idpsync.RoleSyncSettings{
 		Field:   req.Field,
 		Mapping: req.Mapping,
 	})
@@ -363,6 +363,139 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 	}
 
 	aReq.New = *settings
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RoleSyncSettings{
+		Field:   settings.Field,
+		Mapping: settings.Mapping,
+	})
+}
+
+// @Summary Update role IdP Sync config
+// @ID update-role-idp-sync-config
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.RoleSyncSettings
+// @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New config values"
+// @Router /organizations/{organization}/settings/idpsync/roles/config [patch]
+func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.RoleSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.PatchRoleIDPSyncConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var settings idpsync.RoleSyncSettings
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, tx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = *existing
+
+		settings = idpsync.RoleSyncSettings{
+			Field:   req.Field,
+			Mapping: existing.Mapping,
+		}
+
+		err = api.IDPSync.UpdateRoleSyncSettings(sysCtx, org.ID, tx, settings)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = settings
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RoleSyncSettings{
+		Field:   settings.Field,
+		Mapping: settings.Mapping,
+	})
+}
+
+// @Summary Update role IdP Sync mapping
+// @ID update-role-idp-sync-mapping
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.RoleSyncSettings
+// @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
+// @Router /organizations/{organization}/settings/idpsync/roles/mapping [patch]
+func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.RoleSyncSettings](rw, &audit.RequestParams{
+		Audit:          auditor,
+		Log:            api.Logger,
+		Request:        r,
+		Action:         database.AuditActionWrite,
+		OrganizationID: org.ID,
+	})
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings.InOrg(org.ID)) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.PatchRoleIDPSyncMappingRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var settings idpsync.RoleSyncSettings
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		existing, err := api.IDPSync.RoleSyncSettings(sysCtx, org.ID, tx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = *existing
+
+		newMapping := applyIDPSyncMappingDiff(existing.Mapping, req.Add, req.Remove)
+		settings = idpsync.RoleSyncSettings{
+			Field:   existing.Field,
+			Mapping: newMapping,
+		}
+
+		err = api.IDPSync.UpdateRoleSyncSettings(sysCtx, org.ID, tx, settings)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.RoleSyncSettings{
 		Field:   settings.Field,
 		Mapping: settings.Mapping,

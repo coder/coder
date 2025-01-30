@@ -317,6 +317,8 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+				r.Patch("/idpsync/roles/config", api.patchRoleIDPSyncConfig)
+				r.Patch("/idpsync/roles/mapping", api.patchRoleIDPSyncMapping)
 
 				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
