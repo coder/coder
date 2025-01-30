@@ -13,6 +13,7 @@
   runCommand,
   writeShellScriptBin,
   writeText,
+  writeTextFile,
   cacert,
   storeDir ? builtins.storeDir,
   pigz,
@@ -32,9 +33,17 @@ let
 
   inherit (dockerTools)
     streamLayeredImage
-    binSh
     usrBinEnv
+    caCertificates
     ;
+
+  # This provides /bin/sh, pointing to bashInteractive.
+  # The use of bashInteractive here is intentional to support cases like `docker run -it <image_name>`, so keep these use cases in mind if making any changes to how this works.
+  binSh = runCommand "bin-sh" { } ''
+    mkdir -p $out/bin
+    ln -s ${bashInteractive}/bin/bash $out/bin/sh
+    ln -s ${bashInteractive}/bin/bash $out/bin/bash
+  '';
 
   compressors = {
     none = {
@@ -157,6 +166,46 @@ let
         chmod 644 $out/etc/pam.d/sudo
       '';
 
+      # Add our Docker init script
+      dockerInit = writeTextFile {
+        name = "initd-docker";
+        destination = "/etc/init.d/docker";
+        executable = true;
+
+        text = ''
+          #!/usr/bin/env sh
+          ### BEGIN INIT INFO
+          # Provides:          docker
+          # Required-Start:    $remote_fs $syslog
+          # Required-Stop:     $remote_fs $syslog
+          # Default-Start:     2 3 4 5
+          # Default-Stop:      0 1 6
+          # Short-Description: Start and stop Docker daemon
+          # Description:       This script starts and stops the Docker daemon.
+          ### END INIT INFO
+
+          case "$1" in
+            start)
+                echo "Starting dockerd"
+                SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt" dockerd --group=${toString gid} &
+                ;;
+            stop)
+                echo "Stopping dockerd"
+                killall dockerd
+                ;;
+            restart)
+                $0 stop
+                $0 start
+                ;;
+            *)
+                echo "Usage: $0 {start|stop|restart}"
+                exit 1
+                ;;
+          esac
+          exit 0
+        '';
+      };
+
       # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/globals.hh#L464-L465
       sandboxBuildDir = "/build";
 
@@ -194,16 +243,15 @@ let
           LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc ];
         }
         // drvEnv
-        // {
-
+        // rec {
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1008-L1010
           NIX_BUILD_TOP = sandboxBuildDir;
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1012-L1013
-          TMPDIR = sandboxBuildDir;
-          TEMPDIR = sandboxBuildDir;
-          TMP = sandboxBuildDir;
-          TEMP = "/tmp";
+          TMPDIR = TMP;
+          TEMPDIR = TMP;
+          TMP = "/tmp";
+          TEMP = TMP;
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1015-L1019
           PWD = homeDirectory;
@@ -222,6 +270,7 @@ let
       contents = [
         binSh
         usrBinEnv
+        caCertificates
         etcNixConf
         etcSudoers
         etcPamSudo
@@ -235,8 +284,10 @@ let
           ];
           extraGroupLines = [
             "${toString uname}:!:${toString gid}:"
+            "docker:!:${toString (builtins.sub gid 1)}:${toString uname}"
           ];
         })
+        dockerInit
       ];
 
       fakeRootCommands = ''
@@ -283,6 +334,11 @@ let
 
         chown root:root ./etc/pam.d/sudo
         chown root:root ./etc/sudoers
+
+        # Create /var/run and chown it so docker command
+        # doesnt encounter permission issues.
+        mkdir -p ./var/run/
+        chown -R ${toString uid}:${toString gid} ./var/run/
       '';
 
       # Run this image as the given uid/gid
