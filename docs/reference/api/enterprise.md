@@ -2677,6 +2677,62 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update organization IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /settings/idpsync/organization/config`
+
+> Body parameter
+
+```json
+{
+  "assign_default": true,
+  "field": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                       | Required | Description       |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------|
+| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New config values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "organization_assign_default": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Update organization IdP Sync mapping
 
 ### Code samples

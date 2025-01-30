@@ -4248,6 +4248,45 @@ const docTemplate = `{
                 }
             }
         },
+        "/settings/idpsync/organization/config": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync config",
+                "operationId": "update-organization-idp-sync-config",
+                "parameters": [
+                    {
+                        "description": "New config values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchOrganizationIDPSyncConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
         "/settings/idpsync/organization/mapping": {
             "patch": {
                 "security": [
@@ -12456,6 +12495,17 @@ const docTemplate = `{
                     "items": {
                         "type": "string"
                     }
+                }
+            }
+        },
+        "codersdk.PatchOrganizationIDPSyncConfigRequest": {
+            "type": "object",
+            "properties": {
+                "assign_default": {
+                    "type": "boolean"
+                },
+                "field": {
+                    "type": "string"
                 }
             }
         },

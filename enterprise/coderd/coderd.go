@@ -295,6 +295,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Route("/organization", func(r chi.Router) {
 					r.Get("/", api.organizationIDPSyncSettings)
 					r.Patch("/", api.patchOrganizationIDPSyncSettings)
+					r.Patch("/config", api.patchOrganizationIDPSyncConfig)
 					r.Patch("/mapping", api.patchOrganizationIDPSyncMapping)
 				})
 
