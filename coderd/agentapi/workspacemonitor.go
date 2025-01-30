@@ -3,7 +3,9 @@ package agentapi
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"slices"
+	"time"
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
@@ -26,6 +28,8 @@ type WorkspaceMonitorAPI struct {
 	MemoryMonitorEnabled  bool
 	MemoryUsageThreshold  int32
 	VolumeUsageThresholds map[string]int32
+
+	Debounce time.Duration
 
 	// How many datapoints in a row are required to
 	// put the monitor in an alert state.
@@ -69,13 +73,18 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 	newState := m.nextState(oldState, memoryUsageStates)
 	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
 
+	var debouncedUntil = m.Clock.Now()
+	if shouldNotify {
+		debouncedUntil = debouncedUntil.Add(m.Debounce)
+	}
+
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
 		WorkspaceID:    m.WorkspaceID,
 		MonitorType:    database.WorkspaceMonitorTypeMemory,
 		VolumePath:     sql.NullString{Valid: false},
 		State:          newState,
 		UpdatedAt:      dbtime.Time(m.Clock.Now()),
-		DebouncedUntil: dbtime.Time(m.Clock.Now()),
+		DebouncedUntil: dbtime.Time(debouncedUntil),
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace monitor: %w", err)
@@ -91,8 +100,11 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
-			notifications.TemplateWorkspaceReachedResourceThreshold,
-			map[string]string{},
+			notifications.TemplateWorkspaceOutOfMemory,
+			map[string]string{
+				"workspace": workspace.Name,
+				"threshold": fmt.Sprintf("%d%%", m.MemoryUsageThreshold),
+			},
 			"workspace-monitor-memory",
 		)
 		if err != nil {
@@ -162,13 +174,18 @@ func (m *WorkspaceMonitorAPI) monitorVolume(ctx context.Context, path string, da
 	newState := m.nextState(oldState, volumeUsageStates)
 	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
 
+	var debouncedUntil = m.Clock.Now()
+	if shouldNotify {
+		debouncedUntil = debouncedUntil.Add(m.Debounce)
+	}
+
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
 		WorkspaceID:    m.WorkspaceID,
 		MonitorType:    database.WorkspaceMonitorTypeVolume,
 		VolumePath:     sql.NullString{Valid: true, String: path},
 		State:          newState,
 		UpdatedAt:      dbtime.Time(m.Clock.Now()),
-		DebouncedUntil: dbtime.Time(m.Clock.Now()),
+		DebouncedUntil: dbtime.Time(debouncedUntil),
 	})
 	if err != nil {
 		return xerrors.Errorf("update workspace monitor: %w", err)
@@ -184,8 +201,12 @@ func (m *WorkspaceMonitorAPI) monitorVolume(ctx context.Context, path string, da
 			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
-			notifications.TemplateWorkspaceReachedResourceThreshold,
-			map[string]string{},
+			notifications.TemplateWorkspaceOutOfDisk,
+			map[string]string{
+				"workspace": workspace.Name,
+				"threshold": fmt.Sprintf("%d%%", m.VolumeUsageThresholds[path]),
+				"volume":    path,
+			},
 			"workspace-monitor-memory",
 		)
 		if err != nil {

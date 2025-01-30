@@ -147,10 +147,11 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			}, nil)
 
 			mDB.EXPECT().UpdateWorkspaceMonitor(gomock.Any(), database.UpdateWorkspaceMonitorParams{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeMemory,
-				State:       tt.expectState,
-				UpdatedAt:   timestamppb.New(collectedAt).AsTime(),
+				WorkspaceID:    api.WorkspaceID,
+				MonitorType:    database.WorkspaceMonitorTypeMemory,
+				State:          tt.expectState,
+				UpdatedAt:      collectedAt,
+				DebouncedUntil: collectedAt,
 			})
 
 			if tt.shouldNotify {
@@ -166,7 +167,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceReachedResourceThreshold))
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
 				require.Equal(t, ownerID, sent[0].UserID)
@@ -320,11 +321,12 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			}, nil)
 
 			mDB.EXPECT().UpdateWorkspaceMonitor(gomock.Any(), database.UpdateWorkspaceMonitorParams{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeVolume,
-				VolumePath:  sql.NullString{Valid: true, String: tt.volumePath},
-				State:       tt.expectState,
-				UpdatedAt:   timestamppb.New(collectedAt).AsTime(),
+				WorkspaceID:    api.WorkspaceID,
+				MonitorType:    database.WorkspaceMonitorTypeVolume,
+				VolumePath:     sql.NullString{Valid: true, String: tt.volumePath},
+				State:          tt.expectState,
+				UpdatedAt:      collectedAt,
+				DebouncedUntil: collectedAt,
 			})
 
 			if tt.shouldNotify {
@@ -340,7 +342,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			})
 			require.NoError(t, err)
 
-			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceReachedResourceThreshold))
+			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
 				require.Equal(t, ownerID, sent[0].UserID)
