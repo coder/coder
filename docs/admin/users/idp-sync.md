@@ -8,7 +8,12 @@ IdP sync is an Enterprise and Premium feature.
 
 </blockquote>
 
-## Confirm that OIDC provider sends claims
+IdP (Identity provider) sync allows you to use OpenID Connect (OIDC) to
+synchronize Coder groups, roles, and organizations based on claims from your IdP.
+
+## Prerequisites
+
+### Confirm that OIDC provider sends claims
 
 To confirm that your OIDC provider is sending claims, log in with OIDC and visit
 the following URL with an `Owner` account:
@@ -23,7 +28,7 @@ both followed by a list of the user's OIDC groups in the response.
 This is the [claim](https://openid.net/specs/openid-connect-core-1_0.html#Claims)
 sent by the OIDC provider.
 
-Depending on the OIDC provider, this claim may be called something else.
+Depending on the OIDC provider, this claim might be called something else.
 Common names include `groups`, `memberOf`, and `roles`.
 
 See the [troubleshooting section](#troubleshooting-grouproleorganization-sync)
@@ -42,77 +47,36 @@ If group sync is enabled, the user's groups will be controlled by the OIDC
 provider. This means manual group additions/removals will be overwritten on the
 next user login.
 
-There are two ways you can configure group sync:
+For deployments with multiple [organizations](./organizations.md), configure
+group sync at the organization level.
 
 <div class="tabs">
 
-### Server Flags
+### Dashboard
 
-<blockquote class="admonition note">
+1. Fetch the corresponding group IDs using the following endpoint:
 
-This method is deprecated.
+   ```text
+   https://[coder.example.com]/api/v2/groups
+   ```
 
-You can use the dashboard to configure group sync instead.
+1. As an Owner or Organization Admin, go to **Admin settings**, select
+   **Organizations**, then **IdP Sync**:
 
-</blockquote>
+   ![IdP Sync - Group sync settings](../../images/admin/users/organizations/group-sync-empty.png)
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
-   flag:
+1. Enter the **Group sync field** and an optional **Regex filter**, then select
+   **Save**.
 
-   - Environment variable:
+1. Select **Auto create missing groups** to automatically create groups
+   returned by the OIDC provider if they do not exist in Coder.
 
-     ```sh
-     CODER_OIDC_GROUP_FIELD=groups
-     ```
+1. Enter the **IdP group name** and **Coder group**, then **Add IdP group**.
 
-   - As a flag:
-
-     ```sh
-     --oidc-group-field groups
-     ```
-
-On login, users will automatically be assigned to groups that have matching
-names in Coder and removed from groups that the user no longer belongs to.
-
-For cases when an OIDC provider only returns group IDs or you want to have
-different group names in Coder than in your OIDC provider, you can configure
-mapping between the two with the
-[OIDC group mapping](../../reference/cli/server.md#--oidc-group-mapping) server
-flag:
-
-- Environment variable:
-
-  ```sh
-  CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
-  ```
-
-- As a flag:
-
-  ```sh
-  --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
-  ```
-
-Below is an example mapping in the Coder Helm chart:
-
-```yaml
-coder:
-  env:
-    - name: CODER_OIDC_GROUP_MAPPING
-      value: >
-        {"myOIDCGroupID": "myCoderGroupName"}
-```
-
-From the example above, users that belong to the `myOIDCGroupID` group in your
-OIDC provider will be added to the `myCoderGroupName` group in Coder.
-
-### Runtime (Organizations)
-
-For deployments with multiple [organizations](./organizations.md), you must
-configure group sync at the organization level.
+### CLI
 
 1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
-   logged in with a user who is an Owner or Organization Admin role.
+   logged in with a user who is an Owner or has an Organization Admin role.
 
 1. To fetch the current group sync settings for an organization, run the
    following:
@@ -148,7 +112,7 @@ Below is an example that uses the `groups` claim and maps all groups prefixed by
 
 <blockquote class="admonition note">
 
-You much specify Coder group IDs instead of group names. The fastest way to find
+You must specify Coder group IDs instead of group names. The fastest way to find
 the ID for a corresponding group is by visiting
 `https://coder.example.com/api/v2/groups`.
 
@@ -185,6 +149,66 @@ Visit the Coder UI to confirm these changes:
 
 ![IdP Sync](../../images/admin/users/organizations/group-sync.png)
 
+### Server Flags
+
+<blockquote class="admonition note">
+
+Use server flags only with Coder deployments with a single organization.
+
+You can use the dashboard to configure group sync instead.
+
+</blockquote>
+
+1. Configure the Coder server to read groups from the claim name with the
+   [OIDC group field](../../reference/cli/server.md#--oidc-group-field) server
+   flag:
+
+   - Environment variable:
+
+     ```sh
+     CODER_OIDC_GROUP_FIELD=groups
+     ```
+
+   - As a flag:
+
+     ```sh
+     --oidc-group-field groups
+     ```
+
+1. On login, users will automatically be assigned to groups that have matching
+   names in Coder and removed from groups that the user no longer belongs to.
+
+1. For cases when an OIDC provider only returns group IDs or you want to have
+   different group names in Coder than in your OIDC provider, you can configure
+   mapping between the two with the
+   [OIDC group mapping](../../reference/cli/server.md#--oidc-group-mapping) server
+   flag:
+
+   - Environment variable:
+
+     ```sh
+     CODER_OIDC_GROUP_MAPPING='{"myOIDCGroupID": "myCoderGroupName"}'
+     ```
+
+   - As a flag:
+
+     ```sh
+     --oidc-group-mapping '{"myOIDCGroupID": "myCoderGroupName"}'
+     ```
+
+   Below is an example mapping in the Coder Helm chart:
+
+   ```yaml
+   coder:
+     env:
+       - name: CODER_OIDC_GROUP_MAPPING
+         value: >
+           {"myOIDCGroupID": "myCoderGroupName"}
+   ```
+
+   From this example, users that belong to the `myOIDCGroupID` group in your
+   OIDC provider will be added to the `myCoderGroupName` group in Coder.
+
 </div>
 
 ### Group allowlist
@@ -200,40 +224,33 @@ Users who are not in a matching group will see the following error:
 If your OpenID Connect provider supports roles claims, you can configure Coder
 to synchronize roles in your auth provider to roles within Coder.
 
+For deployments with multiple [organizations](./organizations.md), configure
+role sync at the organization level.
+
 <div class="tabs">
 
-### Server Flags
+### Dashboard
 
-<blockquote class="admonition note">
+1. As an Owner or Organization Admin, go to **Admin settings**, select
+   **Organizations**, then **IdP Sync**.
 
-This method is deprecated.
+1. Select the **Role sync settings** tab:
 
-You can use the dashboard to configure role sync instead.
+   ![IdP Sync - Role sync settings](../../images/admin/users/organizations/role-sync-empty.png)
 
-</blockquote>
+1. Enter the **Role sync field**, then select **Save**.
 
-1. Configure the Coder server to read groups from the claim name with the
-   [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
-   server flag:
+1. Enter the **IdP role name** and **Coder role**, then **Add IdP role**.
 
-1. Set the following in your Coder server [configuration](../setup/index.md).
+   To add a new custom role, select **Roles** from the sidebar, then
+   **Create custom role**.
 
-   ```env
-    # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
-   CODER_OIDC_SCOPES=openid,profile,email,roles
+   Visit the [groups and roles documentation](./groups-roles.md) for more information.
 
-   # The following fields are required for role sync:
-   CODER_OIDC_USER_ROLE_FIELD=roles
-   CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
-   ```
+### CLI
 
-One role from your identity provider can be mapped to many roles in Coder. The
-example above maps to two roles in Coder.
-
-### Runtime (Organizations)
-
-For deployments with multiple [organizations](./organizations.md), you can
-configure role sync at the organization level.
+1. Confirm you have the [Coder CLI](../../install/index.md) installed and are
+   logged in with a user who is an Owner or has an Organization Admin role.
 
 1. To fetch the current group sync settings for an organization, run the
    following:
@@ -270,7 +287,7 @@ role:
 <blockquote class="admonition note">
 
 Be sure to use the `name` field for each role, not the display name. Use
-`coder organization  roles show --org=<your-org>` to see roles for your
+`coder organization roles show --org=<your-org>` to see roles for your
 organization.
 
 </blockquote>
@@ -287,6 +304,34 @@ Visit the Coder UI to confirm these changes:
 
 ![IdP Sync](../../images/admin/users/organizations/role-sync.png)
 
+### Server Flags
+
+<blockquote class="admonition note">
+
+Use server flags only with Coder deployments with a single organization.
+
+You can use the dashboard to configure role sync instead.
+
+</blockquote>
+
+1. Configure the Coder server to read groups from the claim name with the
+   [OIDC role field](../../reference/cli/server.md#--oidc-user-role-field)
+   server flag:
+
+1. Set the following in your Coder server [configuration](../setup/index.md).
+
+   ```env
+    # Depending on your identity provider configuration, you may need to explicitly request a "roles" scope
+   CODER_OIDC_SCOPES=openid,profile,email,roles
+
+   # The following fields are required for role sync:
+   CODER_OIDC_USER_ROLE_FIELD=roles
+   CODER_OIDC_USER_ROLE_MAPPING='{"TemplateAuthor":["template-admin","user-admin"]}'
+   ```
+
+One role from your identity provider can be mapped to many roles in Coder. The
+example above maps to two roles in Coder.
+
 </div>
 
 ## Organization Sync
@@ -301,8 +346,7 @@ Organization sync works across all organizations. On user login, the sync will
 add and remove the user from organizations based on their IdP claims. After the
 sync, the user's state should match that of the IdP.
 
-You can initiate an organization sync through the CLI or through the Coder
-dashboard:
+You can initiate an organization sync through the Coder dashboard or CLI:
 
 <div class="tabs">
 
