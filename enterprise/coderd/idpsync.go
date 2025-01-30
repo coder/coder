@@ -344,7 +344,7 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 		return
 	}
 
-	var req codersdk.OrganizationSyncConfig
+	var req codersdk.PatchOrganizationIDPSyncConfigRequest
 	if !httpapi.Read(ctx, rw, r, &req) {
 		return
 	}
