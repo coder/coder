@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -82,7 +83,7 @@ func TestGetGroupSyncConfig(t *testing.T) {
 	})
 }
 
-func TestPostGroupSyncConfig(t *testing.T) {
+func TestPatchGroupSyncConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -174,7 +175,7 @@ func TestGetRoleSyncConfig(t *testing.T) {
 	})
 }
 
-func TestPostRoleSyncConfig(t *testing.T) {
+func TestPatchRoleSyncConfig(t *testing.T) {
 	t.Parallel()
 
 	t.Run("OK", func(t *testing.T) {
@@ -227,6 +228,205 @@ func TestPostRoleSyncConfig(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 
 		_, err = member.RoleIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+}
+
+func TestGetOrganizationSyncSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, _, _, user := coderdenttest.NewWithAPI(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		expected := map[string][]uuid.UUID{"foo": {user.OrganizationID}}
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		settings, err := owner.PatchOrganizationIDPSyncSettings(ctx, codersdk.OrganizationSyncSettings{
+			Field:   "august",
+			Mapping: expected,
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+		require.Equal(t, expected, settings.Mapping)
+
+		settings, err = owner.OrganizationIDPSyncSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+		require.Equal(t, expected, settings.Mapping)
+	})
+}
+
+func TestPatchOrganizationSyncSettings(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // Only owners can change Organization IdP sync settings
+		settings, err := owner.PatchOrganizationIDPSyncSettings(ctx, codersdk.OrganizationSyncSettings{
+			Field: "august",
+		})
+		require.NoError(t, err)
+		require.Equal(t, "august", settings.Field)
+
+		fetchedSettings, err := owner.OrganizationIDPSyncSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, "august", fetchedSettings.Field)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchRoleIDPSyncSettings(ctx, user.OrganizationID.String(), codersdk.RoleSyncSettings{
+			Field: "august",
+		})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+
+		_, err = member.RoleIDPSyncSettings(ctx, user.OrganizationID.String())
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+}
+
+func TestPatchOrganizationSyncMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, _ := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		// These IDs are easier to visually diff if the test fails than truly random
+		// ones.
+		orgs := []uuid.UUID{
+			uuid.MustParse("00000000-b8bd-46bb-bb6c-6c2b2c0dd2ea"),
+			uuid.MustParse("01000000-fbe8-464c-9429-fe01a03f3644"),
+			uuid.MustParse("02000000-0926-407b-9998-39af62e3d0c5"),
+			uuid.MustParse("03000000-92f6-4bfd-bba6-0f54667b131c"),
+			uuid.MustParse("04000000-b9d0-46fe-910f-6e2ea0c62caa"),
+			uuid.MustParse("05000000-67c0-4c19-a52d-0dc3f65abee0"),
+			uuid.MustParse("06000000-a8a8-4a2c-bdd0-b59aa6882b55"),
+			uuid.MustParse("07000000-5390-4cc7-a9c8-e4330a683ae7"),
+		}
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		//nolint:gocritic // Only owners can change Organization IdP sync settings
+		settings, err := owner.PatchOrganizationIDPSyncMapping(ctx, codersdk.PatchOrganizationIDPSyncMappingRequest{
+			Add: []codersdk.IDPSyncMapping[uuid.UUID]{
+				{Given: "wibble", Gets: orgs[0]},
+				{Given: "wibble", Gets: orgs[1]},
+				{Given: "wobble", Gets: orgs[0]},
+				{Given: "wobble", Gets: orgs[1]},
+				{Given: "wobble", Gets: orgs[2]},
+				{Given: "wobble", Gets: orgs[3]},
+				{Given: "wooble", Gets: orgs[0]},
+			},
+			// Remove takes priority over Add, so "3" should not actually be added to wooble.
+			Remove: []codersdk.IDPSyncMapping[uuid.UUID]{
+				{Given: "wobble", Gets: orgs[3]},
+			},
+		})
+
+		expected := map[string][]uuid.UUID{
+			"wibble": {orgs[0], orgs[1]},
+			"wobble": {orgs[0], orgs[1], orgs[2]},
+			"wooble": {orgs[0]},
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, expected, settings.Mapping)
+
+		fetchedSettings, err := owner.OrganizationIDPSyncSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, fetchedSettings.Mapping)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		settings, err = owner.PatchOrganizationIDPSyncMapping(ctx, codersdk.PatchOrganizationIDPSyncMappingRequest{
+			Add: []codersdk.IDPSyncMapping[uuid.UUID]{
+				{Given: "wibble", Gets: orgs[2]},
+				{Given: "wobble", Gets: orgs[3]},
+				{Given: "wooble", Gets: orgs[0]},
+			},
+			// Remove takes priority over Add, so `f` should not actually be added.
+			Remove: []codersdk.IDPSyncMapping[uuid.UUID]{
+				{Given: "wibble", Gets: orgs[0]},
+				{Given: "wobble", Gets: orgs[1]},
+			},
+		})
+
+		expected = map[string][]uuid.UUID{
+			"wibble": {orgs[1], orgs[2]},
+			"wobble": {orgs[0], orgs[2], orgs[3]},
+			"wooble": {orgs[0]},
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, expected, settings.Mapping)
+
+		fetchedSettings, err = owner.OrganizationIDPSyncSettings(ctx)
+		require.NoError(t, err)
+		require.Equal(t, expected, fetchedSettings.Mapping)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchOrganizationIDPSyncMapping(ctx, codersdk.PatchOrganizationIDPSyncMappingRequest{})
+		var apiError *codersdk.Error
 		require.ErrorAs(t, err, &apiError)
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})

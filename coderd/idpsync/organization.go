@@ -34,7 +34,7 @@ func (AGPLIDPSync) OrganizationSyncEnabled(_ context.Context, _ database.Store) 
 	return false
 }
 
-func (s AGPLIDPSync) UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
+func (s AGPLIDPSync) UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error {
 	rlv := s.Manager.Resolver(db)
 	err := s.SyncSettings.Organization.SetRuntimeValue(ctx, rlv, &settings)
 	if err != nil {

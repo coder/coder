@@ -1055,6 +1055,12 @@ export interface HealthcheckReport {
 	readonly coder_version: string;
 }
 
+// From codersdk/idpsync.go
+export interface IDPSyncMapping<ResourceIdType extends string | string> {
+	readonly Given: string;
+	readonly Gets: ResourceIdType;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -1457,6 +1463,12 @@ export interface PatchGroupRequest {
 	readonly display_name: string | null;
 	readonly avatar_url: string | null;
 	readonly quota_allowance: number | null;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
 }
 
 // From codersdk/templateversions.go
