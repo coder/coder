@@ -244,5 +244,19 @@ func convertProvisionerKeys(dbKeys []database.ProvisionerKey) []codersdk.Provisi
 		return key1.CreatedAt.Compare(key2.CreatedAt)
 	})
 
+	// For the default organization, we insert three rows for the special provisioner
+	// key types (built-in, user-auth, and psk). We _don't_ insert those into the
+	// database for any other org, but we still need to include the user-auth key
+	// in this list, so we just insert it manually.
+	if !slices.ContainsFunc(keys, func(key codersdk.ProvisionerKey) bool {
+		return key.ID == codersdk.ProvisionerKeyUUIDUserAuth
+	}) {
+		keys = append(keys, codersdk.ProvisionerKey{
+			ID:   codersdk.ProvisionerKeyUUIDUserAuth,
+			Name: codersdk.ProvisionerKeyNameUserAuth,
+			Tags: make(map[string]string),
+		})
+	}
+
 	return keys
 }

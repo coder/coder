@@ -2272,7 +2272,7 @@ func setup(t *testing.T, ignoreLogErrors bool, ov *overrides) (proto.DRPCProvisi
 		Version:        buildinfo.Version(),
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 
