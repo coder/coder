@@ -12,8 +12,6 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// constraining to `uuid.UUID | string` here would be nice but `make gen` will
-// yell at you for it.
 type IDPSyncMapping[ResourceIdType uuid.UUID | string] struct {
 	// The IdP claim the user has
 	Given string
