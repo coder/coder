@@ -2033,6 +2033,9 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY telemetry_items
+    ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
@@ -2190,8 +2193,6 @@ CREATE INDEX provisioner_job_logs_id_job_id_idx ON provisioner_job_logs USING bt
 CREATE INDEX provisioner_jobs_started_at_idx ON provisioner_jobs USING btree (started_at) WHERE (started_at IS NULL);
 
 CREATE UNIQUE INDEX provisioner_keys_organization_id_name_idx ON provisioner_keys USING btree (organization_id, lower((name)::text));
-
-CREATE UNIQUE INDEX telemetry_items_key_idx ON telemetry_items USING btree (key);
 
 CREATE INDEX template_usage_stats_start_time_idx ON template_usage_stats USING btree (start_time DESC);
 
