@@ -106,3 +106,4 @@ ON CONFLICT (key) DO UPDATE SET value = $2 WHERE site_configs.key = $1;
 -- name: DeleteRuntimeConfig :exec
 DELETE FROM site_configs
 WHERE site_configs.key = $1;
+
