@@ -347,11 +347,11 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 func (r *remoteReporter) ReportDisabledIfNeeded() error {
 	db := r.options.Database
 	lastTelemetryUpdate, telemetryUpdateErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyLastTelemetryUpdate))
-	if telemetryUpdateErr != nil {
+	if telemetryUpdateErr != nil && !errors.Is(telemetryUpdateErr, sql.ErrNoRows) {
 		r.options.Logger.Debug(r.ctx, "get last telemetry update at", slog.Error(telemetryUpdateErr))
 	}
 	telemetryDisabled, telemetryDisabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
-	if telemetryDisabledErr != nil {
+	if telemetryDisabledErr != nil && !errors.Is(telemetryDisabledErr, sql.ErrNoRows) {
 		r.options.Logger.Debug(r.ctx, "get telemetry disabled", slog.Error(telemetryDisabledErr))
 	}
 	shouldReportDisabledTelemetry :=

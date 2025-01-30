@@ -361,31 +361,103 @@ func TestTelemetryItem(t *testing.T) {
 	require.Equal(t, item.Value, "new_value")
 }
 
-func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
+func TestReportDisabledIfNeeded(t *testing.T) {
+	t.Parallel()
+	db, _ := dbtestutil.NewDB(t)
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	serverURL, _, snapshotChan := setupTelemetryServer(t)
+
+	options := telemetry.Options{
+		Database:     db,
+		Logger:       testutil.Logger(t),
+		URL:          serverURL,
+		DeploymentID: uuid.NewString(),
+	}
+
+	reporter, err := telemetry.New(options)
+	require.NoError(t, err)
+	t.Cleanup(reporter.Close)
+
+	// No telemetry updated item, so no report should be sent
+	require.NoError(t, reporter.ReportDisabledIfNeeded())
+	require.Empty(t, snapshotChan)
+
+	// Telemetry disabled item not present, and a telemetry update item present
+	// Report should be sent
+	_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
+		Key:   string(telemetry.TelemetryItemKeyLastTelemetryUpdate),
+		Value: time.Now().Format(time.RFC3339),
+	})
+	require.NoError(t, reporter.ReportDisabledIfNeeded())
+	select {
+	case snapshot := <-snapshotChan:
+		require.Len(t, snapshot.TelemetryItems, 1)
+		require.Equal(t, snapshot.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryDisabled))
+	case <-time.After(testutil.WaitShort / 2):
+		t.Fatal("timeout waiting for snapshot")
+	}
+
+	// Telemetry disabled item present, and a telemetry update item present
+	// with an updated at time equal to or after the telemetry disabled item
+	// Report should not be sent
+	require.NoError(t, reporter.ReportDisabledIfNeeded())
+	require.Empty(t, snapshotChan)
+
+	// Telemetry disabled item present, and a telemetry update item present
+	// with an updated at time before the telemetry disabled item
+	// Report should be sent
+	// Wait a bit to ensure UpdatedAt is bigger when we upsert the telemetry disabled item
+	time.Sleep(100 * time.Millisecond)
+	require.NoError(t, db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+		Key:   string(telemetry.TelemetryItemKeyTelemetryDisabled),
+		Value: time.Now().Format(time.RFC3339),
+	}))
+	require.NoError(t, reporter.ReportDisabledIfNeeded())
+	select {
+	case snapshot := <-snapshotChan:
+		require.Len(t, snapshot.TelemetryItems, 1)
+		require.Equal(t, snapshot.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryDisabled))
+	case <-time.After(testutil.WaitShort / 2):
+		t.Fatal("timeout waiting for snapshot")
+	}
+}
+
+func setupTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
 	t.Helper()
 	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
 	r := chi.NewRouter()
 	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
-		w.WriteHeader(http.StatusAccepted)
 		dd := &telemetry.Deployment{}
 		err := json.NewDecoder(r.Body).Decode(dd)
 		require.NoError(t, err)
 		deployment <- dd
+		// Ensure the header is sent only after deployment is sent
+		w.WriteHeader(http.StatusAccepted)
 	})
 	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
-		w.WriteHeader(http.StatusAccepted)
 		ss := &telemetry.Snapshot{}
 		err := json.NewDecoder(r.Body).Decode(ss)
 		require.NoError(t, err)
 		snapshot <- ss
+		// Ensure the header is sent only after snapshot is sent
+		w.WriteHeader(http.StatusAccepted)
 	})
 	server := httptest.NewServer(r)
 	t.Cleanup(server.Close)
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
+
+	return serverURL, deployment, snapshot
+}
+
+func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
+	t.Helper()
+
+	serverURL, deployment, snapshot := setupTelemetryServer(t)
+
 	options := telemetry.Options{
 		Database:     db,
 		Logger:       testutil.Logger(t),
