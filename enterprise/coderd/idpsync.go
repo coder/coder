@@ -319,6 +319,75 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	})
 }
 
+// @Summary Update organization IdP Sync config
+// @ID update-organization-idp-sync-config
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New config values"
+// @Router /settings/idpsync/organization/config [patch]
+func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.OrganizationSyncSettings](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.PatchOrganizationIDPSyncConfigRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var settings *idpsync.OrganizationSyncSettings
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = *existing
+
+		err = api.IDPSync.UpdateOrganizationSyncSettings(sysCtx, tx, idpsync.OrganizationSyncSettings{
+			Field:         req.Field,
+			AssignDefault: req.AssignDefault,
+			Mapping:       existing.Mapping,
+		})
+		if err != nil {
+			return err
+		}
+
+		settings, err = api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = *settings
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
+}
+
 // @Summary Update organization IdP Sync mapping
 // @ID update-organization-idp-sync-mapping
 // @Security CoderSessionToken

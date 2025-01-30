@@ -144,6 +144,25 @@ func (c *Client) PatchOrganizationIDPSyncSettings(ctx context.Context, req Organ
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 
+type PatchOrganizationIDPSyncConfigRequest struct {
+	Field         string `json:"field"`
+	AssignDefault bool   `json:"assign_default"`
+}
+
+func (c *Client) PatchOrganizationIDPSyncConfig(ctx context.Context, req PatchOrganizationIDPSyncConfigRequest) (OrganizationSyncSettings, error) {
+	res, err := c.Request(ctx, http.MethodPatch, "/api/v2/settings/idpsync/organization/config", req)
+	if err != nil {
+		return OrganizationSyncSettings{}, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return OrganizationSyncSettings{}, ReadBodyAsError(res)
+	}
+	var resp OrganizationSyncSettings
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // If the same mapping is present in both Add and Remove, Remove will take presidence.
 type PatchOrganizationIDPSyncMappingRequest struct {
 	Add    []IDPSyncMapping[uuid.UUID]

@@ -4180,6 +4180,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
 
+## codersdk.PatchOrganizationIDPSyncConfigRequest
+
+```json
+{
+  "assign_default": true,
+  "field": "string"
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `assign_default` | boolean | false    |              |             |
+| `field`          | string  | false    |              |             |
+
 ## codersdk.PatchOrganizationIDPSyncMappingRequest
 
 ```json
