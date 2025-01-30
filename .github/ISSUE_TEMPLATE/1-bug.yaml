@@ -62,7 +62,6 @@ body:
       value: |
         - Host OS:
         - Coder version:
-    render: markdown
     validations:
       required: false
 
