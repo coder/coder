@@ -392,18 +392,19 @@ func TestNotifyUserStatusChanged(t *testing.T) {
 		// Validate that each expected notification is present in notifyEnq.Sent()
 		for _, expected := range expectedNotifications {
 			found := false
-			for _, sent := range notifyEnq.Sent() {
-				userData, userDataOk := sent.Data["user"].(map[string]any)
-
+			for _, sent := range notifyEnq.Sent(notificationstest.WithTemplateID(expected.TemplateID)) {
 				if sent.TemplateID == expected.TemplateID &&
 					sent.UserID == expected.UserID &&
 					slices.Contains(sent.Targets, member.ID) &&
-					sent.Labels[label] == member.Username &&
-					userDataOk &&
-					userData["id"] == member.ID &&
-					userData["name"] == member.Name &&
-					userData["email"] == member.Email {
+					sent.Labels[label] == member.Username {
 					found = true
+
+					require.IsType(t, map[string]any{}, sent.Data["user"])
+					userData := sent.Data["user"].(map[string]any)
+					require.Equal(t, member.ID, userData["id"])
+					require.Equal(t, member.Name, userData["name"])
+					require.Equal(t, member.Email, userData["email"])
+
 					break
 				}
 			}
@@ -871,8 +872,8 @@ func TestNotifyCreatedUser(t *testing.T) {
 		require.Contains(t, sent[0].Targets, user.ID)
 		require.Equal(t, user.Username, sent[0].Labels["created_account_name"])
 
-		userData, ok := sent[0].Data["user"].(map[string]any)
-		require.True(t, ok, "notification data should have user")
+		require.IsType(t, map[string]any{}, sent[0].Data["user"])
+		userData := sent[0].Data["user"].(map[string]any)
 		require.Equal(t, user.ID, userData["id"])
 		require.Equal(t, user.Name, userData["name"])
 		require.Equal(t, user.Email, userData["email"])
