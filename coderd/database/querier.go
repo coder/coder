@@ -226,6 +226,7 @@ type sqlcQuerier interface {
 	GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) ([]GetTailnetTunnelPeerIDsRow, error)
 	GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error)
 	GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error)
+	GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error)
 	// GetTemplateAppInsights returns the aggregate usage of each app in a given
 	// timeframe. The result can be filtered on template_ids, meaning only user data
 	// from workspaces based on those templates will be included.

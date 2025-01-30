@@ -1148,6 +1148,13 @@ func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (da
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTelemetryItems(ctx context.Context) ([]database.TelemetryItem, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTelemetryItems(ctx)
+	m.queryLatencies.WithLabelValues("GetTelemetryItems").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)

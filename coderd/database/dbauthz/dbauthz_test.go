@@ -4233,6 +4233,9 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetTelemetryItem", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))
+	s.Run("GetTelemetryItems", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
 	s.Run("InsertTelemetryItemIfNotExists", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(database.InsertTelemetryItemIfNotExistsParams{
 			Key:   "test",

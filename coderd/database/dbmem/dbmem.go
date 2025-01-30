@@ -4356,6 +4356,10 @@ func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.
 	return database.TelemetryItem{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) GetTelemetryItems(_ context.Context) ([]database.TelemetryItem, error) {
+	return q.telemetryItems, nil
+}
+
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {

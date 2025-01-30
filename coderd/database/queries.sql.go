@@ -8740,6 +8740,38 @@ func (q *sqlQuerier) GetTelemetryItem(ctx context.Context, key string) (Telemetr
 	return i, err
 }
 
+const getTelemetryItems = `-- name: GetTelemetryItems :many
+SELECT key, value, created_at, updated_at FROM telemetry_items
+`
+
+func (q *sqlQuerier) GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error) {
+	rows, err := q.db.QueryContext(ctx, getTelemetryItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelemetryItem
+	for rows.Next() {
+		var i TelemetryItem
+		if err := rows.Scan(
+			&i.Key,
+			&i.Value,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
 const insertTelemetryItemIfNotExists = `-- name: InsertTelemetryItemIfNotExists :exec
 INSERT INTO telemetry_items (key, value)
 VALUES ($1, $2)
