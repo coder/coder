@@ -99,8 +99,6 @@ type Reporter interface {
 	// database. For example, if a new user is added, a snapshot can
 	// contain just that user entry.
 	Report(snapshot *Snapshot)
-	// ReportDeployment sends deployment information to the telemetry server.
-	ReportDeployment()
 	Enabled() bool
 	Close()
 }
@@ -222,12 +220,6 @@ func (r *remoteReporter) reportWithDeployment() {
 		return
 	}
 	r.reportSync(snapshot)
-}
-
-func (r *remoteReporter) ReportDeployment() {
-	if err := r.deployment(); err != nil {
-		r.options.Logger.Debug(r.ctx, "failed to report deployment", slog.Error(err))
-	}
 }
 
 // deployment collects host information and reports it to the telemetry server.
@@ -1596,4 +1588,3 @@ type noopReporter struct{}
 func (*noopReporter) Report(_ *Snapshot) {}
 func (*noopReporter) Enabled() bool      { return false }
 func (*noopReporter) Close()             {}
-func (*noopReporter) ReportDeployment()  {}
