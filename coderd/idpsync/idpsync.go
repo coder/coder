@@ -26,7 +26,7 @@ import (
 type IDPSync interface {
 	OrganizationSyncEntitled() bool
 	OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error)
-	UpdateOrganizationSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error
+	UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error
 	// OrganizationSyncEnabled returns true if all OIDC users are assigned
 	// to organizations via org sync settings.
 	// This is used to know when to disable manual org membership assignment.
@@ -69,6 +69,9 @@ type IDPSync interface {
 	// Site & org roles are handled in this method.
 	SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error
 }
+
+// AGPLIDPSync implements the IDPSync interface
+var _ IDPSync = AGPLIDPSync{}
 
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
