@@ -48,7 +48,7 @@ type IDPSync interface {
 	// on the settings used by IDPSync. This entry is thread safe and can be
 	// accessed concurrently. The settings are stored in the database.
 	GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error)
-	UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
+	UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
 
 	// RoleSyncEntitled returns true if the deployment is entitled to role syncing.
 	RoleSyncEntitled() bool
