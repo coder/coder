@@ -2677,7 +2677,7 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Update organization IdP Sync basic configuration
+## Update organization IdP Sync config
 
 ### Code samples
 

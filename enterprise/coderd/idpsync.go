@@ -319,7 +319,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	})
 }
 
-// @Summary Update organization IdP Sync basic configuration
+// @Summary Update organization IdP Sync config
 // @ID update-organization-idp-sync-config
 // @Security CoderSessionToken
 // @Produce json
@@ -370,7 +370,6 @@ func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.R
 
 		settings, err = api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
 		if err != nil {
-			httpapi.InternalServerError(rw, err)
 			return err
 		}
 

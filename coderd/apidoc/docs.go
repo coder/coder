@@ -4264,7 +4264,7 @@ const docTemplate = `{
                 "tags": [
                     "Enterprise"
                 ],
-                "summary": "Update organization IdP Sync basic configuration",
+                "summary": "Update organization IdP Sync config",
                 "operationId": "update-organization-idp-sync-config",
                 "parameters": [
                     {
