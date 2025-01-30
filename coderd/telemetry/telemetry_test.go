@@ -386,7 +386,7 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 	// Report should be sent
 	_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
 		Key:   string(telemetry.TelemetryItemKeyLastTelemetryUpdate),
-		Value: time.Now().Format(time.RFC3339),
+		Value: "",
 	})
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
 	select {
@@ -410,7 +410,7 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 	time.Sleep(100 * time.Millisecond)
 	require.NoError(t, db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
 		Key:   string(telemetry.TelemetryItemKeyTelemetryDisabled),
-		Value: time.Now().Format(time.RFC3339),
+		Value: "",
 	}))
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
 	select {

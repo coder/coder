@@ -159,7 +159,7 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 	}
 	if err := r.options.Database.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
 		Key:   string(TelemetryItemKeyLastTelemetryUpdate),
-		Value: dbtime.Now().Format(time.RFC3339),
+		Value: "",
 	}); err != nil {
 		r.options.Logger.Debug(r.ctx, "upsert last telemetry update", slog.Error(err))
 	}
@@ -364,7 +364,7 @@ func (r *remoteReporter) ReportDisabledIfNeeded() error {
 
 	if err := db.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
 		Key:   string(TelemetryItemKeyTelemetryDisabled),
-		Value: time.Now().Format(time.RFC3339),
+		Value: "",
 	}); err != nil {
 		return xerrors.Errorf("upsert telemetry disabled: %w", err)
 	}
