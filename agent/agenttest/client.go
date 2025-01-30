@@ -316,8 +316,6 @@ func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.Worksp
 }
 
 func (*FakeAgentAPI) UpdateWorkspaceMonitor(_ context.Context, _ *agentproto.WorkspaceMonitorUpdateRequest) (*agentproto.WorkspaceMonitorUpdateResponse, error) {
-	// TODO: Figure out a good way of mocking the logic
-
 	return &agentproto.WorkspaceMonitorUpdateResponse{}, nil
 }
 
