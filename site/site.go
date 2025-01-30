@@ -330,10 +330,10 @@ func ShouldCacheFile(reqFile string) bool {
 // reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
 // The purpose is to track the first time the first user opens the site.
 func (h *Handler) reportHTMLFirstServedAt() {
-	ctx := context.Background()
+	// nolint:gocritic // Manipulating telemetry items is system-restricted.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
 	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
-	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
-	_, err := h.opts.Database.GetTelemetryItem(dbauthz.AsSystemRestricted(ctx), itemKey)
+	_, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
 	if err == nil {
 		// If the value is already set, then we reported it before.
 		// We don't need to report it again.
@@ -343,16 +343,14 @@ func (h *Handler) reportHTMLFirstServedAt() {
 		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
 		return
 	}
-	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
-	if err := h.opts.Database.InsertTelemetryItemIfNotExists(dbauthz.AsSystemRestricted(ctx), database.InsertTelemetryItemIfNotExistsParams{
+	if err := h.opts.Database.InsertTelemetryItemIfNotExists(ctx, database.InsertTelemetryItemIfNotExistsParams{
 		Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
 		Value: time.Now().Format(time.RFC3339),
 	}); err != nil {
 		h.opts.Logger.Debug(ctx, "failed to set telemetry html first served at", slog.Error(err))
 		return
 	}
-	// nolint:gocritic // Only used for telemetry, so AsSystemRestricted is fine.
-	item, err := h.opts.Database.GetTelemetryItem(dbauthz.AsSystemRestricted(ctx), itemKey)
+	item, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
 	if err != nil {
 		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
 		return
