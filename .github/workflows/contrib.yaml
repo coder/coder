@@ -3,7 +3,7 @@ name: contrib
 on:
   issue_comment:
     types: [created, edited]
-  pull_request_target: # for community 
+  pull_request_target:
     types:
       - opened
       - closed
