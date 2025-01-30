@@ -357,10 +357,9 @@ func (r *remoteReporter) ReportDisabledIfNeeded() error {
 	if telemetryDisabledErr != nil && !errors.Is(telemetryDisabledErr, sql.ErrNoRows) {
 		r.options.Logger.Debug(r.ctx, "get telemetry disabled", slog.Error(telemetryDisabledErr))
 	}
-	shouldReportDisabledTelemetry :=
-		telemetryUpdateErr == nil &&
-			((telemetryDisabledErr == nil && lastTelemetryUpdate.UpdatedAt.Before(telemetryDisabled.UpdatedAt)) ||
-				errors.Is(telemetryDisabledErr, sql.ErrNoRows))
+	shouldReportDisabledTelemetry := telemetryUpdateErr == nil &&
+		((telemetryDisabledErr == nil && lastTelemetryUpdate.UpdatedAt.Before(telemetryDisabled.UpdatedAt)) ||
+			errors.Is(telemetryDisabledErr, sql.ErrNoRows))
 	if !shouldReportDisabledTelemetry {
 		return nil
 	}
