@@ -1,5 +1,5 @@
 contact_links:
-  - name: Questions, Suggestion or Feature requests?
+  - name: Questions, suggestion or feature requests?
     url: https://github.com/coder/coder/discussions/new/choose
     about: Our preferred starting point if you have any questions or suggestions about configuration, features or unexpected behavior.
   - name: Coder Docs
