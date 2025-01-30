@@ -257,6 +257,7 @@
                     nix
                     curl.bin # Ensure the actual curl binary is included in the PATH
                     glibc.bin # Ensure the glibc binaries are included in the PATH
+                    jq.bin
                     binutils # ld and strings
                     filebrowser # Ensure that we're not redownloading filebrowser on each launch
                   ])

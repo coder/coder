@@ -19,6 +19,7 @@
   zstd,
   stdenv,
   glibc,
+  sudo,
 }:
 let
   inherit (lib)
@@ -88,10 +89,11 @@ let
 
       staticPath = "${dirOf shell}:${
         lib.makeBinPath (
-          lib.flatten [
+          (lib.flatten [
             builder
             drv.buildInputs
-          ]
+          ])
+          ++ [ "/usr" ]
         )
       }";
 
@@ -123,9 +125,36 @@ let
         experimental-features = nix-command flakes
       '';
 
-      etcNixConf = runCommand "etcd-nix-conf" { } ''
+      etcNixConf = runCommand "etc-nix-conf" { } ''
         mkdir -p $out/etc/nix/
         ln -s ${nixConfFile} $out/etc/nix/nix.conf
+      '';
+
+      sudoersFile = writeText "sudoers" ''
+        root ALL=(ALL) ALL
+        ${toString uname} ALL=(ALL) NOPASSWD:ALL
+      '';
+
+      etcSudoers = runCommand "etc-sudoers" { } ''
+        mkdir -p $out/etc/
+        cp ${sudoersFile} $out/etc/sudoers
+        chmod 440 $out/etc/sudoers
+      '';
+
+      pamSudoFile = writeText "pam-sudo" ''
+        auth       sufficient   pam_rootok.so
+        auth       required     pam_permit.so
+        account    required     pam_permit.so
+        session    required     pam_permit.so
+        session    optional     pam_xauth.so
+      '';
+
+      etcPamSudo = runCommand "etc-pam-sudo" { } ''
+        mkdir -p $out/etc/pam.d/
+        cp ${pamSudoFile} $out/etc/pam.d/sudo
+
+        # We can’t chown in a sandbox, but that’s okay for Nix store.
+        chmod 644 $out/etc/pam.d/sudo
       '';
 
       # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/globals.hh#L464-L465
@@ -194,6 +223,8 @@ let
         binSh
         usrBinEnv
         etcNixConf
+        etcSudoers
+        etcPamSudo
         (fakeNss.override {
           # Allows programs to look up the build user's home directory
           # https://github.com/NixOS/nix/blob/ffe155abd36366a870482625543f9bf924a58281/src/libstore/build/local-derivation-goal.cc#L906-L910
@@ -241,6 +272,17 @@ let
           mkdir -p ./lib64
           ln -s "${glibc}/lib64/ld-linux-x86-64.so.2" ./lib64/ld-linux-x86-64.so.2
         fi
+
+        # Copy sudo from the Nix store to a "normal" path in the container
+        mkdir -p ./usr/bin
+        cp ${sudo}/bin/sudo ./usr/bin/sudo
+
+        # Ensure root owns it & set setuid bit
+        chown 0:0 ./usr/bin/sudo
+        chmod 4755 ./usr/bin/sudo
+
+        chown root:root ./etc/pam.d/sudo
+        chown root:root ./etc/sudoers
       '';
 
       # Run this image as the given uid/gid
