@@ -1,11 +1,15 @@
 coder v0.0.0-devel
 
 USAGE:
-  coder tokens remove <name>
+  coder tokens remove [flags] <name|id|token>
 
   Delete a token
 
   Aliases: delete, rm
+
+OPTIONS:
+  -y, --yes bool
+          Bypass prompts.
 
 ———
 Run `coder --help` for a list of global options.
