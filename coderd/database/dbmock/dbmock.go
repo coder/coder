@@ -2361,6 +2361,21 @@ func (mr *MockStoreMockRecorder) GetTelemetryHTMLFirstServedAt(ctx any) *gomock.
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryHTMLFirstServedAt", reflect.TypeOf((*MockStore)(nil).GetTelemetryHTMLFirstServedAt), ctx)
 }
 
+// GetTelemetryItem mocks base method.
+func (m *MockStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTelemetryItem", ctx, key)
+	ret0, _ := ret[0].(database.TelemetryItem)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTelemetryItem indicates an expected call of GetTelemetryItem.
+func (mr *MockStoreMockRecorder) GetTelemetryItem(ctx, key any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTelemetryItem", reflect.TypeOf((*MockStore)(nil).GetTelemetryItem), ctx, key)
+}
+
 // GetTemplateAppInsights mocks base method.
 func (m *MockStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	m.ctrl.T.Helper()
@@ -4064,6 +4079,20 @@ func (m *MockStore) InsertReplica(ctx context.Context, arg database.InsertReplic
 func (mr *MockStoreMockRecorder) InsertReplica(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertReplica", reflect.TypeOf((*MockStore)(nil).InsertReplica), ctx, arg)
+}
+
+// InsertTelemetryItemIfNotExists mocks base method.
+func (m *MockStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertTelemetryItemIfNotExists", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// InsertTelemetryItemIfNotExists indicates an expected call of InsertTelemetryItemIfNotExists.
+func (mr *MockStoreMockRecorder) InsertTelemetryItemIfNotExists(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertTelemetryItemIfNotExists", reflect.TypeOf((*MockStore)(nil).InsertTelemetryItemIfNotExists), ctx, arg)
 }
 
 // InsertTemplate mocks base method.
@@ -5888,6 +5917,20 @@ func (m *MockStore) UpsertTailnetTunnel(ctx context.Context, arg database.Upsert
 func (mr *MockStoreMockRecorder) UpsertTailnetTunnel(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTailnetTunnel", reflect.TypeOf((*MockStore)(nil).UpsertTailnetTunnel), ctx, arg)
+}
+
+// UpsertTelemetryItem mocks base method.
+func (m *MockStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpsertTelemetryItem", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpsertTelemetryItem indicates an expected call of UpsertTelemetryItem.
+func (mr *MockStoreMockRecorder) UpsertTelemetryItem(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpsertTelemetryItem", reflect.TypeOf((*MockStore)(nil).UpsertTelemetryItem), ctx, arg)
 }
 
 // UpsertTemplateUsageStats mocks base method.

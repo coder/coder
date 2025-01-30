@@ -1141,6 +1141,13 @@ func (m queryMetricsStore) GetTelemetryHTMLFirstServedAt(ctx context.Context) (s
 	return r0, r1
 }
 
+func (m queryMetricsStore) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	start := time.Now()
+	r0, r1 := m.s.GetTelemetryItem(ctx, key)
+	m.queryLatencies.WithLabelValues("GetTelemetryItem").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	start := time.Now()
 	r0, r1 := m.s.GetTemplateAppInsights(ctx, arg)
@@ -1916,6 +1923,13 @@ func (m queryMetricsStore) InsertReplica(ctx context.Context, arg database.Inser
 	replica, err := m.s.InsertReplica(ctx, arg)
 	m.queryLatencies.WithLabelValues("InsertReplica").Observe(time.Since(start).Seconds())
 	return replica, err
+}
+
+func (m queryMetricsStore) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	start := time.Now()
+	r0 := m.s.InsertTelemetryItemIfNotExists(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertTelemetryItemIfNotExists").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
@@ -2784,6 +2798,13 @@ func (m queryMetricsStore) UpsertTailnetTunnel(ctx context.Context, arg database
 	r0, r1 := m.s.UpsertTailnetTunnel(ctx, arg)
 	m.queryLatencies.WithLabelValues("UpsertTailnetTunnel").Observe(time.Since(start).Seconds())
 	return r0, r1
+}
+
+func (m queryMetricsStore) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	start := time.Now()
+	r0 := m.s.UpsertTelemetryItem(ctx, arg)
+	m.queryLatencies.WithLabelValues("UpsertTelemetryItem").Observe(time.Since(start).Seconds())
+	return r0
 }
 
 func (m queryMetricsStore) UpsertTemplateUsageStats(ctx context.Context) error {
