@@ -821,22 +821,22 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			}
 
 			if !vals.Telemetry.Enable.Value() {
-				go func() {
-					reporter, err := telemetry.New(telemetry.Options{
-						DeploymentID: deploymentID,
-						Database:     options.Database,
-						Logger:       logger.Named("telemetry"),
-						URL:          vals.Telemetry.URL.Value(),
-					})
-					if err != nil {
-						logger.Debug(ctx, "create telemetry reporter (disabled)", slog.Error(err))
-						return
-					}
-					defer reporter.Close()
-					if err := reporter.ReportDisabledIfNeeded(); err != nil {
-						logger.Debug(ctx, "failed to report disabled telemetry", slog.Error(err))
-					}
-				}()
+				reporter, err := telemetry.New(telemetry.Options{
+					DeploymentID: deploymentID,
+					Database:     options.Database,
+					Logger:       logger.Named("telemetry"),
+					URL:          vals.Telemetry.URL.Value(),
+				})
+				if err != nil {
+					logger.Debug(ctx, "create telemetry reporter (disabled)", slog.Error(err))
+				} else {
+					go func() {
+						defer reporter.Close()
+						if err := reporter.ReportDisabledIfNeeded(); err != nil {
+							logger.Debug(ctx, "failed to report disabled telemetry", slog.Error(err))
+						}
+					}()
+				}
 			}
 
 			// This prevents the pprof import from being accidentally deleted.
