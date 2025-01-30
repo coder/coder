@@ -3,6 +3,7 @@ package coderd
 import (
 	"fmt"
 	"net/http"
+	"slices"
 
 	"github.com/google/uuid"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -292,7 +294,7 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	}
 	aReq.Old = *existing
 
-	err = api.IDPSync.UpdateOrganizationSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
+	err = api.IDPSync.UpdateOrganizationSyncSettings(sysCtx, api.Database, idpsync.OrganizationSyncSettings{
 		Field: req.Field,
 		// We do not check if the mappings point to actual organizations.
 		Mapping:       req.Mapping,
@@ -310,6 +312,93 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 	}
 
 	aReq.New = *settings
+	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
+		Field:         settings.Field,
+		Mapping:       settings.Mapping,
+		AssignDefault: settings.AssignDefault,
+	})
+}
+
+// @Summary Update organization IdP Sync mapping
+// @ID update-organization-idp-sync-mapping
+// @Security CoderSessionToken
+// @Produce json
+// @Accept json
+// @Tags Enterprise
+// @Success 200 {object} codersdk.OrganizationSyncSettings
+// @Param request body codersdk.PatchOrganizationIDPSyncMappingRequest true "Description of the mappings to add and remove"
+// @Router /settings/idpsync/organization/mapping [patch]
+func (api *API) patchOrganizationIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+	auditor := *api.AGPL.Auditor.Load()
+	aReq, commitAudit := audit.InitRequest[idpsync.OrganizationSyncSettings](rw, &audit.RequestParams{
+		Audit:   auditor,
+		Log:     api.Logger,
+		Request: r,
+		Action:  database.AuditActionWrite,
+	})
+	defer commitAudit()
+
+	if !api.Authorize(r, policy.ActionUpdate, rbac.ResourceIdpsyncSettings) {
+		httpapi.Forbidden(rw)
+		return
+	}
+
+	var req codersdk.PatchOrganizationIDPSyncMappingRequest
+	if !httpapi.Read(ctx, rw, r, &req) {
+		return
+	}
+
+	var settings idpsync.OrganizationSyncSettings
+	//nolint:gocritic // Requires system context to update runtime config
+	sysCtx := dbauthz.AsSystemRestricted(ctx)
+	err := database.ReadModifyUpdate(api.Database, func(tx database.Store) error {
+		existing, err := api.IDPSync.OrganizationSyncSettings(sysCtx, tx)
+		if err != nil {
+			return err
+		}
+		aReq.Old = *existing
+
+		newMapping := make(map[string][]uuid.UUID)
+
+		// Copy existing mapping
+		for key, ids := range existing.Mapping {
+			newMapping[key] = append(newMapping[key], ids...)
+		}
+
+		// Add unique entries
+		for _, mapping := range req.Add {
+			if !slice.Contains(newMapping[mapping.Given], mapping.Gets) {
+				newMapping[mapping.Given] = append(newMapping[mapping.Given], mapping.Gets)
+			}
+		}
+
+		// Remove entries
+		for _, mapping := range req.Remove {
+			newMapping[mapping.Given] = slices.DeleteFunc(newMapping[mapping.Given], func(u uuid.UUID) bool {
+				return u == mapping.Gets
+			})
+		}
+
+		settings = idpsync.OrganizationSyncSettings{
+			Field:         existing.Field,
+			Mapping:       newMapping,
+			AssignDefault: existing.AssignDefault,
+		}
+
+		err = api.IDPSync.UpdateOrganizationSyncSettings(sysCtx, tx, settings)
+		if err != nil {
+			return err
+		}
+
+		return nil
+	})
+	if err != nil {
+		httpapi.InternalServerError(rw, err)
+		return
+	}
+
+	aReq.New = settings
 	httpapi.Write(ctx, rw, http.StatusOK, codersdk.OrganizationSyncSettings{
 		Field:         settings.Field,
 		Mapping:       settings.Mapping,

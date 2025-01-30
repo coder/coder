@@ -300,7 +300,7 @@ func TestOrganizationSync(t *testing.T) {
 			// Create a new sync object
 			sync := enidpsync.NewSync(logger, runtimeconfig.NewManager(), caseData.Entitlements, caseData.Settings)
 			if caseData.RuntimeSettings != nil {
-				err := sync.UpdateOrganizationSettings(ctx, rdb, *caseData.RuntimeSettings)
+				err := sync.UpdateOrganizationSyncSettings(ctx, rdb, *caseData.RuntimeSettings)
 				require.NoError(t, err)
 			}
 

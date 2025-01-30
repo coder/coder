@@ -295,7 +295,7 @@ func TestTelemetry(t *testing.T) {
 		org, err := db.GetDefaultOrganization(ctx)
 		require.NoError(t, err)
 		sync := idpsync.NewAGPLSync(testutil.Logger(t), runtimeconfig.NewManager(), idpsync.DeploymentSyncSettings{})
-		err = sync.UpdateOrganizationSettings(ctx, db, idpsync.OrganizationSyncSettings{
+		err = sync.UpdateOrganizationSyncSettings(ctx, db, idpsync.OrganizationSyncSettings{
 			Field: "organizations",
 			Mapping: map[string][]uuid.UUID{
 				"first": {org.ID},
