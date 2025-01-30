@@ -20,5 +20,5 @@ CREATE TABLE workspace_monitors (
 
 ALTER TABLE workspace_monitors
 ADD CONSTRAINT workspace_monitor_volume_path_exclusion CHECK (
-	volume_path = NULL OR monitor_type = 'volume'
+       volume_path IS NULL OR monitor_type = 'volume'
 );

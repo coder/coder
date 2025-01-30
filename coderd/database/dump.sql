@@ -1760,7 +1760,7 @@ CREATE TABLE workspace_monitors (
     created_at timestamp with time zone NOT NULL,
     updated_at timestamp with time zone NOT NULL,
     debounced_until timestamp with time zone NOT NULL,
-    CONSTRAINT workspace_monitor_volume_path_exclusion CHECK (((volume_path = NULL::text) OR (monitor_type = 'volume'::workspace_monitor_type)))
+    CONSTRAINT workspace_monitor_volume_path_exclusion CHECK (((volume_path IS NULL) OR (monitor_type = 'volume'::workspace_monitor_type)))
 );
 
 CREATE TABLE workspace_proxies (

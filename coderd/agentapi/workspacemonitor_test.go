@@ -6,19 +6,45 @@ import (
 	"testing"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbmock"
+	"github.com/coder/coder/v2/coderd/database/dbgen"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/quartz"
 )
+
+func workspaceMonitorAPI(t *testing.T) (*agentapi.WorkspaceMonitorAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
+	t.Helper()
+
+	db, _ := dbtestutil.NewDB(t)
+	user := dbgen.User(t, db, database.User{})
+	org := dbgen.Organization(t, db, database.Organization{})
+	template := dbgen.Template(t, db, database.Template{
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
+	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
+		OrganizationID: org.ID,
+		TemplateID:     template.ID,
+		OwnerID:        user.ID,
+	})
+
+	notifyEnq := &notificationstest.FakeEnqueuer{}
+	clock := quartz.NewMock(t)
+
+	return &agentapi.WorkspaceMonitorAPI{
+		WorkspaceID:           workspace.ID,
+		Clock:                 clock,
+		Database:              db,
+		NotificationsEnqueuer: notifyEnq,
+	}, user, clock, notifyEnq
+}
 
 func TestWorkspaceMemoryMonitor(t *testing.T) {
 	t.Parallel()
@@ -108,19 +134,11 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			notifyEnq := notificationstest.FakeEnqueuer{}
-			mDB := dbmock.NewMockStore(gomock.NewController(t))
-			clock := quartz.NewMock(t)
-			api := &agentapi.WorkspaceMonitorAPI{
-				WorkspaceID:           uuid.New(),
-				Clock:                 clock,
-				Database:              mDB,
-				NotificationsEnqueuer: &notifyEnq,
-				MinimumNOKs:           tt.minimumNOKs,
-				ConsecutiveNOKs:       tt.consecutiveNOKs,
-				MemoryMonitorEnabled:  true,
-				MemoryUsageThreshold:  tt.thresholdPercent,
-			}
+			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
+			api.MinimumNOKs = tt.minimumNOKs
+			api.ConsecutiveNOKs = tt.consecutiveNOKs
+			api.MemoryMonitorEnabled = true
+			api.MemoryUsageThreshold = tt.thresholdPercent
 
 			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
@@ -135,31 +153,11 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 				})
 			}
 
-			ownerID := uuid.New()
-
-			mDB.EXPECT().GetWorkspaceMonitor(gomock.Any(), database.GetWorkspaceMonitorParams{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeMemory,
-			}).Return(database.WorkspaceMonitor{
+			dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
 				WorkspaceID: api.WorkspaceID,
 				MonitorType: database.WorkspaceMonitorTypeMemory,
 				State:       tt.previousState,
-			}, nil)
-
-			mDB.EXPECT().UpdateWorkspaceMonitor(gomock.Any(), database.UpdateWorkspaceMonitorParams{
-				WorkspaceID:    api.WorkspaceID,
-				MonitorType:    database.WorkspaceMonitorTypeMemory,
-				State:          tt.expectState,
-				UpdatedAt:      collectedAt,
-				DebouncedUntil: collectedAt,
 			})
-
-			if tt.shouldNotify {
-				mDB.EXPECT().GetWorkspaceByID(gomock.Any(), api.WorkspaceID).Return(database.Workspace{
-					ID:      api.WorkspaceID,
-					OwnerID: ownerID,
-				}, nil)
-			}
 
 			clock.Set(collectedAt)
 			_, err := api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
@@ -170,7 +168,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
-				require.Equal(t, ownerID, sent[0].UserID)
+				require.Equal(t, user.ID, sent[0].UserID)
 			} else {
 				require.Len(t, sent, 0)
 			}
@@ -273,19 +271,11 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			notifyEnq := notificationstest.FakeEnqueuer{}
-			mDB := dbmock.NewMockStore(gomock.NewController(t))
-			clock := quartz.NewMock(t)
-			api := &agentapi.WorkspaceMonitorAPI{
-				WorkspaceID:           uuid.New(),
-				Clock:                 clock,
-				Database:              mDB,
-				NotificationsEnqueuer: &notifyEnq,
-				MinimumNOKs:           tt.minimumNOKs,
-				ConsecutiveNOKs:       tt.consecutiveNOKs,
-				VolumeUsageThresholds: map[string]int32{
-					tt.volumePath: tt.thresholdPercent,
-				},
+			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
+			api.MinimumNOKs = tt.minimumNOKs
+			api.ConsecutiveNOKs = tt.consecutiveNOKs
+			api.VolumeUsageThresholds = map[string]int32{
+				tt.volumePath: tt.thresholdPercent,
 			}
 
 			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.volumeUsage))
@@ -307,34 +297,12 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 				})
 			}
 
-			ownerID := uuid.New()
-
-			mDB.EXPECT().GetWorkspaceMonitor(gomock.Any(), database.GetWorkspaceMonitorParams{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeVolume,
-				VolumePath:  sql.NullString{Valid: true, String: tt.volumePath},
-			}).Return(database.WorkspaceMonitor{
+			dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
 				WorkspaceID: api.WorkspaceID,
 				MonitorType: database.WorkspaceMonitorTypeVolume,
 				VolumePath:  sql.NullString{Valid: true, String: tt.volumePath},
 				State:       tt.previousState,
-			}, nil)
-
-			mDB.EXPECT().UpdateWorkspaceMonitor(gomock.Any(), database.UpdateWorkspaceMonitorParams{
-				WorkspaceID:    api.WorkspaceID,
-				MonitorType:    database.WorkspaceMonitorTypeVolume,
-				VolumePath:     sql.NullString{Valid: true, String: tt.volumePath},
-				State:          tt.expectState,
-				UpdatedAt:      collectedAt,
-				DebouncedUntil: collectedAt,
 			})
-
-			if tt.shouldNotify {
-				mDB.EXPECT().GetWorkspaceByID(gomock.Any(), api.WorkspaceID).Return(database.Workspace{
-					ID:      api.WorkspaceID,
-					OwnerID: ownerID,
-				}, nil)
-			}
 
 			clock.Set(collectedAt)
 			_, err := api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
@@ -345,7 +313,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 			if tt.shouldNotify {
 				require.Len(t, sent, 1)
-				require.Equal(t, ownerID, sent[0].UserID)
+				require.Equal(t, user.ID, sent[0].UserID)
 			} else {
 				require.Len(t, sent, 0)
 			}
