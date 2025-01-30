@@ -1466,6 +1466,12 @@ export interface PatchGroupRequest {
 }
 
 // From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncConfigRequest {
+	readonly field: string;
+	readonly assign_default: boolean;
+}
+
+// From codersdk/idpsync.go
 export interface PatchOrganizationIDPSyncMappingRequest {
 	readonly Add: readonly IDPSyncMapping<string>[];
 	readonly Remove: readonly IDPSyncMapping<string>[];

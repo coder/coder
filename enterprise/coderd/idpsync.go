@@ -326,8 +326,8 @@ func (api *API) patchOrganizationIDPSyncSettings(rw http.ResponseWriter, r *http
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.OrganizationSyncSettings
-// @Param request body codersdk.OrganizationSyncSettings true "New settings"
-// @Router /settings/idpsync/organization [patch]
+// @Param request body codersdk.PatchOrganizationIDPSyncConfigRequest true "New config values"
+// @Router /settings/idpsync/organization/config [patch]
 func (api *API) patchOrganizationIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	auditor := *api.AGPL.Auditor.Load()

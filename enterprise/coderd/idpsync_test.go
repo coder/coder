@@ -322,6 +322,7 @@ func TestPatchOrganizationSyncSettings(t *testing.T) {
 		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
 	})
 }
+
 func TestPatchOrganizationSyncConfig(t *testing.T) {
 	t.Parallel()
 
