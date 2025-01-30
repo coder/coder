@@ -259,7 +259,6 @@ type data struct {
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
-	htmlFirstServedAt                string
 	telemetryItems                   []database.TelemetryItem
 }
 
