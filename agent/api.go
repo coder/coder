@@ -35,7 +35,11 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
+	ch := &containersHandler{
+		cacheDuration: defaultGetContainersCacheDuration,
+	}
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
+	r.Get("/api/v0/containers", ch.handler)
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)

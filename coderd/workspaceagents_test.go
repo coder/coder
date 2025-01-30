@@ -16,6 +16,8 @@ import (
 
 	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
+	"github.com/ory/dockertest/v3"
+	"github.com/ory/dockertest/v3/docker"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
@@ -1051,6 +1053,87 @@ func TestWorkspaceAgentListeningPorts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Ports, 0)
 	})
+}
+
+func TestWorkspaceAgentContainers(t *testing.T) {
+	t.Parallel()
+
+	if runtime.GOOS != "linux" {
+		t.Skip("this test creates containers, which is flaky on non-linux runners")
+	}
+
+	pool, err := dockertest.NewPool("")
+	require.NoError(t, err, "Could not connect to docker")
+	testLabels := map[string]string{
+		"com.coder.test": uuid.New().String(),
+	}
+	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+		Labels:     testLabels,
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "Could not start test docker container")
+	t.Cleanup(func() {
+		assert.NoError(t, pool.Purge(ct), "Could not purge resource")
+	})
+
+	// Start another container which we will expect to ignore.
+	ct2, err := pool.RunWithOptions(&dockertest.RunOptions{
+		Repository: "busybox",
+		Tag:        "latest",
+		Cmd:        []string{"sleep", "infnity"},
+		Labels:     map[string]string{"com.coder.test": "ignoreme"},
+	}, func(config *docker.HostConfig) {
+		config.AutoRemove = true
+		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
+	})
+	require.NoError(t, err, "Could not start second test docker container")
+	t.Cleanup(func() {
+		assert.NoError(t, pool.Purge(ct2), "Could not purge resource")
+	})
+
+	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
+
+	user := coderdtest.CreateFirstUser(t, client)
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
+		OrganizationID: user.OrganizationID,
+		OwnerID:        user.UserID,
+	}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
+		return agents
+	}).Do()
+	_ = agenttest.New(t, client.URL, r.AgentToken, func(_ *agent.Options) {})
+	resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+	require.Len(t, resources, 1, "expected one resource")
+	require.Len(t, resources[0].Agents, 1, "expected one agent")
+	agentID := resources[0].Agents[0].ID
+
+	ctx := testutil.Context(t, testutil.WaitLong)
+
+	// If we filter by testLabels, we should only get one container back.
+	res, err := client.WorkspaceAgentListContainers(ctx, agentID, testLabels)
+	require.NoError(t, err, "failed to list containers filtered by test label")
+	require.Len(t, res.Containers, 1, "expected exactly one container")
+	assert.Equal(t, ct.Container.ID, res.Containers[0].ID, "expected container ID to match")
+	assert.Equal(t, "busybox:latest", res.Containers[0].Image, "expected container image to match")
+	assert.Equal(t, ct.Container.Config.Labels, res.Containers[0].Labels, "expected container labels to match")
+	assert.Equal(t, strings.TrimPrefix(ct.Container.Name, "/"), res.Containers[0].FriendlyName, "expected container name to match")
+	assert.True(t, res.Containers[0].Running, "expected container to be running")
+	assert.Equal(t, "running", res.Containers[0].Status, "expected container status to be running")
+
+	// List all containers and ensure we get at least both (there may be more).
+	res, err = client.WorkspaceAgentListContainers(ctx, agentID, nil)
+	require.NoError(t, err, "failed to list all containers")
+	require.NotEmpty(t, res.Containers, "expected to find containers")
+	var found []string
+	for _, c := range res.Containers {
+		found = append(found, c.ID)
+	}
+	require.Contains(t, found, ct.Container.ID, "expected to find first container without label filter")
+	require.Contains(t, found, ct2.Container.ID, "expected to find first container without label filter")
 }
 
 func TestWorkspaceAgentAppHealth(t *testing.T) {

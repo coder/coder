@@ -336,6 +336,22 @@ func (c *AgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 	return bs, nil
 }
 
+// ListContainers returns a response from the agent's containers endpoint
+func (c *AgentConn) ListContainers(ctx context.Context) ([]codersdk.WorkspaceAgentContainer, error) {
+	ctx, span := tracing.StartSpan(ctx)
+	defer span.End()
+	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/containers", nil)
+	if err != nil {
+		return nil, xerrors.Errorf("do request: %w", err)
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return nil, codersdk.ReadBodyAsError(res)
+	}
+	var resp []codersdk.WorkspaceAgentContainer
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
 // apiRequest makes a request to the workspace agent's HTTP API server.
 func (c *AgentConn) apiRequest(ctx context.Context, method, path string, body io.Reader) (*http.Response, error) {
 	ctx, span := tracing.StartSpan(ctx)
