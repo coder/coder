@@ -4333,16 +4333,6 @@ func (*FakeQuerier) GetTailnetTunnelPeerIDs(context.Context, uuid.UUID) ([]datab
 	return nil, ErrUnimplemented
 }
 
-func (q *FakeQuerier) GetTelemetryHTMLFirstServedAt(ctx context.Context) (string, error) {
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-	if q.htmlFirstServedAt == "" {
-		return "", sql.ErrNoRows
-	}
-
-	return q.htmlFirstServedAt, nil
-}
-
 func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.TelemetryItem, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -9175,16 +9165,6 @@ func (q *FakeQuerier) RevokeDBCryptKey(_ context.Context, activeKeyDigest string
 	}
 
 	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) SetTelemetryHTMLFirstServedAt(ctx context.Context, value string) error {
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-	if q.htmlFirstServedAt != "" {
-		return nil
-	}
-	q.htmlFirstServedAt = value
-	return nil
 }
 
 func (*FakeQuerier) TryAcquireLock(_ context.Context, _ int64) (bool, error) {

@@ -4224,12 +4224,6 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceModulesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
-	s.Run("GetTelemetryHTMLFirstServedAt", s.Subtest(func(db database.Store, check *expects) {
-		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
-	}))
-	s.Run("SetTelemetryHTMLFirstServedAt", s.Subtest(func(db database.Store, check *expects) {
-		check.Args(time.Now().Format(time.RFC3339)).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
-	}))
 	s.Run("GetTelemetryItem", s.Subtest(func(db database.Store, check *expects) {
 		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
 	}))

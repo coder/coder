@@ -330,18 +330,6 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 	return syncConfig.Field != "", nil
 }
 
-func getHTMLFirstServedAt(ctx context.Context, db database.Store) (*time.Time, error) {
-	htmlFirstServedAtStr, err := db.GetTelemetryHTMLFirstServedAt(ctx)
-	if err != nil {
-		return nil, xerrors.Errorf("get telemetry html first served at: %w", err)
-	}
-	t, err := time.Parse(time.RFC3339, htmlFirstServedAtStr)
-	if err != nil {
-		return nil, xerrors.Errorf("parse telemetry html first served at: %w", err)
-	}
-	return &t, nil
-}
-
 // createSnapshot collects a full snapshot from the database.
 func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 	var (
