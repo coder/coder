@@ -987,8 +987,8 @@ func TestServer(t *testing.T) {
 		require.NoError(t, err)
 		require.NoError(t, body.Body.Close())
 
-		snap := <-snapshot
-		require.Condition(t, func() bool {
+		require.Eventually(t, func() bool {
+			snap := <-snapshot
 			htmlFirstServedFound := false
 			for _, item := range snap.TelemetryItems {
 				if item.Key == string(telemetry.TelemetryItemKeyHTMLFirstServedAt) {
@@ -996,7 +996,7 @@ func TestServer(t *testing.T) {
 				}
 			}
 			return htmlFirstServedFound
-		}, "no html_first_served telemetry item")
+		}, testutil.WaitMedium, testutil.IntervalFast, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
