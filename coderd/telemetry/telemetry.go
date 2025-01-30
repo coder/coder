@@ -47,10 +47,11 @@ type Options struct {
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	DeploymentID     string
-	DeploymentConfig *codersdk.DeploymentValues
-	BuiltinPostgres  bool
-	Tunnel           bool
+	DeploymentID         string
+	DeploymentConfig     *codersdk.DeploymentValues
+	BuiltinPostgres      bool
+	Tunnel               bool
+	DisableReportOnClose bool
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
@@ -175,10 +176,12 @@ func (r *remoteReporter) Close() {
 	close(r.closed)
 	now := dbtime.Now()
 	r.shutdownAt = &now
-	// Report a final collection of telemetry prior to close!
-	// This could indicate final actions a user has taken, and
-	// the time the deployment was shutdown.
-	r.reportWithDeployment()
+	if !r.options.DisableReportOnClose {
+		// Report a final collection of telemetry prior to close!
+		// This could indicate final actions a user has taken, and
+		// the time the deployment was shutdown.
+		r.reportWithDeployment()
+	}
 	r.closeFunc()
 }
 

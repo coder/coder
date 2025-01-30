@@ -822,10 +822,11 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 
 			if !vals.Telemetry.Enable.Value() {
 				reporter, err := telemetry.New(telemetry.Options{
-					DeploymentID: deploymentID,
-					Database:     options.Database,
-					Logger:       logger.Named("telemetry"),
-					URL:          vals.Telemetry.URL.Value(),
+					DeploymentID:         deploymentID,
+					Database:             options.Database,
+					Logger:               logger.Named("telemetry"),
+					URL:                  vals.Telemetry.URL.Value(),
+					DisableReportOnClose: true,
 				})
 				if err != nil {
 					logger.Debug(ctx, "create telemetry reporter (disabled)", slog.Error(err))
