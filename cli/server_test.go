@@ -2041,7 +2041,7 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
 			}
 			if opts.waitForTelemetryDisabledCheck {
-				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished disabled telemetry check")
+				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
 			}
 		}()
 		<-finished
@@ -2074,8 +2074,7 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	// 2. the second pair is sent when the server shuts down
 	for i := 0; i < 2; i++ {
 		select {
-		case ss := <-snapshot:
-			t.Logf("got this fun snapshot: %+v", ss)
+		case <-snapshot:
 		case <-time.After(testutil.WaitShort / 2):
 			t.Fatalf("timed out waiting for snapshot")
 		}
@@ -2096,7 +2095,8 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	select {
 	case ss := <-snapshot:
 		require.Len(t, ss.TelemetryItems, 1)
-		require.Equal(t, string(telemetry.TelemetryItemKeyTelemetryDisabled), ss.TelemetryItems[0].Key)
+		require.Equal(t, string(telemetry.TelemetryItemKeyTelemetryEnabled), ss.TelemetryItems[0].Key)
+		require.Equal(t, "0", ss.TelemetryItems[0].Value)
 	case <-time.After(testutil.WaitShort / 2):
 		t.Fatalf("timed out waiting for snapshot")
 	}

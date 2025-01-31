@@ -362,63 +362,70 @@ func TestTelemetryItem(t *testing.T) {
 	require.Equal(t, item.Value, "new_value")
 }
 
-func TestReportDisabledIfNeeded(t *testing.T) {
+func TestShouldReportTelemetryDisabled(t *testing.T) {
 	t.Parallel()
-	db, _ := dbtestutil.NewDB(t)
-	ctx := testutil.Context(t, testutil.WaitMedium)
-	serverURL, _, snapshotChan := mockTelemetryServer(t)
+	// Description                            | telemetryEnabled (db) | telemetryEnabled (is) | Report Telemetry Disabled |
+	//----------------------------------------|-----------------------|-----------------------|---------------------------|
+	// New deployment                         | <null>                | true                  | No                        |
+	// New deployment with telemetry disabled | <null>                | false                 | No                        |
+	// Telemetry was enabled, and still is    | true                  | true                  | No                        |
+	// Telemetry was enabled but now disabled | true                  | false                 | Yes                       |
+	// Telemetry was disabled, now is enabled | false                 | true                  | No                        |
+	// Telemetry was disabled, still disabled | false                 | false                 | No                        |
+	boolTrue := true
+	boolFalse := false
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(nil, true))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(nil, false))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolTrue, true))
+	require.True(t, telemetry.ShouldReportTelemetryDisabled(&boolTrue, false))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolFalse, true))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolFalse, false))
+}
 
-	options := telemetry.Options{
-		Database:             db,
-		Logger:               testutil.Logger(t),
-		URL:                  serverURL,
-		DeploymentID:         uuid.NewString(),
-		DisableReportOnClose: true,
-	}
+func TestRecordTelemetryStatusChange(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name                     string
+		recordedTelemetryEnabled string
+		telemetryEnabled         bool
+		shouldReport             bool
+	}{
+		{name: "New deployment", recordedTelemetryEnabled: "nil", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry disabled", recordedTelemetryEnabled: "nil", telemetryEnabled: false, shouldReport: false},
+		{name: "Telemetry was enabled and still is", recordedTelemetryEnabled: "1", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was enabled but now disabled", recordedTelemetryEnabled: "1", telemetryEnabled: false, shouldReport: true},
+		{name: "Telemetry was disabled now is enabled", recordedTelemetryEnabled: "0", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "0", telemetryEnabled: false, shouldReport: false},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	reporter, err := telemetry.New(options)
-	require.NoError(t, err)
-	t.Cleanup(reporter.Close)
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			if testCase.recordedTelemetryEnabled != "nil" {
+				db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+					Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
+					Value: testCase.recordedTelemetryEnabled,
+				})
+			}
+			snapshot1, err := telemetry.RecordTelemetryStatusChange(ctx, db, testCase.telemetryEnabled)
+			require.NoError(t, err)
 
-	// No telemetry enabled item, so no report should be sent
-	require.NoError(t, reporter.ReportDisabledIfNeeded())
-	require.Empty(t, snapshotChan)
+			if testCase.shouldReport {
+				require.NotNil(t, snapshot1)
+				require.Equal(t, snapshot1.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryEnabled))
+				require.Equal(t, snapshot1.TelemetryItems[0].Value, "0")
+			} else {
+				require.Nil(t, snapshot1)
+			}
 
-	// Telemetry enabled item present, and a telemetry disabled item not present
-	// Report should be sent
-	_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
-		Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
-		Value: "",
-	})
-	require.NoError(t, reporter.ReportDisabledIfNeeded())
-	select {
-	case snapshot := <-snapshotChan:
-		require.Len(t, snapshot.TelemetryItems, 1)
-		require.Equal(t, snapshot.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryDisabled))
-	case <-time.After(testutil.WaitShort / 2):
-		t.Fatal("timeout waiting for snapshot")
-	}
-
-	// Telemetry enabled item present, and a more recent telemetry disabled item present
-	// Report should not be sent
-	require.NoError(t, reporter.ReportDisabledIfNeeded())
-	require.Empty(t, snapshotChan)
-
-	// Telemetry enabled item present, and a less recent telemetry disabled item present
-	// Report should be sent
-	// Wait a bit to ensure UpdatedAt is greater when we upsert the telemetry enabled item
-	time.Sleep(100 * time.Millisecond)
-	require.NoError(t, db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
-		Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
-		Value: "",
-	}))
-	require.NoError(t, reporter.ReportDisabledIfNeeded())
-	select {
-	case snapshot := <-snapshotChan:
-		require.Len(t, snapshot.TelemetryItems, 1)
-		require.Equal(t, snapshot.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryDisabled))
-	case <-time.After(testutil.WaitShort / 2):
-		t.Fatal("timeout waiting for snapshot")
+			for i := 0; i < 3; i++ {
+				// Whatever happens, subsequent calls should not report if telemetryEnabled didn't change
+				snapshot2, err := telemetry.RecordTelemetryStatusChange(ctx, db, testCase.telemetryEnabled)
+				require.NoError(t, err)
+				require.Nil(t, snapshot2)
+			}
+		})
 	}
 }
 
@@ -470,7 +477,6 @@ func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts tel
 
 	reporter, err := telemetry.New(options)
 	require.NoError(t, err)
-	go reporter.RunSnapshotter()
 	t.Cleanup(reporter.Close)
 	return <-deployment, <-snapshot
 }

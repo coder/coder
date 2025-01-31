@@ -42,16 +42,16 @@ const (
 )
 
 type Options struct {
+	Enabled  bool
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
 	URL *url.URL
 
-	DeploymentID         string
-	DeploymentConfig     *codersdk.DeploymentValues
-	BuiltinPostgres      bool
-	Tunnel               bool
-	DisableReportOnClose bool
+	DeploymentID     string
+	DeploymentConfig *codersdk.DeploymentValues
+	BuiltinPostgres  bool
+	Tunnel           bool
 
 	SnapshotFrequency time.Duration
 	ParseLicenseJWT   func(lic *License) error
@@ -60,9 +60,6 @@ type Options struct {
 // New constructs a reporter for telemetry data.
 // Duplicate data will be sent, it's on the server-side to index by UUID.
 // Data is anonymized prior to being sent!
-//
-// The returned Reporter should be started with RunSnapshotter() to begin
-// reporting.
 func New(options Options) (Reporter, error) {
 	if options.SnapshotFrequency == 0 {
 		// Report once every 30mins by default!
@@ -87,6 +84,7 @@ func New(options Options) (Reporter, error) {
 		snapshotURL:   snapshotURL,
 		startedAt:     dbtime.Now(),
 	}
+	go reporter.runSnapshotter()
 	return reporter, nil
 }
 
@@ -104,16 +102,6 @@ type Reporter interface {
 	Report(snapshot *Snapshot)
 	Enabled() bool
 	Close()
-	// RunSnapshotter runs reporting in a loop. It should be called in a
-	// goroutine to avoid blocking the caller.
-	RunSnapshotter()
-	// ReportDisabledIfNeeded reports that the telemetry was disabled in the following scenarios:
-	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
-	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
-	//    was enabled again, then disabled again, and we haven't reported it yet.
-	//
-	// In particular, it does nothing if the telemetry was never enabled.
-	ReportDisabledIfNeeded() error
 }
 
 type remoteReporter struct {
@@ -129,8 +117,8 @@ type remoteReporter struct {
 	shutdownAt *time.Time
 }
 
-func (*remoteReporter) Enabled() bool {
-	return true
+func (r *remoteReporter) Enabled() bool {
+	return r.options.Enabled
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
@@ -174,7 +162,7 @@ func (r *remoteReporter) Close() {
 	close(r.closed)
 	now := dbtime.Now()
 	r.shutdownAt = &now
-	if !r.options.DisableReportOnClose {
+	if r.Enabled() {
 		// Report a final collection of telemetry prior to close!
 		// This could indicate final actions a user has taken, and
 		// the time the deployment was shutdown.
@@ -192,17 +180,72 @@ func (r *remoteReporter) isClosed() bool {
 	}
 }
 
-func (r *remoteReporter) recordTelemetryEnabled() {
-	if err := r.options.Database.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
-		Key:   string(TelemetryItemKeyTelemetryEnabled),
-		Value: "",
-	}); err != nil {
-		r.options.Logger.Debug(r.ctx, "upsert telemetry enabled", slog.Error(err))
-	}
+// See the corresponding test in telemetry_test.go for a truth table.
+func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnabled bool) bool {
+	return recordedTelemetryEnabled != nil && *recordedTelemetryEnabled && !telemetryEnabled
 }
 
-func (r *remoteReporter) RunSnapshotter() {
-	r.recordTelemetryEnabled()
+// RecordTelemetryStatusChange records the telemetry status change in the database.
+// If the change should be reported, meaning that the status changed from enabled to disabled,
+// returns a snapshot to be sent to the telemetry server.
+func RecordTelemetryStatusChange( //nolint:revive
+	ctx context.Context,
+	db database.Store,
+	telemetryEnabled bool,
+) (*Snapshot, error) {
+	item, err := db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get telemetry enabled: %w", err)
+	}
+	var recordedTelemetryEnabled *bool
+	if !errors.Is(err, sql.ErrNoRows) {
+		value := item.Value == "1"
+		recordedTelemetryEnabled = &value
+	}
+
+	newValue := "0"
+	if telemetryEnabled {
+		newValue = "1"
+	}
+
+	if err := db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+		Key:   string(TelemetryItemKeyTelemetryEnabled),
+		Value: newValue,
+	}); err != nil {
+		return nil, xerrors.Errorf("upsert telemetry enabled: %w", err)
+	}
+
+	shouldReport := ShouldReportTelemetryDisabled(recordedTelemetryEnabled, telemetryEnabled)
+	if !shouldReport {
+		return nil, nil //nolint:nilnil
+	}
+	// If any of the following calls fail, we will never report the disabled telemetry.
+	// Subsequent function calls will see the TelemetryDisabled item
+	// and quit early. This is okay. We only want to ping the telemetry server once,
+	// and never again. If that attempt fails, so be it.
+	item, err = db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
+	if err != nil {
+		return nil, xerrors.Errorf("get telemetry enabled after upsert: %w", err)
+	}
+	return &Snapshot{
+		TelemetryItems: []TelemetryItem{
+			ConvertTelemetryItem(item),
+		},
+	}, nil
+}
+
+func (r *remoteReporter) runSnapshotter() {
+	telemetryDisabledSnapshot, err := RecordTelemetryStatusChange(r.ctx, r.options.Database, r.Enabled())
+	if err != nil {
+		r.options.Logger.Debug(r.ctx, "record and maybe report telemetry status", slog.Error(err))
+	}
+	if telemetryDisabledSnapshot != nil {
+		r.reportSync(telemetryDisabledSnapshot)
+	}
+	r.options.Logger.Debug(r.ctx, "finished telemetry status check")
+	if !r.Enabled() {
+		return
+	}
 
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
@@ -354,57 +397,6 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
 	}
 	return syncConfig.Field != "", nil
-}
-
-func (r *remoteReporter) ReportDisabledIfNeeded() error {
-	db := r.options.Database
-	telemetryEnabled, telemetryEnabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryEnabled))
-	if telemetryEnabledErr != nil && !errors.Is(telemetryEnabledErr, sql.ErrNoRows) {
-		r.options.Logger.Debug(r.ctx, "get telemetry enabled", slog.Error(telemetryEnabledErr))
-	}
-	telemetryDisabled, telemetryDisabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
-	if telemetryDisabledErr != nil && !errors.Is(telemetryDisabledErr, sql.ErrNoRows) {
-		r.options.Logger.Debug(r.ctx, "get telemetry disabled", slog.Error(telemetryDisabledErr))
-	}
-	// There are 2 scenarios in which we want to report the disabled telemetry:
-	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
-	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
-	//    was enabled again, then disabled again, and we haven't reported it yet.
-	//
-	// - In both cases, the TelemetryEnabled item will be present.
-	// - In case 1. the TelemetryDisabled item will not be present.
-	// - In case 2. the TelemetryDisabled item will be present, and the TelemetryEnabled item will
-	//   be more recent than the TelemetryDisabled item.
-	shouldReportDisabledTelemetry := telemetryEnabledErr == nil &&
-		(errors.Is(telemetryDisabledErr, sql.ErrNoRows) ||
-			(telemetryDisabledErr == nil && telemetryEnabled.UpdatedAt.After(telemetryDisabled.UpdatedAt)))
-	if !shouldReportDisabledTelemetry {
-		return nil
-	}
-
-	if err := db.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
-		Key:   string(TelemetryItemKeyTelemetryDisabled),
-		Value: "",
-	}); err != nil {
-		return xerrors.Errorf("upsert telemetry disabled: %w", err)
-	}
-	// If any of the following calls fail, we will never report the disabled telemetry.
-	// Subsequent ReportDisabledIfNeeded calls will see the TelemetryDisabled item
-	// and quit early. This is okay. We only want to ping the telemetry server once,
-	// and never again. If that attempt fails, so be it.
-	item, err := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
-	if err != nil {
-		return xerrors.Errorf("get telemetry disabled: %w", err)
-	}
-
-	r.reportSync(
-		&Snapshot{
-			TelemetryItems: []TelemetryItem{
-				ConvertTelemetryItem(item),
-			},
-		},
-	)
-	return nil
 }
 
 // createSnapshot collects a full snapshot from the database.
@@ -1645,7 +1637,6 @@ type telemetryItemKey string
 const (
 	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
-	TelemetryItemKeyTelemetryDisabled telemetryItemKey = "telemetry_disabled"
 )
 
 type TelemetryItem struct {
