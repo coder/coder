@@ -18,7 +18,7 @@ jobs:
   # Dependabot is annoying, but this makes it a bit less so.
   dependabot-automerge:
     runs-on: ubuntu-latest
-    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.repository == 'coder/coder'
+    if: github.event_name == 'pull_request' && github.event.pull_request.user.login == 'dependabot[bot]' && github.actor_id == 49699333 && github.repository == 'coder/coder'
     permissions:
       pull-requests: write
       contents: write
@@ -30,13 +30,17 @@ jobs:
           github-token: "${{ secrets.GITHUB_TOKEN }}"
 
       - name: Approve the PR
-        run: gh pr review --approve "$PR_URL"
+        run: |
+          echo "Approving $PR_URL"
+          gh pr review --approve "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
       - name: Enable auto-merge
-        run: gh pr merge --auto --squash "$PR_URL"
+        run: |
+          echo "Enabling auto-merge for $PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
@@ -44,7 +48,7 @@ jobs:
   dependabot-automerge-notify:
     # Send a slack notification when a dependabot PR is merged.
     runs-on: ubuntu-latest
-    if: github.event_name == 'push' && github.actor == 'github-actions[bot]'
+    if: github.event_name == 'push' && github.actor == 'github-actions[bot]' && github.actor_id == 41898282 && github.repository == 'coder/coder'
     steps:
       - name: Send Slack notification
         env:
