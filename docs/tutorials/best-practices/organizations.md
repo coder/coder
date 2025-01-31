@@ -94,17 +94,6 @@ provider such as Okta. A single claim from the identity provider (like
 `memberOf`) can be used to sync site-wide roles, organizations, groups, and
 organization roles.
 
-### Planned enhancements
-
-Site-wide role sync is managed via server flags. We plan on changing this to
-runtime configuration so Coder does not need a re-deploy:
-
-- Issue [coder/internal#86](https://github.com/coder/internal/issues/86)
-
-Make all sync configurable via the dashboard UI:
-
-- [coder/coder#15290](https://github.com/coder/coder/issues/15290)
-
 Regex filters and mapping can be configured to ensure the proper resources are
 allocated in Coder. Learn more about [IDP sync](../../admin/users/idp-sync.md).
 
