@@ -836,6 +836,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 						if err := reporter.ReportDisabledIfNeeded(); err != nil {
 							logger.Debug(ctx, "failed to report disabled telemetry", slog.Error(err))
 						}
+						logger.Debug(ctx, "finished disabled telemetry check")
 					}()
 				}
 			}
