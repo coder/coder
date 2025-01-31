@@ -390,8 +390,7 @@ func (r *remoteReporter) ReportDisabledIfNeeded() error {
 	}
 	// If any of the following calls fail, we will never report the disabled telemetry.
 	// Subsequent ReportDisabledIfNeeded calls will see the TelemetryDisabled item
-	// and quit early. This is okay. We only want to ping the telemetry server once
-	// at the time when the Coder server is first started with telemetry disabled,
+	// and quit early. This is okay. We only want to ping the telemetry server once,
 	// and never again. If that attempt fails, so be it.
 	item, err := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
 	if err != nil {
