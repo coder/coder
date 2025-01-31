@@ -1936,7 +1936,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					CreatedAt: dbtime.Now(),
 				})
 				if err != nil {
-					return xerrors.Errorf("insert agent memory resource monitor: %w", err)
+					return xerrors.Errorf("failed to insert agent memory resource monitor into db: %w", err)
 				}
 			}
 			for _, volume := range prAgent.ResourcesMonitoring.Volumes {
@@ -1948,7 +1948,7 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 					CreatedAt: dbtime.Now(),
 				})
 				if err != nil {
-					return xerrors.Errorf("insert agent volume resource monitor: %w", err)
+					return xerrors.Errorf("failed to insert agent volume resource monitor into db: %w", err)
 				}
 			}
 		}
