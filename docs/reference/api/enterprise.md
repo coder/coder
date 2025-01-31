@@ -1827,6 +1827,77 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update group IdP Sync mapping
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/group/mapping \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/group/mapping`
+
+> Body parameter
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                           | Required | Description                                   |
+|--------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `body` | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "legacy_group_name_mapping": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get group IdP Sync settings by organization
 
 ### Code samples
@@ -1953,6 +2024,68 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update group IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/groups/config`
+
+> Body parameter
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "regex_filter": {}
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description       |
+|--------|------|----------------------------------------------------------------------------------------------|----------|-------------------|
+| `body` | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "legacy_group_name_mapping": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get role IdP Sync settings by organization
 
 ### Code samples
@@ -2034,6 +2167,125 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 |----------------|------|------------------------------------------------------------------|----------|-----------------|
 | `organization` | path | string(uuid)                                                     | true     | Organization ID |
 | `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New settings    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles/config`
+
+> Body parameter
+
+```json
+{
+  "field": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                       | Required | Description       |
+|--------|------|--------------------------------------------------------------------------------------------|----------|-------------------|
+| `body` | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync mapping
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/mapping \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles/mapping`
+
+> Body parameter
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                         | Required | Description                                   |
+|--------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `body` | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
 
 ### Example responses
 

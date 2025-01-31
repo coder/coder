@@ -1455,6 +1455,19 @@ export interface Pagination {
 	readonly offset?: number;
 }
 
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncConfigRequest {
+	readonly field: string;
+	readonly regex_filter: string | null;
+	readonly auto_create_missing_groups: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
 // From codersdk/groups.go
 export interface PatchGroupRequest {
 	readonly add_users: readonly string[];
@@ -1473,6 +1486,17 @@ export interface PatchOrganizationIDPSyncConfigRequest {
 
 // From codersdk/idpsync.go
 export interface PatchOrganizationIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncConfigRequest {
+	readonly field: string;
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncMappingRequest {
 	readonly Add: readonly IDPSyncMapping<string>[];
 	readonly Remove: readonly IDPSyncMapping<string>[];
 }
