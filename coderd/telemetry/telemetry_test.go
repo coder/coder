@@ -365,27 +365,28 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 	t.Parallel()
 	db, _ := dbtestutil.NewDB(t)
 	ctx := testutil.Context(t, testutil.WaitMedium)
-	serverURL, _, snapshotChan := setupTelemetryServer(t)
+	serverURL, _, snapshotChan := mockTelemetryServer(t)
 
 	options := telemetry.Options{
-		Database:     db,
-		Logger:       testutil.Logger(t),
-		URL:          serverURL,
-		DeploymentID: uuid.NewString(),
+		Database:             db,
+		Logger:               testutil.Logger(t),
+		URL:                  serverURL,
+		DeploymentID:         uuid.NewString(),
+		DisableReportOnClose: true,
 	}
 
 	reporter, err := telemetry.New(options)
 	require.NoError(t, err)
 	t.Cleanup(reporter.Close)
 
-	// No telemetry updated item, so no report should be sent
+	// No telemetry enabled item, so no report should be sent
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
 	require.Empty(t, snapshotChan)
 
-	// Telemetry disabled item not present, and a telemetry update item present
+	// Telemetry enabled item present, and a telemetry disabled item not present
 	// Report should be sent
 	_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
-		Key:   string(telemetry.TelemetryItemKeyLastTelemetryUpdate),
+		Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
 		Value: "",
 	})
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
@@ -397,19 +398,17 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 		t.Fatal("timeout waiting for snapshot")
 	}
 
-	// Telemetry disabled item present, and a telemetry update item present
-	// with an updated at time equal to or after the telemetry disabled item
+	// Telemetry enabled item present, and a more recent telemetry disabled item present
 	// Report should not be sent
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
 	require.Empty(t, snapshotChan)
 
-	// Telemetry disabled item present, and a telemetry update item present
-	// with an updated at time before the telemetry disabled item
+	// Telemetry enabled item present, and a less recent telemetry disabled item present
 	// Report should be sent
-	// Wait a bit to ensure UpdatedAt is bigger when we upsert the telemetry disabled item
+	// Wait a bit to ensure UpdatedAt is bigger when we upsert the telemetry enabled item
 	time.Sleep(100 * time.Millisecond)
 	require.NoError(t, db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
-		Key:   string(telemetry.TelemetryItemKeyTelemetryDisabled),
+		Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
 		Value: "",
 	}))
 	require.NoError(t, reporter.ReportDisabledIfNeeded())
@@ -422,7 +421,7 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 	}
 }
 
-func setupTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
+func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
 	t.Helper()
 	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
@@ -456,7 +455,7 @@ func setupTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, c
 func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
 	t.Helper()
 
-	serverURL, deployment, snapshot := setupTelemetryServer(t)
+	serverURL, deployment, snapshot := mockTelemetryServer(t)
 
 	options := telemetry.Options{
 		Database:     db,

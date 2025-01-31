@@ -158,12 +158,6 @@ func (r *remoteReporter) reportSync(snapshot *Snapshot) {
 		r.options.Logger.Debug(r.ctx, "bad response from telemetry server", slog.F("status", resp.StatusCode))
 		return
 	}
-	if err := r.options.Database.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
-		Key:   string(TelemetryItemKeyLastTelemetryUpdate),
-		Value: "",
-	}); err != nil {
-		r.options.Logger.Debug(r.ctx, "upsert last telemetry update", slog.Error(err))
-	}
 	r.options.Logger.Debug(r.ctx, "submitted snapshot")
 }
 
@@ -194,7 +188,18 @@ func (r *remoteReporter) isClosed() bool {
 	}
 }
 
+func (r *remoteReporter) recordTelemetryEnabled() {
+	if err := r.options.Database.UpsertTelemetryItem(r.ctx, database.UpsertTelemetryItemParams{
+		Key:   string(TelemetryItemKeyTelemetryEnabled),
+		Value: "",
+	}); err != nil {
+		r.options.Logger.Debug(r.ctx, "upsert last telemetry report", slog.Error(err))
+	}
+}
+
 func (r *remoteReporter) RunSnapshotter() {
+	r.recordTelemetryEnabled()
+
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
 	defer ticker.Stop()
@@ -349,17 +354,26 @@ func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.De
 
 func (r *remoteReporter) ReportDisabledIfNeeded() error {
 	db := r.options.Database
-	lastTelemetryUpdate, telemetryUpdateErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyLastTelemetryUpdate))
-	if telemetryUpdateErr != nil && !errors.Is(telemetryUpdateErr, sql.ErrNoRows) {
-		r.options.Logger.Debug(r.ctx, "get last telemetry update at", slog.Error(telemetryUpdateErr))
+	telemetryEnabled, telemetryEnabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryEnabled))
+	if telemetryEnabledErr != nil && !errors.Is(telemetryEnabledErr, sql.ErrNoRows) {
+		r.options.Logger.Debug(r.ctx, "get telemetry enabled", slog.Error(telemetryEnabledErr))
 	}
 	telemetryDisabled, telemetryDisabledErr := db.GetTelemetryItem(r.ctx, string(TelemetryItemKeyTelemetryDisabled))
 	if telemetryDisabledErr != nil && !errors.Is(telemetryDisabledErr, sql.ErrNoRows) {
 		r.options.Logger.Debug(r.ctx, "get telemetry disabled", slog.Error(telemetryDisabledErr))
 	}
-	shouldReportDisabledTelemetry := telemetryUpdateErr == nil &&
-		((telemetryDisabledErr == nil && lastTelemetryUpdate.UpdatedAt.Before(telemetryDisabled.UpdatedAt)) ||
-			errors.Is(telemetryDisabledErr, sql.ErrNoRows))
+	// There are 2 scenarios in which we want to report the disabled telemetry:
+	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
+	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
+	//    was enabled again, and then disabled again.
+	//
+	// - In both cases, the TelemetryEnabled item will be present.
+	// - In case 1. the TelemetryDisabled item will not be present.
+	// - In case 2. the TelemetryDisabled item will be present, and the TelemetryEnabled item will
+	//   be more recent than the TelemetryDisabled item.
+	shouldReportDisabledTelemetry := telemetryEnabledErr == nil &&
+		(errors.Is(telemetryDisabledErr, sql.ErrNoRows) ||
+			(telemetryDisabledErr == nil && telemetryEnabled.UpdatedAt.After(telemetryDisabled.UpdatedAt)))
 	if !shouldReportDisabledTelemetry {
 		return nil
 	}
@@ -1621,9 +1635,9 @@ type telemetryItemKey string
 //
 //revive:disable:exported
 const (
-	TelemetryItemKeyHTMLFirstServedAt   telemetryItemKey = "html_first_served_at"
-	TelemetryItemKeyLastTelemetryUpdate telemetryItemKey = "last_telemetry_update"
-	TelemetryItemKeyTelemetryDisabled   telemetryItemKey = "telemetry_disabled"
+	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
+	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
+	TelemetryItemKeyTelemetryDisabled telemetryItemKey = "telemetry_disabled"
 )
 
 type TelemetryItem struct {
