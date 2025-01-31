@@ -188,7 +188,7 @@ type Handler struct {
 	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
 
-	elemetryHTMLServedOnce sync.Once
+	telemetryHTMLServedOnce sync.Once
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -369,7 +369,7 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 		}
 		// `Once` is used to reduce the volume of db calls and telemetry reports.
 		// It's fine to run the enclosed function multiple times, but it's unnecessary.
-		h.elemetryHTMLServedOnce.Do(func() {
+		h.telemetryHTMLServedOnce.Do(func() {
 			go h.reportHTMLFirstServedAt()
 		})
 		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
