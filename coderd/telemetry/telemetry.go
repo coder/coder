@@ -111,6 +111,8 @@ type Reporter interface {
 	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
 	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
 	//    was enabled again, then disabled again, and we haven't reported it yet.
+	//
+	// In particular, it does nothing if the telemetry was never enabled.
 	ReportDisabledIfNeeded() error
 }
 
