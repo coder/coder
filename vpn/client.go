@@ -148,7 +148,7 @@ func (*client) NewConn(initCtx context.Context, serverURL *url.URL, token string
 	updatesCtrl := tailnet.NewTunnelAllWorkspaceUpdatesController(
 		options.Logger,
 		coordCtrl,
-		tailnet.WithDNS(conn, me.Name),
+		tailnet.WithDNS(conn, me.Username),
 		tailnet.WithHandler(options.UpdateHandler),
 	)
 	controller.WorkspaceUpdatesCtrl = updatesCtrl
