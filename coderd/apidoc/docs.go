@@ -3378,6 +3378,14 @@ const docTemplate = `{
                 "operationId": "update-group-idp-sync-mapping",
                 "parameters": [
                     {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
                         "description": "Description of the mappings to add and remove",
                         "name": "request",
                         "in": "body",
@@ -3496,6 +3504,14 @@ const docTemplate = `{
                 "summary": "Update group IdP Sync config",
                 "operationId": "update-group-idp-sync-config",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "description": "New config values",
                         "name": "request",
@@ -3616,6 +3632,14 @@ const docTemplate = `{
                 "operationId": "update-role-idp-sync-config",
                 "parameters": [
                     {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
                         "description": "New config values",
                         "name": "request",
                         "in": "body",
@@ -3654,6 +3678,14 @@ const docTemplate = `{
                 "summary": "Update role IdP Sync mapping",
                 "operationId": "update-role-idp-sync-mapping",
                 "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
                     {
                         "description": "Description of the mappings to add and remove",
                         "name": "request",

@@ -138,6 +138,7 @@ func (api *API) patchGroupIDPSyncSettings(rw http.ResponseWriter, r *http.Reques
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
+// @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncConfigRequest true "New config values"
 // @Router /organizations/{organization}/settings/idpsync/groups/config [patch]
 func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
@@ -210,6 +211,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.GroupSyncSettings
+// @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /organizations/{organization}/settings/idpsync/group/mapping [patch]
 func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
@@ -376,6 +378,7 @@ func (api *API) patchRoleIDPSyncSettings(rw http.ResponseWriter, r *http.Request
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
+// @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncConfigRequest true "New config values"
 // @Router /organizations/{organization}/settings/idpsync/roles/config [patch]
 func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) {
@@ -442,6 +445,7 @@ func (api *API) patchRoleIDPSyncConfig(rw http.ResponseWriter, r *http.Request) 
 // @Accept json
 // @Tags Enterprise
 // @Success 200 {object} codersdk.RoleSyncSettings
+// @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchRoleIDPSyncMappingRequest true "Description of the mappings to add and remove"
 // @Router /organizations/{organization}/settings/idpsync/roles/mapping [patch]
 func (api *API) patchRoleIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {

@@ -1862,9 +1862,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name   | In   | Type                                                                                           | Required | Description                                   |
-|--------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `body` | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                           | Required | Description                                   |
+|----------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `organization` | path | string(uuid)                                                                                   | true     | Organization ID or name                       |
+| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
 
 ### Example responses
 
@@ -2050,9 +2051,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name   | In   | Type                                                                                         | Required | Description       |
-|--------|------|----------------------------------------------------------------------------------------------|----------|-------------------|
-| `body` | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values |
+| Name           | In   | Type                                                                                         | Required | Description             |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name |
+| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values       |
 
 ### Example responses
 
@@ -2218,9 +2220,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name   | In   | Type                                                                                       | Required | Description       |
-|--------|------|--------------------------------------------------------------------------------------------|----------|-------------------|
-| `body` | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values |
+| Name           | In   | Type                                                                                       | Required | Description             |
+|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------|
+| `organization` | path | string(uuid)                                                                               | true     | Organization ID or name |
+| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values       |
 
 ### Example responses
 
@@ -2283,9 +2286,10 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 ### Parameters
 
-| Name   | In   | Type                                                                                         | Required | Description                                   |
-|--------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
-| `body` | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+| Name           | In   | Type                                                                                         | Required | Description                                   |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name                       |
+| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
 
 ### Example responses
 
