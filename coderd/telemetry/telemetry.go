@@ -107,7 +107,7 @@ type Reporter interface {
 	// RunSnapshotter runs reporting in a loop. It should be called in a
 	// goroutine to avoid blocking the caller.
 	RunSnapshotter()
-	// ReportDisabledIfNeeded reports telemetry in the following scenarios:
+	// ReportDisabledIfNeeded reports that the telemetry was disabled in the following scenarios:
 	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
 	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
 	//    was enabled again, then disabled again, and we haven't reported it yet.
