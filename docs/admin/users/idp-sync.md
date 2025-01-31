@@ -48,7 +48,7 @@ provider. This means manual group additions/removals will be overwritten on the
 next user login.
 
 For deployments with multiple [organizations](./organizations.md), configure
-group sync at the organization level.
+group sync for each organization.
 
 <div class="tabs">
 
