@@ -48,7 +48,7 @@ type IDPSync interface {
 	// on the settings used by IDPSync. This entry is thread safe and can be
 	// accessed concurrently. The settings are stored in the database.
 	GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error)
-	UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
+	UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
 
 	// RoleSyncEntitled returns true if the deployment is entitled to role syncing.
 	RoleSyncEntitled() bool
@@ -61,7 +61,7 @@ type IDPSync interface {
 	// RoleSyncSettings is similar to GroupSyncSettings. See GroupSyncSettings for
 	// rational.
 	RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*RoleSyncSettings, error)
-	UpdateRoleSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error
+	UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error
 	// ParseRoleClaims takes claims from an OIDC provider, and returns the params
 	// for role syncing. Most of the logic happens in SyncRoles.
 	ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (RoleParams, *HTTPError)
