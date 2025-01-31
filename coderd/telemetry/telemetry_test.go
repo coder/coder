@@ -131,7 +131,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-		require.Len(t, snapshot.TelemetryItems, 1)
+		// We create one item manually above. The other is TelemetryEnabled, created by the snapshotter.
+		require.Len(t, snapshot.TelemetryItems, 2)
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
