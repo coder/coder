@@ -786,7 +786,7 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				return xerrors.Errorf("remove secrets from deployment values: %w", err)
 			}
 			telemetryReporter, err := telemetry.New(telemetry.Options{
-				Enabled:          vals.Telemetry.Enable.Value(),
+				Disabled:         !vals.Telemetry.Enable.Value(),
 				BuiltinPostgres:  builtinPostgres,
 				DeploymentID:     deploymentID,
 				Database:         options.Database,

@@ -42,7 +42,7 @@ const (
 )
 
 type Options struct {
-	Enabled  bool
+	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
@@ -118,7 +118,7 @@ type remoteReporter struct {
 }
 
 func (r *remoteReporter) Enabled() bool {
-	return r.options.Enabled
+	return !r.options.Disabled
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
