@@ -89,6 +89,7 @@ func New() database.Store {
 			locks:                     map[int64]struct{}{},
 			runtimeConfig:             map[string]string{},
 			userStatusChanges:         make([]database.UserStatusChange, 0),
+			telemetryItems:            make([]database.TelemetryItem, 0),
 		},
 	}
 	// Always start with a default org. Matching migration 198.
@@ -258,6 +259,7 @@ type data struct {
 	defaultProxyDisplayName          string
 	defaultProxyIconURL              string
 	userStatusChanges                []database.UserStatusChange
+	telemetryItems                   []database.TelemetryItem
 }
 
 func tryPercentile(fs []float64, p float64) float64 {
@@ -4330,6 +4332,23 @@ func (*FakeQuerier) GetTailnetTunnelPeerIDs(context.Context, uuid.UUID) ([]datab
 	return nil, ErrUnimplemented
 }
 
+func (q *FakeQuerier) GetTelemetryItem(_ context.Context, key string) (database.TelemetryItem, error) {
+	q.mutex.RLock()
+	defer q.mutex.RUnlock()
+
+	for _, item := range q.telemetryItems {
+		if item.Key == key {
+			return item, nil
+		}
+	}
+
+	return database.TelemetryItem{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) GetTelemetryItems(_ context.Context) ([]database.TelemetryItem, error) {
+	return q.telemetryItems, nil
+}
+
 func (q *FakeQuerier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	err := validateDatabaseType(arg)
 	if err != nil {
@@ -8120,6 +8139,30 @@ func (q *FakeQuerier) InsertReplica(_ context.Context, arg database.InsertReplic
 	return replica, nil
 }
 
+func (q *FakeQuerier) InsertTelemetryItemIfNotExists(_ context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for _, item := range q.telemetryItems {
+		if item.Key == arg.Key {
+			return nil
+		}
+	}
+
+	q.telemetryItems = append(q.telemetryItems, database.TelemetryItem{
+		Key:       arg.Key,
+		Value:     arg.Value,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+	return nil
+}
+
 func (q *FakeQuerier) InsertTemplate(_ context.Context, arg database.InsertTemplateParams) error {
 	if err := validateDatabaseType(arg); err != nil {
 		return err
@@ -10872,6 +10915,33 @@ func (*FakeQuerier) UpsertTailnetTunnel(_ context.Context, arg database.UpsertTa
 	}
 
 	return database.TailnetTunnel{}, ErrUnimplemented
+}
+
+func (q *FakeQuerier) UpsertTelemetryItem(_ context.Context, arg database.UpsertTelemetryItemParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	q.mutex.Lock()
+	defer q.mutex.Unlock()
+
+	for i, item := range q.telemetryItems {
+		if item.Key == arg.Key {
+			q.telemetryItems[i].Value = arg.Value
+			q.telemetryItems[i].UpdatedAt = time.Now()
+			return nil
+		}
+	}
+
+	q.telemetryItems = append(q.telemetryItems, database.TelemetryItem{
+		Key:       arg.Key,
+		Value:     arg.Value,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
+	})
+
+	return nil
 }
 
 func (q *FakeQuerier) UpsertTemplateUsageStats(ctx context.Context) error {

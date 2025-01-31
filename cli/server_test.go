@@ -964,7 +964,7 @@ func TestServer(t *testing.T) {
 		server := httptest.NewServer(r)
 		defer server.Close()
 
-		inv, _ := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
@@ -977,6 +977,25 @@ func TestServer(t *testing.T) {
 
 		<-deployment
 		<-snapshot
+
+		accessURL := waitAccessURL(t, cfg)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := codersdk.New(accessURL)
+		body, err := client.Request(ctx, http.MethodGet, "/", nil)
+		require.NoError(t, err)
+		require.NoError(t, body.Body.Close())
+
+		require.Eventually(t, func() bool {
+			snap := <-snapshot
+			htmlFirstServedFound := false
+			for _, item := range snap.TelemetryItems {
+				if item.Key == string(telemetry.TelemetryItemKeyHTMLFirstServedAt) {
+					htmlFirstServedFound = true
+				}
+			}
+			return htmlFirstServedFound
+		}, testutil.WaitMedium, testutil.IntervalFast, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()

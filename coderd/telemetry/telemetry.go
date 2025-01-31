@@ -579,6 +579,17 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		}
 		return nil
 	})
+	eg.Go(func() error {
+		items, err := r.options.Database.GetTelemetryItems(ctx)
+		if err != nil {
+			return xerrors.Errorf("get telemetry items: %w", err)
+		}
+		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
+		for _, item := range items {
+			snapshot.TelemetryItems = append(snapshot.TelemetryItems, ConvertTelemetryItem(item))
+		}
+		return nil
+	})
 
 	err := eg.Wait()
 	if err != nil {
@@ -985,6 +996,15 @@ func ConvertOrganization(org database.Organization) Organization {
 	}
 }
 
+func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
+	return TelemetryItem{
+		Key:       item.Key,
+		Value:     item.Value,
+		CreatedAt: item.CreatedAt,
+		UpdatedAt: item.UpdatedAt,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -1012,6 +1032,7 @@ type Snapshot struct {
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
 	Organizations             []Organization              `json:"organizations"`
+	TelemetryItems            []TelemetryItem             `json:"telemetry_items"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -1534,6 +1555,25 @@ type Organization struct {
 	ID        uuid.UUID `json:"id"`
 	IsDefault bool      `json:"is_default"`
 	CreatedAt time.Time `json:"created_at"`
+}
+
+type telemetryItemKey string
+
+// The comment below gets rid of the warning that the name "TelemetryItemKey" has
+// the "Telemetry" prefix, and that stutters when you use it outside the package
+// (telemetry.TelemetryItemKey...). "TelemetryItem" is the name of a database table,
+// so it makes sense to use the "Telemetry" prefix.
+//
+//revive:disable:exported
+const (
+	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
+)
+
+type TelemetryItem struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
 }
 
 type noopReporter struct{}

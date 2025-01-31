@@ -585,6 +585,8 @@ func New(options *Options) *API {
 		AppearanceFetcher: &api.AppearanceFetcher,
 		BuildInfo:         buildInfo,
 		Entitlements:      options.Entitlements,
+		Telemetry:         options.Telemetry,
+		Logger:            options.Logger.Named("site"),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 

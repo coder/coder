@@ -2787,6 +2787,13 @@ type TailnetTunnel struct {
 	UpdatedAt     time.Time `db:"updated_at" json:"updated_at"`
 }
 
+type TelemetryItem struct {
+	Key       string    `db:"key" json:"key"`
+	Value     string    `db:"value" json:"value"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	UpdatedAt time.Time `db:"updated_at" json:"updated_at"`
+}
+
 // Joins in the display name information such as username, avatar, and organization name.
 type Template struct {
 	ID                            uuid.UUID       `db:"id" json:"id"`
