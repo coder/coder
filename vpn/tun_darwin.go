@@ -5,10 +5,11 @@ package vpn
 import (
 	"os"
 
-	"cdr.dev/slog"
 	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/unix"
 	"golang.org/x/xerrors"
+
+	"cdr.dev/slog"
 )
 
 func GetNetworkingStack(t *Tunnel, req *StartRequest, _ slog.Logger) (NetworkStack, error) {
