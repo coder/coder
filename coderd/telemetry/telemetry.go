@@ -107,8 +107,10 @@ type Reporter interface {
 	// RunSnapshotter runs reporting in a loop. It should be called in a
 	// goroutine to avoid blocking the caller.
 	RunSnapshotter()
-	// ReportDisabledIfNeeded reports disabled telemetry if there was at least one report sent
-	// before the telemetry was disabled, and we haven't sent a report since the telemetry was disabled.
+	// ReportDisabledIfNeeded reports telemetry in the following scenarios:
+	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
+	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
+	//    was enabled again, then disabled again, and we haven't reported it yet.
 	ReportDisabledIfNeeded() error
 }
 
@@ -365,7 +367,7 @@ func (r *remoteReporter) ReportDisabledIfNeeded() error {
 	// There are 2 scenarios in which we want to report the disabled telemetry:
 	// 1. The telemetry was enabled at some point, and we haven't reported the disabled telemetry yet.
 	// 2. The telemetry was enabled at some point, we reported the disabled telemetry, the telemetry
-	//    was enabled again, and then disabled again.
+	//    was enabled again, then disabled again, and we haven't reported it yet.
 	//
 	// - In both cases, the TelemetryEnabled item will be present.
 	// - In case 1. the TelemetryDisabled item will not be present.
