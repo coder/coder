@@ -397,6 +397,7 @@ func TestRecordTelemetryStatus(t *testing.T) {
 		{name: "Telemetry was disabled now is enabled", recordedTelemetryEnabled: "0", telemetryEnabled: true, shouldReport: false},
 		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "0", telemetryEnabled: false, shouldReport: false},
 	} {
+		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
