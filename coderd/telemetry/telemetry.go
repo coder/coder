@@ -197,7 +197,7 @@ func (r *remoteReporter) recordTelemetryEnabled() {
 		Key:   string(TelemetryItemKeyTelemetryEnabled),
 		Value: "",
 	}); err != nil {
-		r.options.Logger.Debug(r.ctx, "upsert last telemetry report", slog.Error(err))
+		r.options.Logger.Debug(r.ctx, "upsert telemetry enabled", slog.Error(err))
 	}
 }
 
