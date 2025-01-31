@@ -12,6 +12,8 @@ features, you can [request a trial](https://coder.com/trial) or
 
 <!-- markdown-link-check-enable -->
 
+![Licenses screen shows license information and seat consumption](../../images/admin/licenses/licenses-screen.png)
+
 ## Adding your license key
 
 There are two ways to add a license to a Coder deployment:
@@ -20,13 +22,17 @@ There are two ways to add a license to a Coder deployment:
 
 ### Coder UI
 
-First, ensure you have a license key
-([request a trial](https://coder.com/trial)).
+1. With an `Owner` account, go to **Admin settings** > **Deployment**.
 
-With an `Owner` account, navigate to `Deployment -> Licenses`, `Add a license`
-then drag or select the license file with the `jwt` extension.
+1. Select **Licenses** from the sidebar, then **Add a license**:
 
-![Add License UI](../../images/add-license-ui.png)
+   ![Add a license from the licenses screen](../../images/admin/licenses/licenses-nolicense.png)
+
+1. On the **Add a license** screen, drag your `.jwt` license file into the
+   **Upload Your License** section, or paste your license in the
+   **Paste Your License** text box, then select **Upload License**:
+
+   ![Add a license screen](../../images/admin/licenses/add-license-ui.png)
 
 ### Coder CLI
 
@@ -34,15 +40,15 @@ First, ensure you have a license key
 ([request a trial](https://coder.com/trial)) and the
 [Coder CLI](../../install/cli.md) installed.
 
-1. Save your license key to disk and make note of the path
-1. Open a terminal
-1. Ensure you are logged into your Coder deployment
+1. Save your license key to disk and make note of the path.
+1. Open a terminal.
+1. Ensure you are logged into your Coder deployment:
 
    ```shell
    coder login <access url>
    ```
 
-1. Run
+1. Run `coder licenses add`:
 
    ```shell
    coder licenses add -f <path to your license key>
