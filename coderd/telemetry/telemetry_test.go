@@ -406,7 +406,7 @@ func TestReportDisabledIfNeeded(t *testing.T) {
 
 	// Telemetry enabled item present, and a less recent telemetry disabled item present
 	// Report should be sent
-	// Wait a bit to ensure UpdatedAt is bigger when we upsert the telemetry enabled item
+	// Wait a bit to ensure UpdatedAt is greater when we upsert the telemetry enabled item
 	time.Sleep(100 * time.Millisecond)
 	require.NoError(t, db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
 		Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
