@@ -35,14 +35,18 @@ First, ensure you have a license key
 [Coder CLI](../../install/cli.md) installed.
 
 1. Save your license key to disk and make note of the path
-2. Open a terminal
-3. Ensure you are logged into your Coder deployment
+1. Open a terminal
+1. Ensure you are logged into your Coder deployment
 
-   `coder login <access url>`
+   ```shell
+   coder login <access url>
+   ```
 
-4. Run
+1. Run
 
-   `coder licenses add -f <path to your license key>`
+   ```shell
+   coder licenses add -f <path to your license key>
+   ```
 
 </div>
 
