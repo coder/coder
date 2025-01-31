@@ -148,7 +148,7 @@ type PatchRoleIDPSyncConfigRequest struct {
 	Field string `json:"field"`
 }
 
-func (c *Client) PatchRoleIDPSyncConfig(ctx context.Context, orgID string, req PatchGroupIDPSyncConfigRequest) (RoleSyncSettings, error) {
+func (c *Client) PatchRoleIDPSyncConfig(ctx context.Context, orgID string, req PatchRoleIDPSyncConfigRequest) (RoleSyncSettings, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/roles/config", orgID), req)
 	if err != nil {
 		return RoleSyncSettings{}, xerrors.Errorf("make request: %w", err)
@@ -168,7 +168,7 @@ type PatchRoleIDPSyncMappingRequest struct {
 	Remove []IDPSyncMapping[string]
 }
 
-func (c *Client) PatchRoleIDPSyncMapping(ctx context.Context, orgID string, req PatchGroupIDPSyncMappingRequest) (RoleSyncSettings, error) {
+func (c *Client) PatchRoleIDPSyncMapping(ctx context.Context, orgID string, req PatchRoleIDPSyncMappingRequest) (RoleSyncSettings, error) {
 	res, err := c.Request(ctx, http.MethodPatch, fmt.Sprintf("/api/v2/organizations/%s/settings/idpsync/roles/mapping", orgID), req)
 	if err != nil {
 		return RoleSyncSettings{}, xerrors.Errorf("make request: %w", err)

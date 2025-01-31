@@ -398,6 +398,150 @@ func TestPatchRoleSyncSettings(t *testing.T) {
 	})
 }
 
+func TestPatchRoleSyncConfig(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		orgID := user.OrganizationID
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, orgID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		mapping := map[string][]string{"wibble": {"group-01"}}
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := orgAdmin.PatchRoleIDPSyncSettings(ctx, orgID.String(), codersdk.RoleSyncSettings{
+			Field:   "wibble",
+			Mapping: mapping,
+		})
+
+		require.NoError(t, err)
+
+		fetchedSettings, err := orgAdmin.RoleIDPSyncSettings(ctx, orgID.String())
+		require.NoError(t, err)
+		require.Equal(t, "wibble", fetchedSettings.Field)
+		require.Equal(t, mapping, fetchedSettings.Mapping)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		settings, err := orgAdmin.PatchRoleIDPSyncConfig(ctx, orgID.String(), codersdk.PatchRoleIDPSyncConfigRequest{
+			Field: "wobble",
+		})
+
+		require.NoError(t, err)
+		require.Equal(t, "wobble", settings.Field)
+		require.Equal(t, mapping, settings.Mapping)
+
+		fetchedSettings, err = orgAdmin.RoleIDPSyncSettings(ctx, orgID.String())
+		require.NoError(t, err)
+		require.Equal(t, "wobble", fetchedSettings.Field)
+		require.Equal(t, mapping, fetchedSettings.Mapping)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchGroupIDPSyncConfig(ctx, user.OrganizationID.String(), codersdk.PatchGroupIDPSyncConfigRequest{})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+}
+
+func TestPatchRoleSyncMapping(t *testing.T) {
+	t.Parallel()
+
+	t.Run("OK", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		orgID := user.OrganizationID
+		orgAdmin, _ := coderdtest.CreateAnotherUser(t, owner, orgID, rbac.ScopedRoleOrgAdmin(user.OrganizationID))
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := orgAdmin.PatchRoleIDPSyncSettings(ctx, orgID.String(), codersdk.RoleSyncSettings{
+			Field:   "wibble",
+			Mapping: map[string][]string{"wobble": {"group-00"}},
+		})
+		require.NoError(t, err)
+
+		ctx = testutil.Context(t, testutil.WaitShort)
+		settings, err := orgAdmin.PatchRoleIDPSyncMapping(ctx, orgID.String(), codersdk.PatchRoleIDPSyncMappingRequest{
+			Add: []codersdk.IDPSyncMapping[string]{
+				{Given: "wibble", Gets: "group-00"},
+				{Given: "wobble", Gets: "group-01"},
+				{Given: "wobble", Gets: "group-02"},
+			},
+			// Remove takes priority over Add, so "3" should not actually be added to wooble.
+			Remove: []codersdk.IDPSyncMapping[string]{
+				{Given: "wobble", Gets: "group-01"},
+			},
+		})
+
+		expected := map[string][]string{
+			"wibble": {"group-00"},
+			"wobble": {"group-00", "group-02"},
+		}
+
+		require.NoError(t, err)
+		require.Equal(t, expected, settings.Mapping)
+
+		fetchedSettings, err := orgAdmin.RoleIDPSyncSettings(ctx, orgID.String())
+		require.NoError(t, err)
+		require.Equal(t, "wibble", fetchedSettings.Field)
+		require.Equal(t, expected, fetchedSettings.Mapping)
+	})
+
+	t.Run("NotAuthorized", func(t *testing.T) {
+		t.Parallel()
+
+		owner, user := coderdenttest.New(t, &coderdenttest.Options{
+			LicenseOptions: &coderdenttest.LicenseOptions{
+				Features: license.Features{
+					codersdk.FeatureCustomRoles:           1,
+					codersdk.FeatureMultipleOrganizations: 1,
+				},
+			},
+		})
+
+		member, _ := coderdtest.CreateAnotherUser(t, owner, user.OrganizationID)
+
+		ctx := testutil.Context(t, testutil.WaitShort)
+		_, err := member.PatchGroupIDPSyncMapping(ctx, user.OrganizationID.String(), codersdk.PatchGroupIDPSyncMappingRequest{})
+		var apiError *codersdk.Error
+		require.ErrorAs(t, err, &apiError)
+		require.Equal(t, http.StatusForbidden, apiError.StatusCode())
+	})
+}
+
 func TestGetOrganizationSyncSettings(t *testing.T) {
 	t.Parallel()
 
