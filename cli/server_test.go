@@ -980,8 +980,7 @@ func TestServer(t *testing.T) {
 
 		accessURL := waitAccessURL(t, cfg)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
-		defer cancel()
+		ctx := testutil.Context(t, testutil.WaitMedium)
 		client := codersdk.New(accessURL)
 		body, err := client.Request(ctx, http.MethodGet, "/", nil)
 		require.NoError(t, err)

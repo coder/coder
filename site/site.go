@@ -188,7 +188,7 @@ type Handler struct {
 	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
 
-	TelemetryHTMLServedOnce sync.Once
+	elemetryHTMLServedOnce sync.Once
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -331,6 +331,7 @@ func ShouldCacheFile(reqFile string) bool {
 // The purpose is to track the first time the first user opens the site.
 func (h *Handler) reportHTMLFirstServedAt() {
 	// nolint:gocritic // Manipulating telemetry items is system-restricted.
+	// TODO(hugodutka): Add a telemetry context in RBAC.
 	ctx := dbauthz.AsSystemRestricted(context.Background())
 	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
 	_, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
@@ -368,7 +369,7 @@ func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, req
 		}
 		// `Once` is used to reduce the volume of db calls and telemetry reports.
 		// It's fine to run the enclosed function multiple times, but it's unnecessary.
-		h.TelemetryHTMLServedOnce.Do(func() {
+		h.elemetryHTMLServedOnce.Do(func() {
 			go h.reportHTMLFirstServedAt()
 		})
 		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))

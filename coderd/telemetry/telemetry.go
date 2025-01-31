@@ -1557,11 +1557,16 @@ type Organization struct {
 	CreatedAt time.Time `json:"created_at"`
 }
 
-//revive:disable:exported
-type TelemetryItemKey string
+type telemetryItemKey string
 
+// The comment below gets rid of the warning that the name "TelemetryItemKey" has
+// the "Telemetry" prefix, and that stutters when you use it outside the package
+// (telemetry.TelemetryItemKey...). "TelemetryItem" is the name of a database table,
+// so it makes sense to use the "Telemetry" prefix.
+//
+//revive:disable:exported
 const (
-	TelemetryItemKeyHTMLFirstServedAt TelemetryItemKey = "html_first_served_at"
+	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
 )
 
 type TelemetryItem struct {
