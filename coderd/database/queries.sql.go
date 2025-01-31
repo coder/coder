@@ -8702,6 +8702,86 @@ func (q *sqlQuerier) UpsertTailnetTunnel(ctx context.Context, arg UpsertTailnetT
 	return i, err
 }
 
+const getTelemetryItem = `-- name: GetTelemetryItem :one
+SELECT key, value, created_at, updated_at FROM telemetry_items WHERE key = $1
+`
+
+func (q *sqlQuerier) GetTelemetryItem(ctx context.Context, key string) (TelemetryItem, error) {
+	row := q.db.QueryRowContext(ctx, getTelemetryItem, key)
+	var i TelemetryItem
+	err := row.Scan(
+		&i.Key,
+		&i.Value,
+		&i.CreatedAt,
+		&i.UpdatedAt,
+	)
+	return i, err
+}
+
+const getTelemetryItems = `-- name: GetTelemetryItems :many
+SELECT key, value, created_at, updated_at FROM telemetry_items
+`
+
+func (q *sqlQuerier) GetTelemetryItems(ctx context.Context) ([]TelemetryItem, error) {
+	rows, err := q.db.QueryContext(ctx, getTelemetryItems)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []TelemetryItem
+	for rows.Next() {
+		var i TelemetryItem
+		if err := rows.Scan(
+			&i.Key,
+			&i.Value,
+			&i.CreatedAt,
+			&i.UpdatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertTelemetryItemIfNotExists = `-- name: InsertTelemetryItemIfNotExists :exec
+INSERT INTO telemetry_items (key, value)
+VALUES ($1, $2)
+ON CONFLICT (key) DO NOTHING
+`
+
+type InsertTelemetryItemIfNotExistsParams struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) InsertTelemetryItemIfNotExists(ctx context.Context, arg InsertTelemetryItemIfNotExistsParams) error {
+	_, err := q.db.ExecContext(ctx, insertTelemetryItemIfNotExists, arg.Key, arg.Value)
+	return err
+}
+
+const upsertTelemetryItem = `-- name: UpsertTelemetryItem :exec
+INSERT INTO telemetry_items (key, value)
+VALUES ($1, $2)
+ON CONFLICT (key) DO UPDATE SET value = $2, updated_at = NOW() WHERE telemetry_items.key = $1
+`
+
+type UpsertTelemetryItemParams struct {
+	Key   string `db:"key" json:"key"`
+	Value string `db:"value" json:"value"`
+}
+
+func (q *sqlQuerier) UpsertTelemetryItem(ctx context.Context, arg UpsertTelemetryItemParams) error {
+	_, err := q.db.ExecContext(ctx, upsertTelemetryItem, arg.Key, arg.Value)
+	return err
+}
+
 const getTemplateAverageBuildTime = `-- name: GetTemplateAverageBuildTime :one
 WITH build_times AS (
 SELECT

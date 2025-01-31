@@ -75,6 +75,10 @@ func TestTelemetry(t *testing.T) {
 			Health:       database.WorkspaceAppHealthDisabled,
 			OpenIn:       database.WorkspaceAppOpenInSlimWindow,
 		})
+		_ = dbgen.TelemetryItem(t, db, database.TelemetryItem{
+			Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+			Value: time.Now().Format(time.RFC3339),
+		})
 		group := dbgen.Group(t, db, database.Group{})
 		_ = dbgen.GroupMember(t, db, database.GroupMemberTable{UserID: user.ID, GroupID: group.ID})
 		wsagent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{})
@@ -127,7 +131,7 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-
+		require.Len(t, snapshot.TelemetryItems, 1)
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
@@ -314,6 +318,47 @@ func TestTelemetryInstallSource(t *testing.T) {
 	db := dbmem.New()
 	deployment, _ := collectSnapshot(t, db, nil)
 	require.Equal(t, "aws_marketplace", deployment.InstallSource)
+}
+
+func TestTelemetryItem(t *testing.T) {
+	t.Parallel()
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	db, _ := dbtestutil.NewDB(t)
+	key := testutil.GetRandomName(t)
+	value := time.Now().Format(time.RFC3339)
+
+	err := db.InsertTelemetryItemIfNotExists(ctx, database.InsertTelemetryItemIfNotExistsParams{
+		Key:   key,
+		Value: value,
+	})
+	require.NoError(t, err)
+
+	item, err := db.GetTelemetryItem(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, item.Key, key)
+	require.Equal(t, item.Value, value)
+
+	// Inserting a new value should not update the existing value
+	err = db.InsertTelemetryItemIfNotExists(ctx, database.InsertTelemetryItemIfNotExistsParams{
+		Key:   key,
+		Value: "new_value",
+	})
+	require.NoError(t, err)
+
+	item, err = db.GetTelemetryItem(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, item.Value, value)
+
+	// Upserting a new value should update the existing value
+	err = db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+		Key:   key,
+		Value: "new_value",
+	})
+	require.NoError(t, err)
+
+	item, err = db.GetTelemetryItem(ctx, key)
+	require.NoError(t, err)
+	require.Equal(t, item.Value, "new_value")
 }
 
 func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {

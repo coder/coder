@@ -1093,6 +1093,23 @@ func ProvisionerJobTimings(t testing.TB, db database.Store, build database.Works
 	return timings
 }
 
+func TelemetryItem(t testing.TB, db database.Store, seed database.TelemetryItem) database.TelemetryItem {
+	if seed.Key == "" {
+		seed.Key = testutil.GetRandomName(t)
+	}
+	if seed.Value == "" {
+		seed.Value = time.Now().Format(time.RFC3339)
+	}
+	err := db.UpsertTelemetryItem(genCtx, database.UpsertTelemetryItemParams{
+		Key:   seed.Key,
+		Value: seed.Value,
+	})
+	require.NoError(t, err, "upsert telemetry item")
+	item, err := db.GetTelemetryItem(genCtx, seed.Key)
+	require.NoError(t, err, "get telemetry item")
+	return item
+}
+
 func provisionerJobTiming(t testing.TB, db database.Store, seed database.ProvisionerJobTiming) database.ProvisionerJobTiming {
 	timing, err := db.InsertProvisionerJobTimings(genCtx, database.InsertProvisionerJobTimingsParams{
 		JobID:     takeFirst(seed.JobID, uuid.New()),
