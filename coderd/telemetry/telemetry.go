@@ -219,10 +219,9 @@ func RecordTelemetryStatus( //nolint:revive
 	if !shouldReport {
 		return nil, nil //nolint:nilnil
 	}
-	// If any of the following calls fail, we will never report the disabled telemetry.
-	// Subsequent function calls will see the TelemetryDisabled item
-	// and quit early. This is okay. We only want to ping the telemetry server once,
-	// and never again. If that attempt fails, so be it.
+	// If any of the following calls fail, we will never report that telemetry changed
+	// from enabled to disabled. This is okay. We only want to ping the telemetry server
+	// once, and never again. If that attempt fails, so be it.
 	item, err = db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
 	if err != nil {
 		return nil, xerrors.Errorf("get telemetry enabled after upsert: %w", err)
