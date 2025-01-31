@@ -213,7 +213,7 @@ func (api *API) patchGroupIDPSyncConfig(rw http.ResponseWriter, r *http.Request)
 // @Success 200 {object} codersdk.GroupSyncSettings
 // @Param organization path string true "Organization ID or name" format(uuid)
 // @Param request body codersdk.PatchGroupIDPSyncMappingRequest true "Description of the mappings to add and remove"
-// @Router /organizations/{organization}/settings/idpsync/group/mapping [patch]
+// @Router /organizations/{organization}/settings/idpsync/groups/mapping [patch]
 func (api *API) patchGroupIDPSyncMapping(rw http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
 	org := httpmw.OrganizationParam(r)
