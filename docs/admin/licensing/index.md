@@ -53,7 +53,9 @@ There are two ways to add a license to a Coder deployment:
 
 </div>
 
-## Find your deployment ID
+## FAQ
+
+### Find your deployment ID
 
 You'll need your deployment ID to request a trial or license key.
 
@@ -61,3 +63,10 @@ From your Coder dashboard, select your user avatar, then select the **Copy to
 clipboard** icon at the bottom:
 
 ![Copy the deployment ID from the bottom of the user avatar dropdown](../../images/admin/deployment-id-copy-clipboard.png)
+
+### How we calculate license seat consumption
+
+Licenses are consumed based on the status of user accounts.
+Only users who have been active in the last 90 days consume license seats.
+
+Consult the [user status documentation](../users/index.md#user-status) for more information about active, dormant, and suspended user statuses.
