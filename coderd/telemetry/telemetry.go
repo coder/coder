@@ -185,10 +185,10 @@ func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnab
 	return recordedTelemetryEnabled != nil && *recordedTelemetryEnabled && !telemetryEnabled
 }
 
-// RecordTelemetryStatusChange records the telemetry status change in the database.
-// If the change should be reported, meaning that the status changed from enabled to disabled,
-// returns a snapshot to be sent to the telemetry server.
-func RecordTelemetryStatusChange( //nolint:revive
+// RecordTelemetryStatus records the telemetry status in the database.
+// If the status changed from enabled to disabled, returns a snapshot to
+// be sent to the telemetry server.
+func RecordTelemetryStatus( //nolint:revive
 	ctx context.Context,
 	db database.Store,
 	telemetryEnabled bool,
@@ -235,7 +235,7 @@ func RecordTelemetryStatusChange( //nolint:revive
 }
 
 func (r *remoteReporter) runSnapshotter() {
-	telemetryDisabledSnapshot, err := RecordTelemetryStatusChange(r.ctx, r.options.Database, r.Enabled())
+	telemetryDisabledSnapshot, err := RecordTelemetryStatus(r.ctx, r.options.Database, r.Enabled())
 	if err != nil {
 		r.options.Logger.Debug(r.ctx, "record and maybe report telemetry status", slog.Error(err))
 	}

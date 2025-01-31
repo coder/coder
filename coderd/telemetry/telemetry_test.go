@@ -382,7 +382,7 @@ func TestShouldReportTelemetryDisabled(t *testing.T) {
 	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolFalse, false))
 }
 
-func TestRecordTelemetryStatusChange(t *testing.T) {
+func TestRecordTelemetryStatus(t *testing.T) {
 	t.Parallel()
 	for _, testCase := range []struct {
 		name                     string
@@ -408,7 +408,7 @@ func TestRecordTelemetryStatusChange(t *testing.T) {
 					Value: testCase.recordedTelemetryEnabled,
 				})
 			}
-			snapshot1, err := telemetry.RecordTelemetryStatusChange(ctx, db, testCase.telemetryEnabled)
+			snapshot1, err := telemetry.RecordTelemetryStatus(ctx, db, testCase.telemetryEnabled)
 			require.NoError(t, err)
 
 			if testCase.shouldReport {
@@ -421,7 +421,7 @@ func TestRecordTelemetryStatusChange(t *testing.T) {
 
 			for i := 0; i < 3; i++ {
 				// Whatever happens, subsequent calls should not report if telemetryEnabled didn't change
-				snapshot2, err := telemetry.RecordTelemetryStatusChange(ctx, db, testCase.telemetryEnabled)
+				snapshot2, err := telemetry.RecordTelemetryStatus(ctx, db, testCase.telemetryEnabled)
 				require.NoError(t, err)
 				require.Nil(t, snapshot2)
 			}
