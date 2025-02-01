@@ -531,8 +531,8 @@
 							"path": "./admin/integrations/island.md"
 						},
 						{
-							"title": "PlatformX by DX",
-							"description": "Integrate Coder PlatformX by getDX",
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
 							"path": "./admin/integrations/platformx.md"
 						},
 						{

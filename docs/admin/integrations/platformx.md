@@ -1,4 +1,4 @@
-# PlatformX by DX
+# DX PlatformX
 
 [DX](https://getdx.com) is a developer intelligence platform used by engineering
 leaders and platform engineers. Coder notifications can be transformed to
