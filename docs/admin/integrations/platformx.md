@@ -12,7 +12,7 @@ experience.
 
 You'll need:
 
-- A running Coder deployment
+- A running Coder v2.19+ deployment
 - A PlatformX subscription from [DX](https://getdx.com/)
 - A platform to host the integration (choose any of these):
   - AWS Lambda
