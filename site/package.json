@@ -129,7 +129,7 @@
 		"@storybook/addon-actions": "8.4.6",
 		"@storybook/addon-essentials": "8.4.6",
 		"@storybook/addon-interactions": "8.4.6",
-		"@storybook/addon-links": "8.4.6",
+		"@storybook/addon-links": "8.5.2",
 		"@storybook/addon-mdx-gfm": "8.4.6",
 		"@storybook/addon-themes": "8.4.6",
 		"@storybook/preview-api": "8.4.7",
