@@ -23,6 +23,6 @@ You'll need:
 ## Getting Started
 
 Refer to the instructions in the
-[coder-platformx-notifications](https://github.com/coder-platformx-notifications)
+[coder-platformx-notifications](https://github.com/coder/coder-platformx-notifications)
 repository to deploy a lightweight web server to forward Coder Notifications to
 PlatformX.
