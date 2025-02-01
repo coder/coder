@@ -392,8 +392,8 @@ importers:
         specifier: 10.4.20
         version: 10.4.20(postcss@8.4.47)
       chromatic:
-        specifier: 11.16.3
-        version: 11.16.3
+        specifier: 11.25.2
+        version: 11.25.2
       eventsourcemock:
         specifier: 2.0.0
         version: 2.0.0
@@ -3188,8 +3188,8 @@ packages:
   chroma-js@2.4.2:
     resolution: {integrity: sha512-U9eDw6+wt7V8z5NncY2jJfZa+hUH8XEj8FQHgFJTrUFnJfXYf4Ml4adI2vXZOjqRDpFWtYVWypDfZwnJ+HIR4A==, tarball: https://registry.npmjs.org/chroma-js/-/chroma-js-2.4.2.tgz}
 
-  chromatic@11.16.3:
-    resolution: {integrity: sha512-bckarRbZ3M1BvsmhLqEMschuQPk2FlSD9cvy8383JwoVvaIqLr0dv1tI/DPM4LMuXOjTjeBSZZINVH9r3RMiiA==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.16.3.tgz}
+  chromatic@11.25.2:
+    resolution: {integrity: sha512-/9eQWn6BU1iFsop86t8Au21IksTRxwXAl7if8YHD05L2AbuMjClLWZo5cZojqrJHGKDhTqfrC2X2xE4uSm0iKw==, tarball: https://registry.npmjs.org/chromatic/-/chromatic-11.25.2.tgz}
     hasBin: true
     peerDependencies:
       '@chromatic-com/cypress': ^0.*.* || ^1.0.0
@@ -6802,7 +6802,7 @@ snapshots:
 
   '@chromatic-com/storybook@3.2.2(react@18.3.1)(storybook@8.5.2(prettier@3.4.1))':
     dependencies:
-      chromatic: 11.16.3
+      chromatic: 11.25.2
       filesize: 10.1.2
       jsonfile: 6.1.0
       react-confetti: 6.2.2(react@18.3.1)
@@ -9332,7 +9332,7 @@ snapshots:
 
   chroma-js@2.4.2: {}
 
-  chromatic@11.16.3: {}
+  chromatic@11.25.2: {}
 
   ci-info@3.9.0: {}
 
