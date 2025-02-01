@@ -335,8 +335,8 @@ importers:
         specifier: 2.4.0
         version: 2.4.0
       '@types/color-convert':
-        specifier: 2.0.0
-        version: 2.0.0
+        specifier: 2.0.4
+        version: 2.0.4
       '@types/express':
         specifier: 4.17.17
         version: 4.17.17
@@ -2543,11 +2543,11 @@ packages:
   '@types/chroma-js@2.4.0':
     resolution: {integrity: sha512-JklMxityrwjBTjGY2anH8JaTx3yjRU3/sEHSblLH1ba5lqcSh1LnImXJZO5peJfXyqKYWjHTGy4s5Wz++hARrw==, tarball: https://registry.npmjs.org/@types/chroma-js/-/chroma-js-2.4.0.tgz}
 
-  '@types/color-convert@2.0.0':
-    resolution: {integrity: sha512-m7GG7IKKGuJUXvkZ1qqG3ChccdIM/qBBo913z+Xft0nKCX4hAU/IxKwZBU4cpRZ7GS5kV4vOblUkILtSShCPXQ==, tarball: https://registry.npmjs.org/@types/color-convert/-/color-convert-2.0.0.tgz}
+  '@types/color-convert@2.0.4':
+    resolution: {integrity: sha512-Ub1MmDdyZ7mX//g25uBAoH/mWGd9swVbt8BseymnaE18SU4po/PjmCrHxqIIRjBo3hV/vh1KGr0eMxUhp+t+dQ==, tarball: https://registry.npmjs.org/@types/color-convert/-/color-convert-2.0.4.tgz}
 
-  '@types/color-name@1.1.1':
-    resolution: {integrity: sha512-rr+OQyAjxze7GgWrSaJwydHStIhHq2lvY3BOC2Mj7KnzI7XK0Uw1TOOdI9lDoajEbSWLiYgoo4f1R51erQfhPQ==, tarball: https://registry.npmjs.org/@types/color-name/-/color-name-1.1.1.tgz}
+  '@types/color-name@1.1.5':
+    resolution: {integrity: sha512-j2K5UJqGTxeesj6oQuGpMgifpT5k9HprgQd8D1Y0lOFqKHl3PJu5GMeS4Y5EgjS55AE6OQxf8mPED9uaGbf4Cg==, tarball: https://registry.npmjs.org/@types/color-name/-/color-name-1.1.5.tgz}
 
   '@types/connect@3.4.35':
     resolution: {integrity: sha512-cdeYyv4KWoEgpBISTxWvqYsVy444DOqehiF3fM3ne10AmJ62RSyNkUnxMJXHQWRQQX2eR94m5y1IZyDwBjV9FQ==, tarball: https://registry.npmjs.org/@types/connect/-/connect-3.4.35.tgz}
@@ -8620,11 +8620,11 @@ snapshots:
 
   '@types/chroma-js@2.4.0': {}
 
-  '@types/color-convert@2.0.0':
+  '@types/color-convert@2.0.4':
     dependencies:
-      '@types/color-name': 1.1.1
+      '@types/color-name': 1.1.5
 
-  '@types/color-name@1.1.1': {}
+  '@types/color-name@1.1.5': {}
 
   '@types/connect@3.4.35':
     dependencies:
