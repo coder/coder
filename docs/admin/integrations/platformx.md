@@ -3,7 +3,7 @@
 [DX](https://getdx.com) is a developer intelligence platform used by engineering
 leaders and platform engineers. Coder notifications can be transformed to
 [PlatformX](https://getdx.com/platformx) events, allowing platform engineers to
-measure activity and send pulse surveys to subsets of Coder users to measure
+measure activity and send pulse surveys to subsets of Coder users to understand
 their experience.
 
 ![PlatformX Events in Coder](../../images/integrations/platformx-screenshot.png)
