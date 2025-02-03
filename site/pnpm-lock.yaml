@@ -253,8 +253,8 @@ importers:
         specifier: 1.0.40
         version: 1.0.40
       ua-parser-js:
-        specifier: 1.0.33
-        version: 1.0.33
+        specifier: 1.0.40
+        version: 1.0.40
       ufuzzy:
         specifier: npm:@leeoniya/ufuzzy@1.0.10
         version: '@leeoniya/ufuzzy@1.0.10'
@@ -6085,8 +6085,9 @@ packages:
   tzdata@1.0.40:
     resolution: {integrity: sha512-IsWNGfC5GrVPG4ejYJtf3tOlBdJYs0uNzv1a+vkdANHDq2kPg4oAN2UlCfpqrCwErPZVhI6MLA2gkeuXAVnpLg==, tarball: https://registry.npmjs.org/tzdata/-/tzdata-1.0.40.tgz}
 
-  ua-parser-js@1.0.33:
-    resolution: {integrity: sha512-RqshF7TPTE0XLYAqmjlu5cLLuGdKrNu9O1KLA/qp39QtbZwuzwv1dT46DZSopoUMsYgXpB3Cv8a03FI8b74oFQ==, tarball: https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.33.tgz}
+  ua-parser-js@1.0.40:
+    resolution: {integrity: sha512-z6PJ8Lml+v3ichVojCiB8toQJBuwR42ySM4ezjXIqXK3M0HczmKQ3LF4rhU55PfD99KEEXQG6yb7iOMyvYuHew==, tarball: https://registry.npmjs.org/ua-parser-js/-/ua-parser-js-1.0.40.tgz}
+    hasBin: true
 
   undici-types@5.26.5:
     resolution: {integrity: sha512-JlCMO+ehdEIKqlFxk6IfVoAUVmgz7cU7zD/h9XZ0qzeosSHmUJVOzSQvvYSYWXkFXC+IfLKSIffhv0sVZup6pA==, tarball: https://registry.npmjs.org/undici-types/-/undici-types-5.26.5.tgz}
@@ -12903,7 +12904,7 @@ snapshots:
 
   tzdata@1.0.40: {}
 
-  ua-parser-js@1.0.33: {}
+  ua-parser-js@1.0.40: {}
 
   undici-types@5.26.5: {}
 
