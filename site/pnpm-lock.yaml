@@ -296,8 +296,8 @@ importers:
         specifier: 8.5.2
         version: 8.5.2(react@18.3.1)(storybook@8.5.2(prettier@3.4.1))
       '@storybook/addon-mdx-gfm':
-        specifier: 8.4.6
-        version: 8.4.6(storybook@8.5.2(prettier@3.4.1))
+        specifier: 8.5.2
+        version: 8.5.2(storybook@8.5.2(prettier@3.4.1))
       '@storybook/addon-themes':
         specifier: 8.4.6
         version: 8.4.6(storybook@8.5.2(prettier@3.4.1))
@@ -2175,10 +2175,10 @@ packages:
       react:
         optional: true
 
-  '@storybook/addon-mdx-gfm@8.4.6':
-    resolution: {integrity: sha512-wagsSBUN6pwcSZSWxp/aOhE16ZKI8ZW4XeRT6QivySmkJaLcbva+HNvQOijdXIM28W8PprKjqtyVa8nu4YQxsw==, tarball: https://registry.npmjs.org/@storybook/addon-mdx-gfm/-/addon-mdx-gfm-8.4.6.tgz}
+  '@storybook/addon-mdx-gfm@8.5.2':
+    resolution: {integrity: sha512-UuJDa2Asch8Z6H+vzLg+/VQQNbHhqmDtn8OSfNHo6Lr6a0uk6LofYKvP/nB7i6wMUvnaM+Qh/b5hAI/VCXitBQ==, tarball: https://registry.npmjs.org/@storybook/addon-mdx-gfm/-/addon-mdx-gfm-8.5.2.tgz}
     peerDependencies:
-      storybook: ^8.4.6
+      storybook: ^8.5.2
 
   '@storybook/addon-measure@8.4.6':
     resolution: {integrity: sha512-N2IRpr39g5KpexCAS1vIHJT+phc9Yilwm3PULds2rQ66VMTbkxobXJDdt0NS05g5n9/eDniroNQwdCeLg4tkpw==, tarball: https://registry.npmjs.org/@storybook/addon-measure/-/addon-measure-8.4.6.tgz}
@@ -8186,7 +8186,7 @@ snapshots:
     optionalDependencies:
       react: 18.3.1
 
-  '@storybook/addon-mdx-gfm@8.4.6(storybook@8.5.2(prettier@3.4.1))':
+  '@storybook/addon-mdx-gfm@8.5.2(storybook@8.5.2(prettier@3.4.1))':
     dependencies:
       remark-gfm: 4.0.0
       storybook: 8.5.2(prettier@3.4.1)
