@@ -49,7 +49,7 @@
 		"@mui/material": "5.16.14",
 		"@mui/system": "5.16.14",
 		"@mui/utils": "5.16.14",
-		"@mui/x-tree-view": "7.24.1",
+		"@mui/x-tree-view": "7.25.0",
 		"@radix-ui/react-avatar": "1.1.2",
 		"@radix-ui/react-collapsible": "1.1.2",
 		"@radix-ui/react-dialog": "1.1.4",
