@@ -4564,13 +4564,15 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 }
 
 func (s *MethodTestSuite) TestResourcesMonitor() {
-	// s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-	// 	check.Args(database.InsertMemoryResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
-	// }))
+	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		check.Args(database.InsertMemoryResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+	}))
 
-	// s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
-	// 	check.Args(database.InsertVolumeResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
-	// }))
+	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
+		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
+		check.Args(database.InsertVolumeResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+	}))
 
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
 		u := dbgen.User(s.T(), db, database.User{})
