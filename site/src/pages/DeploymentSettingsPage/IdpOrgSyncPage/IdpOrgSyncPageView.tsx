@@ -10,6 +10,14 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
+import {
+	Command,
+	CommandEmpty,
+	CommandGroup,
+	CommandInput,
+	CommandItem,
+	CommandList,
+} from "components/Command/Command";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	Dialog,
@@ -34,17 +42,16 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "components/Select/Select";
+	Popover,
+	PopoverContent,
+	PopoverTrigger,
+} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { Check, ChevronDown, CornerDownLeft, Plus, Trash } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
+import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
@@ -102,11 +109,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	});
 	const [coderOrgs, setCoderOrgs] = useState<Option[]>([]);
 	const [idpOrgName, setIdpOrgName] = useState("");
+	const [inputValue, setInputValue] = useState("");
 	const organizationMappingCount = form.values.mapping
 		? Object.entries(form.values.mapping).length
 		: 0;
 	const [isDialogOpen, setIsDialogOpen] = useState(false);
 	const id = useId();
+	const [open, setOpen] = useState(false);
 
 	const getOrgNames = (orgIds: readonly string[]) => {
 		return orgIds.map(
@@ -127,6 +136,19 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		};
 		void form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
+	};
+
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (e) => {
+		if (
+			e.key === "Enter" &&
+			inputValue &&
+			!claimFieldValues?.some((value) => value === inputValue.toLowerCase())
+		) {
+			e.preventDefault();
+			setIdpOrgName(inputValue);
+			setInputValue("");
+			setOpen(false);
+		}
 	};
 
 	return (
@@ -204,21 +226,68 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</Label>
 
 								{claimFieldValues ? (
-									<Select
-										onValueChange={(event) => setIdpOrgName(event)}
-										value={idpOrgName}
-									>
-										<SelectTrigger id={`${id}-idp-org-name`} className="w-72">
-											<SelectValue placeholder="Select IdP organization" />
-										</SelectTrigger>
-										<SelectContent className="[&_*[role=option]>span]:end-2 [&_*[role=option]>span]:start-auto [&_*[role=option]]:pe-8 [&_*[role=option]]:ps-2">
-											{claimFieldValues.map((value) => (
-												<SelectItem key={value} value={value}>
-													{value}
-												</SelectItem>
-											))}
-										</SelectContent>
-									</Select>
+									<Popover open={open} onOpenChange={setOpen}>
+										<PopoverTrigger asChild>
+											<Button
+												variant="outline"
+												aria-expanded={open}
+												className="w-72 justify-between"
+											>
+												<span
+													className={cn(
+														!idpOrgName && "text-content-secondary",
+													)}
+												>
+													{idpOrgName || "Select IdP organization"}
+												</span>
+												<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
+											</Button>
+										</PopoverTrigger>
+										<PopoverContent className="w-72">
+											<Command>
+												<CommandInput
+													placeholder="Search or enter custom value"
+													value={inputValue}
+													onValueChange={setInputValue}
+													onKeyDown={handleKeyDown}
+												/>
+												<CommandList>
+													<CommandEmpty>
+														<p>No results found</p>
+														<span className="flex flex-row items-center justify-center gap-1">
+															Enter custom value
+															<CornerDownLeft className="size-icon-sm bg-surface-tertiary rounded-sm p-1" />
+														</span>
+													</CommandEmpty>
+													<CommandGroup>
+														{claimFieldValues.map((value) => (
+															<CommandItem
+																key={value}
+																value={value}
+																onSelect={(currentValue) => {
+																	setIdpOrgName(
+																		currentValue === idpOrgName
+																			? ""
+																			: currentValue,
+																	);
+																	setOpen(false);
+																}}
+															>
+																{value}
+																{idpOrgName === value && (
+																	<Check
+																		size={16}
+																		strokeWidth={2}
+																		className="ml-auto"
+																	/>
+																)}
+															</CommandItem>
+														))}
+													</CommandGroup>
+												</CommandList>
+											</Command>
+										</PopoverContent>
+									</Popover>
 								) : (
 									<Input
 										id={`${id}-idp-org-name`}
