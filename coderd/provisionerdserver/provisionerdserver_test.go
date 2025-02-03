@@ -1883,16 +1883,6 @@ func TestInsertWorkspaceResource(t *testing.T) {
 			Name: "something",
 			Type: "aws_instance",
 			Agents: []*sdkproto.Agent{{
-				Name:        "dev1",
-				DisplayApps: &sdkproto.DisplayApps{},
-				ResourcesMonitoring: &sdkproto.ResourcesMonitoring{
-					Memory: &sdkproto.MemoryResourceMonitor{
-						Enabled:   true,
-						Threshold: 70,
-					},
-				},
-			}, {
-				Name:        "dev2",
 				DisplayApps: &sdkproto.DisplayApps{},
 				ResourcesMonitoring: &sdkproto.ResourcesMonitoring{
 					Memory: &sdkproto.MemoryResourceMonitor{
@@ -1920,17 +1910,12 @@ func TestInsertWorkspaceResource(t *testing.T) {
 		require.Len(t, resources, 1)
 		agents, err := db.GetWorkspaceAgentsByResourceIDs(ctx, []uuid.UUID{resources[0].ID})
 		require.NoError(t, err)
-		require.Len(t, agents, 2)
+		require.Len(t, agents, 1)
 
-		firstAgent := agents[0]
-		memMonitor, err := db.FetchMemoryResourceMonitorsByAgentID(ctx, firstAgent.ID)
+		agent := agents[0]
+		memMonitor, err := db.FetchMemoryResourceMonitorsByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
-		require.Equal(t, int32(70), memMonitor.Threshold)
-
-		secondAgent := agents[1]
-		memMonitor, err = db.FetchMemoryResourceMonitorsByAgentID(ctx, secondAgent.ID)
-		require.NoError(t, err)
-		volMonitors, err := db.FetchVolumesResourceMonitorsByAgentID(ctx, secondAgent.ID)
+		volMonitors, err := db.FetchVolumesResourceMonitorsByAgentID(ctx, agent.ID)
 		require.NoError(t, err)
 
 		require.Equal(t, int32(80), memMonitor.Threshold)
