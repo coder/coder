@@ -62,7 +62,6 @@
 		"@radix-ui/react-switch": "1.1.1",
 		"@radix-ui/react-visually-hidden": "1.1.0",
 		"@tanstack/react-query-devtools": "4.35.3",
-		"@tanstack/react-table": "8.20.6",
 		"@xterm/addon-canvas": "0.7.0",
 		"@xterm/addon-fit": "0.10.0",
 		"@xterm/addon-unicode11": "0.8.0",
