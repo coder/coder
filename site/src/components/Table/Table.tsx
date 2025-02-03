@@ -1,3 +1,8 @@
+/**
+ * Copied from shadc/ui on 02/03/2025
+ * @see {@link https://ui.shadcn.com/docs/components/table}
+ */
+
 import * as React from "react";
 import { cn } from "utils/cn";
 
