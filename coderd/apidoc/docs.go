@@ -13475,8 +13475,7 @@ const docTemplate = `{
                 "template",
                 "user",
                 "workspace",
-                "workspace_agent_memory_resource_monitor",
-                "workspace_agent_volume_resource_monitor",
+                "workspace_agent_resource_monitor",
                 "workspace_dormant",
                 "workspace_proxy"
             ],
@@ -13512,8 +13511,7 @@ const docTemplate = `{
                 "ResourceTemplate",
                 "ResourceUser",
                 "ResourceWorkspace",
-                "ResourceWorkspaceAgentMemoryResourceMonitor",
-                "ResourceWorkspaceAgentVolumeResourceMonitor",
+                "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
             ]

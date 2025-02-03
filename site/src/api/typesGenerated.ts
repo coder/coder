@@ -1848,8 +1848,7 @@ export type RBACResource =
 	| "user"
 	| "*"
 	| "workspace"
-	| "workspace_agent_memory_resource_monitor"
-	| "workspace_agent_volume_resource_monitor"
+	| "workspace_agent_resource_monitor"
 	| "workspace_dormant"
 	| "workspace_proxy";
 
@@ -1885,8 +1884,7 @@ export const RBACResources: RBACResource[] = [
 	"user",
 	"*",
 	"workspace",
-	"workspace_agent_memory_resource_monitor",
-	"workspace_agent_volume_resource_monitor",
+	"workspace_agent_resource_monitor",
 	"workspace_dormant",
 	"workspace_proxy",
 ];
