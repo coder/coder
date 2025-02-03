@@ -109,7 +109,7 @@
 		"recharts": "2.15.0",
 		"remark-gfm": "4.0.0",
 		"resize-observer-polyfill": "1.5.1",
-		"rollup-plugin-visualizer": "5.12.0",
+		"rollup-plugin-visualizer": "5.14.0",
 		"semver": "7.6.2",
 		"tailwind-merge": "2.6.0",
 		"tailwindcss-animate": "1.0.7",
