@@ -500,6 +500,17 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 		for _, group := range ownerGroups {
 			ownerGroupNames = append(ownerGroupNames, group.Group.Name)
 		}
+		var runningWorkspaceAgentToken string
+		if input.RunningWorkspaceAgentID != uuid.Nil {
+			agent, err := s.Database.GetWorkspaceAgentByID(ctx, input.RunningWorkspaceAgentID)
+			if err != nil {
+				s.Logger.Warn(ctx, "failed to retrieve running workspace agent by ID; this may affect prebuilds",
+					slog.F("workspace_agent_id", input.RunningWorkspaceAgentID),
+					slog.F("job_id", job.ID))
+			} else {
+				runningWorkspaceAgentToken = agent.AuthToken.String()
+			}
+		}
 
 		msg, err := json.Marshal(wspubsub.WorkspaceEvent{
 			Kind:        wspubsub.WorkspaceEventKindStateChange,
@@ -622,6 +633,7 @@ func (s *server) acquireProtoJob(ctx context.Context, job database.ProvisionerJo
 					WorkspaceBuildId:              workspaceBuild.ID.String(),
 					WorkspaceOwnerLoginType:       string(owner.LoginType),
 					IsPrebuild:                    input.IsPrebuild,
+					RunningWorkspaceAgentToken:    runningWorkspaceAgentToken,
 				},
 				LogLevel: input.LogLevel,
 			},
@@ -2347,7 +2359,14 @@ type WorkspaceProvisionJob struct {
 	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
 	DryRun           bool      `json:"dry_run"`
 	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
-	LogLevel         string    `json:"log_level,omitempty"`
+	// RunningWorkspaceAgentID is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
+	// but not generate a new agent token. The provisionerdserver will retrieve this token and push it down to
+	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where it will be
+	// reused. Context: the agent token is often used in immutable attributes of workspace resource (e.g. VM/container)
+	// to initialize the agent, so if that value changes it will necessitate a replacement of that resource, thus
+	// obviating the whole point of the prebuild.
+	RunningWorkspaceAgentID uuid.UUID `json:"running_workspace_agent_id"`
+	LogLevel                string    `json:"log_level,omitempty"`
 }
 
 // TemplateVersionDryRunJob is the payload for the "template_version_dry_run" job type.

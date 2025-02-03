@@ -627,6 +627,8 @@ func createWorkspace(
 		provisionerJob     *database.ProvisionerJob
 		workspaceBuild     *database.WorkspaceBuild
 		provisionerDaemons []database.GetEligibleProvisionerDaemonsByProvisionerJobIDsRow
+
+		runningWorkspaceAgentID uuid.UUID
 	)
 	err = api.Database.InTx(func(db database.Store) error {
 		var claimedWorkspace *database.Workspace
@@ -663,8 +665,17 @@ func createWorkspace(
 				api.Logger.Warn(ctx, "unable to find claimed workspace by ID", slog.Error(err), slog.F("claimed_prebuild_id", (*claimedID).String()))
 				goto regularPath
 			}
-
 			claimedWorkspace = &lookup
+
+			agents, err := api.Database.GetWorkspaceAgentsInLatestBuildByWorkspaceID(ownerCtx, claimedWorkspace.ID)
+			if err != nil {
+				api.Logger.Error(ctx, "failed to retrieve running agents of claimed prebuilt workspace",
+					slog.F("workspace_id", claimedWorkspace.ID), slog.Error(err))
+			}
+			if len(agents) >= 1 {
+				// TODO: handle multiple agents
+				runningWorkspaceAgentID = agents[0].ID
+			}
 		}
 
 	regularPath:
@@ -710,7 +721,8 @@ func createWorkspace(
 			Reason(database.BuildReasonInitiator).
 			Initiator(initiatorID).
 			ActiveVersion().
-			RichParameterValues(req.RichParameterValues)
+			RichParameterValues(req.RichParameterValues).
+			RunningWorkspaceAgentID(runningWorkspaceAgentID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
 		}

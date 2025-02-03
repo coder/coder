@@ -73,6 +73,7 @@ type Builder struct {
 	parameterNames               *[]string
 	parameterValues              *[]string
 	prebuild                     bool
+	runningWorkspaceAgentID      uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -172,6 +173,13 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuild = true
+	return b
+}
+
+// RunningWorkspaceAgentID is only used for prebuilds; see the associated field in `provisionerdserver.WorkspaceProvisionJob`.
+func (b Builder) RunningWorkspaceAgentID(id uuid.UUID) Builder {
+	// nolint: revive
+	b.runningWorkspaceAgentID = id
 	return b
 }
 
@@ -300,9 +308,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 
 	workspaceBuildID := uuid.New()
 	input, err := json.Marshal(provisionerdserver.WorkspaceProvisionJob{
-		WorkspaceBuildID: workspaceBuildID,
-		LogLevel:         b.logLevel,
-		IsPrebuild:       b.prebuild,
+		WorkspaceBuildID:        workspaceBuildID,
+		LogLevel:                b.logLevel,
+		IsPrebuild:              b.prebuild,
+		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {
 		return nil, nil, nil, BuildError{
