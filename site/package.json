@@ -128,7 +128,7 @@
 		"@playwright/test": "1.47.2",
 		"@storybook/addon-actions": "8.5.2",
 		"@storybook/addon-essentials": "8.4.6",
-		"@storybook/addon-interactions": "8.4.6",
+		"@storybook/addon-interactions": "8.5.3",
 		"@storybook/addon-links": "8.5.2",
 		"@storybook/addon-mdx-gfm": "8.5.2",
 		"@storybook/addon-themes": "8.4.6",
