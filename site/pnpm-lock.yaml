@@ -347,8 +347,8 @@ importers:
         specifier: 29.5.14
         version: 29.5.14
       '@types/lodash':
-        specifier: 4.17.14
-        version: 4.17.14
+        specifier: 4.17.15
+        version: 4.17.15
       '@types/node':
         specifier: 20.17.16
         version: 20.17.16
@@ -2619,8 +2619,8 @@ packages:
   '@types/jsdom@20.0.1':
     resolution: {integrity: sha512-d0r18sZPmMQr1eG35u12FZfhIXNrnsPU/g5wvRKCUf/tOGilKKwYMYGqh33BNR6ba+2gkHw1EUiHoN3mn7E5IQ==, tarball: https://registry.npmjs.org/@types/jsdom/-/jsdom-20.0.1.tgz}
 
-  '@types/lodash@4.17.14':
-    resolution: {integrity: sha512-jsxagdikDiDBeIRaPYtArcT8my4tN1og7MtMRquFT3XNA6axxyHDRUemqDz/taRDdOUn0GnGHRCuff4q48sW9A==, tarball: https://registry.npmjs.org/@types/lodash/-/lodash-4.17.14.tgz}
+  '@types/lodash@4.17.15':
+    resolution: {integrity: sha512-w/P33JFeySuhN6JLkysYUK2gEmy9kHHFN7E8ro0tkfmlDOgxBDzWEZ/J8cWA+fHqFevpswDTFZnDx+R9lbL6xw==, tarball: https://registry.npmjs.org/@types/lodash/-/lodash-4.17.15.tgz}
 
   '@types/mdast@4.0.3':
     resolution: {integrity: sha512-LsjtqsyF+d2/yFOYaN22dHZI1Cpwkrj+g06G8+qtUKlhovPW89YhqSnfKtMbkgmEtYpH2gydRNULd6y8mciAFg==, tarball: https://registry.npmjs.org/@types/mdast/-/mdast-4.0.3.tgz}
@@ -8682,7 +8682,7 @@ snapshots:
       '@types/tough-cookie': 4.0.2
       parse5: 7.1.2
 
-  '@types/lodash@4.17.14': {}
+  '@types/lodash@4.17.15': {}
 
   '@types/mdast@4.0.3':
     dependencies:
