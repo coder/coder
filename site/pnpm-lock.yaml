@@ -296,8 +296,8 @@ importers:
         specifier: 8.5.2
         version: 8.5.2(react@18.3.1)(storybook@8.5.2(prettier@3.4.1))
       '@storybook/addon-mdx-gfm':
-        specifier: 8.4.6
-        version: 8.4.6(storybook@8.5.2(prettier@3.4.1))
+        specifier: 8.5.2
+        version: 8.5.2(storybook@8.5.2(prettier@3.4.1))
       '@storybook/addon-themes':
         specifier: 8.4.6
         version: 8.4.6(storybook@8.5.2(prettier@3.4.1))
@@ -2170,10 +2170,10 @@ packages:
       react:
         optional: true
 
-  '@storybook/addon-mdx-gfm@8.4.6':
-    resolution: {integrity: sha512-wagsSBUN6pwcSZSWxp/aOhE16ZKI8ZW4XeRT6QivySmkJaLcbva+HNvQOijdXIM28W8PprKjqtyVa8nu4YQxsw==, tarball: https://registry.npmjs.org/@storybook/addon-mdx-gfm/-/addon-mdx-gfm-8.4.6.tgz}
+  '@storybook/addon-mdx-gfm@8.5.2':
+    resolution: {integrity: sha512-UuJDa2Asch8Z6H+vzLg+/VQQNbHhqmDtn8OSfNHo6Lr6a0uk6LofYKvP/nB7i6wMUvnaM+Qh/b5hAI/VCXitBQ==, tarball: https://registry.npmjs.org/@storybook/addon-mdx-gfm/-/addon-mdx-gfm-8.5.2.tgz}
     peerDependencies:
-      storybook: ^8.4.6
+      storybook: ^8.5.2
 
   '@storybook/addon-measure@8.4.6':
     resolution: {integrity: sha512-N2IRpr39g5KpexCAS1vIHJT+phc9Yilwm3PULds2rQ66VMTbkxobXJDdt0NS05g5n9/eDniroNQwdCeLg4tkpw==, tarball: https://registry.npmjs.org/@storybook/addon-measure/-/addon-measure-8.4.6.tgz}
@@ -4058,6 +4058,10 @@ packages:
 
   import-fresh@3.3.0:
     resolution: {integrity: sha512-veYYhQa+D1QBKznvhUHxb8faxlrwUnxseDAbAp457E0wLNio2bOSKnjYDhMj+YiAq61xrMGhQk9iXVk5FzgQMw==, tarball: https://registry.npmjs.org/import-fresh/-/import-fresh-3.3.0.tgz}
+    engines: {node: '>=6'}
+
+  import-fresh@3.3.1:
+    resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==, tarball: https://registry.npmjs.org/import-fresh/-/import-fresh-3.3.1.tgz}
     engines: {node: '>=6'}
 
   import-local@3.2.0:
@@ -7003,7 +7007,7 @@ snapshots:
       espree: 9.6.1
       globals: 13.24.0
       ignore: 5.3.2
-      import-fresh: 3.3.0
+      import-fresh: 3.3.1
       js-yaml: 4.1.0
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
@@ -8151,7 +8155,7 @@ snapshots:
     optionalDependencies:
       react: 18.3.1
 
-  '@storybook/addon-mdx-gfm@8.4.6(storybook@8.5.2(prettier@3.4.1))':
+  '@storybook/addon-mdx-gfm@8.5.2(storybook@8.5.2(prettier@3.4.1))':
     dependencies:
       remark-gfm: 4.0.0
       storybook: 8.5.2(prettier@3.4.1)
@@ -10227,6 +10231,12 @@ snapshots:
     dependencies:
       parent-module: 1.0.1
       resolve-from: 4.0.0
+
+  import-fresh@3.3.1:
+    dependencies:
+      parent-module: 1.0.1
+      resolve-from: 4.0.0
+    optional: true
 
   import-local@3.2.0:
     dependencies:
