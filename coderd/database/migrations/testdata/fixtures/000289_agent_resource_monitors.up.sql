@@ -6,7 +6,7 @@ INSERT INTO
 		created_at
 	)
 	VALUES (
-		'5755e622-fadd-44ca-98da-5df070491844', -- uuid
+		'45e89705-e09d-4850-bcec-f9a937f5d78d', -- uuid
 		true,
 		90,
 		'2024-01-01 00:00:00'
@@ -21,7 +21,7 @@ INSERT INTO
 		created_at
 	)
 	VALUES (
-		'5755e622-fadd-44ca-98da-5df070491844', -- uuid
+		'45e89705-e09d-4850-bcec-f9a937f5d78d', -- uuid
 		'/',
 		true,
 		90,
