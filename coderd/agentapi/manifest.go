@@ -1,6 +1,7 @@
 package agentapi
 
 import (
+	"cdr.dev/slog"
 	"context"
 	"database/sql"
 	"net/url"
@@ -34,6 +35,31 @@ type ManifestAPI struct {
 	AgentFn   func(context.Context) (database.WorkspaceAgent, error)
 	Database  database.Store
 	DerpMapFn func() *tailcfg.DERPMap
+	Log       slog.Logger
+}
+
+func (a *ManifestAPI) StreamManifests(in *agentproto.GetManifestRequest, stream agentproto.DRPCAgent_StreamManifestsStream) error {
+	streamCtx := dbauthz.AsSystemRestricted(stream.Context()) // TODO:
+
+	defer func() {
+		if err := stream.CloseSend(); err != nil {
+			a.Log.Error(streamCtx, "error closing stream: %v", err)
+		}
+	}()
+
+	for {
+		resp, err := a.GetManifest(streamCtx, in)
+		if err != nil {
+			return xerrors.Errorf("receive manifest: %w", err)
+		}
+
+		err = stream.Send(resp)
+		if err != nil {
+			return xerrors.Errorf("send manifest: %w", err)
+		}
+
+		time.Sleep(time.Second * 5)
+	}
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {
