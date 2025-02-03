@@ -8,6 +8,19 @@ their experience.
 
 ![PlatformX Events in Coder](../../images/integrations/platformx-screenshot.png)
 
+## Requirements
+
+You'll need:
+
+- Coder v2.19+
+- A PlatformX subscription from [DX](https://getdx.com/)
+- A platform to host the integration, such as:
+  - AWS Lambda
+  - Google Cloud Run
+  - Heroku
+  - Kubernetes
+  - Or any other platform that can run Python web applications
+
 ## coder-platformx-events-middleware
 
 Coder sends [notifications](../monitoring/notifications/index.md) via webhooks
