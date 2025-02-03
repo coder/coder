@@ -72,7 +72,9 @@ export const ErrorScriptAlert: FC = () => {
 			The workspace{" "}
 			<Link
 				title="startup script has exited with an error"
-				href={docs("/templates#startup-script-exited-with-an-error")}
+				href={docs(
+					"/admin/templates/troubleshooting#startup-script-exited-with-an-error",
+				)}
 				target="_blank"
 				rel="noreferrer"
 			>
