@@ -284,8 +284,8 @@ importers:
         specifier: 1.47.2
         version: 1.47.2
       '@storybook/addon-actions':
-        specifier: 8.4.6
-        version: 8.4.6(storybook@8.5.2(prettier@3.4.1))
+        specifier: 8.5.2
+        version: 8.5.2(storybook@8.5.2(prettier@3.4.1))
       '@storybook/addon-essentials':
         specifier: 8.4.6
         version: 8.4.6(@types/react@18.3.12)(storybook@8.5.2(prettier@3.4.1))
@@ -2130,6 +2130,11 @@ packages:
     resolution: {integrity: sha512-vbplwjMj7UXbdzoFhQkqFHLQAPJX8OVGTM9Q+yjuWDHViaKKUlgRWp0jclT7aIDNJQU2a6wJbTimHgJeF16Vhg==, tarball: https://registry.npmjs.org/@storybook/addon-actions/-/addon-actions-8.4.6.tgz}
     peerDependencies:
       storybook: ^8.4.6
+
+  '@storybook/addon-actions@8.5.2':
+    resolution: {integrity: sha512-g0gLesVSFgstUq5QphsLeC1vEdwNHgqo2TE0m+STM47832xbxBwmK6uvBeqi416xZvnt1TTKaaBr4uCRRQ64Ww==, tarball: https://registry.npmjs.org/@storybook/addon-actions/-/addon-actions-8.5.2.tgz}
+    peerDependencies:
+      storybook: ^8.5.2
 
   '@storybook/addon-backgrounds@8.4.6':
     resolution: {integrity: sha512-RSjJ3iElxlQXebZrz1s5LeoLpAXr9LAGifX7w0abMzN5sg6QSwNeUHko2eT3V57M3k1Fa/5Eelso/QBQifFEog==, tarball: https://registry.npmjs.org/@storybook/addon-backgrounds/-/addon-backgrounds-8.4.6.tgz}
@@ -5150,6 +5155,10 @@ packages:
     resolution: {integrity: sha512-Sz2Lkdxz6F2Pgnpi9U5Ng/WdWAUZxmHrNPoVlm3aAemxoy2Qy7LGjQg4uf8qKelDAUW94F4np3iH2YPf2qefcQ==, tarball: https://registry.npmjs.org/polished/-/polished-4.2.2.tgz}
     engines: {node: '>=10'}
 
+  polished@4.3.1:
+    resolution: {integrity: sha512-OBatVyC/N7SCW/FaDHrSd+vn0o5cS855TOmYi4OkdWUMSJCET/xip//ch8xGUvtr3i44X9LVyWwQlRMTN3pwSA==, tarball: https://registry.npmjs.org/polished/-/polished-4.3.1.tgz}
+    engines: {node: '>=10'}
+
   possible-typed-array-names@1.0.0:
     resolution: {integrity: sha512-d7Uw+eZoloe0EHDIYoe+bQ5WXnGMOpmiZFTuMWCwpjzzkL2nTjcKiAk4hh8TjnGye2TwWOk3UXucZ+3rbmBa8Q==, tarball: https://registry.npmjs.org/possible-typed-array-names/-/possible-typed-array-names-1.0.0.tgz}
     engines: {node: '>= 0.4'}
@@ -8098,7 +8107,16 @@ snapshots:
       '@storybook/global': 5.0.0
       '@types/uuid': 9.0.2
       dequal: 2.0.3
-      polished: 4.2.2
+      polished: 4.3.1
+      storybook: 8.5.2(prettier@3.4.1)
+      uuid: 9.0.1
+
+  '@storybook/addon-actions@8.5.2(storybook@8.5.2(prettier@3.4.1))':
+    dependencies:
+      '@storybook/global': 5.0.0
+      '@types/uuid': 9.0.2
+      dequal: 2.0.3
+      polished: 4.3.1
       storybook: 8.5.2(prettier@3.4.1)
       uuid: 9.0.1
 
@@ -11817,6 +11835,10 @@ snapshots:
       fsevents: 2.3.2
 
   polished@4.2.2:
+    dependencies:
+      '@babel/runtime': 7.26.7
+
+  polished@4.3.1:
     dependencies:
       '@babel/runtime': 7.26.7
 
