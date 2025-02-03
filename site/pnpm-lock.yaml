@@ -356,8 +356,8 @@ importers:
         specifier: 18.3.12
         version: 18.3.12
       '@types/react-color':
-        specifier: 3.0.12
-        version: 3.0.12
+        specifier: 3.0.13
+        version: 3.0.13(@types/react@18.3.12)
       '@types/react-date-range':
         specifier: 1.4.4
         version: 1.4.4
@@ -2664,8 +2664,10 @@ packages:
   '@types/range-parser@1.2.4':
     resolution: {integrity: sha512-EEhsLsD6UsDM1yFhAvy0Cjr6VwmpMWqFBCb9w07wVugF7w9nfajxLuVmngTIpgS6svCnm6Vaw+MZhoDCKnOfsw==, tarball: https://registry.npmjs.org/@types/range-parser/-/range-parser-1.2.4.tgz}
 
-  '@types/react-color@3.0.12':
-    resolution: {integrity: sha512-pr3uKE3lSvf7GFo1Rn2K3QktiZQFFrSgSGJ/3iMvSOYWt2pPAJ97rVdVfhWxYJZ8prAEXzoP2XX//3qGSQgu7Q==, tarball: https://registry.npmjs.org/@types/react-color/-/react-color-3.0.12.tgz}
+  '@types/react-color@3.0.13':
+    resolution: {integrity: sha512-2c/9FZ4ixC5T3JzN0LP5Cke2Mf0MKOP2Eh0NPDPWmuVH3NjPyhEjqNMQpN1Phr5m74egAy+p2lYNAFrX1z9Yrg==, tarball: https://registry.npmjs.org/@types/react-color/-/react-color-3.0.13.tgz}
+    peerDependencies:
+      '@types/react': '*'
 
   '@types/react-date-range@1.4.4':
     resolution: {integrity: sha512-9Y9NyNgaCsEVN/+O4HKuxzPbVjRVBGdOKRxMDcsTRWVG62lpYgnxefNckTXDWup8FvczoqPW0+ESZR6R1yymDg==, tarball: https://registry.npmjs.org/@types/react-date-range/-/react-date-range-1.4.4.tgz}
@@ -2690,8 +2692,10 @@ packages:
   '@types/react@18.3.12':
     resolution: {integrity: sha512-D2wOSq/d6Agt28q7rSI3jhU7G6aiuzljDGZ2hTZHIkrTLUI+AF3WMeKkEZ9nN2fkBAlcktT6vcZjDFiIhMYEQw==, tarball: https://registry.npmjs.org/@types/react/-/react-18.3.12.tgz}
 
-  '@types/reactcss@1.2.6':
-    resolution: {integrity: sha512-qaIzpCuXNWomGR1Xq8SCFTtF4v8V27Y6f+b9+bzHiv087MylI/nTCqqdChNeWS7tslgROmYB7yeiruWX7WnqNg==, tarball: https://registry.npmjs.org/@types/reactcss/-/reactcss-1.2.6.tgz}
+  '@types/reactcss@1.2.13':
+    resolution: {integrity: sha512-gi3S+aUi6kpkF5vdhUsnkwbiSEIU/BEJyD7kBy2SudWBUuKmJk8AQKE0OVcQQeEy40Azh0lV6uynxlikYIJuwg==, tarball: https://registry.npmjs.org/@types/reactcss/-/reactcss-1.2.13.tgz}
+    peerDependencies:
+      '@types/react': '*'
 
   '@types/resolve@1.20.4':
     resolution: {integrity: sha512-BKGK0T1VgB1zD+PwQR4RRf0ais3NyvH1qjLUrHI5SEiccYaJrhLstLuoXFWJ+2Op9whGizSPUMGPJY/Qtb/A2w==, tarball: https://registry.npmjs.org/@types/resolve/-/resolve-1.20.4.tgz}
@@ -8722,10 +8726,10 @@ snapshots:
 
   '@types/range-parser@1.2.4': {}
 
-  '@types/react-color@3.0.12':
+  '@types/react-color@3.0.13(@types/react@18.3.12)':
     dependencies:
       '@types/react': 18.3.12
-      '@types/reactcss': 1.2.6
+      '@types/reactcss': 1.2.13(@types/react@18.3.12)
 
   '@types/react-date-range@1.4.4':
     dependencies:
@@ -8757,7 +8761,7 @@ snapshots:
       '@types/prop-types': 15.7.13
       csstype: 3.1.3
 
-  '@types/reactcss@1.2.6':
+  '@types/reactcss@1.2.13(@types/react@18.3.12)':
     dependencies:
       '@types/react': 18.3.12
 
