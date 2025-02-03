@@ -314,9 +314,11 @@ func (a *agent) runLoop() {
 		if ctx.Err() != nil {
 			// Context canceled errors may come from websocket pings, so we
 			// don't want to use `errors.Is(err, context.Canceled)` here.
+			a.logger.Warn(ctx, "exiting", slog.Error(ctx.Err()))
 			return
 		}
 		if a.isClosed() {
+			a.logger.Debug(ctx, "closed")
 			return
 		}
 		if errors.Is(err, io.EOF) {
