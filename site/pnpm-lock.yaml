@@ -34,8 +34,8 @@ importers:
         specifier: 2.0.0
         version: 2.0.0
       '@fontsource-variable/inter':
-        specifier: 5.0.15
-        version: 5.0.15
+        specifier: 5.1.1
+        version: 5.1.1
       '@fontsource/ibm-plex-mono':
         specifier: 5.1.1
         version: 5.1.1
@@ -1155,8 +1155,8 @@ packages:
   '@floating-ui/utils@0.2.9':
     resolution: {integrity: sha512-MDWhGtE+eHw5JW7lq4qhc5yRLS11ERl1c7Z6Xd0a58DozHES6EnNNwUWbMiG4J9Cgj053Bhk8zvlhFYKVhULwg==, tarball: https://registry.npmjs.org/@floating-ui/utils/-/utils-0.2.9.tgz}
 
-  '@fontsource-variable/inter@5.0.15':
-    resolution: {integrity: sha512-CdQPQQgOVxg6ifmbrqYZeUqtQf7p2wPn6EvJ4M+vdNnsmYZgYwPPPQDNlIOU7LCUlSGaN26v6H0uA030WKn61g==, tarball: https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.0.15.tgz}
+  '@fontsource-variable/inter@5.1.1':
+    resolution: {integrity: sha512-OpXFTmiH6tHkYijMvQTycFKBLK4X+SRV6tet1m4YOUH7SzIIlMqDja+ocDtiCA72UthBH/vF+3ZtlMr2rN/wIw==, tarball: https://registry.npmjs.org/@fontsource-variable/inter/-/inter-5.1.1.tgz}
 
   '@fontsource/ibm-plex-mono@5.1.1':
     resolution: {integrity: sha512-1aayqPe/ZkD3MlvqpmOHecfA3f2B8g+fAEkgvcCd3lkPP0pS1T0xG5Zmn2EsJQqr1JURtugPUH+5NqvKyfFZMQ==, tarball: https://registry.npmjs.org/@fontsource/ibm-plex-mono/-/ibm-plex-mono-5.1.1.tgz}
@@ -4058,6 +4058,10 @@ packages:
 
   import-fresh@3.3.0:
     resolution: {integrity: sha512-veYYhQa+D1QBKznvhUHxb8faxlrwUnxseDAbAp457E0wLNio2bOSKnjYDhMj+YiAq61xrMGhQk9iXVk5FzgQMw==, tarball: https://registry.npmjs.org/import-fresh/-/import-fresh-3.3.0.tgz}
+    engines: {node: '>=6'}
+
+  import-fresh@3.3.1:
+    resolution: {integrity: sha512-TR3KfrTZTYLPB6jUjfx6MF9WcWrHL9su5TObK4ZkYgBdWKPOFoSoQIdEuTuR82pmtxH2spWG9h6etwfr1pLBqQ==, tarball: https://registry.npmjs.org/import-fresh/-/import-fresh-3.3.1.tgz}
     engines: {node: '>=6'}
 
   import-local@3.2.0:
@@ -7003,7 +7007,7 @@ snapshots:
       espree: 9.6.1
       globals: 13.24.0
       ignore: 5.3.2
-      import-fresh: 3.3.0
+      import-fresh: 3.3.1
       js-yaml: 4.1.0
       minimatch: 3.1.2
       strip-json-comments: 3.1.1
@@ -7035,7 +7039,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.9': {}
 
-  '@fontsource-variable/inter@5.0.15': {}
+  '@fontsource-variable/inter@5.1.1': {}
 
   '@fontsource/ibm-plex-mono@5.1.1': {}
 
@@ -10227,6 +10231,12 @@ snapshots:
     dependencies:
       parent-module: 1.0.1
       resolve-from: 4.0.0
+
+  import-fresh@3.3.1:
+    dependencies:
+      parent-module: 1.0.1
+      resolve-from: 4.0.0
+    optional: true
 
   import-local@3.2.0:
     dependencies:
