@@ -40,8 +40,8 @@ CPEM is optimized for serverless environments such as Google Cloud Run and AWS L
 Clone the repository and use Docker to build and run CPEM:
 
 ```sh
-git clone <repo-url>
-cd <repo-directory>
+git clone https://github.com/coder/coder-platformx-notifications.git
+cd coder-platformx-notifications
 docker build -t coder-platformx-events-middleware .
 docker run -p 8080:8080 --env-file .env coder-platformx-events-middleware
 ```
