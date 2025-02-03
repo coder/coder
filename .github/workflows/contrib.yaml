@@ -46,6 +46,8 @@ jobs:
 
   release-labels:
     runs-on: ubuntu-latest
+    permissions:
+      pull-requests: write
     # Skip tagging for draft PRs.
     if: ${{ github.event_name == 'pull_request_target' && !github.event.pull_request.draft }}
     steps:
