@@ -392,10 +392,11 @@ func TestRecordTelemetryStatus(t *testing.T) {
 	}{
 		{name: "New deployment", recordedTelemetryEnabled: "nil", telemetryEnabled: true, shouldReport: false},
 		{name: "Telemetry disabled", recordedTelemetryEnabled: "nil", telemetryEnabled: false, shouldReport: false},
-		{name: "Telemetry was enabled and still is", recordedTelemetryEnabled: "1", telemetryEnabled: true, shouldReport: false},
-		{name: "Telemetry was enabled but now disabled", recordedTelemetryEnabled: "1", telemetryEnabled: false, shouldReport: true},
-		{name: "Telemetry was disabled now is enabled", recordedTelemetryEnabled: "0", telemetryEnabled: true, shouldReport: false},
-		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "0", telemetryEnabled: false, shouldReport: false},
+		{name: "Telemetry was enabled and still is", recordedTelemetryEnabled: "true", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was enabled but now disabled", recordedTelemetryEnabled: "true", telemetryEnabled: false, shouldReport: true},
+		{name: "Telemetry was disabled now is enabled", recordedTelemetryEnabled: "false", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "false", telemetryEnabled: false, shouldReport: false},
+		{name: "Telemetry was disabled still disabled, invalid value", recordedTelemetryEnabled: "invalid", telemetryEnabled: false, shouldReport: false},
 	} {
 		testCase := testCase
 		t.Run(testCase.name, func(t *testing.T) {
@@ -403,26 +404,27 @@ func TestRecordTelemetryStatus(t *testing.T) {
 
 			db, _ := dbtestutil.NewDB(t)
 			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := testutil.Logger(t)
 			if testCase.recordedTelemetryEnabled != "nil" {
 				db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
 					Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
 					Value: testCase.recordedTelemetryEnabled,
 				})
 			}
-			snapshot1, err := telemetry.RecordTelemetryStatus(ctx, db, testCase.telemetryEnabled)
+			snapshot1, err := telemetry.RecordTelemetryStatus(ctx, logger, db, testCase.telemetryEnabled)
 			require.NoError(t, err)
 
 			if testCase.shouldReport {
 				require.NotNil(t, snapshot1)
 				require.Equal(t, snapshot1.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryEnabled))
-				require.Equal(t, snapshot1.TelemetryItems[0].Value, "0")
+				require.Equal(t, snapshot1.TelemetryItems[0].Value, "false")
 			} else {
 				require.Nil(t, snapshot1)
 			}
 
 			for i := 0; i < 3; i++ {
 				// Whatever happens, subsequent calls should not report if telemetryEnabled didn't change
-				snapshot2, err := telemetry.RecordTelemetryStatus(ctx, db, testCase.telemetryEnabled)
+				snapshot2, err := telemetry.RecordTelemetryStatus(ctx, logger, db, testCase.telemetryEnabled)
 				require.NoError(t, err)
 				require.Nil(t, snapshot2)
 			}

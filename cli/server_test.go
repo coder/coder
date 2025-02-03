@@ -2096,7 +2096,7 @@ func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
 	case ss := <-snapshot:
 		require.Len(t, ss.TelemetryItems, 1)
 		require.Equal(t, string(telemetry.TelemetryItemKeyTelemetryEnabled), ss.TelemetryItems[0].Key)
-		require.Equal(t, "0", ss.TelemetryItems[0].Value)
+		require.Equal(t, "false", ss.TelemetryItems[0].Value)
 	case <-time.After(testutil.WaitShort / 2):
 		t.Fatalf("timed out waiting for snapshot")
 	}

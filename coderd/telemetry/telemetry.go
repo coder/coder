@@ -15,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -190,6 +191,7 @@ func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnab
 // be sent to the telemetry server.
 func RecordTelemetryStatus( //nolint:revive
 	ctx context.Context,
+	logger slog.Logger,
 	db database.Store,
 	telemetryEnabled bool,
 ) (*Snapshot, error) {
@@ -199,18 +201,19 @@ func RecordTelemetryStatus( //nolint:revive
 	}
 	var recordedTelemetryEnabled *bool
 	if !errors.Is(err, sql.ErrNoRows) {
-		value := item.Value == "1"
+		value, err := strconv.ParseBool(item.Value)
+		if err != nil {
+			logger.Debug(ctx, "parse telemetry enabled", slog.Error(err))
+		}
+		// If ParseBool fails, value will default to false.
+		// This may happen if an admin manually edits the telemetry item
+		// in the database.
 		recordedTelemetryEnabled = &value
-	}
-
-	newValue := "0"
-	if telemetryEnabled {
-		newValue = "1"
 	}
 
 	if err := db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
 		Key:   string(TelemetryItemKeyTelemetryEnabled),
-		Value: newValue,
+		Value: strconv.FormatBool(telemetryEnabled),
 	}); err != nil {
 		return nil, xerrors.Errorf("upsert telemetry enabled: %w", err)
 	}
@@ -234,7 +237,7 @@ func RecordTelemetryStatus( //nolint:revive
 }
 
 func (r *remoteReporter) runSnapshotter() {
-	telemetryDisabledSnapshot, err := RecordTelemetryStatus(r.ctx, r.options.Database, r.Enabled())
+	telemetryDisabledSnapshot, err := RecordTelemetryStatus(r.ctx, r.options.Logger, r.options.Database, r.Enabled())
 	if err != nil {
 		r.options.Logger.Debug(r.ctx, "record and maybe report telemetry status", slog.Error(err))
 	}
