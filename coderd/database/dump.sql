@@ -1164,6 +1164,13 @@ CREATE TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
+CREATE TABLE telemetry_items (
+    key text NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -2025,6 +2032,9 @@ ALTER TABLE ONLY tailnet_peers
 
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
+
+ALTER TABLE ONLY telemetry_items
+    ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
 
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);

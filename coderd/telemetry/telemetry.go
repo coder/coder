@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"crypto/sha256"
+	"database/sql"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"regexp"
 	"runtime"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -41,6 +43,7 @@ const (
 )
 
 type Options struct {
+	Disabled bool
 	Database database.Store
 	Logger   slog.Logger
 	// URL is an endpoint to direct telemetry towards!
@@ -115,8 +118,8 @@ type remoteReporter struct {
 	shutdownAt *time.Time
 }
 
-func (*remoteReporter) Enabled() bool {
-	return true
+func (r *remoteReporter) Enabled() bool {
+	return !r.options.Disabled
 }
 
 func (r *remoteReporter) Report(snapshot *Snapshot) {
@@ -160,10 +163,12 @@ func (r *remoteReporter) Close() {
 	close(r.closed)
 	now := dbtime.Now()
 	r.shutdownAt = &now
-	// Report a final collection of telemetry prior to close!
-	// This could indicate final actions a user has taken, and
-	// the time the deployment was shutdown.
-	r.reportWithDeployment()
+	if r.Enabled() {
+		// Report a final collection of telemetry prior to close!
+		// This could indicate final actions a user has taken, and
+		// the time the deployment was shutdown.
+		r.reportWithDeployment()
+	}
 	r.closeFunc()
 }
 
@@ -176,7 +181,74 @@ func (r *remoteReporter) isClosed() bool {
 	}
 }
 
+// See the corresponding test in telemetry_test.go for a truth table.
+func ShouldReportTelemetryDisabled(recordedTelemetryEnabled *bool, telemetryEnabled bool) bool {
+	return recordedTelemetryEnabled != nil && *recordedTelemetryEnabled && !telemetryEnabled
+}
+
+// RecordTelemetryStatus records the telemetry status in the database.
+// If the status changed from enabled to disabled, returns a snapshot to
+// be sent to the telemetry server.
+func RecordTelemetryStatus( //nolint:revive
+	ctx context.Context,
+	logger slog.Logger,
+	db database.Store,
+	telemetryEnabled bool,
+) (*Snapshot, error) {
+	item, err := db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
+	if err != nil && !errors.Is(err, sql.ErrNoRows) {
+		return nil, xerrors.Errorf("get telemetry enabled: %w", err)
+	}
+	var recordedTelemetryEnabled *bool
+	if !errors.Is(err, sql.ErrNoRows) {
+		value, err := strconv.ParseBool(item.Value)
+		if err != nil {
+			logger.Debug(ctx, "parse telemetry enabled", slog.Error(err))
+		}
+		// If ParseBool fails, value will default to false.
+		// This may happen if an admin manually edits the telemetry item
+		// in the database.
+		recordedTelemetryEnabled = &value
+	}
+
+	if err := db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+		Key:   string(TelemetryItemKeyTelemetryEnabled),
+		Value: strconv.FormatBool(telemetryEnabled),
+	}); err != nil {
+		return nil, xerrors.Errorf("upsert telemetry enabled: %w", err)
+	}
+
+	shouldReport := ShouldReportTelemetryDisabled(recordedTelemetryEnabled, telemetryEnabled)
+	if !shouldReport {
+		return nil, nil //nolint:nilnil
+	}
+	// If any of the following calls fail, we will never report that telemetry changed
+	// from enabled to disabled. This is okay. We only want to ping the telemetry server
+	// once, and never again. If that attempt fails, so be it.
+	item, err = db.GetTelemetryItem(ctx, string(TelemetryItemKeyTelemetryEnabled))
+	if err != nil {
+		return nil, xerrors.Errorf("get telemetry enabled after upsert: %w", err)
+	}
+	return &Snapshot{
+		TelemetryItems: []TelemetryItem{
+			ConvertTelemetryItem(item),
+		},
+	}, nil
+}
+
 func (r *remoteReporter) runSnapshotter() {
+	telemetryDisabledSnapshot, err := RecordTelemetryStatus(r.ctx, r.options.Logger, r.options.Database, r.Enabled())
+	if err != nil {
+		r.options.Logger.Debug(r.ctx, "record and maybe report telemetry status", slog.Error(err))
+	}
+	if telemetryDisabledSnapshot != nil {
+		r.reportSync(telemetryDisabledSnapshot)
+	}
+	r.options.Logger.Debug(r.ctx, "finished telemetry status check")
+	if !r.Enabled() {
+		return
+	}
+
 	first := true
 	ticker := time.NewTicker(r.options.SnapshotFrequency)
 	defer ticker.Stop()
@@ -244,6 +316,11 @@ func (r *remoteReporter) deployment() error {
 		return xerrors.Errorf("install source must be <=64 chars: %s", installSource)
 	}
 
+	idpOrgSync, err := checkIDPOrgSync(r.ctx, r.options.Database, r.options.DeploymentConfig)
+	if err != nil {
+		r.options.Logger.Debug(r.ctx, "check IDP org sync", slog.Error(err))
+	}
+
 	data, err := json.Marshal(&Deployment{
 		ID:              r.options.DeploymentID,
 		Architecture:    sysInfo.Architecture,
@@ -263,6 +340,7 @@ func (r *remoteReporter) deployment() error {
 		MachineID:       sysInfo.UniqueID,
 		StartedAt:       r.startedAt,
 		ShutdownAt:      r.shutdownAt,
+		IDPOrgSync:      &idpOrgSync,
 	})
 	if err != nil {
 		return xerrors.Errorf("marshal deployment: %w", err)
@@ -282,6 +360,45 @@ func (r *remoteReporter) deployment() error {
 	}
 	r.options.Logger.Debug(r.ctx, "submitted deployment info")
 	return nil
+}
+
+// idpOrgSyncConfig is a subset of
+// https://github.com/coder/coder/blob/5c6578d84e2940b9cfd04798c45e7c8042c3fe0e/coderd/idpsync/organization.go#L148
+type idpOrgSyncConfig struct {
+	Field string `json:"field"`
+}
+
+// checkIDPOrgSync inspects the server flags and the runtime config. It's based on
+// the OrganizationSyncEnabled function from enterprise/coderd/enidpsync/organizations.go.
+// It has one distinct difference: it doesn't check if the license entitles to the
+// feature, it only checks if the feature is configured.
+//
+// The above function is not used because it's very hard to make it available in
+// the telemetry package due to coder/coder package structure and initialization
+// order of the coder server.
+//
+// We don't check license entitlements because it's also hard to do from the
+// telemetry package, and the config check should be sufficient for telemetry purposes.
+//
+// While this approach duplicates code, it's simpler than the alternative.
+//
+// See https://github.com/coder/coder/pull/16323 for more details.
+func checkIDPOrgSync(ctx context.Context, db database.Store, values *codersdk.DeploymentValues) (bool, error) {
+	// key based on https://github.com/coder/coder/blob/5c6578d84e2940b9cfd04798c45e7c8042c3fe0e/coderd/idpsync/idpsync.go#L168
+	syncConfigRaw, err := db.GetRuntimeConfig(ctx, "organization-sync-settings")
+	if err != nil {
+		if errors.Is(err, sql.ErrNoRows) {
+			// If the runtime config is not set, we check if the deployment config
+			// has the organization field set.
+			return values != nil && values.OIDC.OrganizationField != "", nil
+		}
+		return false, xerrors.Errorf("get runtime config: %w", err)
+	}
+	syncConfig := idpOrgSyncConfig{}
+	if err := json.Unmarshal([]byte(syncConfigRaw), &syncConfig); err != nil {
+		return false, xerrors.Errorf("unmarshal runtime config: %w", err)
+	}
+	return syncConfig.Field != "", nil
 }
 
 // createSnapshot collects a full snapshot from the database.
@@ -515,6 +632,32 @@ func (r *remoteReporter) createSnapshot() (*Snapshot, error) {
 		snapshot.WorkspaceProxies = make([]WorkspaceProxy, 0, len(proxies))
 		for _, proxy := range proxies {
 			snapshot.WorkspaceProxies = append(snapshot.WorkspaceProxies, ConvertWorkspaceProxy(proxy))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		// Warning: When an organization is deleted, it's completely removed from
+		// the database. It will no longer be reported, and there will be no other
+		// indicator that it was deleted. This requires special handling when
+		// interpreting the telemetry data later.
+		orgs, err := r.options.Database.GetOrganizations(r.ctx, database.GetOrganizationsParams{})
+		if err != nil {
+			return xerrors.Errorf("get organizations: %w", err)
+		}
+		snapshot.Organizations = make([]Organization, 0, len(orgs))
+		for _, org := range orgs {
+			snapshot.Organizations = append(snapshot.Organizations, ConvertOrganization(org))
+		}
+		return nil
+	})
+	eg.Go(func() error {
+		items, err := r.options.Database.GetTelemetryItems(ctx)
+		if err != nil {
+			return xerrors.Errorf("get telemetry items: %w", err)
+		}
+		snapshot.TelemetryItems = make([]TelemetryItem, 0, len(items))
+		for _, item := range items {
+			snapshot.TelemetryItems = append(snapshot.TelemetryItems, ConvertTelemetryItem(item))
 		}
 		return nil
 	})
@@ -916,6 +1059,23 @@ func ConvertExternalProvisioner(id uuid.UUID, tags map[string]string, provisione
 	}
 }
 
+func ConvertOrganization(org database.Organization) Organization {
+	return Organization{
+		ID:        org.ID,
+		CreatedAt: org.CreatedAt,
+		IsDefault: org.IsDefault,
+	}
+}
+
+func ConvertTelemetryItem(item database.TelemetryItem) TelemetryItem {
+	return TelemetryItem{
+		Key:       item.Key,
+		Value:     item.Value,
+		CreatedAt: item.CreatedAt,
+		UpdatedAt: item.UpdatedAt,
+	}
+}
+
 // Snapshot represents a point-in-time anonymized database dump.
 // Data is aggregated by latest on the server-side, so partial data
 // can be sent without issue.
@@ -942,6 +1102,8 @@ type Snapshot struct {
 	WorkspaceModules          []WorkspaceModule           `json:"workspace_modules"`
 	Workspaces                []Workspace                 `json:"workspaces"`
 	NetworkEvents             []NetworkEvent              `json:"network_events"`
+	Organizations             []Organization              `json:"organizations"`
+	TelemetryItems            []TelemetryItem             `json:"telemetry_items"`
 }
 
 // Deployment contains information about the host running Coder.
@@ -964,6 +1126,9 @@ type Deployment struct {
 	MachineID       string                     `json:"machine_id"`
 	StartedAt       time.Time                  `json:"started_at"`
 	ShutdownAt      *time.Time                 `json:"shutdown_at"`
+	// While IDPOrgSync will always be set, it's nullable to make
+	// the struct backwards compatible with older coder versions.
+	IDPOrgSync *bool `json:"idp_org_sync"`
 }
 
 type APIKey struct {
@@ -1457,8 +1622,36 @@ func NetworkEventFromProto(proto *tailnetproto.TelemetryEvent) (NetworkEvent, er
 	}, nil
 }
 
+type Organization struct {
+	ID        uuid.UUID `json:"id"`
+	IsDefault bool      `json:"is_default"`
+	CreatedAt time.Time `json:"created_at"`
+}
+
+type telemetryItemKey string
+
+// The comment below gets rid of the warning that the name "TelemetryItemKey" has
+// the "Telemetry" prefix, and that stutters when you use it outside the package
+// (telemetry.TelemetryItemKey...). "TelemetryItem" is the name of a database table,
+// so it makes sense to use the "Telemetry" prefix.
+//
+//revive:disable:exported
+const (
+	TelemetryItemKeyHTMLFirstServedAt telemetryItemKey = "html_first_served_at"
+	TelemetryItemKeyTelemetryEnabled  telemetryItemKey = "telemetry_enabled"
+)
+
+type TelemetryItem struct {
+	Key       string    `json:"key"`
+	Value     string    `json:"value"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
 type noopReporter struct{}
 
-func (*noopReporter) Report(_ *Snapshot) {}
-func (*noopReporter) Enabled() bool      { return false }
-func (*noopReporter) Close()             {}
+func (*noopReporter) Report(_ *Snapshot)            {}
+func (*noopReporter) Enabled() bool                 { return false }
+func (*noopReporter) Close()                        {}
+func (*noopReporter) RunSnapshotter()               {}
+func (*noopReporter) ReportDisabledIfNeeded() error { return nil }

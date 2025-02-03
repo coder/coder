@@ -39,6 +39,7 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
@@ -947,36 +948,40 @@ func TestServer(t *testing.T) {
 	t.Run("Telemetry", func(t *testing.T) {
 		t.Parallel()
 
-		deployment := make(chan struct{}, 64)
-		snapshot := make(chan *telemetry.Snapshot, 64)
-		r := chi.NewRouter()
-		r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusAccepted)
-			deployment <- struct{}{}
-		})
-		r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusAccepted)
-			ss := &telemetry.Snapshot{}
-			err := json.NewDecoder(r.Body).Decode(ss)
-			require.NoError(t, err)
-			snapshot <- ss
-		})
-		server := httptest.NewServer(r)
-		defer server.Close()
+		telemetryServerURL, deployment, snapshot := mockTelemetryServer(t)
 
-		inv, _ := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--telemetry",
-			"--telemetry-url", server.URL,
+			"--telemetry-url", telemetryServerURL.String(),
 			"--cache-dir", t.TempDir(),
 		)
 		clitest.Start(t, inv)
 
 		<-deployment
 		<-snapshot
+
+		accessURL := waitAccessURL(t, cfg)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := codersdk.New(accessURL)
+		body, err := client.Request(ctx, http.MethodGet, "/", nil)
+		require.NoError(t, err)
+		require.NoError(t, body.Body.Close())
+
+		require.Eventually(t, func() bool {
+			snap := <-snapshot
+			htmlFirstServedFound := false
+			for _, item := range snap.TelemetryItems {
+				if item.Key == string(telemetry.TelemetryItemKeyHTMLFirstServedAt) {
+					htmlFirstServedFound = true
+				}
+			}
+			return htmlFirstServedFound
+		}, testutil.WaitMedium, testutil.IntervalFast, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
@@ -1989,4 +1994,149 @@ func TestServer_DisabledDERP(t *testing.T) {
 	// DERP should fail to connect
 	err = c.Connect(ctx)
 	require.Error(t, err)
+}
+
+type runServerOpts struct {
+	waitForSnapshot               bool
+	telemetryDisabled             bool
+	waitForTelemetryDisabledCheck bool
+}
+
+func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	telemetryServerURL, deployment, snapshot := mockTelemetryServer(t)
+	dbConnURL, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+
+	cacheDir := t.TempDir()
+	runServer := func(t *testing.T, opts runServerOpts) (chan error, context.CancelFunc) {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		inv, _ := clitest.New(t,
+			"server",
+			"--postgres-url", dbConnURL,
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--telemetry="+strconv.FormatBool(!opts.telemetryDisabled),
+			"--telemetry-url", telemetryServerURL.String(),
+			"--cache-dir", cacheDir,
+			"--log-filter", ".*",
+		)
+		finished := make(chan bool, 2)
+		errChan := make(chan error, 1)
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			errChan <- inv.WithContext(ctx).Run()
+			finished <- true
+		}()
+		go func() {
+			defer func() {
+				finished <- true
+			}()
+			if opts.waitForSnapshot {
+				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
+			}
+			if opts.waitForTelemetryDisabledCheck {
+				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
+			}
+		}()
+		<-finished
+		return errChan, cancelFunc
+	}
+	waitForShutdown := func(t *testing.T, errChan chan error) error {
+		t.Helper()
+		select {
+		case err := <-errChan:
+			return err
+		case <-time.After(testutil.WaitMedium):
+			t.Fatalf("timed out waiting for server to shutdown")
+		}
+		return nil
+	}
+
+	errChan, cancelFunc := runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+
+	// Since telemetry was disabled, we expect no deployments or snapshots.
+	require.Empty(t, deployment)
+	require.Empty(t, snapshot)
+
+	errChan, cancelFunc = runServer(t, runServerOpts{waitForSnapshot: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+	// we expect to see a deployment and a snapshot twice:
+	// 1. the first pair is sent when the server starts
+	// 2. the second pair is sent when the server shuts down
+	for i := 0; i < 2; i++ {
+		select {
+		case <-snapshot:
+		case <-time.After(testutil.WaitShort / 2):
+			t.Fatalf("timed out waiting for snapshot")
+		}
+		select {
+		case <-deployment:
+		case <-time.After(testutil.WaitShort / 2):
+			t.Fatalf("timed out waiting for deployment")
+		}
+	}
+
+	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+
+	// Since telemetry is disabled, we expect no deployment. We expect a snapshot
+	// with the telemetry disabled item.
+	require.Empty(t, deployment)
+	select {
+	case ss := <-snapshot:
+		require.Len(t, ss.TelemetryItems, 1)
+		require.Equal(t, string(telemetry.TelemetryItemKeyTelemetryEnabled), ss.TelemetryItems[0].Key)
+		require.Equal(t, "false", ss.TelemetryItems[0].Value)
+	case <-time.After(testutil.WaitShort / 2):
+		t.Fatalf("timed out waiting for snapshot")
+	}
+
+	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+	// Since telemetry is disabled and we've already sent a snapshot, we expect no
+	// new deployments or snapshots.
+	require.Empty(t, deployment)
+	require.Empty(t, snapshot)
+}
+
+func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
+	t.Helper()
+	deployment := make(chan *telemetry.Deployment, 64)
+	snapshot := make(chan *telemetry.Snapshot, 64)
+	r := chi.NewRouter()
+	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
+		dd := &telemetry.Deployment{}
+		err := json.NewDecoder(r.Body).Decode(dd)
+		require.NoError(t, err)
+		deployment <- dd
+		// Ensure the header is sent only after deployment is sent
+		w.WriteHeader(http.StatusAccepted)
+	})
+	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
+		ss := &telemetry.Snapshot{}
+		err := json.NewDecoder(r.Body).Decode(ss)
+		require.NoError(t, err)
+		snapshot <- ss
+		// Ensure the header is sent only after snapshot is sent
+		w.WriteHeader(http.StatusAccepted)
+	})
+	server := httptest.NewServer(r)
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	return serverURL, deployment, snapshot
 }

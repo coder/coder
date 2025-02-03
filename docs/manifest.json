@@ -284,7 +284,7 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "IDP Sync",
+							"title": "IdP Sync",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["enterprise", "premium"]
 						},

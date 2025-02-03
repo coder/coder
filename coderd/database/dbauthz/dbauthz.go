@@ -2096,6 +2096,20 @@ func (q *querier) GetTailnetTunnelPeerIDs(ctx context.Context, srcID uuid.UUID) 
 	return q.db.GetTailnetTunnelPeerIDs(ctx, srcID)
 }
 
+func (q *querier) GetTelemetryItem(ctx context.Context, key string) (database.TelemetryItem, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.TelemetryItem{}, err
+	}
+	return q.db.GetTelemetryItem(ctx, key)
+}
+
+func (q *querier) GetTelemetryItems(ctx context.Context) ([]database.TelemetryItem, error) {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.GetTelemetryItems(ctx)
+}
+
 func (q *querier) GetTemplateAppInsights(ctx context.Context, arg database.GetTemplateAppInsightsParams) ([]database.GetTemplateAppInsightsRow, error) {
 	if err := q.authorizeTemplateInsights(ctx, arg.TemplateIDs); err != nil {
 		return nil, err
@@ -3083,6 +3097,13 @@ func (q *querier) InsertReplica(ctx context.Context, arg database.InsertReplicaP
 		return database.Replica{}, err
 	}
 	return q.db.InsertReplica(ctx, arg)
+}
+
+func (q *querier) InsertTelemetryItemIfNotExists(ctx context.Context, arg database.InsertTelemetryItemIfNotExistsParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.InsertTelemetryItemIfNotExists(ctx, arg)
 }
 
 func (q *querier) InsertTemplate(ctx context.Context, arg database.InsertTemplateParams) error {
@@ -4343,6 +4364,13 @@ func (q *querier) UpsertTailnetTunnel(ctx context.Context, arg database.UpsertTa
 		return database.TailnetTunnel{}, err
 	}
 	return q.db.UpsertTailnetTunnel(ctx, arg)
+}
+
+func (q *querier) UpsertTelemetryItem(ctx context.Context, arg database.UpsertTelemetryItemParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
+		return err
+	}
+	return q.db.UpsertTelemetryItem(ctx, arg)
 }
 
 func (q *querier) UpsertTemplateUsageStats(ctx context.Context) error {

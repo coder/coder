@@ -34,6 +34,7 @@ import (
 	"golang.org/x/sync/singleflight"
 	"golang.org/x/xerrors"
 
+	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/appearance"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -41,6 +42,7 @@ import (
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -81,6 +83,8 @@ type Options struct {
 	BuildInfo         codersdk.BuildInfoResponse
 	AppearanceFetcher *atomic.Pointer[appearance.Fetcher]
 	Entitlements      *entitlements.Set
+	Telemetry         telemetry.Reporter
+	Logger            slog.Logger
 }
 
 func New(opts *Options) *Handler {
@@ -183,6 +187,8 @@ type Handler struct {
 
 	Entitlements *entitlements.Set
 	Experiments  atomic.Pointer[codersdk.Experiments]
+
+	telemetryHTMLServedOnce sync.Once
 }
 
 func (h *Handler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
@@ -321,12 +327,51 @@ func ShouldCacheFile(reqFile string) bool {
 	return true
 }
 
+// reportHTMLFirstServedAt sends a telemetry report when the first HTML is ever served.
+// The purpose is to track the first time the first user opens the site.
+func (h *Handler) reportHTMLFirstServedAt() {
+	// nolint:gocritic // Manipulating telemetry items is system-restricted.
+	// TODO(hugodutka): Add a telemetry context in RBAC.
+	ctx := dbauthz.AsSystemRestricted(context.Background())
+	itemKey := string(telemetry.TelemetryItemKeyHTMLFirstServedAt)
+	_, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
+	if err == nil {
+		// If the value is already set, then we reported it before.
+		// We don't need to report it again.
+		return
+	}
+	if !errors.Is(err, sql.ErrNoRows) {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	if err := h.opts.Database.InsertTelemetryItemIfNotExists(ctx, database.InsertTelemetryItemIfNotExistsParams{
+		Key:   string(telemetry.TelemetryItemKeyHTMLFirstServedAt),
+		Value: time.Now().Format(time.RFC3339),
+	}); err != nil {
+		h.opts.Logger.Debug(ctx, "failed to set telemetry html first served at", slog.Error(err))
+		return
+	}
+	item, err := h.opts.Database.GetTelemetryItem(ctx, itemKey)
+	if err != nil {
+		h.opts.Logger.Debug(ctx, "failed to get telemetry html first served at", slog.Error(err))
+		return
+	}
+	h.opts.Telemetry.Report(&telemetry.Snapshot{
+		TelemetryItems: []telemetry.TelemetryItem{telemetry.ConvertTelemetryItem(item)},
+	})
+}
+
 func (h *Handler) serveHTML(resp http.ResponseWriter, request *http.Request, reqPath string, state htmlState) bool {
 	if data, err := h.renderHTMLWithState(request, reqPath, state); err == nil {
 		if reqPath == "" {
 			// Pass "index.html" to the ServeContent so the ServeContent sets the right content headers.
 			reqPath = "index.html"
 		}
+		// `Once` is used to reduce the volume of db calls and telemetry reports.
+		// It's fine to run the enclosed function multiple times, but it's unnecessary.
+		h.telemetryHTMLServedOnce.Do(func() {
+			go h.reportHTMLFirstServedAt()
+		})
 		http.ServeContent(resp, request, reqPath, time.Time{}, bytes.NewReader(data))
 		return true
 	}

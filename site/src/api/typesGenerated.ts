@@ -1055,6 +1055,12 @@ export interface HealthcheckReport {
 	readonly coder_version: string;
 }
 
+// From codersdk/idpsync.go
+export interface IDPSyncMapping<ResourceIdType extends string | string> {
+	readonly Given: string;
+	readonly Gets: ResourceIdType;
+}
+
 // From codersdk/insights.go
 export type InsightsReportInterval = "day" | "week";
 
@@ -1449,6 +1455,19 @@ export interface Pagination {
 	readonly offset?: number;
 }
 
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncConfigRequest {
+	readonly field: string;
+	readonly regex_filter: string | null;
+	readonly auto_create_missing_groups: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
 // From codersdk/groups.go
 export interface PatchGroupRequest {
 	readonly add_users: readonly string[];
@@ -1457,6 +1476,29 @@ export interface PatchGroupRequest {
 	readonly display_name: string | null;
 	readonly avatar_url: string | null;
 	readonly quota_allowance: number | null;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncConfigRequest {
+	readonly field: string;
+	readonly assign_default: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncConfigRequest {
+	readonly field: string;
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
 }
 
 // From codersdk/templateversions.go
