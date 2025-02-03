@@ -290,6 +290,7 @@ export interface Metadata {
   workspaceBuildId: string;
   workspaceOwnerLoginType: string;
   isPrebuild: boolean;
+  runningWorkspaceAgentToken: string;
 }
 
 /** Config represents execution configuration shared by all subsequent requests in the Session */
@@ -964,6 +965,9 @@ export const Metadata = {
     }
     if (message.isPrebuild === true) {
       writer.uint32(152).bool(message.isPrebuild);
+    }
+    if (message.runningWorkspaceAgentToken !== "") {
+      writer.uint32(162).string(message.runningWorkspaceAgentToken);
     }
     return writer;
   },

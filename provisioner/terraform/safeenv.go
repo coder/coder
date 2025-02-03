@@ -30,6 +30,14 @@ func envName(env string) string {
 	return ""
 }
 
+func envVar(env string) string {
+	parts := strings.SplitN(env, "=", 1)
+	if len(parts) > 0 {
+		return parts[1]
+	}
+	return ""
+}
+
 func isCanarySet(env []string) bool {
 	for _, e := range env {
 		if envName(e) == unsafeEnvCanary {
