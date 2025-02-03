@@ -1392,7 +1392,7 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentMemoryResourceMonitor); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentMemoryResourceMonitor{}, err
 	}
 
@@ -1407,7 +1407,7 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 }
 
 func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentVolumeResourceMonitor); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return nil, err
 	}
 
@@ -3006,7 +3006,7 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentMemoryResourceMonitor); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentMemoryResourceMonitor{}, err
 	}
 
@@ -3199,7 +3199,7 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 }
 
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentVolumeResourceMonitor); err != nil {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
 		return database.WorkspaceAgentVolumeResourceMonitor{}, err
 	}
 

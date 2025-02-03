@@ -295,20 +295,12 @@ var (
 		Type: "workspace",
 	}
 
-	// ResourceWorkspaceAgentMemoryResourceMonitor
+	// ResourceWorkspaceAgentResourceMonitor
 	// Valid Actions
-	//  - "ActionCreate" :: create workspace agent memory resource monitor
-	//  - "ActionRead" :: read workspace agent memory resource monitor
-	ResourceWorkspaceAgentMemoryResourceMonitor = Object{
-		Type: "workspace_agent_memory_resource_monitor",
-	}
-
-	// ResourceWorkspaceAgentVolumeResourceMonitor
-	// Valid Actions
-	//  - "ActionCreate" :: create workspace agent volume resource monitor
-	//  - "ActionRead" :: read workspace agent volume resource monitor
-	ResourceWorkspaceAgentVolumeResourceMonitor = Object{
-		Type: "workspace_agent_volume_resource_monitor",
+	//  - "ActionCreate" :: create workspace agent resource monitor
+	//  - "ActionRead" :: read workspace agent resource monitor
+	ResourceWorkspaceAgentResourceMonitor = Object{
+		Type: "workspace_agent_resource_monitor",
 	}
 
 	// ResourceWorkspaceDormant
@@ -369,8 +361,7 @@ func AllResources() []Objecter {
 		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
-		ResourceWorkspaceAgentMemoryResourceMonitor,
-		ResourceWorkspaceAgentVolumeResourceMonitor,
+		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}

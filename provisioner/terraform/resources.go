@@ -256,42 +256,27 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 				}
 			}
 
-			var (
-				memoryMonitor   *proto.MemoryResourceMonitor
-				volumesMonitors []*proto.VolumeResourceMonitor
-			)
+			resourcesMonitoring := &proto.ResourcesMonitoring{
+				Volumes: make([]*proto.VolumeResourceMonitor, len(attrs.ResourcesMonitoring)),
+			}
 
 			for _, resource := range attrs.ResourcesMonitoring {
 				for _, memoryResource := range resource.Memory {
-					if memoryMonitor != nil {
-						// We do not allow multiple memory monitor
-						return nil, xerrors.New("multiple memory monitors are not allowed")
-					}
-					memoryMonitor = &proto.MemoryResourceMonitor{
+					resourcesMonitoring.Memory = &proto.MemoryResourceMonitor{
 						Enabled:   memoryResource.Enabled,
 						Threshold: memoryResource.Threshold,
 					}
 				}
 			}
 
-			monitoredPaths := map[string]struct{}{}
-
 			for _, resource := range attrs.ResourcesMonitoring {
 				for _, volume := range resource.Volumes {
-					if _, exists := monitoredPaths[volume.Path]; exists {
-						return nil, xerrors.Errorf("monitoring the same volume path multiple times is not allowed: %q", volume.Path)
-					}
-					volumesMonitors = append(volumesMonitors, &proto.VolumeResourceMonitor{
+					resourcesMonitoring.Volumes = append(resourcesMonitoring.Volumes, &proto.VolumeResourceMonitor{
 						Path:      volume.Path,
 						Enabled:   volume.Enabled,
 						Threshold: volume.Threshold,
 					})
 				}
-			}
-
-			resourcesMonitoring := &proto.ResourcesMonitoring{
-				Memory:  memoryMonitor,
-				Volumes: volumesMonitors,
 			}
 
 			agent := &proto.Agent{

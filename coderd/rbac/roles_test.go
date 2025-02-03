@@ -778,24 +778,9 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
-			Name:     "MemoryResourceMonitor",
+			Name:     "ResourceMonitor",
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
-			Resource: rbac.ResourceWorkspaceAgentMemoryResourceMonitor,
-			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner},
-				false: {
-					memberMe, orgMemberMe, otherOrgMember,
-					orgAdmin, otherOrgAdmin,
-					orgAuditor, otherOrgAuditor,
-					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
-					userAdmin, orgUserAdmin, otherOrgUserAdmin,
-				},
-			},
-		},
-		{
-			Name:     "VolumeResourceMonitor",
-			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
-			Resource: rbac.ResourceWorkspaceAgentVolumeResourceMonitor,
+			Resource: rbac.ResourceWorkspaceAgentResourceMonitor,
 			AuthorizeMap: map[bool][]hasAuthSubjects{
 				true: {owner},
 				false: {
