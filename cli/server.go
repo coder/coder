@@ -781,40 +781,42 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 			// This should be output before the logs start streaming.
 			cliui.Infof(inv.Stdout, "\n==> Logs will stream in below (press ctrl+c to gracefully exit):")
 
-			if vals.Telemetry.Enable {
-				vals, err := vals.WithoutSecrets()
-				if err != nil {
-					return xerrors.Errorf("remove secrets from deployment values: %w", err)
-				}
-				options.Telemetry, err = telemetry.New(telemetry.Options{
-					BuiltinPostgres:  builtinPostgres,
-					DeploymentID:     deploymentID,
-					Database:         options.Database,
-					Logger:           logger.Named("telemetry"),
-					URL:              vals.Telemetry.URL.Value(),
-					Tunnel:           tunnel != nil,
-					DeploymentConfig: vals,
-					ParseLicenseJWT: func(lic *telemetry.License) error {
-						// This will be nil when running in AGPL-only mode.
-						if options.ParseLicenseClaims == nil {
-							return nil
-						}
-
-						email, trial, err := options.ParseLicenseClaims(lic.JWT)
-						if err != nil {
-							return err
-						}
-						if email != "" {
-							lic.Email = &email
-						}
-						lic.Trial = &trial
+			deploymentConfigWithoutSecrets, err := vals.WithoutSecrets()
+			if err != nil {
+				return xerrors.Errorf("remove secrets from deployment values: %w", err)
+			}
+			telemetryReporter, err := telemetry.New(telemetry.Options{
+				Disabled:         !vals.Telemetry.Enable.Value(),
+				BuiltinPostgres:  builtinPostgres,
+				DeploymentID:     deploymentID,
+				Database:         options.Database,
+				Logger:           logger.Named("telemetry"),
+				URL:              vals.Telemetry.URL.Value(),
+				Tunnel:           tunnel != nil,
+				DeploymentConfig: deploymentConfigWithoutSecrets,
+				ParseLicenseJWT: func(lic *telemetry.License) error {
+					// This will be nil when running in AGPL-only mode.
+					if options.ParseLicenseClaims == nil {
 						return nil
-					},
-				})
-				if err != nil {
-					return xerrors.Errorf("create telemetry reporter: %w", err)
-				}
-				defer options.Telemetry.Close()
+					}
+
+					email, trial, err := options.ParseLicenseClaims(lic.JWT)
+					if err != nil {
+						return err
+					}
+					if email != "" {
+						lic.Email = &email
+					}
+					lic.Trial = &trial
+					return nil
+				},
+			})
+			if err != nil {
+				return xerrors.Errorf("create telemetry reporter: %w", err)
+			}
+			defer telemetryReporter.Close()
+			if vals.Telemetry.Enable.Value() {
+				options.Telemetry = telemetryReporter
 			} else {
 				logger.Warn(ctx, fmt.Sprintf(`telemetry disabled, unable to notify of security issues. Read more: %s/admin/setup/telemetry`, vals.DocsURL.String()))
 			}

@@ -131,7 +131,8 @@ func TestTelemetry(t *testing.T) {
 		require.Len(t, snapshot.WorkspaceProxies, 1)
 		require.Len(t, snapshot.WorkspaceModules, 1)
 		require.Len(t, snapshot.Organizations, 1)
-		require.Len(t, snapshot.TelemetryItems, 1)
+		// We create one item manually above. The other is TelemetryEnabled, created by the snapshotter.
+		require.Len(t, snapshot.TelemetryItems, 2)
 		wsa := snapshot.WorkspaceAgents[0]
 		require.Len(t, wsa.Subsystems, 2)
 		require.Equal(t, string(database.WorkspaceAgentSubsystemEnvbox), wsa.Subsystems[0])
@@ -361,31 +362,112 @@ func TestTelemetryItem(t *testing.T) {
 	require.Equal(t, item.Value, "new_value")
 }
 
-func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
+func TestShouldReportTelemetryDisabled(t *testing.T) {
+	t.Parallel()
+	// Description                            | telemetryEnabled (db) | telemetryEnabled (is) | Report Telemetry Disabled |
+	//----------------------------------------|-----------------------|-----------------------|---------------------------|
+	// New deployment                         | <null>                | true                  | No                        |
+	// New deployment with telemetry disabled | <null>                | false                 | No                        |
+	// Telemetry was enabled, and still is    | true                  | true                  | No                        |
+	// Telemetry was enabled but now disabled | true                  | false                 | Yes                       |
+	// Telemetry was disabled, now is enabled | false                 | true                  | No                        |
+	// Telemetry was disabled, still disabled | false                 | false                 | No                        |
+	boolTrue := true
+	boolFalse := false
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(nil, true))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(nil, false))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolTrue, true))
+	require.True(t, telemetry.ShouldReportTelemetryDisabled(&boolTrue, false))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolFalse, true))
+	require.False(t, telemetry.ShouldReportTelemetryDisabled(&boolFalse, false))
+}
+
+func TestRecordTelemetryStatus(t *testing.T) {
+	t.Parallel()
+	for _, testCase := range []struct {
+		name                     string
+		recordedTelemetryEnabled string
+		telemetryEnabled         bool
+		shouldReport             bool
+	}{
+		{name: "New deployment", recordedTelemetryEnabled: "nil", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry disabled", recordedTelemetryEnabled: "nil", telemetryEnabled: false, shouldReport: false},
+		{name: "Telemetry was enabled and still is", recordedTelemetryEnabled: "true", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was enabled but now disabled", recordedTelemetryEnabled: "true", telemetryEnabled: false, shouldReport: true},
+		{name: "Telemetry was disabled now is enabled", recordedTelemetryEnabled: "false", telemetryEnabled: true, shouldReport: false},
+		{name: "Telemetry was disabled still disabled", recordedTelemetryEnabled: "false", telemetryEnabled: false, shouldReport: false},
+		{name: "Telemetry was disabled still disabled, invalid value", recordedTelemetryEnabled: "invalid", telemetryEnabled: false, shouldReport: false},
+	} {
+		testCase := testCase
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			db, _ := dbtestutil.NewDB(t)
+			ctx := testutil.Context(t, testutil.WaitMedium)
+			logger := testutil.Logger(t)
+			if testCase.recordedTelemetryEnabled != "nil" {
+				db.UpsertTelemetryItem(ctx, database.UpsertTelemetryItemParams{
+					Key:   string(telemetry.TelemetryItemKeyTelemetryEnabled),
+					Value: testCase.recordedTelemetryEnabled,
+				})
+			}
+			snapshot1, err := telemetry.RecordTelemetryStatus(ctx, logger, db, testCase.telemetryEnabled)
+			require.NoError(t, err)
+
+			if testCase.shouldReport {
+				require.NotNil(t, snapshot1)
+				require.Equal(t, snapshot1.TelemetryItems[0].Key, string(telemetry.TelemetryItemKeyTelemetryEnabled))
+				require.Equal(t, snapshot1.TelemetryItems[0].Value, "false")
+			} else {
+				require.Nil(t, snapshot1)
+			}
+
+			for i := 0; i < 3; i++ {
+				// Whatever happens, subsequent calls should not report if telemetryEnabled didn't change
+				snapshot2, err := telemetry.RecordTelemetryStatus(ctx, logger, db, testCase.telemetryEnabled)
+				require.NoError(t, err)
+				require.Nil(t, snapshot2)
+			}
+		})
+	}
+}
+
+func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
 	t.Helper()
 	deployment := make(chan *telemetry.Deployment, 64)
 	snapshot := make(chan *telemetry.Snapshot, 64)
 	r := chi.NewRouter()
 	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
-		w.WriteHeader(http.StatusAccepted)
 		dd := &telemetry.Deployment{}
 		err := json.NewDecoder(r.Body).Decode(dd)
 		require.NoError(t, err)
 		deployment <- dd
+		// Ensure the header is sent only after deployment is sent
+		w.WriteHeader(http.StatusAccepted)
 	})
 	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
 		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
-		w.WriteHeader(http.StatusAccepted)
 		ss := &telemetry.Snapshot{}
 		err := json.NewDecoder(r.Body).Decode(ss)
 		require.NoError(t, err)
 		snapshot <- ss
+		// Ensure the header is sent only after snapshot is sent
+		w.WriteHeader(http.StatusAccepted)
 	})
 	server := httptest.NewServer(r)
 	t.Cleanup(server.Close)
 	serverURL, err := url.Parse(server.URL)
 	require.NoError(t, err)
+
+	return serverURL, deployment, snapshot
+}
+
+func collectSnapshot(t *testing.T, db database.Store, addOptionsFn func(opts telemetry.Options) telemetry.Options) (*telemetry.Deployment, *telemetry.Snapshot) {
+	t.Helper()
+
+	serverURL, deployment, snapshot := mockTelemetryServer(t)
+
 	options := telemetry.Options{
 		Database:     db,
 		Logger:       testutil.Logger(t),
