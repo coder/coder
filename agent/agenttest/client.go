@@ -97,7 +97,7 @@ func (c *Client) Close() {
 }
 
 func (c *Client) ConnectRPC23(ctx context.Context) (
-	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
+	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient23, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
