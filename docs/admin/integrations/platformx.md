@@ -8,8 +8,8 @@ their experience.
 
 ![PlatformX Events in Coder](../../images/integrations/platformx-screenshot.png)
 
-Use these steps to deploy to forward Coder notifications to PlatformX using
-Docker and a lightweight web server.
+Use these steps to forward Coder notifications to PlatformX using Docker and a
+lightweight web server.
 
 For more information about this integration and how it works, refer to the
 [coder-platformx-notifications](https://github.com/coder/coder-platformx-notifications)
