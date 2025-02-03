@@ -88,7 +88,7 @@ require (
 	github.com/chromedp/chromedp v0.11.0
 	github.com/cli/safeexec v1.0.1
 	github.com/coder/flog v1.1.0
-	github.com/coder/guts v1.0.0
+	github.com/coder/guts v1.0.1
 	github.com/coder/pretty v0.0.0-20230908205945-e89ba86370e0
 	github.com/coder/quartz v0.1.2
 	github.com/coder/retry v1.5.1
@@ -119,7 +119,7 @@ require (
 	github.com/go-logr/logr v1.4.2
 	github.com/go-playground/validator/v10 v10.24.0
 	github.com/gofrs/flock v0.12.0
-	github.com/gohugoio/hugo v0.142.0
+	github.com/gohugoio/hugo v0.143.0
 	github.com/golang-jwt/jwt/v4 v4.5.1
 	github.com/golang-migrate/migrate/v4 v4.18.1
 	github.com/gomarkdown/markdown v0.0.0-20240930133441-72d49d9543d8
@@ -196,9 +196,9 @@ require (
 	golang.org/x/text v0.21.0 // indirect
 	golang.org/x/tools v0.29.0
 	golang.org/x/xerrors v0.0.0-20240903120638-7835f813f4da
-	google.golang.org/api v0.218.0
+	google.golang.org/api v0.219.0
 	google.golang.org/grpc v1.70.0
-	google.golang.org/protobuf v1.36.3
+	google.golang.org/protobuf v1.36.4
 	gopkg.in/DataDog/dd-trace-go.v1 v1.71.0
 	gopkg.in/natefinch/lumberjack.v2 v2.2.1
 	gopkg.in/yaml.v3 v3.0.1
@@ -238,7 +238,7 @@ require (
 	github.com/apparentlymart/go-textseg/v15 v15.0.0 // indirect
 	github.com/armon/go-radix v1.0.1-0.20221118154546-54df44f2176c // indirect
 	github.com/atotto/clipboard v0.1.4 // indirect
-	github.com/aws/aws-sdk-go-v2 v1.34.0
+	github.com/aws/aws-sdk-go-v2 v1.36.0
 	github.com/aws/aws-sdk-go-v2/config v1.29.1
 	github.com/aws/aws-sdk-go-v2/credentials v1.17.54 // indirect
 	github.com/aws/aws-sdk-go-v2/feature/ec2/imds v1.16.24 // indirect
@@ -429,7 +429,7 @@ require (
 	google.golang.org/appengine v1.6.8 // indirect
 	google.golang.org/genproto v0.0.0-20241118233622-e639e219e697 // indirect
 	google.golang.org/genproto/googleapis/api v0.0.0-20241209162323-e6fa225c2576 // indirect
-	google.golang.org/genproto/googleapis/rpc v0.0.0-20250115164207-1a7da9e5054f // indirect
+	google.golang.org/genproto/googleapis/rpc v0.0.0-20250124145028-65684f501c47 // indirect
 	gopkg.in/yaml.v2 v2.4.0 // indirect
 	howett.net/plist v1.0.0 // indirect
 	kernel.org/pub/linux/libs/security/libcap/psx v1.2.73 // indirect
@@ -452,6 +452,7 @@ require (
 	github.com/apparentlymart/go-cidr v1.1.0 // indirect
 	github.com/bmatcuk/doublestar/v4 v4.6.1 // indirect
 	github.com/cihub/seelog v0.0.0-20170130134532-f561c5e57575 // indirect
+	github.com/gohugoio/hashstructure v0.3.0 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
 	github.com/lufia/plan9stats v0.0.0-20220913051719-115f729f3c8c // indirect
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect

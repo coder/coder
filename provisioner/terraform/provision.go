@@ -113,7 +113,6 @@ func (s *server) Plan(
 	initTimings.ingest(createInitTimingsEvent(timingInitStart))
 
 	err = e.init(ctx, killCtx, sess)
-
 	if err != nil {
 		initTimings.ingest(createInitTimingsEvent(timingInitErrored))
 

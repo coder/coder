@@ -4152,6 +4152,54 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | » `[any property]`            | array of string | false    |              |                                                                                                                                                                                     |
 | `organization_assign_default` | boolean         | false    |              | Organization assign default will ensure the default org is always included for every user, regardless of their claims. This preserves legacy behavior.                              |
 
+## codersdk.PatchGroupIDPSyncConfigRequest
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "regex_filter": {}
+}
+```
+
+### Properties
+
+| Name                         | Type                           | Required | Restrictions | Description |
+|------------------------------|--------------------------------|----------|--------------|-------------|
+| `auto_create_missing_groups` | boolean                        | false    |              |             |
+| `field`                      | string                         | false    |              |             |
+| `regex_filter`               | [regexp.Regexp](#regexpregexp) | false    |              |             |
+
+## codersdk.PatchGroupIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+
 ## codersdk.PatchGroupRequest
 
 ```json
@@ -4179,6 +4227,96 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `name`            | string          | false    |              |             |
 | `quota_allowance` | integer         | false    |              |             |
 | `remove_users`    | array of string | false    |              |             |
+
+## codersdk.PatchOrganizationIDPSyncConfigRequest
+
+```json
+{
+  "assign_default": true,
+  "field": "string"
+}
+```
+
+### Properties
+
+| Name             | Type    | Required | Restrictions | Description |
+|------------------|---------|----------|--------------|-------------|
+| `assign_default` | boolean | false    |              |             |
+| `field`          | string  | false    |              |             |
+
+## codersdk.PatchOrganizationIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+
+## codersdk.PatchRoleIDPSyncConfigRequest
+
+```json
+{
+  "field": "string"
+}
+```
+
+### Properties
+
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `field` | string | false    |              |             |
+
+## codersdk.PatchRoleIDPSyncMappingRequest
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Properties
+
+| Name      | Type            | Required | Restrictions | Description                                              |
+|-----------|-----------------|----------|--------------|----------------------------------------------------------|
+| `add`     | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
+| `remove`  | array of object | false    |              |                                                          |
+| `» gets`  | string          | false    |              | The ID of the Coder resource the user should be added to |
+| `» given` | string          | false    |              | The IdP claim the user has                               |
 
 ## codersdk.PatchTemplateVersionRequest
 

@@ -71,7 +71,7 @@ func NewTunnel(
 		return nil, err
 	}
 	t := &Tunnel{
-		// nolint: govet // safe to copy the locks here because we haven't started the speaker
+		//nolint:govet // safe to copy the locks here because we haven't started the speaker
 		speaker:         *(s),
 		ctx:             ctx,
 		logger:          logger,

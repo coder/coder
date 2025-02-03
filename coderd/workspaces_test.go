@@ -639,6 +639,12 @@ func TestPostWorkspacesByOrganization(t *testing.T) {
 		require.Contains(t, sent[0].Targets, workspace.ID)
 		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
 		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		owner, ok := sent[0].Data["owner"].(map[string]any)
+		require.True(t, ok, "notification data should have owner")
+		require.Equal(t, memberUser.ID, owner["id"])
+		require.Equal(t, memberUser.Name, owner["name"])
+		require.Equal(t, memberUser.Email, owner["email"])
 	})
 
 	t.Run("CreateWithAuditLogs", func(t *testing.T) {

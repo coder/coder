@@ -413,7 +413,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -426,7 +426,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -441,7 +441,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -457,7 +457,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 

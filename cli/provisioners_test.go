@@ -95,7 +95,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-1",
 		CreatedAt:  dbtime.Now().Add(1 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization", "foo": "bar"},
 	})
 	w1 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
@@ -122,7 +122,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-2",
 		CreatedAt:  dbtime.Now().Add(2 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(-time.Hour), Valid: true},
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 	w2 := dbgen.Workspace(t, coderdAPI.Database, database.WorkspaceTable{
@@ -168,7 +168,7 @@ func TestProvisioners_Golden(t *testing.T) {
 		Name:       "provisioner-3",
 		CreatedAt:  dbtime.Now().Add(3 * time.Second),
 		LastSeenAt: sql.NullTime{Time: coderdAPI.Clock.Now().Add(time.Hour), Valid: true}, // Stale interval can't be adjusted, keep online.
-		KeyID:      uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:      codersdk.ProvisionerKeyUUIDBuiltIn,
 		Tags:       database.StringMap{"owner": "", "scope": "organization"},
 	})
 
