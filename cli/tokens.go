@@ -11,7 +11,6 @@ import (
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/pretty"
 	"github.com/coder/serpent"
 )
 
@@ -232,9 +231,6 @@ func (r *RootCmd) removeToken() *serpent.Command {
 			serpent.RequireNArgs(1),
 			r.InitClient(client),
 		),
-		Options: serpent.OptionSet{
-			cliui.SkipPromptOption(),
-		},
 		Handler: func(inv *serpent.Invocation) error {
 			token, err := client.APIKeyByName(inv.Context(), codersdk.Me, inv.Args[0])
 			if err != nil {
@@ -244,33 +240,6 @@ func (r *RootCmd) removeToken() *serpent.Command {
 				if err != nil {
 					return xerrors.Errorf("fetch api key by name or id: %w", err)
 				}
-			}
-
-			var prompt string
-			if token.TokenName == "" {
-				prompt = fmt.Sprintf("Are you sure you want to delete the token with ID %s?\n  ",
-					pretty.Sprint(cliui.DefaultStyles.Code, token.ID),
-				)
-			} else {
-				prompt = fmt.Sprintf("Are you sure you want to delete the token with the name %s? (ID: %s)\n  ",
-					pretty.Sprint(cliui.DefaultStyles.Code, token.TokenName),
-					pretty.Sprint(cliui.DefaultStyles.Code, token.ID),
-				)
-			}
-
-			if !token.LastUsed.IsZero() {
-				prompt = fmt.Sprintf("%sIt was last used on %s.", prompt, pretty.Sprint(cliui.DefaultStyles.Code, token.LastUsed.String()))
-			} else {
-				prompt = fmt.Sprintf("%sIt has never been used.", prompt)
-			}
-
-			_, err = cliui.Prompt(inv, cliui.PromptOptions{
-				Text:      prompt,
-				IsConfirm: true,
-				Default:   cliui.ConfirmYes,
-			})
-			if err != nil {
-				return err
 			}
 
 			err = client.DeleteAPIKey(inv.Context(), codersdk.Me, token.ID)

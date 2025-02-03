@@ -11,15 +11,5 @@ Aliases:
 ## Usage
 
 ```console
-coder tokens remove [flags] <name|id|token>
+coder tokens remove <name|id|token>
 ```
-
-## Options
-
-### -y, --yes
-
-|      |                   |
-|------|-------------------|
-| Type | <code>bool</code> |
-
-Bypass prompts.

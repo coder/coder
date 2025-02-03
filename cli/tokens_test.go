@@ -114,7 +114,7 @@ func TestTokens(t *testing.T) {
 	require.Equal(t, id, tokens[0].ID)
 
 	// Delete by name
-	inv, root = clitest.New(t, "tokens", "rm", "token-one", "--yes")
+	inv, root = clitest.New(t, "tokens", "rm", "token-one")
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -125,7 +125,7 @@ func TestTokens(t *testing.T) {
 	require.Contains(t, res, "deleted")
 
 	// Delete by ID
-	inv, root = clitest.New(t, "tokens", "rm", secondTokenID, "--yes")
+	inv, root = clitest.New(t, "tokens", "rm", secondTokenID)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
@@ -147,7 +147,7 @@ func TestTokens(t *testing.T) {
 	fourthToken := res
 
 	// Delete by token
-	inv, root = clitest.New(t, "tokens", "rm", fourthToken, "--yes")
+	inv, root = clitest.New(t, "tokens", "rm", fourthToken)
 	clitest.SetupConfig(t, client, root)
 	buf = new(bytes.Buffer)
 	inv.Stdout = buf
