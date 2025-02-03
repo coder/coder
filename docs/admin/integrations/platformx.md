@@ -8,47 +8,20 @@ their experience.
 
 ![PlatformX Events in Coder](../../images/integrations/platformx-screenshot.png)
 
-Use these steps to forward Coder notifications to PlatformX using Docker and a
-lightweight web server.
+## coder-platformx-events-middleware
 
-For more information about this integration and how it works, refer to the
+Coder sends [notifications](../monitoring/notifications/index.md) via webhooks
+to coder-platformx-events-middleware, which processes and reformats the payload
+into a structure compatible with [PlatformX by DX](https://help.getdx.com/en/articles/7880779-getting-started).
+
+For more information about coder-platformx-events-middleware and how to
+integrate it with your Coder deployment and PlatformX events, refer to the
 [coder-platformx-notifications](https://github.com/coder/coder-platformx-notifications)
 repository.
 
-## Requirements
-
-You'll need:
-
-- Coder v2.19+
-- A PlatformX subscription from [DX](https://getdx.com/)
-- A platform to host the integration, such as:
-  - AWS Lambda
-  - Google Cloud Run
-  - Heroku
-  - Kubernetes
-  - Or any other platform that can run Python web applications
-
-## Run coder-platformx-events-middleware with Docker
-
-Coder sends [notifications](../monitoring/notifications/index.md) via webhooks
-to coder-platformx-events-middleware (CPEM), which processes and reformats the payload
-into a structure compatible with [PlatformX by DX](https://help.getdx.com/en/articles/7880779-getting-started).
-CPEM transforms the payload and forwards it to PlatformX for further processing and analysis.
-
-CPEM is optimized for serverless environments such as Google Cloud Run and AWS Lambda.
-
-Clone the repository and use Docker to build and run CPEM:
-
-```sh
-git clone https://github.com/coder/coder-platformx-notifications.git
-cd coder-platformx-notifications
-docker build -t coder-platformx-events-middleware .
-docker run -p 8080:8080 --env-file .env coder-platformx-events-middleware
-```
-
 ### Supported Notification Types
 
-CPEM supports the following [Coder notifications](../monitoring/notifications/index.md):
+coder-platformx-events-middleware supports the following [Coder notifications](../monitoring/notifications/index.md):
 
 - Workspace Created
 - Workspace Manually Updated
@@ -82,14 +55,3 @@ Logs are printed to the console and can be adjusted using the `LOG_LEVEL` variab
 
 - `GET /` - Health check endpoint
 - `POST /` - Webhook receiver
-
-## Configure Coder to send notifications to CPEM
-
-Set the following environment variables for your Coder server:
-
-```sh
-export CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT=<your-deployed-app-url>
-export CODER_NOTIFICATIONS_METHOD=webhook # Optional, as multiple methods are supported
-```
-
-Replace `<your-deployed-app-url>` with the actual URL where this middleware is hosted.
