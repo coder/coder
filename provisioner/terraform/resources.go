@@ -257,7 +257,7 @@ func ConvertState(ctx context.Context, modules []*tfjson.StateModule, rawGraph s
 			}
 
 			resourcesMonitoring := &proto.ResourcesMonitoring{
-				Volumes: make([]*proto.VolumeResourceMonitor, len(attrs.ResourcesMonitoring)),
+				Volumes: make([]*proto.VolumeResourceMonitor, 0),
 			}
 
 			for _, resource := range attrs.ResourcesMonitoring {
