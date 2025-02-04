@@ -71,11 +71,14 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 
 	oldState := memoryMonitor.State
 	newState := m.nextState(oldState, memoryUsageStates)
-	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
 
-	var debouncedUntil = m.Clock.Now()
+	shouldNotify := oldState == database.WorkspaceMonitorStateOK &&
+		newState == database.WorkspaceMonitorStateNOK &&
+		m.Clock.Now().After(memoryMonitor.DebouncedUntil)
+
+	var debouncedUntil = memoryMonitor.DebouncedUntil
 	if shouldNotify {
-		debouncedUntil = debouncedUntil.Add(m.Debounce)
+		debouncedUntil = m.Clock.Now().Add(m.Debounce)
 	}
 
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
@@ -131,7 +134,7 @@ func (m *WorkspaceMonitorAPI) getOrInsertMemoryMonitor(ctx context.Context) (dat
 					State:          database.WorkspaceMonitorStateOK,
 					CreatedAt:      dbtime.Now(),
 					UpdatedAt:      dbtime.Now(),
-					DebouncedUntil: dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				},
 			)
 		}
@@ -172,11 +175,13 @@ func (m *WorkspaceMonitorAPI) monitorVolume(ctx context.Context, path string, da
 
 	oldState := volumeMonitor.State
 	newState := m.nextState(oldState, volumeUsageStates)
-	shouldNotify := oldState == database.WorkspaceMonitorStateOK && newState == database.WorkspaceMonitorStateNOK
+	shouldNotify := oldState == database.WorkspaceMonitorStateOK &&
+		newState == database.WorkspaceMonitorStateNOK &&
+		m.Clock.Now().After(volumeMonitor.DebouncedUntil)
 
-	var debouncedUntil = m.Clock.Now()
+	var debouncedUntil = volumeMonitor.DebouncedUntil
 	if shouldNotify {
-		debouncedUntil = debouncedUntil.Add(m.Debounce)
+		debouncedUntil = m.Clock.Now().Add(m.Debounce)
 	}
 
 	err = m.Database.UpdateWorkspaceMonitor(ctx, database.UpdateWorkspaceMonitorParams{
@@ -234,7 +239,7 @@ func (m *WorkspaceMonitorAPI) getOrInsertVolumeMonitor(ctx context.Context, path
 					State:          database.WorkspaceMonitorStateOK,
 					CreatedAt:      dbtime.Now(),
 					UpdatedAt:      dbtime.Now(),
-					DebouncedUntil: dbtime.Now(),
+					DebouncedUntil: time.Time{},
 				},
 			)
 		}
@@ -248,7 +253,7 @@ func (m *WorkspaceMonitorAPI) getOrInsertVolumeMonitor(ctx context.Context, path
 func (m *WorkspaceMonitorAPI) nextState(oldState database.WorkspaceMonitorState, states []database.WorkspaceMonitorState) database.WorkspaceMonitorState {
 	// If we do not have an OK in the last `X` datapoints, then we are
 	// in an alert state.
-	lastXStates := states[len(states)-m.ConsecutiveNOKs:]
+	lastXStates := states[max(len(states)-m.ConsecutiveNOKs, 0):]
 	if !slices.Contains(lastXStates, database.WorkspaceMonitorStateOK) {
 		return database.WorkspaceMonitorStateNOK
 	}

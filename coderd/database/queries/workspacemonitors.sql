@@ -31,4 +31,7 @@ SET
 	state = $4,
 	updated_at = $5,
 	debounced_until = $6
-WHERE workspace_id = $1 AND monitor_type = $2 AND volume_path = $3;
+WHERE
+	workspace_id = $1 AND
+	monitor_type = $2 AND
+	volume_path IS NOT DISTINCT FROM $3;

@@ -46,6 +46,128 @@ func workspaceMonitorAPI(t *testing.T) (*agentapi.WorkspaceMonitorAPI, database.
 	}, user, clock, notifyEnq
 }
 
+func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
+	t.Parallel()
+
+	// This test is a bit of a long one. We're testing that
+	// when a monitor goes into an alert state, it doesn't
+	// allow another notification to occur until after the
+	// debounce period.
+	//
+	// 1. OK -> NOK  |> sends a notification
+	// 2. NOK -> OK  |> does nothing
+	// 3. OK -> NOK  |> does nothing due to debounce period
+	// 4. NOK -> OK  |> does nothing
+	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
+
+	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
+	api.MinimumNOKs = 10
+	api.ConsecutiveNOKs = 4
+	api.MemoryMonitorEnabled = true
+	api.MemoryUsageThreshold = 80
+	api.Debounce = 1 * time.Minute
+
+	// Given: A monitor in an OK state
+	dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
+		WorkspaceID: api.WorkspaceID,
+		MonitorType: database.WorkspaceMonitorTypeMemory,
+		State:       database.WorkspaceMonitorStateOK,
+	})
+
+	// When: The monitor is given a state that will trigger NOK
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Used:  10,
+					Total: 10,
+				},
+			},
+		},
+	})
+
+	// Then: We expect there to be a notification sent
+	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	require.Len(t, sent, 1)
+	notifyEnq.Clear()
+
+	// When: The monitor moves to an OK state from NOK
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Used:  1,
+					Total: 10,
+				},
+			},
+		},
+	})
+
+	// Then: We expect no new notifications
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to a NOK state before the debounced time.
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Used:  10,
+					Total: 10,
+				},
+			},
+		},
+	})
+
+	// Then: We expect no new notifications (showing the debouncer working)
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to an OK state from NOK
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Used:  1,
+					Total: 10,
+				},
+			},
+		},
+	})
+
+	// Then: We still expect no new notifications
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to a NOK state after the debounce period.
+	clock.Advance(api.Debounce/4 + 1*time.Second)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Used:  10,
+					Total: 10,
+				},
+			},
+		},
+	})
+
+	// Then: We expect a notification
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
+	require.Len(t, sent, 1)
+}
+
 func TestWorkspaceMemoryMonitor(t *testing.T) {
 	t.Parallel()
 
@@ -174,6 +296,147 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
+	t.Parallel()
+
+	// This test is a bit of a long one. We're testing that
+	// when a monitor goes into an alert state, it doesn't
+	// allow another notification to occur until after the
+	// debounce period.
+	//
+	// 1. OK -> NOK  |> sends a notification
+	// 2. NOK -> OK  |> does nothing
+	// 3. OK -> NOK  |> does nothing due to debounce period
+	// 4. NOK -> OK  |> does nothing
+	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
+
+	volumePath := "/home/coder"
+
+	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
+	api.MinimumNOKs = 10
+	api.ConsecutiveNOKs = 4
+	api.VolumeUsageThresholds = map[string]int32{
+		volumePath: 80,
+	}
+	api.Debounce = 1 * time.Minute
+
+	// Given: A monitor in an OK state
+	dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
+		WorkspaceID: api.WorkspaceID,
+		MonitorType: database.WorkspaceMonitorTypeVolume,
+		VolumePath:  sql.NullString{Valid: true, String: volumePath},
+		State:       database.WorkspaceMonitorStateOK,
+	})
+
+	// When: The monitor is given a state that will trigger NOK
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+					{
+						Path:  volumePath,
+						Used:  10,
+						Total: 10,
+					},
+				},
+			},
+		},
+	})
+
+	// Then: We expect there to be a notification sent
+	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 1)
+	notifyEnq.Clear()
+
+	// When: The monitor moves to an OK state from NOK
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+					{
+						Path:  volumePath,
+						Used:  1,
+						Total: 10,
+					},
+				},
+			},
+		},
+	})
+
+	// Then: We expect no new notifications
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to a NOK state before the debounced time.
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+					{
+						Path:  volumePath,
+						Used:  10,
+						Total: 10,
+					},
+				},
+			},
+		},
+	})
+
+	// Then: We expect no new notifications (showing the debouncer working)
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to an OK state from NOK
+	clock.Advance(api.Debounce / 4)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+					{
+						Path:  volumePath,
+						Used:  1,
+						Total: 10,
+					},
+				},
+			},
+		},
+	})
+
+	// Then: We still expect no new notifications
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 0)
+	notifyEnq.Clear()
+
+	// When: The monitor moves back to a NOK state after the debounce period.
+	clock.Advance(api.Debounce/4 + 1*time.Second)
+	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+					{
+						Path:  volumePath,
+						Used:  10,
+						Total: 10,
+					},
+				},
+			},
+		},
+	})
+
+	// Then: We expect a notification
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 1)
 }
 
 func TestWorkspaceVolumeMonitor(t *testing.T) {

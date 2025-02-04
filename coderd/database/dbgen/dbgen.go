@@ -380,7 +380,7 @@ func WorkspaceMonitor(t testing.TB, db database.Store, orig database.WorkspaceMo
 		State:          takeFirst(orig.State, database.WorkspaceMonitorStateOK),
 		CreatedAt:      takeFirst(orig.CreatedAt, dbtime.Now()),
 		UpdatedAt:      takeFirst(orig.UpdatedAt, dbtime.Now()),
-		DebouncedUntil: takeFirst(orig.DebouncedUntil, dbtime.Now()),
+		DebouncedUntil: takeFirst(orig.DebouncedUntil, time.Time{}),
 	})
 	require.NoError(t, err, "insert monitor")
 
