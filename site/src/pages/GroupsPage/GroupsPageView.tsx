@@ -2,7 +2,6 @@ import type { Interpolation, Theme } from "@emotion/react";
 import AddOutlined from "@mui/icons-material/AddOutlined";
 import KeyboardArrowRight from "@mui/icons-material/KeyboardArrowRight";
 import AvatarGroup from "@mui/material/AvatarGroup";
-import Button from "@mui/material/Button";
 import Skeleton from "@mui/material/Skeleton";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -14,6 +13,7 @@ import type { Group } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { AvatarData } from "components/Avatar/AvatarData";
 import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
+import { Button } from "components/Button/Button";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Paywall } from "components/Paywall/Paywall";
@@ -21,6 +21,7 @@ import {
 	TableLoaderSkeleton,
 	TableRowSkeleton,
 } from "components/TableLoader/TableLoader";
+import { useClickableTableRow } from "hooks";
 import type { FC } from "react";
 import { Link as RouterLink, useNavigate } from "react-router-dom";
 import { docs } from "utils/docs";
@@ -28,25 +29,24 @@ import { docs } from "utils/docs";
 export type GroupsPageViewProps = {
 	groups: Group[] | undefined;
 	canCreateGroup: boolean;
-	isTemplateRBACEnabled: boolean;
+	groupsEnabled: boolean;
 };
 
 export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	groups,
 	canCreateGroup,
-	isTemplateRBACEnabled,
+	groupsEnabled,
 }) => {
 	const isLoading = Boolean(groups === undefined);
 	const isEmpty = Boolean(groups && groups.length === 0);
-	const navigate = useNavigate();
 
 	return (
 		<>
 			<ChooseOne>
-				<Cond condition={!isTemplateRBACEnabled}>
+				<Cond condition={!groupsEnabled}>
 					<Paywall
 						message="Groups"
-						description="Organize users into groups with restricted access to templates. You need an Premium license to use this feature."
+						description="Organize users into groups with restricted access to templates. You need a Premium license to use this feature."
 						documentationLink={docs("/admin/users/groups-roles")}
 					/>
 				</Cond>
@@ -78,13 +78,11 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 													}
 													cta={
 														canCreateGroup && (
-															<Button
-																component={RouterLink}
-																to="/deployment/groups/create"
-																startIcon={<AddOutlined />}
-																variant="contained"
-															>
-																Create group
+															<Button asChild>
+																<RouterLink to="create">
+																	<AddOutlined />
+																	Create group
+																</RouterLink>
 															</Button>
 														)
 													}
@@ -94,63 +92,9 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 									</Cond>
 
 									<Cond>
-										{groups?.map((group) => {
-											const groupPageLink = `/deployment/groups/${group.name}`;
-
-											return (
-												<TableRow
-													hover
-													key={group.id}
-													data-testid={`group-${group.id}`}
-													tabIndex={0}
-													onClick={() => {
-														navigate(groupPageLink);
-													}}
-													onKeyDown={(event) => {
-														if (event.key === "Enter") {
-															navigate(groupPageLink);
-														}
-													}}
-													css={styles.clickableTableRow}
-												>
-													<TableCell>
-														<AvatarData
-															avatar={
-																<Avatar
-																	fallback={group.display_name || group.name}
-																	src={group.avatar_url}
-																/>
-															}
-															title={group.display_name || group.name}
-															subtitle={`${group.members.length} members`}
-														/>
-													</TableCell>
-
-													<TableCell>
-														{group.members.length === 0 && "-"}
-														<AvatarGroup
-															max={10}
-															total={group.members.length}
-															css={{ justifyContent: "flex-end", gap: 4 }}
-														>
-															{group.members.map((member) => (
-																<Avatar
-																	key={member.username}
-																	fallback={member.username}
-																	src={member.avatar_url}
-																/>
-															))}
-														</AvatarGroup>
-													</TableCell>
-
-													<TableCell>
-														<div css={styles.arrowCell}>
-															<KeyboardArrowRight css={styles.arrowRight} />
-														</div>
-													</TableCell>
-												</TableRow>
-											);
-										})}
+										{groups?.map((group) => (
+											<GroupRow key={group.id} group={group} />
+										))}
 									</Cond>
 								</ChooseOne>
 							</TableBody>
@@ -162,7 +106,58 @@ export const GroupsPageView: FC<GroupsPageViewProps> = ({
 	);
 };
 
-const TableLoader = () => {
+interface GroupRowProps {
+	group: Group;
+}
+
+const GroupRow: FC<GroupRowProps> = ({ group }) => {
+	const navigate = useNavigate();
+	const rowProps = useClickableTableRow({
+		onClick: () => navigate(group.name),
+	});
+
+	return (
+		<TableRow data-testid={`group-${group.id}`} {...rowProps}>
+			<TableCell>
+				<AvatarData
+					avatar={
+						<Avatar
+							fallback={group.display_name || group.name}
+							src={group.avatar_url}
+						/>
+					}
+					title={group.display_name || group.name}
+					subtitle={`${group.members.length} members`}
+				/>
+			</TableCell>
+
+			<TableCell>
+				{group.members.length === 0 && "-"}
+				<AvatarGroup
+					max={10}
+					total={group.members.length}
+					css={{ justifyContent: "flex-end", gap: 8 }}
+				>
+					{group.members.map((member) => (
+						<Avatar
+							key={member.username}
+							fallback={member.username}
+							src={member.avatar_url}
+						/>
+					))}
+				</AvatarGroup>
+			</TableCell>
+
+			<TableCell>
+				<div css={styles.arrowCell}>
+					<KeyboardArrowRight css={styles.arrowRight} />
+				</div>
+			</TableCell>
+		</TableRow>
+	);
+};
+
+const TableLoader: FC = () => {
 	return (
 		<TableLoaderSkeleton>
 			<TableRowSkeleton>
@@ -183,21 +178,6 @@ const TableLoader = () => {
 };
 
 const styles = {
-	clickableTableRow: (theme) => ({
-		cursor: "pointer",
-
-		"&:hover td": {
-			backgroundColor: theme.palette.action.hover,
-		},
-
-		"&:focus": {
-			outline: `1px solid ${theme.palette.primary.main}`,
-		},
-
-		"& .MuiTableCell-root:last-child": {
-			paddingRight: "16px !important",
-		},
-	}),
 	arrowRight: (theme) => ({
 		color: theme.palette.text.secondary,
 		width: 20,

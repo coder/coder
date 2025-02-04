@@ -462,33 +462,33 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	defer client22.Close(ctx)
 	t.Logf("client22=%s", client22.ID)
 
-	t.Logf("client11 -> Node 11")
+	t.Log("client11 -> Node 11")
 	client11.UpdateDERP(11)
 	agent1.AssertEventuallyHasDERP(client11.ID, 11)
 
-	t.Logf("client21 -> Node 21")
+	t.Log("client21 -> Node 21")
 	client21.UpdateDERP(21)
 	agent1.AssertEventuallyHasDERP(client21.ID, 21)
 
-	t.Logf("client22 -> Node 22")
+	t.Log("client22 -> Node 22")
 	client22.UpdateDERP(22)
 	agent2.AssertEventuallyHasDERP(client22.ID, 22)
 
-	t.Logf("agent2 -> Node 2")
+	t.Log("agent2 -> Node 2")
 	agent2.UpdateDERP(2)
 	client22.AssertEventuallyHasDERP(agent2.ID, 2)
 	client12.AssertEventuallyHasDERP(agent2.ID, 2)
 
-	t.Logf("client12 -> Node 12")
+	t.Log("client12 -> Node 12")
 	client12.UpdateDERP(12)
 	agent2.AssertEventuallyHasDERP(client12.ID, 12)
 
-	t.Logf("agent1 -> Node 1")
+	t.Log("agent1 -> Node 1")
 	agent1.UpdateDERP(1)
 	client21.AssertEventuallyHasDERP(agent1.ID, 1)
 	client11.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	t.Logf("close coord2")
+	t.Log("close coord2")
 	err = coord2.Close()
 	require.NoError(t, err)
 

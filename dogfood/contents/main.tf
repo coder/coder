@@ -189,6 +189,13 @@ module "cursor" {
   folder   = local.repo_dir
 }
 
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "./zed"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
 resource "coder_agent" "dev" {
   arch = "amd64"
   os   = "linux"
@@ -344,7 +351,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
-    filesha1("Dockerfile.nix"),
+    filesha1("nix.hash"),
   ]
   keep_locally = true
 }

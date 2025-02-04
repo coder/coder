@@ -4224,6 +4224,24 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 	s.Run("GetWorkspaceModulesCreatedAfter", s.Subtest(func(db database.Store, check *expects) {
 		check.Args(dbtime.Now()).Asserts(rbac.ResourceSystem, policy.ActionRead)
 	}))
+	s.Run("GetTelemetryItem", s.Subtest(func(db database.Store, check *expects) {
+		check.Args("test").Asserts(rbac.ResourceSystem, policy.ActionRead).Errors(sql.ErrNoRows)
+	}))
+	s.Run("GetTelemetryItems", s.Subtest(func(db database.Store, check *expects) {
+		check.Args().Asserts(rbac.ResourceSystem, policy.ActionRead)
+	}))
+	s.Run("InsertTelemetryItemIfNotExists", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.InsertTelemetryItemIfNotExistsParams{
+			Key:   "test",
+			Value: "value",
+		}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
+	}))
+	s.Run("UpsertTelemetryItem", s.Subtest(func(db database.Store, check *expects) {
+		check.Args(database.UpsertTelemetryItemParams{
+			Key:   "test",
+			Value: "value",
+		}).Asserts(rbac.ResourceSystem, policy.ActionUpdate)
+	}))
 }
 
 func (s *MethodTestSuite) TestNotifications() {

@@ -12,6 +12,9 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+// NoopResolver implements the Resolver interface
+var _ Resolver = &NoopResolver{}
+
 // NoopResolver is a useful test device.
 type NoopResolver struct{}
 
@@ -30,6 +33,9 @@ func (NoopResolver) UpsertRuntimeConfig(context.Context, string, string) error {
 func (NoopResolver) DeleteRuntimeConfig(context.Context, string) error {
 	return ErrEntryNotFound
 }
+
+// StoreResolver implements the Resolver interface
+var _ Resolver = &StoreResolver{}
 
 // StoreResolver uses the database as the underlying store for runtime settings.
 type StoreResolver struct {

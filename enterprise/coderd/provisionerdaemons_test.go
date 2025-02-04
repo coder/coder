@@ -285,7 +285,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			daemons, err := client.ProvisionerDaemons(context.Background())
 			assert.NoError(t, err, "failed to get provisioner daemons")
 			return len(daemons) > 0 &&
-				assert.Equal(t, t.Name(), daemons[0].Name) &&
+				assert.NotEmpty(t, daemons[0].Name) &&
 				assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope]) &&
 				assert.Equal(t, user.UserID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		}, testutil.WaitShort, testutil.IntervalMedium)
@@ -782,10 +782,14 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		pkDaemons, err := orgAdmin.ListProvisionerKeyDaemons(ctx, org.ID)
 		require.NoError(t, err)
 
-		require.Len(t, pkDaemons, 1)
+		require.Len(t, pkDaemons, 2)
 		require.Len(t, pkDaemons[0].Daemons, 1)
 		assert.Equal(t, keys[0].ID, pkDaemons[0].Key.ID)
 		assert.Equal(t, keys[0].Name, pkDaemons[0].Key.Name)
+		// user-auth provisioners
+		require.Len(t, pkDaemons[1].Daemons, 0)
+		assert.Equal(t, codersdk.ProvisionerKeyUUIDUserAuth, pkDaemons[1].Key.ID)
+		assert.Equal(t, codersdk.ProvisionerKeyNameUserAuth, pkDaemons[1].Key.Name)
 
 		assert.Equal(t, daemonName, pkDaemons[0].Daemons[0].Name)
 		assert.Equal(t, buildinfo.Version(), pkDaemons[0].Daemons[0].Version)

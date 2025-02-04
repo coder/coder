@@ -38,7 +38,7 @@ jobs:
         uses: ./.github/actions/setup-go
 
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/init@dd746615b3b9d728a6a37ca2045b68ca76d4841a # v3.28.8
         with:
           languages: go, javascript
 
@@ -48,7 +48,7 @@ jobs:
           rm Makefile
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/analyze@dd746615b3b9d728a6a37ca2045b68ca76d4841a # v3.28.8
 
       - name: Send Slack notification on failure
         if: ${{ failure() }}
@@ -86,13 +86,13 @@ jobs:
         uses: ./.github/actions/setup-sqlc
 
       - name: Install yq
-        run: go run github.com/mikefarah/yq/v4@v4.30.6
+        run: go run github.com/mikefarah/yq/v4@v4.44.3
       - name: Install mockgen
-        run: go install go.uber.org/mock/mockgen@v0.4.0
+        run: go install go.uber.org/mock/mockgen@v0.5.0
       - name: Install protoc-gen-go
         run: go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
       - name: Install protoc-gen-go-drpc
-        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+        run: go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
       - name: Install Protoc
         run: |
           # protoc must be in lockstep with our dogfood Dockerfile or the
@@ -144,7 +144,7 @@ jobs:
           severity: "CRITICAL,HIGH"
 
       - name: Upload Trivy scan results to GitHub Security tab
-        uses: github/codeql-action/upload-sarif@b6a472f63d85b9c78a3ac5e89422239fc15e9b3c # v3.28.1
+        uses: github/codeql-action/upload-sarif@dd746615b3b9d728a6a37ca2045b68ca76d4841a # v3.28.8
         with:
           sarif_file: trivy-results.sarif
           category: "Trivy"

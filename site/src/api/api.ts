@@ -734,6 +734,36 @@ class ApiMethods {
 	};
 
 	/**
+	 * @param data
+	 * @param organization Can be the organization's ID or name
+	 */
+	patchGroupIdpSyncSettings = async (
+		data: TypesGen.GroupSyncSettings,
+		organization: string,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
+			data,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param data
+	 * @param organization Can be the organization's ID or name
+	 */
+	patchRoleIdpSyncSettings = async (
+		data: TypesGen.RoleSyncSettings,
+		organization: string,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
+			data,
+		);
+		return response.data;
+	};
+
+	/**
 	 * @param organization Can be the organization's ID or name
 	 */
 	getGroupIdpSyncSettingsByOrganization = async (

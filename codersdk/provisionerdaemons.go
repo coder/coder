@@ -352,6 +352,12 @@ const (
 	ProvisionerKeyIDPSK      = "00000000-0000-0000-0000-000000000003"
 )
 
+var (
+	ProvisionerKeyUUIDBuiltIn  = uuid.MustParse(ProvisionerKeyIDBuiltIn)
+	ProvisionerKeyUUIDUserAuth = uuid.MustParse(ProvisionerKeyIDUserAuth)
+	ProvisionerKeyUUIDPSK      = uuid.MustParse(ProvisionerKeyIDPSK)
+)
+
 const (
 	ProvisionerKeyNameBuiltIn  = "built-in"
 	ProvisionerKeyNameUserAuth = "user-auth"
