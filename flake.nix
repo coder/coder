@@ -71,70 +71,91 @@
           vendorHash = null;
         };
 
+        # Packages required to build the frontend
+        frontendPackages =
+          with pkgs;
+          [
+            cairo
+            pango
+            pixman
+            libpng
+            libjpeg
+            giflib
+            librsvg
+            python312Packages.setuptools # Needed for node-gyp
+          ]
+          ++ (lib.optionals stdenv.targetPlatform.isDarwin [
+            darwin.apple_sdk.frameworks.Foundation
+            xcbuild
+          ]);
+
         # The minimal set of packages to build Coder.
-        devShellPackages = with pkgs; [
-          # google-chrome is not available on aarch64 linux
-          (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
-          # strace is not available on OSX
-          (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
-          bat
-          cairo
-          curl
-          delve
-          dive
-          drpc.defaultPackage.${system}
-          formatter
-          fzf
-          gcc13
-          gdk
-          getopt
-          gh
-          git
-          (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
-          gnumake
-          gnused
-          go_1_22
-          go-migrate
-          (pinnedPkgs.golangci-lint)
-          gopls
-          gotestsum
-          jq
-          kubectl
-          kubectx
-          kubernetes-helm
-          lazygit
-          less
-          mockgen
-          moreutils
-          neovim
-          nfpm
-          nix-prefetch-git
-          nodejs
-          openssh
-          openssl
-          pango
-          pixman
-          pkg-config
-          playwright-driver.browsers
-          pnpm
-          postgresql_16
-          proto_gen_go_1_30
-          protobuf_23
-          ripgrep
-          shellcheck
-          (pinnedPkgs.shfmt)
-          sqlc
-          terraform
-          typos
-          # Needed for many LD system libs!
-          (lib.optional stdenv.isLinux util-linux)
-          vim
-          wget
-          yq-go
-          zip
-          zsh
-          zstd
-        ];
+        devShellPackages =
+          with pkgs;
+          [
+            # google-chrome is not available on aarch64 linux
+            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            # strace is not available on OSX
+            (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
+            bat
+            cairo
+            curl
+            delve
+            dive
+            drpc.defaultPackage.${system}
+            formatter
+            fzf
+            gcc13
+            gdk
+            getopt
+            gh
+            git
+            (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
+            gnumake
+            gnused
+            go_1_22
+            go-migrate
+            (pinnedPkgs.golangci-lint)
+            gopls
+            gotestsum
+            jq
+            kubectl
+            kubectx
+            kubernetes-helm
+            lazygit
+            less
+            mockgen
+            moreutils
+            neovim
+            nfpm
+            nix-prefetch-git
+            nodejs
+            openssh
+            openssl
+            pango
+            pixman
+            pkg-config
+            playwright-driver.browsers
+            pnpm
+            postgresql_16
+            proto_gen_go_1_30
+            protobuf_23
+            ripgrep
+            shellcheck
+            (pinnedPkgs.shfmt)
+            sqlc
+            terraform
+            typos
+            # Needed for many LD system libs!
+            (lib.optional stdenv.isLinux util-linux)
+            vim
+            wget
+            yq-go
+            zip
+            zsh
+            zstd
+          ]
+          ++ frontendPackages;
 
         docker = pkgs.callPackage ./nix/docker.nix { };
 
@@ -144,22 +165,7 @@
 
           src = ./site/.;
           # Required for the `canvas` package!
-          extraBuildInputs =
-            with pkgs;
-            [
-              cairo
-              pango
-              pixman
-              libpng
-              libjpeg
-              giflib
-              librsvg
-              python312Packages.setuptools
-            ]
-            ++ (lib.optionals stdenv.targetPlatform.isDarwin [
-              darwin.apple_sdk.frameworks.Foundation
-              xcbuild
-            ]);
+          extraBuildInputs = frontendPackages;
           installInPlace = true;
           distDir = "out";
         };
@@ -219,6 +225,9 @@
             LOCALE_ARCHIVE =
               with pkgs;
               lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+
+            NODE_OPTIONS = "--max-old-space-size=8192";
+            GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
           };
         };
 
@@ -252,13 +261,20 @@
               drv = devShells.default.overrideAttrs (oldAttrs: {
                 buildInputs =
                   (with pkgs; [
-                    busybox
                     coreutils
                     nix
                     curl.bin # Ensure the actual curl binary is included in the PATH
                     glibc.bin # Ensure the glibc binaries are included in the PATH
+                    jq.bin
                     binutils # ld and strings
                     filebrowser # Ensure that we're not redownloading filebrowser on each launch
+                    systemd.out
+                    service-wrapper
+                    docker_26
+                    shadow.out
+                    su
+                    ncurses # clear
+                    unzip
                   ])
                   ++ oldAttrs.buildInputs;
               });
