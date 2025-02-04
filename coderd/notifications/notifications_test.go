@@ -1078,7 +1078,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceOutOfDisk/SingleVolume",
+			name: "TemplateWorkspaceOutOfDisk",
 			id:   notifications.TemplateWorkspaceOutOfDisk,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -1098,7 +1098,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceOutOfDisk/MultipleVolumes",
+			name: "TemplateWorkspaceOutOfDisk",
 			id:   notifications.TemplateWorkspaceOutOfDisk,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -1133,8 +1133,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 	for _, name := range allTemplates {
 		var found bool
 		for _, tc := range tests {
-			tcName, _, _ := strings.Cut(tc.name, "/")
-			if tcName == name {
+			if tc.name == name {
 				found = true
 			}
 		}
