@@ -2770,14 +2770,6 @@ func (q *querier) GetWorkspaceModulesCreatedAfter(ctx context.Context, createdAt
 	return q.db.GetWorkspaceModulesCreatedAfter(ctx, createdAt)
 }
 
-func (q *querier) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceMonitor{}, err
-	}
-
-	return q.db.GetWorkspaceMonitor(ctx, arg)
-}
-
 func (q *querier) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	return fetchWithPostFilter(q.auth, policy.ActionRead, func(ctx context.Context, _ interface{}) ([]database.WorkspaceProxy, error) {
 		return q.db.GetWorkspaceProxies(ctx)
@@ -3379,13 +3371,6 @@ func (q *querier) InsertWorkspaceModule(ctx context.Context, arg database.Insert
 	return q.db.InsertWorkspaceModule(ctx, arg)
 }
 
-func (q *querier) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceMonitor{}, err
-	}
-	return q.db.InsertWorkspaceMonitor(ctx, arg)
-}
-
 func (q *querier) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	return insert(q.log, q.auth, rbac.ResourceWorkspaceProxy, q.db.InsertWorkspaceProxy)(ctx, arg)
 }
@@ -3631,6 +3616,14 @@ func (q *querier) UpdateMemberRoles(ctx context.Context, arg database.UpdateMemb
 	}
 
 	return q.db.UpdateMemberRoles(ctx, arg)
+}
+
+func (q *querier) UpdateMemoryResourceMonitor(ctx context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return err
+	}
+
+	return q.db.UpdateMemoryResourceMonitor(ctx, arg)
 }
 
 func (q *querier) UpdateNotificationTemplateMethodByID(ctx context.Context, arg database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
@@ -4029,6 +4022,14 @@ func (q *querier) UpdateUserStatus(ctx context.Context, arg database.UpdateUserS
 	return updateWithReturn(q.log, q.auth, fetch, q.db.UpdateUserStatus)(ctx, arg)
 }
 
+func (q *querier) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
+		return err
+	}
+
+	return q.db.UpdateVolumeResourceMonitor(ctx, arg)
+}
+
 func (q *querier) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	fetch := func(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 		w, err := q.db.GetWorkspaceByID(ctx, arg.ID)
@@ -4203,13 +4204,6 @@ func (q *querier) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.Up
 		return q.db.GetWorkspaceByID(ctx, arg.ID)
 	}
 	return update(q.log, q.auth, fetch, q.db.UpdateWorkspaceLastUsedAt)(ctx, arg)
-}
-
-func (q *querier) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
-	if err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceSystem); err != nil {
-		return err
-	}
-	return q.db.UpdateWorkspaceMonitor(ctx, arg)
 }
 
 func (q *querier) UpdateWorkspaceNextStartAt(ctx context.Context, arg database.UpdateWorkspaceNextStartAtParams) error {

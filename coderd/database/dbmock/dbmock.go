@@ -3486,21 +3486,6 @@ func (mr *MockStoreMockRecorder) GetWorkspaceModulesCreatedAfter(ctx, createdAt 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceModulesCreatedAfter", reflect.TypeOf((*MockStore)(nil).GetWorkspaceModulesCreatedAfter), ctx, createdAt)
 }
 
-// GetWorkspaceMonitor mocks base method.
-func (m *MockStore) GetWorkspaceMonitor(ctx context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetWorkspaceMonitor", ctx, arg)
-	ret0, _ := ret[0].(database.WorkspaceMonitor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetWorkspaceMonitor indicates an expected call of GetWorkspaceMonitor.
-func (mr *MockStoreMockRecorder) GetWorkspaceMonitor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetWorkspaceMonitor", reflect.TypeOf((*MockStore)(nil).GetWorkspaceMonitor), ctx, arg)
-}
-
 // GetWorkspaceProxies mocks base method.
 func (m *MockStore) GetWorkspaceProxies(ctx context.Context) ([]database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
@@ -4492,21 +4477,6 @@ func (mr *MockStoreMockRecorder) InsertWorkspaceModule(ctx, arg any) *gomock.Cal
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceModule", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceModule), ctx, arg)
 }
 
-// InsertWorkspaceMonitor mocks base method.
-func (m *MockStore) InsertWorkspaceMonitor(ctx context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "InsertWorkspaceMonitor", ctx, arg)
-	ret0, _ := ret[0].(database.WorkspaceMonitor)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// InsertWorkspaceMonitor indicates an expected call of InsertWorkspaceMonitor.
-func (mr *MockStoreMockRecorder) InsertWorkspaceMonitor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertWorkspaceMonitor", reflect.TypeOf((*MockStore)(nil).InsertWorkspaceMonitor), ctx, arg)
-}
-
 // InsertWorkspaceProxy mocks base method.
 func (m *MockStore) InsertWorkspaceProxy(ctx context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
 	m.ctrl.T.Helper()
@@ -4918,6 +4888,20 @@ func (m *MockStore) UpdateMemberRoles(ctx context.Context, arg database.UpdateMe
 func (mr *MockStoreMockRecorder) UpdateMemberRoles(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemberRoles", reflect.TypeOf((*MockStore)(nil).UpdateMemberRoles), ctx, arg)
+}
+
+// UpdateMemoryResourceMonitor mocks base method.
+func (m *MockStore) UpdateMemoryResourceMonitor(ctx context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateMemoryResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateMemoryResourceMonitor indicates an expected call of UpdateMemoryResourceMonitor.
+func (mr *MockStoreMockRecorder) UpdateMemoryResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateMemoryResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateMemoryResourceMonitor), ctx, arg)
 }
 
 // UpdateNotificationTemplateMethodByID mocks base method.
@@ -5411,6 +5395,20 @@ func (mr *MockStoreMockRecorder) UpdateUserStatus(ctx, arg any) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateUserStatus", reflect.TypeOf((*MockStore)(nil).UpdateUserStatus), ctx, arg)
 }
 
+// UpdateVolumeResourceMonitor mocks base method.
+func (m *MockStore) UpdateVolumeResourceMonitor(ctx context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UpdateVolumeResourceMonitor", ctx, arg)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UpdateVolumeResourceMonitor indicates an expected call of UpdateVolumeResourceMonitor.
+func (mr *MockStoreMockRecorder) UpdateVolumeResourceMonitor(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateVolumeResourceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateVolumeResourceMonitor), ctx, arg)
+}
+
 // UpdateWorkspace mocks base method.
 func (m *MockStore) UpdateWorkspace(ctx context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	m.ctrl.T.Helper()
@@ -5621,20 +5619,6 @@ func (m *MockStore) UpdateWorkspaceLastUsedAt(ctx context.Context, arg database.
 func (mr *MockStoreMockRecorder) UpdateWorkspaceLastUsedAt(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceLastUsedAt", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceLastUsedAt), ctx, arg)
-}
-
-// UpdateWorkspaceMonitor mocks base method.
-func (m *MockStore) UpdateWorkspaceMonitor(ctx context.Context, arg database.UpdateWorkspaceMonitorParams) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateWorkspaceMonitor", ctx, arg)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// UpdateWorkspaceMonitor indicates an expected call of UpdateWorkspaceMonitor.
-func (mr *MockStoreMockRecorder) UpdateWorkspaceMonitor(ctx, arg any) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateWorkspaceMonitor", reflect.TypeOf((*MockStore)(nil).UpdateWorkspaceMonitor), ctx, arg)
 }
 
 // UpdateWorkspaceNextStartAt mocks base method.

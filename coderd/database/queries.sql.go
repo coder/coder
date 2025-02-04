@@ -11767,7 +11767,7 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 
 const fetchMemoryResourceMonitorsByAgentID = `-- name: FetchMemoryResourceMonitorsByAgentID :one
 SELECT
-	agent_id, enabled, threshold, created_at
+	agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_memory_resource_monitors
 WHERE
@@ -11782,13 +11782,16 @@ func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, a
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
 
 const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
 SELECT
-	agent_id, enabled, threshold, path, created_at
+	agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 FROM
 	workspace_agent_volume_resource_monitors
 WHERE
@@ -11810,6 +11813,9 @@ func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, 
 			&i.Threshold,
 			&i.Path,
 			&i.CreatedAt,
+			&i.UpdatedAt,
+			&i.State,
+			&i.DebouncedUntil,
 		); err != nil {
 			return nil, err
 		}
@@ -11829,26 +11835,35 @@ INSERT INTO
 	workspace_agent_memory_resource_monitors (
 		agent_id,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4) RETURNING agent_id, enabled, threshold, created_at
+	($1, $2, $3, $4, $5, $6, $7) RETURNING agent_id, enabled, threshold, created_at, updated_at, state, debounced_until
 `
 
 type InsertMemoryResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error) {
 	row := q.db.QueryRowContext(ctx, insertMemoryResourceMonitor,
 		arg.AgentID,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentMemoryResourceMonitor
 	err := row.Scan(
@@ -11856,6 +11871,9 @@ func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg Insert
 		&i.Enabled,
 		&i.Threshold,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
 }
@@ -11866,19 +11884,25 @@ INSERT INTO
 		agent_id,
 		path,
 		enabled,
+		state,
 		threshold,
-		created_at
+		created_at,
+		updated_at,
+		debounced_until
 	)
 VALUES
-	($1, $2, $3, $4, $5) RETURNING agent_id, enabled, threshold, path, created_at
+	($1, $2, $3, $4, $5, $6, $7, $8) RETURNING agent_id, enabled, threshold, path, created_at, updated_at, state, debounced_until
 `
 
 type InsertVolumeResourceMonitorParams struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Path      string    `db:"path" json:"path"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error) {
@@ -11886,8 +11910,11 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		arg.AgentID,
 		arg.Path,
 		arg.Enabled,
+		arg.State,
 		arg.Threshold,
 		arg.CreatedAt,
+		arg.UpdatedAt,
+		arg.DebouncedUntil,
 	)
 	var i WorkspaceAgentVolumeResourceMonitor
 	err := row.Scan(
@@ -11896,8 +11923,67 @@ func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg Insert
 		&i.Threshold,
 		&i.Path,
 		&i.CreatedAt,
+		&i.UpdatedAt,
+		&i.State,
+		&i.DebouncedUntil,
 	)
 	return i, err
+}
+
+const updateMemoryResourceMonitor = `-- name: UpdateMemoryResourceMonitor :exec
+UPDATE workspace_agent_memory_resource_monitors
+SET
+	updated_at = $2,
+	state = $3,
+	debounced_until = $4
+WHERE
+	agent_id = $1
+`
+
+type UpdateMemoryResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateMemoryResourceMonitor(ctx context.Context, arg UpdateMemoryResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateMemoryResourceMonitor,
+		arg.AgentID,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
+}
+
+const updateVolumeResourceMonitor = `-- name: UpdateVolumeResourceMonitor :exec
+UPDATE workspace_agent_volume_resource_monitors
+SET
+		updated_at = $3,
+		state = $4,
+		debounced_until = $5
+WHERE
+		agent_id = $1 AND path = $2
+`
+
+type UpdateVolumeResourceMonitorParams struct {
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Path           string                     `db:"path" json:"path"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
+}
+
+func (q *sqlQuerier) UpdateVolumeResourceMonitor(ctx context.Context, arg UpdateVolumeResourceMonitorParams) error {
+	_, err := q.db.ExecContext(ctx, updateVolumeResourceMonitor,
+		arg.AgentID,
+		arg.Path,
+		arg.UpdatedAt,
+		arg.State,
+		arg.DebouncedUntil,
+	)
+	return err
 }
 
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
@@ -15100,122 +15186,6 @@ func (q *sqlQuerier) InsertWorkspaceModule(ctx context.Context, arg InsertWorksp
 		&i.CreatedAt,
 	)
 	return i, err
-}
-
-const getWorkspaceMonitor = `-- name: GetWorkspaceMonitor :one
-SELECT workspace_id, monitor_type, volume_path, state, created_at, updated_at, debounced_until
-FROM workspace_monitors
-WHERE
-	workspace_id = $1 AND
-	monitor_type = $2 AND
-	volume_path IS NOT DISTINCT FROM $3
-`
-
-type GetWorkspaceMonitorParams struct {
-	WorkspaceID uuid.UUID            `db:"workspace_id" json:"workspace_id"`
-	MonitorType WorkspaceMonitorType `db:"monitor_type" json:"monitor_type"`
-	VolumePath  sql.NullString       `db:"volume_path" json:"volume_path"`
-}
-
-func (q *sqlQuerier) GetWorkspaceMonitor(ctx context.Context, arg GetWorkspaceMonitorParams) (WorkspaceMonitor, error) {
-	row := q.db.QueryRowContext(ctx, getWorkspaceMonitor, arg.WorkspaceID, arg.MonitorType, arg.VolumePath)
-	var i WorkspaceMonitor
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.MonitorType,
-		&i.VolumePath,
-		&i.State,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DebouncedUntil,
-	)
-	return i, err
-}
-
-const insertWorkspaceMonitor = `-- name: InsertWorkspaceMonitor :one
-INSERT INTO workspace_monitors (
-	workspace_id,
-	monitor_type,
-	volume_path,
-	state,
-	created_at,
-	updated_at,
-	debounced_until
-) VALUES (
-	$1,
-	$2,
-	$3,
-	$4,
-	$5,
-	$6,
-	$7
-) RETURNING workspace_id, monitor_type, volume_path, state, created_at, updated_at, debounced_until
-`
-
-type InsertWorkspaceMonitorParams struct {
-	WorkspaceID    uuid.UUID             `db:"workspace_id" json:"workspace_id"`
-	MonitorType    WorkspaceMonitorType  `db:"monitor_type" json:"monitor_type"`
-	VolumePath     sql.NullString        `db:"volume_path" json:"volume_path"`
-	State          WorkspaceMonitorState `db:"state" json:"state"`
-	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
-	DebouncedUntil time.Time             `db:"debounced_until" json:"debounced_until"`
-}
-
-func (q *sqlQuerier) InsertWorkspaceMonitor(ctx context.Context, arg InsertWorkspaceMonitorParams) (WorkspaceMonitor, error) {
-	row := q.db.QueryRowContext(ctx, insertWorkspaceMonitor,
-		arg.WorkspaceID,
-		arg.MonitorType,
-		arg.VolumePath,
-		arg.State,
-		arg.CreatedAt,
-		arg.UpdatedAt,
-		arg.DebouncedUntil,
-	)
-	var i WorkspaceMonitor
-	err := row.Scan(
-		&i.WorkspaceID,
-		&i.MonitorType,
-		&i.VolumePath,
-		&i.State,
-		&i.CreatedAt,
-		&i.UpdatedAt,
-		&i.DebouncedUntil,
-	)
-	return i, err
-}
-
-const updateWorkspaceMonitor = `-- name: UpdateWorkspaceMonitor :exec
-UPDATE workspace_monitors
-SET
-	state = $4,
-	updated_at = $5,
-	debounced_until = $6
-WHERE
-	workspace_id = $1 AND
-	monitor_type = $2 AND
-	volume_path IS NOT DISTINCT FROM $3
-`
-
-type UpdateWorkspaceMonitorParams struct {
-	WorkspaceID    uuid.UUID             `db:"workspace_id" json:"workspace_id"`
-	MonitorType    WorkspaceMonitorType  `db:"monitor_type" json:"monitor_type"`
-	VolumePath     sql.NullString        `db:"volume_path" json:"volume_path"`
-	State          WorkspaceMonitorState `db:"state" json:"state"`
-	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
-	DebouncedUntil time.Time             `db:"debounced_until" json:"debounced_until"`
-}
-
-func (q *sqlQuerier) UpdateWorkspaceMonitor(ctx context.Context, arg UpdateWorkspaceMonitorParams) error {
-	_, err := q.db.ExecContext(ctx, updateWorkspaceMonitor,
-		arg.WorkspaceID,
-		arg.MonitorType,
-		arg.VolumePath,
-		arg.State,
-		arg.UpdatedAt,
-		arg.DebouncedUntil,
-	)
-	return err
 }
 
 const getWorkspaceResourceByID = `-- name: GetWorkspaceResourceByID :one

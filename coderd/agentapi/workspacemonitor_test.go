@@ -2,10 +2,10 @@ package agentapi_test
 
 import (
 	"context"
-	"database/sql"
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
@@ -29,16 +29,36 @@ func workspaceMonitorAPI(t *testing.T) (*agentapi.WorkspaceMonitorAPI, database.
 		OrganizationID: org.ID,
 		CreatedBy:      user.ID,
 	})
+	templateVersion := dbgen.TemplateVersion(t, db, database.TemplateVersion{
+		TemplateID:     uuid.NullUUID{Valid: true, UUID: template.ID},
+		OrganizationID: org.ID,
+		CreatedBy:      user.ID,
+	})
 	workspace := dbgen.Workspace(t, db, database.WorkspaceTable{
 		OrganizationID: org.ID,
 		TemplateID:     template.ID,
 		OwnerID:        user.ID,
+	})
+	job := dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+		Type: database.ProvisionerJobTypeWorkspaceBuild,
+	})
+	build := dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{
+		JobID:             job.ID,
+		WorkspaceID:       workspace.ID,
+		TemplateVersionID: templateVersion.ID,
+	})
+	resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+		JobID: build.JobID,
+	})
+	agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+		ResourceID: resource.ID,
 	})
 
 	notifyEnq := &notificationstest.FakeEnqueuer{}
 	clock := quartz.NewMock(t)
 
 	return &agentapi.WorkspaceMonitorAPI{
+		AgentID:               agent.ID,
 		WorkspaceID:           workspace.ID,
 		Clock:                 clock,
 		Database:              db,
@@ -63,15 +83,13 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
 	api.MinimumNOKs = 10
 	api.ConsecutiveNOKs = 4
-	api.MemoryMonitorEnabled = true
-	api.MemoryUsageThreshold = 80
 	api.Debounce = 1 * time.Minute
 
 	// Given: A monitor in an OK state
-	dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
-		WorkspaceID: api.WorkspaceID,
-		MonitorType: database.WorkspaceMonitorTypeMemory,
-		State:       database.WorkspaceMonitorStateOK,
+	dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
+		AgentID:   api.AgentID,
+		State:     database.WorkspaceAgentMonitorStateOK,
+		Threshold: 80,
 	})
 
 	// When: The monitor is given a state that will trigger NOK
@@ -178,8 +196,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		thresholdPercent int32
 		minimumNOKs      int
 		consecutiveNOKs  int
-		previousState    database.WorkspaceMonitorState
-		expectState      database.WorkspaceMonitorState
+		previousState    database.WorkspaceAgentMonitorState
+		expectState      database.WorkspaceAgentMonitorState
 		shouldNotify     bool
 	}{
 		{
@@ -189,8 +207,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
 		},
 		{
@@ -200,8 +218,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
 		},
 		{
@@ -211,8 +229,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			minimumNOKs:      4,
 			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
 		},
 		{
@@ -222,8 +240,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
 		},
 		{
@@ -233,8 +251,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 		{
@@ -244,8 +262,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			minimumNOKs:      4,
 			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 	}
@@ -259,8 +277,6 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
-			api.MemoryMonitorEnabled = true
-			api.MemoryUsageThreshold = tt.thresholdPercent
 
 			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
@@ -275,10 +291,10 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 				})
 			}
 
-			dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeMemory,
-				State:       tt.previousState,
+			dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
+				AgentID:   api.AgentID,
+				State:     tt.previousState,
+				Threshold: tt.thresholdPercent,
 			})
 
 			clock.Set(collectedAt)
@@ -317,17 +333,14 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
 	api.MinimumNOKs = 10
 	api.ConsecutiveNOKs = 4
-	api.VolumeUsageThresholds = map[string]int32{
-		volumePath: 80,
-	}
 	api.Debounce = 1 * time.Minute
 
 	// Given: A monitor in an OK state
-	dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
-		WorkspaceID: api.WorkspaceID,
-		MonitorType: database.WorkspaceMonitorTypeVolume,
-		VolumePath:  sql.NullString{Valid: true, String: volumePath},
-		State:       database.WorkspaceMonitorStateOK,
+	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   api.AgentID,
+		Path:      volumePath,
+		State:     database.WorkspaceAgentMonitorStateOK,
+		Threshold: 80,
 	})
 
 	// When: The monitor is given a state that will trigger NOK
@@ -448,8 +461,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		volumeUsage      []int32
 		volumeTotal      int32
 		thresholdPercent int32
-		previousState    database.WorkspaceMonitorState
-		expectState      database.WorkspaceMonitorState
+		previousState    database.WorkspaceAgentMonitorState
+		expectState      database.WorkspaceAgentMonitorState
 		shouldNotify     bool
 		minimumNOKs      int
 		consecutiveNOKs  int
@@ -462,8 +475,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
 		},
 		{
@@ -474,8 +487,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
 		},
 		{
@@ -486,8 +499,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			minimumNOKs:      4,
 			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceMonitorStateOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     true,
 		},
 		{
@@ -498,8 +511,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateOK,
 			shouldNotify:     false,
 		},
 		{
@@ -510,8 +523,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
 			minimumNOKs:      10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 		{
@@ -522,8 +535,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			thresholdPercent: 80,
 			minimumNOKs:      4,
 			consecutiveNOKs:  10,
-			previousState:    database.WorkspaceMonitorStateNOK,
-			expectState:      database.WorkspaceMonitorStateNOK,
+			previousState:    database.WorkspaceAgentMonitorStateNOK,
+			expectState:      database.WorkspaceAgentMonitorStateNOK,
 			shouldNotify:     false,
 		},
 	}
@@ -537,9 +550,6 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
-			api.VolumeUsageThresholds = map[string]int32{
-				tt.volumePath: tt.thresholdPercent,
-			}
 
 			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.volumeUsage))
 			collectedAt := clock.Now()
@@ -560,11 +570,11 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 				})
 			}
 
-			dbgen.WorkspaceMonitor(t, api.Database, database.WorkspaceMonitor{
-				WorkspaceID: api.WorkspaceID,
-				MonitorType: database.WorkspaceMonitorTypeVolume,
-				VolumePath:  sql.NullString{Valid: true, String: tt.volumePath},
-				State:       tt.previousState,
+			dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+				AgentID:   api.AgentID,
+				Path:      tt.volumePath,
+				State:     tt.previousState,
+				Threshold: tt.thresholdPercent,
 			})
 
 			clock.Set(collectedAt)

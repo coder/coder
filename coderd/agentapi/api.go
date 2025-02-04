@@ -155,9 +155,15 @@ func New(opts Options) *API {
 	}
 
 	api.WorkspaceMonitorAPI = &WorkspaceMonitorAPI{
+		AgentID:               opts.AgentID,
+		WorkspaceID:           opts.WorkspaceID,
 		Clock:                 opts.Clock,
 		Database:              opts.Database,
 		NotificationsEnqueuer: opts.NotificationsEnqueuer,
+
+		// These values assume a window of 20
+		MinimumNOKs:     4,
+		ConsecutiveNOKs: 10,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

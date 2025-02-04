@@ -238,7 +238,6 @@ type data struct {
 	workspaceResourceMetadata            []database.WorkspaceResourceMetadatum
 	workspaceResources                   []database.WorkspaceResource
 	workspaceModules                     []database.WorkspaceModule
-	workspaceMonitors                    []database.WorkspaceMonitor
 	workspaces                           []database.WorkspaceTable
 	workspaceProxies                     []database.WorkspaceProxy
 	customRoles                          []database.CustomRole
@@ -7190,26 +7189,6 @@ func (q *FakeQuerier) GetWorkspaceModulesCreatedAfter(_ context.Context, created
 	return modules, nil
 }
 
-func (q *FakeQuerier) GetWorkspaceMonitor(_ context.Context, arg database.GetWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.WorkspaceMonitor{}, err
-	}
-
-	q.mutex.RLock()
-	defer q.mutex.RUnlock()
-
-	for _, monitor := range q.workspaceMonitors {
-		if monitor.WorkspaceID == arg.WorkspaceID &&
-			monitor.MonitorType == arg.MonitorType &&
-			monitor.VolumePath == arg.VolumePath {
-			return monitor, nil
-		}
-	}
-
-	return database.WorkspaceMonitor{}, sql.ErrNoRows
-}
-
 func (q *FakeQuerier) GetWorkspaceProxies(_ context.Context) ([]database.WorkspaceProxy, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
@@ -7849,7 +7828,16 @@ func (q *FakeQuerier) InsertMemoryResourceMonitor(_ context.Context, arg databas
 	q.mutex.Lock()
 	defer q.mutex.Unlock()
 
-	monitor := database.WorkspaceAgentMemoryResourceMonitor(arg)
+	//nolint:unconvert // The structs field-order differs so this is needed.
+	monitor := database.WorkspaceAgentMemoryResourceMonitor(database.WorkspaceAgentMemoryResourceMonitor{
+		AgentID:        arg.AgentID,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
+	})
 
 	q.workspaceAgentMemoryResourceMonitors = append(q.workspaceAgentMemoryResourceMonitors, monitor)
 	return monitor, nil
@@ -8492,11 +8480,14 @@ func (q *FakeQuerier) InsertVolumeResourceMonitor(_ context.Context, arg databas
 	defer q.mutex.Unlock()
 
 	monitor := database.WorkspaceAgentVolumeResourceMonitor{
-		AgentID:   arg.AgentID,
-		Path:      arg.Path,
-		Enabled:   arg.Enabled,
-		Threshold: arg.Threshold,
-		CreatedAt: arg.CreatedAt,
+		AgentID:        arg.AgentID,
+		Path:           arg.Path,
+		Enabled:        arg.Enabled,
+		State:          arg.State,
+		Threshold:      arg.Threshold,
+		CreatedAt:      arg.CreatedAt,
+		UpdatedAt:      arg.UpdatedAt,
+		DebouncedUntil: arg.DebouncedUntil,
 	}
 
 	q.workspaceAgentVolumeResourceMonitors = append(q.workspaceAgentVolumeResourceMonitors, monitor)
@@ -8877,20 +8868,6 @@ func (q *FakeQuerier) InsertWorkspaceModule(_ context.Context, arg database.Inse
 	workspaceModule := database.WorkspaceModule(arg)
 	q.workspaceModules = append(q.workspaceModules, workspaceModule)
 	return workspaceModule, nil
-}
-
-func (q *FakeQuerier) InsertWorkspaceMonitor(_ context.Context, arg database.InsertWorkspaceMonitorParams) (database.WorkspaceMonitor, error) {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return database.WorkspaceMonitor{}, err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	workspaceMonitor := database.WorkspaceMonitor(arg)
-	q.workspaceMonitors = append(q.workspaceMonitors, workspaceMonitor)
-	return workspaceMonitor, nil
 }
 
 func (q *FakeQuerier) InsertWorkspaceProxy(_ context.Context, arg database.InsertWorkspaceProxyParams) (database.WorkspaceProxy, error) {
@@ -9519,6 +9496,27 @@ func (q *FakeQuerier) UpdateMemberRoles(_ context.Context, arg database.UpdateMe
 	}
 
 	return database.OrganizationMember{}, sql.ErrNoRows
+}
+
+func (q *FakeQuerier) UpdateMemoryResourceMonitor(_ context.Context, arg database.UpdateMemoryResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for i, monitor := range q.workspaceAgentMemoryResourceMonitors {
+		if monitor.AgentID != arg.AgentID {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentMemoryResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
 }
 
 func (*FakeQuerier) UpdateNotificationTemplateMethodByID(_ context.Context, _ database.UpdateNotificationTemplateMethodByIDParams) (database.NotificationTemplate, error) {
@@ -10299,6 +10297,27 @@ func (q *FakeQuerier) UpdateUserStatus(_ context.Context, arg database.UpdateUse
 	return database.User{}, sql.ErrNoRows
 }
 
+func (q *FakeQuerier) UpdateVolumeResourceMonitor(_ context.Context, arg database.UpdateVolumeResourceMonitorParams) error {
+	err := validateDatabaseType(arg)
+	if err != nil {
+		return err
+	}
+
+	for i, monitor := range q.workspaceAgentVolumeResourceMonitors {
+		if monitor.AgentID != arg.AgentID || monitor.Path != arg.Path {
+			continue
+		}
+
+		monitor.State = arg.State
+		monitor.UpdatedAt = arg.UpdatedAt
+		monitor.DebouncedUntil = arg.DebouncedUntil
+		q.workspaceAgentVolumeResourceMonitors[i] = monitor
+		return nil
+	}
+
+	return nil
+}
+
 func (q *FakeQuerier) UpdateWorkspace(_ context.Context, arg database.UpdateWorkspaceParams) (database.WorkspaceTable, error) {
 	if err := validateDatabaseType(arg); err != nil {
 		return database.WorkspaceTable{}, err
@@ -10645,32 +10664,6 @@ func (q *FakeQuerier) UpdateWorkspaceLastUsedAt(_ context.Context, arg database.
 		}
 		workspace.LastUsedAt = arg.LastUsedAt
 		q.workspaces[index] = workspace
-		return nil
-	}
-
-	return sql.ErrNoRows
-}
-
-func (q *FakeQuerier) UpdateWorkspaceMonitor(_ context.Context, arg database.UpdateWorkspaceMonitorParams) error {
-	err := validateDatabaseType(arg)
-	if err != nil {
-		return err
-	}
-
-	q.mutex.Lock()
-	defer q.mutex.Unlock()
-
-	for index, monitor := range q.workspaceMonitors {
-		if monitor.WorkspaceID != arg.WorkspaceID ||
-			monitor.MonitorType != arg.MonitorType ||
-			monitor.VolumePath != arg.VolumePath {
-			continue
-		}
-
-		monitor.DebouncedUntil = arg.DebouncedUntil
-		monitor.UpdatedAt = arg.UpdatedAt
-		monitor.State = arg.State
-		q.workspaceMonitors[index] = monitor
 		return nil
 	}
 

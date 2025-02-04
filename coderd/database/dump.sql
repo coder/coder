@@ -238,6 +238,11 @@ CREATE TYPE workspace_agent_lifecycle_state AS ENUM (
     'off'
 );
 
+CREATE TYPE workspace_agent_monitor_state AS ENUM (
+    'OK',
+    'NOK'
+);
+
 CREATE TYPE workspace_agent_script_timing_stage AS ENUM (
     'start',
     'stop',
@@ -273,16 +278,6 @@ CREATE TYPE workspace_app_open_in AS ENUM (
     'tab',
     'window',
     'slim-window'
-);
-
-CREATE TYPE workspace_monitor_state AS ENUM (
-    'OK',
-    'NOK'
-);
-
-CREATE TYPE workspace_monitor_type AS ENUM (
-    'memory',
-    'volume'
 );
 
 CREATE TYPE workspace_transition AS ENUM (
@@ -1500,7 +1495,10 @@ CREATE TABLE workspace_agent_memory_resource_monitors (
     agent_id uuid NOT NULL,
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -1585,7 +1583,10 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
     path text NOT NULL,
-    created_at timestamp with time zone NOT NULL
+    created_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone NOT NULL,
+    state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
+    debounced_until timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -1772,17 +1773,6 @@ CREATE TABLE workspace_modules (
     version text NOT NULL,
     key text NOT NULL,
     created_at timestamp with time zone NOT NULL
-);
-
-CREATE TABLE workspace_monitors (
-    workspace_id uuid NOT NULL,
-    monitor_type workspace_monitor_type NOT NULL,
-    volume_path text,
-    state workspace_monitor_state NOT NULL,
-    created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
-    debounced_until timestamp with time zone NOT NULL,
-    CONSTRAINT workspace_monitor_volume_path_exclusion CHECK (((volume_path IS NULL) OR (monitor_type = 'volume'::workspace_monitor_type)))
 );
 
 CREATE TABLE workspace_proxies (

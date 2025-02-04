@@ -1958,6 +1958,64 @@ func AllWorkspaceAgentLifecycleStateValues() []WorkspaceAgentLifecycleState {
 	}
 }
 
+type WorkspaceAgentMonitorState string
+
+const (
+	WorkspaceAgentMonitorStateOK  WorkspaceAgentMonitorState = "OK"
+	WorkspaceAgentMonitorStateNOK WorkspaceAgentMonitorState = "NOK"
+)
+
+func (e *WorkspaceAgentMonitorState) Scan(src interface{}) error {
+	switch s := src.(type) {
+	case []byte:
+		*e = WorkspaceAgentMonitorState(s)
+	case string:
+		*e = WorkspaceAgentMonitorState(s)
+	default:
+		return fmt.Errorf("unsupported scan type for WorkspaceAgentMonitorState: %T", src)
+	}
+	return nil
+}
+
+type NullWorkspaceAgentMonitorState struct {
+	WorkspaceAgentMonitorState WorkspaceAgentMonitorState `json:"workspace_agent_monitor_state"`
+	Valid                      bool                       `json:"valid"` // Valid is true if WorkspaceAgentMonitorState is not NULL
+}
+
+// Scan implements the Scanner interface.
+func (ns *NullWorkspaceAgentMonitorState) Scan(value interface{}) error {
+	if value == nil {
+		ns.WorkspaceAgentMonitorState, ns.Valid = "", false
+		return nil
+	}
+	ns.Valid = true
+	return ns.WorkspaceAgentMonitorState.Scan(value)
+}
+
+// Value implements the driver Valuer interface.
+func (ns NullWorkspaceAgentMonitorState) Value() (driver.Value, error) {
+	if !ns.Valid {
+		return nil, nil
+	}
+	return string(ns.WorkspaceAgentMonitorState), nil
+}
+
+func (e WorkspaceAgentMonitorState) Valid() bool {
+	switch e {
+	case WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK:
+		return true
+	}
+	return false
+}
+
+func AllWorkspaceAgentMonitorStateValues() []WorkspaceAgentMonitorState {
+	return []WorkspaceAgentMonitorState{
+		WorkspaceAgentMonitorStateOK,
+		WorkspaceAgentMonitorStateNOK,
+	}
+}
+
 // What stage the script was ran in.
 type WorkspaceAgentScriptTimingStage string
 
@@ -2271,122 +2329,6 @@ func AllWorkspaceAppOpenInValues() []WorkspaceAppOpenIn {
 		WorkspaceAppOpenInTab,
 		WorkspaceAppOpenInWindow,
 		WorkspaceAppOpenInSlimWindow,
-	}
-}
-
-type WorkspaceMonitorState string
-
-const (
-	WorkspaceMonitorStateOK  WorkspaceMonitorState = "OK"
-	WorkspaceMonitorStateNOK WorkspaceMonitorState = "NOK"
-)
-
-func (e *WorkspaceMonitorState) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkspaceMonitorState(s)
-	case string:
-		*e = WorkspaceMonitorState(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceMonitorState: %T", src)
-	}
-	return nil
-}
-
-type NullWorkspaceMonitorState struct {
-	WorkspaceMonitorState WorkspaceMonitorState `json:"workspace_monitor_state"`
-	Valid                 bool                  `json:"valid"` // Valid is true if WorkspaceMonitorState is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkspaceMonitorState) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkspaceMonitorState, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkspaceMonitorState.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkspaceMonitorState) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkspaceMonitorState), nil
-}
-
-func (e WorkspaceMonitorState) Valid() bool {
-	switch e {
-	case WorkspaceMonitorStateOK,
-		WorkspaceMonitorStateNOK:
-		return true
-	}
-	return false
-}
-
-func AllWorkspaceMonitorStateValues() []WorkspaceMonitorState {
-	return []WorkspaceMonitorState{
-		WorkspaceMonitorStateOK,
-		WorkspaceMonitorStateNOK,
-	}
-}
-
-type WorkspaceMonitorType string
-
-const (
-	WorkspaceMonitorTypeMemory WorkspaceMonitorType = "memory"
-	WorkspaceMonitorTypeVolume WorkspaceMonitorType = "volume"
-)
-
-func (e *WorkspaceMonitorType) Scan(src interface{}) error {
-	switch s := src.(type) {
-	case []byte:
-		*e = WorkspaceMonitorType(s)
-	case string:
-		*e = WorkspaceMonitorType(s)
-	default:
-		return fmt.Errorf("unsupported scan type for WorkspaceMonitorType: %T", src)
-	}
-	return nil
-}
-
-type NullWorkspaceMonitorType struct {
-	WorkspaceMonitorType WorkspaceMonitorType `json:"workspace_monitor_type"`
-	Valid                bool                 `json:"valid"` // Valid is true if WorkspaceMonitorType is not NULL
-}
-
-// Scan implements the Scanner interface.
-func (ns *NullWorkspaceMonitorType) Scan(value interface{}) error {
-	if value == nil {
-		ns.WorkspaceMonitorType, ns.Valid = "", false
-		return nil
-	}
-	ns.Valid = true
-	return ns.WorkspaceMonitorType.Scan(value)
-}
-
-// Value implements the driver Valuer interface.
-func (ns NullWorkspaceMonitorType) Value() (driver.Value, error) {
-	if !ns.Valid {
-		return nil, nil
-	}
-	return string(ns.WorkspaceMonitorType), nil
-}
-
-func (e WorkspaceMonitorType) Valid() bool {
-	switch e {
-	case WorkspaceMonitorTypeMemory,
-		WorkspaceMonitorTypeVolume:
-		return true
-	}
-	return false
-}
-
-func AllWorkspaceMonitorTypeValues() []WorkspaceMonitorType {
-	return []WorkspaceMonitorType{
-		WorkspaceMonitorTypeMemory,
-		WorkspaceMonitorTypeVolume,
 	}
 }
 
@@ -3269,10 +3211,13 @@ type WorkspaceAgentLogSource struct {
 }
 
 type WorkspaceAgentMemoryResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceAgentMetadatum struct {
@@ -3343,11 +3288,14 @@ type WorkspaceAgentStat struct {
 }
 
 type WorkspaceAgentVolumeResourceMonitor struct {
-	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
-	Enabled   bool      `db:"enabled" json:"enabled"`
-	Threshold int32     `db:"threshold" json:"threshold"`
-	Path      string    `db:"path" json:"path"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
+	AgentID        uuid.UUID                  `db:"agent_id" json:"agent_id"`
+	Enabled        bool                       `db:"enabled" json:"enabled"`
+	Threshold      int32                      `db:"threshold" json:"threshold"`
+	Path           string                     `db:"path" json:"path"`
+	CreatedAt      time.Time                  `db:"created_at" json:"created_at"`
+	UpdatedAt      time.Time                  `db:"updated_at" json:"updated_at"`
+	State          WorkspaceAgentMonitorState `db:"state" json:"state"`
+	DebouncedUntil time.Time                  `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceApp struct {
@@ -3450,16 +3398,6 @@ type WorkspaceModule struct {
 	Version    string              `db:"version" json:"version"`
 	Key        string              `db:"key" json:"key"`
 	CreatedAt  time.Time           `db:"created_at" json:"created_at"`
-}
-
-type WorkspaceMonitor struct {
-	WorkspaceID    uuid.UUID             `db:"workspace_id" json:"workspace_id"`
-	MonitorType    WorkspaceMonitorType  `db:"monitor_type" json:"monitor_type"`
-	VolumePath     sql.NullString        `db:"volume_path" json:"volume_path"`
-	State          WorkspaceMonitorState `db:"state" json:"state"`
-	CreatedAt      time.Time             `db:"created_at" json:"created_at"`
-	UpdatedAt      time.Time             `db:"updated_at" json:"updated_at"`
-	DebouncedUntil time.Time             `db:"debounced_until" json:"debounced_until"`
 }
 
 type WorkspaceProxy struct {
