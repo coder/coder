@@ -1,9 +1,3 @@
-import Table from "@mui/material/Table";
-import TableBody from "@mui/material/TableBody";
-import TableCell from "@mui/material/TableCell";
-import TableContainer from "@mui/material/TableContainer";
-import TableHead from "@mui/material/TableHead";
-import TableRow from "@mui/material/TableRow";
 import type {
 	Organization,
 	OrganizationSyncSettings,
@@ -48,6 +42,13 @@ import {
 } from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import {
+	Table,
+	TableBody,
+	TableCell,
+	TableHeader,
+	TableRow,
+} from "components/Table/Table";
 import { useFormik } from "formik";
 import { Check, ChevronDown, CornerDownLeft, Plus, Trash } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
@@ -218,7 +219,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 							{form.errors.field}
 						</p>
 					)}
-					<div className="flex flex-col gap-4">
+					<div className="flex flex-col gap-7">
 						<div className="flex flex-row pt-8 gap-2 justify-between items-start">
 							<div className="grid items-center gap-1">
 								<Label className="text-sm" htmlFor={`${id}-idp-org-name`}>
@@ -318,7 +319,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									placeholder="Select organization"
 									emptyIndicator={
 										<p className="text-center text-md text-content-primary">
-											All organizations selected
+											No organizations found
 										</p>
 									}
 								/>
@@ -415,40 +416,38 @@ interface IdpMappingTableProps {
 
 const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 	return (
-		<TableContainer>
-			<Table>
-				<TableHead>
-					<TableRow>
-						<TableCell width="45%">IdP organization</TableCell>
-						<TableCell width="55%">Coder organization</TableCell>
-						<TableCell width="10%" />
-					</TableRow>
-				</TableHead>
-				<TableBody>
-					<ChooseOne>
-						<Cond condition={isEmpty}>
-							<TableRow>
-								<TableCell colSpan={999}>
-									<EmptyState
-										message={"No organization mappings"}
-										isCompact
-										cta={
-											<Link
-												href={docs("/admin/users/idp-sync#organization-sync")}
-											>
-												How to set up IdP organization sync
-											</Link>
-										}
-									/>
-								</TableCell>
-							</TableRow>
-						</Cond>
+		<Table>
+			<TableHeader>
+				<TableRow>
+					<TableCell width="45%">IdP organization</TableCell>
+					<TableCell width="55%">Coder organization</TableCell>
+					<TableCell width="10%" />
+				</TableRow>
+			</TableHeader>
+			<TableBody>
+				<ChooseOne>
+					<Cond condition={isEmpty}>
+						<TableRow>
+							<TableCell colSpan={999}>
+								<EmptyState
+									message={"No organization mappings"}
+									isCompact
+									cta={
+										<Link
+											href={docs("/admin/users/idp-sync#organization-sync")}
+										>
+											How to set up IdP organization sync
+										</Link>
+									}
+								/>
+							</TableCell>
+						</TableRow>
+					</Cond>
 
-						<Cond>{children}</Cond>
-					</ChooseOne>
-				</TableBody>
-			</Table>
-		</TableContainer>
+					<Cond>{children}</Cond>
+				</ChooseOne>
+			</TableBody>
+		</Table>
 	);
 };
 
