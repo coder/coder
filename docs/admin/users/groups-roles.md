@@ -44,9 +44,6 @@ Starting in v2.16.0, Premium Coder deployments can configure custom roles on the
 [Organization](./organizations.md) level. You can create and assign custom roles
 in the dashboard under **Organizations** -> **My Organization** -> **Roles**.
 
-> Note: This requires a Premium license.
-> [Contact your account team](https://coder.com/contact) for more details.
-
 ![Custom roles](../../images/admin/users/roles/custom-roles.PNG)
 
 ### Example roles
