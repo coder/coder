@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/coder/coder/v2/coderd/agentapi"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -1707,6 +1708,17 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 		if err != nil {
 			return nil, xerrors.Errorf("update workspace: %w", err)
 		}
+
+		// If this job was initiated by the prebuilds user and the job is not a prebuild, then it MUST be the claim run.
+		// TODO: maybe add some specific metadata to indicate this rather than imputing it.
+		if input.IsPrebuildClaimByUser != uuid.Nil {
+			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
+				slog.F("user", input.IsPrebuildClaimByUser.String()),
+				slog.F("workspace_id", workspace.ID))
+			if err := s.Pubsub.Publish(agentapi.ManifestUpdateChannel(workspace.ID), nil); err != nil {
+				s.Logger.Error(ctx, "failed to publish message to workspace agent to pull new manifest", slog.Error(err))
+			}
+		}
 	case *proto.CompletedJob_TemplateDryRun_:
 		for _, resource := range jobType.TemplateDryRun.Resources {
 			s.Logger.Info(ctx, "inserting template dry-run job resource",
@@ -2356,9 +2368,10 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID uuid.UUID `json:"workspace_build_id"`
-	DryRun           bool      `json:"dry_run"`
-	IsPrebuild       bool      `json:"is_prebuild,omitempty"`
+	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
+	DryRun                bool      `json:"dry_run"`
+	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
+	IsPrebuildClaimByUser uuid.UUID `json:"is_prebuild_claim_by,omitempty"`
 	// RunningWorkspaceAgentID is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
 	// but not generate a new agent token. The provisionerdserver will retrieve this token and push it down to
 	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where it will be
