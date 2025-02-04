@@ -1,15 +1,12 @@
 name: dependabot
-# Dependabot is annoying, but this makes it a bit less so.
 
 on:
   pull_request:
-    types: [opened, closed]
+    types:
+      - opened
 
 permissions:
   contents: read
-
-# Only run one instance per PR to ensure in-order execution.
-concurrency: pr-${{ github.ref }}
 
 jobs:
   dependabot-automerge:
@@ -46,16 +43,6 @@ jobs:
           PR_URL: ${{github.event.pull_request.html_url}}
           GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
 
-  dependabot-automerge-notify:
-    # Send a slack notification when a dependabot PR is merged.
-    runs-on: ubuntu-latest
-    if: >
-      github.event_name == 'pull_request' &&
-      github.event.action == 'closed' &&
-      github.event.pull_request.merged == true &&
-      github.event.pull_request.user.login == 'dependabot[bot]' &&
-      github.repository == 'coder/coder'
-    steps:
       - name: Send Slack notification
         env:
           PR_URL: ${{github.event.pull_request.html_url}}
@@ -71,7 +58,7 @@ jobs:
                 "type": "header",
                 "text": {
                   "type": "plain_text",
-                  "text": ":pr-merged: Auto merged Dependabot PR #${{ env.PR_NUMBER }}",
+                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #${{ env.PR_NUMBER }}",
                   "emoji": true
                 }
               },

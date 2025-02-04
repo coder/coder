@@ -505,6 +505,11 @@
 							"path": "./admin/integrations/island.md"
 						},
 						{
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
+							"path": "./admin/integrations/platformx.md"
+						},
+						{
 							"title": "Hashicorp Vault",
 							"description": "Integrate Coder with Hashicorp Vault",
 							"path": "./admin/integrations/vault.md"
