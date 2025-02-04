@@ -72,6 +72,7 @@ GROUP BY t.using_active_version, t.template_id, t.template_version_id, p.count, 
          p.template_version_id, t.deleted, t.deprecated;
 
 -- name: ClaimPrebuild :one
+-- TODO: rewrite to use named CTE instead?
 UPDATE workspaces w
 SET owner_id   = @new_user_id::uuid,
     name       = @new_name::text,
@@ -87,3 +88,8 @@ WHERE w.id IN (SELECT p.id
                ORDER BY random()
                LIMIT 1 FOR UPDATE OF p SKIP LOCKED)
 RETURNING w.id, w.name;
+
+-- name: InsertPresetPrebuild :one
+INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
+VALUES (@id::uuid, @preset_id::uuid, @desired_instances::int, @invalidate_after_secs::int)
+RETURNING *;

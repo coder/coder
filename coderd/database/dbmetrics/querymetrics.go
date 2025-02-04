@@ -1960,6 +1960,13 @@ func (m queryMetricsStore) InsertPresetParameters(ctx context.Context, arg datab
 	return r0, r1
 }
 
+func (m queryMetricsStore) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	start := time.Now()
+	r0, r1 := m.s.InsertPresetPrebuild(ctx, arg)
+	m.queryLatencies.WithLabelValues("InsertPresetPrebuild").Observe(time.Since(start).Seconds())
+	return r0, r1
+}
+
 func (m queryMetricsStore) InsertProvisionerJob(ctx context.Context, arg database.InsertProvisionerJobParams) (database.ProvisionerJob, error) {
 	start := time.Now()
 	job, err := m.s.InsertProvisionerJob(ctx, arg)
