@@ -97,6 +97,7 @@ func New(opts Options) *API {
 		DerpMapFn:                opts.DerpMapFn,
 		WorkspaceID:              opts.WorkspaceID,
 		Log:                      opts.Log.Named("manifests"),
+		Pubsub:                   opts.Pubsub,
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{

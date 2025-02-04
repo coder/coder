@@ -72,8 +72,10 @@ type Builder struct {
 	lastBuildJob                 *database.ProvisionerJob
 	parameterNames               *[]string
 	parameterValues              *[]string
-	prebuild                     bool
-	runningWorkspaceAgentID      uuid.UUID
+
+	prebuild                bool
+	prebuildClaimBy         uuid.UUID
+	runningWorkspaceAgentID uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
 }
@@ -173,6 +175,12 @@ func (b Builder) RichParameterValues(p []codersdk.WorkspaceBuildParameter) Build
 func (b Builder) MarkPrebuild() Builder {
 	// nolint: revive
 	b.prebuild = true
+	return b
+}
+
+func (b Builder) MarkPrebuildClaimBy(userID uuid.UUID) Builder {
+	// nolint: revive
+	b.prebuildClaimBy = userID
 	return b
 }
 
@@ -311,6 +319,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		WorkspaceBuildID:        workspaceBuildID,
 		LogLevel:                b.logLevel,
 		IsPrebuild:              b.prebuild,
+		IsPrebuildClaimByUser:   b.prebuildClaimBy,
 		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {

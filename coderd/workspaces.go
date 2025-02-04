@@ -685,6 +685,7 @@ func createWorkspace(
 
 		if claimedWorkspace != nil {
 			workspaceID = claimedWorkspace.ID
+			initiatorID = prebuilds.PrebuildOwnerUUID
 		} else {
 			// Workspaces are created without any versions.
 			minimumWorkspace, err := db.InsertWorkspace(ctx, database.InsertWorkspaceParams{
@@ -725,6 +726,10 @@ func createWorkspace(
 			RunningWorkspaceAgentID(runningWorkspaceAgentID)
 		if req.TemplateVersionID != uuid.Nil {
 			builder = builder.VersionID(req.TemplateVersionID)
+		}
+
+		if claimedWorkspace != nil {
+			builder = builder.MarkPrebuildClaimBy(owner.ID)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
