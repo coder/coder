@@ -1098,7 +1098,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceOutOfDisk",
+			name: "TemplateWorkspaceOutOfDisk_MultipleVolumes",
 			id:   notifications.TemplateWorkspaceOutOfDisk,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
