@@ -471,3 +471,66 @@ Status Code **200**
 | `type`       | `template_version_dry_run`    |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get provisioner job
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerjobs/{job} \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/provisionerjobs/{job}`
+
+### Parameters
+
+| Name           | In   | Type         | Required | Description     |
+|----------------|------|--------------|----------|-----------------|
+| `organization` | path | string(uuid) | true     | Organization ID |
+| `job`          | path | string(uuid) | true     | Job ID          |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "available_workers": [
+    "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+  ],
+  "canceled_at": "2019-08-24T14:15:22Z",
+  "completed_at": "2019-08-24T14:15:22Z",
+  "created_at": "2019-08-24T14:15:22Z",
+  "error": "string",
+  "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+  "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "input": {
+    "error": "string",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+  },
+  "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+  "queue_position": 0,
+  "queue_size": 0,
+  "started_at": "2019-08-24T14:15:22Z",
+  "status": "pending",
+  "tags": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "type": "template_version_import",
+  "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                       |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -377,6 +377,22 @@ func (c *Client) OrganizationProvisionerJobs(ctx context.Context, organizationID
 	return jobs, json.NewDecoder(res.Body).Decode(&jobs)
 }
 
+func (c *Client) OrganizationProvisionerJob(ctx context.Context, organizationID, jobID uuid.UUID) (job ProvisionerJob, err error) {
+	res, err := c.Request(ctx, http.MethodGet,
+		fmt.Sprintf("/api/v2/organizations/%s/provisionerjobs/%s", organizationID.String(), jobID.String()),
+		nil,
+	)
+	if err != nil {
+		return job, xerrors.Errorf("make request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return job, ReadBodyAsError(res)
+	}
+	return job, json.NewDecoder(res.Body).Decode(&job)
+}
+
 func joinSlice[T ~string](s []T) string {
 	var ss []string
 	for _, v := range s {

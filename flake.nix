@@ -2,7 +2,7 @@
   description = "Development environments on your infrastructure";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
     pnpm2nix = {
@@ -17,8 +17,17 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-pinned, flake-utils, drpc, pnpm2nix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nixpkgs-pinned,
+      flake-utils,
+      drpc,
+      pnpm2nix,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -32,9 +41,11 @@
           inherit system;
         };
 
+        formatter = pkgs.nixfmt-rfc-style;
+
         nodejs = pkgs.nodejs_20;
         pnpm = pkgs.pnpm_9.override {
-          inherit nodejs;  # Ensure it points to the above nodejs version
+          inherit nodejs; # Ensure it points to the above nodejs version
         };
 
         # Check in https://search.nixos.org/packages to find new packages.
@@ -42,7 +53,9 @@
         # to update the lock file if packages are out-of-date.
 
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
-        gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
+        gdk = pkgs.google-cloud-sdk.withExtraComponents [
+          pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
+        ];
 
         proto_gen_go_1_30 = pkgs.buildGoModule rec {
           name = "protoc-gen-go";
@@ -50,9 +63,7 @@
           repo = "protobuf-go";
           rev = "v1.30.0";
           src = pkgs.fetchFromGitHub {
-            owner = "protocolbuffers";
-            repo = "protobuf-go";
-            rev = rev;
+            inherit owner repo rev;
             # Updated with ./scripts/update-flake.sh`.
             sha256 = "sha256-GTZQ40uoi62Im2F4YvlZWiSNNJ4fEAkRojYa0EYz9HU=";
           };
@@ -63,16 +74,18 @@
         # The minimal set of packages to build Coder.
         devShellPackages = with pkgs; [
           # google-chrome is not available on aarch64 linux
-          (lib.optionalDrvAttr ( !stdenv.isLinux || !stdenv.isAarch64 ) google-chrome)
+          (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
           # strace is not available on OSX
-          (lib.optionalDrvAttr ( !pkgs.stdenv.isDarwin ) strace)
+          (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
           bat
           cairo
           curl
           delve
+          dive
           drpc.defaultPackage.${system}
+          formatter
           fzf
-          gcc
+          gcc13
           gdk
           getopt
           gh
@@ -106,7 +119,7 @@
           pnpm
           postgresql_16
           proto_gen_go_1_30
-          protobuf
+          protobuf_23
           ripgrep
           shellcheck
           (pinnedPkgs.shfmt)
@@ -114,7 +127,7 @@
           terraform
           typos
           # Needed for many LD system libs!
-          util-linux
+          (lib.optional stdenv.isLinux util-linux)
           vim
           wget
           yq-go
@@ -123,19 +136,30 @@
           zstd
         ];
 
+        docker = pkgs.callPackage ./nix/docker.nix { };
+
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
           inherit nodejs pnpm;
 
           src = ./site/.;
           # Required for the `canvas` package!
-          extraBuildInputs = with pkgs; [
-            cairo
-            pango
-            pixman
-            libpng libjpeg giflib librsvg
-            python312Packages.setuptools
-          ] ++ ( lib.optionals stdenv.targetPlatform.isDarwin [ darwin.apple_sdk.frameworks.Foundation xcbuild ] );
+          extraBuildInputs =
+            with pkgs;
+            [
+              cairo
+              pango
+              pixman
+              libpng
+              libjpeg
+              giflib
+              librsvg
+              python312Packages.setuptools
+            ]
+            ++ (lib.optionals stdenv.targetPlatform.isDarwin [
+              darwin.apple_sdk.frameworks.Foundation
+              xcbuild
+            ]);
           installInPlace = true;
           distDir = "out";
         };
@@ -144,15 +168,20 @@
 
         # To make faster subsequent builds, you could extract the `.zst`
         # slim bundle into it's own derivation.
-        buildFat = osArch:
+        buildFat =
+          osArch:
           pkgs.buildGo122Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-DNQ3UPQoiiWEatMPj6B7QGGy9qOSvOmjADsrr+drCBY=";
+            vendorHash = "sha256-QjqF+QZ5JKMnqkpNh6ZjrJU2QcSqiT4Dip1KoicwLYc=";
             proxyVendor = true;
             src = ./.;
-            nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
+            nativeBuildInputs = with pkgs; [
+              getopt
+              openssl
+              zstd
+            ];
             preBuild = ''
               # Replaces /usr/bin/env with an absolute path to the interpreter.
               patchShebangs ./scripts
@@ -177,35 +206,64 @@
             '';
           };
       in
-      {
+      rec {
+        inherit formatter;
+
         devShells = {
           default = pkgs.mkShell {
             buildInputs = devShellPackages;
-            shellHook = ''
-              export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
-              export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-            '';
 
-            LOCALE_ARCHIVE = with pkgs; lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
+
+            LOCALE_ARCHIVE =
+              with pkgs;
+              lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
           };
         };
 
-        packages = {
-          proto_gen_go = proto_gen_go_1_30;
-          all = pkgs.buildEnv {
-            name = "all-packages";
-            paths = devShellPackages;
-          };
-          site = buildSite;
+        packages =
+          {
+            default = packages.${system};
 
-          # Copying `OS_ARCHES` from the Makefile.
-          linux_amd64 = buildFat "linux_amd64";
-          linux_arm64 = buildFat "linux_arm64";
-          darwin_amd64 = buildFat "darwin_amd64";
-          darwin_arm64 = buildFat "darwin_arm64";
-          windows_amd64 = buildFat "windows_amd64.exe";
-          windows_arm64 = buildFat "windows_arm64.exe";
-        };
+            proto_gen_go = proto_gen_go_1_30;
+            site = buildSite;
+
+            # Copying `OS_ARCHES` from the Makefile.
+            x86_64-linux = buildFat "linux_amd64";
+            aarch64-linux = buildFat "linux_arm64";
+            x86_64-darwin = buildFat "darwin_amd64";
+            aarch64-darwin = buildFat "darwin_arm64";
+            x86_64-windows = buildFat "windows_amd64.exe";
+            aarch64-windows = buildFat "windows_arm64.exe";
+          }
+          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            dev_image = docker.buildNixShellImage rec {
+              name = "codercom/oss-dogfood-nix";
+              tag = "latest-${system}";
+
+              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
+              # to have issues on dogfood envs.
+              maxLayers = 32;
+
+              uname = "coder";
+              homeDirectory = "/home/${uname}";
+
+              drv = devShells.default.overrideAttrs (oldAttrs: {
+                buildInputs =
+                  (with pkgs; [
+                    busybox
+                    coreutils
+                    nix
+                    curl.bin # Ensure the actual curl binary is included in the PATH
+                    glibc.bin # Ensure the glibc binaries are included in the PATH
+                    binutils # ld and strings
+                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
+                  ])
+                  ++ oldAttrs.buildInputs;
+              });
+            };
+          });
       }
     );
 }

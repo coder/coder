@@ -1,0 +1,88 @@
+name: dependabot
+
+on:
+  pull_request:
+    types:
+      - opened
+
+permissions:
+  contents: read
+
+jobs:
+  dependabot-automerge:
+    runs-on: ubuntu-latest
+    if: >
+      github.event_name == 'pull_request' &&
+      github.event.action == 'opened' &&
+      github.event.pull_request.user.login == 'dependabot[bot]' &&
+      github.actor_id == 49699333 &&
+      github.repository == 'coder/coder'
+    permissions:
+      pull-requests: write
+      contents: write
+    steps:
+      - name: Dependabot metadata
+        id: metadata
+        uses: dependabot/fetch-metadata@d7267f607e9d3fb96fc2fbe83e0af444713e90b7 # v2.3.0
+        with:
+          github-token: "${{ secrets.GITHUB_TOKEN }}"
+
+      - name: Approve the PR
+        run: |
+          echo "Approving $PR_URL"
+          gh pr review --approve "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Enable auto-merge
+        run: |
+          echo "Enabling auto-merge for $PR_URL"
+          gh pr merge --auto --squash "$PR_URL"
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          GH_TOKEN: ${{secrets.GITHUB_TOKEN}}
+
+      - name: Send Slack notification
+        env:
+          PR_URL: ${{github.event.pull_request.html_url}}
+          PR_TITLE: ${{github.event.pull_request.title}}
+          PR_NUMBER: ${{github.event.pull_request.number}}
+        run: |
+          curl -X POST -H 'Content-type: application/json' \
+          --data '{
+            "username": "dependabot",
+            "icon_url": "https://avatars.githubusercontent.com/u/27347476",
+            "blocks": [
+              {
+                "type": "header",
+                "text": {
+                  "type": "plain_text",
+                  "text": ":pr-merged: Auto merge enabled for Dependabot PR #${{ env.PR_NUMBER }}",
+                  "emoji": true
+                }
+              },
+              {
+                "type": "section",
+                "fields": [
+                  {
+                    "type": "mrkdwn",
+                    "text": "${{ env.PR_TITLE }}"
+                  }
+                ]
+              },
+              {
+                "type": "actions",
+                "elements": [
+                  {
+                    "type": "button",
+                    "text": {
+                      "type": "plain_text",
+                      "text": "View PR"
+                    },
+                    "url": "${{ env.PR_URL }}"
+                  }
+                ]
+              }
+            ]
+          }' ${{ secrets.DEPENDABOT_PRS_SLACK_WEBHOOK }}

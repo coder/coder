@@ -15,7 +15,7 @@ import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
 import {
 	agentPProfPort,
-	coderMain,
+	coderBinary,
 	coderPort,
 	defaultOrganizationName,
 	defaultPassword,
@@ -292,16 +292,22 @@ export const createTemplate = async (
  * createGroup navigates to the /groups/create page and creates a group with a
  * random name.
  */
-export const createGroup = async (page: Page): Promise<string> => {
-	await page.goto("/deployment/groups/create", {
+export const createGroup = async (
+	page: Page,
+	organization?: string,
+): Promise<string> => {
+	const prefix = organization
+		? `/organizations/${organization}`
+		: "/deployment";
+	await page.goto(`${prefix}/groups/create`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName("/deployment/groups/create");
+	await expectUrl(page).toHavePathName(`${prefix}/groups/create`);
 
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
 	await page.getByRole("button", { name: /save/i }).click();
-	await expectUrl(page).toHavePathName(`/deployment/groups/${name}`);
+	await expectUrl(page).toHavePathName(`${prefix}/groups/${name}`);
 	return name;
 };
 
@@ -311,12 +317,9 @@ export const createGroup = async (page: Page): Promise<string> => {
 export const sshIntoWorkspace = async (
 	page: Page,
 	workspace: string,
-	binaryPath = "go",
+	binaryPath = coderBinary,
 	binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
-	if (binaryPath === "go") {
-		binaryArgs = ["run", coderMain];
-	}
 	const sessionToken = await findSessionToken(page);
 	return new Promise<ssh.Client>((resolve, reject) => {
 		const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
@@ -398,7 +401,7 @@ export const startAgent = async (
 	page: Page,
 	token: string,
 ): Promise<ChildProcess> => {
-	return startAgentWithCommand(page, token, "go", "run", coderMain);
+	return startAgentWithCommand(page, token, coderBinary);
 };
 
 /**
@@ -479,27 +482,21 @@ export const startAgentWithCommand = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stdout] ${data.toString().replace(/\n$/g, "")}`);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stderr] ${data.toString().replace(/\n$/g, "")}`);
 	});
 
 	await page
 		.getByTestId("agent-status-ready")
-		.waitFor({ state: "visible", timeout: 45_000 });
+		.waitFor({ state: "visible", timeout: 15_000 });
 	return cp;
 };
 
-export const stopAgent = async (cp: ChildProcess, goRun = true) => {
-	// When the web server is started with `go run`, it spawns a child process with coder server.
-	// `pkill -P` terminates child processes belonging the same group as `go run`.
-	// The command `kill` is used to terminate a web server started as a standalone binary.
-	exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+export const stopAgent = async (cp: ChildProcess) => {
+	// The command `kill` is used to terminate an agent started as a standalone binary.
+	exec(`kill ${cp.pid}`, (error) => {
 		if (error) {
 			throw new Error(`exec error: ${JSON.stringify(error)}`);
 		}
@@ -922,10 +919,8 @@ export const updateTemplate = async (
 
 	const sessionToken = await findSessionToken(page);
 	const child = spawn(
-		"go",
+		coderBinary,
 		[
-			"run",
-			coderMain,
 			"templates",
 			"push",
 			"--test.provisioner",
@@ -1073,7 +1068,7 @@ export async function createUser(
 	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
 	await expect(page).toHaveTitle("Users - Coder");
 
-	await page.getByRole("button", { name: "Create user" }).click();
+	await page.getByRole("link", { name: "Create user" }).click();
 	await expect(page).toHaveTitle("Create User - Coder");
 
 	const username = userValues.username ?? randomName();

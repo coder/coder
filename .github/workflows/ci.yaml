@@ -188,7 +188,7 @@ jobs:
 
       # Check for any typos
       - name: Check for typos
-        uses: crate-ci/typos@685eb3d55be2f85191e8c84acb9f44d7756f84ab # v1.29.4
+        uses: crate-ci/typos@11ca4583f2f3f74c7e7785c0ecb20fe2c99a4308 # v1.29.5
         with:
           config: .github/workflows/typos.toml
 
@@ -251,16 +251,16 @@ jobs:
       - name: go install tools
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
           go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
+          go install github.com/mikefarah/yq/v4@v4.44.3
+          go install go.uber.org/mock/mockgen@v0.5.0
 
       - name: Install Protoc
         run: |
           mkdir -p /tmp/proto
           pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
           cp -r ./bin/* /usr/local/bin
           cp -r ./include /usr/local/bin/include
@@ -704,6 +704,9 @@ jobs:
       - run: make gen/mark-fresh
         name: make gen
 
+      - run: make site/e2e/bin/coder
+        name: make coder
+
       - run: pnpm build
         env:
           NODE_OPTIONS: ${{ github.repository_owner == 'coder' && '--max_old_space_size=8192' || '' }}
@@ -847,7 +850,7 @@ jobs:
         run: |
           mkdir -p /tmp/proto
           pushd /tmp/proto
-          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip
+          curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip
           unzip protoc.zip
           cp -r ./bin/* /usr/local/bin
           cp -r ./include /usr/local/bin/include
@@ -859,10 +862,10 @@ jobs:
       - name: Install go tools
         run: |
           go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30
-          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33
+          go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34
           go install golang.org/x/tools/cmd/goimports@latest
-          go install github.com/mikefarah/yq/v4@v4.30.6
-          go install go.uber.org/mock/mockgen@v0.4.0
+          go install github.com/mikefarah/yq/v4@v4.44.3
+          go install go.uber.org/mock/mockgen@v0.5.0
 
       - name: Setup sqlc
         uses: ./.github/actions/setup-sqlc
@@ -1170,13 +1173,13 @@ jobs:
           fetch-depth: 0
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@6fc4af4b145ae7821d527454aa9bd537d1f2dc5f # v2.1.7
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com
 
       - name: Set up Google Cloud SDK
-        uses: google-github-actions/setup-gcloud@6189d56e4096ee891640bb02ac264be376592d6a # v2.1.2
+        uses: google-github-actions/setup-gcloud@77e7a554d41e2ee56fc945c52dfd3f33d12def9a # v2.1.4
 
       - name: Set up Flux CLI
         uses: fluxcd/flux2/action@5350425cdcd5fa015337e09fa502153c0275bd4b # v2.4.0
@@ -1185,7 +1188,7 @@ jobs:
           version: "2.2.1"
 
       - name: Get Cluster Credentials
-        uses: google-github-actions/get-gke-credentials@9025e8f90f2d8e0c3dafc3128cc705a26d992a6a # v2.3.0
+        uses: google-github-actions/get-gke-credentials@7a108e64ed8546fe38316b4086e91da13f4785e1 # v2.3.1
         with:
           cluster_name: dogfood-v2
           location: us-central1-a
