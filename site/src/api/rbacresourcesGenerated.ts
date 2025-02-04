@@ -168,6 +168,10 @@ export const RBACResourceActions: Partial<
 		stop: "allows stopping a workspace",
 		update: "edit workspace settings (scheduling, permissions, parameters)",
 	},
+	workspace_agent_resource_monitor: {
+		create: "create workspace agent resource monitor",
+		read: "read workspace agent resource monitor",
+	},
 	workspace_dormant: {
 		application_connect: "connect to workspace apps via browser",
 		create: "create a new workspace",

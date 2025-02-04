@@ -1927,6 +1927,32 @@ func InsertWorkspaceResource(ctx context.Context, db database.Store, jobID uuid.
 			}
 		}
 
+		if prAgent.ResourcesMonitoring != nil {
+			if prAgent.ResourcesMonitoring.Memory != nil {
+				_, err = db.InsertMemoryResourceMonitor(ctx, database.InsertMemoryResourceMonitorParams{
+					AgentID:   agentID,
+					Enabled:   prAgent.ResourcesMonitoring.Memory.Enabled,
+					Threshold: prAgent.ResourcesMonitoring.Memory.Threshold,
+					CreatedAt: dbtime.Now(),
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to insert agent memory resource monitor into db: %w", err)
+				}
+			}
+			for _, volume := range prAgent.ResourcesMonitoring.Volumes {
+				_, err = db.InsertVolumeResourceMonitor(ctx, database.InsertVolumeResourceMonitorParams{
+					AgentID:   agentID,
+					Path:      volume.Path,
+					Enabled:   volume.Enabled,
+					Threshold: volume.Threshold,
+					CreatedAt: dbtime.Now(),
+				})
+				if err != nil {
+					return xerrors.Errorf("failed to insert agent volume resource monitor into db: %w", err)
+				}
+			}
+		}
+
 		logSourceIDs := make([]uuid.UUID, 0, len(prAgent.Scripts))
 		logSourceDisplayNames := make([]string, 0, len(prAgent.Scripts))
 		logSourceIcons := make([]string, 0, len(prAgent.Scripts))
