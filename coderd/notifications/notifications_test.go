@@ -1064,6 +1064,67 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceOutOfMemory",
+			id:   notifications.TemplateWorkspaceOutOfMemory,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"threshold": "90%",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk_MultipleVolumes",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+						{
+							"path":      "/dev/coder",
+							"threshold": "80%",
+						},
+						{
+							"path":      "/etc/coder",
+							"threshold": "95%",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
