@@ -10,11 +10,11 @@ export const Table = React.forwardRef<
 	HTMLTableElement,
 	React.HTMLAttributes<HTMLTableElement>
 >(({ className, ...props }, ref) => (
-	<div className="relative w-full overflow-auto border border-border border-solid rounded-md">
+	<div className="relative w-full overflow-auto">
 		<table
 			ref={ref}
 			className={cn(
-				"w-full caption-bottom text-xs font-medium text-content-secondary border-collapse",
+				"w-full caption-bottom text-xs font-medium text-content-secondary border-separate border-spacing-0",
 				className,
 			)}
 			{...props}
@@ -26,7 +26,7 @@ export const TableHeader = React.forwardRef<
 	HTMLTableSectionElement,
 	React.HTMLAttributes<HTMLTableSectionElement>
 >(({ className, ...props }, ref) => (
-	<thead ref={ref} className={cn("[&_tr]:border-b", className)} {...props} />
+	<thead ref={ref} className={cn("[&_td]:border-none", className)} {...props} />
 ));
 
 export const TableBody = React.forwardRef<
@@ -35,7 +35,13 @@ export const TableBody = React.forwardRef<
 >(({ className, ...props }, ref) => (
 	<tbody
 		ref={ref}
-		className={cn("[&_tr:last-child]:border-0", className)}
+		className={cn(
+			"[&>tr:first-child>td]:border-t [&>tr>td:first-child]:border-l",
+			"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
+			"[&>tr:first-child>td:first-child]:rounded-tl-md [&>tr:first-child>td:last-child]:rounded-tr-md",
+			"[&>tr:last-child>td:first-child]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
+			className,
+		)}
 		{...props}
 	/>
 ));
@@ -91,6 +97,7 @@ export const TableCell = React.forwardRef<
 	<td
 		ref={ref}
 		className={cn(
+			"border-0 border-t border-border border-solid",
 			"py-2 px-4 align-middle [&:has([role=checkbox])]:pr-0 [&>[role=checkbox]]:translate-y-[2px]",
 			className,
 		)}
