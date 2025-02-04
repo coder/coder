@@ -40,7 +40,8 @@ export const TableBody = React.forwardRef<
 			"[&>tr:last-child>td]:border-b [&>tr>td:last-child]:border-r",
 			"[&>tr:first-child>td:first-child]:rounded-tl-md [&>tr:first-child>td:last-child]:rounded-tr-md",
 			"[&>tr:last-child>td:first-child]:rounded-bl-md [&>tr:last-child>td:last-child]:rounded-br-md",
-			 className)}
+			className,
+		)}
 		{...props}
 	/>
 ));
