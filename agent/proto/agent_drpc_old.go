@@ -40,3 +40,7 @@ type DRPCAgentClient23 interface {
 	DRPCAgentClient22
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
 }
+
+type DRPCAgentClient24 interface {
+	DRPCAgentClient23
+}

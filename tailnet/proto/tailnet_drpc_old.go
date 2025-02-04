@@ -34,3 +34,9 @@ type DRPCTailnetClient23 interface {
 	RefreshResumeToken(ctx context.Context, in *RefreshResumeTokenRequest) (*RefreshResumeTokenResponse, error)
 	WorkspaceUpdates(ctx context.Context, in *WorkspaceUpdatesRequest) (DRPCTailnet_WorkspaceUpdatesClient, error)
 }
+
+// DRPCTailnetClient24 is the Tailnet API at v2.4. It is functionally identical to 2.3, because the
+// change was to the Agent API (ResourcesMonitoring methods).
+type DRPCTailnetClient24 interface {
+	DRPCTailnetClient23
+}

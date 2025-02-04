@@ -295,6 +295,39 @@ message Timing {
     Status status = 6;
 }
 
+message GetResourcesMonitoringConfigurationRequest {
+}
+
+message GetResourcesMonitoringConfigurationResponse {
+	bool enabled = 1;
+	message Config {
+		int32 num_datapoints = 1;
+		int32 tick_interval = 2; // expressed in seconds
+	}
+	Config config = 2;
+	repeated string monitored_volumes = 3;
+}
+
+message PushResourcesMonitoringUsageRequest {
+	message Datapoint {
+		message VolumeUsage {
+			string volume = 1;
+			int32 space_used = 2;
+			int32 space_total = 3;
+		}
+
+		google.protobuf.Timestamp collected_at = 1;
+		int32 memory_used = 2;
+		int32 memory_total =3;
+		repeated VolumeUsage volumes = 4;
+
+	}
+	repeated Datapoint datapoints = 1;
+}
+
+message PushResourcesMonitoringUsageResponse {
+}
+
 service Agent {
 	rpc GetManifest(GetManifestRequest) returns (Manifest);
 	rpc GetServiceBanner(GetServiceBannerRequest) returns (ServiceBanner);
@@ -306,4 +339,6 @@ service Agent {
 	rpc BatchCreateLogs(BatchCreateLogsRequest) returns (BatchCreateLogsResponse);
 	rpc GetAnnouncementBanners(GetAnnouncementBannersRequest) returns (GetAnnouncementBannersResponse);
 	rpc ScriptCompleted(WorkspaceAgentScriptCompletedRequest) returns (WorkspaceAgentScriptCompletedResponse);
+	rpc GetResourcesMonitoringConfiguration(GetResourcesMonitoringConfigurationRequest) returns (GetResourcesMonitoringConfigurationResponse);
+	rpc PushResourcesMonitoringUsage(PushResourcesMonitoringUsageRequest) returns (PushResourcesMonitoringUsageResponse);
 }
