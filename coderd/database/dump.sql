@@ -1486,6 +1486,13 @@ CREATE UNLOGGED TABLE workspace_agent_logs (
     log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
 );
 
+CREATE TABLE workspace_agent_memory_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    created_at timestamp with time zone NOT NULL
+);
+
 CREATE UNLOGGED TABLE workspace_agent_metadata (
     workspace_agent_id uuid NOT NULL,
     display_name character varying(127) NOT NULL,
@@ -1561,6 +1568,14 @@ CREATE TABLE workspace_agent_stats (
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
     session_count_ssh bigint DEFAULT 0 NOT NULL,
     usage boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE workspace_agent_volume_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    path text NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -2072,6 +2087,9 @@ ALTER TABLE ONLY users
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
 
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_pkey PRIMARY KEY (agent_id);
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
 
@@ -2086,6 +2104,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_pkey PRIMARY KEY (agent_id, path);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
@@ -2465,6 +2486,9 @@ ALTER TABLE ONLY user_status_changes
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
@@ -2479,6 +2503,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

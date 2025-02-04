@@ -3152,6 +3152,13 @@ type WorkspaceAgentLogSource struct {
 	Icon             string    `db:"icon" json:"icon"`
 }
 
+type WorkspaceAgentMemoryResourceMonitor struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	Enabled   bool      `db:"enabled" json:"enabled"`
+	Threshold int32     `db:"threshold" json:"threshold"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
 type WorkspaceAgentMetadatum struct {
 	WorkspaceAgentID uuid.UUID `db:"workspace_agent_id" json:"workspace_agent_id"`
 	DisplayName      string    `db:"display_name" json:"display_name"`
@@ -3217,6 +3224,14 @@ type WorkspaceAgentStat struct {
 	SessionCountReconnectingPTY int64           `db:"session_count_reconnecting_pty" json:"session_count_reconnecting_pty"`
 	SessionCountSSH             int64           `db:"session_count_ssh" json:"session_count_ssh"`
 	Usage                       bool            `db:"usage" json:"usage"`
+}
+
+type WorkspaceAgentVolumeResourceMonitor struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	Enabled   bool      `db:"enabled" json:"enabled"`
+	Threshold int32     `db:"threshold" json:"threshold"`
+	Path      string    `db:"path" json:"path"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
 }
 
 type WorkspaceApp struct {

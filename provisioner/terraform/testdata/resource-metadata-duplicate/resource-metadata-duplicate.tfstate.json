@@ -26,7 +26,7 @@
               }
             ],
             "env": null,
-            "id": "150cb21b-afd7-4003-95e6-61379b6ac0db",
+            "id": "b3257d67-247c-4fc6-92a8-fc997501a0e1",
             "init_script": "",
             "metadata": [
               {
@@ -45,7 +45,7 @@
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
-            "token": "03682f65-8522-4cea-9b04-21eba526176a",
+            "token": "ac3563fb-3069-4919-b076-6687c765772b",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -70,7 +70,7 @@
             "daily_cost": 29,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "691311fd-cde3-496d-9c12-e1ec3f1893a6",
+            "id": "fcd81afa-64ad-45e3-b000-31d1b19df922",
             "item": [
               {
                 "is_null": false,
@@ -85,7 +85,7 @@
                 "value": ""
               }
             ],
-            "resource_id": "4084338678065726432"
+            "resource_id": "8033209281634385030"
           },
           "sensitive_values": {
             "item": [
@@ -109,7 +109,7 @@
             "daily_cost": 20,
             "hide": true,
             "icon": "/icon/server.svg",
-            "id": "a5942656-b809-4345-862d-6547a1877756",
+            "id": "186819f3-a92f-4785-9ee4-d79f57711f63",
             "item": [
               {
                 "is_null": false,
@@ -118,7 +118,7 @@
                 "value": "world"
               }
             ],
-            "resource_id": "4084338678065726432"
+            "resource_id": "8033209281634385030"
           },
           "sensitive_values": {
             "item": [
@@ -138,7 +138,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "4084338678065726432",
+            "id": "8033209281634385030",
             "triggers": null
           },
           "sensitive_values": {},

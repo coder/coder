@@ -13,12 +13,14 @@
   runCommand,
   writeShellScriptBin,
   writeText,
+  writeTextFile,
   cacert,
   storeDir ? builtins.storeDir,
   pigz,
   zstd,
   stdenv,
   glibc,
+  sudo,
 }:
 let
   inherit (lib)
@@ -31,9 +33,17 @@ let
 
   inherit (dockerTools)
     streamLayeredImage
-    binSh
     usrBinEnv
+    caCertificates
     ;
+
+  # This provides /bin/sh, pointing to bashInteractive.
+  # The use of bashInteractive here is intentional to support cases like `docker run -it <image_name>`, so keep these use cases in mind if making any changes to how this works.
+  binSh = runCommand "bin-sh" { } ''
+    mkdir -p $out/bin
+    ln -s ${bashInteractive}/bin/bash $out/bin/sh
+    ln -s ${bashInteractive}/bin/bash $out/bin/bash
+  '';
 
   compressors = {
     none = {
@@ -88,10 +98,11 @@ let
 
       staticPath = "${dirOf shell}:${
         lib.makeBinPath (
-          lib.flatten [
+          (lib.flatten [
             builder
             drv.buildInputs
-          ]
+          ])
+          ++ [ "/usr" ]
         )
       }";
 
@@ -123,10 +134,77 @@ let
         experimental-features = nix-command flakes
       '';
 
-      etcNixConf = runCommand "etcd-nix-conf" { } ''
+      etcNixConf = runCommand "etc-nix-conf" { } ''
         mkdir -p $out/etc/nix/
         ln -s ${nixConfFile} $out/etc/nix/nix.conf
       '';
+
+      sudoersFile = writeText "sudoers" ''
+        root ALL=(ALL) ALL
+        ${toString uname} ALL=(ALL) NOPASSWD:ALL
+      '';
+
+      etcSudoers = runCommand "etc-sudoers" { } ''
+        mkdir -p $out/etc/
+        cp ${sudoersFile} $out/etc/sudoers
+        chmod 440 $out/etc/sudoers
+      '';
+
+      pamSudoFile = writeText "pam-sudo" ''
+        auth       sufficient   pam_rootok.so
+        auth       required     pam_permit.so
+        account    required     pam_permit.so
+        session    required     pam_permit.so
+        session    optional     pam_xauth.so
+      '';
+
+      etcPamSudo = runCommand "etc-pam-sudo" { } ''
+        mkdir -p $out/etc/pam.d/
+        cp ${pamSudoFile} $out/etc/pam.d/sudo
+
+        # We can’t chown in a sandbox, but that’s okay for Nix store.
+        chmod 644 $out/etc/pam.d/sudo
+      '';
+
+      # Add our Docker init script
+      dockerInit = writeTextFile {
+        name = "initd-docker";
+        destination = "/etc/init.d/docker";
+        executable = true;
+
+        text = ''
+          #!/usr/bin/env sh
+          ### BEGIN INIT INFO
+          # Provides:          docker
+          # Required-Start:    $remote_fs $syslog
+          # Required-Stop:     $remote_fs $syslog
+          # Default-Start:     2 3 4 5
+          # Default-Stop:      0 1 6
+          # Short-Description: Start and stop Docker daemon
+          # Description:       This script starts and stops the Docker daemon.
+          ### END INIT INFO
+
+          case "$1" in
+            start)
+                echo "Starting dockerd"
+                SSL_CERT_FILE="${cacert}/etc/ssl/certs/ca-bundle.crt" dockerd --group=${toString gid} &
+                ;;
+            stop)
+                echo "Stopping dockerd"
+                killall dockerd
+                ;;
+            restart)
+                $0 stop
+                $0 start
+                ;;
+            *)
+                echo "Usage: $0 {start|stop|restart}"
+                exit 1
+                ;;
+          esac
+          exit 0
+        '';
+      };
 
       # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/globals.hh#L464-L465
       sandboxBuildDir = "/build";
@@ -165,16 +243,15 @@ let
           LD_LIBRARY_PATH = lib.makeLibraryPath [ stdenv.cc.cc ];
         }
         // drvEnv
-        // {
-
+        // rec {
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1008-L1010
           NIX_BUILD_TOP = sandboxBuildDir;
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1012-L1013
-          TMPDIR = sandboxBuildDir;
-          TEMPDIR = sandboxBuildDir;
-          TMP = sandboxBuildDir;
-          TEMP = "/tmp";
+          TMPDIR = TMP;
+          TEMPDIR = TMP;
+          TMP = "/tmp";
+          TEMP = TMP;
 
           # https://github.com/NixOS/nix/blob/2.8.0/src/libstore/build/local-derivation-goal.cc#L1015-L1019
           PWD = homeDirectory;
@@ -193,7 +270,10 @@ let
       contents = [
         binSh
         usrBinEnv
+        caCertificates
         etcNixConf
+        etcSudoers
+        etcPamSudo
         (fakeNss.override {
           # Allows programs to look up the build user's home directory
           # https://github.com/NixOS/nix/blob/ffe155abd36366a870482625543f9bf924a58281/src/libstore/build/local-derivation-goal.cc#L906-L910
@@ -204,8 +284,10 @@ let
           ];
           extraGroupLines = [
             "${toString uname}:!:${toString gid}:"
+            "docker:!:${toString (builtins.sub gid 1)}:${toString uname}"
           ];
         })
+        dockerInit
       ];
 
       fakeRootCommands = ''
@@ -241,6 +323,22 @@ let
           mkdir -p ./lib64
           ln -s "${glibc}/lib64/ld-linux-x86-64.so.2" ./lib64/ld-linux-x86-64.so.2
         fi
+
+        # Copy sudo from the Nix store to a "normal" path in the container
+        mkdir -p ./usr/bin
+        cp ${sudo}/bin/sudo ./usr/bin/sudo
+
+        # Ensure root owns it & set setuid bit
+        chown 0:0 ./usr/bin/sudo
+        chmod 4755 ./usr/bin/sudo
+
+        chown root:root ./etc/pam.d/sudo
+        chown root:root ./etc/sudoers
+
+        # Create /var/run and chown it so docker command
+        # doesnt encounter permission issues.
+        mkdir -p ./var/run/
+        chown -R ${toString uid}:${toString gid} ./var/run/
       '';
 
       # Run this image as the given uid/gid
