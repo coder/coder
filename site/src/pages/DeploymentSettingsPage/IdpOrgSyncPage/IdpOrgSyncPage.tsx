@@ -30,17 +30,14 @@ export const IdpOrgSyncPage: FC = () => {
 		data: orgSyncSettingsData,
 		isLoading,
 		error,
-	} = useQuery(
-		organizationIdpSyncSettings(isIdpSyncEnabled).queryKey,
-		organizationIdpSyncSettings(isIdpSyncEnabled).queryFn,
-		{
-			onSuccess: (data) => {
-				if (data?.field) {
-					setClaimField(data.field);
-				}
-			},
+	} = useQuery({
+		...organizationIdpSyncSettings(isIdpSyncEnabled),
+		onSuccess: (data) => {
+			if (data?.field) {
+				setClaimField(data.field);
+			}
 		},
-	);
+	});
 
 	const { data: claimFieldValues } = useQuery(
 		idpSyncClaimFieldValues(claimField),

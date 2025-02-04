@@ -132,13 +132,13 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		form.handleSubmit();
 	};
 
-	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (e) => {
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
 		if (
-			e.key === "Enter" &&
+			event.key === "Enter" &&
 			inputValue &&
 			!claimFieldValues?.some((value) => value === inputValue.toLowerCase())
 		) {
-			e.preventDefault();
+			event.preventDefault();
 			setIdpOrgName(inputValue);
 			setInputValue("");
 			setOpen(false);
