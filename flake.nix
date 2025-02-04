@@ -113,6 +113,7 @@
             (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
             gnumake
             gnused
+            gnugrep
             go_1_22
             go-migrate
             (pinnedPkgs.golangci-lint)
