@@ -1496,9 +1496,9 @@ CREATE TABLE workspace_agent_memory_resource_monitors (
     enabled boolean NOT NULL,
     threshold integer NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
-    debounced_until timestamp with time zone NOT NULL
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -1584,9 +1584,9 @@ CREATE TABLE workspace_agent_volume_resource_monitors (
     threshold integer NOT NULL,
     path text NOT NULL,
     created_at timestamp with time zone NOT NULL,
-    updated_at timestamp with time zone NOT NULL,
+    updated_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL,
     state workspace_agent_monitor_state DEFAULT 'OK'::workspace_agent_monitor_state NOT NULL,
-    debounced_until timestamp with time zone NOT NULL
+    debounced_until timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
