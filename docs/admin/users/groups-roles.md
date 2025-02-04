@@ -35,7 +35,7 @@ may use personal workspaces.
 
 <blockquote class="info">
 
-Custom roles are an Enterprise and Premium feature.
+Custom roles are a Premium feature.
 [Learn more](https://coder.com/pricing#compare-plans).
 
 </blockquote>
