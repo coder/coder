@@ -21,6 +21,7 @@ import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
 
 export const IdpOrgSyncPage: FC = () => {
+	const [claimField, setClaimField] = useState("");
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
@@ -29,8 +30,17 @@ export const IdpOrgSyncPage: FC = () => {
 		data: orgSyncSettingsData,
 		isLoading,
 		error,
-	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
-	const [claimField, setClaimField] = useState("");
+	} = useQuery(
+		organizationIdpSyncSettings(isIdpSyncEnabled).queryKey,
+		organizationIdpSyncSettings(isIdpSyncEnabled).queryFn,
+		{
+			onSuccess: (data) => {
+				if (data?.field) {
+					setClaimField(data.field);
+				}
+			},
+		},
+	);
 
 	const { data: claimFieldValues } = useQuery(
 		idpSyncClaimFieldValues(claimField),
