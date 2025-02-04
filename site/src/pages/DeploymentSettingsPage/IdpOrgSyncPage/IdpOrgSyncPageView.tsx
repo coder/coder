@@ -4,14 +4,7 @@ import type {
 } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Button } from "components/Button/Button";
-import {
-	Command,
-	CommandEmpty,
-	CommandGroup,
-	CommandInput,
-	CommandItem,
-	CommandList,
-} from "components/Command/Command";
+import { Combobox } from "components/Combobox/Combobox";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import {
 	Dialog,
@@ -227,68 +220,20 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 								</Label>
 
 								{claimFieldValues ? (
-									<Popover open={open} onOpenChange={setOpen}>
-										<PopoverTrigger asChild>
-											<Button
-												variant="outline"
-												aria-expanded={open}
-												className="w-72 justify-between"
-											>
-												<span
-													className={cn(
-														!idpOrgName && "text-content-secondary",
-													)}
-												>
-													{idpOrgName || "Select IdP organization"}
-												</span>
-												<ChevronDown className="size-icon-sm cursor-pointer text-content-secondary hover:text-content-primary" />
-											</Button>
-										</PopoverTrigger>
-										<PopoverContent className="w-72">
-											<Command>
-												<CommandInput
-													placeholder="Search or enter custom value"
-													value={inputValue}
-													onValueChange={setInputValue}
-													onKeyDown={handleKeyDown}
-												/>
-												<CommandList>
-													<CommandEmpty>
-														<p>No results found</p>
-														<span className="flex flex-row items-center justify-center gap-1">
-															Enter custom value
-															<CornerDownLeft className="size-icon-sm bg-surface-tertiary rounded-sm p-1" />
-														</span>
-													</CommandEmpty>
-													<CommandGroup>
-														{claimFieldValues.map((value) => (
-															<CommandItem
-																key={value}
-																value={value}
-																onSelect={(currentValue) => {
-																	setIdpOrgName(
-																		currentValue === idpOrgName
-																			? ""
-																			: currentValue,
-																	);
-																	setOpen(false);
-																}}
-															>
-																{value}
-																{idpOrgName === value && (
-																	<Check
-																		size={16}
-																		strokeWidth={2}
-																		className="ml-auto"
-																	/>
-																)}
-															</CommandItem>
-														))}
-													</CommandGroup>
-												</CommandList>
-											</Command>
-										</PopoverContent>
-									</Popover>
+									<Combobox
+										value={idpOrgName}
+										options={claimFieldValues}
+										placeholder="Select IdP organization"
+										open={open}
+										onOpenChange={setOpen}
+										inputValue={inputValue}
+										onInputChange={setInputValue}
+										onKeyDown={handleKeyDown}
+										onSelect={(value: string) => {
+											setIdpOrgName(value);
+											setOpen(false);
+										}}
+									/>
 								) : (
 									<Input
 										id={`${id}-idp-org-name`}
