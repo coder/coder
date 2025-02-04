@@ -1078,7 +1078,7 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 			},
 		},
 		{
-			name: "TemplateWorkspaceOutOfDisk",
+			name: "TemplateWorkspaceOutOfDisk/SingleVolume",
 			id:   notifications.TemplateWorkspaceOutOfDisk,
 			payload: types.MessagePayload{
 				UserName:     "Bobby",
@@ -1086,8 +1086,42 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				UserUsername: "bobby",
 				Labels: map[string]string{
 					"workspace": "bobby-workspace",
-					"threshold": "90%",
-					"volume":    "/home/coder",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk/MultipleVolumes",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+						{
+							"path":      "/dev/coder",
+							"threshold": "80%",
+						},
+						{
+							"path":      "/etc/coder",
+							"threshold": "95%",
+						},
+					},
 				},
 			},
 		},
@@ -1099,7 +1133,8 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 	for _, name := range allTemplates {
 		var found bool
 		for _, tc := range tests {
-			if tc.name == name {
+			tcName, _, _ := strings.Cut(tc.name, "/")
+			if tcName == name {
 				found = true
 			}
 		}

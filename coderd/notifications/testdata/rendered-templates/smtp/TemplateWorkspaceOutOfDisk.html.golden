@@ -1,6 +1,6 @@
 From: system@coder.com
 To: bobby@coder.com
-Subject: Your workspace "bobby-workspace" is low on disk
+Subject: Your workspace "bobby-workspace" is low on volume space
 Message-Id: 02ee4935-73be-4fa1-a290-ff9999026b13@blush-whale-48
 Date: Fri, 11 Oct 2024 09:03:06 +0000
 Content-Type: multipart/alternative;  boundary=bbe61b741255b6098bb6b3c1f41b885773df633cb18d2a3002b68e4bc9c4
@@ -12,8 +12,7 @@ Content-Type: text/plain; charset=UTF-8
 
 Hi Bobby,
 
-Your workspace bobby-workspace has reached the usage threshold set at 90% f=
-or volume /home/coder.
+Volume /home/coder is over 90% full in workspace bobby-workspace.
 
 
 View workspace: http://test.com/@bobby/bobby-workspace
@@ -28,7 +27,7 @@ Content-Type: text/html; charset=UTF-8
     <meta charset=3D"UTF-8" />
     <meta name=3D"viewport" content=3D"width=3Ddevice-width, initial-scale=
 =3D1.0" />
-    <title>Your workspace "bobby-workspace" is low on disk</title>
+    <title>Your workspace "bobby-workspace" is low on volume space</title>
   </head>
   <body style=3D"margin: 0; padding: 0; font-family: -apple-system, system-=
 ui, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen', 'Ubuntu', 'Cantarel=
@@ -43,14 +42,13 @@ er Logo" style=3D"height: 40px;" />
       </div>
       <h1 style=3D"text-align: center; font-size: 24px; font-weight: 400; m=
 argin: 8px 0 32px; line-height: 1.5;">
-        Your workspace "bobby-workspace" is low on disk
+        Your workspace "bobby-workspace" is low on volume space
       </h1>
       <div style=3D"line-height: 1.5;">
         <p>Hi Bobby,</p>
 
-<p>Your workspace <strong>bobby-workspace</strong> has reached the usage th=
-reshold set at <strong>90%</strong> for volume <code>/home/coder</code>.</p=
->
+<p>Volume <strong><code>/home/coder</code></strong> is over 90% full in wor=
+kspace <strong>bobby-workspace</strong>.</p>
       </div>
       <div style=3D"text-align: center; margin-top: 32px;">
        =20
