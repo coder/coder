@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/agentapi"
 	"net/http"
 	"net/url"
 	"reflect"
@@ -15,6 +14,8 @@ import (
 	"strings"
 	"sync/atomic"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/agentapi"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -27,6 +28,8 @@ import (
 	protobuf "google.golang.org/protobuf/proto"
 
 	"cdr.dev/slog"
+
+	"github.com/coder/quartz"
 
 	"github.com/coder/coder/v2/coderd/apikey"
 	"github.com/coder/coder/v2/coderd/audit"
@@ -47,7 +50,6 @@ import (
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
-	"github.com/coder/quartz"
 )
 
 const (
@@ -1881,6 +1883,17 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 	}, nil)
 	if err != nil {
 		return xerrors.Errorf("insert preset and parameters: %w", err)
+	}
+	if protoPreset.Prebuild != nil {
+		_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+			ID:                  uuid.New(),
+			PresetID:            dbPreset.ID,
+			DesiredInstances:    protoPreset.Prebuild.Instances,
+			InvalidateAfterSecs: 0, // TODO: implement cache invalidation
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset prebuild: %w", err)
+		}
 	}
 	return nil
 }

@@ -5423,6 +5423,7 @@ type ClaimPrebuildRow struct {
 	Name string    `db:"name" json:"name"`
 }
 
+// TODO: rewrite to use named CTE instead?
 func (q *sqlQuerier) ClaimPrebuild(ctx context.Context, arg ClaimPrebuildParams) (ClaimPrebuildRow, error) {
 	row := q.db.QueryRowContext(ctx, claimPrebuild, arg.NewUserID, arg.NewName)
 	var i ClaimPrebuildRow
@@ -5555,6 +5556,36 @@ func (q *sqlQuerier) GetTemplatePrebuildState(ctx context.Context, templateID uu
 		return nil, err
 	}
 	return items, nil
+}
+
+const insertPresetPrebuild = `-- name: InsertPresetPrebuild :one
+INSERT INTO template_version_preset_prebuilds (id, preset_id, desired_instances, invalidate_after_secs)
+VALUES ($1::uuid, $2::uuid, $3::int, $4::int)
+RETURNING id, preset_id, desired_instances, invalidate_after_secs
+`
+
+type InsertPresetPrebuildParams struct {
+	ID                  uuid.UUID `db:"id" json:"id"`
+	PresetID            uuid.UUID `db:"preset_id" json:"preset_id"`
+	DesiredInstances    int32     `db:"desired_instances" json:"desired_instances"`
+	InvalidateAfterSecs int32     `db:"invalidate_after_secs" json:"invalidate_after_secs"`
+}
+
+func (q *sqlQuerier) InsertPresetPrebuild(ctx context.Context, arg InsertPresetPrebuildParams) (TemplateVersionPresetPrebuild, error) {
+	row := q.db.QueryRowContext(ctx, insertPresetPrebuild,
+		arg.ID,
+		arg.PresetID,
+		arg.DesiredInstances,
+		arg.InvalidateAfterSecs,
+	)
+	var i TemplateVersionPresetPrebuild
+	err := row.Scan(
+		&i.ID,
+		&i.PresetID,
+		&i.DesiredInstances,
+		&i.InvalidateAfterSecs,
+	)
+	return i, err
 }
 
 const getPresetByWorkspaceBuildID = `-- name: GetPresetByWorkspaceBuildID :one

@@ -57,10 +57,15 @@ message RichParameterValue {
     string value = 2;
 }
 
+message Prebuild {
+    int32 instances = 1;
+}
+
 // Preset represents a set of preset parameters for a template version.
 message Preset {
     string name = 1;
     repeated PresetParameter parameters = 2;
+    Prebuild prebuild = 3;
 }
 
 message PresetParameter {

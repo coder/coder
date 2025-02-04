@@ -190,6 +190,21 @@ func (mr *MockStoreMockRecorder) BulkMarkNotificationMessagesSent(ctx, arg any) 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "BulkMarkNotificationMessagesSent", reflect.TypeOf((*MockStore)(nil).BulkMarkNotificationMessagesSent), ctx, arg)
 }
 
+// ClaimPrebuild mocks base method.
+func (m *MockStore) ClaimPrebuild(ctx context.Context, arg database.ClaimPrebuildParams) (database.ClaimPrebuildRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ClaimPrebuild", ctx, arg)
+	ret0, _ := ret[0].(database.ClaimPrebuildRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ClaimPrebuild indicates an expected call of ClaimPrebuild.
+func (mr *MockStoreMockRecorder) ClaimPrebuild(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ClaimPrebuild", reflect.TypeOf((*MockStore)(nil).ClaimPrebuild), ctx, arg)
+}
+
 // CleanTailnetCoordinators mocks base method.
 func (m *MockStore) CleanTailnetCoordinators(ctx context.Context) error {
 	m.ctrl.T.Helper()
@@ -2616,6 +2631,21 @@ func (mr *MockStoreMockRecorder) GetTemplateParameterInsights(ctx, arg any) *gom
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplateParameterInsights", reflect.TypeOf((*MockStore)(nil).GetTemplateParameterInsights), ctx, arg)
 }
 
+// GetTemplatePrebuildState mocks base method.
+func (m *MockStore) GetTemplatePrebuildState(ctx context.Context, templateID uuid.UUID) ([]database.GetTemplatePrebuildStateRow, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetTemplatePrebuildState", ctx, templateID)
+	ret0, _ := ret[0].([]database.GetTemplatePrebuildStateRow)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetTemplatePrebuildState indicates an expected call of GetTemplatePrebuildState.
+func (mr *MockStoreMockRecorder) GetTemplatePrebuildState(ctx, templateID any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetTemplatePrebuildState", reflect.TypeOf((*MockStore)(nil).GetTemplatePrebuildState), ctx, templateID)
+}
+
 // GetTemplateUsageStats mocks base method.
 func (m *MockStore) GetTemplateUsageStats(ctx context.Context, arg database.GetTemplateUsageStatsParams) ([]database.TemplateUsageStat, error) {
 	m.ctrl.T.Helper()
@@ -4124,6 +4154,21 @@ func (m *MockStore) InsertPresetParameters(ctx context.Context, arg database.Ins
 func (mr *MockStoreMockRecorder) InsertPresetParameters(ctx, arg any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetParameters", reflect.TypeOf((*MockStore)(nil).InsertPresetParameters), ctx, arg)
+}
+
+// InsertPresetPrebuild mocks base method.
+func (m *MockStore) InsertPresetPrebuild(ctx context.Context, arg database.InsertPresetPrebuildParams) (database.TemplateVersionPresetPrebuild, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "InsertPresetPrebuild", ctx, arg)
+	ret0, _ := ret[0].(database.TemplateVersionPresetPrebuild)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// InsertPresetPrebuild indicates an expected call of InsertPresetPrebuild.
+func (mr *MockStoreMockRecorder) InsertPresetPrebuild(ctx, arg any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "InsertPresetPrebuild", reflect.TypeOf((*MockStore)(nil).InsertPresetPrebuild), ctx, arg)
 }
 
 // InsertProvisionerJob mocks base method.
