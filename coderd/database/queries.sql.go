@@ -11765,6 +11765,141 @@ func (q *sqlQuerier) UpsertWorkspaceAgentPortShare(ctx context.Context, arg Upse
 	return i, err
 }
 
+const fetchMemoryResourceMonitorsByAgentID = `-- name: FetchMemoryResourceMonitorsByAgentID :one
+SELECT
+	agent_id, enabled, threshold, created_at
+FROM
+	workspace_agent_memory_resource_monitors
+WHERE
+	agent_id = $1
+`
+
+func (q *sqlQuerier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (WorkspaceAgentMemoryResourceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, fetchMemoryResourceMonitorsByAgentID, agentID)
+	var i WorkspaceAgentMemoryResourceMonitor
+	err := row.Scan(
+		&i.AgentID,
+		&i.Enabled,
+		&i.Threshold,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const fetchVolumesResourceMonitorsByAgentID = `-- name: FetchVolumesResourceMonitorsByAgentID :many
+SELECT
+	agent_id, enabled, threshold, path, created_at
+FROM
+	workspace_agent_volume_resource_monitors
+WHERE
+	agent_id = $1
+`
+
+func (q *sqlQuerier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]WorkspaceAgentVolumeResourceMonitor, error) {
+	rows, err := q.db.QueryContext(ctx, fetchVolumesResourceMonitorsByAgentID, agentID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var items []WorkspaceAgentVolumeResourceMonitor
+	for rows.Next() {
+		var i WorkspaceAgentVolumeResourceMonitor
+		if err := rows.Scan(
+			&i.AgentID,
+			&i.Enabled,
+			&i.Threshold,
+			&i.Path,
+			&i.CreatedAt,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, i)
+	}
+	if err := rows.Close(); err != nil {
+		return nil, err
+	}
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	return items, nil
+}
+
+const insertMemoryResourceMonitor = `-- name: InsertMemoryResourceMonitor :one
+INSERT INTO
+	workspace_agent_memory_resource_monitors (
+		agent_id,
+		enabled,
+		threshold,
+		created_at
+	)
+VALUES
+	($1, $2, $3, $4) RETURNING agent_id, enabled, threshold, created_at
+`
+
+type InsertMemoryResourceMonitorParams struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	Enabled   bool      `db:"enabled" json:"enabled"`
+	Threshold int32     `db:"threshold" json:"threshold"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertMemoryResourceMonitor(ctx context.Context, arg InsertMemoryResourceMonitorParams) (WorkspaceAgentMemoryResourceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, insertMemoryResourceMonitor,
+		arg.AgentID,
+		arg.Enabled,
+		arg.Threshold,
+		arg.CreatedAt,
+	)
+	var i WorkspaceAgentMemoryResourceMonitor
+	err := row.Scan(
+		&i.AgentID,
+		&i.Enabled,
+		&i.Threshold,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
+const insertVolumeResourceMonitor = `-- name: InsertVolumeResourceMonitor :one
+INSERT INTO
+	workspace_agent_volume_resource_monitors (
+		agent_id,
+		path,
+		enabled,
+		threshold,
+		created_at
+	)
+VALUES
+	($1, $2, $3, $4, $5) RETURNING agent_id, enabled, threshold, path, created_at
+`
+
+type InsertVolumeResourceMonitorParams struct {
+	AgentID   uuid.UUID `db:"agent_id" json:"agent_id"`
+	Path      string    `db:"path" json:"path"`
+	Enabled   bool      `db:"enabled" json:"enabled"`
+	Threshold int32     `db:"threshold" json:"threshold"`
+	CreatedAt time.Time `db:"created_at" json:"created_at"`
+}
+
+func (q *sqlQuerier) InsertVolumeResourceMonitor(ctx context.Context, arg InsertVolumeResourceMonitorParams) (WorkspaceAgentVolumeResourceMonitor, error) {
+	row := q.db.QueryRowContext(ctx, insertVolumeResourceMonitor,
+		arg.AgentID,
+		arg.Path,
+		arg.Enabled,
+		arg.Threshold,
+		arg.CreatedAt,
+	)
+	var i WorkspaceAgentVolumeResourceMonitor
+	err := row.Scan(
+		&i.AgentID,
+		&i.Enabled,
+		&i.Threshold,
+		&i.Path,
+		&i.CreatedAt,
+	)
+	return i, err
+}
+
 const deleteOldWorkspaceAgentLogs = `-- name: DeleteOldWorkspaceAgentLogs :exec
 WITH
 	latest_builds AS (

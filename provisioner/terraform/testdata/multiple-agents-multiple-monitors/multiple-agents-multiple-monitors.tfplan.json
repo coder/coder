@@ -21,7 +21,17 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 80
+                  }
+                ],
+                "volume": []
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -30,7 +40,14 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": []
+              }
+            ],
             "token": true
           }
         },
@@ -51,7 +68,28 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": true,
+                    "threshold": 99
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": false,
+                    "path": "volume2",
+                    "threshold": 50
+                  },
+                  {
+                    "enabled": true,
+                    "path": "volume1",
+                    "threshold": 80
+                  }
+                ]
+              }
+            ],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -60,7 +98,17 @@
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
-            "resources_monitoring": [],
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {}
+                ],
+                "volume": [
+                  {},
+                  {}
+                ]
+              }
+            ],
             "token": true
           }
         },
@@ -123,47 +171,10 @@
           }
         },
         {
-          "address": "coder_app.app3",
-          "mode": "managed",
-          "type": "coder_app",
-          "name": "app3",
-          "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
-          "values": {
-            "command": null,
-            "display_name": null,
-            "external": false,
-            "healthcheck": [],
-            "hidden": false,
-            "icon": null,
-            "open_in": "slim-window",
-            "order": null,
-            "share": "owner",
-            "slug": "app3",
-            "subdomain": false,
-            "url": null
-          },
-          "sensitive_values": {
-            "healthcheck": []
-          }
-        },
-        {
-          "address": "null_resource.dev1",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "dev1",
-          "provider_name": "registry.terraform.io/hashicorp/null",
-          "schema_version": 0,
-          "values": {
-            "triggers": null
-          },
-          "sensitive_values": {}
-        },
-        {
-          "address": "null_resource.dev2",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev2",
+          "name": "dev",
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
@@ -196,7 +207,17 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {
+                  "enabled": true,
+                  "threshold": 80
+                }
+              ],
+              "volume": []
+            }
+          ],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -207,14 +228,28 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": []
+            }
+          ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": []
+            }
+          ],
           "token": true
         }
       }
@@ -240,7 +275,28 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {
+                  "enabled": true,
+                  "threshold": 99
+                }
+              ],
+              "volume": [
+                {
+                  "enabled": false,
+                  "path": "volume2",
+                  "threshold": 50
+                },
+                {
+                  "enabled": true,
+                  "path": "volume1",
+                  "threshold": 80
+                }
+              ]
+            }
+          ],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -251,14 +307,34 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": [
+                {},
+                {}
+              ]
+            }
+          ],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
-          "resources_monitoring": [],
+          "resources_monitoring": [
+            {
+              "memory": [
+                {}
+              ],
+              "volume": [
+                {},
+                {}
+              ]
+            }
+          ],
           "token": true
         }
       }
@@ -346,67 +422,10 @@
       }
     },
     {
-      "address": "coder_app.app3",
-      "mode": "managed",
-      "type": "coder_app",
-      "name": "app3",
-      "provider_name": "registry.terraform.io/coder/coder",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "command": null,
-          "display_name": null,
-          "external": false,
-          "healthcheck": [],
-          "hidden": false,
-          "icon": null,
-          "open_in": "slim-window",
-          "order": null,
-          "share": "owner",
-          "slug": "app3",
-          "subdomain": false,
-          "url": null
-        },
-        "after_unknown": {
-          "agent_id": true,
-          "healthcheck": [],
-          "id": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {
-          "healthcheck": []
-        }
-      }
-    },
-    {
-      "address": "null_resource.dev1",
+      "address": "null_resource.dev",
       "mode": "managed",
       "type": "null_resource",
-      "name": "dev1",
-      "provider_name": "registry.terraform.io/hashicorp/null",
-      "change": {
-        "actions": [
-          "create"
-        ],
-        "before": null,
-        "after": {
-          "triggers": null
-        },
-        "after_unknown": {
-          "id": true
-        },
-        "before_sensitive": false,
-        "after_sensitive": {}
-      }
-    },
-    {
-      "address": "null_resource.dev2",
-      "mode": "managed",
-      "type": "null_resource",
-      "name": "dev2",
+      "name": "dev",
       "provider_name": "registry.terraform.io/hashicorp/null",
       "change": {
         "actions": [
@@ -450,7 +469,21 @@
             },
             "os": {
               "constant_value": "linux"
-            }
+            },
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "threshold": {
+                      "constant_value": 80
+                    }
+                  }
+                ]
+              }
+            ]
           },
           "schema_version": 1
         },
@@ -466,7 +499,45 @@
             },
             "os": {
               "constant_value": "linux"
-            }
+            },
+            "resources_monitoring": [
+              {
+                "memory": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "threshold": {
+                      "constant_value": 99
+                    }
+                  }
+                ],
+                "volume": [
+                  {
+                    "enabled": {
+                      "constant_value": true
+                    },
+                    "path": {
+                      "constant_value": "volume1"
+                    },
+                    "threshold": {
+                      "constant_value": 80
+                    }
+                  },
+                  {
+                    "enabled": {
+                      "constant_value": false
+                    },
+                    "path": {
+                      "constant_value": "volume2"
+                    },
+                    "threshold": {
+                      "constant_value": 50
+                    }
+                  }
+                ]
+              }
+            ]
           },
           "schema_version": 1
         },
@@ -525,46 +596,14 @@
           "schema_version": 1
         },
         {
-          "address": "coder_app.app3",
-          "mode": "managed",
-          "type": "coder_app",
-          "name": "app3",
-          "provider_config_key": "coder",
-          "expressions": {
-            "agent_id": {
-              "references": [
-                "coder_agent.dev2.id",
-                "coder_agent.dev2"
-              ]
-            },
-            "slug": {
-              "constant_value": "app3"
-            },
-            "subdomain": {
-              "constant_value": false
-            }
-          },
-          "schema_version": 1
-        },
-        {
-          "address": "null_resource.dev1",
+          "address": "null_resource.dev",
           "mode": "managed",
           "type": "null_resource",
-          "name": "dev1",
+          "name": "dev",
           "provider_config_key": "null",
           "schema_version": 0,
           "depends_on": [
-            "coder_agent.dev1"
-          ]
-        },
-        {
-          "address": "null_resource.dev2",
-          "mode": "managed",
-          "type": "null_resource",
-          "name": "dev2",
-          "provider_config_key": "null",
-          "schema_version": 0,
-          "depends_on": [
+            "coder_agent.dev1",
             "coder_agent.dev2"
           ]
         }
@@ -577,15 +616,9 @@
       "attribute": [
         "id"
       ]
-    },
-    {
-      "resource": "coder_agent.dev2",
-      "attribute": [
-        "id"
-      ]
     }
   ],
-  "timestamp": "2025-01-29T22:48:03Z",
+  "timestamp": "2025-01-29T22:48:06Z",
   "applyable": true,
   "complete": true,
   "errored": false
