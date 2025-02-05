@@ -83,7 +83,7 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 		newState == database.WorkspaceAgentMonitorStateNOK &&
 		m.Clock.Now().After(monitor.DebouncedUntil)
 
-	var debouncedUntil = monitor.DebouncedUntil
+	debouncedUntil := monitor.DebouncedUntil
 	if shouldNotify {
 		debouncedUntil = m.Clock.Now().Add(m.Debounce)
 	}
@@ -167,7 +167,7 @@ func (m *WorkspaceMonitorAPI) monitorVolume(
 		newState == database.WorkspaceAgentMonitorStateNOK &&
 		m.Clock.Now().After(monitor.DebouncedUntil)
 
-	var debouncedUntil = monitor.DebouncedUntil
+	debouncedUntil := monitor.DebouncedUntil
 	if shouldNotify {
 		debouncedUntil = m.Clock.Now().Add(m.Debounce)
 	}
