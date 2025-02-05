@@ -280,6 +280,9 @@ export const watchBuildLogsByBuildId = (
 	);
 
 	socket.addEventListener("error", () => {
+		if (socket.readyState === socket.CLOSED) {
+			return;
+		}
 		onError?.(new Error("Connection for logs failed."));
 		socket.close();
 	});
@@ -725,6 +728,36 @@ class ApiMethods {
 	) => {
 		const response = await this.axios.patch<TypesGen.Response>(
 			"/api/v2/settings/idpsync/organization",
+			data,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param data
+	 * @param organization Can be the organization's ID or name
+	 */
+	patchGroupIdpSyncSettings = async (
+		data: TypesGen.GroupSyncSettings,
+		organization: string,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			`/api/v2/organizations/${organization}/settings/idpsync/groups`,
+			data,
+		);
+		return response.data;
+	};
+
+	/**
+	 * @param data
+	 * @param organization Can be the organization's ID or name
+	 */
+	patchRoleIdpSyncSettings = async (
+		data: TypesGen.RoleSyncSettings,
+		organization: string,
+	) => {
+		const response = await this.axios.patch<TypesGen.Response>(
+			`/api/v2/organizations/${organization}/settings/idpsync/roles`,
 			data,
 		);
 		return response.data;
@@ -2081,6 +2114,19 @@ class ApiMethods {
 		const params = new URLSearchParams(filters);
 		const response = await this.axios.get(
 			`/api/v2/insights/user-activity?${params}`,
+		);
+
+		return response.data;
+	};
+
+	getInsightsUserStatusCounts = async (
+		offset = Math.trunc(new Date().getTimezoneOffset() / 60),
+	): Promise<TypesGen.GetUserStatusCountsResponse> => {
+		const searchParams = new URLSearchParams({
+			tz_offset: offset.toString(),
+		});
+		const response = await this.axios.get(
+			`/api/v2/insights/user-status-counts?${searchParams}`,
 		);
 
 		return response.data;

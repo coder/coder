@@ -56,7 +56,7 @@ import (
 var updateGoldenFiles = flag.Bool("update", false, "Update golden files")
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // TestBasicNotificationRoundtrip enqueues a message to the store, waits for it to be acquired by a notifier,
@@ -388,7 +388,7 @@ func TestBackpressure(t *testing.T) {
 			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 	}
-	t.Logf("done advancing")
+	t.Log("done advancing")
 	// The batch completes
 	w.MustWait(ctx)
 
@@ -1064,6 +1064,67 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 				},
 			},
 		},
+		{
+			name: "TemplateWorkspaceOutOfMemory",
+			id:   notifications.TemplateWorkspaceOutOfMemory,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+					"threshold": "90%",
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "TemplateWorkspaceOutOfDisk_MultipleVolumes",
+			id:   notifications.TemplateWorkspaceOutOfDisk,
+			payload: types.MessagePayload{
+				UserName:     "Bobby",
+				UserEmail:    "bobby@coder.com",
+				UserUsername: "bobby",
+				Labels: map[string]string{
+					"workspace": "bobby-workspace",
+				},
+				Data: map[string]any{
+					"volumes": []map[string]any{
+						{
+							"path":      "/home/coder",
+							"threshold": "90%",
+						},
+						{
+							"path":      "/dev/coder",
+							"threshold": "80%",
+						},
+						{
+							"path":      "/etc/coder",
+							"threshold": "95%",
+						},
+					},
+				},
+			},
+		},
 	}
 
 	// We must have a test case for every notification_template. This is enforced below:
@@ -1106,6 +1167,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 							r.Name = tc.payload.UserName
 						},
 					)
+
+					// With the introduction of notifications that can be disabled
+					// by default, we want to make sure the user preferences have
+					// the notification enabled.
+					_, err := adminClient.UpdateUserNotificationPreferences(
+						context.Background(),
+						user.ID,
+						codersdk.UpdateUserNotificationPreferences{
+							TemplateDisabledMap: map[string]bool{
+								tc.id.String(): false,
+							},
+						})
+					require.NoError(t, err)
+
 					return &db, &api.Logger, &user
 				}()
 
@@ -1275,6 +1350,20 @@ func TestNotificationTemplates_Golden(t *testing.T) {
 							r.Name = tc.payload.UserName
 						},
 					)
+
+					// With the introduction of notifications that can be disabled
+					// by default, we want to make sure the user preferences have
+					// the notification enabled.
+					_, err := adminClient.UpdateUserNotificationPreferences(
+						context.Background(),
+						user.ID,
+						codersdk.UpdateUserNotificationPreferences{
+							TemplateDisabledMap: map[string]bool{
+								tc.id.String(): false,
+							},
+						})
+					require.NoError(t, err)
+
 					return &db, &api.Logger, &user
 				}()
 
@@ -1408,6 +1497,30 @@ func normalizeGoldenWebhook(content []byte) []byte {
 	content = normalizeLineEndings(content)
 
 	return content
+}
+
+func TestDisabledByDefaultBeforeEnqueue(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("This test requires postgres; it is testing business-logic implemented in the database")
+	}
+
+	// nolint:gocritic // Unit test.
+	ctx := dbauthz.AsNotifier(testutil.Context(t, testutil.WaitSuperLong))
+	store, _ := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	cfg := defaultNotificationsConfig(database.NotificationMethodSmtp)
+	enq, err := notifications.NewStoreEnqueuer(cfg, store, defaultHelpers(), logger.Named("enqueuer"), quartz.NewReal())
+	require.NoError(t, err)
+	user := createSampleUser(t, store)
+
+	// We want to try enqueuing a notification on a template that is disabled
+	// by default. We expect this to fail.
+	templateID := notifications.TemplateWorkspaceManuallyUpdated
+	_, err = enq.Enqueue(ctx, user.ID, templateID, map[string]string{}, "test")
+	require.ErrorIs(t, err, notifications.ErrCannotEnqueueDisabledNotification, "enqueuing did not fail with expected error")
 }
 
 // TestDisabledBeforeEnqueue ensures that notifications cannot be enqueued once a user has disabled that notification template

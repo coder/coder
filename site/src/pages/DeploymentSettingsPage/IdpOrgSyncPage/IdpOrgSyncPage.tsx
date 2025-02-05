@@ -6,9 +6,9 @@ import {
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { Link } from "components/Link/Link";
 import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
-import { SquareArrowOutUpRight } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { type FC, useEffect } from "react";
@@ -62,13 +62,9 @@ export const IdpOrgSyncPage: FC = () => {
 						<p className="flex flex-row gap-1 text-sm text-content-secondary font-medium m-0">
 							Automatically assign users to an organization based on their IdP
 							claims.
-							<a
-								href={docs("/admin/users/idp-sync")}
-								className="flex flex-row text-content-link items-center gap-1 no-underline hover:underline visited:text-content-link"
-							>
+							<Link href={docs("/admin/users/idp-sync#organization-sync")}>
 								View docs
-								<SquareArrowOutUpRight size={14} />
-							</a>
+							</Link>
 						</p>
 					</div>
 					<ExportPolicyButton syncSettings={orgSyncSettingsData} />

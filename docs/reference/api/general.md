@@ -224,6 +224,7 @@ curl -X GET http://coder-server:8080/api/v2/deployment/config \
       "user": {}
     },
     "enable_terraform_debug_mode": true,
+    "ephemeral_deployment": true,
     "experiments": [
       "string"
     ],

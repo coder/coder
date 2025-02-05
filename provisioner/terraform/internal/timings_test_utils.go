@@ -6,7 +6,7 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/cespare/xxhash"
+	"github.com/cespare/xxhash/v2"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/encoding/protojson"
@@ -40,7 +40,7 @@ func TimingsAreEqual(t *testing.T, expected []*proto.Timing, actual []*proto.Tim
 
 	// Shortcut check.
 	if len(expected)+len(actual) == 0 {
-		t.Logf("both timings are empty")
+		t.Log("both timings are empty")
 		return true
 	}
 

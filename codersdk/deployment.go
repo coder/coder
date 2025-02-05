@@ -350,6 +350,7 @@ type DeploymentValues struct {
 	ProxyTrustedOrigins             serpent.StringArray                  `json:"proxy_trusted_origins,omitempty" typescript:",notnull"`
 	CacheDir                        serpent.String                       `json:"cache_directory,omitempty" typescript:",notnull"`
 	InMemoryDatabase                serpent.Bool                         `json:"in_memory_database,omitempty" typescript:",notnull"`
+	EphemeralDeployment             serpent.Bool                         `json:"ephemeral_deployment,omitempty" typescript:",notnull"`
 	PostgresURL                     serpent.String                       `json:"pg_connection_url,omitempty" typescript:",notnull"`
 	PostgresAuth                    string                               `json:"pg_auth,omitempty" typescript:",notnull"`
 	OAuth2                          OAuth2Config                         `json:"oauth2,omitempty" typescript:",notnull"`
@@ -904,8 +905,8 @@ func (c *DeploymentValues) Options() serpent.OptionSet {
 			Name: "Telemetry",
 			YAML: "telemetry",
 			Description: `Telemetry is critical to our ability to improve Coder. We strip all personal
-information before sending data to our servers. Please only disable telemetry
-when required by your organization's security policy.`,
+ information before sending data to our servers. Please only disable telemetry
+ when required by your organization's security policy.`,
 		}
 		deploymentGroupProvisioning = serpent.Group{
 			Name:        "Provisioning",
@@ -2281,6 +2282,15 @@ when required by your organization's security policy.`,
 			Hidden:      true,
 			Value:       &c.InMemoryDatabase,
 			YAML:        "inMemoryDatabase",
+		},
+		{
+			Name:        "Ephemeral Deployment",
+			Description: "Controls whether Coder data, including built-in Postgres, will be stored in a temporary directory and deleted when the server is stopped.",
+			Flag:        "ephemeral",
+			Env:         "CODER_EPHEMERAL",
+			Hidden:      true,
+			Value:       &c.EphemeralDeployment,
+			YAML:        "ephemeralDeployment",
 		},
 		{
 			Name:        "Postgres Connection URL",

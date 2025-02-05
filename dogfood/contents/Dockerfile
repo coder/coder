@@ -38,7 +38,7 @@ RUN apt-get update && \
 	# protoc-gen-go is needed to build sysbox from source
 	go install google.golang.org/protobuf/cmd/protoc-gen-go@v1.30 && \
 	# drpc support for v2
-	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.33 && \
+	go install storj.io/drpc/cmd/protoc-gen-go-drpc@v0.0.34 && \
 	# migrate for migration support for v2
 	go install github.com/golang-migrate/migrate/v4/cmd/migrate@v4.15.1 && \
 	# goreleaser for compiling v2 binaries
@@ -57,7 +57,7 @@ RUN apt-get update && \
 	# charts and values files
 	go install github.com/norwoodj/helm-docs/cmd/helm-docs@v1.5.0 && \
 	# sqlc for Go code generation
-	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.25.0) && \
+	(CGO_ENABLED=1 go install github.com/sqlc-dev/sqlc/cmd/sqlc@v1.27.0) && \
 	# gcr-cleaner-cli used by CI to prune unused images
 	go install github.com/sethvargo/gcr-cleaner/cmd/gcr-cleaner-cli@v0.5.1 && \
 	# ruleguard for checking custom rules, without needing to run all of
@@ -75,9 +75,9 @@ RUN apt-get update && \
 	go install github.com/goreleaser/nfpm/v2/cmd/nfpm@v2.35.1 && \
 	# yq v4 is used to process yaml files in coder v2. Conflicts with
 	# yq v3 used in v1.
-	go install github.com/mikefarah/yq/v4@v4.30.6 && \
+	go install github.com/mikefarah/yq/v4@v4.44.3 && \
 	mv /tmp/bin/yq /tmp/bin/yq4 && \
-	go install go.uber.org/mock/mockgen@v0.4.0 && \
+	go install go.uber.org/mock/mockgen@v0.5.0 && \
 	# Reduce image size.
 	apt-get remove --yes gcc && \
 	apt-get autoremove --yes && \
@@ -90,7 +90,7 @@ RUN apt-get update && \
 FROM gcr.io/coder-dev-1/alpine:3.18 as proto
 WORKDIR /tmp
 RUN apk add curl unzip
-RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.3/protoc-23.3-linux-x86_64.zip && \
+RUN curl -L -o protoc.zip https://github.com/protocolbuffers/protobuf/releases/download/v23.4/protoc-23.4-linux-x86_64.zip && \
 	unzip protoc.zip && \
 	rm protoc.zip
 
@@ -104,7 +104,13 @@ ARG DEBIAN_FRONTEND="noninteractive"
 # Updated certificates are necessary to use the teraswitch mirror.
 # This must be ran before copying in configuration since the config replaces
 # the default mirror with teraswitch.
-RUN apt-get update && apt-get install --yes ca-certificates
+# Also enable the en_US.UTF-8 locale so that we don't generate multiple locales
+# and unminimize to include man pages.
+RUN apt-get update && \
+	apt-get install --yes ca-certificates locales && \
+	echo "en_US.UTF-8 UTF-8" >> /etc/locale.gen && \
+	locale-gen && \
+	yes | unminimize
 
 COPY files /
 
@@ -214,7 +220,15 @@ RUN GH_CLI_VERSION=$(curl -s "https://api.github.com/repos/cli/cli/releases/late
 # See https://github.com/jesseduffield/lazygit#ubuntu
 RUN LAZYGIT_VERSION=$(curl -s "https://api.github.com/repos/jesseduffield/lazygit/releases/latest" | grep '"tag_name":' |  sed -E 's/.*"v*([^"]+)".*/\1/') && \
 	curl -Lo lazygit.tar.gz "https://github.com/jesseduffield/lazygit/releases/latest/download/lazygit_${LAZYGIT_VERSION}_Linux_x86_64.tar.gz" && \
-	tar xf lazygit.tar.gz -C /usr/local/bin lazygit
+	tar xf lazygit.tar.gz -C /usr/local/bin lazygit && \
+	rm lazygit.tar.gz
+
+# Install doctl
+# See https://docs.digitalocean.com/reference/doctl/how-to/install
+RUN DOCTL_VERSION=$(curl -s "https://api.github.com/repos/digitalocean/doctl/releases/latest" | grep '"tag_name":' | sed -E 's/.*"v([^"]+)".*/\1/') && \
+	curl -L https://github.com/digitalocean/doctl/releases/download/v${DOCTL_VERSION}/doctl-${DOCTL_VERSION}-linux-amd64.tar.gz -o doctl.tar.gz && \
+	tar xf doctl.tar.gz -C /usr/local/bin doctl && \
+	rm doctl.tar.gz
 
 # Install frontend utilities
 ENV NVM_DIR=/usr/local/nvm

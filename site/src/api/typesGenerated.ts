@@ -623,6 +623,7 @@ export interface DeploymentValues {
 	readonly proxy_trusted_origins?: string;
 	readonly cache_directory?: string;
 	readonly in_memory_database?: boolean;
+	readonly ephemeral_deployment?: boolean;
 	readonly pg_connection_url?: string;
 	readonly pg_auth?: string;
 	readonly oauth2?: OAuth2Config;
@@ -882,6 +883,16 @@ export interface GenerateAPIKeyResponse {
 	readonly key: string;
 }
 
+// From codersdk/insights.go
+export interface GetUserStatusCountsRequest {
+	readonly offset: string;
+}
+
+// From codersdk/insights.go
+export interface GetUserStatusCountsResponse {
+	readonly status_counts: Record<UserStatus, UserStatusChangeCount[]>;
+}
+
 // From codersdk/users.go
 export interface GetUsersResponse {
 	readonly users: readonly User[];
@@ -1042,6 +1053,12 @@ export interface HealthcheckReport {
 	readonly workspace_proxy: WorkspaceProxyReport;
 	readonly provisioner_daemons: ProvisionerDaemonsReport;
 	readonly coder_version: string;
+}
+
+// From codersdk/idpsync.go
+export interface IDPSyncMapping<ResourceIdType extends string | string> {
+	readonly Given: string;
+	readonly Gets: ResourceIdType;
 }
 
 // From codersdk/insights.go
@@ -1218,6 +1235,7 @@ export interface NotificationTemplate {
 	readonly group: string;
 	readonly method: string;
 	readonly kind: string;
+	readonly enabled_by_default: boolean;
 }
 
 // From codersdk/deployment.go
@@ -1417,6 +1435,12 @@ export interface OrganizationMemberWithUserData extends OrganizationMember {
 	readonly global_roles: readonly SlimRole[];
 }
 
+// From codersdk/organizations.go
+export interface OrganizationProvisionerJobsOptions {
+	readonly Limit: number;
+	readonly Status: readonly ProvisionerJobStatus[];
+}
+
 // From codersdk/idpsync.go
 export interface OrganizationSyncSettings {
 	readonly field: string;
@@ -1431,6 +1455,19 @@ export interface Pagination {
 	readonly offset?: number;
 }
 
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncConfigRequest {
+	readonly field: string;
+	readonly regex_filter: string | null;
+	readonly auto_create_missing_groups: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchGroupIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
 // From codersdk/groups.go
 export interface PatchGroupRequest {
 	readonly add_users: readonly string[];
@@ -1439,6 +1476,29 @@ export interface PatchGroupRequest {
 	readonly display_name: string | null;
 	readonly avatar_url: string | null;
 	readonly quota_allowance: number | null;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncConfigRequest {
+	readonly field: string;
+	readonly assign_default: boolean;
+}
+
+// From codersdk/idpsync.go
+export interface PatchOrganizationIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncConfigRequest {
+	readonly field: string;
+}
+
+// From codersdk/idpsync.go
+export interface PatchRoleIDPSyncMappingRequest {
+	readonly Add: readonly IDPSyncMapping<string>[];
+	readonly Remove: readonly IDPSyncMapping<string>[];
 }
 
 // From codersdk/templateversions.go
@@ -1521,6 +1581,16 @@ export interface ProvisionerDaemon {
 	readonly api_version: string;
 	readonly provisioners: readonly ProvisionerType[];
 	readonly tags: Record<string, string>;
+	readonly key_name: string | null;
+	readonly status: ProvisionerDaemonStatus | null;
+	readonly current_job: ProvisionerDaemonJob | null;
+	readonly previous_job: ProvisionerDaemonJob | null;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerDaemonJob {
+	readonly id: string;
+	readonly status: ProvisionerJobStatus;
 }
 
 // From codersdk/client.go
@@ -1528,6 +1598,15 @@ export const ProvisionerDaemonKey = "Coder-Provisioner-Daemon-Key";
 
 // From codersdk/client.go
 export const ProvisionerDaemonPSK = "Coder-Provisioner-Daemon-PSK";
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerDaemonStatus = "busy" | "idle" | "offline";
+
+export const ProvisionerDaemonStatuses: ProvisionerDaemonStatus[] = [
+	"busy",
+	"idle",
+	"offline",
+];
 
 // From healthsdk/healthsdk.go
 export interface ProvisionerDaemonsReport extends BaseReport {
@@ -1555,6 +1634,17 @@ export interface ProvisionerJob {
 	readonly tags: Record<string, string>;
 	readonly queue_position: number;
 	readonly queue_size: number;
+	readonly organization_id: string;
+	readonly input: ProvisionerJobInput;
+	readonly type: ProvisionerJobType;
+	readonly available_workers?: readonly string[];
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerJobInput {
+	readonly template_version_id?: string;
+	readonly workspace_build_id?: string;
+	readonly error?: string;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1585,6 +1675,18 @@ export const ProvisionerJobStatuses: ProvisionerJobStatus[] = [
 	"running",
 	"succeeded",
 	"unknown",
+];
+
+// From codersdk/provisionerdaemons.go
+export type ProvisionerJobType =
+	| "template_version_dry_run"
+	| "template_version_import"
+	| "workspace_build";
+
+export const ProvisionerJobTypes: ProvisionerJobType[] = [
+	"template_version_dry_run",
+	"template_version_import",
+	"workspace_build",
 ];
 
 // From codersdk/provisionerdaemons.go
@@ -1737,6 +1839,7 @@ export type RBACResource =
 	| "organization"
 	| "organization_member"
 	| "provisioner_daemon"
+	| "provisioner_jobs"
 	| "provisioner_keys"
 	| "replicas"
 	| "system"
@@ -1745,6 +1848,7 @@ export type RBACResource =
 	| "user"
 	| "*"
 	| "workspace"
+	| "workspace_agent_resource_monitor"
 	| "workspace_dormant"
 	| "workspace_proxy";
 
@@ -1771,6 +1875,7 @@ export const RBACResources: RBACResource[] = [
 	"organization",
 	"organization_member",
 	"provisioner_daemon",
+	"provisioner_jobs",
 	"provisioner_keys",
 	"replicas",
 	"system",
@@ -1779,6 +1884,7 @@ export const RBACResources: RBACResource[] = [
 	"user",
 	"*",
 	"workspace",
+	"workspace_agent_resource_monitor",
 	"workspace_dormant",
 	"workspace_proxy",
 ];
@@ -2690,6 +2796,12 @@ export interface UserRoles {
 // From codersdk/users.go
 export type UserStatus = "active" | "dormant" | "suspended";
 
+// From codersdk/insights.go
+export interface UserStatusChangeCount {
+	readonly date: string;
+	readonly count: number;
+}
+
 export const UserStatuses: UserStatus[] = ["active", "dormant", "suspended"];
 
 // From codersdk/users.go
@@ -2982,13 +3094,9 @@ export const WorkspaceAppHealths: WorkspaceAppHealth[] = [
 ];
 
 // From codersdk/workspaceapps.go
-export type WorkspaceAppOpenIn = "slim-window" | "tab" | "window";
+export type WorkspaceAppOpenIn = "slim-window" | "tab";
 
-export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = [
-	"slim-window",
-	"tab",
-	"window",
-];
+export const WorkspaceAppOpenIns: WorkspaceAppOpenIn[] = ["slim-window", "tab"];
 
 // From codersdk/workspaceapps.go
 export type WorkspaceAppSharingLevel = "authenticated" | "owner" | "public";

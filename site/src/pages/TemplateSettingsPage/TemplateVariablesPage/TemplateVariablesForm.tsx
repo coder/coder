@@ -114,7 +114,7 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 				</Button>
 
 				<Button type="submit" disabled={isSubmitting}>
-					{isSubmitting && <Spinner />}
+					<Spinner loading={isSubmitting} />
 					Save
 				</Button>
 			</FormFooter>

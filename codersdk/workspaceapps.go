@@ -38,13 +38,11 @@ type WorkspaceAppOpenIn string
 
 const (
 	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
-	WorkspaceAppOpenInWindow     WorkspaceAppOpenIn = "window"
 	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
 )
 
 var MapWorkspaceAppOpenIns = map[WorkspaceAppOpenIn]struct{}{
 	WorkspaceAppOpenInSlimWindow: {},
-	WorkspaceAppOpenInWindow:     {},
 	WorkspaceAppOpenInTab:        {},
 }
 

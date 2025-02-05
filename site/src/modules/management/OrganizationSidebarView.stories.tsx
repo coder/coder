@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
+import { expect, userEvent, waitFor, within } from "@storybook/test";
 import {
 	MockNoPermissions,
 	MockOrganization,
@@ -14,7 +15,7 @@ const meta: Meta<typeof OrganizationSidebarView> = {
 	decorators: [withDashboardProvider],
 	parameters: { showOrganizations: true },
 	args: {
-		activeOrganizationName: undefined,
+		activeOrganization: undefined,
 		organizations: [
 			{
 				...MockOrganization,
@@ -50,29 +51,163 @@ export const LoadingOrganizations: Story = {
 
 export const NoCreateOrg: Story = {
 	args: {
+		activeOrganization: {
+			...MockOrganization,
+			permissions: { createOrganization: false },
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
 		},
 	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+		await waitFor(() =>
+			expect(canvas.queryByText("Create Organization")).not.toBeInTheDocument(),
+		);
+	},
+};
+
+export const OverflowDropdown: Story = {
+	args: {
+		activeOrganization: {
+			...MockOrganization,
+			permissions: { createOrganization: true },
+		},
+		permissions: {
+			...MockPermissions,
+			createOrganization: true,
+		},
+		organizations: [
+			{
+				...MockOrganization,
+				permissions: {},
+			},
+			{
+				...MockOrganization2,
+				permissions: {},
+			},
+			{
+				id: "my-organization-3-id",
+				name: "my-organization-3",
+				display_name: "My Organization 3",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-4-id",
+				name: "my-organization-4",
+				display_name: "My Organization 4",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-5-id",
+				name: "my-organization-5",
+				display_name: "My Organization 5",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-6-id",
+				name: "my-organization-6",
+				display_name: "My Organization 6",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+			{
+				id: "my-organization-7-id",
+				name: "my-organization-7",
+				display_name: "My Organization 7",
+				description: "Another organization that gets used for stuff.",
+				icon: "/emojis/1f957.png",
+				created_at: "",
+				updated_at: "",
+				is_default: false,
+				permissions: {},
+			},
+		],
+	},
+	play: async ({ canvasElement }) => {
+		const canvas = within(canvasElement);
+		await userEvent.click(
+			canvas.getByRole("button", { name: /My Organization/i }),
+		);
+	},
 };
 
 export const NoPermissions: Story = {
 	args: {
+		activeOrganization: {
+			...MockOrganization,
+			permissions: MockNoPermissions,
+		},
 		permissions: MockNoPermissions,
 	},
 };
 
-export const SelectedOrgNoMatch: Story = {
+export const AllPermissions: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
-		organizations: [],
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: true,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: true,
+				assignOrgRole: true,
+				viewProvisioners: true,
+				viewIdpSyncSettings: true,
+			},
+		},
+		organizations: [
+			{
+				...MockOrganization,
+				permissions: {
+					editOrganization: true,
+					editMembers: true,
+					editGroups: true,
+					auditOrganization: true,
+					assignOrgRole: true,
+					viewProvisioners: true,
+					viewIdpSyncSettings: true,
+				},
+			},
+		],
 	},
 };
 
 export const SelectedOrgAdmin: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: true,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: true,
+				assignOrgRole: true,
+			},
+		},
 		organizations: [
 			{
 				...MockOrganization,
@@ -90,7 +225,15 @@ export const SelectedOrgAdmin: Story = {
 
 export const SelectedOrgAuditor: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: false,
+				editMembers: false,
+				editGroups: false,
+				auditOrganization: true,
+			},
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -111,7 +254,15 @@ export const SelectedOrgAuditor: Story = {
 
 export const SelectedOrgUserAdmin: Story = {
 	args: {
-		activeOrganizationName: MockOrganization.name,
+		activeOrganization: {
+			...MockOrganization,
+			permissions: {
+				editOrganization: false,
+				editMembers: true,
+				editGroups: true,
+				auditOrganization: false,
+			},
+		},
 		permissions: {
 			...MockPermissions,
 			createOrganization: false,
@@ -119,57 +270,6 @@ export const SelectedOrgUserAdmin: Story = {
 		organizations: [
 			{
 				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: false,
-				},
-			},
-		],
-	},
-};
-
-export const MultiOrgAdminAndUserAdmin: Story = {
-	args: {
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: false,
-					editGroups: false,
-					auditOrganization: true,
-				},
-			},
-			{
-				...MockOrganization2,
-				permissions: {
-					editOrganization: false,
-					editMembers: true,
-					editGroups: true,
-					auditOrganization: false,
-				},
-			},
-		],
-	},
-};
-
-export const SelectedMultiOrgAdminAndUserAdmin: Story = {
-	args: {
-		activeOrganizationName: MockOrganization2.name,
-		organizations: [
-			{
-				...MockOrganization,
-				permissions: {
-					editOrganization: false,
-					editMembers: false,
-					editGroups: false,
-					auditOrganization: true,
-				},
-			},
-			{
-				...MockOrganization2,
 				permissions: {
 					editOrganization: false,
 					editMembers: true,

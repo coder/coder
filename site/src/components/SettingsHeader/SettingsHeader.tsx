@@ -1,7 +1,8 @@
 import { useTheme } from "@emotion/react";
 import LaunchOutlined from "@mui/icons-material/LaunchOutlined";
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
+import { SquareArrowOutUpRightIcon } from "lucide-react";
 import type { FC, ReactNode } from "react";
 
 interface HeaderProps {
@@ -62,13 +63,11 @@ export const SettingsHeader: FC<HeaderProps> = ({
 			</div>
 
 			{docsHref && (
-				<Button
-					startIcon={<LaunchOutlined />}
-					component="a"
-					href={docsHref}
-					target="_blank"
-				>
-					Read the docs
+				<Button asChild variant="outline">
+					<a href={docsHref} target="_blank" rel="noreferrer">
+						<SquareArrowOutUpRightIcon />
+						Read the docs
+					</a>
 				</Button>
 			)}
 		</Stack>

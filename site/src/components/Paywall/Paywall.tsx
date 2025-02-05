@@ -1,11 +1,10 @@
 import type { Interpolation, Theme } from "@emotion/react";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import { PremiumBadge } from "components/Badges/Badges";
+import { Button } from "components/Button/Button";
 import { Stack } from "components/Stack/Stack";
 import type { FC, ReactNode } from "react";
-import { docs } from "utils/docs";
 
 export interface PaywallProps {
 	message: string;
@@ -57,15 +56,14 @@ export const Paywall: FC<PaywallProps> = ({
 					</li>
 				</ul>
 				<div css={styles.learnButton}>
-					<Button
-						href="https://coder.com/pricing#compare-plans"
-						target="_blank"
-						rel="noreferrer"
-						startIcon={<span css={{ fontSize: 22 }}>&rarr;</span>}
-						variant="outlined"
-						color="neutral"
-					>
-						Learn about Premium
+					<Button asChild>
+						<a
+							href="https://coder.com/pricing#compare-plans"
+							target="_blank"
+							rel="noreferrer"
+						>
+							Learn about Premium
+						</a>
 					</Button>
 				</div>
 			</Stack>

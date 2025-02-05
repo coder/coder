@@ -45,7 +45,6 @@ type MobileMenuProps = MobileMenuPermissions & {
 	proxyContextValue?: ProxyContextValue;
 	user?: TypesGen.User;
 	supportLinks?: readonly TypesGen.LinkConfig[];
-	docsHref: string;
 	onSignOut: () => void;
 	isDefaultOpen?: boolean; // Useful for storybook
 };
@@ -55,7 +54,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	proxyContextValue,
 	user,
 	supportLinks,
-	docsHref,
 	onSignOut,
 	...permissions
 }) => {
@@ -65,7 +63,7 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 	return (
 		<DropdownMenu open={open} onOpenChange={setOpen}>
 			{open && (
-				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-content-primary/50" />
+				<div className="fixed inset-0 top-[72px] backdrop-blur-sm z-10 bg-surface-primary/50" />
 			)}
 			<DropdownMenuTrigger asChild>
 				<Button
@@ -89,12 +87,6 @@ export const MobileMenu: FC<MobileMenuProps> = ({
 						<AdminSettingsSub {...permissions} />
 					</>
 				)}
-				<DropdownMenuSeparator />
-				<DropdownMenuItem asChild className={itemStyles.default}>
-					<a href={docsHref} target="_blank" rel="noreferrer norefereer">
-						Docs
-					</a>
-				</DropdownMenuItem>
 				<DropdownMenuSeparator />
 				<UserSettingsSub
 					user={user}

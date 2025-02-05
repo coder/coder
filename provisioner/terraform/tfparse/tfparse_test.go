@@ -268,7 +268,7 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 						}
 					}`,
 			},
-			expectError: `provisioner tag "az" evaluated to an empty value, please set a default value`,
+			expectTags: map[string]string{"cluster": "developers", "az": "", "platform": "kubernetes", "region": "us"},
 		},
 		{
 			name: "main.tf with missing parameter default value outside workspace tags",
@@ -416,12 +416,51 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 			expectError: `There is no variable named "foo_bar"`,
 		},
 		{
-			name: "main.tf with functions in workspace tags",
+			name: "main.tf with allowed functions in workspace tags",
 			files: map[string]string{
 				"main.tf": `
 					provider "foo" {}
 					resource "foo_bar" "baz" {
 						name = "foobar"
+					}
+					locals {
+						some_path = pathexpand("file.txt")
+					}
+					variable "region" {
+						type    = string
+						default = "us"
+					}
+					data "coder_parameter" "unrelated" {
+						name    = "unrelated"
+						type    = "list(string)"
+						default = jsonencode(["a", "b"])
+					}
+					data "coder_parameter" "az" {
+						name = "az"
+						type = "string"
+						default = "a"
+					}
+					data "coder_workspace_tags" "tags" {
+						tags = {
+							"platform"  = "kubernetes",
+							"cluster"   = "${"devel"}${"opers"}"
+							"region"    = try(split(".", var.region)[1], "placeholder")
+							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
+						}
+					}`,
+			},
+			expectTags: map[string]string{"platform": "kubernetes", "cluster": "developers", "region": "placeholder", "az": "placeholder"},
+		},
+		{
+			name: "main.tf with disallowed functions in workspace tags",
+			files: map[string]string{
+				"main.tf": `
+					provider "foo" {}
+					resource "foo_bar" "baz" {
+						name = "foobar"
+					}
+					locals {
+						some_path = pathexpand("file.txt")
 					}
 					variable "region" {
 						type    = string
@@ -443,11 +482,12 @@ func Test_WorkspaceTagDefaultsFromFile(t *testing.T) {
 							"cluster"   = "${"devel"}${"opers"}"
 							"region"    = try(split(".", var.region)[1], "placeholder")
 							"az"        = try(split(".", data.coder_parameter.az.value)[1], "placeholder")
+							"some_path" = pathexpand("~/file.txt")
 						}
 					}`,
 			},
 			expectTags:  nil,
-			expectError: `Function calls not allowed; Functions may not be called here.`,
+			expectError: `function "pathexpand" may not be used here`,
 		},
 		{
 			name: "supported types",

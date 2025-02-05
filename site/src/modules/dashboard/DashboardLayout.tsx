@@ -1,7 +1,7 @@
 import InfoOutlined from "@mui/icons-material/InfoOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Snackbar from "@mui/material/Snackbar";
+import { Button } from "components/Button/Button";
 import { Loader } from "components/Loader/Loader";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import { AnnouncementBanners } from "modules/dashboard/AnnouncementBanners/AnnouncementBanners";
@@ -92,7 +92,7 @@ export const DashboardLayout: FC = () => {
 						</div>
 					}
 					action={
-						<Button variant="text" size="small" onClick={updateCheck.dismiss}>
+						<Button variant="subtle" size="sm" onClick={updateCheck.dismiss}>
 							Dismiss
 						</Button>
 					}

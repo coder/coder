@@ -7,6 +7,7 @@ import MuiLink from "@mui/material/Link";
 import Skeleton from "@mui/material/Skeleton";
 import Tooltip from "@mui/material/Tooltip";
 import type { GetLicensesResponse } from "api/api";
+import type { UserStatusChangeCount } from "api/typesGenerated";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import { useWindowSize } from "hooks/useWindowSize";
@@ -14,6 +15,7 @@ import type { FC } from "react";
 import Confetti from "react-confetti";
 import { Link } from "react-router-dom";
 import { LicenseCard } from "./LicenseCard";
+import { LicenseSeatConsumptionChart } from "./LicenseSeatConsumptionChart";
 
 type Props = {
 	showConfetti: boolean;
@@ -25,6 +27,7 @@ type Props = {
 	isRefreshing: boolean;
 	removeLicense: (licenseId: number) => void;
 	refreshEntitlements: () => void;
+	activeUsers: UserStatusChangeCount[] | undefined;
 };
 
 const LicensesSettingsPageView: FC<Props> = ({
@@ -37,6 +40,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 	isRefreshing,
 	removeLicense,
 	refreshEntitlements,
+	activeUsers,
 }) => {
 	const theme = useTheme();
 	const { width, height } = useWindowSize();
@@ -50,6 +54,7 @@ const LicensesSettingsPageView: FC<Props> = ({
 				numberOfPieces={showConfetti ? 200 : 0}
 				colors={[theme.palette.primary.main, theme.palette.secondary.main]}
 			/>
+
 			<Stack
 				alignItems="baseline"
 				direction="row"
@@ -81,47 +86,64 @@ const LicensesSettingsPageView: FC<Props> = ({
 				</Stack>
 			</Stack>
 
-			{isLoading && <Skeleton variant="rectangular" height={200} />}
+			<div className="flex flex-col gap-4">
+				{isLoading && (
+					<Skeleton className="rounded" variant="rectangular" height={78} />
+				)}
 
-			{!isLoading && licenses && licenses?.length > 0 && (
-				<Stack spacing={4} className="licenses">
-					{licenses
-						?.sort(
-							(a, b) =>
-								new Date(b.claims.license_expires).valueOf() -
-								new Date(a.claims.license_expires).valueOf(),
-						)
-						.map((license) => (
-							<LicenseCard
-								key={license.id}
-								license={license}
-								userLimitActual={userLimitActual}
-								userLimitLimit={userLimitLimit}
-								isRemoving={isRemovingLicense}
-								onRemove={removeLicense}
-							/>
-						))}
-				</Stack>
-			)}
-
-			{!isLoading && licenses === null && (
-				<div css={styles.root}>
-					<Stack alignItems="center" spacing={1}>
-						<Stack alignItems="center" spacing={0.5}>
-							<span css={styles.title}>You don&apos;t have any licenses!</span>
-							<span css={styles.description}>
-								You&apos;re missing out on high availability, RBAC, quotas, and
-								much more. Contact{" "}
-								<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
-								<MuiLink href="https://coder.com/trial">
-									request a trial license
-								</MuiLink>{" "}
-								to get started.
-							</span>
-						</Stack>
+				{!isLoading && licenses && licenses?.length > 0 && (
+					<Stack spacing={4} className="licenses">
+						{licenses
+							?.sort(
+								(a, b) =>
+									new Date(b.claims.license_expires).valueOf() -
+									new Date(a.claims.license_expires).valueOf(),
+							)
+							.map((license) => (
+								<LicenseCard
+									key={license.id}
+									license={license}
+									userLimitActual={userLimitActual}
+									userLimitLimit={userLimitLimit}
+									isRemoving={isRemovingLicense}
+									onRemove={removeLicense}
+								/>
+							))}
 					</Stack>
-				</div>
-			)}
+				)}
+
+				{!isLoading && licenses === null && (
+					<div css={styles.root}>
+						<Stack alignItems="center" spacing={1}>
+							<Stack alignItems="center" spacing={0.5}>
+								<span css={styles.title}>
+									You don&apos;t have any licenses!
+								</span>
+								<span css={styles.description}>
+									You&apos;re missing out on high availability, RBAC, quotas,
+									and much more. Contact{" "}
+									<MuiLink href="mailto:sales@coder.com">sales</MuiLink> or{" "}
+									<MuiLink href="https://coder.com/trial">
+										request a trial license
+									</MuiLink>{" "}
+									to get started.
+								</span>
+							</Stack>
+						</Stack>
+					</div>
+				)}
+
+				{licenses && licenses.length > 0 && (
+					<LicenseSeatConsumptionChart
+						limit={userLimitLimit}
+						data={activeUsers?.map((i) => ({
+							date: i.date,
+							users: i.count,
+							limit: 80,
+						}))}
+					/>
+				)}
+			</div>
 		</>
 	);
 };

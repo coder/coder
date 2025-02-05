@@ -36,6 +36,7 @@ site/.swc
 .gen-golden
 
 # Build
+bin/
 build/
 dist/
 out/
@@ -54,6 +55,7 @@ site/stats/
 
 # direnv
 .envrc
+.direnv
 *.test
 
 # Loadtesting

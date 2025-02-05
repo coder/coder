@@ -639,7 +639,7 @@ export const TemplateScheduleForm: FC<TemplateScheduleForm> = ({
 					type="submit"
 					disabled={isSubmitting || !form.isValid || !form.dirty}
 				>
-					{isSubmitting && <Spinner />}
+					<Spinner loading={isSubmitting} />
 					Save
 				</Button>
 			</FormFooter>

@@ -28,7 +28,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // TestAcquirer_Store tests that a database.Store is accepted as a provisionerdserver.AcquirerStore
@@ -547,8 +547,8 @@ func TestAcquirer_MatchTags(t *testing.T) {
 			s := fmt.Sprintf("| %s | %s | %s | %s |", kvs(tt.acquireJobTags), kvs(tt.provisionerJobTags), sameOrg, acquire)
 			lines = append(lines, s)
 		}
-		t.Logf("You can paste this into docs/admin/provisioners.md")
-		t.Logf(strings.Join(lines, "\n"))
+		t.Log("You can paste this into docs/admin/provisioners.md")
+		t.Log(strings.Join(lines, "\n"))
 	})
 }
 

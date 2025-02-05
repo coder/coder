@@ -76,7 +76,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 			for _, version := range versions {
 				if version.Archived == archive {
 					_, _ = fmt.Fprintln(
-						inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" already "+pastVerb),
+						inv.Stdout, "Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" already "+pastVerb,
 					)
 					continue
 				}
@@ -87,7 +87,7 @@ func (r *RootCmd) setArchiveTemplateVersion(archive bool) *serpent.Command {
 				}
 
 				_, _ = fmt.Fprintln(
-					inv.Stdout, fmt.Sprintf("Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+pastVerb+" at "+cliui.Timestamp(time.Now())),
+					inv.Stdout, "Version "+pretty.Sprint(cliui.DefaultStyles.Keyword, version.Name)+" "+pastVerb+" at "+cliui.Timestamp(time.Now()),
 				)
 			}
 			return nil

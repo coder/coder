@@ -132,7 +132,11 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 }
 
 func (r *RootCmd) AGPL() []*serpent.Command {
-	all := append(r.CoreSubcommands(), r.Server( /* Do not import coderd here. */ nil))
+	all := append(
+		r.CoreSubcommands(),
+		r.Server( /* Do not import coderd here. */ nil),
+		r.Provisioners(),
+	)
 	return all
 }
 

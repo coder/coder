@@ -28,6 +28,54 @@ JOIN
 WHERE
     provisioner_jobs.id = ANY(@provisioner_job_ids :: uuid[]);
 
+-- name: GetProvisionerDaemonsWithStatusByOrganization :many
+SELECT
+	sqlc.embed(pd),
+	CASE
+		WHEN pd.last_seen_at IS NULL OR pd.last_seen_at < (NOW() - (@stale_interval_ms::bigint || ' ms')::interval)
+		THEN 'offline'
+		ELSE CASE
+			WHEN current_job.id IS NOT NULL THEN 'busy'
+			ELSE 'idle'
+		END
+	END::provisioner_daemon_status AS status,
+	pk.name AS key_name,
+	-- NOTE(mafredri): sqlc.embed doesn't support nullable tables nor renaming them.
+	current_job.id AS current_job_id,
+	current_job.job_status AS current_job_status,
+	previous_job.id AS previous_job_id,
+	previous_job.job_status AS previous_job_status
+FROM
+	provisioner_daemons pd
+JOIN
+	provisioner_keys pk ON pk.id = pd.key_id
+LEFT JOIN
+	provisioner_jobs current_job ON (
+		current_job.worker_id = pd.id
+		AND current_job.completed_at IS NULL
+	)
+LEFT JOIN
+	provisioner_jobs previous_job ON (
+		previous_job.id = (
+			SELECT
+				id
+			FROM
+				provisioner_jobs
+			WHERE
+				worker_id = pd.id
+				AND completed_at IS NOT NULL
+			ORDER BY
+				completed_at DESC
+			LIMIT 1
+		)
+	)
+WHERE
+	pd.organization_id = @organization_id::uuid
+	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
+	AND (@tags::tagset = 'null'::tagset OR provisioner_tagset_contains(pd.tags::tagset, @tags::tagset))
+ORDER BY
+	pd.created_at ASC;
+
 -- name: DeleteOldProvisionerDaemons :exec
 -- Delete provisioner daemons that have been created at least a week ago
 -- and have not connected to coderd since a week.

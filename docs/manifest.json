@@ -162,6 +162,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
 				},
@@ -255,6 +260,11 @@
 							"title": "Scaling Utilities",
 							"description": "Tools to help you scale your deployment",
 							"path": "./admin/infrastructure/scale-utility.md"
+						},
+						{
+							"title": "Scaling best practices",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
 						}
 					]
 				},
@@ -286,7 +296,7 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "IDP Sync",
+							"title": "IdP Sync",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["enterprise", "premium"]
 						},
@@ -505,6 +515,11 @@
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
+						},
+						{
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
+							"path": "./admin/integrations/platformx.md"
 						},
 						{
 							"title": "Hashicorp Vault",
@@ -774,14 +789,19 @@
 					"path": "./tutorials/best-practices/index.md",
 					"children": [
 						{
-							"title": "Security - best practices",
-							"description": "Make your Coder deployment more secure",
-							"path": "./tutorials/best-practices/security-best-practices.md"
-						},
-						{
 							"title": "Organizations - best practices",
 							"description": "How to make the best use of Coder Organizations",
 							"path": "./tutorials/best-practices/organizations.md"
+						},
+						{
+							"title": "Scale Coder",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
+						},
+						{
+							"title": "Security - best practices",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
 						},
 						{
 							"title": "Speed up your workspaces",
@@ -1152,8 +1172,23 @@
 						},
 						{
 							"title": "provisioner",
-							"description": "Manage provisioner daemons",
+							"description": "View and manage provisioner daemons and jobs",
 							"path": "reference/cli/provisioner.md"
+						},
+						{
+							"title": "provisioner jobs",
+							"description": "View and manage provisioner jobs",
+							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
+						},
+						{
+							"title": "provisioner jobs list",
+							"description": "List provisioner jobs",
+							"path": "reference/cli/provisioner_jobs_list.md"
 						},
 						{
 							"title": "provisioner keys",
@@ -1174,6 +1209,11 @@
 							"title": "provisioner keys list",
 							"description": "List provisioner keys in an organization",
 							"path": "reference/cli/provisioner_keys_list.md"
+						},
+						{
+							"title": "provisioner list",
+							"description": "List provisioner daemons in an organization",
+							"path": "reference/cli/provisioner_list.md"
 						},
 						{
 							"title": "provisioner start",

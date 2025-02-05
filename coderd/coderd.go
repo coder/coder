@@ -585,6 +585,8 @@ func New(options *Options) *API {
 		AppearanceFetcher: &api.AppearanceFetcher,
 		BuildInfo:         buildInfo,
 		Entitlements:      options.Entitlements,
+		Telemetry:         options.Telemetry,
+		Logger:            options.Logger.Named("site"),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -1007,6 +1009,13 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Route("/provisionerdaemons", func(r chi.Router) {
+					r.Get("/", api.provisionerDaemons)
+				})
+				r.Route("/provisionerjobs", func(r chi.Router) {
+					r.Get("/{job}", api.provisionerJob)
+					r.Get("/", api.provisionerJobs)
+				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {
@@ -1281,6 +1290,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
 			r.Get("/user-activity", api.insightsUserActivity)
+			r.Get("/user-status-counts", api.insightsUserStatusCounts)
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
 		})

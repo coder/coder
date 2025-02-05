@@ -295,8 +295,12 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Route("/organization", func(r chi.Router) {
 					r.Get("/", api.organizationIDPSyncSettings)
 					r.Patch("/", api.patchOrganizationIDPSyncSettings)
+					r.Patch("/config", api.patchOrganizationIDPSyncConfig)
+					r.Patch("/mapping", api.patchOrganizationIDPSyncMapping)
 				})
+
 				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
+				r.Get("/field-values", api.deploymentIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -306,11 +310,18 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
-				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
 				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
+				r.Patch("/idpsync/groups/config", api.patchGroupIDPSyncConfig)
+				r.Patch("/idpsync/groups/mapping", api.patchGroupIDPSyncMapping)
+
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+				r.Patch("/idpsync/roles/config", api.patchRoleIDPSyncConfig)
+				r.Patch("/idpsync/roles/mapping", api.patchRoleIDPSyncMapping)
+
+				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
+				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -377,7 +388,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		//
 		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
 		// route as is.
-		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+		r.Route("/organizations/{organization}/provisionerdaemons/serve", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
@@ -391,8 +402,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
-			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
+			r.Get("/", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(

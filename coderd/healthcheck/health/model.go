@@ -79,7 +79,7 @@ func (m Message) String() string {
 	return sb.String()
 }
 
-// URL returns a link to the admin/healthcheck docs page for the given Message.
+// URL returns a link to the admin/monitoring/health-check docs page for the given Message.
 // NOTE: if using a custom docs URL, specify base.
 func (m Message) URL(base string) string {
 	var codeAnchor string
@@ -91,11 +91,11 @@ func (m Message) URL(base string) string {
 
 	if base == "" {
 		base = docsURLDefault
-		return fmt.Sprintf("%s/admin/healthcheck#%s", base, codeAnchor)
+		return fmt.Sprintf("%s/admin/monitoring/health-check#%s", base, codeAnchor)
 	}
 
 	// We don't assume that custom docs URLs are versioned.
-	return fmt.Sprintf("%s/admin/healthcheck#%s", base, codeAnchor)
+	return fmt.Sprintf("%s/admin/monitoring/health-check#%s", base, codeAnchor)
 }
 
 // Code is a stable identifier used to link to documentation.

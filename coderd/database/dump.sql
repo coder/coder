@@ -137,6 +137,14 @@ CREATE TYPE port_share_protocol AS ENUM (
     'https'
 );
 
+CREATE TYPE provisioner_daemon_status AS ENUM (
+    'offline',
+    'idle',
+    'busy'
+);
+
+COMMENT ON TYPE provisioner_daemon_status IS 'The status of a provisioner daemon.';
+
 CREATE TYPE provisioner_job_status AS ENUM (
     'pending',
     'running',
@@ -346,13 +354,24 @@ CREATE FUNCTION inhibit_enqueue_if_disabled() RETURNS trigger
     LANGUAGE plpgsql
     AS $$
 BEGIN
-	-- Fail the insertion if the user has disabled this notification.
-	IF EXISTS (SELECT 1
-			   FROM notification_preferences
-			   WHERE disabled = TRUE
-				 AND user_id = NEW.user_id
-				 AND notification_template_id = NEW.notification_template_id) THEN
-		RAISE EXCEPTION 'cannot enqueue message: user has disabled this notification';
+	-- Fail the insertion if one of the following:
+	--  * the user has disabled this notification.
+	--  * the notification template is disabled by default and hasn't
+	--    been explicitly enabled by the user.
+	IF EXISTS (
+		SELECT 1 FROM notification_templates
+		LEFT JOIN notification_preferences
+			ON  notification_preferences.notification_template_id = notification_templates.id
+			AND notification_preferences.user_id = NEW.user_id
+		WHERE notification_templates.id = NEW.notification_template_id AND (
+			-- Case 1: The user has explicitly disabled this template
+			notification_preferences.disabled = TRUE
+			OR
+			-- Case 2: The template is disabled by default AND the user hasn't enabled it
+			(notification_templates.enabled_by_default = FALSE AND notification_preferences.notification_template_id IS NULL)
+		)
+	) THEN
+		RAISE EXCEPTION 'cannot enqueue message: notification is not enabled';
 	END IF;
 
 	RETURN NEW;
@@ -422,6 +441,36 @@ END;
 $$;
 
 COMMENT ON FUNCTION provisioner_tagset_contains(provisioner_tags tagset, job_tags tagset) IS 'Returns true if the provisioner_tags contains the job_tags, or if the job_tags represents an untagged provisioner and the superset is exactly equal to the subset.';
+
+CREATE FUNCTION record_user_status_change() RETURNS trigger
+    LANGUAGE plpgsql
+    AS $$
+BEGIN
+    IF TG_OP = 'INSERT' OR OLD.status IS DISTINCT FROM NEW.status THEN
+        INSERT INTO user_status_changes (
+            user_id,
+            new_status,
+            changed_at
+        ) VALUES (
+            NEW.id,
+            NEW.status,
+            NEW.updated_at
+        );
+    END IF;
+
+    IF OLD.deleted = FALSE AND NEW.deleted = TRUE THEN
+        INSERT INTO user_deleted (
+            user_id,
+            deleted_at
+        ) VALUES (
+            NEW.id,
+            NEW.updated_at
+        );
+    END IF;
+
+    RETURN NEW;
+END;
+$$;
 
 CREATE FUNCTION remove_organization_member_role() RETURNS trigger
     LANGUAGE plpgsql
@@ -844,7 +893,8 @@ CREATE TABLE notification_templates (
     actions jsonb,
     "group" text,
     method notification_method,
-    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL
+    kind notification_template_kind DEFAULT 'system'::notification_template_kind NOT NULL,
+    enabled_by_default boolean DEFAULT true NOT NULL
 );
 
 COMMENT ON TABLE notification_templates IS 'Templates from which to create notification messages.';
@@ -1114,6 +1164,13 @@ CREATE TABLE tailnet_tunnels (
     updated_at timestamp with time zone NOT NULL
 );
 
+CREATE TABLE telemetry_items (
+    key text NOT NULL,
+    value text NOT NULL,
+    created_at timestamp with time zone DEFAULT now() NOT NULL,
+    updated_at timestamp with time zone DEFAULT now() NOT NULL
+);
+
 CREATE TABLE template_usage_stats (
     start_time timestamp with time zone NOT NULL,
     end_time timestamp with time zone NOT NULL,
@@ -1377,6 +1434,14 @@ CREATE VIEW template_with_names AS
 
 COMMENT ON VIEW template_with_names IS 'Joins in the display name information such as username, avatar, and organization name.';
 
+CREATE TABLE user_deleted (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    deleted_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE user_deleted IS 'Tracks when users were deleted';
+
 CREATE TABLE user_links (
     user_id uuid NOT NULL,
     login_type login_type NOT NULL,
@@ -1395,6 +1460,15 @@ COMMENT ON COLUMN user_links.oauth_refresh_token_key_id IS 'The ID of the key us
 
 COMMENT ON COLUMN user_links.claims IS 'Claims from the IDP for the linked user. Includes both id_token and userinfo claims. ';
 
+CREATE TABLE user_status_changes (
+    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    user_id uuid NOT NULL,
+    new_status user_status NOT NULL,
+    changed_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
+COMMENT ON TABLE user_status_changes IS 'Tracks the history of user status changes';
+
 CREATE TABLE workspace_agent_log_sources (
     workspace_agent_id uuid NOT NULL,
     id uuid NOT NULL,
@@ -1410,6 +1484,13 @@ CREATE UNLOGGED TABLE workspace_agent_logs (
     id bigint NOT NULL,
     level log_level DEFAULT 'info'::log_level NOT NULL,
     log_source_id uuid DEFAULT '00000000-0000-0000-0000-000000000000'::uuid NOT NULL
+);
+
+CREATE TABLE workspace_agent_memory_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE UNLOGGED TABLE workspace_agent_metadata (
@@ -1487,6 +1568,14 @@ CREATE TABLE workspace_agent_stats (
     session_count_reconnecting_pty bigint DEFAULT 0 NOT NULL,
     session_count_ssh bigint DEFAULT 0 NOT NULL,
     usage boolean DEFAULT false NOT NULL
+);
+
+CREATE TABLE workspace_agent_volume_resource_monitors (
+    agent_id uuid NOT NULL,
+    enabled boolean NOT NULL,
+    threshold integer NOT NULL,
+    path text NOT NULL,
+    created_at timestamp with time zone NOT NULL
 );
 
 CREATE TABLE workspace_agents (
@@ -1959,6 +2048,9 @@ ALTER TABLE ONLY tailnet_peers
 ALTER TABLE ONLY tailnet_tunnels
     ADD CONSTRAINT tailnet_tunnels_pkey PRIMARY KEY (coordinator_id, src_id, dst_id);
 
+ALTER TABLE ONLY telemetry_items
+    ADD CONSTRAINT telemetry_items_pkey PRIMARY KEY (key);
+
 ALTER TABLE ONLY template_usage_stats
     ADD CONSTRAINT template_usage_stats_pkey PRIMARY KEY (start_time, template_id, user_id);
 
@@ -1980,14 +2072,23 @@ ALTER TABLE ONLY template_versions
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_pkey PRIMARY KEY (id);
 
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_pkey PRIMARY KEY (id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_pkey PRIMARY KEY (user_id, login_type);
+
+ALTER TABLE ONLY user_status_changes
+    ADD CONSTRAINT user_status_changes_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY users
     ADD CONSTRAINT users_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_pkey PRIMARY KEY (workspace_agent_id, id);
+
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_pkey PRIMARY KEY (agent_id);
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_pkey PRIMARY KEY (workspace_agent_id, key);
@@ -2003,6 +2104,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_pkey PRIMARY KEY (agent_id, path);
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_pkey PRIMARY KEY (id);
@@ -2092,6 +2196,10 @@ CREATE INDEX idx_tailnet_peers_coordinator ON tailnet_peers USING btree (coordin
 CREATE INDEX idx_tailnet_tunnels_dst_id ON tailnet_tunnels USING hash (dst_id);
 
 CREATE INDEX idx_tailnet_tunnels_src_id ON tailnet_tunnels USING hash (src_id);
+
+CREATE INDEX idx_user_deleted_deleted_at ON user_deleted USING btree (deleted_at);
+
+CREATE INDEX idx_user_status_changes_changed_at ON user_status_changes USING btree (changed_at);
 
 CREATE UNIQUE INDEX idx_users_email ON users USING btree (email) WHERE (deleted = false);
 
@@ -2235,6 +2343,8 @@ CREATE TRIGGER trigger_upsert_user_links BEFORE INSERT OR UPDATE ON user_links F
 
 CREATE TRIGGER update_notification_message_dedupe_hash BEFORE INSERT OR UPDATE ON notification_messages FOR EACH ROW EXECUTE FUNCTION compute_notification_message_dedupe_hash();
 
+CREATE TRIGGER user_status_change_trigger AFTER INSERT OR UPDATE ON users FOR EACH ROW EXECUTE FUNCTION record_user_status_change();
+
 ALTER TABLE ONLY api_keys
     ADD CONSTRAINT api_keys_user_id_uuid_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
@@ -2358,6 +2468,9 @@ ALTER TABLE ONLY templates
 ALTER TABLE ONLY templates
     ADD CONSTRAINT templates_organization_id_fkey FOREIGN KEY (organization_id) REFERENCES organizations(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY user_deleted
+    ADD CONSTRAINT user_deleted_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_oauth_access_token_key_id_fkey FOREIGN KEY (oauth_access_token_key_id) REFERENCES dbcrypt_keys(active_key_digest);
 
@@ -2367,8 +2480,14 @@ ALTER TABLE ONLY user_links
 ALTER TABLE ONLY user_links
     ADD CONSTRAINT user_links_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY user_status_changes
+    ADD CONSTRAINT user_status_changes_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id);
+
 ALTER TABLE ONLY workspace_agent_log_sources
     ADD CONSTRAINT workspace_agent_log_sources_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_memory_resource_monitors
+    ADD CONSTRAINT workspace_agent_memory_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agent_metadata
     ADD CONSTRAINT workspace_agent_metadata_workspace_agent_id_fkey FOREIGN KEY (workspace_agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
@@ -2384,6 +2503,9 @@ ALTER TABLE ONLY workspace_agent_scripts
 
 ALTER TABLE ONLY workspace_agent_logs
     ADD CONSTRAINT workspace_agent_startup_logs_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_agent_volume_resource_monitors
+    ADD CONSTRAINT workspace_agent_volume_resource_monitors_agent_id_fkey FOREIGN KEY (agent_id) REFERENCES workspace_agents(id) ON DELETE CASCADE;
 
 ALTER TABLE ONLY workspace_agents
     ADD CONSTRAINT workspace_agents_resource_id_fkey FOREIGN KEY (resource_id) REFERENCES workspace_resources(id) ON DELETE CASCADE;

@@ -47,9 +47,11 @@ export const OrganizationSidebar: FC = () => {
 			return canEditOrganization(org.permissions);
 		});
 
+	const organization = editableOrgs?.find((o) => o.name === organizationName);
+
 	return (
 		<OrganizationSidebarView
-			activeOrganizationName={organizationName}
+			activeOrganization={organization}
 			organizations={editableOrgs}
 			permissions={permissions}
 		/>

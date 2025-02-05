@@ -1,0 +1,13 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder provisioner jobs cancel [flags] <job_id>
+
+  Cancel a provisioner job
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+———
+Run `coder --help` for a list of global options.

@@ -1,4 +1,4 @@
-import Button from "@mui/material/Button";
+import { Button } from "components/Button/Button";
 import { Margins } from "components/Margins/Margins";
 import {
 	PageHeader,
@@ -25,7 +25,7 @@ export const FullPageHorizontalForm: FC<FullPageHorizontalFormProps> = ({
 			<PageHeader
 				actions={
 					onCancel && (
-						<Button size="small" onClick={onCancel}>
+						<Button variant="outline" onClick={onCancel}>
 							Cancel
 						</Button>
 					)

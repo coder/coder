@@ -1474,79 +1474,6 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/members
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
-## Get provisioner daemons
-
-### Code samples
-
-```shell
-# Example request using curl
-curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisionerdaemons \
-  -H 'Accept: application/json' \
-  -H 'Coder-Session-Token: API_KEY'
-```
-
-`GET /organizations/{organization}/provisionerdaemons`
-
-### Parameters
-
-| Name           | In    | Type         | Required | Description                                                                        |
-|----------------|-------|--------------|----------|------------------------------------------------------------------------------------|
-| `organization` | path  | string(uuid) | true     | Organization ID                                                                    |
-| `tags`         | query | object       | false    | Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'}) |
-
-### Example responses
-
-> 200 Response
-
-```json
-[
-  {
-    "api_version": "string",
-    "created_at": "2019-08-24T14:15:22Z",
-    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
-    "last_seen_at": "2019-08-24T14:15:22Z",
-    "name": "string",
-    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
-    "provisioners": [
-      "string"
-    ],
-    "tags": {
-      "property1": "string",
-      "property2": "string"
-    },
-    "version": "string"
-  }
-]
-```
-
-### Responses
-
-| Status | Meaning                                                 | Description | Schema                                                                      |
-|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
-| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerDaemon](schemas.md#codersdkprovisionerdaemon) |
-
-<h3 id="get-provisioner-daemons-responseschema">Response Schema</h3>
-
-Status Code **200**
-
-| Name                | Type              | Required | Restrictions | Description |
-|---------------------|-------------------|----------|--------------|-------------|
-| `[array item]`      | array             | false    |              |             |
-| `» api_version`     | string            | false    |              |             |
-| `» created_at`      | string(date-time) | false    |              |             |
-| `» id`              | string(uuid)      | false    |              |             |
-| `» key_id`          | string(uuid)      | false    |              |             |
-| `» last_seen_at`    | string(date-time) | false    |              |             |
-| `» name`            | string            | false    |              |             |
-| `» organization_id` | string(uuid)      | false    |              |             |
-| `» provisioners`    | array             | false    |              |             |
-| `» tags`            | object            | false    |              |             |
-| `»» [any property]` | string            | false    |              |             |
-| `» version`         | string            | false    |              |             |
-
-To perform this operation, you must be authenticated. [Learn more](authentication.md).
-
 ## Serve provisioner daemon
 
 ### Code samples
@@ -1700,14 +1627,24 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
       {
         "api_version": "string",
         "created_at": "2019-08-24T14:15:22Z",
+        "current_job": {
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "status": "pending"
+        },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
+        "key_name": "string",
         "last_seen_at": "2019-08-24T14:15:22Z",
         "name": "string",
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+        "previous_job": {
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "status": "pending"
+        },
         "provisioners": [
           "string"
         ],
+        "status": "offline",
         "tags": {
           "property1": "string",
           "property2": "string"
@@ -1739,28 +1676,48 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                 | Type                                                                 | Required | Restrictions | Description |
-|----------------------|----------------------------------------------------------------------|----------|--------------|-------------|
-| `[array item]`       | array                                                                | false    |              |             |
-| `» daemons`          | array                                                                | false    |              |             |
-| `»» api_version`     | string                                                               | false    |              |             |
-| `»» created_at`      | string(date-time)                                                    | false    |              |             |
-| `»» id`              | string(uuid)                                                         | false    |              |             |
-| `»» key_id`          | string(uuid)                                                         | false    |              |             |
-| `»» last_seen_at`    | string(date-time)                                                    | false    |              |             |
-| `»» name`            | string                                                               | false    |              |             |
-| `»» organization_id` | string(uuid)                                                         | false    |              |             |
-| `»» provisioners`    | array                                                                | false    |              |             |
-| `»» tags`            | object                                                               | false    |              |             |
-| `»»» [any property]` | string                                                               | false    |              |             |
-| `»» version`         | string                                                               | false    |              |             |
-| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey)         | false    |              |             |
-| `»» created_at`      | string(date-time)                                                    | false    |              |             |
-| `»» id`              | string(uuid)                                                         | false    |              |             |
-| `»» name`            | string                                                               | false    |              |             |
-| `»» organization`    | string(uuid)                                                         | false    |              |             |
-| `»» tags`            | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags) | false    |              |             |
-| `»»» [any property]` | string                                                               | false    |              |             |
+| Name                 | Type                                                                           | Required | Restrictions | Description      |
+|----------------------|--------------------------------------------------------------------------------|----------|--------------|------------------|
+| `[array item]`       | array                                                                          | false    |              |                  |
+| `» daemons`          | array                                                                          | false    |              |                  |
+| `»» api_version`     | string                                                                         | false    |              |                  |
+| `»» created_at`      | string(date-time)                                                              | false    |              |                  |
+| `»» current_job`     | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `»»» id`             | string(uuid)                                                                   | false    |              |                  |
+| `»»» status`         | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)       | false    |              |                  |
+| `»» id`              | string(uuid)                                                                   | false    |              |                  |
+| `»» key_id`          | string(uuid)                                                                   | false    |              |                  |
+| `»» key_name`        | string                                                                         | false    |              | Optional fields. |
+| `»» last_seen_at`    | string(date-time)                                                              | false    |              |                  |
+| `»» name`            | string                                                                         | false    |              |                  |
+| `»» organization_id` | string(uuid)                                                                   | false    |              |                  |
+| `»» previous_job`    | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `»» provisioners`    | array                                                                          | false    |              |                  |
+| `»» status`          | [codersdk.ProvisionerDaemonStatus](schemas.md#codersdkprovisionerdaemonstatus) | false    |              |                  |
+| `»» tags`            | object                                                                         | false    |              |                  |
+| `»»» [any property]` | string                                                                         | false    |              |                  |
+| `»» version`         | string                                                                         | false    |              |                  |
+| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey)                   | false    |              |                  |
+| `»» created_at`      | string(date-time)                                                              | false    |              |                  |
+| `»» id`              | string(uuid)                                                                   | false    |              |                  |
+| `»» name`            | string                                                                         | false    |              |                  |
+| `»» organization`    | string(uuid)                                                                   | false    |              |                  |
+| `»» tags`            | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags)           | false    |              |                  |
+| `»»» [any property]` | string                                                                         | false    |              |                  |
+
+#### Enumerated Values
+
+| Property | Value       |
+|----------|-------------|
+| `status` | `pending`   |
+| `status` | `running`   |
+| `status` | `succeeded` |
+| `status` | `canceling` |
+| `status` | `canceled`  |
+| `status` | `failed`    |
+| `status` | `offline`   |
+| `status` | `idle`      |
+| `status` | `busy`      |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1827,6 +1784,46 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/setting
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
 
 <h3 id="get-the-available-organization-idp-sync-claim-fields-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get the organization idp sync claim field values
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/field-values?claimField=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /organizations/{organization}/settings/idpsync/field-values`
+
+### Parameters
+
+| Name           | In    | Type           | Required | Description     |
+|----------------|-------|----------------|----------|-----------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID |
+| `claimField`   | query | string(string) | true     | Claim Field     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-organization-idp-sync-claim-field-values-responseschema">Response Schema</h3>
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
@@ -1956,6 +1953,141 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Update group IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/groups/config`
+
+> Body parameter
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "regex_filter": {}
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                         | Required | Description             |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name |
+| `body`         | body | [codersdk.PatchGroupIDPSyncConfigRequest](schemas.md#codersdkpatchgroupidpsyncconfigrequest) | true     | New config values       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "legacy_group_name_mapping": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update group IdP Sync mapping
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/groups/mapping \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/groups/mapping`
+
+> Body parameter
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                           | Required | Description                                   |
+|----------------|------|------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `organization` | path | string(uuid)                                                                                   | true     | Organization ID or name                       |
+| `body`         | body | [codersdk.PatchGroupIDPSyncMappingRequest](schemas.md#codersdkpatchgroupidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "auto_create_missing_groups": true,
+  "field": "string",
+  "legacy_group_name_mapping": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "regex_filter": {}
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                             |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.GroupSyncSettings](schemas.md#codersdkgroupsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get role IdP Sync settings by organization
 
 ### Code samples
@@ -2037,6 +2169,127 @@ curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/setti
 |----------------|------|------------------------------------------------------------------|----------|-----------------|
 | `organization` | path | string(uuid)                                                     | true     | Organization ID |
 | `body`         | body | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) | true     | New settings    |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles/config`
+
+> Body parameter
+
+```json
+{
+  "field": "string"
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                       | Required | Description             |
+|----------------|------|--------------------------------------------------------------------------------------------|----------|-------------------------|
+| `organization` | path | string(uuid)                                                                               | true     | Organization ID or name |
+| `body`         | body | [codersdk.PatchRoleIDPSyncConfigRequest](schemas.md#codersdkpatchroleidpsyncconfigrequest) | true     | New config values       |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  }
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                           |
+|--------|---------------------------------------------------------|-------------|------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.RoleSyncSettings](schemas.md#codersdkrolesyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update role IdP Sync mapping
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/organizations/{organization}/settings/idpsync/roles/mapping \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /organizations/{organization}/settings/idpsync/roles/mapping`
+
+> Body parameter
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name           | In   | Type                                                                                         | Required | Description                                   |
+|----------------|------|----------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `organization` | path | string(uuid)                                                                                 | true     | Organization ID or name                       |
+| `body`         | body | [codersdk.PatchRoleIDPSyncMappingRequest](schemas.md#codersdkpatchroleidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
 
 ### Example responses
 
@@ -2536,6 +2789,46 @@ curl -X GET http://coder-server:8080/api/v2/settings/idpsync/available-fields \
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get the idp sync claim field values
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/settings/idpsync/field-values?claimField=string \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /settings/idpsync/field-values`
+
+### Parameters
+
+| Name           | In    | Type           | Required | Description     |
+|----------------|-------|----------------|----------|-----------------|
+| `organization` | path  | string(uuid)   | true     | Organization ID |
+| `claimField`   | query | string(string) | true     | Claim Field     |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  "string"
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema          |
+|--------|---------------------------------------------------------|-------------|-----------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of string |
+
+<h3 id="get-the-idp-sync-claim-field-values-responseschema">Response Schema</h3>
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get organization IdP Sync settings
 
 ### Code samples
@@ -2612,6 +2905,128 @@ curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization \
 | Name   | In   | Type                                                                             | Required | Description  |
 |--------|------|----------------------------------------------------------------------------------|----------|--------------|
 | `body` | body | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) | true     | New settings |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "organization_assign_default": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization IdP Sync config
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/config \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /settings/idpsync/organization/config`
+
+> Body parameter
+
+```json
+{
+  "assign_default": true,
+  "field": "string"
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                       | Required | Description       |
+|--------|------|------------------------------------------------------------------------------------------------------------|----------|-------------------|
+| `body` | body | [codersdk.PatchOrganizationIDPSyncConfigRequest](schemas.md#codersdkpatchorganizationidpsyncconfigrequest) | true     | New config values |
+
+### Example responses
+
+> 200 Response
+
+```json
+{
+  "field": "string",
+  "mapping": {
+    "property1": [
+      "string"
+    ],
+    "property2": [
+      "string"
+    ]
+  },
+  "organization_assign_default": true
+}
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                           |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.OrganizationSyncSettings](schemas.md#codersdkorganizationsyncsettings) |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Update organization IdP Sync mapping
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X PATCH http://coder-server:8080/api/v2/settings/idpsync/organization/mapping \
+  -H 'Content-Type: application/json' \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`PATCH /settings/idpsync/organization/mapping`
+
+> Body parameter
+
+```json
+{
+  "add": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ],
+  "remove": [
+    {
+      "gets": "string",
+      "given": "string"
+    }
+  ]
+}
+```
+
+### Parameters
+
+| Name   | In   | Type                                                                                                         | Required | Description                                   |
+|--------|------|--------------------------------------------------------------------------------------------------------------|----------|-----------------------------------------------|
+| `body` | body | [codersdk.PatchOrganizationIDPSyncMappingRequest](schemas.md#codersdkpatchorganizationidpsyncmappingrequest) | true     | Description of the mappings to add and remove |
 
 ### Example responses
 

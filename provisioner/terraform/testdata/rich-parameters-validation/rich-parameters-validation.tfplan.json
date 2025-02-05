@@ -10,28 +10,27 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "arm64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
+            "resources_monitoring": [],
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
             "display_apps": [],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -68,16 +67,14 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [],
           "motd_file": null,
           "order": null,
           "os": "windows",
+          "resources_monitoring": [],
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -85,12 +82,14 @@
           "id": true,
           "init_script": true,
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
         "after_sensitive": {
           "display_apps": [],
           "metadata": [],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -136,7 +135,7 @@
               "display_name": null,
               "ephemeral": true,
               "icon": null,
-              "id": "df8ad066-047d-434d-baa3-e19517ee7395",
+              "id": "30116bcb-f109-4807-be06-666a60b6cbb2",
               "mutable": true,
               "name": "number_example",
               "option": null,
@@ -163,7 +162,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "7d9658aa-ff69-477a-9063-e9fd49fd9a9b",
+              "id": "755395f4-d163-4b90-a8f4-e7ae24e17dd0",
               "mutable": false,
               "name": "number_example_max",
               "option": null,
@@ -202,7 +201,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "bd6fcaac-db7f-4c4d-a664-fe7f47fad28a",
+              "id": "dec9fa47-a252-4eb7-868b-10d0fe7bad57",
               "mutable": false,
               "name": "number_example_max_zero",
               "option": null,
@@ -241,7 +240,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "8d42942d-5a10-43c9-a31d-d3fe9a7814e8",
+              "id": "57107f82-107b-484d-8491-0787f051dca7",
               "mutable": false,
               "name": "number_example_min",
               "option": null,
@@ -280,7 +279,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "695301d0-8325-4685-824d-1ca9591689e3",
+              "id": "c21a61f4-26e0-49bb-99c8-56240433c21b",
               "mutable": false,
               "name": "number_example_min_max",
               "option": null,
@@ -319,7 +318,7 @@
               "display_name": null,
               "ephemeral": false,
               "icon": null,
-              "id": "cd921934-d1b1-4370-8a73-2d43658ea877",
+              "id": "4894f5cc-f4e6-4a86-bdfa-36c9d3f8f1a3",
               "mutable": false,
               "name": "number_example_min_zero",
               "option": null,
@@ -377,7 +376,7 @@
               "constant_value": "windows"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.dev",
@@ -551,7 +550,7 @@
       ]
     }
   },
-  "timestamp": "2024-10-28T20:08:18Z",
+  "timestamp": "2025-01-29T22:48:20Z",
   "applyable": true,
   "complete": true,
   "errored": false

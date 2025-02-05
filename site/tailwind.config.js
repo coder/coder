@@ -15,6 +15,7 @@ module.exports = {
 			},
 			fontSize: {
 				"2xs": ["0.625rem", "0.875rem"],
+				xs: ["0.75rem", "1.125rem"],
 				sm: ["0.875rem", "1.5rem"],
 				"3xl": ["2rem", "2.5rem"],
 			},
@@ -50,12 +51,9 @@ module.exports = {
 				},
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
-				chart: {
-					1: "hsl(var(--chart-1))",
-					2: "hsl(var(--chart-2))",
-					3: "hsl(var(--chart-3))",
-					4: "hsl(var(--chart-4))",
-					5: "hsl(var(--chart-5))",
+				highlight: {
+					purple: "hsl(var(--highlight-purple))",
+					green: "hsl(var(--highlight-green))",
 				},
 			},
 			keyframes: {

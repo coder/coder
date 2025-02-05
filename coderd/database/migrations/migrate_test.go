@@ -28,7 +28,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestMigrate(t *testing.T) {
@@ -283,9 +283,9 @@ func TestMigrateUpWithFixtures(t *testing.T) {
 			}
 		}
 		if len(emptyTables) > 0 {
-			t.Logf("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
+			t.Log("The following tables have zero rows, consider adding fixtures for them or create a full database dump:")
 			t.Errorf("tables have zero rows: %v", emptyTables)
-			t.Logf("See https://github.com/coder/coder/blob/main/docs/CONTRIBUTING.md#database-fixtures-for-testing-migrations for more information")
+			t.Log("See https://github.com/coder/coder/blob/main/docs/CONTRIBUTING.md#database-fixtures-for-testing-migrations for more information")
 		}
 	})
 

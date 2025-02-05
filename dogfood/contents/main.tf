@@ -20,7 +20,6 @@ locals {
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
     "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
-    "ja-tokyo"      = "tcp://reuenthal-tokyo-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
@@ -83,11 +82,6 @@ data "coder_parameter" "region" {
     name  = "Cape Town"
     value = "za-cpt"
   }
-  option {
-    icon  = "/emojis/1f1ef-1f1f5.png"
-    name  = "Tokyo"
-    value = "ja-tokyo"
-  }
 }
 
 provider "docker" {
@@ -149,6 +143,17 @@ module "code-server" {
   auto_install_extensions = true
 }
 
+module "vscode-web" {
+  count                   = data.coder_workspace.me.start_count
+  source                  = "registry.coder.com/modules/vscode-web/coder"
+  version                 = ">= 1.0.0"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  extensions              = ["github.copilot"]
+  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
+  accept_license          = true
+}
+
 module "jetbrains_gateway" {
   count          = data.coder_workspace.me.start_count
   source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
@@ -180,6 +185,13 @@ module "cursor" {
   count    = data.coder_workspace.me.start_count
   source   = "dev.registry.coder.com/modules/cursor/coder"
   version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "./zed"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -237,7 +249,7 @@ resource "coder_agent" "dev" {
     key          = "swap_usage_host"
     order        = 4
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -250,7 +262,7 @@ resource "coder_agent" "dev" {
     order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -271,7 +283,7 @@ resource "coder_agent" "dev" {
     key          = "word"
     order        = 7
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
@@ -279,6 +291,7 @@ resource "coder_agent" "dev" {
   }
 
   startup_script = <<-EOT
+    #!/usr/bin/env bash
     set -eux -o pipefail
 
     # Allow synchronization between scripts.
@@ -339,7 +352,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
-    filesha1("Dockerfile.nix"),
+    filesha1("nix.hash"),
   ]
   keep_locally = true
 }
