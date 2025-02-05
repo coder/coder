@@ -1,5 +1,5 @@
-import { cva, type VariantProps } from "class-variance-authority";
-import { createContext, useContext, type FC } from "react";
+import { type VariantProps, cva } from "class-variance-authority";
+import { type FC, createContext, useContext } from "react";
 import { cn } from "utils/cn";
 
 const statusIndicatorVariants = cva(
