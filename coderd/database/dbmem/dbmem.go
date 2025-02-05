@@ -4112,12 +4112,6 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			continue
 		}
 
-		var input codersdk.ProvisionerJobInput
-		err := json.Unmarshal([]byte(job.Input), &input)
-		if err != nil {
-			return nil, err
-		}
-
 		row := database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow{
 			ProvisionerJob: rowQP.ProvisionerJob,
 			QueuePosition:  rowQP.QueuePosition,
@@ -4125,6 +4119,11 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		}
 
 		// Start add metadata.
+		var input codersdk.ProvisionerJobInput
+		err := json.Unmarshal([]byte(job.Input), &input)
+		if err != nil {
+			return nil, err
+		}
 		templateVersionID := input.TemplateVersionID
 		if input.WorkspaceBuildID != nil {
 			workspabeBuild, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
