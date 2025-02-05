@@ -6,6 +6,7 @@ import type {
 	Organization,
 } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Combobox } from "components/Combobox/Combobox";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -30,7 +31,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { type FC, useId, useState, type KeyboardEventHandler } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
@@ -70,6 +71,7 @@ interface IdpGroupSyncFormProps {
 	legacyGroupMappingCount: number;
 	organization: Organization;
 	onSubmit: (data: GroupSyncSettings) => void;
+	onSyncFieldChange: (value: string) => void;
 }
 
 export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
@@ -81,6 +83,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	groupsMap,
 	organization,
 	onSubmit,
+	onSyncFieldChange,
 }) => {
 	const form = useFormik<GroupSyncSettings>({
 		initialValues: {
@@ -97,6 +100,8 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	const [idpGroupName, setIdpGroupName] = useState("");
 	const [coderGroups, setCoderGroups] = useState<Option[]>([]);
 	const id = useId();
+	const [comboInputValue, setComboInputValue] = useState("");
+	const [open, setOpen] = useState(false);
 
 	const getGroupNames = (groupIds: readonly string[]) => {
 		return groupIds.map((groupId) => groupsMap.get(groupId) || groupId);
@@ -114,6 +119,19 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 		};
 		void form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
+	};
+
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+		if (
+			event.key === "Enter" &&
+			comboInputValue &&
+			!claimFieldValues?.some((value) => value === comboInputValue.toLowerCase())
+		) {
+			event.preventDefault();
+			setIdpGroupName(comboInputValue);
+			setComboInputValue("");
+			setOpen(false);
+		}
 	};
 
 	return (
@@ -143,6 +161,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 								value={form.values.field}
 								onChange={(event) => {
 									void form.setFieldValue("field", event.target.value);
+									onSyncFieldChange(event.target.value);
 								}}
 								className="w-72"
 							/>
@@ -202,14 +221,31 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 						<Label className="text-sm" htmlFor={`${id}-idp-group-name`}>
 							IdP group name
 						</Label>
-						<Input
-							id={`${id}-idp-group-name`}
-							value={idpGroupName}
-							className="w-72"
-							onChange={(event) => {
-								setIdpGroupName(event.target.value);
-							}}
-						/>
+						{claimFieldValues ? (
+							<Combobox
+								value={idpGroupName}
+								options={claimFieldValues}
+								placeholder="Select IdP organization"
+								open={open}
+								onOpenChange={setOpen}
+								inputValue={comboInputValue}
+								onInputChange={setComboInputValue}
+								onKeyDown={handleKeyDown}
+								onSelect={(value: string) => {
+									setIdpGroupName(value);
+									setOpen(false);
+								}}
+							/>
+						) : (
+							<Input
+								id={`${id}-idp-group-name`}
+								value={idpGroupName}
+								className="w-72"
+								onChange={(event) => {
+									setIdpGroupName(event.target.value);
+								}}
+							/>
+						)}
 					</div>
 					<div className="grid items-center gap-1 flex-1">
 						<Label className="text-sm" htmlFor={`${id}-coder-group`}>

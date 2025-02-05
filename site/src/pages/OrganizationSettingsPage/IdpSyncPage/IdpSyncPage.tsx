@@ -8,6 +8,7 @@ import {
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
+import type { GroupSyncSettings, RoleSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -16,7 +17,7 @@ import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import type { FC } from "react";
+import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -29,6 +30,8 @@ export const IdpSyncPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
+	const [groupClaimField, setGroupClaimField] = useState("");
+	const [roleClaimField, setRoleClaimField] = useState("");
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useOrganizationSettings();
@@ -41,8 +44,22 @@ export const IdpSyncPage: FC = () => {
 		rolesQuery,
 	] = useQueries({
 		queries: [
-			groupIdpSyncSettings(organizationName),
-			roleIdpSyncSettings(organizationName),
+			{
+				...groupIdpSyncSettings(organizationName),
+				onSuccess: (data: GroupSyncSettings) => {
+					if (data?.field) {
+						setGroupClaimField(data.field);
+					}
+				},
+			},
+			{
+				...roleIdpSyncSettings(organizationName),
+				onSuccess: (data: RoleSyncSettings) => {
+					if (data?.field) {
+						setRoleClaimField(data.field);
+					}
+				},
+			},
 			groupsByOrganization(organizationName),
 			organizationRoles(organizationName),
 		],
@@ -86,6 +103,14 @@ export const IdpSyncPage: FC = () => {
 		}
 	}
 
+	const handleGroupSyncFieldChange = (value: string) => {
+		setGroupClaimField(value);
+	};
+
+	const handleRoleSyncFieldChange = (value: string) => {
+		setRoleClaimField(value);
+	};
+
 	return (
 		<>
 			<Helmet>
@@ -121,6 +146,8 @@ export const IdpSyncPage: FC = () => {
 							groupsMap={groupsMap}
 							roles={rolesQuery.data}
 							organization={organization}
+							onGroupSyncFieldChange={handleGroupSyncFieldChange}
+							onRoleSyncFieldChange={handleRoleSyncFieldChange}
 							error={error}
 							onSubmitGroupSyncSettings={async (data) => {
 								try {
