@@ -65,7 +65,8 @@ const OrganizationSettingsLayout: FC = () => {
 		organization?: string;
 	};
 
-	const canViewOrganizationSettingsPage = permissions.editAnyOrganization;
+	const canViewOrganizationSettings =
+		permissions.viewDeploymentValues || permissions.editAnyOrganization;
 
 	const organization = orgName
 		? organizations.find((org) => org.name === orgName)
@@ -98,7 +99,7 @@ const OrganizationSettingsLayout: FC = () => {
 	}
 
 	return (
-		<RequirePermission isFeatureVisible={canViewOrganizationSettingsPage}>
+		<RequirePermission isFeatureVisible={canViewOrganizationSettings}>
 			<OrganizationSettingsContext.Provider
 				value={{
 					organizations: viewableOrganizations,

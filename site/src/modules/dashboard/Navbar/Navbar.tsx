@@ -16,10 +16,11 @@ export const Navbar: FC = () => {
 	const { user: me, permissions, signOut } = useAuthenticated();
 	const featureVisibility = useFeatureVisibility();
 	const canViewAuditLog =
-		featureVisibility.audit_log && Boolean(permissions.viewAnyAuditLog);
-	const canViewDeployment = Boolean(permissions.viewDeploymentValues);
+		featureVisibility.audit_log && permissions.viewAnyAuditLog;
+	const canViewDeployment = permissions.viewDeploymentValues;
 	const canViewOrganizations =
-		Boolean(permissions.editAnyOrganization) && showOrganizations;
+		(permissions.viewDeploymentValues || permissions.editAnyOrganization) &&
+		showOrganizations;
 	const proxyContextValue = useProxy();
 	const canViewHealth = canViewDeployment;
 
