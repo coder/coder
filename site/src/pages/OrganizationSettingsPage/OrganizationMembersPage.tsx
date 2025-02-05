@@ -4,7 +4,6 @@ import { groupsByUserIdInOrganization } from "api/queries/groups";
 import {
 	addOrganizationMember,
 	organizationMembers,
-	organizationPermissions,
 	removeOrganizationMember,
 	updateOrganizationMemberRoles,
 } from "api/queries/organizations";
@@ -19,23 +18,23 @@ import { useOrganizationSettings } from "modules/management/OrganizationSettings
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
+import { useParams } from "react-router-dom";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
+	const { user: me } = useAuthenticated();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const { user: me } = useAuthenticated();
-
-	const groupsByUserIdQuery = useQuery(
-		groupsByUserIdInOrganization(organizationName),
-	);
+	const { organization, organizationPermissions } = useOrganizationSettings();
 
 	const membersQuery = useQuery(organizationMembers(organizationName));
 	const organizationRolesQuery = useQuery(organizationRoles(organizationName));
+	const groupsByUserIdQuery = useQuery(
+		groupsByUserIdInOrganization(organizationName),
+	);
 
 	const members = membersQuery.data?.map((member) => {
 		const groups = groupsByUserIdQuery.data?.get(member.user_id) ?? [];
@@ -52,15 +51,10 @@ const OrganizationMembersPage: FC = () => {
 		updateOrganizationMemberRoles(queryClient, organizationName),
 	);
 
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
-
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
 
-	const permissions = permissionsQuery.data;
-	if (!permissions) {
+	if (!organizationPermissions) {
 		return <Loader />;
 	}
 
@@ -77,9 +71,11 @@ const OrganizationMembersPage: FC = () => {
 			{helmet}
 			<OrganizationMembersPageView
 				allAvailableRoles={organizationRolesQuery.data}
-				canEditMembers={permissions.editMembers}
+				canEditMembers={organizationPermissions.editMembers}
 				error={
 					membersQuery.error ??
+					organizationRolesQuery.error ??
+					groupsByUserIdQuery.error ??
 					addMemberMutation.error ??
 					removeMemberMutation.error ??
 					updateMemberRolesMutation.error

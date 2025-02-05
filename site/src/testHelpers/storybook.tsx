@@ -17,6 +17,8 @@ import {
 	MockDefaultOrganization,
 	MockDeploymentConfig,
 	MockEntitlements,
+	MockOrganizationPermissions,
+	MockPermissions,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -153,12 +155,16 @@ export const withGlobalSnackbar = (Story: FC) => (
 	</>
 );
 
-export const withManagementSettingsProvider = (Story: FC) => {
+export const withOrganizationSettingsProvider = (Story: FC) => {
 	return (
 		<OrganizationSettingsContext.Provider
 			value={{
 				organizations: [MockDefaultOrganization],
+				permissionsByOrganizationId: {
+					[MockDefaultOrganization.id]: MockOrganizationPermissions,
+				},
 				organization: MockDefaultOrganization,
+				organizationPermissions: MockOrganizationPermissions,
 			}}
 		>
 			<DeploymentSettingsContext.Provider

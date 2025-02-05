@@ -1,5 +1,4 @@
 import { getErrorMessage } from "api/errors";
-import { organizationPermissions } from "api/queries/organizations";
 import {
 	createOrganizationRole,
 	organizationRoles,
@@ -24,9 +23,7 @@ export const CreateEditRolePage: FC = () => {
 		organization: string;
 		roleName: string;
 	};
-	const { organizations } = useOrganizationSettings();
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(organizationPermissions(organization?.id));
+	const { organizationPermissions } = useOrganizationSettings();
 	const createOrganizationRoleMutation = useMutation(
 		createOrganizationRole(queryClient, organizationName),
 	);
@@ -37,9 +34,8 @@ export const CreateEditRolePage: FC = () => {
 		organizationRoles(organizationName),
 	);
 	const role = roleData?.find((role) => role.name === roleName);
-	const permissions = permissionsQuery.data;
 
-	if (isLoading || !permissions) {
+	if (isLoading || !organizationPermissions) {
 		return <Loader />;
 	}
 
@@ -80,7 +76,7 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={permissions.assignOrgRole}
+				canAssignOrgRole={organizationPermissions.assignOrgRole}
 			/>
 		</>
 	);

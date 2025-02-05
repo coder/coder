@@ -8,6 +8,7 @@ import type * as TypesGen from "api/typesGenerated";
 import type { Permissions } from "contexts/auth/permissions";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
 import range from "lodash/range";
+import type { OrganizationPermissions } from "modules/management/organizationPermissions";
 import type { FileTree } from "utils/filetree";
 import type { TemplateVersionFiles } from "utils/templateVersion";
 
@@ -2821,6 +2822,30 @@ export const MockPermissions: Permissions = {
 	viewAllLicenses: true,
 	viewNotificationTemplate: true,
 	viewOrganizationIDPSyncSettings: true,
+};
+
+export const MockOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: true,
+	editMembers: true,
+	createGroup: true,
+	viewGroups: true,
+	editGroups: true,
+	editOrganization: true,
+	assignOrgRole: true,
+	viewProvisioners: true,
+	viewIdpSyncSettings: true,
+};
+
+export const MockNoOrganizationPermissions: OrganizationPermissions = {
+	viewMembers: false,
+	editMembers: false,
+	createGroup: false,
+	viewGroups: false,
+	editGroups: false,
+	editOrganization: false,
+	assignOrgRole: false,
+	viewProvisioners: false,
+	viewIdpSyncSettings: false,
 };
 
 export const MockNoPermissions: Permissions = {

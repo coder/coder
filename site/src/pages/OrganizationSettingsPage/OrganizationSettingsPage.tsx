@@ -7,21 +7,18 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
-import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { canEditOrganization } from "modules/management/OrganizationSettingsLayout";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
-import { OrganizationSummaryPageView } from "./OrganizationSummaryPageView";
+import type { AuthorizationResponse } from "api/typesGenerated";
 
 const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {
 		organization?: string;
 	};
 	const { organizations } = useOrganizationSettings();
-	const feats = useFeatureVisibility();
 
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
@@ -46,20 +43,6 @@ const OrganizationSettingsPage: FC = () => {
 		return <ErrorAlert error={permissionsQuery.error} />;
 	}
 
-	// Redirect /organizations => /organizations/default-org, or if they cannot edit
-	// the default org, then the first org they can edit, if any.
-	if (!organizationName) {
-		// .find will stop at the first match found; make sure default
-		// organizations are placed first
-		const editableOrg = [...organizations]
-			.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0))
-			.find((org) => canEditOrganization(permissions[org.id]));
-		if (editableOrg) {
-			return <Navigate to={`/organizations/${editableOrg.name}`} replace />;
-		}
-		return <EmptyState message="No organizations found" />;
-	}
-
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
 	}
@@ -69,11 +52,8 @@ const OrganizationSettingsPage: FC = () => {
 	// summary page instead of the settings form.
 	// Similarly, if the feature is not entitled then the user will not be able to
 	// edit the organization.
-	if (
-		!permissions[organization.id]?.editOrganization ||
-		!feats.multiple_organizations
-	) {
-		return <OrganizationSummaryPageView organization={organization} />;
+	if (!permissions[organization.id]?.editOrganization) {
+		return <Navigate to=".." replace />;
 	}
 
 	const error =

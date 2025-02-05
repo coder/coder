@@ -7,31 +7,25 @@ import {
 	CommandItem,
 	CommandList,
 } from "components/Command/Command";
-import { Loader } from "components/Loader/Loader";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 } from "components/Popover/Popover";
-import {
-	Sidebar as BaseSidebar,
-	SettingsSidebarNavItem,
-} from "components/Sidebar/Sidebar";
+import { SettingsSidebarNavItem } from "components/Sidebar/Sidebar";
 import type { Permissions } from "contexts/auth/permissions";
 import { Check, ChevronDown, Plus } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
 import { type FC, useState } from "react";
 import { useNavigate } from "react-router-dom";
-
-export interface OrganizationWithPermissions extends Organization {
-	permissions: AuthorizationResponse;
-}
+import type { OrganizationPermissions } from "./organizationPermissions";
 
 interface SidebarProps {
 	/** The active org name, if any.  Overrides activeSettings. */
-	activeOrganization: OrganizationWithPermissions | undefined;
+	activeOrganization: Organization | undefined;
+	/** Permissions for the active organization */
+	orgPermissions: OrganizationPermissions | undefined;
 	/** Organizations and their permissions or undefined if still fetching. */
-	organizations: OrganizationWithPermissions[] | undefined;
+	organizations: readonly Organization[];
 	/** Site-wide permissions. */
 	permissions: Permissions;
 }
@@ -41,58 +35,17 @@ interface SidebarProps {
  */
 export const OrganizationSidebarView: FC<SidebarProps> = ({
 	activeOrganization,
+	orgPermissions,
 	organizations,
 	permissions,
 }) => {
-	const { showOrganizations } = useDashboard();
-
-	return (
-		<BaseSidebar>
-			{showOrganizations && (
-				<OrganizationsSettingsNavigation
-					activeOrganization={activeOrganization}
-					organizations={organizations}
-					permissions={permissions}
-				/>
-			)}
-		</BaseSidebar>
-	);
-};
-
-function urlForSubpage(organizationName: string, subpage = ""): string {
-	return [`/organizations/${organizationName}`, subpage]
-		.filter(Boolean)
-		.join("/");
-}
-
-interface OrganizationsSettingsNavigationProps {
-	/** The active org name if an org is being viewed. */
-	activeOrganization: OrganizationWithPermissions | undefined;
-	/** Organizations and their permissions or undefined if still fetching. */
-	organizations: OrganizationWithPermissions[] | undefined;
-	/** Site-wide permissions. */
-	permissions: Permissions;
-}
-
-/**
- * Displays navigation items for the active organization and a combobox to
- * switch between organizations.
- *
- * If organizations or their permissions are still loading, show a loader.
- */
-const OrganizationsSettingsNavigation: FC<
-	OrganizationsSettingsNavigationProps
-> = ({ activeOrganization, organizations, permissions }) => {
-	// Wait for organizations and their permissions to load
-	if (!organizations || !activeOrganization) {
-		return <Loader />;
-	}
-
 	// Sort organizations to put active organization first
-	const sortedOrganizations = [
-		activeOrganization,
-		...organizations.filter((org) => org.id !== activeOrganization.id),
-	];
+	const sortedOrganizations = activeOrganization
+		? [
+				activeOrganization,
+				...organizations.filter((org) => org.id !== activeOrganization.id),
+			]
+		: organizations;
 
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
@@ -125,7 +78,7 @@ const OrganizationsSettingsNavigation: FC<
 					<Command loop>
 						<CommandList>
 							<CommandGroup className="pb-2">
-								{sortedOrganizations.length > 1 && (
+								{sortedOrganizations.length > 1 ? (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{sortedOrganizations.map((organization) => (
 											<CommandItem
@@ -147,7 +100,7 @@ const OrganizationsSettingsNavigation: FC<
 												<span className="truncate">
 													{organization?.display_name || organization?.name}
 												</span>
-												{activeOrganization.name === organization.name && (
+												{activeOrganization?.name === organization.name && (
 													<Check
 														size={16}
 														strokeWidth={2}
@@ -157,6 +110,10 @@ const OrganizationsSettingsNavigation: FC<
 											</CommandItem>
 										))}
 									</div>
+								) : (
+									<span className="select-none text-content-disabled text-center rounded-sm px-2 py-2 text-sm font-medium">
+										No more organizations
+									</span>
 								)}
 								{permissions.createOrganization && (
 									<>
@@ -181,58 +138,68 @@ const OrganizationsSettingsNavigation: FC<
 					</Command>
 				</PopoverContent>
 			</Popover>
-			<OrganizationSettingsNavigation
-				key={activeOrganization.id}
-				organization={activeOrganization}
-			/>
+			{activeOrganization && orgPermissions && (
+				<OrganizationSettingsNavigation
+					key={activeOrganization.id}
+					organization={activeOrganization}
+					orgPermissions={orgPermissions}
+				/>
+			)}
 		</>
 	);
 };
 
+function urlForSubpage(organizationName: string, subpage = ""): string {
+	return [`/organizations/${organizationName}`, subpage]
+		.filter(Boolean)
+		.join("/");
+}
+
 interface OrganizationSettingsNavigationProps {
-	organization: OrganizationWithPermissions;
+	organization: Organization;
+	orgPermissions: AuthorizationResponse;
 }
 
 const OrganizationSettingsNavigation: FC<
 	OrganizationSettingsNavigationProps
-> = ({ organization }) => {
+> = ({ organization, orgPermissions }) => {
 	return (
 		<>
 			<div className="flex flex-col gap-1 my-2">
-				{organization.permissions.editMembers && (
+				{orgPermissions.viewMembers && (
 					<SettingsSidebarNavItem end href={urlForSubpage(organization.name)}>
 						Members
 					</SettingsSidebarNavItem>
 				)}
-				{organization.permissions.editGroups && (
+				{orgPermissions.viewGroups && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "groups")}
 					>
 						Groups
 					</SettingsSidebarNavItem>
 				)}
-				{organization.permissions.assignOrgRole && (
+				{orgPermissions.assignOrgRole && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "roles")}
 					>
 						Roles
 					</SettingsSidebarNavItem>
 				)}
-				{organization.permissions.viewProvisioners && (
+				{orgPermissions.viewProvisioners && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "provisioners")}
 					>
 						Provisioners
 					</SettingsSidebarNavItem>
 				)}
-				{organization.permissions.viewIdpSyncSettings && (
+				{orgPermissions.viewIdpSyncSettings && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "idp-sync")}
 					>
 						IdP Sync
 					</SettingsSidebarNavItem>
 				)}
-				{organization.permissions.editOrganization && (
+				{orgPermissions.editOrganization && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "settings")}
 					>
