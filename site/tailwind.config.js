@@ -33,6 +33,8 @@ module.exports = {
 					success: "hsl(var(--content-success))",
 					danger: "hsl(var(--content-danger))",
 					link: "hsl(var(--content-link))",
+					destructive: "hsl(var(--content-destructive))",
+					warning: "hsl(var(--content-warning))",
 				},
 				surface: {
 					primary: "hsl(var(--surface-primary))",
@@ -44,6 +46,10 @@ module.exports = {
 						secondary: "hsl(var(--surface-invert-secondary))",
 					},
 					destructive: "hsl(var(--surface-destructive))",
+					green: "hsl(var(--surface-green))",
+					grey: "hsl(var(--surface-grey))",
+					orange: "hsl(var(--surface-orange))",
+					sky: "hsl(var(--surface-sky))",
 				},
 				border: {
 					DEFAULT: "hsl(var(--border-default))",
@@ -55,6 +61,8 @@ module.exports = {
 				highlight: {
 					purple: "hsl(var(--highlight-purple))",
 					green: "hsl(var(--highlight-green))",
+					grey: "hsl(var(--highlight-grey))",
+					sky: "hsl(var(--highlight-sky))",
 				},
 			},
 			keyframes: {

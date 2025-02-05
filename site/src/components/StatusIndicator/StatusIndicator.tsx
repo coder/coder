@@ -1,33 +1,84 @@
-import { useTheme } from "@emotion/react";
-import type { FC } from "react";
-import type { ThemeRole } from "theme/roles";
+import { cva, type VariantProps } from "class-variance-authority";
+import { createContext, useContext, type FC } from "react";
+import { cn } from "utils/cn";
 
-interface StatusIndicatorProps {
-	color: ThemeRole;
-	variant?: "solid" | "outlined";
-}
+const statusIndicatorVariants = cva(
+	"font-medium inline-flex items-center gap-2",
+	{
+		variants: {
+			variant: {
+				success: "text-content-success",
+				failed: "text-content-destructive",
+				stopped: "text-highlight-grey",
+				warning: "text-content-warning",
+				starting: "text-highlight-sky",
+			},
+			size: {
+				sm: "text-xs",
+				md: "text-sm",
+			},
+		},
+		defaultVariants: {
+			variant: "success",
+			size: "md",
+		},
+	},
+);
+
+type StatusIndicatorContextValue = VariantProps<typeof statusIndicatorVariants>;
+
+const StatusIndicatorContext = createContext<StatusIndicatorContextValue>({});
+
+export interface StatusIndicatorProps
+	extends React.HTMLAttributes<HTMLDivElement>,
+		StatusIndicatorContextValue {}
 
 export const StatusIndicator: FC<StatusIndicatorProps> = ({
-	color,
-	variant = "solid",
+	size,
+	variant,
+	className,
+	...props
 }) => {
-	const theme = useTheme();
+	return (
+		<StatusIndicatorContext.Provider value={{ size, variant }}>
+			<div
+				className={cn(statusIndicatorVariants({ variant, size }), className)}
+				{...props}
+			/>
+		</StatusIndicatorContext.Provider>
+	);
+};
+
+const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
+	variants: {
+		variant: {
+			success: "bg-content-success border-surface-green",
+			failed: "bg-content-destructive border-surface-destructive",
+			stopped: "bg-highlight-grey border-surface-grey",
+			warning: "bg-content-warning border-surface-orange",
+			starting: "bg-highlight-sky border-surface-sky",
+		},
+		size: {
+			sm: "size-3 border-4",
+			md: "size-4 border-4",
+		},
+	},
+	defaultVariants: {
+		variant: "success",
+		size: "md",
+	},
+});
+
+export interface StatusIndicatorDotProps
+	extends React.HTMLAttributes<HTMLDivElement> {}
+
+export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
+	className,
+	...props
+}) => {
+	const { size, variant } = useContext(StatusIndicatorContext);
 
 	return (
-		<div
-			css={[
-				{
-					height: 8,
-					width: 8,
-					borderRadius: 4,
-				},
-				variant === "solid" && {
-					backgroundColor: theme.roles[color].fill.solid,
-				},
-				variant === "outlined" && {
-					border: `1px solid ${theme.roles[color].outline}`,
-				},
-			]}
-		/>
+		<div className={cn(dotVariants({ variant, size }), className)} {...props} />
 	);
 };
