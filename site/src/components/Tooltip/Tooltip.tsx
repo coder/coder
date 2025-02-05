@@ -1,9 +1,9 @@
+import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 /**
  * Copied from shadc/ui on 02/05/2025
  * @see {@link https://ui.shadcn.com/docs/components/tooltip}
  */
 import * as React from "react";
-import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { cn } from "utils/cn";
 
 export const TooltipProvider = TooltipPrimitive.Provider;
