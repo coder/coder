@@ -70,15 +70,28 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 });
 
 export interface StatusIndicatorDotProps
-	extends React.HTMLAttributes<HTMLDivElement> {}
+	extends React.HTMLAttributes<HTMLDivElement>,
+		VariantProps<typeof dotVariants> {}
 
 export const StatusIndicatorDot: FC<StatusIndicatorDotProps> = ({
 	className,
+	// We allow the size and variant to be overridden directly by the component.
+	// This allows StatusIndicatorDot to be used alone.
+	size,
+	variant,
 	...props
 }) => {
-	const { size, variant } = useContext(StatusIndicatorContext);
+	const { size: ctxSize, variant: ctxVariant } = useContext(
+		StatusIndicatorContext,
+	);
 
 	return (
-		<div className={cn(dotVariants({ variant, size }), className)} {...props} />
+		<div
+			className={cn(
+				dotVariants({ variant: variant ?? ctxVariant, size: size ?? ctxSize }),
+				className,
+			)}
+			{...props}
+		/>
 	);
 };

@@ -1,5 +1,9 @@
 import { API } from "api/api";
-import type { Template, WorkspaceStatus } from "api/typesGenerated";
+import type {
+	ProvisionerJob,
+	Template,
+	WorkspaceStatus,
+} from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
@@ -10,7 +14,10 @@ import {
 	type UseFilterMenuOptions,
 	useFilterMenu,
 } from "components/Filter/menu";
-import { StatusIndicator } from "components/StatusIndicator/StatusIndicator";
+import {
+	StatusIndicator,
+	type StatusIndicatorDotProps,
+} from "components/StatusIndicator/StatusIndicator";
 import type { FC } from "react";
 import { getDisplayWorkspaceStatus } from "utils/workspace";
 
@@ -109,7 +116,9 @@ export const useStatusFilterMenu = ({
 		return {
 			label: display.text,
 			value: status,
-			startIcon: <StatusIndicator color={display.type ?? "warning"} />,
+			startIcon: (
+				<StatusIndicator variant={getStatusIndicatorVariant(status)} />
+			),
 		};
 	});
 	return useFilterMenu({
@@ -140,4 +149,27 @@ export const StatusMenu: FC<StatusMenuProps> = ({ width, menu }) => {
 			onSelect={menu.selectOption}
 		/>
 	);
+};
+
+export const getStatusIndicatorVariant = (
+	status: WorkspaceStatus,
+): StatusIndicatorDotProps["variant"] => {
+	switch (status) {
+		case "running":
+			return "success";
+		case "starting":
+		case "pending":
+			return "starting";
+		case undefined:
+		case "canceling":
+		case "canceled":
+		case "stopping":
+		case "stopped":
+			return "stopped";
+		case "deleting":
+		case "deleted":
+			return "warning";
+		case "failed":
+			return "failed";
+	}
 };

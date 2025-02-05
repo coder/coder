@@ -24,17 +24,17 @@ export const useStatusFilterMenu = ({
 		{
 			value: "active",
 			label: "Active",
-			startIcon: <StatusIndicator color="success" />,
+			startIcon: <StatusIndicator variant="success" />,
 		},
 		{
 			value: "dormant",
 			label: "Dormant",
-			startIcon: <StatusIndicator color="warning" />,
+			startIcon: <StatusIndicator variant="warning" />,
 		},
 		{
 			value: "suspended",
 			label: "Suspended",
-			startIcon: <StatusIndicator color="inactive" />,
+			startIcon: <StatusIndicator variant="stopped" />,
 		},
 	];
 	return useFilterMenu({
