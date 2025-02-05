@@ -101,7 +101,7 @@ func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *htt
 
 	qp := r.URL.Query()
 	p := httpapi.NewQueryParamParser()
-	limit := p.PositiveInt32(qp, 0, "limit")
+	limit := p.PositiveInt32(qp, 50, "limit")
 	status := p.Strings(qp, nil, "status")
 	p.ErrorExcessParams(qp)
 	if len(p.Errors) > 0 {

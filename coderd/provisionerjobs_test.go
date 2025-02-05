@@ -63,6 +63,13 @@ func TestProvisionerJobs(t *testing.T) {
 		TemplateVersionID: version.ID,
 	})
 
+	// Add more jobs than the default limit.
+	for range 60 {
+		dbgen.ProvisionerJob(t, db, nil, database.ProvisionerJob{
+			OrganizationID: owner.OrganizationID,
+		})
+	}
+
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
 		t.Run("OK", func(t *testing.T) {
@@ -82,12 +89,12 @@ func TestProvisionerJobs(t *testing.T) {
 		})
 	})
 
-	t.Run("All", func(t *testing.T) {
+	t.Run("Default limit", func(t *testing.T) {
 		t.Parallel()
 		ctx := testutil.Context(t, testutil.WaitMedium)
 		jobs, err := templateAdminClient.OrganizationProvisionerJobs(ctx, owner.OrganizationID, nil)
 		require.NoError(t, err)
-		require.Len(t, jobs, 3)
+		require.Len(t, jobs, 50)
 	})
 
 	t.Run("Status", func(t *testing.T) {
