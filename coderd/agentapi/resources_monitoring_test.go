@@ -19,7 +19,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func workspaceMonitorAPI(t *testing.T) (*agentapi.WorkspaceMonitorAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
+func workspaceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
 	t.Helper()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -57,7 +57,7 @@ func workspaceMonitorAPI(t *testing.T) (*agentapi.WorkspaceMonitorAPI, database.
 	notifyEnq := &notificationstest.FakeEnqueuer{}
 	clock := quartz.NewMock(t)
 
-	return &agentapi.WorkspaceMonitorAPI{
+	return &agentapi.ResourcesMonitoringAPI{
 		AgentID:               agent.ID,
 		WorkspaceID:           workspace.ID,
 		Clock:                 clock,
@@ -93,17 +93,18 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 	})
 
 	// When: The monitor is given a state that will trigger NOK
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+				Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 					Used:  10,
 					Total: 10,
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect there to be a notification sent
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
@@ -112,17 +113,18 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves to an OK state from NOK
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+				Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 					Used:  1,
 					Total: 10,
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect no new notifications
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
@@ -131,17 +133,18 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to a NOK state before the debounced time.
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+				Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 					Used:  10,
 					Total: 10,
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect no new notifications (showing the debouncer working)
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
@@ -150,17 +153,18 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to an OK state from NOK
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+				Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 					Used:  1,
 					Total: 10,
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We still expect no new notifications
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
@@ -169,17 +173,18 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to a NOK state after the debounce period.
 	clock.Advance(api.Debounce/4 + 1*time.Second)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+				Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 					Used:  10,
 					Total: 10,
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect a notification
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
@@ -191,8 +196,8 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		memoryUsage      []int32
-		memoryTotal      int32
+		memoryUsage      []int64
+		memoryTotal      int64
 		thresholdPercent int32
 		minimumNOKs      int
 		consecutiveNOKs  int
@@ -202,7 +207,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 	}{
 		{
 			name:             "WhenOK/NeverExceedsThreshold",
-			memoryUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -213,7 +218,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		},
 		{
 			name:             "WhenOK/ConsecutiveExceedsThreshold",
-			memoryUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -224,7 +229,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		},
 		{
 			name:             "WhenOK/MinimumExceedsThreshold",
-			memoryUsage:      []int32{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			memoryUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			minimumNOKs:      4,
@@ -235,7 +240,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		},
 		{
 			name:             "WhenNOK/NeverExceedsThreshold",
-			memoryUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -246,7 +251,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		},
 		{
 			name:             "WhenNOK/ConsecutiveExceedsThreshold",
-			memoryUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			memoryUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -257,7 +262,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		},
 		{
 			name:             "WhenNOK/MinimumExceedsThreshold",
-			memoryUsage:      []int32{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			memoryUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			memoryTotal:      10,
 			thresholdPercent: 80,
 			minimumNOKs:      4,
@@ -278,13 +283,13 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
 
-			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.memoryUsage))
+			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
 			for _, usage := range tt.memoryUsage {
 				collectedAt = collectedAt.Add(15 * time.Second)
-				datapoints = append(datapoints, &agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+				datapoints = append(datapoints, &agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 					CollectedAt: timestamppb.New(collectedAt),
-					Memory: &agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage{
+					Memory: &agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage{
 						Used:  usage,
 						Total: tt.memoryTotal,
 					},
@@ -298,7 +303,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 			})
 
 			clock.Set(collectedAt)
-			_, err := api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+			_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 				Datapoints: datapoints,
 			})
 			require.NoError(t, err)
@@ -344,20 +349,21 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 	})
 
 	// When: The monitor is given a state that will trigger NOK
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  volumePath,
-						Used:  10,
-						Total: 10,
+						Path:       volumePath,
+						SpaceUsed:  10,
+						SpaceTotal: 10,
 					},
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect there to be a notification sent
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -366,20 +372,21 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves to an OK state from NOK
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  volumePath,
-						Used:  1,
-						Total: 10,
+						Path:       volumePath,
+						SpaceUsed:  1,
+						SpaceTotal: 10,
 					},
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect no new notifications
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -388,20 +395,21 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to a NOK state before the debounced time.
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  volumePath,
-						Used:  10,
-						Total: 10,
+						Path:       volumePath,
+						SpaceUsed:  10,
+						SpaceTotal: 10,
 					},
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect no new notifications (showing the debouncer working)
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -410,20 +418,21 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to an OK state from NOK
 	clock.Advance(api.Debounce / 4)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  volumePath,
-						Used:  1,
-						Total: 10,
+						Path:       volumePath,
+						SpaceUsed:  1,
+						SpaceTotal: 10,
 					},
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We still expect no new notifications
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -432,20 +441,21 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 
 	// When: The monitor moves back to a NOK state after the debounce period.
 	clock.Advance(api.Debounce/4 + 1*time.Second)
-	api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
-		Datapoints: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
-				Volume: []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  volumePath,
-						Used:  10,
-						Total: 10,
+						Path:       volumePath,
+						SpaceUsed:  10,
+						SpaceTotal: 10,
 					},
 				},
 			},
 		},
 	})
+	require.NoError(t, err)
 
 	// Then: We expect a notification
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
@@ -458,8 +468,8 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 	tests := []struct {
 		name             string
 		volumePath       string
-		volumeUsage      []int32
-		volumeTotal      int32
+		volumeUsage      []int64
+		volumeTotal      int64
 		thresholdPercent int32
 		previousState    database.WorkspaceAgentMonitorState
 		expectState      database.WorkspaceAgentMonitorState
@@ -470,7 +480,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenOK/NeverExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -482,7 +492,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenOK/ConsecutiveExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -494,7 +504,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenOK/MinimumExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			volumeUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			minimumNOKs:      4,
@@ -506,7 +516,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenNOK/NeverExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
+			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 2, 3, 1, 2},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -518,7 +528,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenNOK/ConsecutiveExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
+			volumeUsage:      []int64{2, 3, 2, 4, 2, 3, 2, 1, 2, 3, 4, 4, 1, 8, 9, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			consecutiveNOKs:  4,
@@ -530,7 +540,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		{
 			name:             "WhenNOK/MinimumExceedsThreshold",
 			volumePath:       "/home/coder",
-			volumeUsage:      []int32{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
+			volumeUsage:      []int64{2, 8, 2, 9, 2, 8, 2, 9, 2, 8, 4, 9, 1, 8, 2, 8, 9},
 			volumeTotal:      10,
 			thresholdPercent: 80,
 			minimumNOKs:      4,
@@ -551,20 +561,20 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
 
-			datapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint, 0, len(tt.volumeUsage))
+			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.volumeUsage))
 			collectedAt := clock.Now()
 			for _, volumeUsage := range tt.volumeUsage {
 				collectedAt = collectedAt.Add(15 * time.Second)
 
-				volumeDatapoints := []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage{
+				volumeDatapoints := []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:  tt.volumePath,
-						Used:  volumeUsage,
-						Total: tt.volumeTotal,
+						Path:       tt.volumePath,
+						SpaceUsed:  volumeUsage,
+						SpaceTotal: tt.volumeTotal,
 					},
 				}
 
-				datapoints = append(datapoints, &agentproto.WorkspaceMonitorUpdateRequest_Datapoint{
+				datapoints = append(datapoints, &agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 					CollectedAt: timestamppb.New(collectedAt),
 					Volume:      volumeDatapoints,
 				})
@@ -578,7 +588,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			})
 
 			clock.Set(collectedAt)
-			_, err := api.UpdateWorkspaceMonitor(context.Background(), &agentproto.WorkspaceMonitorUpdateRequest{
+			_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 				Datapoints: datapoints,
 			})
 			require.NoError(t, err)

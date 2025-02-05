@@ -315,8 +315,8 @@ func (f *FakeAgentAPI) ScriptCompleted(_ context.Context, req *agentproto.Worksp
 	return &agentproto.WorkspaceAgentScriptCompletedResponse{}, nil
 }
 
-func (*FakeAgentAPI) UpdateWorkspaceMonitor(_ context.Context, _ *agentproto.WorkspaceMonitorUpdateRequest) (*agentproto.WorkspaceMonitorUpdateResponse, error) {
-	return &agentproto.WorkspaceMonitorUpdateResponse{}, nil
+func (*FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, _ *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
+	return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
 }
 
 func NewFakeAgentAPI(t testing.TB, logger slog.Logger, manifest *agentproto.Manifest, statsCh chan *agentproto.Stats) *FakeAgentAPI {

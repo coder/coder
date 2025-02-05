@@ -20,7 +20,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-type WorkspaceMonitorAPI struct {
+type ResourcesMonitoringAPI struct {
 	AgentID     uuid.UUID
 	WorkspaceID uuid.UUID
 
@@ -39,9 +39,7 @@ type WorkspaceMonitorAPI struct {
 	MinimumNOKs int
 }
 
-func (m *WorkspaceMonitorAPI) UpdateWorkspaceMonitor(ctx context.Context, req *agentproto.WorkspaceMonitorUpdateRequest) (*agentproto.WorkspaceMonitorUpdateResponse, error) {
-	res := &agentproto.WorkspaceMonitorUpdateResponse{}
-
+func (m *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
 	if err := m.monitorMemory(ctx, req.Datapoints); err != nil {
 		return nil, xerrors.Errorf("monitor memory: %w", err)
 	}
@@ -50,10 +48,10 @@ func (m *WorkspaceMonitorAPI) UpdateWorkspaceMonitor(ctx context.Context, req *a
 		return nil, xerrors.Errorf("monitor volumes: %w", err)
 	}
 
-	return res, nil
+	return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
 }
 
-func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint) error {
+func (m *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint) error {
 	monitor, err := m.Database.FetchMemoryResourceMonitorsByAgentID(ctx, m.AgentID)
 	if err != nil {
 		// It is valid for an agent to not have a memory monitor, so we
@@ -69,19 +67,19 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 		return nil
 	}
 
-	usageDatapoints := make([]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage, 0, len(datapoints))
+	usageDatapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage, 0, len(datapoints))
 	for _, datapoint := range datapoints {
 		usageDatapoints = append(usageDatapoints, datapoint.Memory)
 	}
 
-	memoryUsageStates := calculateMemoryUsageStates(monitor, usageDatapoints)
+	usageStates := calculateMemoryUsageStates(monitor, usageDatapoints)
 
 	oldState := monitor.State
-	newState := m.nextState(oldState, memoryUsageStates)
+	newState := m.nextState(oldState, usageStates)
 
-	shouldNotify := oldState == database.WorkspaceAgentMonitorStateOK &&
-		newState == database.WorkspaceAgentMonitorStateNOK &&
-		m.Clock.Now().After(monitor.DebouncedUntil)
+	shouldNotify := m.Clock.Now().After(monitor.DebouncedUntil) &&
+		oldState == database.WorkspaceAgentMonitorStateOK &&
+		newState == database.WorkspaceAgentMonitorStateNOK
 
 	debouncedUntil := monitor.DebouncedUntil
 	if shouldNotify {
@@ -123,13 +121,13 @@ func (m *WorkspaceMonitorAPI) monitorMemory(ctx context.Context, datapoints []*a
 	return nil
 }
 
-func (m *WorkspaceMonitorAPI) monitorVolumes(ctx context.Context, datapoints []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint) error {
+func (m *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint) error {
 	volumeMonitors, err := m.Database.FetchVolumesResourceMonitorsByAgentID(ctx, m.AgentID)
 	if err != nil {
 		return xerrors.Errorf("get or insert volume monitor: %w", err)
 	}
 
-	volumes := make(map[string][]*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage)
+	volumes := make(map[string][]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
 
 	for _, datapoint := range datapoints {
 		for _, volume := range datapoint.Volume {
@@ -139,76 +137,70 @@ func (m *WorkspaceMonitorAPI) monitorVolumes(ctx context.Context, datapoints []*
 		}
 	}
 
+	outOfDiskVolumes := make([]map[string]any, 0)
+
 	for _, monitor := range volumeMonitors {
-		if err := m.monitorVolume(ctx, monitor, monitor.Path, volumes[monitor.Path]); err != nil {
-			return xerrors.Errorf("monitor volume: %w", err)
+		if !monitor.Enabled {
+			continue
+		}
+
+		usageStates := calculateVolumeUsageStates(monitor, volumes[monitor.Path])
+
+		oldState := monitor.State
+		newState := m.nextState(oldState, usageStates)
+
+		shouldNotify := m.Clock.Now().After(monitor.DebouncedUntil) &&
+			oldState == database.WorkspaceAgentMonitorStateOK &&
+			newState == database.WorkspaceAgentMonitorStateNOK
+
+		debouncedUntil := monitor.DebouncedUntil
+		if shouldNotify {
+			debouncedUntil = m.Clock.Now().Add(m.Debounce)
+
+			outOfDiskVolumes = append(outOfDiskVolumes, map[string]any{
+				"path":      monitor.Path,
+				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
+			})
+		}
+
+		if err := m.Database.UpdateVolumeResourceMonitor(ctx, database.UpdateVolumeResourceMonitorParams{
+			AgentID:        m.AgentID,
+			Path:           monitor.Path,
+			State:          newState,
+			UpdatedAt:      dbtime.Time(m.Clock.Now()),
+			DebouncedUntil: dbtime.Time(debouncedUntil),
+		}); err != nil {
+			return xerrors.Errorf("update workspace monitor: %w", err)
 		}
 	}
 
-	return nil
-}
-
-func (m *WorkspaceMonitorAPI) monitorVolume(
-	ctx context.Context,
-	monitor database.WorkspaceAgentVolumeResourceMonitor,
-	path string,
-	datapoints []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage,
-) error {
-	if !monitor.Enabled {
-		return nil
-	}
-
-	volumeUsageStates := calculateVolumeUsageStates(monitor, datapoints)
-
-	oldState := monitor.State
-	newState := m.nextState(oldState, volumeUsageStates)
-
-	shouldNotify := oldState == database.WorkspaceAgentMonitorStateOK &&
-		newState == database.WorkspaceAgentMonitorStateNOK &&
-		m.Clock.Now().After(monitor.DebouncedUntil)
-
-	debouncedUntil := monitor.DebouncedUntil
-	if shouldNotify {
-		debouncedUntil = m.Clock.Now().Add(m.Debounce)
-	}
-
-	if err := m.Database.UpdateVolumeResourceMonitor(ctx, database.UpdateVolumeResourceMonitorParams{
-		AgentID:        m.AgentID,
-		Path:           path,
-		State:          newState,
-		UpdatedAt:      dbtime.Time(m.Clock.Now()),
-		DebouncedUntil: dbtime.Time(debouncedUntil),
-	}); err != nil {
-		return xerrors.Errorf("update workspace monitor: %w", err)
-	}
-
-	if shouldNotify {
+	if len(outOfDiskVolumes) != 0 {
 		workspace, err := m.Database.GetWorkspaceByID(ctx, m.WorkspaceID)
 		if err != nil {
 			return xerrors.Errorf("get workspace by id: %w", err)
 		}
 
-		_, err = m.NotificationsEnqueuer.Enqueue(
+		if _, err := m.NotificationsEnqueuer.EnqueueWithData(
 			// nolint:gocritic // We need to be able to send the notification.
 			dbauthz.AsNotifier(ctx),
 			workspace.OwnerID,
 			notifications.TemplateWorkspaceOutOfDisk,
 			map[string]string{
 				"workspace": workspace.Name,
-				"threshold": fmt.Sprintf("%d%%", monitor.Threshold),
-				"volume":    path,
 			},
-			"workspace-monitor-memory",
-		)
-		if err != nil {
-			return xerrors.Errorf("notify workspace OOM: %w", err)
+			map[string]any{
+				"volumes": outOfDiskVolumes,
+			},
+			"workspace-monitor-volumes",
+		); err != nil {
+			return xerrors.Errorf("notify workspace OOD: %w", err)
 		}
 	}
 
 	return nil
 }
 
-func (m *WorkspaceMonitorAPI) nextState(
+func (m *ResourcesMonitoringAPI) nextState(
 	oldState database.WorkspaceAgentMonitorState,
 	states []database.WorkspaceAgentMonitorState,
 ) database.WorkspaceAgentMonitorState {
@@ -242,7 +234,7 @@ func (m *WorkspaceMonitorAPI) nextState(
 
 func calculateMemoryUsageStates(
 	monitor database.WorkspaceAgentMemoryResourceMonitor,
-	datapoints []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_MemoryUsage,
+	datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_MemoryUsage,
 ) []database.WorkspaceAgentMonitorState {
 	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
 
@@ -262,12 +254,12 @@ func calculateMemoryUsageStates(
 
 func calculateVolumeUsageStates(
 	monitor database.WorkspaceAgentVolumeResourceMonitor,
-	datapoints []*agentproto.WorkspaceMonitorUpdateRequest_Datapoint_VolumeUsage,
+	datapoints []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage,
 ) []database.WorkspaceAgentMonitorState {
 	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
 
 	for _, datapoint := range datapoints {
-		percent := int32(float64(datapoint.Used) / float64(datapoint.Total) * 100)
+		percent := int32(float64(datapoint.SpaceUsed) / float64(datapoint.SpaceTotal) * 100)
 
 		state := database.WorkspaceAgentMonitorStateOK
 		if percent >= monitor.Threshold {

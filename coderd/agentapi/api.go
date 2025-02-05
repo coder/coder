@@ -46,7 +46,7 @@ type API struct {
 	*MetadataAPI
 	*LogsAPI
 	*ScriptsAPI
-	*WorkspaceMonitorAPI
+	*ResourcesMonitoringAPI
 	*tailnet.DRPCService
 
 	mu sync.Mutex
@@ -154,7 +154,7 @@ func New(opts Options) *API {
 		Database: opts.Database,
 	}
 
-	api.WorkspaceMonitorAPI = &WorkspaceMonitorAPI{
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
 		AgentID:               opts.AgentID,
 		WorkspaceID:           opts.WorkspaceID,
 		Clock:                 opts.Clock,

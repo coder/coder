@@ -48,7 +48,7 @@ type DRPCAgentClient interface {
 	BatchCreateLogs(ctx context.Context, in *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(ctx context.Context, in *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 	ScriptCompleted(ctx context.Context, in *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
-	UpdateWorkspaceMonitor(ctx context.Context, in *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error)
+	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 }
 
 type drpcAgentClient struct {
@@ -151,9 +151,9 @@ func (c *drpcAgentClient) ScriptCompleted(ctx context.Context, in *WorkspaceAgen
 	return out, nil
 }
 
-func (c *drpcAgentClient) UpdateWorkspaceMonitor(ctx context.Context, in *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error) {
-	out := new(WorkspaceMonitorUpdateResponse)
-	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/UpdateWorkspaceMonitor", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
+func (c *drpcAgentClient) PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error) {
+	out := new(PushResourcesMonitoringUsageResponse)
+	err := c.cc.Invoke(ctx, "/coder.agent.v2.Agent/PushResourcesMonitoringUsage", drpcEncoding_File_agent_proto_agent_proto{}, in, out)
 	if err != nil {
 		return nil, err
 	}
@@ -171,7 +171,7 @@ type DRPCAgentServer interface {
 	BatchCreateLogs(context.Context, *BatchCreateLogsRequest) (*BatchCreateLogsResponse, error)
 	GetAnnouncementBanners(context.Context, *GetAnnouncementBannersRequest) (*GetAnnouncementBannersResponse, error)
 	ScriptCompleted(context.Context, *WorkspaceAgentScriptCompletedRequest) (*WorkspaceAgentScriptCompletedResponse, error)
-	UpdateWorkspaceMonitor(context.Context, *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error)
+	PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 }
 
 type DRPCAgentUnimplementedServer struct{}
@@ -216,7 +216,7 @@ func (s *DRPCAgentUnimplementedServer) ScriptCompleted(context.Context, *Workspa
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
-func (s *DRPCAgentUnimplementedServer) UpdateWorkspaceMonitor(context.Context, *WorkspaceMonitorUpdateRequest) (*WorkspaceMonitorUpdateResponse, error) {
+func (s *DRPCAgentUnimplementedServer) PushResourcesMonitoringUsage(context.Context, *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error) {
 	return nil, drpcerr.WithCode(errors.New("Unimplemented"), drpcerr.Unimplemented)
 }
 
@@ -317,14 +317,14 @@ func (DRPCAgentDescription) Method(n int) (string, drpc.Encoding, drpc.Receiver,
 					)
 			}, DRPCAgentServer.ScriptCompleted, true
 	case 10:
-		return "/coder.agent.v2.Agent/UpdateWorkspaceMonitor", drpcEncoding_File_agent_proto_agent_proto{},
+		return "/coder.agent.v2.Agent/PushResourcesMonitoringUsage", drpcEncoding_File_agent_proto_agent_proto{},
 			func(srv interface{}, ctx context.Context, in1, in2 interface{}) (drpc.Message, error) {
 				return srv.(DRPCAgentServer).
-					UpdateWorkspaceMonitor(
+					PushResourcesMonitoringUsage(
 						ctx,
-						in1.(*WorkspaceMonitorUpdateRequest),
+						in1.(*PushResourcesMonitoringUsageRequest),
 					)
-			}, DRPCAgentServer.UpdateWorkspaceMonitor, true
+			}, DRPCAgentServer.PushResourcesMonitoringUsage, true
 	default:
 		return "", nil, nil, nil, false
 	}
@@ -494,16 +494,16 @@ func (x *drpcAgent_ScriptCompletedStream) SendAndClose(m *WorkspaceAgentScriptCo
 	return x.CloseSend()
 }
 
-type DRPCAgent_UpdateWorkspaceMonitorStream interface {
+type DRPCAgent_PushResourcesMonitoringUsageStream interface {
 	drpc.Stream
-	SendAndClose(*WorkspaceMonitorUpdateResponse) error
+	SendAndClose(*PushResourcesMonitoringUsageResponse) error
 }
 
-type drpcAgent_UpdateWorkspaceMonitorStream struct {
+type drpcAgent_PushResourcesMonitoringUsageStream struct {
 	drpc.Stream
 }
 
-func (x *drpcAgent_UpdateWorkspaceMonitorStream) SendAndClose(m *WorkspaceMonitorUpdateResponse) error {
+func (x *drpcAgent_PushResourcesMonitoringUsageStream) SendAndClose(m *PushResourcesMonitoringUsageResponse) error {
 	if err := x.MsgSend(m, drpcEncoding_File_agent_proto_agent_proto{}); err != nil {
 		return err
 	}
