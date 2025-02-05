@@ -1,5 +1,3 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { Organization, Role, RoleSyncSettings } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
 import { Combobox } from "components/Combobox/Combobox";
@@ -16,6 +14,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { TableCell, TableRow } from "components/Table/Table";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
@@ -99,7 +98,9 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 		if (
 			event.key === "Enter" &&
 			comboInputValue &&
-			!claimFieldValues?.some((value) => value === comboInputValue.toLowerCase())
+			!claimFieldValues?.some(
+				(value) => value === comboInputValue.toLowerCase(),
+			)
 		) {
 			event.preventDefault();
 			setIdpRoleName(comboInputValue);

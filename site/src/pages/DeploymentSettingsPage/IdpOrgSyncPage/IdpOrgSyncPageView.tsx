@@ -367,7 +367,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				<TableRow>
 					<TableCell width="45%">IdP organization</TableCell>
 					<TableCell width="55%">Coder organization</TableCell>
-					<TableCell width="10%" />
+					<TableCell width="5%" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>

@@ -1,5 +1,3 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type {
 	Group,
 	GroupSyncSettings,
@@ -29,6 +27,7 @@ import {
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
+import { TableCell, TableRow } from "components/Table/Table";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, useId, useState, type KeyboardEventHandler } from "react";
@@ -125,7 +124,9 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 		if (
 			event.key === "Enter" &&
 			comboInputValue &&
-			!claimFieldValues?.some((value) => value === comboInputValue.toLowerCase())
+			!claimFieldValues?.some(
+				(value) => value === comboInputValue.toLowerCase(),
+			)
 		) {
 			event.preventDefault();
 			setIdpGroupName(comboInputValue);
