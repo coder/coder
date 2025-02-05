@@ -226,7 +226,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 							<Combobox
 								value={idpGroupName}
 								options={claimFieldValues}
-								placeholder="Select IdP organization"
+								placeholder="Select IdP group"
 								open={open}
 								onOpenChange={setOpen}
 								inputValue={comboInputValue}

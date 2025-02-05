@@ -167,7 +167,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 							<Combobox
 								value={idpRoleName}
 								options={claimFieldValues}
-								placeholder="Select IdP organization"
+								placeholder="Select IdP role"
 								open={open}
 								onOpenChange={setOpen}
 								inputValue={comboInputValue}

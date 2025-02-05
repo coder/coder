@@ -60,7 +60,7 @@ export const IdpMappingTable: FC<IdpMappingTableProps> = ({
 			<div className="flex justify-end">
 				<div className="text-content-secondary text-xs">
 					Showing <strong className="text-content-primary">{rowCount}</strong>{" "}
-					groups
+					{type.toLocaleLowerCase()}{(rowCount === 0 || rowCount > 1) && "s"}
 				</div>
 			</div>
 		</div>
