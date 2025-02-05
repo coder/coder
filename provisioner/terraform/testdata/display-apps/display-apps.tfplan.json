@@ -30,7 +30,6 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
             "startup_script": null,
             "startup_script_behavior": "non-blocking",
@@ -41,7 +40,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -91,7 +89,6 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
-          "resources_monitoring": [],
           "shutdown_script": null,
           "startup_script": null,
           "startup_script_behavior": "non-blocking",
@@ -104,7 +101,6 @@
           "id": true,
           "init_script": true,
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
@@ -113,7 +109,6 @@
             {}
           ],
           "metadata": [],
-          "resources_monitoring": [],
           "token": true
         }
       }
@@ -203,7 +198,7 @@
       ]
     }
   },
-  "timestamp": "2025-01-29T22:47:52Z",
+  "timestamp": "2025-02-06T07:28:26Z",
   "applyable": true,
   "complete": true,
   "errored": false

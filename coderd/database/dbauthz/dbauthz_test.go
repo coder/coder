@@ -891,9 +891,9 @@ func (s *MethodTestSuite) TestOrganization() {
 		}
 		_, err := db.InsertPreset(context.Background(), insertPresetParams)
 		require.NoError(s.T(), err)
-		check.Args(insertPresetParams).Asserts(rbac.ResourceTemplate, policy.ActionCreate)
+		check.Args(insertPresetParams).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
-	s.Run("InsertPreset", s.Subtest(func(db database.Store, check *expects) {
+	s.Run("InsertPresetParameters", s.Subtest(func(db database.Store, check *expects) {
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		user := dbgen.User(s.T(), db, database.User{})
 		template := dbgen.Template(s.T(), db, database.Template{
@@ -932,7 +932,7 @@ func (s *MethodTestSuite) TestOrganization() {
 		}
 		_, err = db.InsertPresetParameters(context.Background(), insertPresetParametersParams)
 		require.NoError(s.T(), err)
-		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceTemplate, policy.ActionCreate)
+		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
