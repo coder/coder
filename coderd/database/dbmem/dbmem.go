@@ -4136,20 +4136,24 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			}
 			row.WorkspaceID = uuid.NullUUID{UUID: workspace.ID, Valid: true}
 			row.WorkspaceName = workspace.Name
-			templateVersionID = &workspabeBuild.TemplateVersionID
+			if templateVersionID == nil {
+				templateVersionID = &workspabeBuild.TemplateVersionID
+			}
 		}
-		templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, *templateVersionID)
-		if err != nil {
-			return nil, err
+		if templateVersionID != nil {
+			templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, *templateVersionID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateVersionName = templateVersion.Name
+			template, err := q.getTemplateByIDNoLock(ctx, templateVersion.TemplateID.UUID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateID = uuid.NullUUID{UUID: template.ID, Valid: true}
+			row.TemplateName = template.Name
+			row.TemplateDisplayName = template.DisplayName
 		}
-		row.TemplateVersionName = templateVersion.Name
-		template, err := q.getTemplateByIDNoLock(ctx, templateVersion.TemplateID.UUID)
-		if err != nil {
-			return nil, err
-		}
-		row.TemplateID = uuid.NullUUID{UUID: template.ID, Valid: true}
-		row.TemplateName = template.Name
-		row.TemplateDisplayName = template.DisplayName
 		// End add metadata.
 
 		if row.QueuePosition > 0 {
