@@ -33,6 +33,7 @@ module.exports = {
 					success: "hsl(var(--content-success))",
 					danger: "hsl(var(--content-danger))",
 					link: "hsl(var(--content-link))",
+					warning: "hsl(var(--content-warning))",
 				},
 				surface: {
 					primary: "hsl(var(--surface-primary))",

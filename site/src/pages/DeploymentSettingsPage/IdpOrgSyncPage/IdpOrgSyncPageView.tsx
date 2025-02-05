@@ -36,12 +36,13 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
+import { Stack } from "components/Stack/Stack";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -354,18 +355,27 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 
 interface OrganizationRowProps {
 	idpOrg: string;
+	doesIdpOrgEvenExistLol: boolean;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,
+	doesIdpOrgEvenExistLol,
 	coderOrgs,
 	onDelete,
 }) => {
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
-			<TableCell>{idpOrg}</TableCell>
+			<TableCell>
+				<Stack direction="row" alignItems="center" spacing={1}>
+					{idpOrg}{" "}
+					{!doesIdpOrgEvenExistLol && (
+						<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+					)}
+				</Stack>
+			</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />
 			</TableCell>

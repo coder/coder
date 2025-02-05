@@ -50,6 +50,13 @@ export const MissingGroups: Story = {
 	},
 };
 
+export const MissingClaim: Story = {
+	args: {
+		...Default.args,
+		organizationSyncSettings: MockOrganizationSyncSettings,
+	},
+};
+
 export const AssignDefaultOrgWarningDialog: Story = {
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings,
