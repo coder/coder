@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -79,6 +80,16 @@ func TestProvisionerJobs(t *testing.T) {
 			job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
 			require.NoError(t, err)
 			require.Equal(t, job.ID, job2.ID)
+
+			// Verify that job metadata is correct.
+			assert.Equal(t, job2.Metadata, &codersdk.ProvisionerJobMetadata{
+				TemplateVersionName: version.Name,
+				TemplateID:          template.ID,
+				TemplateName:        template.Name,
+				TemplateDisplayName: template.DisplayName,
+				WorkspaceID:         &w.ID,
+				WorkspaceName:       w.Name,
+			})
 		})
 		t.Run("Missing", func(t *testing.T) {
 			t.Parallel()
