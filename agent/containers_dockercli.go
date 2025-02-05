@@ -146,6 +146,7 @@ func convertDockerInspect(in dockerInspect) codersdk.WorkspaceAgentContainer {
 
 // convertDockerPort converts a Docker port string to a port number and network
 // example: "8080/tcp" -> 8080, "tcp"
+//
 //	"8080" -> 8080, "tcp"
 func convertDockerPort(in string) (uint16, string, error) {
 	parts := strings.Split(in, "/")
@@ -172,6 +173,7 @@ func convertDockerPort(in string) (uint16, string, error) {
 // container path. If the host path is not specified, the container path is used
 // as the host path.
 // example: "/host/path=/container/path" -> "/host/path", "/container/path"
+//
 //	"/container/path" -> "/container/path", "/container/path"
 func convertDockerVolume(in string) (hostPath, containerPath string) {
 	parts := strings.Split(in, "=")
