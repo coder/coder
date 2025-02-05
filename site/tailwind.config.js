@@ -49,6 +49,7 @@ module.exports = {
 					DEFAULT: "hsl(var(--border-default))",
 					destructive: "hsl(var(--border-destructive))",
 				},
+				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
 				highlight: {
