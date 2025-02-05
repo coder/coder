@@ -185,9 +185,7 @@ test.describe("IdpOrgSyncPage", () => {
 		// Verify new mapping appears in table
 		const newRow = page.getByTestId(`idp-org-${idpOrgName}`);
 		await expect(newRow).toBeVisible();
-		await expect(
-			newRow.getByRole("cell", { name: idpOrgName }),
-		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: idpOrgName })).toBeVisible();
 		await expect(newRow.getByRole("cell", { name: orgName })).toBeVisible();
 
 		await expect(
