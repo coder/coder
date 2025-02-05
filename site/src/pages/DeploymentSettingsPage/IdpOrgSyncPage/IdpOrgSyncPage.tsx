@@ -3,6 +3,7 @@ import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
+import { idpSyncClaimFieldValues } from "api/queries/organizations";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -11,7 +12,7 @@ import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
@@ -20,6 +21,7 @@ import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
 
 export const IdpOrgSyncPage: FC = () => {
+	const [claimField, setClaimField] = useState("");
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
@@ -28,7 +30,18 @@ export const IdpOrgSyncPage: FC = () => {
 		data: orgSyncSettingsData,
 		isLoading,
 		error,
-	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+	} = useQuery({
+		...organizationIdpSyncSettings(isIdpSyncEnabled),
+		onSuccess: (data) => {
+			if (data?.field) {
+				setClaimField(data.field);
+			}
+		},
+	});
+
+	const { data: claimFieldValues } = useQuery(
+		idpSyncClaimFieldValues(claimField),
+	);
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
@@ -48,6 +61,10 @@ export const IdpOrgSyncPage: FC = () => {
 	if (isLoading) {
 		return <Loader />;
 	}
+
+	const handleSyncFieldChange = (value: string) => {
+		setClaimField(value);
+	};
 
 	return (
 		<>
@@ -94,6 +111,8 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
+							onSyncFieldChange={handleSyncFieldChange}
+							claimFieldValues={claimFieldValues}
 							error={error || patchOrganizationSyncSettingsMutation.error}
 						/>
 					</Cond>

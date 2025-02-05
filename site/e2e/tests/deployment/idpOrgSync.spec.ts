@@ -150,6 +150,11 @@ test.describe("IdpOrgSyncPage", () => {
 			waitUntil: "domcontentloaded",
 		});
 
+		const syncField = page.getByRole("textbox", {
+			name: "Organization sync field",
+		});
+		await syncField.fill("");
+
 		const idpOrgInput = page.getByLabel("IdP organization name");
 		const addButton = page.getByRole("button", {
 			name: /Add IdP organization/i,
@@ -157,7 +162,8 @@ test.describe("IdpOrgSyncPage", () => {
 
 		await expect(addButton).toBeDisabled();
 
-		await idpOrgInput.fill("new-idp-org");
+		const idpOrgName = randomName();
+		await idpOrgInput.fill(idpOrgName);
 
 		// Select Coder organization from combobox
 		const orgSelector = page.getByPlaceholder("Select organization");
@@ -177,11 +183,9 @@ test.describe("IdpOrgSyncPage", () => {
 		await addButton.click();
 
 		// Verify new mapping appears in table
-		const newRow = page.getByTestId("idp-org-new-idp-org");
+		const newRow = page.getByTestId(`idp-org-${idpOrgName}`);
 		await expect(newRow).toBeVisible();
-		await expect(
-			newRow.getByRole("cell", { name: "new-idp-org" }),
-		).toBeVisible();
+		await expect(newRow.getByRole("cell", { name: idpOrgName })).toBeVisible();
 		await expect(newRow.getByRole("cell", { name: orgName })).toBeVisible();
 
 		await expect(

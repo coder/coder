@@ -338,3 +338,35 @@ export const organizationsPermissions = (
 		},
 	};
 };
+
+export const getOrganizationIdpSyncClaimFieldValuesKey = (
+	organization: string,
+	claimField: string,
+) => [organization, claimField, "organizationIdpSyncClaimFieldValues"];
+
+export const organizationIdpSyncClaimFieldValues = (
+	organization: string,
+	claimField: string,
+) => {
+	return {
+		queryKey: getOrganizationIdpSyncClaimFieldValuesKey(
+			organization,
+			claimField,
+		),
+		queryFn: () =>
+			API.getIdpSyncClaimFieldValuesByOrganization(organization, claimField),
+	};
+};
+
+export const getIdpSyncClaimFieldValuesKey = (claimField: string) => [
+	claimField,
+	"idpSyncClaimFieldValues",
+];
+
+export const idpSyncClaimFieldValues = (claimField: string) => {
+	return {
+		queryKey: getIdpSyncClaimFieldValuesKey(claimField),
+		queryFn: () => API.getIdpSyncClaimFieldValues(claimField),
+		enabled: !!claimField,
+	};
+};

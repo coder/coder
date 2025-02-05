@@ -787,6 +787,23 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getIdpSyncClaimFieldValues = async (claimField: string) => {
+		const response = await this.axios.get<string[]>(
+			`/api/v2/settings/idpsync/field-values?claimField=${claimField}`,
+		);
+		return response.data;
+	};
+
+	getIdpSyncClaimFieldValuesByOrganization = async (
+		organization: string,
+		claimField: string,
+	) => {
+		const response = await this.axios.get<TypesGen.Response>(
+			`/api/v2/organizations/${organization}/settings/idpsync/field-values?claimField=${claimField}`,
+		);
+		return response.data;
+	};
+
 	getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
 			`/api/v2/templates/${templateId}`,
