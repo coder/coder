@@ -31,8 +31,6 @@ func (*dockerCLIContainerLister) List(ctx context.Context) ([]codersdk.Workspace
 		return nil, xerrors.Errorf("run docker ps: %w", err)
 	}
 
-	// the output is returned with a single item per line, so we have to decode it
-	// line-by-line
 	ids := make([]string, 0)
 	for _, line := range strings.Split(buf.String(), "\n") {
 		tmp := strings.TrimSpace(line)
@@ -53,7 +51,6 @@ func (*dockerCLIContainerLister) List(ctx context.Context) ([]codersdk.Workspace
 		return nil, xerrors.Errorf("run docker inspect: %w", err)
 	}
 
-	// out := make([]codersdk.WorkspaceAgentContainer, 0)
 	ins := make([]dockerInspect, 0)
 	if err := json.NewDecoder(&buf).Decode(&ins); err != nil {
 		return nil, xerrors.Errorf("decode docker inspect output: %w", err)
@@ -149,7 +146,6 @@ func convertDockerInspect(in dockerInspect) codersdk.WorkspaceAgentContainer {
 
 // convertDockerPort converts a Docker port string to a port number and network
 // example: "8080/tcp" -> 8080, "tcp"
-//
 //	"8080" -> 8080, "tcp"
 func convertDockerPort(in string) (uint16, string, error) {
 	parts := strings.Split(in, "/")
@@ -176,7 +172,6 @@ func convertDockerPort(in string) (uint16, string, error) {
 // container path. If the host path is not specified, the container path is used
 // as the host path.
 // example: "/host/path=/container/path" -> "/host/path", "/container/path"
-//
 //	"/container/path" -> "/container/path", "/container/path"
 func convertDockerVolume(in string) (hostPath, containerPath string) {
 	parts := strings.Split(in, "=")
