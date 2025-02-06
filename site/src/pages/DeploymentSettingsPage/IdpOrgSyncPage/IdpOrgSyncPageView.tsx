@@ -29,7 +29,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import {
 	Table,
