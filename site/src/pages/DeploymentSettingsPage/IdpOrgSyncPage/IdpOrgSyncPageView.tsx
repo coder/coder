@@ -416,7 +416,16 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 				<Stack direction="row" alignItems="center" spacing={1}>
 					{idpOrg}
 					{!exists && (
-						<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+						<Popover>
+							<PopoverTrigger asChild>
+								<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+							</PopoverTrigger>
+							<PopoverContent className="p-2 text-xs text-content-secondary">
+								This value has not be seen in the specified claim field before.
+								You might want to check your IdP configuration and ensure that
+								this value is not misspelled.
+							</PopoverContent>
+						</Popover>
 					)}
 				</Stack>
 			</TableCell>
