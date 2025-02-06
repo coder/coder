@@ -787,6 +787,17 @@ class ApiMethods {
 		return response.data;
 	};
 
+	getDeploymentIdpSyncFieldValues = async (
+		field: string,
+	): Promise<readonly string[]> => {
+		const params = new URLSearchParams();
+		params.set("claimField", field);
+		const response = await this.axios.get<readonly string[]>(
+			`/api/v2/settings/idpsync/field-values?${params.toString}`,
+		);
+		return response.data;
+	};
+
 	getTemplate = async (templateId: string): Promise<TypesGen.Template> => {
 		const response = await this.axios.get<TypesGen.Template>(
 			`/api/v2/templates/${templateId}`,

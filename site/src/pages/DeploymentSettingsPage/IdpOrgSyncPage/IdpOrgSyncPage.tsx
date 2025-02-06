@@ -18,17 +18,20 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
+import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 
 export const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useDashboard();
-	const {
-		data: orgSyncSettingsData,
-		isLoading,
-		error,
-	} = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
+
+	const fieldValuesQuery = useQuery(
+		settingsQuery.data
+			? deploymentIdpSyncFieldValues(settingsQuery.data.field)
+			: { enabled: false },
+	);
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
 		patchOrganizationSyncSettings(queryClient),
@@ -45,7 +48,7 @@ export const IdpOrgSyncPage: FC = () => {
 		}
 	}, [patchOrganizationSyncSettingsMutation.error]);
 
-	if (isLoading) {
+	if (settingsQuery.isLoading || fieldValuesQuery.isLoading) {
 		return <Loader />;
 	}
 
@@ -67,7 +70,7 @@ export const IdpOrgSyncPage: FC = () => {
 							</Link>
 						</p>
 					</div>
-					<ExportPolicyButton syncSettings={orgSyncSettingsData} />
+					<ExportPolicyButton syncSettings={settingsQuery.data} />
 				</header>
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
@@ -79,7 +82,8 @@ export const IdpOrgSyncPage: FC = () => {
 					</Cond>
 					<Cond>
 						<IdpOrgSyncPageView
-							organizationSyncSettings={orgSyncSettingsData}
+							organizationSyncSettings={settingsQuery.data}
+							fieldValues={fieldValuesQuery.data}
 							organizations={organizations}
 							onSubmit={async (data) => {
 								try {
@@ -94,7 +98,10 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
-							error={error || patchOrganizationSyncSettingsMutation.error}
+							error={
+								settingsQuery.error ||
+								patchOrganizationSyncSettingsMutation.error
+							}
 						/>
 					</Cond>
 				</ChooseOne>

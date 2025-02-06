@@ -2720,6 +2720,13 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 		organization_assign_default: true,
 	};
 
+export const MockOrganizationSyncSettingsEmpty: TypesGen.OrganizationSyncSettings =
+	{
+		field: "",
+		mapping: {},
+		organization_assign_default: true,
+	};
+
 export const MockGroup: TypesGen.Group = {
 	id: "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 	name: "Front-End",

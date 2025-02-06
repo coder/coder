@@ -46,6 +46,7 @@ import { Stack } from "components/Stack/Stack";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
+	fieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	error?: unknown;
@@ -75,6 +76,7 @@ const validationSchema = Yup.object({
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
+	fieldValues,
 	organizations,
 	onSubmit,
 	error,
@@ -268,6 +270,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
 											onDelete={handleDelete}
+											exists={fieldValues?.includes(idpOrg)}
 										/>
 									))}
 						</IdpMappingTable>
@@ -355,14 +358,14 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 
 interface OrganizationRowProps {
 	idpOrg: string;
-	doesIdpOrgEvenExistLol: boolean;
+	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,
-	doesIdpOrgEvenExistLol,
+	exists = true,
 	coderOrgs,
 	onDelete,
 }) => {
@@ -371,7 +374,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 			<TableCell>
 				<Stack direction="row" alignItems="center" spacing={1}>
 					{idpOrg}{" "}
-					{!doesIdpOrgEvenExistLol && (
+					{!exists && (
 						<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
 					)}
 				</Stack>
