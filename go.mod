@@ -437,6 +437,7 @@ require (
 
 require (
 	github.com/aquasecurity/trivy-iac v0.8.0
+	github.com/dblohm7/wingoes v0.0.0-20240820181039-f2b84150679e
 	github.com/zclconf/go-cty-yaml v1.1.0
 )
 
