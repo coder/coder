@@ -54,7 +54,7 @@ import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
-	fieldValues: readonly string[] | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
@@ -85,7 +85,7 @@ const validationSchema = Yup.object({
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
-	fieldValues,
+	claimFieldValues,
 	organizations,
 	onSubmit,
 	onSyncFieldChange,
@@ -137,7 +137,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		if (
 			event.key === "Enter" &&
 			inputValue &&
-			!fieldValues?.some((value) => value === inputValue.toLowerCase())
+			!claimFieldValues?.some((value) => value === inputValue.toLowerCase())
 		) {
 			event.preventDefault();
 			setIdpOrgName(inputValue);
@@ -220,10 +220,10 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									IdP organization name
 								</Label>
 
-								{fieldValues ? (
+								{claimFieldValues ? (
 									<Combobox
 										value={idpOrgName}
-										options={fieldValues}
+										options={claimFieldValues}
 										placeholder="Select IdP organization"
 										open={open}
 										onOpenChange={setOpen}
@@ -314,7 +314,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
 											onDelete={handleDelete}
-											exists={fieldValues?.includes(idpOrg)}
+											exists={claimFieldValues?.includes(idpOrg)}
 										/>
 									))}
 						</IdpMappingTable>
