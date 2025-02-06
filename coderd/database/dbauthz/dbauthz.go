@@ -1930,6 +1930,62 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 	return q.db.GetParameterSchemasByJobID(ctx, jobID)
 }
 
+func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
+	// TODO (sasswart): relax this check when we allow changing presets on existing workspaces.
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+	return q.db.GetPresetByWorkspaceBuildID(ctx, workspaceID)
+}
+
+func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
+	// An actor can read template version preset parameters if they can read the related template version.
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
+}
+
+func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+	// An actor can read template version presets if they can read the related template version.
+	tv, err := q.db.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
+		return nil, err
+	}
+
+	var object rbac.Objecter
+	template, err := q.db.GetTemplateByID(ctx, tv.TemplateID.UUID)
+	if err != nil {
+		if !errors.Is(err, sql.ErrNoRows) {
+			return nil, err
+		}
+		object = rbac.ResourceTemplate.InOrg(tv.OrganizationID)
+	} else {
+		object = tv.RBACObject(template)
+	}
+
+	if err := q.authorizeContext(ctx, policy.ActionRead, object); err != nil {
+		return nil, err
+	}
+	return q.db.GetPresetsByTemplateVersionID(ctx, templateVersionID)
+}
+
 func (q *querier) GetPreviousTemplateVersion(ctx context.Context, arg database.GetPreviousTemplateVersionParams) (database.TemplateVersion, error) {
 	// An actor can read the previous template version if they can read the related template.
 	// If no linked template exists, we check if the actor can read *a* template.
@@ -3086,6 +3142,20 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 
 	obj := rbac.ResourceOrganizationMember.InOrg(arg.OrganizationID).WithID(arg.UserID)
 	return insert(q.log, q.auth, obj, q.db.InsertOrganizationMember)(ctx, arg)
+}
+
+func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.TemplateVersionPreset{}, err
+	}
+	return q.db.InsertPreset(ctx, arg)
+}
+
+func (q *querier) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
+	return q.db.InsertPresetParameters(ctx, arg)
 }
 
 // TODO: We need to create a ProvisionerJob resource type
