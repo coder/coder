@@ -798,19 +798,14 @@ class ApiMethods {
 		return response.data;
 	};
 
-	getIdpSyncClaimFieldValues = async (claimField: string) => {
-		const response = await this.axios.get<string[]>(
-			`/api/v2/settings/idpsync/field-values?claimField=${claimField}`,
-		);
-		return response.data;
-	};
-
-	getIdpSyncClaimFieldValuesByOrganization = async (
+	getOrganizationIdpSyncClaimFieldValues = async (
 		organization: string,
-		claimField: string,
+		field: string,
 	) => {
+		const params = new URLSearchParams();
+		params.set("claimField", field);
 		const response = await this.axios.get<TypesGen.Response>(
-			`/api/v2/organizations/${organization}/settings/idpsync/field-values?claimField=${claimField}`,
+			`/api/v2/organizations/${organization}/settings/idpsync/field-values?${params.toString()}`,
 		);
 		return response.data;
 	};

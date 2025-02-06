@@ -414,7 +414,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>
 				<Stack direction="row" alignItems="center" spacing={1}>
-					{idpOrg}{" "}
+					{idpOrg}
 					{!exists && (
 						<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
 					)}
