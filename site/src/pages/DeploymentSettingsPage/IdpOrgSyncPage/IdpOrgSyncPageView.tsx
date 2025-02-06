@@ -414,7 +414,12 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>
-				<Stack direction="row" alignItems="center" spacing={1}>
+				<Stack
+					direction="row"
+					alignItems="center"
+					spacing={1}
+					className="text-content-primary"
+				>
 					{idpOrg}
 					{!exists && (
 						<TooltipProvider>
