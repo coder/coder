@@ -220,7 +220,7 @@ func TestUntar(t *testing.T) {
 		require.NoError(t, err)
 		_ = file.Close()
 
-		err = os.WriteFile(file.Name(), []byte("# ab"), 0600)
+		err = os.WriteFile(file.Name(), []byte("# ab"), 0o600)
 		require.NoError(t, err)
 
 		archive := new(bytes.Buffer)
@@ -234,7 +234,7 @@ func TestUntar(t *testing.T) {
 		require.NoError(t, err)
 
 		// 4. Modify the .tf file
-		err = os.WriteFile(file.Name(), []byte("# c"), 0600)
+		err = os.WriteFile(file.Name(), []byte("# c"), 0o600)
 		require.NoError(t, err)
 
 		// 5. Build tar archive with modified .tf file
