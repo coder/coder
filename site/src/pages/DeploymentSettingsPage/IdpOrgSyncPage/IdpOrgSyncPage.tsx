@@ -1,4 +1,5 @@
 import { getErrorMessage } from "api/errors";
+import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
@@ -18,7 +19,6 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
-import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 
 export const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -55,7 +55,7 @@ export const IdpOrgSyncPage: FC = () => {
 		}
 	}, [patchOrganizationSyncSettingsMutation.error]);
 
-	if (settingsQuery.isLoading || fieldValuesQuery.isLoading) {
+	if (settingsQuery.isLoading) {
 		return <Loader />;
 	}
 
@@ -90,9 +90,9 @@ export const IdpOrgSyncPage: FC = () => {
 					<Cond>
 						<IdpOrgSyncPageView
 							organizationSyncSettings={settingsQuery.data}
-							fieldValues={fieldValuesQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							organizations={organizations}
-							onSyncFieldChange={(field) => setField(field)}
+							onSyncFieldChange={setField}
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
@@ -106,6 +106,7 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
+							error={settingsQuery.error || fieldValuesQuery.error}
 						/>
 					</Cond>
 				</ChooseOne>

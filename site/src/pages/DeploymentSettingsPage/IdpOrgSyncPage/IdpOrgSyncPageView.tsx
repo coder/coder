@@ -28,12 +28,6 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
-import {
-	Tooltip,
-	TooltipContent,
-	TooltipTrigger,
-	TooltipProvider,
-} from "components/Tooltip/Tooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -43,6 +37,12 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+	TooltipProvider,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
@@ -50,11 +50,10 @@ import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
-import { Stack } from "components/Stack/Stack";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
-	fieldValues: readonly string[] | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
@@ -85,7 +84,7 @@ const validationSchema = Yup.object({
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
-	fieldValues,
+	claimFieldValues,
 	organizations,
 	onSubmit,
 	onSyncFieldChange,
@@ -137,7 +136,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 		if (
 			event.key === "Enter" &&
 			inputValue &&
-			!fieldValues?.some((value) => value === inputValue.toLowerCase())
+			!claimFieldValues?.some((value) => value === inputValue.toLowerCase())
 		) {
 			event.preventDefault();
 			setIdpOrgName(inputValue);
@@ -220,10 +219,10 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 									IdP organization name
 								</Label>
 
-								{fieldValues ? (
+								{claimFieldValues ? (
 									<Combobox
 										value={idpOrgName}
-										options={fieldValues}
+										options={claimFieldValues}
 										placeholder="Select IdP organization"
 										open={open}
 										onOpenChange={setOpen}
@@ -314,7 +313,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
 											onDelete={handleDelete}
-											exists={fieldValues?.includes(idpOrg)}
+											exists={claimFieldValues?.includes(idpOrg)}
 										/>
 									))}
 						</IdpMappingTable>
@@ -414,20 +413,20 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>
-				<Stack
-					direction="row"
-					alignItems="center"
-					spacing={1}
-					className="text-content-primary"
-				>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
 					{idpOrg}
 					{!exists && (
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
 								</TooltipTrigger>
-								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
 									This value has not be seen in the specified claim field
 									before. You might want to check your IdP configuration and
 									ensure that this value is not misspelled.
@@ -435,7 +434,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 							</Tooltip>
 						</TooltipProvider>
 					)}
-				</Stack>
+				</div>
 			</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />

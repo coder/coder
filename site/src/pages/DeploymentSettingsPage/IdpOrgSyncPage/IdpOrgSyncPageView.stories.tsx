@@ -14,7 +14,7 @@ const meta: Meta<typeof IdpOrgSyncPageView> = {
 	component: IdpOrgSyncPageView,
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings2,
-		fieldValues: Object.keys(MockOrganizationSyncSettings2.mapping),
+		claimFieldValues: Object.keys(MockOrganizationSyncSettings2.mapping),
 		organizations: [MockOrganization, MockOrganization2],
 		error: undefined,
 	},
@@ -40,14 +40,14 @@ export const HasError: Story = {
 export const MissingGroups: Story = {
 	args: {
 		organizationSyncSettings: MockOrganizationSyncSettings,
-		fieldValues: Object.keys(MockOrganizationSyncSettings.mapping),
+		claimFieldValues: Object.keys(MockOrganizationSyncSettings.mapping),
 		organizations: [],
 	},
 };
 
 export const MissingClaim: Story = {
 	args: {
-		fieldValues: [],
+		claimFieldValues: [],
 	},
 };
 
