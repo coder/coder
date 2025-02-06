@@ -324,141 +324,197 @@ func TestMemoryResourceMonitor(t *testing.T) {
 func TestVolumeResourceMonitorDebounce(t *testing.T) {
 	t.Parallel()
 
-	// This test is a bit of a long one. We're testing that
-	// when a monitor goes into an alert state, it doesn't
-	// allow another notification to occur until after the
-	// debounce period.
+	// This test is an even longer one. We're testing
+	// that the debounce logic is independent per
+	// volume monitor. We interleave the triggering
+	// of each monitor to ensure the debounce logic
+	// is monitor independent.
 	//
-	// 1. OK -> NOK  |> sends a notification
-	// 2. NOK -> OK  |> does nothing
-	// 3. OK -> NOK  |> does nothing due to debounce period
-	// 4. NOK -> OK  |> does nothing
-	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
+	// First Monitor:
+	//   1. OK -> NOK  |> sends a notification
+	//   2. NOK -> OK  |> does nothing
+	//   3. OK -> NOK  |> does nothing due to debounce period
+	//   4. NOK -> OK  |> does nothing
+	//   5. OK -> NOK  |> sends a notification as debounce period exceeded
+	//   6. NOK -> OK  |> does nothing
+	//
+	// Second Monitor:
+	//   1. OK -> OK  |> does nothing
+	//   2. OK -> NOK |> sends a notification
+	//   3. NOK -> OK |> does nothing
+	//   4. OK -> NOK |> does nothing due to debounce period
+	//   5. NOK -> OK |> does nothing
+	//   6. OK -> NOK |> sends a notification as debounce period exceeded
+	//
 
-	volumePath := "/home/coder"
+	firstVolumePath := "/home/coder"
+	secondVolumePath := "/dev/coder"
 
 	api, _, clock, notifyEnq := resourceMonitorAPI(t)
 
-	// Given: A monitor in an OK state
+	// Given:
+	//  - First monitor in an OK state
+	//  - Second monitor in an OK state
 	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
 		AgentID:   api.AgentID,
-		Path:      volumePath,
+		Path:      firstVolumePath,
 		State:     database.WorkspaceAgentMonitorStateOK,
 		Threshold: 80,
 	})
+	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   api.AgentID,
+		Path:      secondVolumePath,
+		State:     database.WorkspaceAgentMonitorStateNOK,
+		Threshold: 80,
+	})
 
-	// When: The monitor is given a state that will trigger NOK
+	// When:
+	//  - First monitor is in a NOK state
+	//  - Second monitor is in an OK state
 	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{
-						Path:       volumePath,
-						SpaceUsed:  10,
-						SpaceTotal: 10,
-					},
+					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then: We expect there to be a notification sent
+	// Then:
+	//  - We expect a notification from only the first monitor
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
+	volumes := requireVolumeData(t, sent[0])
+	require.Len(t, volumes, 1)
+	require.Equal(t, firstVolumePath, volumes[0]["path"])
 	notifyEnq.Clear()
 
-	// When: The monitor moves to an OK state from NOK
+	// When:
+	//  - First monitor moves back to OK
+	//  - Second monitor moves to NOK
 	clock.Advance(api.Debounce / 4)
 	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{
-						Path:       volumePath,
-						SpaceUsed:  1,
-						SpaceTotal: 10,
-					},
+					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then: We expect no new notifications
+	// Then:
+	//  - We expect a notification from only the second monitor
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
-	require.Len(t, sent, 0)
+	require.Len(t, sent, 1)
+	volumes = requireVolumeData(t, sent[0])
+	require.Len(t, volumes, 1)
+	require.Equal(t, secondVolumePath, volumes[0]["path"])
 	notifyEnq.Clear()
 
-	// When: The monitor moves back to a NOK state before the debounced time.
+	// When:
+	//  - First monitor moves back to NOK before debounce period has ended
+	//  - Second monitor moves back to OK
 	clock.Advance(api.Debounce / 4)
 	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{
-						Path:       volumePath,
-						SpaceUsed:  10,
-						SpaceTotal: 10,
-					},
+					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then: We expect no new notifications (showing the debouncer working)
+	// Then:
+	//  - We expect no new notifications
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
-	// When: The monitor moves back to an OK state from NOK
+	// When:
+	//  - First monitor moves back to OK
+	//  - Second monitor moves back to NOK
 	clock.Advance(api.Debounce / 4)
 	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{
-						Path:       volumePath,
-						SpaceUsed:  1,
-						SpaceTotal: 10,
-					},
+					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then: We still expect no new notifications
+	// Then:
+	//  - We expect no new notifications.
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 0)
 	notifyEnq.Clear()
 
-	// When: The monitor moves back to a NOK state after the debounce period.
+	// When:
+	//  - First monitor moves back to a NOK state after the debounce period
+	//  - Second monitor moves back to OK
 	clock.Advance(api.Debounce/4 + 1*time.Second)
 	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{
-						Path:       volumePath,
-						SpaceUsed:  10,
-						SpaceTotal: 10,
-					},
+					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
 				},
 			},
 		},
 	})
 	require.NoError(t, err)
 
-	// Then: We expect a notification
+	// Then:
+	//  - We expect a notification from only the first monitor
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
+	volumes = requireVolumeData(t, sent[0])
+	require.Len(t, volumes, 1)
+	require.Equal(t, firstVolumePath, volumes[0]["path"])
+	notifyEnq.Clear()
+
+	// When:
+	//  - First montior moves back to OK
+	//  - Second monitor moves back to NOK after the debounce period
+	clock.Advance(api.Debounce/4 + 1*time.Second)
+	_, err = api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Then:
+	//  - We expect a notification from only the second monitor
+	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 1)
+	volumes = requireVolumeData(t, sent[0])
+	require.Len(t, volumes, 1)
+	require.Equal(t, secondVolumePath, volumes[0]["path"])
 }
 
 func TestVolumeResourceMonitor(t *testing.T) {
@@ -623,7 +679,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 		Threshold: 80,
 	})
 
-	// When: only one of them is in an NOK state.
+	// When: both of them move to a NOK state
 	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
 		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
 			{
@@ -631,7 +687,7 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
 						Path:       "/home/coder",
-						SpaceUsed:  1,
+						SpaceUsed:  10,
 						SpaceTotal: 10,
 					},
 					{
@@ -645,16 +701,21 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	// Then: We expect a notification that contains only the alerting volume.
+	// Then: We expect a notification to alert with information about both
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
 	require.Len(t, sent, 1)
 
-	volumesData := sent[0].Data["volumes"]
+	volumes := requireVolumeData(t, sent[0])
+	require.Len(t, volumes, 2)
+	require.Equal(t, "/home/coder", volumes[0]["path"])
+	require.Equal(t, "/dev/coder", volumes[1]["path"])
+}
+
+func requireVolumeData(t *testing.T, notif *notificationstest.FakeNotification) []map[string]any {
+	t.Helper()
+
+	volumesData := notif.Data["volumes"]
 	require.IsType(t, []map[string]any{}, volumesData)
 
-	volumes := volumesData.([]map[string]any)
-	require.Len(t, volumes, 1)
-
-	volume := volumes[0]
-	require.Equal(t, "/dev/coder", volume["path"])
+	return volumesData.([]map[string]any)
 }
