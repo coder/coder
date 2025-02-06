@@ -35,7 +35,7 @@ You can add a license through the UI or CLI:
 
 ### Coder CLI
 
-1. Ensure you have the [Coder CLI](../../install/cli.md) installed.
+1. Ensure you have the [Coder CLI](../install/cli.md) installed.
 1. Save your license key to disk and make note of the path.
 1. Open a terminal.
 1. Log in to your Coder deployment:
