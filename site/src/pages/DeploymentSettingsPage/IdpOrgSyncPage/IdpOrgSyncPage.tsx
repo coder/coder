@@ -55,7 +55,7 @@ export const IdpOrgSyncPage: FC = () => {
 		}
 	}, [patchOrganizationSyncSettingsMutation.error]);
 
-	if (settingsQuery.isLoading || fieldValuesQuery.isLoading) {
+	if (settingsQuery.isLoading) {
 		return <Loader />;
 	}
 
@@ -92,7 +92,7 @@ export const IdpOrgSyncPage: FC = () => {
 							organizationSyncSettings={settingsQuery.data}
 							claimFieldValues={fieldValuesQuery.data}
 							organizations={organizations}
-							onSyncFieldChange={(field) => setField(field)}
+							onSyncFieldChange={setField}
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
@@ -106,6 +106,7 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
+							error={settingsQuery.error || fieldValuesQuery.error}
 						/>
 					</Cond>
 				</ChooseOne>
