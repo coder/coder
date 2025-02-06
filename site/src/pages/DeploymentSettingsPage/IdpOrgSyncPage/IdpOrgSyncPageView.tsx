@@ -425,7 +425,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
 								</TooltipTrigger>
 								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
 									This value has not be seen in the specified claim field
