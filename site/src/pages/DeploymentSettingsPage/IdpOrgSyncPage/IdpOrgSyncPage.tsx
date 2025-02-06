@@ -11,7 +11,7 @@ import { Loader } from "components/Loader/Loader";
 import { Paywall } from "components/Paywall/Paywall";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
-import { type FC, useEffect } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { docs } from "utils/docs";
@@ -27,10 +27,17 @@ export const IdpOrgSyncPage: FC = () => {
 	const { organizations } = useDashboard();
 	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
 
+	const [field, setField] = useState("");
+	useEffect(() => {
+		if (!settingsQuery.data) {
+			return;
+		}
+
+		setField(settingsQuery.data.field);
+	}, [settingsQuery.data]);
+
 	const fieldValuesQuery = useQuery(
-		settingsQuery.data
-			? deploymentIdpSyncFieldValues(settingsQuery.data.field)
-			: { enabled: false },
+		field ? deploymentIdpSyncFieldValues(field) : { enabled: false },
 	);
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
@@ -85,6 +92,7 @@ export const IdpOrgSyncPage: FC = () => {
 							organizationSyncSettings={settingsQuery.data}
 							fieldValues={fieldValuesQuery.data}
 							organizations={organizations}
+							onSyncFieldChange={(field) => setField(field)}
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
@@ -98,10 +106,6 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
-							error={
-								settingsQuery.error ||
-								patchOrganizationSyncSettingsMutation.error
-							}
 						/>
 					</Cond>
 				</ChooseOne>

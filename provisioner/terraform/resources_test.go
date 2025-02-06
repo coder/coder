@@ -11,6 +11,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/google/go-cmp/cmp"
 	tfjson "github.com/hashicorp/terraform-json"
 	"github.com/stretchr/testify/require"
 	protobuf "google.golang.org/protobuf/proto"
@@ -842,7 +843,9 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-				require.Equal(t, expectedNoMetadataMap, resourcesMap)
+				if diff := cmp.Diff(expectedNoMetadataMap, resourcesMap); diff != "" {
+					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
+				}
 
 				expectedParams := expected.parameters
 				if expectedParams == nil {
@@ -897,7 +900,9 @@ func TestConvertResources(t *testing.T) {
 				var resourcesMap []map[string]interface{}
 				err = json.Unmarshal(data, &resourcesMap)
 				require.NoError(t, err)
-				require.Equal(t, expectedMap, resourcesMap)
+				if diff := cmp.Diff(expectedMap, resourcesMap); diff != "" {
+					require.Failf(t, "unexpected resources", "diff (-want +got):\n%s", diff)
+				}
 				require.ElementsMatch(t, expected.externalAuthProviders, state.ExternalAuthProviders)
 			})
 		})

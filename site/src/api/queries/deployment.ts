@@ -32,7 +32,7 @@ export const deploymentSSHConfig = () => {
 
 export const deploymentIdpSyncFieldValues = (field: string) => {
 	return {
-		queryKey: ["deployment", "idpSync", "fieldValues"],
+		queryKey: ["deployment", "idpSync", "fieldValues", field],
 		queryFn: () => API.getDeploymentIdpSyncFieldValues(field),
 	};
 };
