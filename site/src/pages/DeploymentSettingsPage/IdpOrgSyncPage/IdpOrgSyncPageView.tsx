@@ -29,10 +29,10 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -50,6 +50,7 @@ import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
 import { Stack } from "components/Stack/Stack";
+import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
@@ -416,16 +417,18 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 				<Stack direction="row" alignItems="center" spacing={1}>
 					{idpOrg}
 					{!exists && (
-						<Popover>
-							<PopoverTrigger asChild>
-								<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
-							</PopoverTrigger>
-							<PopoverContent className="p-2 text-xs text-content-secondary">
-								This value has not be seen in the specified claim field before.
-								You might want to check your IdP configuration and ensure that
-								this value is not misspelled.
-							</PopoverContent>
-						</Popover>
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
 					)}
 				</Stack>
 			</TableCell>
