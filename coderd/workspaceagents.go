@@ -696,7 +696,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	if !ok {
 		labelParam = []string{}
 	}
-	labels := make(map[string]string)
+	labels := make(map[string]string, len(labelParam)/2)
 	for _, label := range labelParam {
 		kvs := strings.Split(label, "=")
 		if len(kvs) != 2 {
@@ -750,6 +750,13 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	// Get a list of containers that the agent is able to detect
 	cts, err := agentConn.ListContainers(ctx)
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(ctx, rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Failed to fetch containers from agent.",
+				Detail:  "Request timed out.",
+			})
+			return
+		}
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error fetching containers.",
 			Detail:  err.Error(),
@@ -758,7 +765,7 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Filter in-place by labels
-	filtered := slices.DeleteFunc(cts, func(ct codersdk.WorkspaceAgentContainer) bool {
+	filtered := slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
 		return !maputil.Subset(labels, ct.Labels)
 	})
 

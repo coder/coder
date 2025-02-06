@@ -337,18 +337,18 @@ func (c *AgentConn) PrometheusMetrics(ctx context.Context) ([]byte, error) {
 }
 
 // ListContainers returns a response from the agent's containers endpoint
-func (c *AgentConn) ListContainers(ctx context.Context) ([]codersdk.WorkspaceAgentContainer, error) {
+func (c *AgentConn) ListContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	ctx, span := tracing.StartSpan(ctx)
 	defer span.End()
 	res, err := c.apiRequest(ctx, http.MethodGet, "/api/v0/containers", nil)
 	if err != nil {
-		return nil, xerrors.Errorf("do request: %w", err)
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("do request: %w", err)
 	}
 	defer res.Body.Close()
 	if res.StatusCode != http.StatusOK {
-		return nil, codersdk.ReadBodyAsError(res)
+		return codersdk.WorkspaceAgentListContainersResponse{}, codersdk.ReadBodyAsError(res)
 	}
-	var resp []codersdk.WorkspaceAgentContainer
+	var resp codersdk.WorkspaceAgentListContainersResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

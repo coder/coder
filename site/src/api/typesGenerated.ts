@@ -2927,7 +2927,7 @@ export interface WorkspaceAgent {
 }
 
 // From codersdk/workspaceagents.go
-export interface WorkspaceAgentContainer {
+export interface WorkspaceAgentDevcontainer {
 	readonly created_at: string;
 	readonly id: string;
 	readonly name: string;
@@ -2971,7 +2971,8 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListContainersResponse {
-	readonly containers: readonly WorkspaceAgentContainer[];
+	readonly containers: readonly WorkspaceAgentDevcontainer[];
+	readonly warnings?: readonly string[];
 }
 
 // From codersdk/workspaceagents.go

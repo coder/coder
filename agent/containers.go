@@ -4,7 +4,9 @@ package agent
 
 import (
 	"context"
+	"errors"
 	"net/http"
+	"slices"
 	"sync"
 	"time"
 
@@ -21,19 +23,29 @@ const (
 	getContainersTimeout              = 5 * time.Second
 )
 
-type containersHandler struct {
+type devcontainersHandler struct {
 	cacheDuration time.Duration
 	cl            ContainerLister
 	clock         quartz.Clock
 
-	mu         sync.Mutex // protects the below
-	containers []codersdk.WorkspaceAgentContainer
+	initLockOnce sync.Once // ensures we don't get a race when initializing lockCh
+	// lockCh protects the below fields. We use a channel instead of a mutex so we
+	// can handle cancellation properly.
+	lockCh     chan struct{}
+	containers *codersdk.WorkspaceAgentListContainersResponse
 	mtime      time.Time
 }
 
-func (ch *containersHandler) handler(rw http.ResponseWriter, r *http.Request) {
+func (ch *devcontainersHandler) handler(rw http.ResponseWriter, r *http.Request) {
 	ct, err := ch.getContainers(r.Context())
 	if err != nil {
+		if errors.Is(err, context.Canceled) {
+			httpapi.Write(r.Context(), rw, http.StatusRequestTimeout, codersdk.Response{
+				Message: "Could not get containers.",
+				Detail:  "Took too long to list containers.",
+			})
+			return
+		}
 		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Could not get containers.",
 			Detail:  err.Error(),
@@ -44,9 +56,21 @@ func (ch *containersHandler) handler(rw http.ResponseWriter, r *http.Request) {
 	httpapi.Write(r.Context(), rw, http.StatusOK, ct)
 }
 
-func (ch *containersHandler) getContainers(ctx context.Context) ([]codersdk.WorkspaceAgentContainer, error) {
-	ch.mu.Lock()
-	defer ch.mu.Unlock()
+func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	ch.initLockOnce.Do(func() {
+		if ch.lockCh == nil {
+			ch.lockCh = make(chan struct{}, 1)
+		}
+	})
+	select {
+	case <-ctx.Done():
+		return codersdk.WorkspaceAgentListContainersResponse{}, ctx.Err()
+	default:
+		ch.lockCh <- struct{}{}
+	}
+	defer func() {
+		<-ch.lockCh
+	}()
 
 	// make zero-value usable
 	if ch.cacheDuration == 0 {
@@ -58,7 +82,7 @@ func (ch *containersHandler) getContainers(ctx context.Context) ([]codersdk.Work
 		ch.cl = &dockerCLIContainerLister{}
 	}
 	if ch.containers == nil {
-		ch.containers = make([]codersdk.WorkspaceAgentContainer, 0)
+		ch.containers = &codersdk.WorkspaceAgentListContainersResponse{}
 	}
 	if ch.clock == nil {
 		ch.clock = quartz.NewReal()
@@ -66,26 +90,34 @@ func (ch *containersHandler) getContainers(ctx context.Context) ([]codersdk.Work
 
 	now := ch.clock.Now()
 	if now.Sub(ch.mtime) < ch.cacheDuration {
-		cpy := make([]codersdk.WorkspaceAgentContainer, len(ch.containers))
-		copy(cpy, ch.containers)
+		// Return a copy of the cached data to avoid accidental modification by the caller.
+		cpy := codersdk.WorkspaceAgentListContainersResponse{
+			Containers: slices.Clone(ch.containers.Containers),
+		}
 		return cpy, nil
 	}
 
-	cancelCtx, cancelFunc := context.WithTimeout(ctx, getContainersTimeout)
-	defer cancelFunc()
-	updated, err := ch.cl.List(cancelCtx)
+	timeoutCtx, timeoutCancel := context.WithTimeout(ctx, getContainersTimeout)
+	defer timeoutCancel()
+	updated, err := ch.cl.List(timeoutCtx)
 	if err != nil {
-		return nil, xerrors.Errorf("get containers: %w", err)
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("get containers: %w", err)
 	}
-	ch.containers = updated
+	ch.containers = &updated
 	ch.mtime = now
 
-	// return a copy
-	cpy := make([]codersdk.WorkspaceAgentContainer, len(ch.containers))
-	copy(cpy, ch.containers)
+	// Return a copy of the cached data to avoid accidental modification by the
+	// caller.
+	cpy := codersdk.WorkspaceAgentListContainersResponse{
+		Containers: slices.Clone(ch.containers.Containers),
+	}
 	return cpy, nil
 }
 
+// ContainerLister is an interface for listing containers visible to the
+// workspace agent.
 type ContainerLister interface {
-	List(ctx context.Context) ([]codersdk.WorkspaceAgentContainer, error)
+	// List returns a list of containers visible to the workspace agent.
+	// This should include running and stopped containers.
+	List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
 }

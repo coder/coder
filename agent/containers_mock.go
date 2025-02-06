@@ -21,6 +21,7 @@ import (
 type MockContainerLister struct {
 	ctrl     *gomock.Controller
 	recorder *MockContainerListerMockRecorder
+	isgomock struct{}
 }
 
 // MockContainerListerMockRecorder is the mock recorder for MockContainerLister.
@@ -41,16 +42,16 @@ func (m *MockContainerLister) EXPECT() *MockContainerListerMockRecorder {
 }
 
 // List mocks base method.
-func (m *MockContainerLister) List(arg0 context.Context) ([]codersdk.WorkspaceAgentContainer, error) {
+func (m *MockContainerLister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "List", arg0)
-	ret0, _ := ret[0].([]codersdk.WorkspaceAgentContainer)
+	ret := m.ctrl.Call(m, "List", ctx)
+	ret0, _ := ret[0].(codersdk.WorkspaceAgentListContainersResponse)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }
 
 // List indicates an expected call of List.
-func (mr *MockContainerListerMockRecorder) List(arg0 any) *gomock.Call {
+func (mr *MockContainerListerMockRecorder) List(ctx any) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockContainerLister)(nil).List), arg0)
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "List", reflect.TypeOf((*MockContainerLister)(nil).List), ctx)
 }

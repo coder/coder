@@ -10,9 +10,7 @@ import (
 // in b and have the same values.
 func Subset[T, U comparable](a, b map[T]U) bool {
 	for ka, va := range a {
-		if vb, ok := b[ka]; !ok {
-			return false
-		} else if va != vb {
+		if vb, ok := b[ka]; !ok || va != vb {
 			return false
 		}
 	}

@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"os/exec"
 	"runtime"
 	"strings"
 	"testing"
@@ -28,6 +29,11 @@ func TestDockerCLIContainerLister(t *testing.T) {
 		t.Skip("creating containers on non-linux runners is slow and flaky")
 	}
 
+	// Conditionally skip if Docker is not available.
+	if _, err := exec.LookPath("docker"); err != nil {
+		t.Skip("docker not found in PATH")
+	}
+
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
 	testLabelValue := uuid.New().String()
@@ -42,15 +48,16 @@ func TestDockerCLIContainerLister(t *testing.T) {
 	})
 	require.NoError(t, err, "Could not start test docker container")
 	t.Cleanup(func() {
-		assert.NoError(t, pool.Purge(ct), "Could not purge resource")
+		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
 	})
 
 	dcl := dockerCLIContainerLister{}
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
+	require.Empty(t, actual.Warnings, "Expected no warnings")
 	var found bool
-	for _, foundContainer := range actual {
+	for _, foundContainer := range actual.Containers {
 		if foundContainer.ID == ct.Container.ID {
 			found = true
 			assert.Equal(t, ct.Container.Created, foundContainer.CreatedAt)
@@ -79,12 +86,15 @@ func TestContainersHandler(t *testing.T) {
 
 		fakeCt := fakeContainer(t)
 		fakeCt2 := fakeContainer(t)
+		makeResponse := func(cts ...codersdk.WorkspaceAgentDevcontainer) codersdk.WorkspaceAgentListContainersResponse {
+			return codersdk.WorkspaceAgentListContainersResponse{Containers: cts}
+		}
 
 		// Each test case is called multiple times to ensure idempotency
 		for _, tc := range []struct {
 			name string
 			// data to be stored in the handler
-			cacheData []codersdk.WorkspaceAgentContainer
+			cacheData codersdk.WorkspaceAgentListContainersResponse
 			// duration of cache
 			cacheDur time.Duration
 			// relative age of the cached data
@@ -92,50 +102,50 @@ func TestContainersHandler(t *testing.T) {
 			// function to set up expectations for the mock
 			setupMock func(*MockContainerLister)
 			// expected result
-			expected []codersdk.WorkspaceAgentContainer
+			expected codersdk.WorkspaceAgentListContainersResponse
 			// expected error
 			expectedErr string
 		}{
 			{
 				name: "no cache",
 				setupMock: func(mcl *MockContainerLister) {
-					mcl.EXPECT().List(gomock.Any()).Return([]codersdk.WorkspaceAgentContainer{fakeCt}, nil).AnyTimes()
+					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
-				expected: []codersdk.WorkspaceAgentContainer{fakeCt},
+				expected: makeResponse(fakeCt),
 			},
 			{
 				name:      "no data",
-				cacheData: nil,
+				cacheData: makeResponse(),
 				cacheAge:  2 * time.Second,
 				cacheDur:  time.Second,
 				setupMock: func(mcl *MockContainerLister) {
-					mcl.EXPECT().List(gomock.Any()).Return([]codersdk.WorkspaceAgentContainer{fakeCt}, nil).AnyTimes()
+					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
-				expected: []codersdk.WorkspaceAgentContainer{fakeCt},
+				expected: makeResponse(fakeCt),
 			},
 			{
 				name:      "cached data",
 				cacheAge:  time.Second,
-				cacheData: []codersdk.WorkspaceAgentContainer{fakeCt},
+				cacheData: makeResponse(fakeCt),
 				cacheDur:  2 * time.Second,
-				expected:  []codersdk.WorkspaceAgentContainer{fakeCt},
+				expected:  makeResponse(fakeCt),
 			},
 			{
 				name: "lister error",
 				setupMock: func(mcl *MockContainerLister) {
-					mcl.EXPECT().List(gomock.Any()).Return(nil, assert.AnError).AnyTimes()
+					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(), assert.AnError).AnyTimes()
 				},
 				expectedErr: assert.AnError.Error(),
 			},
 			{
 				name:      "stale cache",
 				cacheAge:  2 * time.Second,
-				cacheData: []codersdk.WorkspaceAgentContainer{fakeCt},
+				cacheData: makeResponse(fakeCt),
 				cacheDur:  time.Second,
 				setupMock: func(mcl *MockContainerLister) {
-					mcl.EXPECT().List(gomock.Any()).Return([]codersdk.WorkspaceAgentContainer{fakeCt2}, nil).AnyTimes()
+					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).AnyTimes()
 				},
-				expected: []codersdk.WorkspaceAgentContainer{fakeCt2},
+				expected: makeResponse(fakeCt2),
 			},
 		} {
 			tc := tc
@@ -147,11 +157,11 @@ func TestContainersHandler(t *testing.T) {
 					ctrl       = gomock.NewController(t)
 					mockLister = NewMockContainerLister(ctrl)
 					now        = time.Now().UTC()
-					ch         = containersHandler{
+					ch         = devcontainersHandler{
 						cacheDuration: tc.cacheDur,
 						cl:            mockLister,
 						clock:         clk,
-						containers:    tc.cacheData,
+						containers:    &tc.cacheData,
 					}
 				)
 				if tc.cacheAge != 0 {
@@ -179,9 +189,115 @@ func TestContainersHandler(t *testing.T) {
 	})
 }
 
-func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentContainer)) codersdk.WorkspaceAgentContainer {
+func TestConvertDockerPort(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name          string
+		in            string
+		expectPort    uint16
+		expectNetwork string
+		expectError   string
+	}{
+		{
+			name:        "empty port",
+			in:          "",
+			expectError: "invalid port",
+		},
+		{
+			name:          "valid tcp port",
+			in:            "8080/tcp",
+			expectPort:    8080,
+			expectNetwork: "tcp",
+		},
+		{
+			name:          "valid udp port",
+			in:            "8080/udp",
+			expectPort:    8080,
+			expectNetwork: "udp",
+		},
+		{
+			name:          "valid port no network",
+			in:            "8080",
+			expectPort:    8080,
+			expectNetwork: "tcp",
+		},
+		{
+			name:        "invalid port",
+			in:          "invalid/tcp",
+			expectError: "invalid port",
+		},
+		{
+			name:        "invalid port no network",
+			in:          "invalid",
+			expectError: "invalid port",
+		},
+		{
+			name:        "multiple network",
+			in:          "8080/tcp/udp",
+			expectError: "invalid port",
+		},
+	} {
+		tc := tc // not needed anymore but makes the linter happy
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			actualPort, actualNetwork, actualErr := convertDockerPort(tc.in)
+			if tc.expectError != "" {
+				assert.Zero(t, actualPort, "expected no port")
+				assert.Empty(t, actualNetwork, "expected no network")
+				assert.ErrorContains(t, actualErr, tc.expectError)
+			} else {
+				assert.NoError(t, actualErr, "expected no error")
+				assert.Equal(t, tc.expectPort, actualPort, "expected port to match")
+				assert.Equal(t, tc.expectNetwork, actualNetwork, "expected network to match")
+			}
+		})
+	}
+}
+
+func TestConvertDockerVolume(t *testing.T) {
+	t.Parallel()
+
+	for _, tc := range []struct {
+		name                string
+		in                  string
+		expectHostPath      string
+		expectContainerPath string
+		expectError         string
+	}{
+		{
+			name:        "empty volume",
+			in:          "",
+			expectError: "invalid volume",
+		},
+		{
+			name:                "length 1 volume",
+			in:                  "/path/to/something",
+			expectHostPath:      "/path/to/something",
+			expectContainerPath: "/path/to/something",
+		},
+		{
+			name:                "length 2 volume",
+			in:                  "/path/to/something=/path/to/something/else",
+			expectHostPath:      "/path/to/something",
+			expectContainerPath: "/path/to/something/else",
+		},
+		{
+			name:        "invalid length volume",
+			in:          "/path/to/something=/path/to/something/else=/path/to/something/else/else",
+			expectError: "invalid volume",
+		},
+	} {
+		tc := tc
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+		})
+	}
+}
+
+func fakeContainer(t *testing.T, mut ...func(*codersdk.WorkspaceAgentDevcontainer)) codersdk.WorkspaceAgentDevcontainer {
 	t.Helper()
-	ct := codersdk.WorkspaceAgentContainer{
+	ct := codersdk.WorkspaceAgentDevcontainer{
 		CreatedAt:    time.Now().UTC(),
 		ID:           uuid.New().String(),
 		FriendlyName: testutil.GetRandomName(t),

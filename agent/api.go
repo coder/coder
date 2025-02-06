@@ -35,7 +35,7 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
-	ch := &containersHandler{
+	ch := &devcontainersHandler{
 		cacheDuration: defaultGetContainersCacheDuration,
 	}
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)

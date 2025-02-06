@@ -15651,7 +15651,7 @@ const docTemplate = `{
                 }
             }
         },
-        "codersdk.WorkspaceAgentContainer": {
+        "codersdk.WorkspaceAgentDevcontainer": {
             "type": "object",
             "properties": {
                 "created_at": {
@@ -15746,9 +15746,17 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "containers": {
+                    "description": "Containers is a list of containers visible to the workspace agent.",
                     "type": "array",
                     "items": {
-                        "$ref": "#/definitions/codersdk.WorkspaceAgentContainer"
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings is a list of warnings that may have occurred during the\nprocess of listing containers. This should not include fatal errors.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
                     }
                 }
             }

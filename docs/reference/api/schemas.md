@@ -7561,7 +7561,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
-## codersdk.WorkspaceAgentContainer
+## codersdk.WorkspaceAgentDevcontainer
 
 ```json
 {
@@ -7671,15 +7671,19 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "property2": "string"
       }
     }
+  ],
+  "warnings": [
+    "string"
   ]
 }
 ```
 
 ### Properties
 
-| Name         | Type                                                                          | Required | Restrictions | Description |
-|--------------|-------------------------------------------------------------------------------|----------|--------------|-------------|
-| `containers` | array of [codersdk.WorkspaceAgentContainer](#codersdkworkspaceagentcontainer) | false    |              |             |
+| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 

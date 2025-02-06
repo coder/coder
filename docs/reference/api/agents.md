@@ -688,6 +688,9 @@ curl -X GET http://coder-server:8080/api/v2/workspaceagents/{workspaceagent}/con
         "property2": "string"
       }
     }
+  ],
+  "warnings": [
+    "string"
   ]
 }
 ```

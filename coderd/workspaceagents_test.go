@@ -1070,7 +1070,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "busybox",
 		Tag:        "latest",
-		Cmd:        []string{"sleep", "infnity"},
+		Cmd:        []string{"sleep", "infinity"},
 		Labels:     testLabels,
 	}, func(config *docker.HostConfig) {
 		config.AutoRemove = true
@@ -1078,14 +1078,14 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 	})
 	require.NoError(t, err, "Could not start test docker container")
 	t.Cleanup(func() {
-		assert.NoError(t, pool.Purge(ct), "Could not purge resource")
+		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
 	})
 
 	// Start another container which we will expect to ignore.
 	ct2, err := pool.RunWithOptions(&dockertest.RunOptions{
 		Repository: "busybox",
 		Tag:        "latest",
-		Cmd:        []string{"sleep", "infnity"},
+		Cmd:        []string{"sleep", "infinity"},
 		Labels:     map[string]string{"com.coder.test": "ignoreme"},
 	}, func(config *docker.HostConfig) {
 		config.AutoRemove = true
@@ -1093,7 +1093,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 	})
 	require.NoError(t, err, "Could not start second test docker container")
 	t.Cleanup(func() {
-		assert.NoError(t, pool.Purge(ct2), "Could not purge resource")
+		assert.NoError(t, pool.Purge(ct2), "Could not purge resource %q", ct2.Container.Name)
 	})
 
 	client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})

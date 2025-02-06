@@ -1,6 +1,7 @@
 package agent
 
 import (
+	"bufio"
 	"bytes"
 	"context"
 	"encoding/json"
@@ -22,46 +23,68 @@ type dockerCLIContainerLister struct{}
 
 var _ ContainerLister = &dockerCLIContainerLister{}
 
-func (*dockerCLIContainerLister) List(ctx context.Context) ([]codersdk.WorkspaceAgentContainer, error) {
-	var buf bytes.Buffer
+func (*dockerCLIContainerLister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
 	cmd := exec.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")
-	cmd.Stdout = &buf
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
-		return nil, xerrors.Errorf("run docker ps: %w", err)
+		// TODO(Cian): detect specific errors:
+		// - docker not installed
+		// - docker not running
+		// - no permissions to talk to docker
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker ps: %w: %q", err, strings.TrimSpace(stderrBuf.String()))
 	}
 
 	ids := make([]string, 0)
-	for _, line := range strings.Split(buf.String(), "\n") {
-		tmp := strings.TrimSpace(line)
+	scanner := bufio.NewScanner(&stdoutBuf)
+	for scanner.Scan() {
+		tmp := strings.TrimSpace(scanner.Text())
 		if tmp == "" {
 			continue
 		}
 		ids = append(ids, tmp)
 	}
+	if err := scanner.Err(); err != nil {
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("scan docker ps output: %w", err)
+	}
 
 	// now we can get the detailed information for each container
 	// Run `docker inspect` on each container ID
-	buf.Reset()
-	execArgs := []string{"inspect"}
-	execArgs = append(execArgs, ids...)
-	cmd = exec.CommandContext(ctx, "docker", execArgs...)
-	cmd.Stdout = &buf
+	stdoutBuf.Reset()
+	stderrBuf.Reset()
+	// nolint: gosec // We are not executing user input, these IDs come from
+	// `docker ps`.
+	cmd = exec.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
+	cmd.Stdout = &stdoutBuf
+	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
-		return nil, xerrors.Errorf("run docker inspect: %w", err)
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, strings.TrimSpace(stderrBuf.String()))
 	}
 
-	ins := make([]dockerInspect, 0)
-	if err := json.NewDecoder(&buf).Decode(&ins); err != nil {
-		return nil, xerrors.Errorf("decode docker inspect output: %w", err)
+	// NOTE: There is an unavoidable potential race condition where a
+	// container is removed between `docker ps` and `docker inspect`.
+	// In this case, stderr will contain an error message but stdout
+	// will still contain valid JSON. We will just end up missing
+	// information about the removed container. We could potentially
+	// log this error, but I'm not sure it's worth it.
+	ins := make([]dockerInspect, 0, len(ids))
+	if err := json.NewDecoder(&stdoutBuf).Decode(&ins); err != nil {
+		// However, if we just get invalid JSON, we should absolutely return an error.
+		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("decode docker inspect output: %w", err)
 	}
 
-	out := make([]codersdk.WorkspaceAgentContainer, 0)
-	for _, in := range ins {
-		out = append(out, convertDockerInspect(in))
+	res := codersdk.WorkspaceAgentListContainersResponse{
+		Containers: make([]codersdk.WorkspaceAgentDevcontainer, len(ins)),
+	}
+	for idx, in := range ins {
+		out, warns := convertDockerInspect(in)
+		res.Warnings = append(res.Warnings, warns...)
+		res.Containers[idx] = out
 	}
 
-	return out, nil
+	return res, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI
@@ -104,44 +127,47 @@ func (dis dockerInspectState) String() string {
 	return sb.String()
 }
 
-func convertDockerInspect(in dockerInspect) codersdk.WorkspaceAgentContainer {
-	out := codersdk.WorkspaceAgentContainer{
+func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer, []string) {
+	var warns []string
+	out := codersdk.WorkspaceAgentDevcontainer{
 		CreatedAt: in.Created,
 		// Remove the leading slash from the container name
 		FriendlyName: strings.TrimPrefix(in.Name, "/"),
 		ID:           in.ID,
 		Image:        in.Config.Image,
 		Labels:       in.Config.Labels,
-		Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0),
+		Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0, len(in.Config.ExposedPorts)),
 		Running:      in.State.Running,
 		Status:       in.State.String(),
-		Volumes:      make(map[string]string),
+		Volumes:      make(map[string]string, len(in.Config.Volumes)),
 	}
 
 	// sort the keys for deterministic output
 	portKeys := maps.Keys(in.Config.ExposedPorts)
 	sort.Strings(portKeys)
 	for _, p := range portKeys {
-		port, network, err := convertDockerPort(p)
-		if err != nil {
-			// ignore invalid ports
-			continue
+		if port, network, err := convertDockerPort(p); err != nil {
+			warns = append(warns, err.Error())
+		} else {
+			out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
+				Network: network,
+				Port:    port,
+			})
 		}
-		out.Ports = append(out.Ports, codersdk.WorkspaceAgentListeningPort{
-			Network: network,
-			Port:    port,
-		})
 	}
 
 	// sort the keys for deterministic output
 	volKeys := maps.Keys(in.Config.Volumes)
 	sort.Strings(volKeys)
 	for _, k := range volKeys {
-		v0, v1 := convertDockerVolume(k)
-		out.Volumes[v0] = v1
+		if v0, v1, err := convertDockerVolume(k); err != nil {
+			warns = append(warns, err.Error())
+		} else {
+			out.Volumes[v0] = v1
+		}
 	}
 
-	return out
+	return out, warns
 }
 
 // convertDockerPort converts a Docker port string to a port number and network
@@ -151,8 +177,6 @@ func convertDockerInspect(in dockerInspect) codersdk.WorkspaceAgentContainer {
 func convertDockerPort(in string) (uint16, string, error) {
 	parts := strings.Split(in, "/")
 	switch len(parts) {
-	case 0:
-		return 0, "", xerrors.Errorf("invalid port format: %s", in)
 	case 1:
 		// assume it's a TCP port
 		p, err := strconv.Atoi(parts[0])
@@ -160,12 +184,14 @@ func convertDockerPort(in string) (uint16, string, error) {
 			return 0, "", xerrors.Errorf("invalid port format: %s", in)
 		}
 		return uint16(p), "tcp", nil
-	default:
+	case 2:
 		p, err := strconv.Atoi(parts[0])
 		if err != nil {
 			return 0, "", xerrors.Errorf("invalid port format: %s", in)
 		}
 		return uint16(p), parts[1], nil
+	default:
+		return 0, "", xerrors.Errorf("invalid port format: %s", in)
 	}
 }
 
@@ -175,14 +201,14 @@ func convertDockerPort(in string) (uint16, string, error) {
 // example: "/host/path=/container/path" -> "/host/path", "/container/path"
 //
 //	"/container/path" -> "/container/path", "/container/path"
-func convertDockerVolume(in string) (hostPath, containerPath string) {
+func convertDockerVolume(in string) (hostPath, containerPath string, err error) {
 	parts := strings.Split(in, "=")
 	switch len(parts) {
-	case 0:
-		return in, in
 	case 1:
-		return parts[0], parts[0]
+		return parts[0], parts[0], nil
+	case 2:
+		return parts[0], parts[1], nil
 	default:
-		return parts[0], parts[1]
+		return "", "", xerrors.Errorf("invalid volume format: %s", in)
 	}
 }

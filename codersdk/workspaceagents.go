@@ -392,9 +392,11 @@ func (c *Client) WorkspaceAgentListeningPorts(ctx context.Context, agentID uuid.
 	return listeningPorts, json.NewDecoder(res.Body).Decode(&listeningPorts)
 }
 
-// WorkspaceAgentContainer describes a container of some sort that is visible
-// to the workspace agent.
-type WorkspaceAgentContainer struct {
+// WorkspaceAgentDevcontainer describes a devcontainer of some sort
+// that is visible to the workspace agent. This struct is an abstraction
+// of potentially multiple implementations, and the fields will be
+// somewhat implementation-dependent.
+type WorkspaceAgentDevcontainer struct {
 	// CreatedAt is the time the container was created.
 	CreatedAt time.Time `json:"created_at" format:"date-time"`
 	// ID is the unique identifier of the container.
@@ -421,12 +423,14 @@ type WorkspaceAgentContainer struct {
 // WorkspaceAgentListContainersResponse is the response to the list containers
 // request.
 type WorkspaceAgentListContainersResponse struct {
-	Containers []WorkspaceAgentContainer `json:"containers"`
+	// Containers is a list of containers visible to the workspace agent.
+	Containers []WorkspaceAgentDevcontainer `json:"containers"`
+	// Warnings is a list of warnings that may have occurred during the
+	// process of listing containers. This should not include fatal errors.
+	Warnings []string `json:"warnings,omitempty"`
 }
 
-// WorkspaceAgentContainersLabelFilter is a RequestOption for filtering
-// listing containers by labels.
-func WorkspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
+func workspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
 	return func(r *http.Request) {
 		q := r.URL.Query()
 		for k, v := range kvs {
@@ -440,7 +444,7 @@ func WorkspaceAgentContainersLabelFilter(kvs map[string]string) RequestOption {
 // WorkspaceAgentListContainers returns a list of containers that are currently
 // running on a Docker daemon accessible to the workspace agent.
 func (c *Client) WorkspaceAgentListContainers(ctx context.Context, agentID uuid.UUID, labels map[string]string) (WorkspaceAgentListContainersResponse, error) {
-	lf := WorkspaceAgentContainersLabelFilter(labels)
+	lf := workspaceAgentContainersLabelFilter(labels)
 	res, err := c.Request(ctx, http.MethodGet, fmt.Sprintf("/api/v2/workspaceagents/%s/containers", agentID), nil, lf)
 	if err != nil {
 		return WorkspaceAgentListContainersResponse{}, err
