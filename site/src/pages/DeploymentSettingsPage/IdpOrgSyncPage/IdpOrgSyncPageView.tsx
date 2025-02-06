@@ -414,12 +414,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
 			<TableCell>
-				<Stack
-					direction="row"
-					alignItems="center"
-					spacing={1}
-					className="text-content-primary"
-				>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
 					{idpOrg}
 					{!exists && (
 						<TooltipProvider>
@@ -427,7 +422,12 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 								<TooltipTrigger asChild>
 									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
 								</TooltipTrigger>
-								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
 									This value has not be seen in the specified claim field
 									before. You might want to check your IdP configuration and
 									ensure that this value is not misspelled.
@@ -435,7 +435,7 @@ const OrganizationRow: FC<OrganizationRowProps> = ({
 							</Tooltip>
 						</TooltipProvider>
 					)}
-				</Stack>
+				</div>
 			</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />
