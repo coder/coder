@@ -7,6 +7,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -35,11 +36,9 @@ func (a *agent) apiHandler() http.Handler {
 		ignorePorts:   cpy,
 		cacheDuration: cacheDuration,
 	}
-	ch := &devcontainersHandler{
-		cacheDuration: defaultGetContainersCacheDuration,
-	}
+	ch := agentcontainers.New(agentcontainers.WithLister(a.lister))
 	promHandler := PrometheusMetricsHandler(a.prometheusRegistry, a.logger)
-	r.Get("/api/v0/containers", ch.handler)
+	r.Get("/api/v0/containers", ch.ServeHTTP)
 	r.Get("/api/v0/listening-ports", lp.handler)
 	r.Get("/api/v0/netcheck", a.HandleNetcheck)
 	r.Get("/debug/logs", a.HandleHTTPDebugLogs)

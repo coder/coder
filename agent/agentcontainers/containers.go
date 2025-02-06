@@ -1,6 +1,6 @@
-package agent
+package agentcontainers
 
-//go:generate mockgen -destination ./containers_mock.go -package agent . ContainerLister
+//go:generate mockgen -destination ./containers_mock.go -package agentcontainers . Lister
 
 import (
 	"context"
@@ -25,7 +25,7 @@ const (
 
 type devcontainersHandler struct {
 	cacheDuration time.Duration
-	cl            ContainerLister
+	cl            Lister
 	clock         quartz.Clock
 
 	initLockOnce sync.Once // ensures we don't get a race when initializing lockCh
@@ -36,7 +36,27 @@ type devcontainersHandler struct {
 	mtime      time.Time
 }
 
-func (ch *devcontainersHandler) handler(rw http.ResponseWriter, r *http.Request) {
+// WithLister sets the agentcontainers.Lister implementation to use.
+// The default implementation uses the Docker CLI to list containers.
+func WithLister(cl Lister) Option {
+	return func(ch *devcontainersHandler) {
+		ch.cl = cl
+	}
+}
+
+// Option is a functional option for devcontainersHandler.
+type Option func(*devcontainersHandler)
+
+// New returns a new devcontainersHandler with the given options applied.
+func New(options ...Option) http.Handler {
+	ch := &devcontainersHandler{}
+	for _, opt := range options {
+		opt(ch)
+	}
+	return ch
+}
+
+func (ch *devcontainersHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
 	ct, err := ch.getContainers(r.Context())
 	if err != nil {
 		if errors.Is(err, context.Canceled) {
@@ -77,9 +97,7 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 		ch.cacheDuration = defaultGetContainersCacheDuration
 	}
 	if ch.cl == nil {
-		// TODO(cian): we may need some way to select the desired
-		// implementation, but for now there is only one.
-		ch.cl = &dockerCLIContainerLister{}
+		ch.cl = &DockerCLILister{}
 	}
 	if ch.containers == nil {
 		ch.containers = &codersdk.WorkspaceAgentListContainersResponse{}
@@ -93,6 +111,7 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 		// Return a copy of the cached data to avoid accidental modification by the caller.
 		cpy := codersdk.WorkspaceAgentListContainersResponse{
 			Containers: slices.Clone(ch.containers.Containers),
+			Warnings:   slices.Clone(ch.containers.Warnings),
 		}
 		return cpy, nil
 	}
@@ -110,13 +129,14 @@ func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.Wor
 	// caller.
 	cpy := codersdk.WorkspaceAgentListContainersResponse{
 		Containers: slices.Clone(ch.containers.Containers),
+		Warnings:   slices.Clone(ch.containers.Warnings),
 	}
 	return cpy, nil
 }
 
-// ContainerLister is an interface for listing containers visible to the
+// Lister is an interface for listing containers visible to the
 // workspace agent.
-type ContainerLister interface {
+type Lister interface {
 	// List returns a list of containers visible to the workspace agent.
 	// This should include running and stopped containers.
 	List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)

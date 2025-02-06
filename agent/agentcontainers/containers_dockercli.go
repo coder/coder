@@ -1,4 +1,4 @@
-package agent
+package agentcontainers
 
 import (
 	"bufio"
@@ -18,12 +18,12 @@ import (
 	"golang.org/x/xerrors"
 )
 
-// dockerCLIContainerLister is a ContainerLister that lists containers using the docker CLI
-type dockerCLIContainerLister struct{}
+// DockerCLILister is a ContainerLister that lists containers using the docker CLI
+type DockerCLILister struct{}
 
-var _ ContainerLister = &dockerCLIContainerLister{}
+var _ Lister = &DockerCLILister{}
 
-func (*dockerCLIContainerLister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+func (*DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
 	cmd := exec.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")

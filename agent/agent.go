@@ -33,6 +33,7 @@ import (
 	"tailscale.com/util/clientmetric"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentscripts"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -82,6 +83,7 @@ type Options struct {
 	ServiceBannerRefreshInterval time.Duration
 	BlockFileTransfer            bool
 	Execer                       agentexec.Execer
+	ContainerLister              agentcontainers.Lister
 }
 
 type Client interface {
@@ -144,6 +146,9 @@ func New(options Options) Agent {
 	if options.Execer == nil {
 		options.Execer = agentexec.DefaultExecer
 	}
+	if options.ContainerLister == nil {
+		options.ContainerLister = &agentcontainers.DockerCLILister{}
+	}
 
 	hardCtx, hardCancel := context.WithCancel(context.Background())
 	gracefulCtx, gracefulCancel := context.WithCancel(hardCtx)
@@ -178,6 +183,7 @@ func New(options Options) Agent {
 		prometheusRegistry: prometheusRegistry,
 		metrics:            newAgentMetrics(prometheusRegistry),
 		execer:             options.Execer,
+		lister:             options.ContainerLister,
 	}
 	// Initially, we have a closed channel, reflecting the fact that we are not initially connected.
 	// Each time we connect we replace the channel (while holding the closeMutex) with a new one
@@ -247,6 +253,7 @@ type agent struct {
 	// labeled in Coder with the agent + workspace.
 	metrics *agentMetrics
 	execer  agentexec.Execer
+	lister  agentcontainers.Lister
 }
 
 func (a *agent) TailnetConn() *tailnet.Conn {

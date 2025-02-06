@@ -1,4 +1,4 @@
-package agent
+package agentcontainers
 
 import (
 	"os/exec"
@@ -51,7 +51,7 @@ func TestDockerCLIContainerLister(t *testing.T) {
 		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
 	})
 
-	dcl := dockerCLIContainerLister{}
+	dcl := DockerCLILister{}
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
@@ -100,7 +100,7 @@ func TestContainersHandler(t *testing.T) {
 			// relative age of the cached data
 			cacheAge time.Duration
 			// function to set up expectations for the mock
-			setupMock func(*MockContainerLister)
+			setupMock func(*MockLister)
 			// expected result
 			expected codersdk.WorkspaceAgentListContainersResponse
 			// expected error
@@ -108,7 +108,7 @@ func TestContainersHandler(t *testing.T) {
 		}{
 			{
 				name: "no cache",
-				setupMock: func(mcl *MockContainerLister) {
+				setupMock: func(mcl *MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
@@ -118,7 +118,7 @@ func TestContainersHandler(t *testing.T) {
 				cacheData: makeResponse(),
 				cacheAge:  2 * time.Second,
 				cacheDur:  time.Second,
-				setupMock: func(mcl *MockContainerLister) {
+				setupMock: func(mcl *MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
@@ -132,7 +132,7 @@ func TestContainersHandler(t *testing.T) {
 			},
 			{
 				name: "lister error",
-				setupMock: func(mcl *MockContainerLister) {
+				setupMock: func(mcl *MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(), assert.AnError).AnyTimes()
 				},
 				expectedErr: assert.AnError.Error(),
@@ -142,7 +142,7 @@ func TestContainersHandler(t *testing.T) {
 				cacheAge:  2 * time.Second,
 				cacheData: makeResponse(fakeCt),
 				cacheDur:  time.Second,
-				setupMock: func(mcl *MockContainerLister) {
+				setupMock: func(mcl *MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt2),
@@ -155,7 +155,7 @@ func TestContainersHandler(t *testing.T) {
 					ctx        = testutil.Context(t, testutil.WaitShort)
 					clk        = quartz.NewMock(t)
 					ctrl       = gomock.NewController(t)
-					mockLister = NewMockContainerLister(ctrl)
+					mockLister = NewMockLister(ctrl)
 					now        = time.Now().UTC()
 					ch         = devcontainersHandler{
 						cacheDuration: tc.cacheDur,

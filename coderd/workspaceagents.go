@@ -765,11 +765,16 @@ func (api *API) workspaceAgentListContainers(rw http.ResponseWriter, r *http.Req
 	}
 
 	// Filter in-place by labels
-	filtered := slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
-		return !maputil.Subset(labels, ct.Labels)
-	})
+	for idx, ct := range cts.Containers {
+		if !maputil.Subset(labels, ct.Labels) {
+			cts.Containers = append(cts.Containers[:idx], cts.Containers[idx+1:]...)
+		}
+	}
+	// filtered := slices.DeleteFunc(cts.Containers, func(ct codersdk.WorkspaceAgentDevcontainer) bool {
+	// return !maputil.Subset(labels, ct.Labels)
+	// })
 
-	httpapi.Write(ctx, rw, http.StatusOK, codersdk.WorkspaceAgentListContainersResponse{Containers: filtered})
+	httpapi.Write(ctx, rw, http.StatusOK, cts)
 }
 
 // @Summary Get connection info for workspace agent
