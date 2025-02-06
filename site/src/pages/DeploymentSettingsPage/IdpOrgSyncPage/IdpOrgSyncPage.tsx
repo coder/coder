@@ -1,4 +1,5 @@
 import { getErrorMessage } from "api/errors";
+import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
@@ -18,7 +19,6 @@ import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
-import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 
 export const IdpOrgSyncPage: FC = () => {
 	const queryClient = useQueryClient();
