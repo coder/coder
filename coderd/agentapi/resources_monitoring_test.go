@@ -19,7 +19,7 @@ import (
 	"github.com/coder/quartz"
 )
 
-func workspaceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
+func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, database.User, *quartz.Mock, *notificationstest.FakeEnqueuer) {
 	t.Helper()
 
 	db, _ := dbtestutil.NewDB(t)
@@ -63,10 +63,13 @@ func workspaceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, databa
 		Clock:                 clock,
 		Database:              db,
 		NotificationsEnqueuer: notifyEnq,
+		MinimumNOKs:           4,
+		ConsecutiveNOKs:       10,
+		Debounce:              1 * time.Minute,
 	}, user, clock, notifyEnq
 }
 
-func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
+func TestMemoryResourceMonitorDebounce(t *testing.T) {
 	t.Parallel()
 
 	// This test is a bit of a long one. We're testing that
@@ -80,10 +83,7 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 	// 4. NOK -> OK  |> does nothing
 	// 5. OK -> NOK  |> sends a notification as debounce period exceeded
 
-	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
-	api.MinimumNOKs = 10
-	api.ConsecutiveNOKs = 4
-	api.Debounce = 1 * time.Minute
+	api, user, clock, notifyEnq := resourceMonitorAPI(t)
 
 	// Given: A monitor in an OK state
 	dbgen.WorkspaceAgentMemoryResourceMonitor(t, api.Database, database.WorkspaceAgentMemoryResourceMonitor{
@@ -109,6 +109,7 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 	// Then: We expect there to be a notification sent
 	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 1)
+	require.Equal(t, user.ID, sent[0].UserID)
 	notifyEnq.Clear()
 
 	// When: The monitor moves to an OK state from NOK
@@ -189,9 +190,10 @@ func TestWorkspaceMemoryMonitorDebounce(t *testing.T) {
 	// Then: We expect a notification
 	sent = notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfMemory))
 	require.Len(t, sent, 1)
+	require.Equal(t, user.ID, sent[0].UserID)
 }
 
-func TestWorkspaceMemoryMonitor(t *testing.T) {
+func TestMemoryResourceMonitor(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -279,7 +281,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
+			api, user, clock, notifyEnq := resourceMonitorAPI(t)
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
 
@@ -319,7 +321,7 @@ func TestWorkspaceMemoryMonitor(t *testing.T) {
 	}
 }
 
-func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
+func TestVolumeResourceMonitorDebounce(t *testing.T) {
 	t.Parallel()
 
 	// This test is a bit of a long one. We're testing that
@@ -335,10 +337,7 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 
 	volumePath := "/home/coder"
 
-	api, _, clock, notifyEnq := workspaceMonitorAPI(t)
-	api.MinimumNOKs = 10
-	api.ConsecutiveNOKs = 4
-	api.Debounce = 1 * time.Minute
+	api, _, clock, notifyEnq := resourceMonitorAPI(t)
 
 	// Given: A monitor in an OK state
 	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
@@ -462,7 +461,7 @@ func TestWorkspaceVolumeMonitorDebounce(t *testing.T) {
 	require.Len(t, sent, 1)
 }
 
-func TestWorkspaceVolumeMonitor(t *testing.T) {
+func TestVolumeResourceMonitor(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -557,7 +556,7 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
-			api, user, clock, notifyEnq := workspaceMonitorAPI(t)
+			api, user, clock, notifyEnq := resourceMonitorAPI(t)
 			api.MinimumNOKs = tt.minimumNOKs
 			api.ConsecutiveNOKs = tt.consecutiveNOKs
 
@@ -602,4 +601,60 @@ func TestWorkspaceVolumeMonitor(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestVolumeResourceMonitorMultiple(t *testing.T) {
+	t.Parallel()
+
+	api, _, clock, notifyEnq := resourceMonitorAPI(t)
+
+	// Given: two different volume resource monitors
+	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   api.AgentID,
+		Path:      "/home/coder",
+		State:     database.WorkspaceAgentMonitorStateOK,
+		Threshold: 80,
+	})
+
+	dbgen.WorkspaceAgentVolumeResourceMonitor(t, api.Database, database.WorkspaceAgentVolumeResourceMonitor{
+		AgentID:   api.AgentID,
+		Path:      "/dev/coder",
+		State:     database.WorkspaceAgentMonitorStateOK,
+		Threshold: 80,
+	})
+
+	// When: only one of them is in an NOK state.
+	_, err := api.PushResourcesMonitoringUsage(context.Background(), &agentproto.PushResourcesMonitoringUsageRequest{
+		Datapoints: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint{
+			{
+				CollectedAt: timestamppb.New(clock.Now()),
+				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
+					{
+						Path:       "/home/coder",
+						SpaceUsed:  1,
+						SpaceTotal: 10,
+					},
+					{
+						Path:       "/dev/coder",
+						SpaceUsed:  10,
+						SpaceTotal: 10,
+					},
+				},
+			},
+		},
+	})
+	require.NoError(t, err)
+
+	// Then: We expect a notification that contains only the alerting volume.
+	sent := notifyEnq.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceOutOfDisk))
+	require.Len(t, sent, 1)
+
+	volumesData := sent[0].Data["volumes"]
+	require.IsType(t, []map[string]any{}, volumesData)
+
+	volumes := volumesData.([]map[string]any)
+	require.Len(t, volumes, 1)
+
+	volume := volumes[0]
+	require.Equal(t, "/dev/coder", volume["path"])
 }
