@@ -9,13 +9,14 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import type { FC } from "react";
-import { useSearchParams } from "react-router-dom";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 
 interface IdpSyncPageViewProps {
+	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
+	fieldValues: string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
@@ -26,8 +27,10 @@ interface IdpSyncPageViewProps {
 }
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+	tab
 	groupSyncSettings,
 	roleSyncSettings,
+	fieldValues,
 	groups,
 	groupsMap,
 	roles,
@@ -36,8 +39,6 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	onSubmitGroupSyncSettings,
 	onSubmitRoleSyncSettings,
 }) => {
-	const [searchParams] = useSearchParams();
-	const tab = searchParams.get("tab") || "groups";
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
@@ -78,6 +79,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			) : (
 				<IdpRoleSyncForm
 					roleSyncSettings={roleSyncSettings}
+					fieldValues={fieldValues}
 					roleMappingCount={roleMappingCount}
 					roles={roles || []}
 					organization={organization}

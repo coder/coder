@@ -65,7 +65,7 @@ const groupSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-export const IdpGroupSyncForm = ({
+export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	groupSyncSettings,
 	groupMappingCount,
 	legacyGroupMappingCount,
@@ -73,7 +73,7 @@ export const IdpGroupSyncForm = ({
 	groupsMap,
 	organization,
 	onSubmit,
-}: IdpGroupSyncFormProps) => {
+}) => {
 	const form = useFormik<GroupSyncSettings>({
 		initialValues: {
 			field: groupSyncSettings?.field ?? "",

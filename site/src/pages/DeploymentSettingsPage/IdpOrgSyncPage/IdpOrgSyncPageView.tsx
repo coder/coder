@@ -32,6 +32,7 @@ import {
 	Tooltip,
 	TooltipContent,
 	TooltipTrigger,
+	TooltipProvider,
 } from "components/Tooltip/Tooltip";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
@@ -50,7 +51,6 @@ import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
 import { OrganizationPills } from "./OrganizationPills";
 import { Stack } from "components/Stack/Stack";
-import { TooltipProvider } from "@radix-ui/react-tooltip";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
