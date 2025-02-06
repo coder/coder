@@ -12,16 +12,12 @@ const meta: Meta<typeof TooltipProvider> = {
 	component: TooltipProvider,
 	args: {
 		children: (
-			<>
-				<TooltipProvider>
-					<Tooltip open>
-						<TooltipTrigger asChild>
-							<Button variant="outline">Hover</Button>
-						</TooltipTrigger>
-						<TooltipContent>Add to library</TooltipContent>
-					</Tooltip>
-				</TooltipProvider>
-			</>
+			<Tooltip open>
+				<TooltipTrigger asChild>
+					<Button variant="outline">Hover</Button>
+				</TooltipTrigger>
+				<TooltipContent>Add to library</TooltipContent>
+			</Tooltip>
 		),
 	},
 };

@@ -1,9 +1,9 @@
 import { getErrorMessage } from "api/errors";
+import { deploymentIdpSyncFieldValues } from "api/queries/deployment";
 import {
 	organizationIdpSyncSettings,
 	patchOrganizationSyncSettings,
 } from "api/queries/idpsync";
-import { idpSyncClaimFieldValues } from "api/queries/organizations";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { displayError } from "components/GlobalSnackbar/utils";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -21,26 +21,23 @@ import { ExportPolicyButton } from "./ExportPolicyButton";
 import IdpOrgSyncPageView from "./IdpOrgSyncPageView";
 
 export const IdpOrgSyncPage: FC = () => {
-	const [claimField, setClaimField] = useState("");
 	const queryClient = useQueryClient();
 	// IdP sync does not have its own entitlement and is based on templace_rbac
 	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useDashboard();
-	const {
-		data: orgSyncSettingsData,
-		isLoading,
-		error,
-	} = useQuery({
-		...organizationIdpSyncSettings(isIdpSyncEnabled),
-		onSuccess: (data) => {
-			if (data?.field) {
-				setClaimField(data.field);
-			}
-		},
-	});
+	const settingsQuery = useQuery(organizationIdpSyncSettings(isIdpSyncEnabled));
 
-	const { data: claimFieldValues } = useQuery(
-		idpSyncClaimFieldValues(claimField),
+	const [field, setField] = useState("");
+	useEffect(() => {
+		if (!settingsQuery.data) {
+			return;
+		}
+
+		setField(settingsQuery.data.field);
+	}, [settingsQuery.data]);
+
+	const fieldValuesQuery = useQuery(
+		field ? deploymentIdpSyncFieldValues(field) : { enabled: false },
 	);
 
 	const patchOrganizationSyncSettingsMutation = useMutation(
@@ -58,13 +55,9 @@ export const IdpOrgSyncPage: FC = () => {
 		}
 	}, [patchOrganizationSyncSettingsMutation.error]);
 
-	if (isLoading) {
+	if (settingsQuery.isLoading) {
 		return <Loader />;
 	}
-
-	const handleSyncFieldChange = (value: string) => {
-		setClaimField(value);
-	};
 
 	return (
 		<>
@@ -84,7 +77,7 @@ export const IdpOrgSyncPage: FC = () => {
 							</Link>
 						</p>
 					</div>
-					<ExportPolicyButton syncSettings={orgSyncSettingsData} />
+					<ExportPolicyButton syncSettings={settingsQuery.data} />
 				</header>
 				<ChooseOne>
 					<Cond condition={!isIdpSyncEnabled}>
@@ -96,8 +89,10 @@ export const IdpOrgSyncPage: FC = () => {
 					</Cond>
 					<Cond>
 						<IdpOrgSyncPageView
-							organizationSyncSettings={orgSyncSettingsData}
+							organizationSyncSettings={settingsQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							organizations={organizations}
+							onSyncFieldChange={setField}
 							onSubmit={async (data) => {
 								try {
 									await patchOrganizationSyncSettingsMutation.mutateAsync(data);
@@ -111,9 +106,7 @@ export const IdpOrgSyncPage: FC = () => {
 									);
 								}
 							}}
-							onSyncFieldChange={handleSyncFieldChange}
-							claimFieldValues={claimFieldValues}
-							error={error || patchOrganizationSyncSettingsMutation.error}
+							error={settingsQuery.error || fieldValuesQuery.error}
 						/>
 					</Cond>
 				</ChooseOne>
