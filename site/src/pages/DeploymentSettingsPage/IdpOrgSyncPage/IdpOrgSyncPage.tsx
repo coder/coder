@@ -90,7 +90,7 @@ export const IdpOrgSyncPage: FC = () => {
 					<Cond>
 						<IdpOrgSyncPageView
 							organizationSyncSettings={settingsQuery.data}
-							fieldValues={fieldValuesQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							organizations={organizations}
 							onSyncFieldChange={(field) => setField(field)}
 							onSubmit={async (data) => {
