@@ -159,7 +159,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				LocalNetInfo:       ni,
 				Verbose:            r.verbose,
 				PingP2P:            didP2p,
-				TroubleshootingURL: appearanceConfig.DocsURL + "/networking/troubleshooting",
+				TroubleshootingURL: appearanceConfig.DocsURL + "/admin/networking/troubleshooting",
 			}
 
 			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
