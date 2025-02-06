@@ -4126,18 +4126,18 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 		}
 		templateVersionID := input.TemplateVersionID
 		if input.WorkspaceBuildID != nil {
-			workspabeBuild, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
 			if err != nil {
 				return nil, err
 			}
-			workspace, err := q.getWorkspaceByIDNoLock(ctx, workspabeBuild.WorkspaceID)
+			workspace, err := q.getWorkspaceByIDNoLock(ctx, workspaceBuild.WorkspaceID)
 			if err != nil {
 				return nil, err
 			}
 			row.WorkspaceID = uuid.NullUUID{UUID: workspace.ID, Valid: true}
 			row.WorkspaceName = workspace.Name
 			if templateVersionID == nil {
-				templateVersionID = &workspabeBuild.TemplateVersionID
+				templateVersionID = &workspaceBuild.TemplateVersionID
 			}
 		}
 		if templateVersionID != nil {
