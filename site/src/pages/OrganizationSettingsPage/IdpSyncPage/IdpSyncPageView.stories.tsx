@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { expect, userEvent, within } from "@storybook/test";
+import { expect, userEvent } from "@storybook/test";
 import {
 	MockGroup,
 	MockGroup2,
@@ -23,7 +23,7 @@ const meta: Meta<typeof IdpSyncPageView> = {
 		tab: "groups",
 		groupSyncSettings: MockGroupSyncSettings,
 		roleSyncSettings: MockRoleSyncSettings,
-		fieldValues: [
+		claimFieldValues: [
 			...Object.keys(MockGroupSyncSettings.mapping),
 			...Object.keys(MockRoleSyncSettings.mapping),
 		],
@@ -73,7 +73,7 @@ export const MissingGroups: Story = {
 export const WithLegacyMapping: Story = {
 	args: {
 		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
-		fieldValues: Object.keys(
+		claimFieldValues: Object.keys(
 			MockLegacyMappingGroupSyncSettings.legacy_group_name_mapping,
 		),
 	},
@@ -81,7 +81,13 @@ export const WithLegacyMapping: Story = {
 
 export const GroupsTabMissingClaims: Story = {
 	args: {
-		fieldValues: [],
+		claimFieldValues: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
+		expect(warning).not.toBe(null);
+		await user.hover(warning);
 	},
 };
 
@@ -94,6 +100,12 @@ export const RolesTab: Story = {
 export const RolesTabMissingClaims: Story = {
 	args: {
 		tab: "roles",
-		fieldValues: [],
+		claimFieldValues: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
+		expect(warning).not.toBe(null);
+		await user.hover(warning);
 	},
 };

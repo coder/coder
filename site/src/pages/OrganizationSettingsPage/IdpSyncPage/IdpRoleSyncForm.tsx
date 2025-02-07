@@ -48,7 +48,7 @@ const roleSyncValidationSchema = Yup.object({
 
 interface IdpRoleSyncFormProps {
 	roleSyncSettings: RoleSyncSettings;
-	fieldValues: readonly string[] | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	roleMappingCount: number;
 	organization: Organization;
 	roles: Role[];
@@ -57,7 +57,7 @@ interface IdpRoleSyncFormProps {
 
 export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
-	fieldValues,
+	claimFieldValues,
 	roleMappingCount,
 	organization,
 	roles,
@@ -218,7 +218,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 								<RoleRow
 									key={idpRole}
 									idpRole={idpRole}
-									exists={fieldValues?.includes(idpRole)}
+									exists={claimFieldValues?.includes(idpRole)}
 									coderRoles={roles}
 									onDelete={handleDelete}
 								/>

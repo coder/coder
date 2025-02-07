@@ -63,7 +63,7 @@ const groupSyncValidationSchema = Yup.object({
 
 interface IdpGroupSyncFormProps {
 	groupSyncSettings: GroupSyncSettings;
-	fieldValues: readonly string[] | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	groupsMap: Map<string, string>;
 	groups: Group[];
 	groupMappingCount: number;
@@ -74,7 +74,7 @@ interface IdpGroupSyncFormProps {
 
 export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	groupSyncSettings,
-	fieldValues,
+	claimFieldValues,
 	groupMappingCount,
 	legacyGroupMappingCount,
 	groups,
@@ -278,7 +278,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 									<GroupRow
 										key={idpGroup}
 										idpGroup={idpGroup}
-										exists={fieldValues?.includes(idpGroup)}
+										exists={claimFieldValues?.includes(idpGroup)}
 										coderGroup={getGroupNames(groups)}
 										onDelete={handleDelete}
 									/>
@@ -297,7 +297,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 										<GroupRow
 											key={groupId}
 											idpGroup={idpGroup}
-											exists={fieldValues?.includes(idpGroup)}
+											exists={claimFieldValues?.includes(idpGroup)}
 											coderGroup={getGroupNames([groupId])}
 											onDelete={handleDelete}
 										/>

@@ -16,7 +16,7 @@ interface IdpSyncPageViewProps {
 	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
-	fieldValues: readonly string[] | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
@@ -30,7 +30,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	tab,
 	groupSyncSettings,
 	roleSyncSettings,
-	fieldValues,
+	claimFieldValues,
 	groups,
 	groupsMap,
 	roles,
@@ -69,7 +69,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			{tab === "groups" ? (
 				<IdpGroupSyncForm
 					groupSyncSettings={groupSyncSettings}
-					fieldValues={fieldValues}
+					claimFieldValues={claimFieldValues}
 					groupMappingCount={groupMappingCount}
 					legacyGroupMappingCount={legacyGroupMappingCount}
 					groups={groups}
@@ -80,7 +80,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			) : (
 				<IdpRoleSyncForm
 					roleSyncSettings={roleSyncSettings}
-					fieldValues={fieldValues}
+					claimFieldValues={claimFieldValues}
 					roleMappingCount={roleMappingCount}
 					roles={roles || []}
 					organization={organization}

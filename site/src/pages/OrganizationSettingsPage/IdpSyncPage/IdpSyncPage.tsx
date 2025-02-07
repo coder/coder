@@ -116,7 +116,7 @@ export const IdpSyncPage: FC = () => {
 							tab={tab}
 							groupSyncSettings={groupIdpSyncSettingsQuery.data}
 							roleSyncSettings={roleIdpSyncSettingsQuery.data}
-							fieldValues={fieldValuesQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							groups={groupsQuery.data}
 							groupsMap={groupsMap}
 							roles={rolesQuery.data}
