@@ -407,6 +407,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
     },
     "metadata": {
       "template_display_name": "string",
+      "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
@@ -455,6 +456,7 @@ Status Code **200**
 | `»» workspace_build_id`    | string(uuid)                                                                 | false    |              |             |
 | `» metadata`               | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata) | false    |              |             |
 | `»» template_display_name` | string                                                                       | false    |              |             |
+| `»» template_icon`         | string                                                                       | false    |              |             |
 | `»» template_id`           | string(uuid)                                                                 | false    |              |             |
 | `»» template_name`         | string                                                                       | false    |              |             |
 | `»» template_version_name` | string                                                                       | false    |              |             |
@@ -530,6 +532,7 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
   },
   "metadata": {
     "template_display_name": "string",
+    "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",

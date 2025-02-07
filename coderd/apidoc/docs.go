@@ -13229,6 +13229,9 @@ const docTemplate = `{
                 "template_display_name": {
                     "type": "string"
                 },
+                "template_icon": {
+                    "type": "string"
+                },
                 "template_id": {
                     "type": "string",
                     "format": "uuid"
