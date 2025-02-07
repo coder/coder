@@ -3,6 +3,7 @@
 package reaper
 
 import (
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
@@ -29,6 +30,10 @@ func catchSignals(pid int, sigs []os.Signal) {
 		s := <-sc
 		sig, ok := s.(syscall.Signal)
 		if ok {
+			// TODO:
+			// Tried using a logger here but the I/O streams are already closed at this point...
+			// Why is os.Stderr still working then?
+			_, _ = fmt.Fprintf(os.Stderr, "reaper caught %q signal, killing process %v\n", sig.String(), pid)
 			_ = syscall.Kill(pid, sig)
 		}
 	}

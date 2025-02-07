@@ -15,7 +15,7 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/agentapi"
+	"github.com/coder/coder/v2/codersdk/agentsdk"
 
 	"github.com/google/uuid"
 	"github.com/sqlc-dev/pqtype"
@@ -1713,11 +1713,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		// If this job was initiated by the prebuilds user and the job is not a prebuild, then it MUST be the claim run.
 		// TODO: maybe add some specific metadata to indicate this rather than imputing it.
-		if input.IsPrebuildClaimByUser != uuid.Nil {
+		if input.PrebuildClaimByUser != uuid.Nil {
+			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
-				slog.F("user", input.IsPrebuildClaimByUser.String()),
-				slog.F("workspace_id", workspace.ID))
-			if err := s.Pubsub.Publish(agentapi.ManifestUpdateChannel(workspace.ID), nil); err != nil {
+				slog.F("user", input.PrebuildClaimByUser.String()),
+				slog.F("workspace_id", workspace.ID),
+				slog.F("channel", channel))
+			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimByUser.String())); err != nil {
 				s.Logger.Error(ctx, "failed to publish message to workspace agent to pull new manifest", slog.Error(err))
 			}
 		}
@@ -2381,10 +2383,10 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
-	DryRun                bool      `json:"dry_run"`
-	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
-	IsPrebuildClaimByUser uuid.UUID `json:"is_prebuild_claim_by,omitempty"`
+	WorkspaceBuildID    uuid.UUID `json:"workspace_build_id"`
+	DryRun              bool      `json:"dry_run"`
+	IsPrebuild          bool      `json:"is_prebuild,omitempty"`
+	PrebuildClaimByUser uuid.UUID `json:"prebuild_claim_by,omitempty"`
 	// RunningWorkspaceAgentID is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
 	// but not generate a new agent token. The provisionerdserver will retrieve this token and push it down to
 	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where it will be

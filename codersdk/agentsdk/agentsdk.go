@@ -19,12 +19,13 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/websocket"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
@@ -232,7 +233,7 @@ func (c *Client) ConnectRPC23(ctx context.Context) (
 // ConnectRPC24 returns a dRPC client to the Agent API v2.4.  It is useful when you want to be
 // maximally compatible with Coderd Release Versions from 2.18+ // TODO update release
 func (c *Client) ConnectRPC24(ctx context.Context) (
-	proto.DRPCAgentClient24, tailnetproto.DRPCTailnetClient23, error,
+	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
 ) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 4))
 	if err != nil {
@@ -648,4 +649,73 @@ func LogsNotifyChannel(agentID uuid.UUID) string {
 
 type LogsNotifyMessage struct {
 	CreatedAfter int64 `json:"created_after"`
+}
+
+type ReinitializationReason string
+
+const (
+	ReinitializeReasonPrebuildClaimed ReinitializationReason = "prebuild_claimed"
+)
+
+type ReinitializationResponse struct {
+	Message string                 `json:"message"`
+	Reason  ReinitializationReason `json:"reason"`
+}
+
+// TODO: maybe place this somewhere else?
+func PrebuildClaimedChannel(id uuid.UUID) string {
+	return fmt.Sprintf("prebuild_claimed_%s", id)
+}
+
+// WaitForReinit polls a SSE endpoint, and receives an event back under the following conditions:
+// - ping: ignored, keepalive
+// - prebuild claimed: a prebuilt workspace is claimed, so the agent must reinitialize.
+// NOTE: the caller is responsible for closing the events chan.
+func (c *Client) WaitForReinit(ctx context.Context, events chan<- ReinitializationResponse) error {
+	// TODO: allow configuring httpclient
+	c.SDK.HTTPClient.Timeout = time.Hour * 24
+
+	res, err := c.SDK.Request(ctx, http.MethodGet, "/api/v2/workspaceagents/me/reinit", nil)
+	if err != nil {
+		return xerrors.Errorf("execute request: %w", err)
+	}
+	defer res.Body.Close()
+
+	if res.StatusCode != http.StatusOK {
+		return codersdk.ReadBodyAsError(res)
+	}
+
+	nextEvent := codersdk.ServerSentEventReader(ctx, res.Body)
+
+	for {
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		default:
+		}
+
+		sse, err := nextEvent()
+		if err != nil {
+			return xerrors.Errorf("failed to read server-sent event: %w", err)
+		}
+		// TODO: remove
+		fmt.Printf("RECEIVED SSE EVENT: %s\n", sse.Type)
+		if sse.Type != codersdk.ServerSentEventTypeData {
+			continue
+		}
+		var reinitResp ReinitializationResponse
+		b, ok := sse.Data.([]byte)
+		if !ok {
+			return xerrors.Errorf("expected data as []byte, got %T", sse.Data)
+		}
+		err = json.Unmarshal(b, &reinitResp)
+		if err != nil {
+			return xerrors.Errorf("unmarshal reinit response: %w", err)
+		}
+		select {
+		case <-ctx.Done():
+			return ctx.Err()
+		case events <- reinitResp:
+		}
+	}
 }

@@ -1,14 +1,15 @@
 package agentapi
 
 import (
-	"cdr.dev/slog"
 	"context"
 	"database/sql"
-	"fmt"
-	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"net/url"
 	"strings"
 	"time"
+
+	"cdr.dev/slog"
+
+	"github.com/coder/coder/v2/coderd/database/pubsub"
 
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
@@ -39,61 +40,6 @@ type ManifestAPI struct {
 	DerpMapFn func() *tailcfg.DERPMap
 	Pubsub    pubsub.Pubsub
 	Log       slog.Logger
-}
-
-func (a *ManifestAPI) StreamManifests(in *agentproto.GetManifestRequest, stream agentproto.DRPCAgent_StreamManifestsStream) error {
-	streamCtx := dbauthz.AsSystemRestricted(stream.Context()) // TODO:
-
-	defer func() {
-		if err := stream.CloseSend(); err != nil {
-			a.Log.Error(streamCtx, "error closing stream: %v", err)
-		}
-	}()
-
-	updates := make(chan struct{}, 1)
-
-	unsub, err := a.Pubsub.Subscribe(ManifestUpdateChannel(a.WorkspaceID), func(ctx context.Context, _ []byte) {
-		a.Log.Info(ctx, "received 'prebuild claimed' event for workspace, pushing down new manifest", slog.F("workspace_id", a.WorkspaceID.String()))
-		select {
-		case <-streamCtx.Done():
-			return
-		case <-ctx.Done():
-			return
-		case updates <- struct{}{}:
-		}
-	})
-	if err != nil {
-		return xerrors.Errorf("subscribe to 'prebuild claimed' event: %w", err)
-	}
-	defer unsub()
-
-	for {
-		manifest, err := a.GetManifest(streamCtx, in)
-		if err != nil {
-			return xerrors.Errorf("receive manifest: %w", err)
-		}
-
-		a.Log.Debug(streamCtx, "pushing manifest to workspace", slog.F("workspace_id", a.WorkspaceID))
-
-		// Send first retrieved manifest.
-		err = stream.Send(manifest)
-		if err != nil {
-			return xerrors.Errorf("send manifest: %w", err)
-		}
-
-		// ...then wait until triggered by prebuild claim completion.
-		// At this stage, a prebuild will have been claimed by a user and the agent will need to be reconfigured.
-		select {
-		case <-updates:
-			a.Log.Info(streamCtx, "received manifest update request", slog.F("workspace_id", a.WorkspaceID))
-		case <-streamCtx.Done():
-			return xerrors.Errorf("stream close: %w", streamCtx.Err())
-		}
-	}
-}
-
-func ManifestUpdateChannel(id uuid.UUID) string {
-	return fmt.Sprintf("prebuild_claimed_%s", id)
 }
 
 func (a *ManifestAPI) GetManifest(ctx context.Context, _ *agentproto.GetManifestRequest) (*agentproto.Manifest, error) {

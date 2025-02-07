@@ -23,6 +23,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+	"github.com/coder/websocket"
+
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
@@ -42,7 +44,6 @@ import (
 	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
-	"github.com/coder/websocket"
 )
 
 // @Summary Get workspace agent by ID
@@ -1044,6 +1045,105 @@ func (api *API) workspaceAgentPostLogSource(rw http.ResponseWriter, r *http.Requ
 	apiSource := convertLogSources(sources)[0]
 
 	httpapi.Write(ctx, rw, http.StatusCreated, apiSource)
+}
+
+// TODO @Summary Post workspace agent log source
+// TODO @ID post-workspace-agent-log-source
+// TODO @Security CoderSessionToken
+// TODO @Accept json
+// TODO @Produce json
+// TODO @Tags Agents
+// TODO @Param request body agentsdk.PostLogSourceRequest true "Log source request"
+// TODO @Success 200 {object} codersdk.WorkspaceAgentLogSource
+// TODO @Router /workspaceagents/me/log-source [post]
+func (api *API) workspaceAgentReinit(rw http.ResponseWriter, r *http.Request) {
+	// Allow us to interrupt watch via cancel.
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
+	r = r.WithContext(ctx) // Rewire context for SSE cancellation.
+
+	workspaceAgent := httpmw.WorkspaceAgent(r)
+	log := api.Logger.Named("workspace_agent_reinit_watcher").With(
+		slog.F("workspace_agent_id", workspaceAgent.ID),
+	)
+
+	workspace, err := api.Database.GetWorkspaceByAgentID(ctx, workspaceAgent.ID)
+	if err != nil {
+		log.Error(ctx, "failed to retrieve workspace from agent token", slog.Error(err))
+		httpapi.InternalServerError(rw, errors.New("failed to determine workspace from agent token"))
+	}
+
+	log.Info(ctx, "agent waiting for reinit instruction")
+
+	prebuildClaims := make(chan uuid.UUID, 1)
+	cancelSub, err := api.Pubsub.Subscribe(agentsdk.PrebuildClaimedChannel(workspace.ID), func(inner context.Context, id []byte) {
+		select {
+		case <-ctx.Done():
+			return
+		case <-inner.Done():
+			return
+		default:
+		}
+
+		parsed, err := uuid.ParseBytes(id)
+		if err != nil {
+			log.Error(ctx, "invalid prebuild claimed channel payload", slog.F("input", string(id)))
+			return
+		}
+		prebuildClaims <- parsed
+	})
+	if err != nil {
+		log.Error(ctx, "failed to subscribe to prebuild claimed channel", slog.Error(err))
+		httpapi.InternalServerError(rw, errors.New("failed to subscribe to prebuild claimed channel"))
+		return
+	}
+	defer cancelSub()
+
+	sseSendEvent, sseSenderClosed, err := httpapi.ServerSentEventSender(rw, r)
+	if err != nil {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error setting up server-sent events.",
+			Detail:  err.Error(),
+		})
+		return
+	}
+	// Prevent handler from returning until the sender is closed.
+	defer func() {
+		cancel()
+		<-sseSenderClosed
+	}()
+	// Synchronize cancellation from SSE -> context, this lets us simplify the
+	// cancellation logic.
+	go func() {
+		select {
+		case <-ctx.Done():
+		case <-sseSenderClosed:
+			cancel()
+		}
+	}()
+
+	// An initial ping signals to the request that the server is now ready
+	// and the client can begin servicing a channel with data.
+	_ = sseSendEvent(ctx, codersdk.ServerSentEvent{
+		Type: codersdk.ServerSentEventTypePing,
+	})
+
+	// Expand with future use-cases for agent reinitialization.
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		case user := <-prebuildClaims:
+			err = sseSendEvent(ctx, codersdk.ServerSentEvent{
+				Type: codersdk.ServerSentEventTypeData,
+				Data: agentsdk.ReinitializationResponse{
+					Message: fmt.Sprintf("prebuild claimed by user: %s", user),
+					Reason:  agentsdk.ReinitializeReasonPrebuildClaimed,
+				},
+			})
+			log.Warn(ctx, "failed to send SSE response to trigger reinit", slog.Error(err))
+		}
+	}
 }
 
 // convertProvisionedApps converts applications that are in the middle of provisioning process.
