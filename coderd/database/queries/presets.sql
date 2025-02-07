@@ -15,9 +15,7 @@ RETURNING *;
 
 -- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id,
-	name,
-	created_at
+	*
 FROM
 	template_version_presets
 WHERE

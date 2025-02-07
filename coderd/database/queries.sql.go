@@ -5457,31 +5457,28 @@ func (q *sqlQuerier) GetPresetParametersByTemplateVersionID(ctx context.Context,
 
 const getPresetsByTemplateVersionID = `-- name: GetPresetsByTemplateVersionID :many
 SELECT
-	id,
-	name,
-	created_at
+	id, template_version_id, name, created_at
 FROM
 	template_version_presets
 WHERE
 	template_version_id = $1
 `
 
-type GetPresetsByTemplateVersionIDRow struct {
-	ID        uuid.UUID `db:"id" json:"id"`
-	Name      string    `db:"name" json:"name"`
-	CreatedAt time.Time `db:"created_at" json:"created_at"`
-}
-
-func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]GetPresetsByTemplateVersionIDRow, error) {
+func (q *sqlQuerier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]TemplateVersionPreset, error) {
 	rows, err := q.db.QueryContext(ctx, getPresetsByTemplateVersionID, templateVersionID)
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
-	var items []GetPresetsByTemplateVersionIDRow
+	var items []TemplateVersionPreset
 	for rows.Next() {
-		var i GetPresetsByTemplateVersionIDRow
-		if err := rows.Scan(&i.ID, &i.Name, &i.CreatedAt); err != nil {
+		var i TemplateVersionPreset
+		if err := rows.Scan(
+			&i.ID,
+			&i.TemplateVersionID,
+			&i.Name,
+			&i.CreatedAt,
+		); err != nil {
 			return nil, err
 		}
 		items = append(items, i)

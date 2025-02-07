@@ -1931,9 +1931,6 @@ func (q *querier) GetParameterSchemasByJobID(ctx context.Context, jobID uuid.UUI
 }
 
 func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID uuid.UUID) (database.TemplateVersionPreset, error) {
-	// TODO (sasswart): Double check when to and not to call .InOrg?
-	// TODO (sasswart): it makes sense to me that a caller can read a preset if they can read the template, but double check this.
-	// TODO (sasswart): apply these todos to GetPresetParametersByPresetID and GetPresetsByTemplateVersionID.
 	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
 		return database.TemplateVersionPreset{}, err
 	}
@@ -1941,16 +1938,22 @@ func (q *querier) GetPresetByWorkspaceBuildID(ctx context.Context, workspaceID u
 }
 
 func (q *querier) GetPresetParametersByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPresetParameter, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+	// An actor can read template version presets if they can read the related template version.
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
 		return nil, err
 	}
+
 	return q.db.GetPresetParametersByTemplateVersionID(ctx, templateVersionID)
 }
 
-func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceTemplate); err != nil {
+func (q *querier) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
+	// An actor can read template version presets if they can read the related template version.
+	_, err := q.GetTemplateVersionByID(ctx, templateVersionID)
+	if err != nil {
 		return nil, err
 	}
+
 	return q.db.GetPresetsByTemplateVersionID(ctx, templateVersionID)
 }
 
@@ -3113,16 +3116,20 @@ func (q *querier) InsertOrganizationMember(ctx context.Context, arg database.Ins
 }
 
 func (q *querier) InsertPreset(ctx context.Context, arg database.InsertPresetParams) (database.TemplateVersionPreset, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
 		return database.TemplateVersionPreset{}, err
 	}
+
 	return q.db.InsertPreset(ctx, arg)
 }
 
 func (q *querier) InsertPresetParameters(ctx context.Context, arg database.InsertPresetParametersParams) ([]database.TemplateVersionPresetParameter, error) {
-	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+	err := q.authorizeContext(ctx, policy.ActionUpdate, rbac.ResourceTemplate)
+	if err != nil {
 		return nil, err
 	}
+
 	return q.db.InsertPresetParameters(ctx, arg)
 }
 

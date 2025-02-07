@@ -1,34 +1,10 @@
--- Organization
-INSERT INTO organizations (id, name, description, display_name, created_at, updated_at)
-VALUES ('d3fd38d2-ffc3-4ec2-8cfc-9c8dab6d9a74', 'Test Org', 'Test Organization', 'Test Org', now(), now());
+INSERT INTO public.organizations (id, name, description, created_at, updated_at, is_default, display_name, icon) VALUES ('20362772-802a-4a72-8e4f-3648b4bfd168', 'strange_hopper58', 'wizardly_stonebraker60', '2025-02-07 07:46:19.507551 +00:00', '2025-02-07 07:46:19.507552 +00:00', false, 'competent_rhodes59', '');
 
--- User
-INSERT INTO users (id, email, username, created_at, updated_at, status, rbac_roles, login_type, hashed_password)
-VALUES ('1f573504-f7a0-4498-8b81-2e1939f3c4a2', 'test@coder.com', 'testuser', now(), now(), 'active', '{}', 'password', 'password');
+INSERT INTO public.users (id, email, username, hashed_password, created_at, updated_at, status, rbac_roles, login_type, avatar_url, deleted, last_seen_at, quiet_hours_schedule, theme_preference, name, github_com_user_id, hashed_one_time_passcode, one_time_passcode_expires_at) VALUES ('6c353aac-20de-467b-bdfb-3c30a37adcd2', 'vigorous_murdock61', 'affectionate_hawking62', 'lqTu9C5363AwD7NVNH6noaGjp91XIuZJ', '2025-02-07 07:46:19.510861 +00:00', '2025-02-07 07:46:19.512949 +00:00', 'active', '{}', 'password', '', false, '0001-01-01 00:00:00.000000', '', '', 'vigilant_hugle63', null, null, null);
 
--- Provisioner Job
-INSERT INTO provisioner_jobs (id, organization_id, created_at, updated_at, initiator_id, provisioner, storage_method, type, input, file_id)
-VALUES ('50ebe702-82e5-4053-859d-c24a3b742b57', 'd3fd38d2-ffc3-4ec2-8cfc-9c8dab6d9a74', now(), now(), '1f573504-f7a0-4498-8b81-2e1939f3c4a2', 'echo', 'file', 'template_version_import', '{}', '00000000-82e5-4053-859d-c24a3b742b57');
+INSERT INTO public.templates (id, created_at, updated_at, organization_id, deleted, name, provisioner, active_version_id, description, default_ttl, created_by, icon, user_acl, group_acl, display_name, allow_user_cancel_workspace_jobs, allow_user_autostart, allow_user_autostop, failure_ttl, time_til_dormant, time_til_dormant_autodelete, autostop_requirement_days_of_week, autostop_requirement_weeks, autostart_block_days_of_week, require_active_version, deprecated, activity_bump, max_port_sharing_level) VALUES ('6b298946-7a4f-47ac-9158-b03b08740a41', '2025-02-07 07:46:19.513317 +00:00', '2025-02-07 07:46:19.513317 +00:00', '20362772-802a-4a72-8e4f-3648b4bfd168', false, 'modest_leakey64', 'echo', 'e6cfa2a4-e4cf-4182-9e19-08b975682a28', 'upbeat_wright65', 604800000000000, '6c353aac-20de-467b-bdfb-3c30a37adcd2', 'nervous_keller66', '{}', '{"20362772-802a-4a72-8e4f-3648b4bfd168": ["read", "use"]}', 'determined_aryabhata67', false, true, true, 0, 0, 0, 0, 0, 0, false, '', 3600000000000, 'owner');
+INSERT INTO public.template_versions (id, template_id, organization_id, created_at, updated_at, name, readme, job_id, created_by, external_auth_providers, message, archived, source_example_id) VALUES ('af58bd62-428c-4c33-849b-d43a3be07d93', '6b298946-7a4f-47ac-9158-b03b08740a41', '20362772-802a-4a72-8e4f-3648b4bfd168', '2025-02-07 07:46:19.514782 +00:00', '2025-02-07 07:46:19.514782 +00:00', 'distracted_shockley68', 'sleepy_turing69', 'f2e2ea1c-5aa3-4a1d-8778-2e5071efae59', '6c353aac-20de-467b-bdfb-3c30a37adcd2', '[]', '', false, null);
 
--- Template Version
-INSERT INTO template_versions (id, organization_id, created_by, created_at, updated_at, name, job_id, readme, message)
-VALUES ('f1276e15-01cd-406d-8ea5-64f113a79601', 'd3fd38d2-ffc3-4ec2-8cfc-9c8dab6d9a74', '1f573504-f7a0-4498-8b81-2e1939f3c4a2', now(), now(), 'test-version', '50ebe702-82e5-4053-859d-c24a3b742b57', '', '');
+INSERT INTO public.template_version_presets (id, template_version_id, name, created_at) VALUES ('28b42cc0-c4fe-4907-a0fe-e4d20f1e9bfe', 'af58bd62-428c-4c33-849b-d43a3be07d93', 'test', '0001-01-01 00:00:00.000000 +00:00');
 
--- Template
-INSERT INTO templates (id, created_by, organization_id, created_at, updated_at, deleted, name, provisioner, active_version_id, description)
-VALUES ('0bd0713b-176a-4864-a58b-546a1b021025', '1f573504-f7a0-4498-8b81-2e1939f3c4a2', 'd3fd38d2-ffc3-4ec2-8cfc-9c8dab6d9a74', now(), now(), false, 'test-template', 'terraform', 'f1276e15-01cd-406d-8ea5-64f113a79601', 'Test template');
-
-UPDATE templates SET active_version_id = 'f1276e15-01cd-406d-8ea5-64f113a79601' WHERE id = '0bd0713b-176a-4864-a58b-546a1b021025';
--- Workspace
-INSERT INTO workspaces (id, organization_id, owner_id, template_id, created_at, updated_at, name, deleted, automatic_updates)
-VALUES ('8cb0b7c4-47b5-4bfc-ad92-88ccc61f3c12', 'd3fd38d2-ffc3-4ec2-8cfc-9c8dab6d9a74', '1f573504-f7a0-4498-8b81-2e1939f3c4a2', '0bd0713b-176a-4864-a58b-546a1b021025', now(), now(), 'test-workspace', false, 'never');
-
--- Workspace Build
-INSERT INTO workspace_builds (id, workspace_id, template_version_id, initiator_id, job_id, created_at, updated_at, transition, reason, build_number)
-VALUES ('83b28647-743c-4649-b226-f2be697ca06c', '8cb0b7c4-47b5-4bfc-ad92-88ccc61f3c12', 'f1276e15-01cd-406d-8ea5-64f113a79601', '1f573504-f7a0-4498-8b81-2e1939f3c4a2', '50ebe702-82e5-4053-859d-c24a3b742b57', now(), now(), 'start', 'initiator', 45);
-
--- Template Version Presets
-INSERT INTO template_version_presets (id, template_version_id, name, created_at)
-VALUES
-    ('575a0fbb-cc3e-4709-ae9f-d1a3f365909c', 'f1276e15-01cd-406d-8ea5-64f113a79601', 'test', now()),
-    ('2c76596d-436d-42eb-a38c-8d5a70497030', 'f1276e15-01cd-406d-8ea5-64f113a79601', 'test', now());
+INSERT INTO public.template_version_preset_parameters (id, template_version_preset_id, name, value) VALUES ('ea90ccd2-5024-459e-87e4-879afd24de0f', '28b42cc0-c4fe-4907-a0fe-e4d20f1e9bfe', 'test', 'test');

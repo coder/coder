@@ -3822,18 +3822,14 @@ func (q *FakeQuerier) GetPresetParametersByTemplateVersionID(_ context.Context, 
 	return parameters, nil
 }
 
-func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+func (q *FakeQuerier) GetPresetsByTemplateVersionID(_ context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
 	q.mutex.RLock()
 	defer q.mutex.RUnlock()
 
-	presets := make([]database.GetPresetsByTemplateVersionIDRow, 0)
+	presets := make([]database.TemplateVersionPreset, 0)
 	for _, preset := range q.presets {
 		if preset.TemplateVersionID == templateVersionID {
-			presets = append(presets, database.GetPresetsByTemplateVersionIDRow{
-				ID:        preset.ID,
-				Name:      preset.Name,
-				CreatedAt: preset.CreatedAt,
-			})
+			presets = append(presets, preset)
 		}
 	}
 	return presets, nil

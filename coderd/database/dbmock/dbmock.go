@@ -2047,10 +2047,10 @@ func (mr *MockStoreMockRecorder) GetPresetParametersByTemplateVersionID(ctx, tem
 }
 
 // GetPresetsByTemplateVersionID mocks base method.
-func (m *MockStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.GetPresetsByTemplateVersionIDRow, error) {
+func (m *MockStore) GetPresetsByTemplateVersionID(ctx context.Context, templateVersionID uuid.UUID) ([]database.TemplateVersionPreset, error) {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "GetPresetsByTemplateVersionID", ctx, templateVersionID)
-	ret0, _ := ret[0].([]database.GetPresetsByTemplateVersionIDRow)
+	ret0, _ := ret[0].([]database.TemplateVersionPreset)
 	ret1, _ := ret[1].(error)
 	return ret0, ret1
 }

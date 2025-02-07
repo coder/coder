@@ -1837,7 +1837,7 @@ func TestInsertWorkspacePresetsAndParameters(t *testing.T) {
 						valueMatches := givenParameter.Value == gotParameter.Value
 
 						// ensure that preset parameters are matched to the correct preset:
-						var gotPreset database.GetPresetsByTemplateVersionIDRow
+						var gotPreset database.TemplateVersionPreset
 						for _, preset := range gotPresets {
 							if preset.ID == gotParameter.TemplateVersionPresetID {
 								gotPreset = preset

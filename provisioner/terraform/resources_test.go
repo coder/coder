@@ -788,6 +788,7 @@ func TestConvertResources(t *testing.T) {
 					Auth:                     &proto.Agent_Token{},
 					ConnectionTimeoutSeconds: 120,
 					DisplayApps:              &displayApps,
+					ResourcesMonitoring:      &proto.ResourcesMonitoring{},
 				}},
 			}},
 			parameters: []*proto.RichParameter{{
