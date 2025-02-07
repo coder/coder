@@ -139,13 +139,16 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 		safeDelay = 0;
 	}
 
-	// Doing a bunch of mid-render state syncs to minimize risks of
-	// contradictory states during re-renders. It's ugly, but it's what the
-	// React team officially recommends. Be very careful with this logic; React
-	// only bails out of redundant state updates if they happen outside of a
-	// render. Inside a render, if you keep calling a state dispatch, you will
-	// get an infinite render loop, no matter what the state value is. There
-	// must be a "base case" that causes re-renders to stabilize/stop
+	// Doing a bunch of mid-render state syncs to minimize risks of UI tearing
+	// during re-renders. It's ugly, but it's what the React team officially
+	// recommends (even though this specific case is extra nasty).
+	//
+	// Be very careful with this logic; React only bails out of redundant state
+	// updates if they happen outside of a render. Inside a render, if you keep
+	// calling a state dispatch, you will get an infinite render loop, no matter
+	// what the value you dispatch. There must be a "base case" in the render
+	// path that causes state dispatches to stop eventually so that React can
+	// move on to the next component in the tree
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
 	const [renderCache, setRenderCache] = useState({ loading, safeDelay });
 	const resetOnRerender =
