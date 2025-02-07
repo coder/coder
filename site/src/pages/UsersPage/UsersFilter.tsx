@@ -34,7 +34,7 @@ export const useStatusFilterMenu = ({
 		{
 			value: "suspended",
 			label: "Suspended",
-			startIcon: <StatusIndicator variant="stopped" />,
+			startIcon: <StatusIndicator variant="inactive" />,
 		},
 	];
 	return useFilterMenu({

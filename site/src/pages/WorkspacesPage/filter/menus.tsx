@@ -159,13 +159,13 @@ export const getStatusIndicatorVariant = (
 			return "success";
 		case "starting":
 		case "pending":
-			return "starting";
+			return "pending";
 		case undefined:
 		case "canceling":
 		case "canceled":
 		case "stopping":
 		case "stopped":
-			return "stopped";
+			return "inactive";
 		case "deleting":
 		case "deleted":
 			return "warning";

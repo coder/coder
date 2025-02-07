@@ -18,7 +18,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 		const t = dayjs(lastUsedAt);
 		const now = dayjs();
 		let message = t.fromNow();
-		let circle = <StatusIndicator variant="starting" />;
+		let circle = <StatusIndicator variant="pending" />;
 
 		if (t.isAfter(now.subtract(1, "hour"))) {
 			circle = <StatusIndicator variant="success" />;
@@ -26,7 +26,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 			// the last_used_at can be inaccurate when recent.
 			message = "Now";
 		} else if (t.isAfter(now.subtract(3, "day"))) {
-			circle = <StatusIndicator variant="starting" />;
+			circle = <StatusIndicator variant="pending" />;
 		} else if (t.isAfter(now.subtract(1, "month"))) {
 			circle = <StatusIndicator variant="warning" />;
 		} else if (t.isAfter(now.subtract(100, "year"))) {
