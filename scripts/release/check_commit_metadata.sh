@@ -143,7 +143,12 @@ main() {
 	for commit in "${renamed_cherry_pick_commits_pending[@]}"; do
 		log "Checking if pending commit ${commit} has a corresponding cherry-pick..."
 		if [[ ! -v renamed_cherry_pick_commits[${commit}] ]]; then
-			error "Invariant failed, cherry-picked commit ${commit} has no corresponding original commit"
+			if [[ ${CODER_IGNORE_MISSING_COMMIT_METADATA:-0} == 1 ]]; then
+				log "WARNING: Missing original commit for cherry-picked commit ${commit}, but continuing due to CODER_IGNORE_MISSING_COMMIT_METADATA being set."
+				continue
+			else
+				error "Invariant failed, cherry-picked commit ${commit} has no corresponding original commit"
+			fi
 		fi
 		log "Found matching cherry-pick commit ${commit} -> ${renamed_cherry_pick_commits[${commit}]}"
 	done
