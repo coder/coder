@@ -127,9 +127,9 @@ export const Spinner: FC<SpinnerProps> = ({
 	);
 };
 
-// Split off logic into custom hook so that the main component is insulated from
-// some of the necessary chaos from handling re-render logic. A lot of browsers
-// should be able to inline this function call anyway
+// Splitting off logic into custom hook so that we can abstract away the chaos
+// of handling Spinner's re-render logic. Not worried about overhead; a lot of
+// browsers should be able to inline this function call
 function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// Disallow negative timeout values and fractional values, but also round
 	// the delay down if it's small enough that it might as well be immediate
