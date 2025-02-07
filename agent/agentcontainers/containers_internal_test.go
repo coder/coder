@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
 
+	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -100,7 +101,7 @@ func TestContainersHandler(t *testing.T) {
 			// relative age of the cached data
 			cacheAge time.Duration
 			// function to set up expectations for the mock
-			setupMock func(*MockLister)
+			setupMock func(*acmock.MockLister)
 			// expected result
 			expected codersdk.WorkspaceAgentListContainersResponse
 			// expected error
@@ -108,7 +109,7 @@ func TestContainersHandler(t *testing.T) {
 		}{
 			{
 				name: "no cache",
-				setupMock: func(mcl *MockLister) {
+				setupMock: func(mcl *acmock.MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
@@ -118,7 +119,7 @@ func TestContainersHandler(t *testing.T) {
 				cacheData: makeResponse(),
 				cacheAge:  2 * time.Second,
 				cacheDur:  time.Second,
-				setupMock: func(mcl *MockLister) {
+				setupMock: func(mcl *acmock.MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt),
@@ -132,7 +133,7 @@ func TestContainersHandler(t *testing.T) {
 			},
 			{
 				name: "lister error",
-				setupMock: func(mcl *MockLister) {
+				setupMock: func(mcl *acmock.MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(), assert.AnError).AnyTimes()
 				},
 				expectedErr: assert.AnError.Error(),
@@ -142,7 +143,7 @@ func TestContainersHandler(t *testing.T) {
 				cacheAge:  2 * time.Second,
 				cacheData: makeResponse(fakeCt),
 				cacheDur:  time.Second,
-				setupMock: func(mcl *MockLister) {
+				setupMock: func(mcl *acmock.MockLister) {
 					mcl.EXPECT().List(gomock.Any()).Return(makeResponse(fakeCt2), nil).AnyTimes()
 				},
 				expected: makeResponse(fakeCt2),
@@ -155,7 +156,7 @@ func TestContainersHandler(t *testing.T) {
 					ctx        = testutil.Context(t, testutil.WaitShort)
 					clk        = quartz.NewMock(t)
 					ctrl       = gomock.NewController(t)
-					mockLister = NewMockLister(ctrl)
+					mockLister = acmock.NewMockLister(ctrl)
 					now        = time.Now().UTC()
 					ch         = devcontainersHandler{
 						cacheDuration: tc.cacheDur,

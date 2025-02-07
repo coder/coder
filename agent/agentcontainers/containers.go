@@ -1,7 +1,5 @@
 package agentcontainers
 
-//go:generate mockgen -destination ./containers_mock.go -package agentcontainers . Lister
-
 import (
 	"context"
 	"errors"
@@ -36,6 +34,9 @@ type devcontainersHandler struct {
 	mtime      time.Time
 }
 
+// Option is a functional option for devcontainersHandler.
+type Option func(*devcontainersHandler)
+
 // WithLister sets the agentcontainers.Lister implementation to use.
 // The default implementation uses the Docker CLI to list containers.
 func WithLister(cl Lister) Option {
@@ -43,9 +44,6 @@ func WithLister(cl Lister) Option {
 		ch.cl = cl
 	}
 }
-
-// Option is a functional option for devcontainersHandler.
-type Option func(*devcontainersHandler)
 
 // New returns a new devcontainersHandler with the given options applied.
 func New(options ...Option) http.Handler {
