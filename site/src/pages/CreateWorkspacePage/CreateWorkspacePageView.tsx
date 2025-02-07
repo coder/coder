@@ -161,7 +161,9 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 	}, [presets]);
 
 	const [selectedPresetIndex, setSelectedPresetIndex] = useState(0);
-	const [presetParameterNames, setPresetParameterNames] = useState<string[]>([]);
+	const [presetParameterNames, setPresetParameterNames] = useState<string[]>(
+		[],
+	);
 
 	useEffect(() => {
 		// TODO (sasswart): test case: what if immutable parameters are used in the preset?
@@ -187,16 +189,19 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 		const updatedValues = {
 			...form.values,
-			rich_parameter_values: form.values.rich_parameter_values?.map((param) => {
-				const presetParam = selectedPresetParameters.find((p) => p.Name === param.name);
-				if (presetParam) {
-					return {
-						name: param.name,
-						value: presetParam.Value,
-					};
-				}
-				return param;
-			}) ?? [],
+			rich_parameter_values:
+				form.values.rich_parameter_values?.map((param) => {
+					const presetParam = selectedPresetParameters.find(
+						(p) => p.Name === param.name,
+					);
+					if (presetParam) {
+						return {
+							name: param.name,
+							value: presetParam.Value,
+						};
+					}
+					return param;
+				}) ?? [],
 		};
 
 		form.setValues(updatedValues);
