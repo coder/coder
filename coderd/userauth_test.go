@@ -900,9 +900,18 @@ func TestUserOIDC(t *testing.T) {
 		IgnoreUserInfo      bool
 	}{
 		{
+			Name: "NoSub",
+			IDTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
 			Name: "EmailOnly",
 			IDTokenClaims: jwt.MapClaims{
 				"email": "kyle@kwc.io",
+				"sub":   uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -915,6 +924,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusForbidden,
@@ -924,6 +934,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          3.14159,
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
@@ -933,6 +944,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -946,6 +958,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -958,6 +971,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "cian@coder.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -970,6 +984,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -982,6 +997,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@KWC.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -997,6 +1013,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "colin@gmail.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -1015,6 +1032,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			StatusCode: http.StatusForbidden,
 		},
@@ -1023,6 +1041,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1036,6 +1055,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"preferred_username": "hotdog",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "hotdog", u.Username)
@@ -1049,6 +1069,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"name":           "Hot Dog",
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "Hot Dog", u.Name)
@@ -1065,6 +1086,7 @@ func TestUserOIDC(t *testing.T) {
 				// However, we should not fail to log someone in if their name is too long.
 				// Just truncate it.
 				"name": strings.Repeat("a", 129),
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1080,6 +1102,7 @@ func TestUserOIDC(t *testing.T) {
 				// Full names must not have leading or trailing whitespace, but this is a
 				// daft reason to fail a login.
 				"name": " Bobby  Whitespace ",
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1096,6 +1119,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "Kylium Carbonate",
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1108,6 +1132,7 @@ func TestUserOIDC(t *testing.T) {
 			Name: "UsernameIsEmail",
 			IDTokenClaims: jwt.MapClaims{
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1123,6 +1148,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "kyle",
 				"picture":            "/example.png",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "/example.png", u.AvatarURL)
@@ -1136,6 +1162,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"preferred_username": "potato",
@@ -1155,6 +1182,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":  "coolin@coder.com",
 				"groups": []string{"pingpong"},
+				"sub":    uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1164,6 +1192,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "externaluser@external.domain",
@@ -1182,6 +1211,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email": 1,
@@ -1197,6 +1227,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "User McName",
 				"preferred_username": "user",
+				"sub":                uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "user.mcname@external.domain",
@@ -1216,6 +1247,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: inflateClaims(t, jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "user", u.Username)
@@ -1228,6 +1260,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -1242,6 +1275,7 @@ func TestUserOIDC(t *testing.T) {
 				"iss":            "https://mismatch.com",
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
