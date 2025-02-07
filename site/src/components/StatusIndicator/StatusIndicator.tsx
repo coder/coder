@@ -9,9 +9,9 @@ const statusIndicatorVariants = cva(
 			variant: {
 				success: "text-content-success",
 				failed: "text-content-destructive",
-				stopped: "text-highlight-grey",
+				inactive: "text-highlight-grey",
 				warning: "text-content-warning",
-				starting: "text-highlight-sky",
+				pending: "text-highlight-sky",
 			},
 			size: {
 				sm: "text-xs",
@@ -54,9 +54,9 @@ const dotVariants = cva("rounded-full inline-block border-4 border-solid", {
 		variant: {
 			success: "bg-content-success border-surface-green",
 			failed: "bg-content-destructive border-surface-destructive",
-			stopped: "bg-highlight-grey border-surface-grey",
+			inactive: "bg-highlight-grey border-surface-grey",
 			warning: "bg-content-warning border-surface-orange",
-			starting: "bg-highlight-sky border-surface-sky",
+			pending: "bg-highlight-sky border-surface-sky",
 		},
 		size: {
 			sm: "size-3 border-4",

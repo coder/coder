@@ -29,9 +29,9 @@ export const Failed: Story = {
 	},
 };
 
-export const Stopped: Story = {
+export const Inactive: Story = {
 	args: {
-		variant: "stopped",
+		variant: "inactive",
 	},
 };
 
@@ -41,9 +41,9 @@ export const Warning: Story = {
 	},
 };
 
-export const Starting: Story = {
+export const Pending: Story = {
 	args: {
-		variant: "starting",
+		variant: "pending",
 	},
 };
 

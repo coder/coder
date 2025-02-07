@@ -31,7 +31,6 @@ module.exports = {
 					disabled: "hsl(var(--content-disabled))",
 					invert: "hsl(var(--content-invert))",
 					success: "hsl(var(--content-success))",
-					danger: "hsl(var(--content-danger))",
 					link: "hsl(var(--content-link))",
 					destructive: "hsl(var(--content-destructive))",
 					warning: "hsl(var(--content-warning))",
