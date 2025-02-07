@@ -161,7 +161,7 @@ export const withOrganizationSettingsProvider = (Story: FC) => {
 		<OrganizationSettingsContext.Provider
 			value={{
 				organizations: [MockDefaultOrganization],
-				permissionsByOrganizationId: {
+				organizationPermissionsByOrganizationId: {
 					[MockDefaultOrganization.id]: MockOrganizationPermissions,
 				},
 				organization: MockDefaultOrganization,

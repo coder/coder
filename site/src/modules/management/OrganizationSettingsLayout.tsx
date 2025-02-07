@@ -28,7 +28,10 @@ export const OrganizationSettingsContext = createContext<
 
 type OrganizationSettingsValue = Readonly<{
 	organizations: readonly Organization[];
-	permissionsByOrganizationId: Record<string, OrganizationPermissions>;
+	organizationPermissionsByOrganizationId: Record<
+		string,
+		OrganizationPermissions
+	>;
 	organization?: Organization;
 	organizationPermissions?: OrganizationPermissions;
 }>;
@@ -80,12 +83,14 @@ const OrganizationSettingsLayout: FC = () => {
 		return <NotFoundPage />;
 	}
 
+	console.log(orgPermissionsQuery.data);
+
 	return (
 		<RequirePermission isFeatureVisible={canViewOrganizationSettings}>
 			<OrganizationSettingsContext.Provider
 				value={{
 					organizations: viewableOrganizations,
-					permissionsByOrganizationId: orgPermissionsQuery.data,
+					organizationPermissionsByOrganizationId: orgPermissionsQuery.data,
 					organization,
 					organizationPermissions,
 				}}

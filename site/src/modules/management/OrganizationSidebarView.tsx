@@ -111,9 +111,11 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 										))}
 									</div>
 								) : (
-									<span className="select-none text-content-disabled text-center rounded-sm px-2 py-2 text-sm font-medium">
-										No more organizations
-									</span>
+									!permissions.createOrganization && (
+										<span className="select-none text-content-disabled text-center rounded-sm px-2 py-2 text-sm font-medium">
+											No more organizations
+										</span>
+									)
 								)}
 								{permissions.createOrganization && (
 									<>
