@@ -37,7 +37,7 @@ type SpinnerProps = Readonly<
 			 * be used with care and only if it prevents render performance
 			 * issues.
 			 */
-			unmountedWhileLoading?: boolean;
+			unmountChildrenWhileLoading?: boolean;
 
 			/**
 			 * Specifies whether there should be a delay before the spinner
@@ -54,7 +54,7 @@ type SpinnerProps = Readonly<
 			 * it in case the modal can close quickly enough. It's lying to the
 			 * user in a way that makes the UI feel more polished.)
 			 */
-			spinnerStartDelayMs?: number;
+			spinnerDelayMs?: number;
 		}
 >;
 
@@ -72,14 +72,14 @@ export const Spinner: FC<SpinnerProps> = ({
 	size,
 	loading,
 	children,
-	spinnerStartDelayMs = 0,
-	unmountedWhileLoading = false,
+	spinnerDelayMs = 0,
+	unmountChildrenWhileLoading = false,
 	...delegatedProps
 }) => {
 	// Disallow negative timeout values and fractional values, but also round
 	// the delay down if it's small enough that it might as well be immediate
 	// from a user perspective
-	let safeDelay = Math.trunc(spinnerStartDelayMs);
+	let safeDelay = Math.trunc(spinnerDelayMs);
 	if (safeDelay < 100) {
 		safeDelay = 0;
 	}
@@ -95,7 +95,9 @@ export const Spinner: FC<SpinnerProps> = ({
 	if (delayLapsed && !loading) {
 		setDelayLapsed(false);
 	}
-	if (!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay) {
+	const delayWasRemovedOnRerender =
+		!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay;
+	if (delayWasRemovedOnRerender) {
 		setDelayLapsed(true);
 		setCachedDelay(safeDelay);
 	}
@@ -148,7 +150,7 @@ export const Spinner: FC<SpinnerProps> = ({
 				))}
 			</svg>
 
-			{!unmountedWhileLoading && (
+			{!unmountChildrenWhileLoading && (
 				<div className="sr-only">
 					This content is loading:
 					{children}
