@@ -6,12 +6,12 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"os/exec"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
 
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
 
 	"golang.org/x/exp/maps"
@@ -19,14 +19,22 @@ import (
 )
 
 // DockerCLILister is a ContainerLister that lists containers using the docker CLI
-type DockerCLILister struct{}
+type DockerCLILister struct {
+	execer agentexec.Execer
+}
 
 var _ Lister = &DockerCLILister{}
 
-func (*DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+func NewDocker(execer agentexec.Execer) Lister {
+	return &DockerCLILister{
+		execer: agentexec.DefaultExecer,
+	}
+}
+
+func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	var stdoutBuf, stderrBuf bytes.Buffer
 	// List all container IDs, one per line, with no truncation
-	cmd := exec.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")
+	cmd := dcl.execer.CommandContext(ctx, "docker", "ps", "--all", "--quiet", "--no-trunc")
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {
@@ -56,7 +64,7 @@ func (*DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentListCo
 	stderrBuf.Reset()
 	// nolint: gosec // We are not executing user input, these IDs come from
 	// `docker ps`.
-	cmd = exec.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
+	cmd = dcl.execer.CommandContext(ctx, "docker", append([]string{"inspect"}, ids...)...)
 	cmd.Stdout = &stdoutBuf
 	cmd.Stderr = &stderrBuf
 	if err := cmd.Run(); err != nil {

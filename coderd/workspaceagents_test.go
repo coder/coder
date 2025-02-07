@@ -31,6 +31,8 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -1115,7 +1117,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 			return agents
 		}).Do()
 		_ = agenttest.New(t, client.URL, r.AgentToken, func(opts *agent.Options) {
-			opts.ContainerLister = &agentcontainers.DockerCLILister{}
+			opts.ContainerLister = agentcontainers.NewDocker(agentexec.DefaultExecer)
 		})
 		resources := coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
 		require.Len(t, resources, 1, "expected one resource")
@@ -1182,18 +1184,18 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 
 		for _, tc := range []struct {
 			name      string
-			setupMock func(*agentcontainers.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error)
+			setupMock func(*acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error)
 		}{
 			{
 				name: "test response",
-				setupMock: func(mcl *agentcontainers.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(testResponse, nil).Times(1)
 					return testResponse, nil
 				},
 			},
 			{
 				name: "error response",
-				setupMock: func(mcl *agentcontainers.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
+				setupMock: func(mcl *acmock.MockLister) (codersdk.WorkspaceAgentListContainersResponse, error) {
 					mcl.EXPECT().List(gomock.Any()).Return(codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError).Times(1)
 					return codersdk.WorkspaceAgentListContainersResponse{}, assert.AnError
 				},
@@ -1204,7 +1206,7 @@ func TestWorkspaceAgentContainers(t *testing.T) {
 				t.Parallel()
 
 				ctrl := gomock.NewController(t)
-				mcl := agentcontainers.NewMockLister(ctrl)
+				mcl := acmock.NewMockLister(ctrl)
 				expected, expectedErr := tc.setupMock(mcl)
 				client, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{})
 				user := coderdtest.CreateFirstUser(t, client)

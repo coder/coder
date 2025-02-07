@@ -124,7 +124,7 @@ func New(options Options) Agent {
 		options.ScriptDataDir = options.TempDir
 	}
 	if options.ExchangeToken == nil {
-		options.ExchangeToken = func(ctx context.Context) (string, error) {
+		options.ExchangeToken = func(_ context.Context) (string, error) {
 			return "", nil
 		}
 	}
@@ -147,7 +147,7 @@ func New(options Options) Agent {
 		options.Execer = agentexec.DefaultExecer
 	}
 	if options.ContainerLister == nil {
-		options.ContainerLister = &agentcontainers.DockerCLILister{}
+		options.ContainerLister = agentcontainers.NewDocker(options.Execer)
 	}
 
 	hardCtx, hardCancel := context.WithCancel(context.Background())

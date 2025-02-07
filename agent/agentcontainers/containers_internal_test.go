@@ -15,6 +15,7 @@ import (
 	"go.uber.org/mock/gomock"
 
 	"github.com/coder/coder/v2/agent/agentcontainers/acmock"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/quartz"
@@ -52,7 +53,7 @@ func TestDockerCLIContainerLister(t *testing.T) {
 		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
 	})
 
-	dcl := DockerCLILister{}
+	dcl := NewDocker(agentexec.DefaultExecer)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	actual, err := dcl.List(ctx)
 	require.NoError(t, err, "Could not list containers")
