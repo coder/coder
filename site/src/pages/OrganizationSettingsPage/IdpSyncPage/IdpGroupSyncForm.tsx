@@ -335,7 +335,12 @@ const GroupRow: FC<GroupRowProps> = ({
 								<TooltipTrigger asChild>
 									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
 								</TooltipTrigger>
-								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
 									This value has not be seen in the specified claim field
 									before. You might want to check your IdP configuration and
 									ensure that this value is not misspelled.
