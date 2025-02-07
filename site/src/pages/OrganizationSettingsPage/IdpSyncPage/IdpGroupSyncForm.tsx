@@ -232,7 +232,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 								inputValue={comboInputValue}
 								onInputChange={setComboInputValue}
 								onKeyDown={handleKeyDown}
-								onSelect={(value: string) => {
+								onSelect={(value) => {
 									setIdpGroupName(value);
 									setOpen(false);
 								}}

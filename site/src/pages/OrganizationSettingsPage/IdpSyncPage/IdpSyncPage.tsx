@@ -44,22 +44,8 @@ export const IdpSyncPage: FC = () => {
 		rolesQuery,
 	] = useQueries({
 		queries: [
-			{
-				...groupIdpSyncSettings(organizationName),
-				onSuccess: (data: GroupSyncSettings) => {
-					if (data?.field) {
-						setGroupField(data.field);
-					}
-				},
-			},
-			{
-				...roleIdpSyncSettings(organizationName),
-				onSuccess: (data: RoleSyncSettings) => {
-					if (data?.field) {
-						setRoleField(data.field);
-					}
-				},
-			},
+			groupIdpSyncSettings(organizationName),
+			roleIdpSyncSettings(organizationName),
 			groupsByOrganization(organizationName),
 			organizationRoles(organizationName),
 		],

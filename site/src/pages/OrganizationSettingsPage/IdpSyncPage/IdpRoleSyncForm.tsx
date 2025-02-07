@@ -173,7 +173,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 								inputValue={comboInputValue}
 								onInputChange={setComboInputValue}
 								onKeyDown={handleKeyDown}
-								onSelect={(value: string) => {
+								onSelect={(value) => {
 									setIdpRoleName(value);
 									setOpen(false);
 								}}
