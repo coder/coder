@@ -2,6 +2,7 @@ import { getErrorMessage } from "api/errors";
 import { groupsByOrganization } from "api/queries/groups";
 import {
 	groupIdpSyncSettings,
+	organizationIdpSyncClaimFieldValues,
 	patchGroupSyncSettings,
 	patchRoleSyncSettings,
 	roleIdpSyncSettings,
@@ -17,8 +18,8 @@ import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useMutation, useQueries, useQueryClient } from "react-query";
-import { useParams } from "react-router-dom";
+import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
+import { useParams, useSearchParams } from "react-router-dom";
 import { docs } from "utils/docs";
 import { pageTitle } from "utils/page";
 import IdpSyncPageView from "./IdpSyncPageView";
@@ -46,6 +47,19 @@ export const IdpSyncPage: FC = () => {
 			organizationRoles(organizationName),
 		],
 	});
+
+	const [searchParams] = useSearchParams();
+	const tab = searchParams.get("tab") || "groups";
+	const field =
+		tab === "groups"
+			? groupIdpSyncSettingsQuery.data?.field
+			: roleIdpSyncSettingsQuery.data?.field;
+
+	const fieldValuesQuery = useQuery(
+		field
+			? organizationIdpSyncClaimFieldValues(organizationName, field)
+			: { enabled: false },
+	);
 
 	if (!organization) {
 		return <EmptyState message="Organization not found" />;
@@ -99,8 +113,10 @@ export const IdpSyncPage: FC = () => {
 					</Cond>
 					<Cond>
 						<IdpSyncPageView
+							tab={tab}
 							groupSyncSettings={groupIdpSyncSettingsQuery.data}
 							roleSyncSettings={roleIdpSyncSettingsQuery.data}
+							claimFieldValues={fieldValuesQuery.data}
 							groups={groupsQuery.data}
 							groupsMap={groupsMap}
 							roles={rolesQuery.data}
