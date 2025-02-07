@@ -76,46 +76,13 @@ export const Spinner: FC<SpinnerProps> = ({
 	unmountChildrenWhileLoading = false,
 	...delegatedProps
 }) => {
-	// Disallow negative timeout values and fractional values, but also round
-	// the delay down if it's small enough that it might as well be immediate
-	// from a user perspective
-	let safeDelay = Math.trunc(spinnerDelayMs);
-	if (safeDelay < 100) {
-		safeDelay = 0;
-	}
-
-	// Doing a bunch of mid-render state syncs to minimize risks of
-	// contradictory states during re-renders. It's ugly, but it's what the
-	// React team officially recommends. Be very careful with this logic; React
-	// only bails out of redundant state updates if they happen outside of a
-	// render. Inside a render, if you keep calling a state dispatch, you will
-	// get an infinite render loop, no matter what the state value is.
-	const [cachedDelay, setCachedDelay] = useState(safeDelay);
-	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
-	if (delayLapsed && !loading) {
-		setDelayLapsed(false);
-	}
-	const delayWasRemovedOnRerender =
-		!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay;
-	if (delayWasRemovedOnRerender) {
-		setDelayLapsed(true);
-		setCachedDelay(safeDelay);
-	}
-	useEffect(() => {
-		if (safeDelay === 0) {
-			return;
-		}
-		const id = window.setTimeout(() => setDelayLapsed(true), safeDelay);
-		return () => window.clearTimeout(id);
-	}, [safeDelay]);
-
 	/**
 	 * @todo Figure out if this conditional logic can ever cause a component to
 	 * lose state when showSpinner flips from false to true while
 	 * unmountedWhileLoading is false. I would hope not, since the children prop
 	 * is the same in both cases, but I need to test this out
 	 */
-	const showSpinner = loading && delayLapsed;
+	const showSpinner = useShowSpinner(loading, spinnerDelayMs);
 	if (!showSpinner) {
 		return children;
 	}
@@ -159,3 +126,44 @@ export const Spinner: FC<SpinnerProps> = ({
 		</>
 	);
 };
+
+// Split off logic into custom hook so that the main component is insulated from
+// some of the necessary chaos from handling re-render logic. A lot of browsers
+// should be able to inline this function call anyway
+function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
+	// Disallow negative timeout values and fractional values, but also round
+	// the delay down if it's small enough that it might as well be immediate
+	// from a user perspective
+	let safeDelay = Math.trunc(spinnerDelayMs);
+	if (safeDelay < 100) {
+		safeDelay = 0;
+	}
+
+	// Doing a bunch of mid-render state syncs to minimize risks of
+	// contradictory states during re-renders. It's ugly, but it's what the
+	// React team officially recommends. Be very careful with this logic; React
+	// only bails out of redundant state updates if they happen outside of a
+	// render. Inside a render, if you keep calling a state dispatch, you will
+	// get an infinite render loop, no matter what the state value is. There
+	// must be a "base case" that causes re-renders to stabilize/stop
+	const [cachedDelay, setCachedDelay] = useState(safeDelay);
+	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
+	if (delayLapsed && !loading) {
+		setDelayLapsed(false);
+	}
+	const delayWasRemovedOnRerender =
+		!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay;
+	if (delayWasRemovedOnRerender) {
+		setDelayLapsed(true);
+		setCachedDelay(safeDelay);
+	}
+	useEffect(() => {
+		if (safeDelay === 0) {
+			return;
+		}
+		const id = window.setTimeout(() => setDelayLapsed(true), safeDelay);
+		return () => window.clearTimeout(id);
+	}, [safeDelay]);
+
+	return delayLapsed && loading;
+}
