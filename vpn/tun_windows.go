@@ -7,9 +7,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/coder/retry"
+	"github.com/dblohm7/wingoes/com"
 	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/sys/windows"
+	"golang.org/x/sys/windows/svc"
 	"golang.org/x/xerrors"
 	"golang.zx2c4.com/wintun"
 	"tailscale.com/net/dns"
@@ -21,11 +22,27 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/tailnet"
+	"github.com/coder/retry"
 )
 
 const tunName = "Coder"
 
 func GetNetworkingStack(t *Tunnel, _ *StartRequest, logger slog.Logger) (NetworkStack, error) {
+	// Initialize COM process-wide so Tailscale can make calls to the windows
+	// network APIs to read/write adapter state.
+	comProcessType := com.ConsoleApp
+	isSvc, err := svc.IsWindowsService()
+	if err != nil {
+		return NetworkStack{}, xerrors.Errorf("svc.IsWindowsService failed: %w", err)
+	}
+	if isSvc {
+		comProcessType = com.Service
+	}
+	if err := com.StartRuntime(comProcessType); err != nil {
+		return NetworkStack{}, xerrors.Errorf("could not initialize COM: com.StartRuntime(%d): %w", comProcessType, err)
+	}
+
+	// Set the name and GUID for the TUN interface.
 	tun.WintunTunnelType = tunName
 	guid, err := windows.GUIDFromString("{0ed1515d-04a4-4c46-abae-11ad07cf0e6d}")
 	if err != nil {

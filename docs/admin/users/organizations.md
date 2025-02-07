@@ -119,12 +119,6 @@ their organization. Users can be in multiple organizations.
 
 ![Workspace List](../../images/admin/users/organizations/workspace-list.png)
 
-## Beta
-
-Organizations is in beta. If you encounter any issues, please
-[file an issue](https://github.com/coder/internal/issues/new?title=request%28orgs%29%3A+request+title+here&labels=["customer-feedback"]&body=please+enter+your+issue+or+request+here)
-or contact your account team.
-
 ## Next steps
 
 - [Organizations - best practices](../../tutorials/best-practices/organizations.md)

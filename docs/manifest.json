@@ -291,7 +291,7 @@
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": ["premium", "beta"]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",

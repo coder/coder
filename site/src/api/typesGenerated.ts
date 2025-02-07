@@ -1651,6 +1651,7 @@ export interface ProvisionerJob {
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
+	readonly metadata?: ProvisionerJobMetadata;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1668,6 +1669,16 @@ export interface ProvisionerJobLog {
 	readonly log_level: LogLevel;
 	readonly stage: string;
 	readonly output: string;
+}
+
+// From codersdk/provisionerdaemons.go
+export interface ProvisionerJobMetadata {
+	readonly template_version_name: string;
+	readonly template_id: string;
+	readonly template_name: string;
+	readonly template_display_name: string;
+	readonly workspace_id?: string;
+	readonly workspace_name?: string;
 }
 
 // From codersdk/provisionerdaemons.go
