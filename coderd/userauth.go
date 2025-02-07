@@ -1096,6 +1096,15 @@ func (api *API) userOIDC(rw http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	if idToken.Subject == "" {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message: "OIDC token missing 'sub' claim field or 'sub' claim field is empty.",
+			Detail: "'sub' claim field is required to be unique for all users by a given issue, " +
+				"an empty field is invalid and this authentication attempt is rejected.",
+		})
+		return
+	}
+
 	logger := api.Logger.Named(userAuthLoggerName)
 
 	// "email_verified" is an optional claim that changes the behavior
