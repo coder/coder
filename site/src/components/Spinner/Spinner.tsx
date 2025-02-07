@@ -1,7 +1,9 @@
 /**
- * This component was inspired by
- * https://www.radix-ui.com/themes/docs/components/spinner and developed using
- * https://v0.dev/ help.
+ * @file This component was inspired by Radix's Spinner component and developed
+ * using help from Vercel's V0.
+ *
+ * @see {@link https://www.radix-ui.com/themes/docs/components/spinner}
+ * @se {@link https://v0.dev/}
  */
 
 import isChromatic from "chromatic/isChromatic";
