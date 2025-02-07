@@ -5,7 +5,6 @@ import (
 	"errors"
 	"net/http"
 	"slices"
-	"sync"
 	"time"
 
 	"golang.org/x/xerrors"
@@ -26,7 +25,6 @@ type devcontainersHandler struct {
 	cl            Lister
 	clock         quartz.Clock
 
-	initLockOnce sync.Once // ensures we don't get a race when initializing lockCh
 	// lockCh protects the below fields. We use a channel instead of a mutex so we
 	// can handle cancellation properly.
 	lockCh     chan struct{}
@@ -47,7 +45,9 @@ func WithLister(cl Lister) Option {
 
 // New returns a new devcontainersHandler with the given options applied.
 func New(options ...Option) http.Handler {
-	ch := &devcontainersHandler{}
+	ch := &devcontainersHandler{
+		lockCh: make(chan struct{}, 1),
+	}
 	for _, opt := range options {
 		opt(ch)
 	}
@@ -81,11 +81,6 @@ func (ch *devcontainersHandler) ServeHTTP(rw http.ResponseWriter, r *http.Reques
 }
 
 func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
-	ch.initLockOnce.Do(func() {
-		if ch.lockCh == nil {
-			ch.lockCh = make(chan struct{}, 1)
-		}
-	})
 	select {
 	case <-ctx.Done():
 		return codersdk.WorkspaceAgentListContainersResponse{}, ctx.Err()

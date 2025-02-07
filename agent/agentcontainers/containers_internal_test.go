@@ -163,6 +163,7 @@ func TestContainersHandler(t *testing.T) {
 						cl:            mockLister,
 						clock:         clk,
 						containers:    &tc.cacheData,
+						lockCh:        make(chan struct{}, 1),
 					}
 				)
 				if tc.cacheAge != 0 {
