@@ -9,21 +9,19 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
-
-interface IdpRoleSyncFormProps {
-	roleSyncSettings: RoleSyncSettings;
-	roleMappingCount: number;
-	organization: Organization;
-	roles: Role[];
-	onSubmit: (data: RoleSyncSettings) => void;
-}
 
 const roleSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -48,13 +46,23 @@ const roleSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-export const IdpRoleSyncForm = ({
+interface IdpRoleSyncFormProps {
+	roleSyncSettings: RoleSyncSettings;
+	claimFieldValues: readonly string[] | undefined;
+	roleMappingCount: number;
+	organization: Organization;
+	roles: Role[];
+	onSubmit: (data: RoleSyncSettings) => void;
+}
+
+export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
+	claimFieldValues,
 	roleMappingCount,
 	organization,
 	roles,
 	onSubmit,
-}: IdpRoleSyncFormProps) => {
+}) => {
 	const form = useFormik<RoleSyncSettings>({
 		initialValues: {
 			field: roleSyncSettings?.field ?? "",
@@ -210,6 +218,7 @@ export const IdpRoleSyncForm = ({
 								<RoleRow
 									key={idpRole}
 									idpRole={idpRole}
+									exists={claimFieldValues?.includes(idpRole)}
 									coderRoles={roles}
 									onDelete={handleDelete}
 								/>
@@ -222,17 +231,48 @@ export const IdpRoleSyncForm = ({
 
 interface RoleRowProps {
 	idpRole: string;
+	exists: boolean | undefined;
 	coderRoles: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles, onDelete }) => {
+const RoleRow: FC<RoleRowProps> = ({
+	idpRole,
+	exists = true,
+	coderRoles,
+	onDelete,
+}) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
-			<TableCell>{idpRole}</TableCell>
+			<TableCell>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
+					{idpRole}
+					{!exists && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
+			</TableCell>
+
 			<TableCell>
 				<IdpPillList roles={coderRoles} />
 			</TableCell>
+
 			<TableCell>
 				<Button
 					variant="outline"

@@ -2669,14 +2669,14 @@ export const MockGroupSyncSettings: TypesGen.GroupSyncSettings = {
 	auto_create_missing_groups: false,
 };
 
-export const MockLegacyMappingGroupSyncSettings: TypesGen.GroupSyncSettings = {
+export const MockLegacyMappingGroupSyncSettings = {
 	...MockGroupSyncSettings,
 	mapping: {},
 	legacy_group_name_mapping: {
 		"idp-group-1": "fbd2116a-8961-4954-87ae-e4575bd29ce0",
 		"idp-group-2": "13de3eb4-9b4f-49e7-b0f8-0c3728a0d2e2",
 	},
-};
+} satisfies TypesGen.GroupSyncSettings;
 
 export const MockGroupSyncSettings2: TypesGen.GroupSyncSettings = {
 	field: "group-test",
@@ -2718,6 +2718,13 @@ export const MockOrganizationSyncSettings2: TypesGen.OrganizationSyncSettings =
 			"idp-org-1": ["my-organization-id", "my-organization-2-id"],
 			"idp-org-2": ["my-organization-id"],
 		},
+		organization_assign_default: true,
+	};
+
+export const MockOrganizationSyncSettingsEmpty: TypesGen.OrganizationSyncSettings =
+	{
+		field: "",
+		mapping: {},
 		organization_assign_default: true,
 	};
 

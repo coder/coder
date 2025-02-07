@@ -18,7 +18,7 @@ import { cn } from "utils/cn";
 
 interface ComboboxProps {
 	value: string;
-	options?: string[];
+	options?: readonly string[];
 	placeholder?: string;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
