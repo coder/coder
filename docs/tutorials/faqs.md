@@ -13,7 +13,9 @@ For other community resources, see our
 Visit <https://coder.com/trial> or contact
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
 
-You can add a license through the UI or CLI:
+<details>
+
+<summary>You can add a license through the UI or CLI</summary>
 
 <!-- copied from docs/admin/licensing/index.md -->
 
@@ -59,6 +61,8 @@ You can add a license through the UI or CLI:
      ```
 
 </div>
+
+</details>
 
 Visit the [licensing documentation](../admin/licensing/index.md) for more
 information about licenses.
