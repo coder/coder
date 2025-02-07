@@ -104,8 +104,8 @@ coder:
 
     # (Optional) For production deployments the access URL should be set.
     # If you're just trying Coder, access the dashboard via the service IP.
-    - name: CODER_ACCESS_URL
-      value: "https://coder.example.com"
+    # - name: CODER_ACCESS_URL
+    #   value: "https://coder.example.com"
 
   #tls:
   #  secretNames:

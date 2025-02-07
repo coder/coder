@@ -39,7 +39,7 @@ export const Section: FC<SectionProps> = ({
 					<div css={styles.header}>
 						<div>
 							{title && (
-								<Stack direction={"row"} alignItems="center">
+								<Stack direction="row" alignItems="center">
 									<h4
 										css={{
 											fontSize: 24,
