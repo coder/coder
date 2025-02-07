@@ -152,9 +152,9 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// Be very careful with this logic; React only bails out of redundant state
 	// updates if they happen outside of a render. Inside a render, if you keep
 	// calling a state dispatch, you will get an infinite render loop, no matter
-	// what the value you dispatch. There must be a "base case" in the render
-	// path that causes state dispatches to stop entirely so that React can
-	// move on to the next component in the Fiber subtree
+	// what value you dispatch. There must be a "base case" in the render path
+	// that causes state dispatches to stop entirely so that React can move on
+	// to the next component in the Fiber subtree
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
 	const [renderCache, setRenderCache] = useState({ loading, safeDelay });
 	const canResetLapseOnRerender =
