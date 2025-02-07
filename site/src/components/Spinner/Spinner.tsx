@@ -12,6 +12,7 @@ import { type CSSProperties, type FC, useEffect, useState } from "react";
 import { cn } from "utils/cn";
 
 const SPINNER_LEAF_COUNT = 8;
+const MAX_SPINNER_DELAY_MS = 2_000;
 
 const spinnerVariants = cva("", {
 	variants: {
@@ -140,7 +141,9 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// Disallow negative timeout values and fractional values, but also round
 	// the delay down if it's small enough that it might as well be immediate
 	// from a user perspective
-	let safeDelay = Math.trunc(spinnerDelayMs);
+	let safeDelay = Number.isNaN(spinnerDelayMs)
+		? 0
+		: Math.min(MAX_SPINNER_DELAY_MS, Math.trunc(spinnerDelayMs));
 	if (safeDelay < 100) {
 		safeDelay = 0;
 	}
