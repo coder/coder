@@ -554,6 +554,8 @@
 | `logout`                 |
 | `register`               |
 | `request_password_reset` |
+| `connect`                |
+| `open`                   |
 
 ## codersdk.AuditDiff
 
@@ -5358,6 +5360,8 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `idp_sync_settings_organization` |
 | `idp_sync_settings_group`        |
 | `idp_sync_settings_role`         |
+| `workspace_agent`                |
+| `workspace_app`                  |
 
 ## codersdk.Response
 

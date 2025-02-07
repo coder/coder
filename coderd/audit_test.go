@@ -17,6 +17,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisionersdk/proto"
 )
 
 func TestAuditLogs(t *testing.T) {
@@ -229,12 +231,13 @@ func TestAuditLogsFilter(t *testing.T) {
 			ctx      = context.Background()
 			client   = coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true})
 			user     = coderdtest.CreateFirstUser(t, client)
-			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+			version  = coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, completeWithAgentAndApp())
 			template = coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
 		)
 
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		workspace.LatestBuild = coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
 
 		// Create two logs with "Create"
 		err := client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
@@ -279,6 +282,28 @@ func TestAuditLogsFilter(t *testing.T) {
 		})
 		require.NoError(t, err)
 
+		for _, resource := range workspace.LatestBuild.Resources {
+			t.Logf("Resource: %#v", resource)
+		}
+
+		// Create one log with "Connect"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionConnect,
+			ResourceType: codersdk.ResourceTypeWorkspaceAgent,
+			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		})
+		require.NoError(t, err)
+
+		// Create one log with "Open"
+		err = client.CreateTestAuditLog(ctx, codersdk.CreateTestAuditLogRequest{
+			Action:       codersdk.AuditActionOpen,
+			ResourceType: codersdk.ResourceTypeWorkspaceApp,
+			ResourceID:   workspace.LatestBuild.Resources[0].Agents[0].Apps[0].ID,
+			Time:         time.Date(2022, 8, 15, 14, 30, 45, 100, time.UTC), // 2022-8-15 14:30:45
+		})
+		require.NoError(t, err)
+
 		// Test cases
 		testCases := []struct {
 			Name           string
@@ -309,12 +334,12 @@ func TestAuditLogsFilter(t *testing.T) {
 			{
 				Name:           "FilterByEmail",
 				SearchQuery:    "email:" + coderdtest.FirstUserParams.Email,
-				ExpectedResult: 5,
+				ExpectedResult: 7,
 			},
 			{
 				Name:           "FilterByUsername",
 				SearchQuery:    "username:" + coderdtest.FirstUserParams.Username,
-				ExpectedResult: 5,
+				ExpectedResult: 7,
 			},
 			{
 				Name:           "FilterByResourceID",
@@ -366,6 +391,16 @@ func TestAuditLogsFilter(t *testing.T) {
 				SearchQuery:    "resource_type:workspace_build action:start build_reason:initiator",
 				ExpectedResult: 1,
 			},
+			{
+				Name:           "FilterOnWorkspaceAgentConnect",
+				SearchQuery:    "resource_type:workspace_agent action:connect",
+				ExpectedResult: 1,
+			},
+			{
+				Name:           "FilterOnWorkspaceAppOpen",
+				SearchQuery:    "resource_type:workspace_app action:open",
+				ExpectedResult: 1,
+			},
 		}
 
 		for _, testCase := range testCases {
@@ -386,4 +421,64 @@ func TestAuditLogsFilter(t *testing.T) {
 			})
 		}
 	})
+}
+
+func completeWithAgentAndApp() *echo.Responses {
+	return &echo.Responses{
+		Parse: echo.ParseComplete,
+		ProvisionPlan: []*proto.Response{
+			{
+				Type: &proto.Response_Plan{
+					Plan: &proto.PlanComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+										Apps: []*proto.App{
+											{
+												Slug:        "app",
+												DisplayName: "App",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+		ProvisionApply: []*proto.Response{
+			{
+				Type: &proto.Response_Apply{
+					Apply: &proto.ApplyComplete{
+						Resources: []*proto.Resource{
+							{
+								Type: "compute",
+								Name: "main",
+								Agents: []*proto.Agent{
+									{
+										Name:            "smith",
+										OperatingSystem: "linux",
+										Architecture:    "i386",
+										Apps: []*proto.App{
+											{
+												Slug:        "app",
+												DisplayName: "App",
+											},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
 }

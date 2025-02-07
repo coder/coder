@@ -25,7 +25,9 @@ CREATE TYPE audit_action AS ENUM (
     'login',
     'logout',
     'register',
-    'request_password_reset'
+    'request_password_reset',
+    'connect',
+    'open'
 );
 
 CREATE TYPE automatic_updates AS ENUM (
@@ -201,7 +203,9 @@ CREATE TYPE resource_type AS ENUM (
     'notification_template',
     'idp_sync_settings_organization',
     'idp_sync_settings_group',
-    'idp_sync_settings_role'
+    'idp_sync_settings_role',
+    'workspace_agent',
+    'workspace_app'
 );
 
 CREATE TYPE startup_script_behavior AS ENUM (

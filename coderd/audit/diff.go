@@ -30,7 +30,9 @@ type Auditable interface {
 		database.NotificationTemplate |
 		idpsync.OrganizationSyncSettings |
 		idpsync.GroupSyncSettings |
-		idpsync.RoleSyncSettings
+		idpsync.RoleSyncSettings |
+		database.WorkspaceAgent |
+		database.WorkspaceApp
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

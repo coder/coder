@@ -37,6 +37,8 @@ const (
 	ResourceTypeIdpSyncSettingsOrganization ResourceType = "idp_sync_settings_organization"
 	ResourceTypeIdpSyncSettingsGroup        ResourceType = "idp_sync_settings_group"
 	ResourceTypeIdpSyncSettingsRole         ResourceType = "idp_sync_settings_role"
+	ResourceTypeWorkspaceAgent              ResourceType = "workspace_agent"
+	ResourceTypeWorkspaceApp                ResourceType = "workspace_app"
 )
 
 func (r ResourceType) FriendlyString() string {
@@ -87,6 +89,10 @@ func (r ResourceType) FriendlyString() string {
 		return "settings"
 	case ResourceTypeIdpSyncSettingsRole:
 		return "settings"
+	case ResourceTypeWorkspaceAgent:
+		return "workspace agent"
+	case ResourceTypeWorkspaceApp:
+		return "workspace app"
 	default:
 		return "unknown"
 	}
@@ -104,6 +110,8 @@ const (
 	AuditActionLogout               AuditAction = "logout"
 	AuditActionRegister             AuditAction = "register"
 	AuditActionRequestPasswordReset AuditAction = "request_password_reset"
+	AuditActionConnect              AuditAction = "connect"
+	AuditActionOpen                 AuditAction = "open"
 )
 
 func (a AuditAction) Friendly() string {
@@ -126,6 +134,10 @@ func (a AuditAction) Friendly() string {
 		return "registered"
 	case AuditActionRequestPasswordReset:
 		return "password reset requested"
+	case AuditActionConnect:
+		return "connected"
+	case AuditActionOpen:
+		return "opened"
 	default:
 		return "unknown"
 	}
