@@ -1,6 +1,11 @@
 import data from "@emoji-mart/data/sets/15/apple.json";
 import EmojiMart from "@emoji-mart/react";
-import { useEffect, useLayoutEffect, type ComponentProps, type FC } from "react";
+import {
+	type ComponentProps,
+	type FC,
+	useEffect,
+	useLayoutEffect,
+} from "react";
 import icons from "theme/icons.json";
 
 const custom = [
@@ -33,17 +38,17 @@ const EmojiPicker: FC<EmojiPickerProps> = (props) => {
 	 * Reference: https://github.com/missive/emoji-mart/pull/806
 	 */
 	useEffect(() => {
-		const picker = document.querySelector("em-emoji-picker")?.shadowRoot
-		if(!picker) {
-			return
+		const picker = document.querySelector("em-emoji-picker")?.shadowRoot;
+		if (!picker) {
+			return;
 		}
-		const css = document.createElement("style")
-		css.textContent = `.emoji-mart-emoji img { width: 100% }`
-		picker.appendChild(css)
-	}, [])
+		const css = document.createElement("style");
+		css.textContent = ".emoji-mart-emoji img { width: 100% }";
+		picker.appendChild(css);
+	}, []);
 
 	return (
-			<EmojiMart
+		<EmojiMart
 			theme="dark"
 			set="apple"
 			emojiVersion="15"
