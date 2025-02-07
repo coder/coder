@@ -8,13 +8,13 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { TableCell, TableRow } from "components/Table/Table";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";

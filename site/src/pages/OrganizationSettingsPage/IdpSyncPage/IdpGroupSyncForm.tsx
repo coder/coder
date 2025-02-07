@@ -21,16 +21,16 @@ import {
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { TableCell, TableRow } from "components/Table/Table";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, useId, useState, type KeyboardEventHandler } from "react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";

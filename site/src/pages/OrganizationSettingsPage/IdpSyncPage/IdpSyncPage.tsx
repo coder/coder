@@ -17,7 +17,7 @@ import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { type FC, useState } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -27,15 +27,15 @@ import IdpSyncPageView from "./IdpSyncPageView";
 
 export const IdpSyncPage: FC = () => {
 	const queryClient = useQueryClient();
+	// IdP sync does not have its own entitlement and is based on templace_rbac
+	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	const [groupClaimField, setGroupClaimField] = useState("");
-	const [roleClaimField, setRoleClaimField] = useState("");
-	// IdP sync does not have its own entitlement and is based on templace_rbac
-	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
+	const [groupField, setGroupField] = useState("");
+	const [roleField, setRoleField] = useState("");
 
 	const [
 		groupIdpSyncSettingsQuery,
@@ -48,7 +48,7 @@ export const IdpSyncPage: FC = () => {
 				...groupIdpSyncSettings(organizationName),
 				onSuccess: (data: GroupSyncSettings) => {
 					if (data?.field) {
-						setGroupClaimField(data.field);
+						setGroupField(data.field);
 					}
 				},
 			},
@@ -56,7 +56,7 @@ export const IdpSyncPage: FC = () => {
 				...roleIdpSyncSettings(organizationName),
 				onSuccess: (data: RoleSyncSettings) => {
 					if (data?.field) {
-						setRoleClaimField(data.field);
+						setRoleField(data.field);
 					}
 				},
 			},
@@ -65,12 +65,25 @@ export const IdpSyncPage: FC = () => {
 		],
 	});
 
+	useEffect(() => {
+		if (!groupIdpSyncSettingsQuery.data) {
+			return;
+		}
+
+		setGroupField(groupIdpSyncSettingsQuery.data.field);
+	}, [groupIdpSyncSettingsQuery.data]);
+
+	useEffect(() => {
+		if (!roleIdpSyncSettingsQuery.data) {
+			return;
+		}
+
+		setRoleField(roleIdpSyncSettingsQuery.data.field);
+	}, [roleIdpSyncSettingsQuery.data]);
+
 	const [searchParams] = useSearchParams();
 	const tab = searchParams.get("tab") || "groups";
-	const field =
-		tab === "groups"
-			? groupIdpSyncSettingsQuery.data?.field
-			: roleIdpSyncSettingsQuery.data?.field;
+	const field = tab === "groups" ? groupField : roleField;
 
 	const fieldValuesQuery = useQuery(
 		field
@@ -102,14 +115,6 @@ export const IdpSyncPage: FC = () => {
 			groupsMap.set(group.id, group.display_name || group.name);
 		}
 	}
-
-	const handleGroupSyncFieldChange = (value: string) => {
-		setGroupClaimField(value);
-	};
-
-	const handleRoleSyncFieldChange = (value: string) => {
-		setRoleClaimField(value);
-	};
 
 	return (
 		<>
@@ -146,8 +151,8 @@ export const IdpSyncPage: FC = () => {
 							groupsMap={groupsMap}
 							roles={rolesQuery.data}
 							organization={organization}
-							onGroupSyncFieldChange={handleGroupSyncFieldChange}
-							onRoleSyncFieldChange={handleRoleSyncFieldChange}
+							onGroupSyncFieldChange={setGroupField}
+							onRoleSyncFieldChange={setRoleField}
 							error={error}
 							onSubmitGroupSyncSettings={async (data) => {
 								try {
