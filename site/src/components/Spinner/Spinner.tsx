@@ -6,7 +6,7 @@
 
 import isChromatic from "chromatic/isChromatic";
 import { type VariantProps, cva } from "class-variance-authority";
-import type { FC, ReactNode } from "react";
+import { type FC, useEffect, useState } from "react";
 import { cn } from "utils/cn";
 
 const SPINNER_LEAF_COUNT = 8;
@@ -26,35 +26,62 @@ const spinnerVariants = cva("", {
 type SpinnerProps = Readonly<
 	React.SVGProps<SVGSVGElement> &
 		VariantProps<typeof spinnerVariants> & {
-			children?: ReactNode;
-			loading?: boolean;
+			loading: boolean;
 			unmountedWhileLoading?: boolean;
 			spinnerStartDelayMs?: number;
 		}
 >;
 
 const leavesIterable = Array.from({ length: SPINNER_LEAF_COUNT }, (_, i) => i);
-
 export const Spinner: FC<SpinnerProps> = ({
 	className,
 	size,
 	loading,
 	children,
-	...props
+	spinnerStartDelayMs = 0,
+	unmountedWhileLoading = false,
+	...delegatedProps
 }) => {
-	if (!loading) {
+	// Doing some mid-render state syncs to minimize re-renders and risks of
+	// contradictory states. It's ugly, but it's what the React team recommends
+	const noDelay = spinnerStartDelayMs === 0;
+	const [mountSpinner, setMountSpinner] = useState(noDelay);
+	const unmountImmediatelyOnRerender = mountSpinner && !loading;
+	if (unmountImmediatelyOnRerender) {
+		setMountSpinner(false);
+	}
+	const mountImmediatelyOnRerender = !mountSpinner && noDelay;
+	if (mountImmediatelyOnRerender) {
+		setMountSpinner(true);
+	}
+	useEffect(() => {
+		if (spinnerStartDelayMs === 0) {
+			return;
+		}
+
+		const delayId = window.setTimeout(() => {
+			setMountSpinner(true);
+		}, spinnerStartDelayMs);
+		return () => window.clearTimeout(delayId);
+	}, [spinnerStartDelayMs]);
+
+	// Past this point, only showSpinner should need to be referenced
+	const showSpinner = loading && mountSpinner;
+	if (!showSpinner) {
 		return children;
 	}
 
 	return (
 		<svg
+			// Fill is the only prop that should be allowed to be overridden;
+			// all other props must come after destructuring
+			fill="currentColor"
+			{...delegatedProps}
 			viewBox="0 0 24 24"
 			xmlns="http://www.w3.org/2000/svg"
-			fill="currentColor"
 			className={cn(className, spinnerVariants({ size }))}
-			{...props}
 		>
-			<title>Loading spinner</title>
+			<title>Loading&hellip;</title>
 			{leavesIterable.map((leafIndex) => (
 				<rect
 					key={leafIndex}
