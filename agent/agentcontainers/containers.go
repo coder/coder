@@ -57,23 +57,29 @@ func New(options ...Option) http.Handler {
 }
 
 func (ch *devcontainersHandler) ServeHTTP(rw http.ResponseWriter, r *http.Request) {
-	ct, err := ch.getContainers(r.Context())
-	if err != nil {
-		if errors.Is(err, context.Canceled) {
-			httpapi.Write(r.Context(), rw, http.StatusRequestTimeout, codersdk.Response{
+	select {
+	case <-r.Context().Done():
+		// Client went away.
+		return
+	default:
+		ct, err := ch.getContainers(r.Context())
+		if err != nil {
+			if errors.Is(err, context.Canceled) {
+				httpapi.Write(r.Context(), rw, http.StatusRequestTimeout, codersdk.Response{
+					Message: "Could not get containers.",
+					Detail:  "Took too long to list containers.",
+				})
+				return
+			}
+			httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
 				Message: "Could not get containers.",
-				Detail:  "Took too long to list containers.",
+				Detail:  err.Error(),
 			})
 			return
 		}
-		httpapi.Write(r.Context(), rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Could not get containers.",
-			Detail:  err.Error(),
-		})
-		return
-	}
 
-	httpapi.Write(r.Context(), rw, http.StatusOK, ct)
+		httpapi.Write(r.Context(), rw, http.StatusOK, ct)
+	}
 }
 
 func (ch *devcontainersHandler) getContainers(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
