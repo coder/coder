@@ -21,6 +21,8 @@ interface IdpSyncPageViewProps {
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
 	organization: Organization;
+	onGroupSyncFieldChange: (value: string) => void;
+	onRoleSyncFieldChange: (value: string) => void;
 	error?: unknown;
 	onSubmitGroupSyncSettings: (data: GroupSyncSettings) => void;
 	onSubmitRoleSyncSettings: (data: RoleSyncSettings) => void;
@@ -35,6 +37,8 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 	groupsMap,
 	roles,
 	organization,
+	onGroupSyncFieldChange,
+	onRoleSyncFieldChange,
 	error,
 	onSubmitGroupSyncSettings,
 	onSubmitRoleSyncSettings,
@@ -76,6 +80,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					groupsMap={groupsMap}
 					organization={organization}
 					onSubmit={onSubmitGroupSyncSettings}
+					onSyncFieldChange={onGroupSyncFieldChange}
 				/>
 			) : (
 				<IdpRoleSyncForm
@@ -85,6 +90,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 					roles={roles || []}
 					organization={organization}
 					onSubmit={onSubmitRoleSyncSettings}
+					onSyncFieldChange={onRoleSyncFieldChange}
 				/>
 			)}
 		</div>
