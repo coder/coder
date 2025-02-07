@@ -58,7 +58,7 @@ type SpinnerProps = Readonly<
 		}
 >;
 
-const leavesIterable = Array.from({ length: SPINNER_LEAF_COUNT }, (_, i) => i);
+const leafIndices = Array.from({ length: SPINNER_LEAF_COUNT }, (_, i) => i);
 const animationSettings: CSSProperties = isChromatic()
 	? {}
 	: {
@@ -76,12 +76,44 @@ export const Spinner: FC<SpinnerProps> = ({
 	unmountedWhileLoading = false,
 	...delegatedProps
 }) => {
+	// Disallow negative timeout values and fractional values, but also round
+	// the delay down if it's small enough that it would effectively be
+	// immediate from a user perspective
+	let safeDelay = Math.trunc(spinnerStartDelayMs);
+	if (safeDelay < 100) {
+		safeDelay = 0;
+	}
+
+	// Doing a bunch of mid-render state syncs to minimize risks of
+	// contradictory states during re-renders. It's ugly, but it's what the
+	// React team officially recommends. Be very careful with this logic; React
+	// only bails out of redundant state updates if they happen outside of a
+	// render. Inside a render, if you keep calling a state dispatch, you will
+	// get an infinite render loop, no matter what the state value is.
+	const [delayDone, setDelayDone] = useState(safeDelay === 0);
+	if (delayDone && !loading) {
+		setDelayDone(false);
+	}
+	if (!delayDone && loading && safeDelay === 0) {
+		setDelayDone(true);
+	}
+	useEffect(() => {
+		if (safeDelay === 0) {
+			return;
+		}
+
+		const delayId = window.setTimeout(() => {
+			setDelayDone(true);
+		}, safeDelay);
+		return () => window.clearTimeout(delayId);
+	}, [safeDelay]);
+
 	/**
-	 * @todo Figure out if this conditional logic causes a component to lose
-	 * state. I would hope not, since the children prop is the same in both
+	 * @todo Figure out if this conditional logic can ever cause a component to
+	 * lose state. I would hope not, since the children prop is the same in both
 	 * cases, but I need to test this out
 	 */
-	const showSpinner = useShowSpinner(loading, spinnerStartDelayMs);
+	const showSpinner = delayDone && loading;
 	if (!showSpinner) {
 		return children;
 	}
@@ -98,9 +130,9 @@ export const Spinner: FC<SpinnerProps> = ({
 				className={cn(className, spinnerVariants({ size }))}
 			>
 				<title>Loading&hellip;</title>
-				{leavesIterable.map((leafIndex) => (
+				{leafIndices.map((index) => (
 					<rect
-						key={leafIndex}
+						key={index}
 						x="10.9"
 						y="2"
 						width="2"
@@ -108,9 +140,9 @@ export const Spinner: FC<SpinnerProps> = ({
 						rx="1"
 						style={{
 							...animationSettings,
-							transform: `rotate(${leafIndex * (360 / SPINNER_LEAF_COUNT)}deg)`,
+							transform: `rotate(${index * (360 / SPINNER_LEAF_COUNT)}deg)`,
 							transformOrigin: "center",
-							animationDelay: `${-leafIndex * 0.1}s`,
+							animationDelay: `${-index * 0.1}s`,
 						}}
 					/>
 				))}
@@ -125,41 +157,3 @@ export const Spinner: FC<SpinnerProps> = ({
 		</>
 	);
 };
-
-// Not a big fan of one-time custom hooks, but it helps insulate the main
-// component from the chaos of handling all these state syncs, when the ultimate
-// result is a simple boolean. A lot of browsers will be able to inline the
-// function definition in some cases anyway
-function useShowSpinner(
-	loading: boolean,
-	spinnerStartDelayMs: number,
-): boolean {
-	// Doing a bunch of mid-render state syncs to minimize risks of
-	// contradictory states during re-renders. It's ugly, but it's what the
-	// React team officially recommends. Be very careful with this logic; React
-	// only bails out of redundant state updates if they happen outside of a
-	// render. Inside a render, if you keep calling a state dispatch, you will
-	// get an infinite render loop, no matter what the state value is.
-	const [spinnerActive, setSpinnerActive] = useState(spinnerStartDelayMs === 0);
-	const unmountImmediatelyOnRerender = spinnerActive && !loading;
-	if (unmountImmediatelyOnRerender) {
-		setSpinnerActive(false);
-	}
-	const mountImmediatelyOnRerender =
-		!spinnerActive && loading && spinnerStartDelayMs === 0;
-	if (mountImmediatelyOnRerender) {
-		setSpinnerActive(true);
-	}
-	useEffect(() => {
-		if (spinnerStartDelayMs === 0) {
-			return;
-		}
-
-		const delayId = window.setTimeout(() => {
-			setSpinnerActive(true);
-		}, spinnerStartDelayMs);
-		return () => window.clearTimeout(delayId);
-	}, [spinnerStartDelayMs]);
-
-	return spinnerActive && loading;
-}
