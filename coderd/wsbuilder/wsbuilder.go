@@ -74,7 +74,7 @@ type Builder struct {
 	parameterValues              *[]string
 
 	prebuild                bool
-	prebuildClaimBy         uuid.UUID
+	prebuildClaimedBy       uuid.UUID
 	runningWorkspaceAgentID uuid.UUID
 
 	verifyNoLegacyParametersOnce bool
@@ -178,9 +178,9 @@ func (b Builder) MarkPrebuild() Builder {
 	return b
 }
 
-func (b Builder) MarkPrebuildClaimBy(userID uuid.UUID) Builder {
+func (b Builder) MarkPrebuildClaimedBy(userID uuid.UUID) Builder {
 	// nolint: revive
-	b.prebuildClaimBy = userID
+	b.prebuildClaimedBy = userID
 	return b
 }
 
@@ -319,7 +319,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		WorkspaceBuildID:        workspaceBuildID,
 		LogLevel:                b.logLevel,
 		IsPrebuild:              b.prebuild,
-		PrebuildClaimByUser:     b.prebuildClaimBy,
+		PrebuildClaimedByUser:   b.prebuildClaimedBy,
 		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {
@@ -613,6 +613,11 @@ func (b *Builder) findNewBuildParameterValue(name string) *codersdk.WorkspaceBui
 }
 
 func (b *Builder) getLastBuildParameters() ([]database.WorkspaceBuildParameter, error) {
+	// TODO: exclude preset params from this list instead of returning nothing?
+	if b.prebuildClaimedBy != uuid.Nil {
+		return nil, nil
+	}
+
 	if b.lastBuildParameters != nil {
 		return *b.lastBuildParameters, nil
 	}

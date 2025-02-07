@@ -1713,13 +1713,13 @@ func (s *server) CompleteJob(ctx context.Context, completed *proto.CompletedJob)
 
 		// If this job was initiated by the prebuilds user and the job is not a prebuild, then it MUST be the claim run.
 		// TODO: maybe add some specific metadata to indicate this rather than imputing it.
-		if input.PrebuildClaimByUser != uuid.Nil {
+		if input.PrebuildClaimedByUser != uuid.Nil {
 			channel := agentsdk.PrebuildClaimedChannel(workspace.ID)
 			s.Logger.Info(ctx, "workspace prebuild successfully claimed by user",
-				slog.F("user", input.PrebuildClaimByUser.String()),
+				slog.F("user", input.PrebuildClaimedByUser.String()),
 				slog.F("workspace_id", workspace.ID),
 				slog.F("channel", channel))
-			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimByUser.String())); err != nil {
+			if err := s.Pubsub.Publish(channel, []byte(input.PrebuildClaimedByUser.String())); err != nil {
 				s.Logger.Error(ctx, "failed to publish message to workspace agent to pull new manifest", slog.Error(err))
 			}
 		}
@@ -1881,21 +1881,22 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		if err != nil {
 			return xerrors.Errorf("insert preset parameters: %w", err)
 		}
+
+		if protoPreset.Prebuild != nil {
+			_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+				ID:                  uuid.New(),
+				PresetID:            dbPreset.ID,
+				DesiredInstances:    protoPreset.Prebuild.Instances,
+				InvalidateAfterSecs: 0, // TODO: implement cache invalidation
+			})
+			if err != nil {
+				return xerrors.Errorf("insert preset prebuild: %w", err)
+			}
+		}
 		return nil
 	}, nil)
 	if err != nil {
 		return xerrors.Errorf("insert preset and parameters: %w", err)
-	}
-	if protoPreset.Prebuild != nil {
-		_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
-			ID:                  uuid.New(),
-			PresetID:            dbPreset.ID,
-			DesiredInstances:    protoPreset.Prebuild.Instances,
-			InvalidateAfterSecs: 0, // TODO: implement cache invalidation
-		})
-		if err != nil {
-			return xerrors.Errorf("insert preset prebuild: %w", err)
-		}
 	}
 	return nil
 }
@@ -2383,10 +2384,10 @@ type TemplateVersionImportJob struct {
 
 // WorkspaceProvisionJob is the payload for the "workspace_provision" job type.
 type WorkspaceProvisionJob struct {
-	WorkspaceBuildID    uuid.UUID `json:"workspace_build_id"`
-	DryRun              bool      `json:"dry_run"`
-	IsPrebuild          bool      `json:"is_prebuild,omitempty"`
-	PrebuildClaimByUser uuid.UUID `json:"prebuild_claim_by,omitempty"`
+	WorkspaceBuildID      uuid.UUID `json:"workspace_build_id"`
+	DryRun                bool      `json:"dry_run"`
+	IsPrebuild            bool      `json:"is_prebuild,omitempty"`
+	PrebuildClaimedByUser uuid.UUID `json:"prebuild_claimed_by,omitempty"`
 	// RunningWorkspaceAgentID is *only* used for prebuilds. We pass it down when we want to rebuild a prebuilt workspace
 	// but not generate a new agent token. The provisionerdserver will retrieve this token and push it down to
 	// the provisioner (and ultimately to the `coder_agent` resource in the Terraform provider) where it will be

@@ -5,6 +5,13 @@ import (
 	"crypto/rand"
 	"encoding/base32"
 	"fmt"
+	"math"
+	mrand "math/rand"
+	"strings"
+	"time"
+
+	"golang.org/x/exp/slices"
+
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/provisionerjobs"
@@ -12,19 +19,16 @@ import (
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/wsbuilder"
-	"golang.org/x/exp/slices"
-	"math"
-	mrand "math/rand"
-	"strings"
-	"time"
+	"github.com/coder/coder/v2/codersdk"
 
 	"cdr.dev/slog"
 
-	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/google/uuid"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 )
 
 type Controller struct {
@@ -395,13 +399,26 @@ func (c Controller) deletePrebuild(ctx context.Context, db database.Store, prebu
 }
 
 func (c Controller) provision(ctx context.Context, db database.Store, prebuildID uuid.UUID, template database.Template, transition database.WorkspaceTransition, workspace database.Workspace) error {
+	tvp, err := db.GetPresetParametersByTemplateVersionID(ctx, template.ActiveVersionID)
+	if err != nil {
+		return xerrors.Errorf("fetch preset details: %w", err)
+	}
+
+	var params []codersdk.WorkspaceBuildParameter
+	for _, param := range tvp {
+		params = append(params, codersdk.WorkspaceBuildParameter{
+			Name:  param.Name,
+			Value: param.Value,
+		})
+	}
+
 	builder := wsbuilder.New(workspace, transition).
 		Reason(database.BuildReasonInitiator).
 		Initiator(PrebuildOwnerUUID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
-		MarkPrebuild()
-	// RichParameterValues(req.RichParameterValues) // TODO: fetch preset's params
+		MarkPrebuild().
+		RichParameterValues(params)
 
 	_, provisionerJob, _, err := builder.Build(
 		ctx,

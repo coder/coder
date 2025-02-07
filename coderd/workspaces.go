@@ -6,11 +6,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"github.com/coder/coder/v2/coderd/prebuilds"
 	"net/http"
 	"slices"
 	"strconv"
 	"time"
+
+	"github.com/coder/coder/v2/coderd/prebuilds"
 
 	"github.com/dustin/go-humanize"
 	"github.com/go-chi/chi/v5"
@@ -18,6 +19,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -729,7 +731,7 @@ func createWorkspace(
 		}
 
 		if claimedWorkspace != nil {
-			builder = builder.MarkPrebuildClaimBy(owner.ID)
+			builder = builder.MarkPrebuildClaimedBy(owner.ID)
 		}
 
 		workspaceBuild, provisionerJob, provisionerDaemons, err = builder.Build(
