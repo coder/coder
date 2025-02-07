@@ -90,12 +90,12 @@ export const Spinner: FC<SpinnerProps> = ({
 	// only bails out of redundant state updates if they happen outside of a
 	// render. Inside a render, if you keep calling a state dispatch, you will
 	// get an infinite render loop, no matter what the state value is.
-	const [delayDone, setDelayDone] = useState(safeDelay === 0);
-	if (delayDone && !loading) {
-		setDelayDone(false);
+	const [delayExpired, setDelayExpired] = useState(safeDelay === 0);
+	if (delayExpired && !loading) {
+		setDelayExpired(false);
 	}
-	if (!delayDone && loading && safeDelay === 0) {
-		setDelayDone(true);
+	if (!delayExpired && safeDelay === 0) {
+		setDelayExpired(true);
 	}
 	useEffect(() => {
 		if (safeDelay === 0) {
@@ -103,17 +103,18 @@ export const Spinner: FC<SpinnerProps> = ({
 		}
 
 		const delayId = window.setTimeout(() => {
-			setDelayDone(true);
+			setDelayExpired(true);
 		}, safeDelay);
 		return () => window.clearTimeout(delayId);
 	}, [safeDelay]);
 
 	/**
 	 * @todo Figure out if this conditional logic can ever cause a component to
-	 * lose state. I would hope not, since the children prop is the same in both
-	 * cases, but I need to test this out
+	 * lose state when showSpinner flips from false to true while
+	 * unmountedWhileLoading is false. I would hope not, since the children prop
+	 * is the same in both cases, but I need to test this out
 	 */
-	const showSpinner = delayDone && loading;
+	const showSpinner = loading && delayExpired;
 	if (!showSpinner) {
 		return children;
 	}
