@@ -319,7 +319,7 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 		WorkspaceBuildID:        workspaceBuildID,
 		LogLevel:                b.logLevel,
 		IsPrebuild:              b.prebuild,
-		IsPrebuildClaimByUser:   b.prebuildClaimBy,
+		PrebuildClaimByUser:     b.prebuildClaimBy,
 		RunningWorkspaceAgentID: b.runningWorkspaceAgentID,
 	})
 	if err != nil {

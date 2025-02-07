@@ -20,6 +20,7 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
+
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
@@ -97,7 +98,7 @@ func (c *Client) Close() {
 }
 
 func (c *Client) ConnectRPC23(ctx context.Context) (
-	agentproto.DRPCAgentClient24, proto.DRPCTailnetClient23, error,
+	agentproto.DRPCAgentClient23, proto.DRPCTailnetClient23, error,
 ) {
 	conn, lis := drpcsdk.MemTransportPipe()
 	c.LastWorkspaceAgent = func() {
