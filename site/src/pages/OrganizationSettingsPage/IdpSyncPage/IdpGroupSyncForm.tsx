@@ -23,7 +23,7 @@ import {
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, useId, useState } from "react";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
@@ -31,16 +31,12 @@ import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
-
-interface IdpGroupSyncFormProps {
-	groupSyncSettings: GroupSyncSettings;
-	groupsMap: Map<string, string>;
-	groups: Group[];
-	groupMappingCount: number;
-	legacyGroupMappingCount: number;
-	organization: Organization;
-	onSubmit: (data: GroupSyncSettings) => void;
-}
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipTrigger,
+	TooltipProvider,
+} from "components/Tooltip/Tooltip";
 
 const groupSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -65,8 +61,20 @@ const groupSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
+interface IdpGroupSyncFormProps {
+	groupSyncSettings: GroupSyncSettings;
+	fieldValues: string[] | undefined;
+	groupsMap: Map<string, string>;
+	groups: Group[];
+	groupMappingCount: number;
+	legacyGroupMappingCount: number;
+	organization: Organization;
+	onSubmit: (data: GroupSyncSettings) => void;
+}
+
 export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 	groupSyncSettings,
+	fieldValues,
 	groupMappingCount,
 	legacyGroupMappingCount,
 	groups,
@@ -270,6 +278,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 									<GroupRow
 										key={idpGroup}
 										idpGroup={idpGroup}
+										exists={fieldValues?.includes(idpGroup)}
 										coderGroup={getGroupNames(groups)}
 										onDelete={handleDelete}
 									/>
@@ -288,6 +297,7 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 										<GroupRow
 											key={groupId}
 											idpGroup={idpGroup}
+											exists={fieldValues?.includes(idpGroup)}
 											coderGroup={getGroupNames([groupId])}
 											onDelete={handleDelete}
 										/>
@@ -303,17 +313,43 @@ export const IdpGroupSyncForm: FC<IdpGroupSyncFormProps> = ({
 
 interface GroupRowProps {
 	idpGroup: string;
+	exists: boolean | undefined;
 	coderGroup: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
-const GroupRow: FC<GroupRowProps> = ({ idpGroup, coderGroup, onDelete }) => {
+const GroupRow: FC<GroupRowProps> = ({
+	idpGroup,
+	exists = true,
+	coderGroup,
+	onDelete,
+}) => {
 	return (
 		<TableRow data-testid={`group-${idpGroup}`}>
-			<TableCell>{idpGroup}</TableCell>
+			<TableCell>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
+					{idpGroup}
+					{!exists && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
+			</TableCell>
+
 			<TableCell>
 				<IdpPillList roles={coderGroup} />
 			</TableCell>
+
 			<TableCell>
 				<Button
 					variant="outline"

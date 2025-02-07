@@ -11,19 +11,31 @@ import {
 } from "testHelpers/entities";
 import { IdpSyncPageView } from "./IdpSyncPageView";
 
+const groupsMap = new Map<string, string>();
+for (const group of [MockGroup, MockGroup2]) {
+	groupsMap.set(group.id, group.display_name || group.name);
+}
+
 const meta: Meta<typeof IdpSyncPageView> = {
 	title: "pages/IdpSyncPage",
 	component: IdpSyncPageView,
+	args: {
+		tab: "groups",
+		groupSyncSettings: MockGroupSyncSettings,
+		roleSyncSettings: MockRoleSyncSettings,
+		fieldValues: [
+			...Object.keys(MockGroupSyncSettings.mapping),
+			...Object.keys(MockRoleSyncSettings.mapping),
+		],
+		groups: [MockGroup, MockGroup2],
+		groupsMap,
+		organization: MockOrganization,
+		error: undefined,
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof IdpSyncPageView>;
-
-const groupsMap = new Map<string, string>();
-
-for (const group of [MockGroup, MockGroup2]) {
-	groupsMap.set(group.id, group.display_name || group.name);
-}
 
 export const Empty: Story = {
 	args: {
@@ -44,47 +56,44 @@ export const Empty: Story = {
 	},
 };
 
-export const Default: Story = {
-	args: {
-		groupSyncSettings: MockGroupSyncSettings,
-		roleSyncSettings: MockRoleSyncSettings,
-		groups: [MockGroup, MockGroup2],
-		groupsMap,
-		organization: MockOrganization,
-		error: undefined,
-	},
-};
+export const Default: Story = {};
 
 export const HasError: Story = {
 	args: {
-		...Default.args,
 		error: "This is a test error",
 	},
 };
 
 export const MissingGroups: Story = {
 	args: {
-		...Default.args,
 		groupSyncSettings: MockGroupSyncSettings2,
 	},
 };
 
 export const WithLegacyMapping: Story = {
 	args: {
-		...Default.args,
 		groupSyncSettings: MockLegacyMappingGroupSyncSettings,
+		fieldValues: Object.keys(
+			MockLegacyMappingGroupSyncSettings.legacy_group_name_mapping,
+		),
+	},
+};
+
+export const GroupsTabMissingClaims: Story = {
+	args: {
+		fieldValues: [],
 	},
 };
 
 export const RolesTab: Story = {
 	args: {
-		...Default.args,
+		tab: "roles",
 	},
-	play: async ({ canvasElement }) => {
-		const user = userEvent.setup();
-		const canvas = within(canvasElement);
-		const rolesTab = await canvas.findByText("Role sync settings");
-		await user.click(rolesTab);
-		await expect(canvas.findByText("IdP role")).resolves.toBeVisible();
+};
+
+export const RolesTabMissingClaims: Story = {
+	args: {
+		tab: "roles",
+		fieldValues: [],
 	},
 };

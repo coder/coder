@@ -45,7 +45,7 @@ export const MissingGroups: Story = {
 	},
 };
 
-export const MissingClaim: Story = {
+export const MissingClaims: Story = {
 	args: {
 		claimFieldValues: [],
 	},

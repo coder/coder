@@ -27,7 +27,7 @@ interface IdpSyncPageViewProps {
 }
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
-	tab
+	tab,
 	groupSyncSettings,
 	roleSyncSettings,
 	fieldValues,
@@ -69,6 +69,7 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			{tab === "groups" ? (
 				<IdpGroupSyncForm
 					groupSyncSettings={groupSyncSettings}
+					fieldValues={fieldValues}
 					groupMappingCount={groupMappingCount}
 					legacyGroupMappingCount={legacyGroupMappingCount}
 					groups={groups}

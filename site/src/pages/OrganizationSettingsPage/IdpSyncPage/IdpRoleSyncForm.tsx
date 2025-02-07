@@ -16,7 +16,6 @@ import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
-import { Stack } from "components/Stack/Stack";
 import {
 	Tooltip,
 	TooltipContent,
@@ -246,18 +245,13 @@ const RoleRow: FC<RoleRowProps> = ({
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
 			<TableCell>
-				<Stack
-					direction="row"
-					alignItems="center"
-					spacing={1}
-					className="text-content-primary"
-				>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
 					{idpRole}
 					{!exists && (
 						<TooltipProvider>
 							<Tooltip>
 								<TooltipTrigger asChild>
-									<TriangleAlert className="size-icon-sm cursor-pointer text-content-warning" />
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
 								</TooltipTrigger>
 								<TooltipContent className="p-2 text-xs text-content-secondary max-w-sm">
 									This value has not be seen in the specified claim field
@@ -267,11 +261,13 @@ const RoleRow: FC<RoleRowProps> = ({
 							</Tooltip>
 						</TooltipProvider>
 					)}
-				</Stack>
+				</div>
 			</TableCell>
+
 			<TableCell>
 				<IdpPillList roles={coderRoles} />
 			</TableCell>
+
 			<TableCell>
 				<Button
 					variant="outline"
