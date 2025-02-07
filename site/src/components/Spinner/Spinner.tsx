@@ -77,8 +77,8 @@ export const Spinner: FC<SpinnerProps> = ({
 	...delegatedProps
 }) => {
 	// Disallow negative timeout values and fractional values, but also round
-	// the delay down if it's small enough that it would effectively be
-	// immediate from a user perspective
+	// the delay down if it's small enough that it might as well be immediate
+	// from a user perspective
 	let safeDelay = Math.trunc(spinnerStartDelayMs);
 	if (safeDelay < 100) {
 		safeDelay = 0;
@@ -90,22 +90,21 @@ export const Spinner: FC<SpinnerProps> = ({
 	// only bails out of redundant state updates if they happen outside of a
 	// render. Inside a render, if you keep calling a state dispatch, you will
 	// get an infinite render loop, no matter what the state value is.
-	const [delayExpired, setDelayExpired] = useState(safeDelay === 0);
-	if (delayExpired && !loading) {
-		setDelayExpired(false);
+	const [cachedDelay, setCachedDelay] = useState(safeDelay);
+	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
+	if (delayLapsed && !loading) {
+		setDelayLapsed(false);
 	}
-	if (!delayExpired && safeDelay === 0) {
-		setDelayExpired(true);
+	if (!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay) {
+		setDelayLapsed(true);
+		setCachedDelay(safeDelay);
 	}
 	useEffect(() => {
 		if (safeDelay === 0) {
 			return;
 		}
-
-		const delayId = window.setTimeout(() => {
-			setDelayExpired(true);
-		}, safeDelay);
-		return () => window.clearTimeout(delayId);
+		const id = window.setTimeout(() => setDelayLapsed(true), safeDelay);
+		return () => window.clearTimeout(id);
 	}, [safeDelay]);
 
 	/**
@@ -114,7 +113,7 @@ export const Spinner: FC<SpinnerProps> = ({
 	 * unmountedWhileLoading is false. I would hope not, since the children prop
 	 * is the same in both cases, but I need to test this out
 	 */
-	const showSpinner = loading && delayExpired;
+	const showSpinner = loading && delayLapsed;
 	if (!showSpinner) {
 		return children;
 	}
