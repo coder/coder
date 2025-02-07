@@ -11,6 +11,8 @@ import {
 	organizationPermissionChecks,
 	type OrganizationPermissions,
 	type OrganizationPermissionName,
+	anyOrganizationPermissionChecks,
+	type AnyOrganizationPermissions,
 } from "modules/management/organizationPermissions";
 
 export const createOrganization = (queryClient: QueryClient) => {
@@ -248,6 +250,16 @@ export const organizationsPermissions = (
 				{} as Record<string, Partial<OrganizationPermissions>>,
 			) as Record<string, OrganizationPermissions>;
 		},
+	};
+};
+
+export const anyOrganizationPermissions = () => {
+	return {
+		queryKey: ["authorization", "anyOrganization"],
+		queryFn: () =>
+			API.checkAuthorization({
+				checks: anyOrganizationPermissionChecks,
+			}) as Promise<AnyOrganizationPermissions>,
 	};
 };
 

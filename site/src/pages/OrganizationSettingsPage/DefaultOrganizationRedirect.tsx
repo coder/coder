@@ -2,21 +2,7 @@ import type { FC } from "react";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { Navigate } from "react-router-dom";
-import type { OrganizationPermissions } from "modules/management/organizationPermissions";
-
-/**
- * Return true if the user can edit the organization settings or its members.
- */
-const canEditOrganization = (
-	permissions: OrganizationPermissions | undefined,
-): permissions is OrganizationPermissions => {
-	return (
-		permissions !== undefined &&
-		(permissions.editOrganization ||
-			permissions.editMembers ||
-			permissions.editGroups)
-	);
-};
+import { canEditOrganization } from "modules/management/organizationPermissions";
 
 const DefaultOrganizationRedirect: FC = () => {
 	const { organizations, permissionsByOrganizationId } =

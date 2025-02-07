@@ -18,7 +18,6 @@ import {
 	MockDeploymentConfig,
 	MockEntitlements,
 	MockOrganizationPermissions,
-	MockPermissions,
 } from "./entities";
 
 export const withDashboardProvider = (
@@ -30,6 +29,7 @@ export const withDashboardProvider = (
 		experiments = [],
 		showOrganizations = false,
 		organizations = [MockDefaultOrganization],
+		canViewOrganizationSettings = false,
 	} = parameters;
 
 	const entitlements: Entitlements = {
@@ -50,9 +50,10 @@ export const withDashboardProvider = (
 			value={{
 				entitlements,
 				experiments,
+				appearance: MockAppearanceConfig,
 				organizations,
 				showOrganizations,
-				appearance: MockAppearanceConfig,
+				canViewOrganizationSettings,
 			}}
 		>
 			<Story />

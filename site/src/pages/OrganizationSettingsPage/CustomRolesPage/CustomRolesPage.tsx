@@ -73,7 +73,7 @@ export const CustomRolesPage: FC = () => {
 				builtInRoles={builtInRoles}
 				customRoles={customRoles}
 				onDeleteRole={setRoleToDelete}
-				canAssignOrgRole={organizationPermissions.assignOrgRole}
+				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
 			/>
 

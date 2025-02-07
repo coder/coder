@@ -76,7 +76,7 @@ export const CreateEditRolePage: FC = () => {
 						: createOrganizationRoleMutation.isLoading
 				}
 				organizationName={organizationName}
-				canAssignOrgRole={organizationPermissions.assignOrgRole}
+				canAssignOrgRole={organizationPermissions.assignOrgRoles}
 			/>
 		</>
 	);

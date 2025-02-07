@@ -101,6 +101,8 @@ export const AuthProvider: FC<PropsWithChildren> = ({ children }) => {
 		[updateProfileMutation],
 	);
 
+	console.log(permissionsQuery.data);
+
 	return (
 		<AuthContext.Provider
 			value={{

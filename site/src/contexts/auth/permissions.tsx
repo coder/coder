@@ -16,7 +16,6 @@ export const checks = {
 	readWorkspaceProxies: "readWorkspaceProxies",
 	editWorkspaceProxies: "editWorkspaceProxies",
 	createOrganization: "createOrganization",
-	editAnyOrganization: "editAnyOrganization",
 	viewAnyGroup: "viewAnyGroup",
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
@@ -121,13 +120,6 @@ export const permissionsToCheck = {
 			resource_type: "organization",
 		},
 		action: "create",
-	},
-	[checks.editAnyOrganization]: {
-		object: {
-			resource_type: "organization",
-			any_org: true,
-		},
-		action: "update",
 	},
 	[checks.viewAnyGroup]: {
 		object: {

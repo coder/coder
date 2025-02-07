@@ -17,7 +17,10 @@ import NotFoundPage from "pages/404Page/404Page";
 import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
-import type { OrganizationPermissions } from "./organizationPermissions";
+import {
+	canViewOrganization,
+	type OrganizationPermissions,
+} from "./organizationPermissions";
 
 export const OrganizationSettingsContext = createContext<
 	OrganizationSettingsValue | undefined
@@ -41,32 +44,11 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 	return context;
 };
 
-/**
- * Checks if the user can view or edit members or groups for the organization
- * that produced the given OrganizationPermissions.
- */
-const canViewOrganization = (
-	permissions: OrganizationPermissions | undefined,
-): permissions is OrganizationPermissions => {
-	return (
-		permissions !== undefined &&
-		(permissions.editOrganization ||
-			permissions.editMembers ||
-			permissions.viewMembers ||
-			permissions.editGroups ||
-			permissions.viewGroups)
-	);
-};
-
 const OrganizationSettingsLayout: FC = () => {
-	const { permissions } = useAuthenticated();
-	const { organizations } = useDashboard();
+	const { organizations, canViewOrganizationSettings } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};
-
-	const canViewOrganizationSettings =
-		permissions.viewDeploymentValues || permissions.editAnyOrganization;
 
 	const organization = orgName
 		? organizations.find((org) => org.name === orgName)
