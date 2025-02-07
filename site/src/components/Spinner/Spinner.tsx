@@ -3,7 +3,7 @@
  * using help from Vercel's V0.
  *
  * @see {@link https://www.radix-ui.com/themes/docs/components/spinner}
- * @se {@link https://v0.dev/}
+ * @see {@link https://v0.dev/}
  */
 
 import isChromatic from "chromatic/isChromatic";
