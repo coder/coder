@@ -16,7 +16,7 @@ interface IdpSyncPageViewProps {
 	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
-	fieldValues: string[] | undefined;
+	fieldValues: readonly string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
