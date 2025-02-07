@@ -146,16 +146,19 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// render. Inside a render, if you keep calling a state dispatch, you will
 	// get an infinite render loop, no matter what the state value is. There
 	// must be a "base case" that causes re-renders to stabilize/stop
-	const [cachedDelay, setCachedDelay] = useState(safeDelay);
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
-	if (delayLapsed && !loading) {
+	const [renderCache, setRenderCache] = useState({ loading, safeDelay });
+	const resetOnRerender =
+		delayLapsed && !loading && loading !== renderCache.loading;
+	if (resetOnRerender) {
 		setDelayLapsed(false);
+		setRenderCache((current) => ({ ...current, loading }));
 	}
 	const delayWasRemovedOnRerender =
-		!delayLapsed && safeDelay === 0 && cachedDelay !== safeDelay;
+		!delayLapsed && safeDelay === 0 && renderCache.safeDelay !== safeDelay;
 	if (delayWasRemovedOnRerender) {
 		setDelayLapsed(true);
-		setCachedDelay(safeDelay);
+		setRenderCache((current) => ({ ...current, safeDelay }));
 	}
 	useEffect(() => {
 		if (safeDelay === 0) {
