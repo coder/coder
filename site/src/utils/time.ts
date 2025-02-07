@@ -1,3 +1,10 @@
+import dayjs from "dayjs";
+import duration from "dayjs/plugin/duration";
+import DayJSRelativeTime from "dayjs/plugin/relativeTime";
+
+dayjs.extend(duration);
+dayjs.extend(DayJSRelativeTime);
+
 export type TimeUnit = "days" | "hours";
 
 export function humanDuration(durationInMs: number) {
@@ -28,4 +35,8 @@ export function durationInHours(duration: number): number {
 
 export function durationInDays(duration: number): number {
 	return duration / 1000 / 60 / 60 / 24;
+}
+
+export function relativeTime(date: Date) {
+	return dayjs(date).fromNow();
 }

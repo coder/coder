@@ -304,10 +304,6 @@ const ChangePasswordPage = lazy(
 const IdpOrgSyncPage = lazy(
 	() => import("./pages/DeploymentSettingsPage/IdpOrgSyncPage/IdpOrgSyncPage"),
 );
-const ProvisionersPage = lazy(
-	() =>
-		import("./pages/DeploymentSettingsPage/ProvisionersPage/ProvisionersPage"),
-);
 
 const RoutesWithSuspense = () => {
 	return (
@@ -456,7 +452,6 @@ export const router = createBrowserRouter(
 							/>
 							<Route path="idp-org-sync" element={<IdpOrgSyncPage />} />
 							<Route path="premium" element={<PremiumPage />} />
-							<Route path="provisioners" element={<ProvisionersPage />} />
 						</Route>
 
 						<Route path="licenses">

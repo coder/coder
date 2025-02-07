@@ -244,6 +244,13 @@ export const organizationPermissions = (organizationId: string | undefined) => {
 	};
 };
 
+export const provisionerJobs = (orgId: string) => {
+	return {
+		queryKey: ["organization", orgId, "provisionerjobs"],
+		queryFn: () => API.getProvisionerJobs(orgId),
+	};
+};
+
 /**
  * Fetch permissions for all provided organizations.
  *
