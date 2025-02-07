@@ -8150,6 +8150,7 @@ func (q *FakeQuerier) InsertPreset(_ context.Context, arg database.InsertPresetP
 	defer q.mutex.Unlock()
 
 	preset := database.TemplateVersionPreset{
+		ID:                uuid.New(),
 		TemplateVersionID: arg.TemplateVersionID,
 		Name:              arg.Name,
 		CreatedAt:         arg.CreatedAt,
@@ -8170,6 +8171,7 @@ func (q *FakeQuerier) InsertPresetParameters(_ context.Context, arg database.Ins
 	presetParameters := make([]database.TemplateVersionPresetParameter, 0, len(arg.Names))
 	for i, v := range arg.Names {
 		presetParameter := database.TemplateVersionPresetParameter{
+			ID:                      uuid.New(),
 			TemplateVersionPresetID: arg.TemplateVersionPresetID,
 			Name:                    v,
 			Value:                   arg.Values[i],

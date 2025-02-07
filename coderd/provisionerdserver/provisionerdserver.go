@@ -1828,28 +1828,34 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 }
 
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
-	dbPreset, err := db.InsertPreset(ctx, database.InsertPresetParams{
-		TemplateVersionID: templateVersionID,
-		Name:              protoPreset.Name,
-		CreatedAt:         t,
-	})
-	if err != nil {
-		return xerrors.Errorf("insert preset: %w", err)
-	}
+	err := db.InTx(func(tx database.Store) error {
+		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			TemplateVersionID: templateVersionID,
+			Name:              protoPreset.Name,
+			CreatedAt:         t,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset: %w", err)
+		}
 
-	var presetParameterNames []string
-	var presetParameterValues []string
-	for _, parameter := range protoPreset.Parameters {
-		presetParameterNames = append(presetParameterNames, parameter.Name)
-		presetParameterValues = append(presetParameterValues, parameter.Value)
-	}
-	_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
-		TemplateVersionPresetID: dbPreset.ID,
-		Names:                   presetParameterNames,
-		Values:                  presetParameterValues,
-	})
+		var presetParameterNames []string
+		var presetParameterValues []string
+		for _, parameter := range protoPreset.Parameters {
+			presetParameterNames = append(presetParameterNames, parameter.Name)
+			presetParameterValues = append(presetParameterValues, parameter.Value)
+		}
+		_, err = tx.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			TemplateVersionPresetID: dbPreset.ID,
+			Names:                   presetParameterNames,
+			Values:                  presetParameterValues,
+		})
+		if err != nil {
+			return xerrors.Errorf("insert preset parameters: %w", err)
+		}
+		return nil
+	}, nil)
 	if err != nil {
-		return xerrors.Errorf("insert preset parameters: %w", err)
+		return xerrors.Errorf("insert preset and parameters: %w", err)
 	}
 	return nil
 }
