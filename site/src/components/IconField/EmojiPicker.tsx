@@ -35,7 +35,8 @@ const EmojiPicker: FC<EmojiPickerProps> = (props) => {
 	 * Workaround for a bug in the emoji-mart library where custom emoji images render improperly.
 	 * Setting the image width to 100% ensures they display correctly.
 	 *
-	 * Reference: https://github.com/missive/emoji-mart/pull/806
+	 * Issue:   https://github.com/missive/emoji-mart/issues/805
+	 * Open PR: https://github.com/missive/emoji-mart/pull/806
 	 */
 	useEffect(() => {
 		const picker = document.querySelector("em-emoji-picker")?.shadowRoot;
