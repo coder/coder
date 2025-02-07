@@ -3,6 +3,7 @@ import {
 	organizationsPermissions,
 	updateOrganization,
 } from "api/queries/organizations";
+import type { AuthorizationResponse } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
@@ -12,7 +13,6 @@ import type { FC } from "react";
 import { useMutation, useQuery, useQueryClient } from "react-query";
 import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
-import type { AuthorizationResponse } from "api/typesGenerated";
 
 const OrganizationSettingsPage: FC = () => {
 	const { organization: organizationName } = useParams() as {

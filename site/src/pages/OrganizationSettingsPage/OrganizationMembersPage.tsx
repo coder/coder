@@ -18,9 +18,9 @@ import { useOrganizationSettings } from "modules/management/OrganizationSettings
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
+import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
-import { useParams } from "react-router-dom";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();

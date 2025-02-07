@@ -18,8 +18,8 @@ import { type FC, Suspense, createContext, useContext } from "react";
 import { useQuery } from "react-query";
 import { Outlet, useParams } from "react-router-dom";
 import {
-	canViewOrganization,
 	type OrganizationPermissions,
+	canViewOrganization,
 } from "./organizationPermissions";
 
 export const OrganizationSettingsContext = createContext<
@@ -82,8 +82,6 @@ const OrganizationSettingsLayout: FC = () => {
 	if (organization && !canViewOrganization(organizationPermissions)) {
 		return <NotFoundPage />;
 	}
-
-	console.log(orgPermissionsQuery.data);
 
 	return (
 		<RequirePermission isFeatureVisible={canViewOrganizationSettings}>

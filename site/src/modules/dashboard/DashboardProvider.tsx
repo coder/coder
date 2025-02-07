@@ -14,10 +14,10 @@ import type {
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
+import { canViewAnyOrganization } from "modules/management/organizationPermissions";
 import { type FC, type PropsWithChildren, createContext } from "react";
 import { useQuery } from "react-query";
 import { selectFeatureVisibility } from "./entitlements";
-import { canViewAnyOrganization } from "modules/management/organizationPermissions";
 
 export interface DashboardValue {
 	entitlements: Entitlements;

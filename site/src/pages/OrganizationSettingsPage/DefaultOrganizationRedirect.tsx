@@ -1,8 +1,8 @@
-import type { FC } from "react";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import { Navigate } from "react-router-dom";
 import { canEditOrganization } from "modules/management/organizationPermissions";
+import type { FC } from "react";
+import { Navigate } from "react-router-dom";
 
 const DefaultOrganizationRedirect: FC = () => {
 	const {

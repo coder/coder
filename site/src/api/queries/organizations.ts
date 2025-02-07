@@ -5,15 +5,15 @@ import type {
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
+import {
+	type AnyOrganizationPermissions,
+	type OrganizationPermissionName,
+	type OrganizationPermissions,
+	anyOrganizationPermissionChecks,
+	organizationPermissionChecks,
+} from "modules/management/organizationPermissions";
 import type { QueryClient } from "react-query";
 import { meKey } from "./users";
-import {
-	organizationPermissionChecks,
-	type OrganizationPermissions,
-	type OrganizationPermissionName,
-	anyOrganizationPermissionChecks,
-	type AnyOrganizationPermissions,
-} from "modules/management/organizationPermissions";
 
 export const createOrganization = (queryClient: QueryClient) => {
 	return {
