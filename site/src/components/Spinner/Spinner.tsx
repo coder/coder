@@ -128,24 +128,27 @@ export const Spinner: FC<SpinnerProps> = ({
 
 // Not a big fan of one-time custom hooks, but it helps insulate the main
 // component from the chaos of handling all these state syncs, when the ultimate
-// result is a simple boolean. V8 will be able to inline the function definition
-// in some cases anyway
+// result is a simple boolean. A lot of browsers will be able to inline the
+// function definition in some cases anyway
 function useShowSpinner(
 	loading: boolean,
 	spinnerStartDelayMs: number,
 ): boolean {
 	// Doing a bunch of mid-render state syncs to minimize risks of
 	// contradictory states during re-renders. It's ugly, but it's what the
-	// React team officially recommends
-	const noDelay = spinnerStartDelayMs === 0;
-	const [mountSpinner, setMountSpinner] = useState(noDelay);
-	const unmountImmediatelyOnRerender = mountSpinner && !loading;
+	// React team officially recommends. Be very careful with this logic; React
+	// only bails out of redundant state updates if they happen outside of a
+	// render. Inside a render, if you keep calling a state dispatch, you will
+	// get an infinite render loop, no matter what the state value is.
+	const [spinnerActive, setSpinnerActive] = useState(spinnerStartDelayMs === 0);
+	const unmountImmediatelyOnRerender = spinnerActive && !loading;
 	if (unmountImmediatelyOnRerender) {
-		setMountSpinner(false);
+		setSpinnerActive(false);
 	}
-	const mountImmediatelyOnRerender = !mountSpinner && noDelay;
+	const mountImmediatelyOnRerender =
+		!spinnerActive && loading && spinnerStartDelayMs === 0;
 	if (mountImmediatelyOnRerender) {
-		setMountSpinner(true);
+		setSpinnerActive(true);
 	}
 	useEffect(() => {
 		if (spinnerStartDelayMs === 0) {
@@ -153,10 +156,10 @@ function useShowSpinner(
 		}
 
 		const delayId = window.setTimeout(() => {
-			setMountSpinner(true);
+			setSpinnerActive(true);
 		}, spinnerStartDelayMs);
 		return () => window.clearTimeout(delayId);
 	}, [spinnerStartDelayMs]);
 
-	return loading && mountSpinner;
+	return spinnerActive && loading;
 }
