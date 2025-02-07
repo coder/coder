@@ -12,12 +12,6 @@ const meta: Meta<typeof CreateTokenPage> = {
 			},
 		],
 	},
-	decorators: [
-		(Story) => {
-			Date.now = () => new Date("01/01/2014").getTime();
-			return <Story />;
-		},
-	],
 };
 
 export default meta;

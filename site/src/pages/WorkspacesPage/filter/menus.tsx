@@ -1,9 +1,5 @@
 import { API } from "api/api";
-import type {
-	ProvisionerJob,
-	Template,
-	WorkspaceStatus,
-} from "api/typesGenerated";
+import type { Template, WorkspaceStatus } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
@@ -16,6 +12,7 @@ import {
 } from "components/Filter/menu";
 import {
 	StatusIndicator,
+	StatusIndicatorDot,
 	type StatusIndicatorDotProps,
 } from "components/StatusIndicator/StatusIndicator";
 import type { FC } from "react";
@@ -117,7 +114,7 @@ export const useStatusFilterMenu = ({
 			label: display.text,
 			value: status,
 			startIcon: (
-				<StatusIndicator variant={getStatusIndicatorVariant(status)} />
+				<StatusIndicatorDot variant={getStatusIndicatorVariant(status)} />
 			),
 		};
 	});

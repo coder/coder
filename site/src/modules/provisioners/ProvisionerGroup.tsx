@@ -16,10 +16,7 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Pill } from "components/Pill/Pill";
 import { Stack } from "components/Stack/Stack";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-} from "components/StatusIndicator/StatusIndicator";
+import { StatusIndicatorDot } from "components/StatusIndicator/StatusIndicator";
 import {
 	Popover,
 	PopoverContent,
