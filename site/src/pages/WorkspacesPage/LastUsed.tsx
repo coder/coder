@@ -18,7 +18,7 @@ export const LastUsed: FC<LastUsedProps> = ({ lastUsedAt }) => {
 		const t = dayjs(lastUsedAt);
 		const now = dayjs();
 		let message = t.fromNow();
-		let circle = <StatusIndicatorDot variant="pending" />;
+		let circle = <StatusIndicatorDot variant="inactive" />;
 
 		if (t.isAfter(now.subtract(1, "hour"))) {
 			circle = <StatusIndicatorDot variant="success" />;
