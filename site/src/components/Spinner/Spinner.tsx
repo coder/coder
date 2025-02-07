@@ -31,8 +31,8 @@ type SpinnerProps = Readonly<
 			loading: boolean;
 
 			/**
-			 * Indicates whether the children prop should be unmounted during
-			 * a loading state. Defaults to false - unmounting HTML elements
+			 * Indicates whether the `children` prop should be unmounted during
+			 * a loading state. Defaults to `false` - unmounting HTML elements
 			 * like form controls can lead to invalid HTML, so this prop should
 			 * be used with care and only if it prevents render performance
 			 * issues.
@@ -42,17 +42,22 @@ type SpinnerProps = Readonly<
 			/**
 			 * Specifies whether there should be a delay before the spinner
 			 * appears on screen. If not specified, the spinner always appears
-			 * immediately.
+			 * immediately when `loading` is true.
 			 *
-			 * Can help avoid page flickering issues. (e.g., You have a modal
-			 * that takes a moment to close, and it has Spinner content inside
-			 * it. The user triggers a loading transition, and you want to show
-			 * the spinner at some point if a transition takes long enough, but
-			 * if the spinner mounting and modal closing happen in too quick of
-			 * a succession, the UI looks janky. So even though you might flip
-			 * the loading state immediately, you want to wait a second to show
-			 * it in case the modal can close quickly enough. It's lying to the
-			 * user in a way that makes the UI feel more polished.)
+			 * Can help avoid page flickering issues. Example:
+			 * 1. You have a modal that takes a moment to close, and it has
+			 *    Spinner content inside it.
+			 * 2. The user triggers a loading transition, and you want to show
+			 *    the spinner at some point, especially if the transition takes
+			 *    long enough.
+			 * 3. The problem is, if the spinner mounting and modal closing
+			 *    happen in quick enough succession, the user will see a brief
+			 *    spinner flicker before the modal closes, making the UI appear
+			 *    janky, even though it is accurately modeling the state of the
+			 *    application.
+			 * 4. The solution, then, to keep the UI feeling polished, is to lie
+			 *    to the user and only show the loading state if some
+			 *    pre-determined period has lapsed.
 			 */
 			spinnerDelayMs?: number;
 		}
@@ -128,8 +133,9 @@ export const Spinner: FC<SpinnerProps> = ({
 };
 
 // Splitting off logic into custom hook so that we can abstract away the chaos
-// of handling Spinner's re-render logic. Not worried about overhead; a lot of
-// browsers should be able to inline this function call
+// of handling Spinner's re-render logic. The result is a simple boolean, but
+// the steps to calculate that boolean accurately while avoiding re-render
+// issues got a little heady
 function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// Disallow negative timeout values and fractional values, but also round
 	// the delay down if it's small enough that it might as well be immediate
@@ -147,13 +153,13 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	// updates if they happen outside of a render. Inside a render, if you keep
 	// calling a state dispatch, you will get an infinite render loop, no matter
 	// what the value you dispatch. There must be a "base case" in the render
-	// path that causes state dispatches to stop eventually so that React can
-	// move on to the next component in the tree
+	// path that causes state dispatches to stop entirely so that React can
+	// move on to the next component in the Fiber subtree
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
 	const [renderCache, setRenderCache] = useState({ loading, safeDelay });
-	const resetOnRerender =
+	const canResetLapseOnRerender =
 		delayLapsed && !loading && loading !== renderCache.loading;
-	if (resetOnRerender) {
+	if (canResetLapseOnRerender) {
 		setDelayLapsed(false);
 		setRenderCache((current) => ({ ...current, loading }));
 	}
