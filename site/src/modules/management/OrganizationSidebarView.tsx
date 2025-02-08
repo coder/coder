@@ -47,6 +47,8 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 			]
 		: organizations;
 
+	console.log(organizations);
+
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
 
@@ -60,16 +62,20 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 						className="w-60 justify-between p-2 h-11"
 					>
 						<div className="flex flex-row gap-2 items-center p-2 truncate">
-							{activeOrganization && (
-								<Avatar
-									size="sm"
-									src={activeOrganization.icon}
-									fallback={activeOrganization.display_name}
-								/>
+							{activeOrganization ? (
+								<>
+									<Avatar
+										size="sm"
+										src={activeOrganization.icon}
+										fallback={activeOrganization.display_name}
+									/>
+									<span className="truncate">
+										{activeOrganization.display_name || activeOrganization.name}
+									</span>
+								</>
+							) : (
+								<span className="truncate">No organization selected</span>
 							)}
-							<span className="truncate">
-								{activeOrganization?.display_name || activeOrganization?.name}
-							</span>
 						</div>
 						<ChevronDown />
 					</Button>
@@ -78,7 +84,7 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 					<Command loop>
 						<CommandList>
 							<CommandGroup className="pb-2">
-								{sortedOrganizations.length > 1 ? (
+								{sortedOrganizations.length > (activeOrganization ? 1 : 0) ? (
 									<div className="flex flex-col max-h-[260px] overflow-y-auto">
 										{sortedOrganizations.map((organization) => (
 											<CommandItem

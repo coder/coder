@@ -2836,12 +2836,13 @@ export const MockOrganizationPermissions: OrganizationPermissions = {
 	createGroup: true,
 	viewGroups: true,
 	editGroups: true,
-	editOrganization: true,
+	editSettings: true,
 	viewOrgRoles: true,
 	createOrgRoles: true,
 	assignOrgRoles: true,
 	viewProvisioners: true,
 	viewIdpSyncSettings: true,
+	editIdpSyncSettings: true,
 };
 
 export const MockNoOrganizationPermissions: OrganizationPermissions = {
@@ -2850,12 +2851,13 @@ export const MockNoOrganizationPermissions: OrganizationPermissions = {
 	createGroup: false,
 	viewGroups: false,
 	editGroups: false,
-	editOrganization: false,
+	editSettings: false,
 	viewOrgRoles: false,
 	createOrgRoles: false,
 	assignOrgRoles: false,
 	viewProvisioners: false,
 	viewIdpSyncSettings: false,
+	editIdpSyncSettings: false,
 };
 
 export const MockNoPermissions: Permissions = {

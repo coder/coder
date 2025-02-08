@@ -15,13 +15,10 @@ import { Navigate, useNavigate, useParams } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const OrganizationSettingsPage: FC = () => {
-	const { organization: organizationName } = useParams() as {
-		organization?: string;
-	};
-	const { organizations } = useOrganizationSettings();
-
 	const navigate = useNavigate();
 	const queryClient = useQueryClient();
+	const { organization, organizationPermissions } = useOrganizationSettings();
+
 	const updateOrganizationMutation = useMutation(
 		updateOrganization(queryClient),
 	);
@@ -29,31 +26,8 @@ const OrganizationSettingsPage: FC = () => {
 		deleteOrganization(queryClient),
 	);
 
-	const organization = organizations?.find((o) => o.name === organizationName);
-	const permissionsQuery = useQuery(
-		organizationsPermissions(organizations?.map((o) => o.id)),
-	);
-
-	if (permissionsQuery.isLoading) {
-		return <Loader />;
-	}
-
-	const permissions = permissionsQuery.data;
-	if (permissionsQuery.error || !permissions) {
-		return <ErrorAlert error={permissionsQuery.error} />;
-	}
-
-	if (!organization) {
+	if (!organization || !organizationPermissions?.editSettings) {
 		return <EmptyState message="Organization not found" />;
-	}
-
-	// The user may not be able to edit this org but they can still see it because
-	// they can edit members, etc.  In this case they will be shown a read-only
-	// summary page instead of the settings form.
-	// Similarly, if the feature is not entitled then the user will not be able to
-	// edit the organization.
-	if (!permissions[organization.id]?.editOrganization) {
-		return <Navigate to=".." replace />;
 	}
 
 	const error =

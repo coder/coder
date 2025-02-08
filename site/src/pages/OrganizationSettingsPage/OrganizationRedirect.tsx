@@ -4,7 +4,7 @@ import { canEditOrganization } from "modules/management/organizationPermissions"
 import type { FC } from "react";
 import { Navigate } from "react-router-dom";
 
-const DefaultOrganizationRedirect: FC = () => {
+const OrganizationRedirect: FC = () => {
 	const {
 		organizations,
 		organizationPermissionsByOrganizationId: organizationPermissions,
@@ -27,4 +27,4 @@ const DefaultOrganizationRedirect: FC = () => {
 	return <EmptyState message="No organizations found" />;
 };
 
-export default DefaultOrganizationRedirect;
+export default OrganizationRedirect;

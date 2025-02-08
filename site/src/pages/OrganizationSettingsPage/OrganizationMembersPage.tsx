@@ -21,6 +21,7 @@ import { useMutation, useQuery, useQueryClient } from "react-query";
 import { useParams } from "react-router-dom";
 import { pageTitle } from "utils/page";
 import { OrganizationMembersPageView } from "./OrganizationMembersPageView";
+import { EmptyState } from "components/EmptyState/EmptyState";
 
 const OrganizationMembersPage: FC = () => {
 	const queryClient = useQueryClient();
@@ -54,11 +55,11 @@ const OrganizationMembersPage: FC = () => {
 	const [memberToDelete, setMemberToDelete] =
 		useState<OrganizationMemberWithUserData>();
 
-	if (!organizationPermissions) {
-		return <Loader />;
+	if (!organization || !organizationPermissions) {
+		return <EmptyState message="Organization not found" />;
 	}
 
-	const helmet = organization && (
+	const helmet = (
 		<Helmet>
 			<title>
 				{pageTitle("Members", organization.display_name || organization.name)}

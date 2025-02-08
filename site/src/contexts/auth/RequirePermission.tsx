@@ -14,7 +14,8 @@ export const RequirePermission: FC<RequirePermissionProps> = ({
 	isFeatureVisible,
 }) => {
 	if (!isFeatureVisible) {
-		return <Navigate to="/workspaces" />;
+		// return <Navigate to="/workspaces" />;
+		return <h1>oh fuck</h1>;
 	}
 
 	return <>{children}</>;

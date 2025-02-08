@@ -45,7 +45,7 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "update",
 		},
-		editOrganization: {
+		editSettings: {
 			object: {
 				resource_type: "organization",
 				organization_id: organizationId,
@@ -87,6 +87,13 @@ export const organizationPermissionChecks = (organizationId: string) =>
 			},
 			action: "read",
 		},
+		editIdpSyncSettings: {
+			object: {
+				resource_type: "idpsync_settings",
+				organization_id: organizationId,
+			},
+			action: "update",
+		},
 	}) as const satisfies Record<string, AuthorizationCheck>;
 
 /**
@@ -116,8 +123,9 @@ export const canEditOrganization = (
 		permissions !== undefined &&
 		(permissions.editMembers ||
 			permissions.editGroups ||
-			permissions.editOrganization ||
+			permissions.editSettings ||
 			permissions.assignOrgRoles ||
+			permissions.editIdpSyncSettings ||
 			permissions.createOrgRoles)
 	);
 };
@@ -151,12 +159,12 @@ export const anyOrganizationPermissionChecks = {
 		},
 		action: "assign",
 	},
-	editAnyIdpSyncSettings: {
+	viewAnyIdpSyncSettings: {
 		object: {
 			resource_type: "idpsync_settings",
 			any_org: true,
 		},
-		action: "update",
+		action: "read",
 	},
 	editAnySettings: {
 		object: {
@@ -179,7 +187,7 @@ export const canViewAnyOrganization = (
 		(permissions.viewAnyMembers ||
 			permissions.editAnyGroups ||
 			permissions.assignAnyRoles ||
-			permissions.editAnyIdpSyncSettings ||
+			permissions.viewAnyIdpSyncSettings ||
 			permissions.editAnySettings)
 	);
 };

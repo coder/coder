@@ -61,12 +61,12 @@ const OrganizationSettingsLayout: FC = () => {
 		organizationsPermissions(organizations?.map((o) => o.id)),
 	);
 
-	if (orgPermissionsQuery.isLoading) {
-		return <Loader />;
+	if (orgPermissionsQuery.isError) {
+		return <ErrorAlert error={orgPermissionsQuery.error} />;
 	}
 
 	if (!orgPermissionsQuery.data) {
-		return <ErrorAlert error={orgPermissionsQuery.error} />;
+		return <Loader />;
 	}
 
 	const viewableOrganizations = organizations.filter((org) =>
@@ -84,54 +84,52 @@ const OrganizationSettingsLayout: FC = () => {
 	}
 
 	return (
-		<RequirePermission isFeatureVisible={canViewOrganizationSettings}>
-			<OrganizationSettingsContext.Provider
-				value={{
-					organizations: viewableOrganizations,
-					organizationPermissionsByOrganizationId: orgPermissionsQuery.data,
-					organization,
-					organizationPermissions,
-				}}
-			>
-				<div>
-					<Breadcrumb>
-						<BreadcrumbList>
-							<BreadcrumbItem>
-								<BreadcrumbPage>Admin Settings</BreadcrumbPage>
-							</BreadcrumbItem>
-							<BreadcrumbSeparator />
-							<BreadcrumbItem>
-								<BreadcrumbPage className="flex items-center gap-2">
-									Organizations
-								</BreadcrumbPage>
-							</BreadcrumbItem>
-							{organization && (
-								<>
-									<BreadcrumbSeparator />
-									<BreadcrumbItem>
-										<BreadcrumbPage className="text-content-primary">
-											<Avatar
-												key={organization.id}
-												size="sm"
-												fallback={organization.display_name}
-												src={organization.icon}
-											/>
-											{organization.display_name}
-										</BreadcrumbPage>
-									</BreadcrumbItem>
-								</>
-							)}
-						</BreadcrumbList>
-					</Breadcrumb>
-					<hr className="h-px border-none bg-border" />
-					<div className="px-10 max-w-screen-2xl">
-						<Suspense fallback={<Loader />}>
-							<Outlet />
-						</Suspense>
-					</div>
+		<OrganizationSettingsContext.Provider
+			value={{
+				organizations: viewableOrganizations,
+				organizationPermissionsByOrganizationId: orgPermissionsQuery.data,
+				organization,
+				organizationPermissions,
+			}}
+		>
+			<div>
+				<Breadcrumb>
+					<BreadcrumbList>
+						<BreadcrumbItem>
+							<BreadcrumbPage>Admin Settings</BreadcrumbPage>
+						</BreadcrumbItem>
+						<BreadcrumbSeparator />
+						<BreadcrumbItem>
+							<BreadcrumbPage className="flex items-center gap-2">
+								Organizations
+							</BreadcrumbPage>
+						</BreadcrumbItem>
+						{organization && (
+							<>
+								<BreadcrumbSeparator />
+								<BreadcrumbItem>
+									<BreadcrumbPage className="text-content-primary">
+										<Avatar
+											key={organization.id}
+											size="sm"
+											fallback={organization.display_name}
+											src={organization.icon}
+										/>
+										{organization.display_name}
+									</BreadcrumbPage>
+								</BreadcrumbItem>
+							</>
+						)}
+					</BreadcrumbList>
+				</Breadcrumb>
+				<hr className="h-px border-none bg-border" />
+				<div className="px-10 max-w-screen-2xl">
+					<Suspense fallback={<Loader />}>
+						<Outlet />
+					</Suspense>
 				</div>
-			</OrganizationSettingsContext.Provider>
-		</RequirePermission>
+			</div>
+		</OrganizationSettingsContext.Provider>
 	);
 };
 
