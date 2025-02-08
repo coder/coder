@@ -47,8 +47,6 @@ export const OrganizationSidebarView: FC<SidebarProps> = ({
 			]
 		: organizations;
 
-	console.log(organizations);
-
 	const [isPopoverOpen, setIsPopoverOpen] = useState(false);
 	const navigate = useNavigate();
 
