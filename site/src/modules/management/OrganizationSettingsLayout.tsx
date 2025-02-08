@@ -1,5 +1,5 @@
 import { organizationsPermissions } from "api/queries/organizations";
-import type { AuthorizationResponse, Organization } from "api/typesGenerated";
+import type { Organization } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Avatar } from "components/Avatar/Avatar";
 import {
@@ -10,8 +10,6 @@ import {
 	BreadcrumbSeparator,
 } from "components/Breadcrumb/Breadcrumb";
 import { Loader } from "components/Loader/Loader";
-import { useAuthenticated } from "contexts/auth/RequireAuth";
-import { RequirePermission } from "contexts/auth/RequirePermission";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import NotFoundPage from "pages/404Page/404Page";
 import { type FC, Suspense, createContext, useContext } from "react";
@@ -48,7 +46,7 @@ export const useOrganizationSettings = (): OrganizationSettingsValue => {
 };
 
 const OrganizationSettingsLayout: FC = () => {
-	const { organizations, canViewOrganizationSettings } = useDashboard();
+	const { organizations } = useDashboard();
 	const { organization: orgName } = useParams() as {
 		organization?: string;
 	};

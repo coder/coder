@@ -74,6 +74,7 @@ export const CustomRolesPage: FC = () => {
 				customRoles={customRoles}
 				onDeleteRole={setRoleToDelete}
 				canAssignOrgRole={organizationPermissions.assignOrgRoles}
+				canCreateOrgRole={organizationPermissions.createOrgRoles}
 				isCustomRolesEnabled={isCustomRolesEnabled}
 			/>
 
