@@ -1883,7 +1883,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 		}
 
 		if protoPreset.Prebuild != nil {
-			_, err := db.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
+			_, err := tx.InsertPresetPrebuild(ctx, database.InsertPresetPrebuildParams{
 				ID:                  uuid.New(),
 				PresetID:            dbPreset.ID,
 				DesiredInstances:    protoPreset.Prebuild.Instances,
