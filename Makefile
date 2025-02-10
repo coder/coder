@@ -599,6 +599,7 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
+		agent/agentcontainers/acmock/acmock.go \
 		"
 
 	for file in $$files; do
