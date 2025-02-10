@@ -1366,6 +1366,7 @@ func TestUserOIDC(t *testing.T) {
 
 		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
 			"email": user.Email,
+			"sub":   uuid.NewString(),
 		})
 		require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -1404,6 +1405,7 @@ func TestUserOIDC(t *testing.T) {
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
+			"sub":   uuid.NewString(),
 		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
@@ -1474,6 +1476,7 @@ func TestUserOIDC(t *testing.T) {
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
+			"sub":   uuid.NewString(),
 		}
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
@@ -1544,6 +1547,7 @@ func TestUserOIDC(t *testing.T) {
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
 			"email": "jon@coder.com",
+			"sub":   uuid.NewString(),
 		}
 
 		userClient, _ := fake.Login(t, client, claims)
@@ -1664,6 +1668,7 @@ func TestUserOIDC(t *testing.T) {
 		claims := jwt.MapClaims{
 			"email":          "user@example.com",
 			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 
 		// Perform the login
