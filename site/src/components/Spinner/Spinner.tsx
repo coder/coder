@@ -82,52 +82,57 @@ export const Spinner: FC<SpinnerProps> = ({
 	unmountChildrenWhileLoading = false,
 	...delegatedProps
 }) => {
-	/**
-	 * @todo Figure out if this conditional logic can ever cause a component to
-	 * lose state when showSpinner flips from false to true while
-	 * unmountedWhileLoading is false. I would hope not, since the children prop
-	 * is the same in both cases, but I need to test this out
-	 */
+	// Conditional rendering logic is more convoluted than normal because we
+	// need to make sure that the children prop is always placed in the same JSX
+	// "slot" by default, no matter the value of `loading`. Even if the children
+	// prop value is exactly the same each time, the state will get wiped if the
+	// placement in the JSX output changes
 	const showSpinner = useShowSpinner(loading, spinnerDelayMs);
-	if (!showSpinner) {
-		return children;
-	}
-
 	return (
 		<>
-			<svg
-				// Fill is the only prop that should be allowed to be
-				// overridden; all other props must come after destructuring
-				fill="currentColor"
-				{...delegatedProps}
-				viewBox="0 0 24 24"
-				xmlns="http://www.w3.org/2000/svg"
-				className={cn(className, spinnerVariants({ size }))}
-			>
-				<title>Loading&hellip;</title>
-				{leafIndices.map((index) => (
-					<rect
-						key={index}
-						x="10.9"
-						y="2"
-						width="2"
-						height="5.5"
-						rx="1"
-						style={{
-							...animationSettings,
-							transform: `rotate(${index * (360 / SPINNER_LEAF_COUNT)}deg)`,
-							transformOrigin: "center",
-							animationDelay: `${-index * 0.1}s`,
-						}}
-					/>
-				))}
-			</svg>
+			{showSpinner && (
+				<svg
+					// `fill` is the only prop that should be allowed to be
+					// overridden; all other props must come after destructuring
+					fill="currentColor"
+					{...delegatedProps}
+					viewBox="0 0 24 24"
+					xmlns="http://www.w3.org/2000/svg"
+					className={cn(className, spinnerVariants({ size }))}
+				>
+					<title>Loading&hellip;</title>
+					{leafIndices.map((index) => (
+						<rect
+							key={index}
+							x="10.9"
+							y="2"
+							width="2"
+							height="5.5"
+							rx="1"
+							style={{
+								...animationSettings,
+								transform: `rotate(${index * (360 / SPINNER_LEAF_COUNT)}deg)`,
+								transformOrigin: "center",
+								animationDelay: `${-index * 0.1}s`,
+							}}
+						/>
+					))}
+				</svg>
+			)}
 
-			{!unmountChildrenWhileLoading && (
-				<div className="sr-only">
-					This content is loading:
-					{children}
-				</div>
+			{/*
+			 * Invert the condition (showSpinner && unmountChildrenWhileLoading)
+			 * (which is the only one that should result in fully-unmounted
+			 * content), and then if we still get content, handle the other
+			 * three cases of the boolean truth table more granularly
+			 */}
+			{(!showSpinner || !unmountChildrenWhileLoading) && (
+				<>
+					<span className={showSpinner ? "sr-only" : "hidden"}>
+						This content is loading:{" "}
+					</span>
+					<span className={showSpinner ? "sr-only" : "inline"}>{children}</span>
+				</>
 			)}
 		</>
 	);
