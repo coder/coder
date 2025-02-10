@@ -38,7 +38,7 @@ That's all! Use the UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
-![Coder Workspace and IDE in AWS EC2](../../images/admin/users/organizations/workspace-list.png)
+![Coder Templates screen](../../images/admin/users/organizations/workspace-list.png)
 
 ## Configuring Coder server
 
