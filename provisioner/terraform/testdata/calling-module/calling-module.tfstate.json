@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -10,7 +10,7 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "amd64",
             "auth": "token",
@@ -26,17 +26,19 @@
               }
             ],
             "env": null,
-            "id": "14f0eb08-1bdb-4d48-ab20-e06584ee5b68",
+            "id": "e9b8432d-5407-47b5-82d4-0859088c9e1b",
             "init_script": "",
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "454fffe5-3c59-4a9e-80a0-0d1644ce3b24",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "63a661a4-1c4e-4495-ab78-6cfe6987517a",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -44,7 +46,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         }
@@ -68,7 +69,7 @@
                 "outputs": {
                   "script": ""
                 },
-                "random": "8389680299908922676"
+                "random": "1712821389824061702"
               },
               "sensitive_values": {
                 "inputs": {},
@@ -83,7 +84,7 @@
               "provider_name": "registry.terraform.io/hashicorp/null",
               "schema_version": 0,
               "values": {
-                "id": "8124127383117450432",
+                "id": "6220748043164166517",
                 "triggers": null
               },
               "sensitive_values": {},

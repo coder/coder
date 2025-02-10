@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.8",
+  "terraform_version": "1.10.5",
   "values": {
     "root_module": {
       "resources": [
@@ -17,7 +17,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "4b774ce8-1e9f-4721-8a14-05efd3eb2dab",
+            "id": "32cfe291-cc59-40d2-b803-c964ef844de5",
             "mutable": false,
             "name": "Example",
             "option": null,
@@ -44,7 +44,7 @@
             "display_name": null,
             "ephemeral": false,
             "icon": null,
-            "id": "447ae720-c046-452e-8d2c-1b5d4060b798",
+            "id": "27104b66-f6d8-48f4-b7ae-71c43cfb4041",
             "mutable": false,
             "name": "Sample",
             "option": null,
@@ -64,7 +64,7 @@
           "type": "coder_agent",
           "name": "dev",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 1,
+          "schema_version": 0,
           "values": {
             "arch": "arm64",
             "auth": "token",
@@ -80,17 +80,19 @@
               }
             ],
             "env": null,
-            "id": "b8d637c2-a19c-479c-b3e2-374f15ce37c3",
+            "id": "d6b34cce-30b1-492a-bd29-711b6ddc7517",
             "init_script": "",
+            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "windows",
-            "resources_monitoring": [],
             "shutdown_script": null,
+            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": "non-blocking",
-            "token": "52ce8a0d-12c9-40b5-9f86-dc6240b98d5f",
+            "startup_script_behavior": null,
+            "startup_script_timeout": 300,
+            "token": "0c357437-59e0-47dc-affb-ef54ba3d7108",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -98,7 +100,6 @@
               {}
             ],
             "metadata": [],
-            "resources_monitoring": [],
             "token": true
           }
         },
@@ -110,7 +111,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "769369130050936586",
+            "id": "8977917482017004077",
             "triggers": null
           },
           "sensitive_values": {},
