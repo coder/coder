@@ -892,6 +892,7 @@ func TestUserOIDC(t *testing.T) {
 		Name                string
 		IDTokenClaims       jwt.MapClaims
 		UserInfoClaims      jwt.MapClaims
+		AccessTokenClaims   jwt.MapClaims
 		AllowSignups        bool
 		EmailDomain         []string
 		AssertUser          func(t testing.TB, u codersdk.User)
@@ -899,6 +900,7 @@ func TestUserOIDC(t *testing.T) {
 		AssertResponse      func(t testing.TB, resp *http.Response)
 		IgnoreEmailVerified bool
 		IgnoreUserInfo      bool
+		UseAccessToken      bool
 	}{
 		{
 			Name: "NoSub",
@@ -907,6 +909,32 @@ func TestUserOIDC(t *testing.T) {
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
+		},
+		{
+			Name: "AccessTokenMerge",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			AccessTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusOK,
+			AssertUser: func(t testing.TB, u codersdk.User) {
+				assert.Equal(t, "kyle@kwc.io", u.Email)
+			},
+		},
+		{
+			Name: "AccessTokenMergeNotJWT",
+			IDTokenClaims: jwt.MapClaims{
+				"sub": uuid.NewString(),
+			},
+			IgnoreUserInfo: true,
+			AllowSignups:   true,
+			UseAccessToken: true,
+			StatusCode:     http.StatusBadRequest,
 		},
 		{
 			Name: "EmailOnly",
@@ -1290,19 +1318,30 @@ func TestUserOIDC(t *testing.T) {
 		tc := tc
 		t.Run(tc.Name, func(t *testing.T) {
 			t.Parallel()
-			fake := oidctest.NewFakeIDP(t,
+			opts := []oidctest.FakeIDPOpt{
 				oidctest.WithRefresh(func(_ string) error {
 					return xerrors.New("refreshing token should never occur")
 				}),
 				oidctest.WithServing(),
 				oidctest.WithStaticUserInfo(tc.UserInfoClaims),
-			)
+			}
+
+			if tc.AccessTokenClaims != nil && len(tc.AccessTokenClaims) > 0 {
+				opts = append(opts, oidctest.WithAccessTokenJWTHook(func(email string, exp time.Time) jwt.MapClaims {
+					return tc.AccessTokenClaims
+				}))
+			}
+
+			fake := oidctest.NewFakeIDP(t, opts...)
 			cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 				cfg.AllowSignups = tc.AllowSignups
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
 				if tc.IgnoreUserInfo {
 					cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
+				}
+				if tc.UseAccessToken {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceAccessToken
 				}
 				cfg.NameField = "name"
 			})

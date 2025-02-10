@@ -105,6 +105,7 @@ type FakeIDP struct {
 	// "Authorized Redirect URLs". This can be used to emulate that.
 	hookValidRedirectURL func(redirectURL string) error
 	hookUserInfo         func(email string) (jwt.MapClaims, error)
+	hookAccessTokenJWT   func(email string, exp time.Time) jwt.MapClaims
 	// defaultIDClaims is if a new client connects and we didn't preset
 	// some claims.
 	defaultIDClaims jwt.MapClaims
@@ -151,6 +152,12 @@ func WithAuthorizedRedirectURL(hook func(redirectURL string) error) func(*FakeID
 func WithMiddlewares(mws ...func(http.Handler) http.Handler) func(*FakeIDP) {
 	return func(f *FakeIDP) {
 		f.middlewares = append(f.middlewares, mws...)
+	}
+}
+
+func WithAccessTokenJWTHook(hook func(email string, exp time.Time) jwt.MapClaims) func(*FakeIDP) {
+	return func(f *FakeIDP) {
+		f.hookAccessTokenJWT = hook
 	}
 }
 
@@ -316,8 +323,7 @@ const (
 func NewFakeIDP(t testing.TB, opts ...FakeIDPOpt) *FakeIDP {
 	t.Helper()
 
-	block, _ := pem.Decode([]byte(testRSAPrivateKey))
-	pkey, err := x509.ParsePKCS1PrivateKey(block.Bytes)
+	pkey, err := FakeIDPKey()
 	require.NoError(t, err)
 
 	idp := &FakeIDP{
@@ -676,8 +682,13 @@ func (f *FakeIDP) newCode(state string) string {
 
 // newToken enforces the access token exchanged is actually a valid access token
 // created by the IDP.
-func (f *FakeIDP) newToken(email string, expires time.Time) string {
+func (f *FakeIDP) newToken(t testing.TB, email string, expires time.Time) string {
 	accessToken := uuid.NewString()
+	if f.hookAccessTokenJWT != nil {
+		claims := f.hookAccessTokenJWT(email, expires)
+		accessToken = f.encodeClaims(t, claims)
+	}
+
 	f.accessTokens.Store(accessToken, token{
 		issued: time.Now(),
 		email:  email,
@@ -963,7 +974,7 @@ func (f *FakeIDP) httpHandler(t testing.TB) http.Handler {
 		email := getEmail(claims)
 		refreshToken := f.newRefreshTokens(email)
 		token := map[string]interface{}{
-			"access_token":  f.newToken(email, exp),
+			"access_token":  f.newToken(t, email, exp),
 			"refresh_token": refreshToken,
 			"token_type":    "Bearer",
 			"expires_in":    int64((f.defaultExpire).Seconds()),
@@ -1553,3 +1564,8 @@ d8h4Ht09E+f3nhTEc87mODkl7WJZpHL6V2sORfeq/eIkds+H6CJ4hy5w/bSw8tjf
 sz9Di8sGIaUbLZI2rd0CQQCzlVwEtRtoNCyMJTTrkgUuNufLP19RZ5FpyXxBO5/u
 QastnN77KfUwdj3SJt44U/uh1jAIv4oSLBr8HYUkbnI8
 -----END RSA PRIVATE KEY-----`
+
+func FakeIDPKey() (*rsa.PrivateKey, error) {
+	block, _ := pem.Decode([]byte(testRSAPrivateKey))
+	return x509.ParsePKCS1PrivateKey(block.Bytes)
+}
