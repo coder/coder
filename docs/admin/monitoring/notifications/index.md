@@ -12,34 +12,40 @@ user(s) of this event. Currently we support the following list of events:
 
 _These notifications are sent to the workspace owner._
 
-- Workspace Deleted
-- Workspace Manual Build Failure
-- Workspace Automatic Build Failure
-- Workspace Automatically Updated
-- Workspace Dormant
-- Workspace Marked For Deletion
+- Workspace created
+- Workspace deleted
+- Workspace manual build failure
+- Workspace automatic build failure
+- Workspace manually updated
+- Workspace automatically updated
+- Workspace marked as dormant
+- Workspace marked for deletion
 
 ### User Events
 
 _These notifications are sent to users with **owner** and **user admin** roles._
 
-- User Account Created
-- User Account Deleted
-- User Account Suspended
-- User Account Activated
-- _(coming soon) User Password Reset_
-- _(coming soon) User Email Verification_
+- User account created
+- User account deleted
+- User account suspended
+- User account activated
 
 _These notifications are sent to the user themselves._
 
-- User Account Suspended
-- User Account Activated
+- User account suspended
+- User account activated
+- User password reset (One-time passcode)
 
 ### Template Events
 
 _These notifications are sent to users with **template admin** roles._
 
-- Template Deleted
+- Template deleted
+- Template deprecated
+- Report: Workspace builds failed for template
+  > This notification delivers on a weekly CRON summarizing the failed builds for a given template.
+
+Available events may differ between versions. See all events under `https://your-domain.com/deployment/notifications`.
 
 ## Configuration
 
