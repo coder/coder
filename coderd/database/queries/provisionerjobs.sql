@@ -136,7 +136,6 @@ SELECT
 	t.id AS template_id,
 	COALESCE(t.name, '') AS template_name,
 	COALESCE(t.display_name, '') AS template_display_name,
-	COALESCE(t.icon, '') AS template_icon,
 	w.id AS workspace_id,
 	COALESCE(w.name, '') AS workspace_name
 FROM
@@ -166,7 +165,6 @@ GROUP BY
 	t.id,
 	t.name,
 	t.display_name,
-	t.icon,
 	w.id,
 	w.name
 ORDER BY
