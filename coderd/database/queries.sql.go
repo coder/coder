@@ -5605,7 +5605,7 @@ LEFT JOIN
 		)
 	)
 JOIN
-	template_versions version ON version.id = pd.version
+	template_versions version ON version.id::text = pd.version
 LEFT JOIN
 	templates tmpl ON tmpl.id = version.template_id
 WHERE
