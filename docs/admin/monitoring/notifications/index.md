@@ -3,14 +3,20 @@
 Notifications are sent by Coder in response to specific internal events, such as
 a workspace being deleted or a user being created.
 
+Available events may differ between versions.
+For a list of all events, visit your Coder deployment's
+`https://coder.example.com/deployment/notifications`.
+
 ## Event Types
 
 Notifications are sent in response to internal events, to alert the affected
-user(s) of this event. Currently we support the following list of events:
+user(s) of the event.
+
+Coder supports the following list of events:
 
 ### Workspace Events
 
-_These notifications are sent to the workspace owner._
+These notifications are sent to the workspace owner:
 
 - Workspace created
 - Workspace deleted
@@ -23,14 +29,14 @@ _These notifications are sent to the workspace owner._
 
 ### User Events
 
-_These notifications are sent to users with **owner** and **user admin** roles._
+These notifications sent to users with **owner** and **user admin** roles:
 
 - User account created
 - User account deleted
 - User account suspended
 - User account activated
 
-_These notifications are sent to the user themselves._
+These notifications sent to users themselves:
 
 - User account suspended
 - User account activated
@@ -38,14 +44,13 @@ _These notifications are sent to the user themselves._
 
 ### Template Events
 
-_These notifications are sent to users with **template admin** roles._
+These notifications are sent to users with **template admin** roles:
 
 - Template deleted
 - Template deprecated
 - Report: Workspace builds failed for template
-  > This notification delivers on a weekly CRON summarizing the failed builds for a given template.
-
-Available events may differ between versions. See all events under `https://your-domain.com/deployment/notifications`.
+  - This notification is delivered as part of a weekly cron job and summarizes
+    the failed builds for a given template.
 
 ## Configuration
 
