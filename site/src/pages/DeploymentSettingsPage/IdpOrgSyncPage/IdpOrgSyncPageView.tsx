@@ -28,11 +28,6 @@ import {
 	MultiSelectCombobox,
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
-import {
-	Popover,
-	PopoverContent,
-	PopoverTrigger,
-} from "components/Popover/Popover";
 import { Spinner } from "components/Spinner/Spinner";
 import { Switch } from "components/Switch/Switch";
 import {
@@ -42,10 +37,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
-import { Check, ChevronDown, CornerDownLeft, Plus, Trash } from "lucide-react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
 import { type FC, type KeyboardEventHandler, useId, useState } from "react";
-import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { isUUID } from "utils/uuid";
 import * as Yup from "yup";
@@ -53,10 +53,10 @@ import { OrganizationPills } from "./OrganizationPills";
 
 interface IdpSyncPageViewProps {
 	organizationSyncSettings: OrganizationSyncSettings | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	organizations: readonly Organization[];
 	onSubmit: (data: OrganizationSyncSettings) => void;
 	onSyncFieldChange: (value: string) => void;
-	claimFieldValues: string[] | undefined;
 	error?: unknown;
 }
 
@@ -84,10 +84,10 @@ const validationSchema = Yup.object({
 
 export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 	organizationSyncSettings,
+	claimFieldValues,
 	organizations,
 	onSubmit,
 	onSyncFieldChange,
-	claimFieldValues,
 	error,
 }) => {
 	const form = useFormik<OrganizationSyncSettings>({
@@ -313,6 +313,7 @@ export const IdpOrgSyncPageView: FC<IdpSyncPageViewProps> = ({
 											idpOrg={idpOrg}
 											coderOrgs={getOrgNames(organizations)}
 											onDelete={handleDelete}
+											exists={claimFieldValues?.includes(idpOrg)}
 										/>
 									))}
 						</IdpMappingTable>
@@ -366,7 +367,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				<TableRow>
 					<TableCell width="45%">IdP organization</TableCell>
 					<TableCell width="55%">Coder organization</TableCell>
-					<TableCell width="10%" />
+					<TableCell width="5%" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>
@@ -398,18 +399,43 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 
 interface OrganizationRowProps {
 	idpOrg: string;
+	exists: boolean | undefined;
 	coderOrgs: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
 const OrganizationRow: FC<OrganizationRowProps> = ({
 	idpOrg,
+	exists = true,
 	coderOrgs,
 	onDelete,
 }) => {
 	return (
 		<TableRow data-testid={`idp-org-${idpOrg}`}>
-			<TableCell>{idpOrg}</TableCell>
+			<TableCell>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
+					{idpOrg}
+					{!exists && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
+			</TableCell>
 			<TableCell>
 				<OrganizationPills organizations={coderOrgs} />
 			</TableCell>

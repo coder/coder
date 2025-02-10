@@ -4117,6 +4117,45 @@ func (q *FakeQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePosition
 			QueuePosition:  rowQP.QueuePosition,
 			QueueSize:      rowQP.QueueSize,
 		}
+
+		// Start add metadata.
+		var input codersdk.ProvisionerJobInput
+		err := json.Unmarshal([]byte(job.Input), &input)
+		if err != nil {
+			return nil, err
+		}
+		templateVersionID := input.TemplateVersionID
+		if input.WorkspaceBuildID != nil {
+			workspaceBuild, err := q.getWorkspaceBuildByIDNoLock(ctx, *input.WorkspaceBuildID)
+			if err != nil {
+				return nil, err
+			}
+			workspace, err := q.getWorkspaceByIDNoLock(ctx, workspaceBuild.WorkspaceID)
+			if err != nil {
+				return nil, err
+			}
+			row.WorkspaceID = uuid.NullUUID{UUID: workspace.ID, Valid: true}
+			row.WorkspaceName = workspace.Name
+			if templateVersionID == nil {
+				templateVersionID = &workspaceBuild.TemplateVersionID
+			}
+		}
+		if templateVersionID != nil {
+			templateVersion, err := q.getTemplateVersionByIDNoLock(ctx, *templateVersionID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateVersionName = templateVersion.Name
+			template, err := q.getTemplateByIDNoLock(ctx, templateVersion.TemplateID.UUID)
+			if err != nil {
+				return nil, err
+			}
+			row.TemplateID = uuid.NullUUID{UUID: template.ID, Valid: true}
+			row.TemplateName = template.Name
+			row.TemplateDisplayName = template.DisplayName
+		}
+		// End add metadata.
+
 		if row.QueuePosition > 0 {
 			var availableWorkers []database.ProvisionerDaemon
 			for _, daemon := range q.provisionerDaemons {

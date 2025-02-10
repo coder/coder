@@ -47,9 +47,17 @@ There are two ways to add a license to a Coder deployment:
 
 1. Run `coder licenses add`:
 
-   ```shell
-   coder licenses add -f <path to your license key>
-   ```
+   - For a `.jwt` license file:
+
+     ```shell
+     coder licenses add -f <path to your license key>
+     ```
+
+   - For a text string:
+
+     ```sh
+     coder licenses add -l 1f5...765
+     ```
 
 </div>
 

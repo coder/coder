@@ -388,6 +388,17 @@ func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrga
 		QueueSize:      pj.QueueSize,
 	})
 	job.AvailableWorkers = pj.AvailableWorkers
+	job.Metadata = codersdk.ProvisionerJobMetadata{
+		TemplateVersionName: pj.TemplateVersionName,
+		TemplateID:          pj.TemplateID.UUID,
+		TemplateName:        pj.TemplateName,
+		TemplateDisplayName: pj.TemplateDisplayName,
+		TemplateIcon:        pj.TemplateIcon,
+		WorkspaceName:       pj.WorkspaceName,
+	}
+	if pj.WorkspaceID.Valid {
+		job.Metadata.WorkspaceID = &pj.WorkspaceID.UUID
+	}
 	return job
 }
 

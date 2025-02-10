@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -72,13 +73,47 @@ func TestProvisionerJobs(t *testing.T) {
 
 	t.Run("Single", func(t *testing.T) {
 		t.Parallel()
-		t.Run("OK", func(t *testing.T) {
+		t.Run("Workspace", func(t *testing.T) {
 			t.Parallel()
-			ctx := testutil.Context(t, testutil.WaitMedium)
-			// Note this calls the single job endpoint.
-			job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
-			require.NoError(t, err)
-			require.Equal(t, job.ID, job2.ID)
+			t.Run("OK", func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				// Note this calls the single job endpoint.
+				job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, job.ID)
+				require.NoError(t, err)
+				require.Equal(t, job.ID, job2.ID)
+
+				// Verify that job metadata is correct.
+				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
+					TemplateVersionName: version.Name,
+					TemplateID:          template.ID,
+					TemplateName:        template.Name,
+					TemplateDisplayName: template.DisplayName,
+					TemplateIcon:        template.Icon,
+					WorkspaceID:         &w.ID,
+					WorkspaceName:       w.Name,
+				})
+			})
+		})
+		t.Run("Template Import", func(t *testing.T) {
+			t.Parallel()
+			t.Run("OK", func(t *testing.T) {
+				t.Parallel()
+				ctx := testutil.Context(t, testutil.WaitMedium)
+				// Note this calls the single job endpoint.
+				job2, err := templateAdminClient.OrganizationProvisionerJob(ctx, owner.OrganizationID, version.Job.ID)
+				require.NoError(t, err)
+				require.Equal(t, version.Job.ID, job2.ID)
+
+				// Verify that job metadata is correct.
+				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
+					TemplateVersionName: version.Name,
+					TemplateID:          template.ID,
+					TemplateName:        template.Name,
+					TemplateDisplayName: template.DisplayName,
+					TemplateIcon:        template.Icon,
+				})
+			})
 		})
 		t.Run("Missing", func(t *testing.T) {
 			t.Parallel()

@@ -4602,6 +4602,15 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
     "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
   },
+  "metadata": {
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+    "template_name": "string",
+    "template_version_name": "string",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string"
+  },
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "queue_position": 0,
   "queue_size": 0,
@@ -4618,26 +4627,27 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 
 ### Properties
 
-| Name                | Type                                                           | Required | Restrictions | Description |
-|---------------------|----------------------------------------------------------------|----------|--------------|-------------|
-| `available_workers` | array of string                                                | false    |              |             |
-| `canceled_at`       | string                                                         | false    |              |             |
-| `completed_at`      | string                                                         | false    |              |             |
-| `created_at`        | string                                                         | false    |              |             |
-| `error`             | string                                                         | false    |              |             |
-| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                 | false    |              |             |
-| `file_id`           | string                                                         | false    |              |             |
-| `id`                | string                                                         | false    |              |             |
-| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)   | false    |              |             |
-| `organization_id`   | string                                                         | false    |              |             |
-| `queue_position`    | integer                                                        | false    |              |             |
-| `queue_size`        | integer                                                        | false    |              |             |
-| `started_at`        | string                                                         | false    |              |             |
-| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
-| `tags`              | object                                                         | false    |              |             |
-| » `[any property]`  | string                                                         | false    |              |             |
-| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)     | false    |              |             |
-| `worker_id`         | string                                                         | false    |              |             |
+| Name                | Type                                                               | Required | Restrictions | Description |
+|---------------------|--------------------------------------------------------------------|----------|--------------|-------------|
+| `available_workers` | array of string                                                    | false    |              |             |
+| `canceled_at`       | string                                                             | false    |              |             |
+| `completed_at`      | string                                                             | false    |              |             |
+| `created_at`        | string                                                             | false    |              |             |
+| `error`             | string                                                             | false    |              |             |
+| `error_code`        | [codersdk.JobErrorCode](#codersdkjoberrorcode)                     | false    |              |             |
+| `file_id`           | string                                                             | false    |              |             |
+| `id`                | string                                                             | false    |              |             |
+| `input`             | [codersdk.ProvisionerJobInput](#codersdkprovisionerjobinput)       | false    |              |             |
+| `metadata`          | [codersdk.ProvisionerJobMetadata](#codersdkprovisionerjobmetadata) | false    |              |             |
+| `organization_id`   | string                                                             | false    |              |             |
+| `queue_position`    | integer                                                            | false    |              |             |
+| `queue_size`        | integer                                                            | false    |              |             |
+| `started_at`        | string                                                             | false    |              |             |
+| `status`            | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus)     | false    |              |             |
+| `tags`              | object                                                             | false    |              |             |
+| » `[any property]`  | string                                                             | false    |              |             |
+| `type`              | [codersdk.ProvisionerJobType](#codersdkprovisionerjobtype)         | false    |              |             |
+| `worker_id`         | string                                                             | false    |              |             |
 
 #### Enumerated Values
 
@@ -4702,6 +4712,32 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | `log_level` | `info`  |
 | `log_level` | `warn`  |
 | `log_level` | `error` |
+
+## codersdk.ProvisionerJobMetadata
+
+```json
+{
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+  "template_name": "string",
+  "template_version_name": "string",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string"
+}
+```
+
+### Properties
+
+| Name                    | Type   | Required | Restrictions | Description |
+|-------------------------|--------|----------|--------------|-------------|
+| `template_display_name` | string | false    |              |             |
+| `template_icon`         | string | false    |              |             |
+| `template_id`           | string | false    |              |             |
+| `template_name`         | string | false    |              |             |
+| `template_version_name` | string | false    |              |             |
+| `workspace_id`          | string | false    |              |             |
+| `workspace_name`        | string | false    |              |             |
 
 ## codersdk.ProvisionerJobStatus
 
@@ -6101,6 +6137,15 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
     },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
     "queue_size": 0,
@@ -7166,6 +7211,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
         "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
         "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
       },
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "queue_position": 0,
       "queue_size": 0,
@@ -7512,6 +7566,50 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
+## codersdk.WorkspaceAgentDevcontainer
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "image": "string",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "name": "string",
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ],
+  "running": true,
+  "status": "string",
+  "volumes": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+
 ## codersdk.WorkspaceAgentHealth
 
 ```json
@@ -7549,6 +7647,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shutdown_timeout` |
 | `shutdown_error`   |
 | `off`              |
+
+## codersdk.WorkspaceAgentListContainersResponse
+
+```json
+{
+  "containers": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "image": "string",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "ports": [
+        {
+          "network": "string",
+          "port": 0,
+          "process_name": "string"
+        }
+      ],
+      "running": true,
+      "status": "string",
+      "volumes": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -7907,6 +8047,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       "error": "string",
       "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
       "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
     },
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "queue_position": 0,
@@ -8571,6 +8720,15 @@ If the schedule is empty, the user will be updated to use the default schedule.|
             "error": "string",
             "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
             "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+          },
+          "metadata": {
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+            "template_name": "string",
+            "template_version_name": "string",
+            "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+            "workspace_name": "string"
           },
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "queue_position": 0,
