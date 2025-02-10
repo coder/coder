@@ -59,6 +59,11 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	}
 
 	dockerPsStderr := strings.TrimSpace(stderrBuf.String())
+	if len(ids) == 0 {
+		return codersdk.WorkspaceAgentListContainersResponse{
+			Warnings: []string{dockerPsStderr},
+		}, nil
+	}
 
 	// now we can get the detailed information for each container
 	// Run `docker inspect` on each container ID
