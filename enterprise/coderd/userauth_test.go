@@ -50,6 +50,7 @@ func TestUserOIDC(t *testing.T) {
 
 			claims := jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   uuid.NewString(),
 			}
 
 			// Login a new client that signs up
@@ -82,6 +83,7 @@ func TestUserOIDC(t *testing.T) {
 
 			claims := jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   uuid.NewString(),
 			}
 
 			// Login a new client that signs up
@@ -152,9 +154,11 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, expectedSettings.Field, settings.Field)
 
+			sub := uuid.NewString()
 			claims := jwt.MapClaims{
 				"email":        "alice@coder.com",
 				"organization": []string{"first", "second"},
+				"sub":          sub,
 			}
 
 			// Then: a new user logs in with claims "second" and "third", they
@@ -169,7 +173,7 @@ func TestUserOIDC(t *testing.T) {
 			fields, err := runner.AdminClient.GetAvailableIDPSyncFields(ctx)
 			require.NoError(t, err)
 			require.ElementsMatch(t, []string{
-				"aud", "exp", "iss", // Always included from jwt
+				"sub", "aud", "exp", "iss", // Always included from jwt
 				"email", "organization",
 			}, fields)
 
@@ -204,6 +208,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.Login(t, jwt.MapClaims{
 				"email":        "alice@coder.com",
 				"organization": []string{"second"},
+				"sub":          sub,
 			})
 			runner.AssertOrganizations(t, "alice", true, []uuid.UUID{orgTwo.ID})
 		})
@@ -238,10 +243,12 @@ func TestUserOIDC(t *testing.T) {
 			})
 			fourth := dbgen.Organization(t, runner.API.Database, database.Organization{})
 
+			sub := uuid.NewString()
 			ctx := testutil.Context(t, testutil.WaitMedium)
 			claims := jwt.MapClaims{
 				"email":        "alice@coder.com",
 				"organization": []string{"second", "third"},
+				"sub":          sub,
 			}
 
 			// Then: a new user logs in with claims "second" and "third", they
@@ -265,6 +272,7 @@ func TestUserOIDC(t *testing.T) {
 			runner.Login(t, jwt.MapClaims{
 				"email":        "alice@coder.com",
 				"organization": []string{"third"},
+				"sub":          sub,
 			})
 			runner.AssertOrganizations(t, "alice", false, []uuid.UUID{third})
 		})
@@ -289,6 +297,7 @@ func TestUserOIDC(t *testing.T) {
 
 			claims := jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   uuid.NewString(),
 			}
 			// Login a new client that signs up
 			client, resp := runner.Login(t, claims)
@@ -328,6 +337,7 @@ func TestUserOIDC(t *testing.T) {
 				// This is sent as a **string** intentionally instead
 				// of an array.
 				"roles": oidcRoleName,
+				"sub":   uuid.NewString(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String()})
@@ -398,9 +408,11 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// User starts with the owner role
+			sub := uuid.NewString()
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random", oidcRoleName, rbac.RoleOwner().String()},
+				"sub":   sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertRoles(t, "alice", []string{rbac.RoleTemplateAdmin().String(), rbac.RoleUserAdmin().String(), rbac.RoleOwner().String()})
@@ -409,6 +421,7 @@ func TestUserOIDC(t *testing.T) {
 			_, resp = runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{"random"},
+				"sub":   sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 
@@ -429,9 +442,11 @@ func TestUserOIDC(t *testing.T) {
 				},
 			})
 
+			sub := uuid.NewString()
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
 				"roles": []string{},
+				"sub":   sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			// Try to manually update user roles, even though controlled by oidc
@@ -476,6 +491,7 @@ func TestUserOIDC(t *testing.T) {
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
@@ -510,6 +526,7 @@ func TestUserOIDC(t *testing.T) {
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{oidcGroupName},
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{coderGroupName})
@@ -546,6 +563,7 @@ func TestUserOIDC(t *testing.T) {
 			client, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
@@ -579,9 +597,11 @@ func TestUserOIDC(t *testing.T) {
 			require.NoError(t, err)
 			require.Len(t, group.Members, 0)
 
+			sub := uuid.NewString()
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
+				"sub":      sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
@@ -589,6 +609,7 @@ func TestUserOIDC(t *testing.T) {
 			// Refresh without the group claim
 			_, resp = runner.Login(t, jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   sub,
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{})
@@ -612,6 +633,7 @@ func TestUserOIDC(t *testing.T) {
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{"not-exists"},
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{})
@@ -637,6 +659,7 @@ func TestUserOIDC(t *testing.T) {
 			_, resp := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{groupName},
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
@@ -665,6 +688,7 @@ func TestUserOIDC(t *testing.T) {
 				// This is sent as a **string** intentionally instead
 				// of an array.
 				groupClaim: groupName,
+				"sub":      uuid.New(),
 			})
 			require.Equal(t, http.StatusOK, resp.StatusCode)
 			runner.AssertGroups(t, "alice", []string{groupName})
@@ -686,9 +710,11 @@ func TestUserOIDC(t *testing.T) {
 			})
 
 			// Test forbidden
+			sub := uuid.NewString()
 			_, resp := runner.AttemptLogin(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{"not-allowed"},
+				"sub":      sub,
 			})
 			require.Equal(t, http.StatusForbidden, resp.StatusCode)
 
@@ -696,6 +722,7 @@ func TestUserOIDC(t *testing.T) {
 			client, _ := runner.Login(t, jwt.MapClaims{
 				"email":    "alice@coder.com",
 				groupClaim: []string{allowedGroup},
+				"sub":      sub,
 			})
 
 			ctx := testutil.Context(t, testutil.WaitShort)
@@ -719,6 +746,7 @@ func TestUserOIDC(t *testing.T) {
 
 			claims := jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   uuid.NewString(),
 			}
 			// Login a new client that signs up
 			client, resp := runner.Login(t, claims)
@@ -747,6 +775,7 @@ func TestUserOIDC(t *testing.T) {
 
 			claims := jwt.MapClaims{
 				"email": "alice@coder.com",
+				"sub":   uuid.NewString(),
 			}
 			// Login a new client that signs up
 			client, resp := runner.Login(t, claims)
@@ -921,6 +950,7 @@ func TestGroupSync(t *testing.T) {
 			require.NoError(t, err, "user must be oidc type")
 
 			// Log in the new user
+			tc.claims["sub"] = uuid.NewString()
 			tc.claims["email"] = user.Email
 			_, resp := runner.Login(t, tc.claims)
 			require.Equal(t, http.StatusOK, resp.StatusCode)
