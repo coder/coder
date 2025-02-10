@@ -1,6 +1,6 @@
 /**
- * @file This component was inspired by Radix's Spinner component and developed
- * using help from Vercel's V0.
+ * @file This component was inspired by Radix's Spinner component. The animation
+ * settings were developed using Vercel's v0.
  *
  * @see {@link https://www.radix-ui.com/themes/docs/components/spinner}
  * @see {@link https://v0.dev/}
@@ -128,9 +128,9 @@ export const Spinner: FC<SpinnerProps> = ({
 			 */}
 			{(!showSpinner || !unmountChildrenWhileLoading) && (
 				<>
-					<span className={showSpinner ? "sr-only" : "hidden"}>
-						This content is loading:{" "}
-					</span>
+					{showSpinner && (
+						<span className="sr-only">This content is loading: </span>
+					)}
 					<span className={showSpinner ? "sr-only" : "inline"}>{children}</span>
 				</>
 			)}
@@ -156,29 +156,20 @@ function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
 	/**
 	 * Doing a bunch of mid-render state syncs to minimize risks of UI tearing
 	 * during re-renders. It's ugly, but it's what the React team officially
-	 * recommends (even though this specific case is extra nasty).
+	 * recommends.
 	 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
-	 *
-	 * Be very careful with this logic; React only bails out of redundant state
-	 * updates if they happen outside of a render. Inside a render, if you keep
-	 * calling a state dispatch, you will get an infinite render loop, no matter
-	 * what value you dispatch. There must be a "base case" in the render path
-	 * that causes state dispatches to stop entirely so that React can move on
-	 * to the next component in the Fiber subtree
 	 */
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
-	const [renderCache, setRenderCache] = useState({ loading, safeDelay });
-	const canResetLapseOnRerender =
-		delayLapsed && !loading && loading !== renderCache.loading;
+	const [cachedDelay, setCachedDelay] = useState(safeDelay);
+	const canResetLapseOnRerender = delayLapsed && !loading;
 	if (canResetLapseOnRerender) {
 		setDelayLapsed(false);
-		setRenderCache((current) => ({ ...current, loading }));
 	}
 	const delayWasRemovedOnRerender =
-		!delayLapsed && safeDelay === 0 && renderCache.safeDelay !== safeDelay;
+		!delayLapsed && safeDelay === 0 && safeDelay !== cachedDelay;
 	if (delayWasRemovedOnRerender) {
 		setDelayLapsed(true);
-		setRenderCache((current) => ({ ...current, safeDelay }));
+		setCachedDelay(safeDelay);
 	}
 	useEffect(() => {
 		if (safeDelay === 0) {
