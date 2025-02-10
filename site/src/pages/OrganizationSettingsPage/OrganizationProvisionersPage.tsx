@@ -171,7 +171,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					<button
 						className={cn([
 							"flex items-center gap-1 p-0 bg-transparent border-0 text-inherit text-xs cursor-pointer",
-							"transition-colors hover:text-content-primary font-medium",
+							"transition-colors hover:text-content-primary font-medium whitespace-nowrap",
 							isOpen && "text-content-primary",
 						])}
 						type="button"
@@ -194,7 +194,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 				</TableCell>
 				<TableCell>
 					{job.metadata.template_name ? (
-						<div className="flex items-center gap-1">
+						<div className="flex items-center gap-1 whitespace-nowrap">
 							<Avatar
 								variant="icon"
 								src={metadata.template_icon}
@@ -209,7 +209,14 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					)}
 				</TableCell>
 				<TableCell>
-					<Badge size="sm">[foo=bar]</Badge>
+					<div className="flex items-center gap-1 flex-wrap">
+						{Object.entries(job.tags).map(([k, v]) => (
+							<Badge size="sm" key={k} className="whitespace-nowrap">
+								[{k}
+								{v && `=${v}`}]
+							</Badge>
+						))}
+					</div>
 				</TableCell>
 				<TableCell>
 					<StatusIndicator
