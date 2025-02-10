@@ -2,8 +2,7 @@ package agentcontainers
 
 import (
 	"fmt"
-	"os/exec"
-	"runtime"
+	"os"
 	"strconv"
 	"strings"
 	"testing"
@@ -27,15 +26,14 @@ import (
 // dockerCLIContainerLister.List method. It starts a container with a known
 // label, lists the containers, and verifies that the expected container is
 // returned. The container is deleted after the test is complete.
+// As this test creates containers, it is skipped by default.
+// It can be run manually as follows:
+//
+// CODER_TEST_USE_DOCKER=1 go test ./agent/agentcontainers -run TestDockerCLIContainerLister
 func TestDockerCLIContainerLister(t *testing.T) {
 	t.Parallel()
-	if runtime.GOOS != "linux" {
-		t.Skip("creating containers on non-linux runners is slow and flaky")
-	}
-
-	// Conditionally skip if Docker is not available.
-	if _, err := exec.LookPath("docker"); err != nil {
-		t.Skip("docker not found in PATH")
+	if ctud, ok := os.LookupEnv("CODER_TEST_USE_DOCKER"); !ok || ctud != "1" {
+		t.Skip("Set CODER_TEST_USE_DOCKER=1 to run this test")
 	}
 
 	pool, err := dockertest.NewPool("")
