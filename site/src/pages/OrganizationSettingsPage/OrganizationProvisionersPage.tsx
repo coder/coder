@@ -247,6 +247,17 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 			{isOpen && (
 				<TableRow>
 					<TableCell colSpan={999} className="p-4 border-t-0">
+						{job.status === "failed" && (
+							<div
+								className={cn([
+									"inline-flex items-center gap-2 rounded border border-solid border-boder p-2",
+									"text-content-primary bg-surface-secondary mb-4",
+								])}
+							>
+								<TriangleAlertIcon className="text-content-destructive size-icon-sm p-0.5" />
+								<span className="[&:first-letter]:uppercase">{job.error}</span>
+							</div>
+						)}
 						<div
 							className={cn([
 								"grid grid-cols-[auto_1fr] gap-x-4 items-center",
