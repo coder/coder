@@ -2565,9 +2565,7 @@ func parseExternalAuthProvidersFromEnv(prefix string, environ []string) ([]coder
 	return providers, nil
 }
 
-var (
-	reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
-)
+var reInvalidPortAfterHost = regexp.MustCompile(`invalid port ".+" after host`)
 
 // If the user provides a postgres URL with a password that contains special
 // characters, the URL will be invalid. We need to escape the password so that
