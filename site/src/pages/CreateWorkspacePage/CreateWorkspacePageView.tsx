@@ -187,25 +187,20 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 
 		setPresetParameterNames(selectedPresetParameters.map((p) => p.Name));
 
-		const updatedValues = {
-			...form.values,
-			rich_parameter_values:
-				form.values.rich_parameter_values?.map((param) => {
-					const presetParam = selectedPresetParameters.find(
-						(p) => p.Name === param.name,
-					);
-					if (presetParam) {
-						return {
-							name: param.name,
-							value: presetParam.Value,
-						};
-					}
-					return param;
-				}) ?? [],
-		};
+		for (const presetParameter of selectedPresetParameters) {
+			const parameterIndex = parameters.findIndex(
+				(p) => p.name === presetParameter.Name,
+			);
+			if (parameterIndex === -1) continue;
 
-		form.setValues(updatedValues);
-	}, [selectedPresetIndex, presetParameters, presetOptions, form.setValues]);
+			const parameterField = `rich_parameter_values.${parameterIndex}`;
+
+			form.setFieldValue(parameterField, {
+				name: presetParameter.Name,
+				value: presetParameter.Value,
+			});
+		}
+	}, [presetOptions, selectedPresetIndex, presetParameters, parameters, form.setFieldValue]);
 
 	return (
 		<Margins size="medium">
