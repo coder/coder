@@ -3,12 +3,17 @@ import {
 	provisionerDaemonGroups,
 	provisionerJobs,
 } from "api/queries/organizations";
-import type { Organization } from "api/typesGenerated";
+import type { Organization, ProvisionerJobStatus } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
+import {
+	StatusIndicator,
+	StatusIndicatorDot,
+	type StatusIndicatorProps,
+} from "components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -27,7 +32,7 @@ import {
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { BanIcon } from "lucide-react";
+import { BanIcon, TriangleAlertIcon } from "lucide-react";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
@@ -110,7 +115,7 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 			<Table>
 				<TableHeader>
 					<TableRow>
-						<TableHead>Last seen</TableHead>
+						<TableHead>Created</TableHead>
 						<TableHead>Type</TableHead>
 						<TableHead>Template</TableHead>
 						<TableHead>Tags</TableHead>
@@ -126,6 +131,9 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 										`Metadata is required but it is missing in the job ${job.id}`,
 									);
 								}
+
+								const canCancel = ["pending", "running"].includes(job.status);
+
 								return (
 									<TableRow key={job.id}>
 										<TableCell className="[&:first-letter]:uppercase">
@@ -138,8 +146,11 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 											<div className="flex items-center gap-1">
 												<Avatar
 													variant="icon"
-													src={metadata.template_icon.icon}
-													fallback={template.display_name || template.name}
+													src={metadata.template_icon}
+													fallback={
+														metadata.template_display_name ||
+														metadata.template_name
+													}
 												/>
 												{metadata.template_display_name ??
 													metadata.template_name}
@@ -148,12 +159,28 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 										<TableCell>
 											<Badge size="sm">[foo=bar]</Badge>
 										</TableCell>
-										<TableCell>Completed</TableCell>
+										<TableCell>
+											<StatusIndicator
+												size="sm"
+												variant={statusIndicatorVariant(job.status)}
+											>
+												<StatusIndicatorDot />
+												<span className="[&:first-letter]:uppercase">
+													{job.status}
+												</span>
+												{job.status === "failed" && (
+													<TriangleAlertIcon className="size-icon-xs p-[1px]" />
+												)}
+												{job.status === "pending" &&
+													`(${job.queue_position}/${job.queue_size})`}
+											</StatusIndicator>
+										</TableCell>
 										<TableCell className="text-right">
 											<TooltipProvider>
 												<Tooltip>
 													<TooltipTrigger asChild>
 														<Button
+															disabled={!canCancel}
 															aria-label="Cancel job"
 															size="icon"
 															variant="outline"
@@ -181,5 +208,23 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 		</section>
 	);
 };
+
+function statusIndicatorVariant(
+	status: ProvisionerJobStatus,
+): StatusIndicatorProps["variant"] {
+	switch (status) {
+		case "succeeded":
+			return "success";
+		case "failed":
+			return "failed";
+		case "pending":
+		case "running":
+		case "canceling":
+			return "pending";
+		case "canceled":
+		case "unknown":
+			return "inactive";
+	}
+}
 
 export default OrganizationProvisionersPage;
