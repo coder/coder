@@ -93,6 +93,7 @@ of the template will be used.
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -342,6 +343,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -615,6 +617,7 @@ of the template will be used.
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -867,6 +870,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces \
           },
           "metadata": {
             "template_display_name": "string",
+            "template_icon": "string",
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
@@ -1113,6 +1117,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace} \
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -1478,6 +1483,7 @@ curl -X PUT http://coder-server:8080/api/v2/workspaces/{workspace}/dormant \
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",

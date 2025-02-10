@@ -1638,7 +1638,7 @@ export interface ProvisionerJob {
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
-	readonly metadata?: ProvisionerJobMetadata;
+	readonly metadata: ProvisionerJobMetadata;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1664,6 +1664,7 @@ export interface ProvisionerJobMetadata {
 	readonly template_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
+	readonly template_icon: string;
 	readonly workspace_id?: string;
 	readonly workspace_name?: string;
 }

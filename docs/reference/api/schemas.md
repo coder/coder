@@ -4604,6 +4604,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "metadata": {
     "template_display_name": "string",
+    "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
@@ -4717,6 +4718,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "template_display_name": "string",
+  "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
@@ -4730,6 +4732,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                    | Type   | Required | Restrictions | Description |
 |-------------------------|--------|----------|--------------|-------------|
 | `template_display_name` | string | false    |              |             |
+| `template_icon`         | string | false    |              |             |
 | `template_id`           | string | false    |              |             |
 | `template_name`         | string | false    |              |             |
 | `template_version_name` | string | false    |              |             |
@@ -6136,6 +6139,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     },
     "metadata": {
       "template_display_name": "string",
+      "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
@@ -7209,6 +7213,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -8045,6 +8050,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     },
     "metadata": {
       "template_display_name": "string",
+      "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
@@ -8717,6 +8723,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "metadata": {
             "template_display_name": "string",
+            "template_icon": "string",
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
