@@ -200,7 +200,13 @@ export const CreateWorkspacePageView: FC<CreateWorkspacePageViewProps> = ({
 				value: presetParameter.Value,
 			});
 		}
-	}, [presetOptions, selectedPresetIndex, presetParameters, parameters, form.setFieldValue]);
+	}, [
+		presetOptions,
+		selectedPresetIndex,
+		presetParameters,
+		parameters,
+		form.setFieldValue,
+	]);
 
 	return (
 		<Margins size="medium">
