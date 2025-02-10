@@ -698,8 +698,6 @@ func (c *Client) WaitForReinit(ctx context.Context, events chan<- Reinitializati
 		if err != nil {
 			return xerrors.Errorf("failed to read server-sent event: %w", err)
 		}
-		// TODO: remove
-		fmt.Printf("RECEIVED SSE EVENT: %s\n", sse.Type)
 		if sse.Type != codersdk.ServerSentEventTypeData {
 			continue
 		}
