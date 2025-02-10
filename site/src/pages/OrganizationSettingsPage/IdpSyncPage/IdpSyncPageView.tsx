@@ -9,35 +9,40 @@ import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
 import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import type { FC } from "react";
-import { useSearchParams } from "react-router-dom";
 import { IdpGroupSyncForm } from "./IdpGroupSyncForm";
 import { IdpRoleSyncForm } from "./IdpRoleSyncForm";
 
 interface IdpSyncPageViewProps {
+	tab: string;
 	groupSyncSettings: GroupSyncSettings | undefined;
 	roleSyncSettings: RoleSyncSettings | undefined;
+	claimFieldValues: readonly string[] | undefined;
 	groups: Group[] | undefined;
 	groupsMap: Map<string, string>;
 	roles: Role[] | undefined;
 	organization: Organization;
+	onGroupSyncFieldChange: (value: string) => void;
+	onRoleSyncFieldChange: (value: string) => void;
 	error?: unknown;
 	onSubmitGroupSyncSettings: (data: GroupSyncSettings) => void;
 	onSubmitRoleSyncSettings: (data: RoleSyncSettings) => void;
 }
 
 export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
+	tab,
 	groupSyncSettings,
 	roleSyncSettings,
+	claimFieldValues,
 	groups,
 	groupsMap,
 	roles,
 	organization,
+	onGroupSyncFieldChange,
+	onRoleSyncFieldChange,
 	error,
 	onSubmitGroupSyncSettings,
 	onSubmitRoleSyncSettings,
 }) => {
-	const [searchParams] = useSearchParams();
-	const tab = searchParams.get("tab") || "groups";
 	const groupMappingCount = groupSyncSettings?.mapping
 		? Object.entries(groupSyncSettings.mapping).length
 		: 0;
@@ -68,20 +73,24 @@ export const IdpSyncPageView: FC<IdpSyncPageViewProps> = ({
 			{tab === "groups" ? (
 				<IdpGroupSyncForm
 					groupSyncSettings={groupSyncSettings}
+					claimFieldValues={claimFieldValues}
 					groupMappingCount={groupMappingCount}
 					legacyGroupMappingCount={legacyGroupMappingCount}
 					groups={groups}
 					groupsMap={groupsMap}
 					organization={organization}
 					onSubmit={onSubmitGroupSyncSettings}
+					onSyncFieldChange={onGroupSyncFieldChange}
 				/>
 			) : (
 				<IdpRoleSyncForm
 					roleSyncSettings={roleSyncSettings}
+					claimFieldValues={claimFieldValues}
 					roleMappingCount={roleMappingCount}
 					roles={roles || []}
 					organization={organization}
 					onSubmit={onSubmitRoleSyncSettings}
+					onSyncFieldChange={onRoleSyncFieldChange}
 				/>
 			)}
 		</div>
