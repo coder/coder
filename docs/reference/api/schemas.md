@@ -4508,29 +4508,35 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
     "property1": "string",
     "property2": "string"
   },
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_name": "string",
   "version": "string"
 }
 ```
 
 ### Properties
 
-| Name               | Type                                                                 | Required | Restrictions | Description      |
-|--------------------|----------------------------------------------------------------------|----------|--------------|------------------|
-| `api_version`      | string                                                               | false    |              |                  |
-| `created_at`       | string                                                               | false    |              |                  |
-| `current_job`      | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |                  |
-| `id`               | string                                                               | false    |              |                  |
-| `key_id`           | string                                                               | false    |              |                  |
-| `key_name`         | string                                                               | false    |              | Optional fields. |
-| `last_seen_at`     | string                                                               | false    |              |                  |
-| `name`             | string                                                               | false    |              |                  |
-| `organization_id`  | string                                                               | false    |              |                  |
-| `previous_job`     | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |                  |
-| `provisioners`     | array of string                                                      | false    |              |                  |
-| `status`           | [codersdk.ProvisionerDaemonStatus](#codersdkprovisionerdaemonstatus) | false    |              |                  |
-| `tags`             | object                                                               | false    |              |                  |
-| » `[any property]` | string                                                               | false    |              |                  |
-| `version`          | string                                                               | false    |              |                  |
+| Name                    | Type                                                                 | Required | Restrictions | Description      |
+|-------------------------|----------------------------------------------------------------------|----------|--------------|------------------|
+| `api_version`           | string                                                               | false    |              |                  |
+| `created_at`            | string                                                               | false    |              |                  |
+| `current_job`           | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `id`                    | string                                                               | false    |              |                  |
+| `key_id`                | string                                                               | false    |              |                  |
+| `key_name`              | string                                                               | false    |              | Optional fields. |
+| `last_seen_at`          | string                                                               | false    |              |                  |
+| `name`                  | string                                                               | false    |              |                  |
+| `organization_id`       | string                                                               | false    |              |                  |
+| `previous_job`          | [codersdk.ProvisionerDaemonJob](#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `provisioners`          | array of string                                                      | false    |              |                  |
+| `status`                | [codersdk.ProvisionerDaemonStatus](#codersdkprovisionerdaemonstatus) | false    |              |                  |
+| `tags`                  | object                                                               | false    |              |                  |
+| » `[any property]`      | string                                                               | false    |              |                  |
+| `template_display_name` | string                                                               | false    |              |                  |
+| `template_icon`         | string                                                               | false    |              |                  |
+| `template_name`         | string                                                               | false    |              |                  |
+| `version`               | string                                                               | false    |              |                  |
 
 #### Enumerated Values
 
@@ -4830,6 +4836,9 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
         "property1": "string",
         "property2": "string"
       },
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string",
       "version": "string"
     }
   ],
@@ -9848,6 +9857,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
             "property1": "string",
             "property2": "string"
           },
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string",
           "version": "string"
         },
         "warnings": [
@@ -9984,6 +9996,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "property1": "string",
           "property2": "string"
         },
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string",
         "version": "string"
       },
       "warnings": [
@@ -10051,6 +10066,9 @@ Zero means unspecified. There might be a limit, but the client need not try to r
       "property1": "string",
       "property2": "string"
     },
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string",
     "version": "string"
   },
   "warnings": [

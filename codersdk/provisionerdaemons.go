@@ -62,10 +62,13 @@ type ProvisionerDaemon struct {
 	Tags           map[string]string `json:"tags" table:"tags"`
 
 	// Optional fields.
-	KeyName     *string                  `json:"key_name" table:"key name"`
-	Status      *ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
-	CurrentJob  *ProvisionerDaemonJob    `json:"current_job" table:"current job,recursive"`
-	PreviousJob *ProvisionerDaemonJob    `json:"previous_job" table:"previous job,recursive"`
+	KeyName             *string                  `json:"key_name" table:"key name"`
+	Status              *ProvisionerDaemonStatus `json:"status" enums:"offline,idle,busy" table:"status"`
+	CurrentJob          *ProvisionerDaemonJob    `json:"current_job" table:"current job,recursive"`
+	PreviousJob         *ProvisionerDaemonJob    `json:"previous_job" table:"previous job,recursive"`
+	TemplateName        *string                  `json:"template_name" table:"template name"`
+	TemplateIcon        *string                  `json:"template_icon" table:"template icon"`
+	TemplateDisplayName *string                  `json:"template_display_name" table:"template display name"`
 }
 
 type ProvisionerDaemonJob struct {

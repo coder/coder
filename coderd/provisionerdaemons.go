@@ -75,6 +75,9 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		pd.Status = ptr.Ref(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
 		pd.CurrentJob = currentJob
 		pd.PreviousJob = previousJob
+		pd.TemplateName = &dbDaemon.TemplateName.String
+		pd.TemplateDisplayName = &dbDaemon.TemplateDisplayName.String
+		pd.TemplateIcon = &dbDaemon.TemplateIcon.String
 
 		return pd
 	}))

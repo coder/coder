@@ -13080,6 +13080,15 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                },
                 "version": {
                     "type": "string"
                 }

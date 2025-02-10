@@ -1649,6 +1649,9 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
           "property1": "string",
           "property2": "string"
         },
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string",
         "version": "string"
       }
     ],
@@ -1676,34 +1679,37 @@ curl -X GET http://coder-server:8080/api/v2/organizations/{organization}/provisi
 
 Status Code **200**
 
-| Name                 | Type                                                                           | Required | Restrictions | Description      |
-|----------------------|--------------------------------------------------------------------------------|----------|--------------|------------------|
-| `[array item]`       | array                                                                          | false    |              |                  |
-| `» daemons`          | array                                                                          | false    |              |                  |
-| `»» api_version`     | string                                                                         | false    |              |                  |
-| `»» created_at`      | string(date-time)                                                              | false    |              |                  |
-| `»» current_job`     | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
-| `»»» id`             | string(uuid)                                                                   | false    |              |                  |
-| `»»» status`         | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)       | false    |              |                  |
-| `»» id`              | string(uuid)                                                                   | false    |              |                  |
-| `»» key_id`          | string(uuid)                                                                   | false    |              |                  |
-| `»» key_name`        | string                                                                         | false    |              | Optional fields. |
-| `»» last_seen_at`    | string(date-time)                                                              | false    |              |                  |
-| `»» name`            | string                                                                         | false    |              |                  |
-| `»» organization_id` | string(uuid)                                                                   | false    |              |                  |
-| `»» previous_job`    | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
-| `»» provisioners`    | array                                                                          | false    |              |                  |
-| `»» status`          | [codersdk.ProvisionerDaemonStatus](schemas.md#codersdkprovisionerdaemonstatus) | false    |              |                  |
-| `»» tags`            | object                                                                         | false    |              |                  |
-| `»»» [any property]` | string                                                                         | false    |              |                  |
-| `»» version`         | string                                                                         | false    |              |                  |
-| `» key`              | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey)                   | false    |              |                  |
-| `»» created_at`      | string(date-time)                                                              | false    |              |                  |
-| `»» id`              | string(uuid)                                                                   | false    |              |                  |
-| `»» name`            | string                                                                         | false    |              |                  |
-| `»» organization`    | string(uuid)                                                                   | false    |              |                  |
-| `»» tags`            | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags)           | false    |              |                  |
-| `»»» [any property]` | string                                                                         | false    |              |                  |
+| Name                       | Type                                                                           | Required | Restrictions | Description      |
+|----------------------------|--------------------------------------------------------------------------------|----------|--------------|------------------|
+| `[array item]`             | array                                                                          | false    |              |                  |
+| `» daemons`                | array                                                                          | false    |              |                  |
+| `»» api_version`           | string                                                                         | false    |              |                  |
+| `»» created_at`            | string(date-time)                                                              | false    |              |                  |
+| `»» current_job`           | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `»»» id`                   | string(uuid)                                                                   | false    |              |                  |
+| `»»» status`               | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)       | false    |              |                  |
+| `»» id`                    | string(uuid)                                                                   | false    |              |                  |
+| `»» key_id`                | string(uuid)                                                                   | false    |              |                  |
+| `»» key_name`              | string                                                                         | false    |              | Optional fields. |
+| `»» last_seen_at`          | string(date-time)                                                              | false    |              |                  |
+| `»» name`                  | string                                                                         | false    |              |                  |
+| `»» organization_id`       | string(uuid)                                                                   | false    |              |                  |
+| `»» previous_job`          | [codersdk.ProvisionerDaemonJob](schemas.md#codersdkprovisionerdaemonjob)       | false    |              |                  |
+| `»» provisioners`          | array                                                                          | false    |              |                  |
+| `»» status`                | [codersdk.ProvisionerDaemonStatus](schemas.md#codersdkprovisionerdaemonstatus) | false    |              |                  |
+| `»» tags`                  | object                                                                         | false    |              |                  |
+| `»»» [any property]`       | string                                                                         | false    |              |                  |
+| `»» template_display_name` | string                                                                         | false    |              |                  |
+| `»» template_icon`         | string                                                                         | false    |              |                  |
+| `»» template_name`         | string                                                                         | false    |              |                  |
+| `»» version`               | string                                                                         | false    |              |                  |
+| `» key`                    | [codersdk.ProvisionerKey](schemas.md#codersdkprovisionerkey)                   | false    |              |                  |
+| `»» created_at`            | string(date-time)                                                              | false    |              |                  |
+| `»» id`                    | string(uuid)                                                                   | false    |              |                  |
+| `»» name`                  | string                                                                         | false    |              |                  |
+| `»» organization`          | string(uuid)                                                                   | false    |              |                  |
+| `»» tags`                  | [codersdk.ProvisionerKeyTags](schemas.md#codersdkprovisionerkeytags)           | false    |              |                  |
+| `»»» [any property]`       | string                                                                         | false    |              |                  |
 
 #### Enumerated Values
 

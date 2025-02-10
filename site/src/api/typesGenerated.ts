@@ -1585,6 +1585,9 @@ export interface ProvisionerDaemon {
 	readonly status: ProvisionerDaemonStatus | null;
 	readonly current_job: ProvisionerDaemonJob | null;
 	readonly previous_job: ProvisionerDaemonJob | null;
+	readonly template_name: string | null;
+	readonly template_icon: string | null;
+	readonly template_display_name: string | null;
 }
 
 // From codersdk/provisionerdaemons.go

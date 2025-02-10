@@ -5576,7 +5576,10 @@ SELECT
 	current_job.id AS current_job_id,
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
-	previous_job.job_status AS previous_job_status
+	previous_job.job_status AS previous_job_status,
+	tmpl.name AS template_name,
+	tmpl.display_name AS template_display_name,
+	tmpl.icon AS template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -5601,6 +5604,10 @@ LEFT JOIN
 			LIMIT 1
 		)
 	)
+JOIN
+	template_versions version ON version.id = pd.version
+LEFT JOIN
+	templates tmpl ON tmpl.id = version.template_id
 WHERE
 	pd.organization_id = $2::uuid
 	AND (COALESCE(array_length($3::uuid[], 1), 0) = 0 OR pd.id = ANY($3::uuid[]))
@@ -5617,13 +5624,16 @@ type GetProvisionerDaemonsWithStatusByOrganizationParams struct {
 }
 
 type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
-	ProvisionerDaemon ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
-	Status            ProvisionerDaemonStatus  `db:"status" json:"status"`
-	KeyName           string                   `db:"key_name" json:"key_name"`
-	CurrentJobID      uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
-	CurrentJobStatus  NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
-	PreviousJobID     uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
-	PreviousJobStatus NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	ProvisionerDaemon   ProvisionerDaemon        `db:"provisioner_daemon" json:"provisioner_daemon"`
+	Status              ProvisionerDaemonStatus  `db:"status" json:"status"`
+	KeyName             string                   `db:"key_name" json:"key_name"`
+	CurrentJobID        uuid.NullUUID            `db:"current_job_id" json:"current_job_id"`
+	CurrentJobStatus    NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
+	PreviousJobID       uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
+	PreviousJobStatus   NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
+	TemplateName        sql.NullString           `db:"template_name" json:"template_name"`
+	TemplateDisplayName sql.NullString           `db:"template_display_name" json:"template_display_name"`
+	TemplateIcon        sql.NullString           `db:"template_icon" json:"template_icon"`
 }
 
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {
@@ -5658,6 +5668,9 @@ func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.C
 			&i.CurrentJobStatus,
 			&i.PreviousJobID,
 			&i.PreviousJobStatus,
+			&i.TemplateName,
+			&i.TemplateDisplayName,
+			&i.TemplateIcon,
 		); err != nil {
 			return nil, err
 		}

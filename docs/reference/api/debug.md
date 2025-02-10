@@ -329,6 +329,9 @@ curl -X GET http://coder-server:8080/api/v2/debug/health \
             "property1": "string",
             "property2": "string"
           },
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string",
           "version": "string"
         },
         "warnings": [

@@ -44,7 +44,10 @@ SELECT
 	current_job.id AS current_job_id,
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
-	previous_job.job_status AS previous_job_status
+	previous_job.job_status AS previous_job_status,
+	tmpl.name AS template_name,
+	tmpl.display_name AS template_display_name,
+	tmpl.icon AS template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -69,6 +72,10 @@ LEFT JOIN
 			LIMIT 1
 		)
 	)
+JOIN
+	template_versions version ON version.id = pd.version
+LEFT JOIN
+	templates tmpl ON tmpl.id = version.template_id
 WHERE
 	pd.organization_id = @organization_id::uuid
 	AND (COALESCE(array_length(@ids::uuid[], 1), 0) = 0 OR pd.id = ANY(@ids::uuid[]))
