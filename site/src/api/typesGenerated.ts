@@ -1392,6 +1392,7 @@ export interface OIDCConfig {
 	readonly email_field: string;
 	readonly auth_url_params: SerpentStruct<Record<string, string>>;
 	readonly ignore_user_info: boolean;
+	readonly source_user_info_from_access_token: boolean;
 	readonly organization_field: string;
 	readonly organization_mapping: SerpentStruct<Record<string, string[]>>;
 	readonly organization_assign_default: boolean;

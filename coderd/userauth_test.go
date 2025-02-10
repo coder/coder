@@ -1337,8 +1337,9 @@ func TestUserOIDC(t *testing.T) {
 				cfg.AllowSignups = tc.AllowSignups
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
+				cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
 				if tc.IgnoreUserInfo {
-					cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 				}
 				if tc.UseAccessToken {
 					cfg.SecondaryClaims = coderd.MergedClaimsSourceAccessToken
