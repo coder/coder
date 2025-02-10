@@ -174,7 +174,7 @@ func createOIDCConfig(ctx context.Context, logger slog.Logger, vals *codersdk.De
 
 	secondaryClaimsSrc := coderd.MergedClaimsSourceUserInfo
 	if !vals.OIDC.IgnoreUserInfo && vals.OIDC.UserInfoFromAccessToken {
-		return nil, xerrors.Errorf("cannot specify both 'oidc-access-token-claims' and 'oidc-ignore-userinfo'")
+		return nil, xerrors.Errorf("to use 'oidc-access-token-claims', 'oidc-ignore-userinfo' must be set to 'false'")
 	}
 	if vals.OIDC.IgnoreUserInfo {
 		secondaryClaimsSrc = coderd.MergedClaimsSourceNone
