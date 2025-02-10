@@ -60,7 +60,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 
 	cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
 		cfg.AllowSignups = true
-		cfg.IgnoreUserInfo = true
+		cfg.SecondaryClaims = coderd.MergedClaimsSourceNone
 	})
 
 	client, _, api := coderdtest.NewWithAPI(t, &coderdtest.Options{
@@ -1301,7 +1301,9 @@ func TestUserOIDC(t *testing.T) {
 				cfg.AllowSignups = tc.AllowSignups
 				cfg.EmailDomain = tc.EmailDomain
 				cfg.IgnoreEmailVerified = tc.IgnoreEmailVerified
-				cfg.IgnoreUserInfo = tc.IgnoreUserInfo
+				if tc.IgnoreUserInfo {
+					cfg.SecondaryClaims = coderd.MergedClaimsSourceUserInfo
+				}
 				cfg.NameField = "name"
 			})
 

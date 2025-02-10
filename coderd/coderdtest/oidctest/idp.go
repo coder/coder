@@ -1465,9 +1465,10 @@ func (f *FakeIDP) internalOIDCConfig(ctx context.Context, t testing.TB, scopes [
 		Verifier: oidc.NewVerifier(f.provider.Issuer, &oidc.StaticKeySet{
 			PublicKeys: []crypto.PublicKey{f.key.Public()},
 		}, verifierConfig),
-		UsernameField: "preferred_username",
-		EmailField:    "email",
-		AuthURLParams: map[string]string{"access_type": "offline"},
+		UsernameField:   "preferred_username",
+		EmailField:      "email",
+		AuthURLParams:   map[string]string{"access_type": "offline"},
+		SecondaryClaims: coderd.MergedClaimsSourceUserInfo,
 	}
 
 	for _, opt := range opts {
