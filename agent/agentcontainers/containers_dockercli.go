@@ -58,6 +58,8 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("scan docker ps output: %w", err)
 	}
 
+	dockerPsStderr := strings.TrimSpace(stderrBuf.String())
+
 	// now we can get the detailed information for each container
 	// Run `docker inspect` on each container ID
 	stdoutBuf.Reset()
@@ -70,6 +72,8 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 	if err := cmd.Run(); err != nil {
 		return codersdk.WorkspaceAgentListContainersResponse{}, xerrors.Errorf("run docker inspect: %w: %s", err, strings.TrimSpace(stderrBuf.String()))
 	}
+
+	dockerInspectStderr := strings.TrimSpace(stderrBuf.String())
 
 	// NOTE: There is an unavoidable potential race condition where a
 	// container is removed between `docker ps` and `docker inspect`.
@@ -92,24 +96,41 @@ func (dcl *DockerCLILister) List(ctx context.Context) (codersdk.WorkspaceAgentLi
 		res.Containers[idx] = out
 	}
 
+	if dockerPsStderr != "" {
+		res.Warnings = append(res.Warnings, dockerPsStderr)
+	}
+	if dockerInspectStderr != "" {
+		res.Warnings = append(res.Warnings, dockerInspectStderr)
+	}
+
 	return res, nil
 }
 
 // To avoid a direct dependency on the Docker API, we use the docker CLI
 // to fetch information about containers.
 type dockerInspect struct {
-	ID      string              `json:"Id"`
-	Created time.Time           `json:"Created"`
-	Name    string              `json:"Name"`
-	Config  dockerInspectConfig `json:"Config"`
-	State   dockerInspectState  `json:"State"`
+	ID         string                  `json:"Id"`
+	Created    time.Time               `json:"Created"`
+	Config     dockerInspectConfig     `json:"Config"`
+	HostConfig dockerInspectHostConfig `json:"HostConfig"`
+	Name       string                  `json:"Name"`
+	Mounts     []dockerInspectMount    `json:"Mounts"`
+	State      dockerInspectState      `json:"State"`
 }
 
 type dockerInspectConfig struct {
-	ExposedPorts map[string]struct{} `json:"ExposedPorts"`
-	Image        string              `json:"Image"`
-	Labels       map[string]string   `json:"Labels"`
-	Volumes      map[string]struct{} `json:"Volumes"`
+	Image  string            `json:"Image"`
+	Labels map[string]string `json:"Labels"`
+}
+
+type dockerInspectHostConfig struct {
+	PortBindings map[string]any `json:"PortBindings"`
+}
+
+type dockerInspectMount struct {
+	Source      string `json:"Source"`
+	Destination string `json:"Destination"`
+	Type        string `json:"Type"`
 }
 
 type dockerInspectState struct {
@@ -144,14 +165,17 @@ func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer
 		ID:           in.ID,
 		Image:        in.Config.Image,
 		Labels:       in.Config.Labels,
-		Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0, len(in.Config.ExposedPorts)),
+		Ports:        make([]codersdk.WorkspaceAgentListeningPort, 0),
 		Running:      in.State.Running,
 		Status:       in.State.String(),
-		Volumes:      make(map[string]string, len(in.Config.Volumes)),
+		Volumes:      make(map[string]string, len(in.Mounts)),
 	}
 
-	// sort the keys for deterministic output
-	portKeys := maps.Keys(in.Config.ExposedPorts)
+	if in.HostConfig.PortBindings == nil {
+		in.HostConfig.PortBindings = make(map[string]any)
+	}
+	portKeys := maps.Keys(in.HostConfig.PortBindings)
+	// Sort the ports for deterministic output.
 	sort.Strings(portKeys)
 	for _, p := range portKeys {
 		if port, network, err := convertDockerPort(p); err != nil {
@@ -164,15 +188,15 @@ func convertDockerInspect(in dockerInspect) (codersdk.WorkspaceAgentDevcontainer
 		}
 	}
 
-	// sort the keys for deterministic output
-	volKeys := maps.Keys(in.Config.Volumes)
-	sort.Strings(volKeys)
-	for _, k := range volKeys {
-		if v0, v1, err := convertDockerVolume(k); err != nil {
-			warns = append(warns, err.Error())
-		} else {
-			out.Volumes[v0] = v1
-		}
+	if in.Mounts == nil {
+		in.Mounts = []dockerInspectMount{}
+	}
+	// Sort the mounts for deterministic output.
+	sort.Slice(in.Mounts, func(i, j int) bool {
+		return in.Mounts[i].Source < in.Mounts[j].Source
+	})
+	for _, k := range in.Mounts {
+		out.Volumes[k.Source] = k.Destination
 	}
 
 	return out, warns
@@ -200,23 +224,5 @@ func convertDockerPort(in string) (uint16, string, error) {
 		return uint16(p), parts[1], nil
 	default:
 		return 0, "", xerrors.Errorf("invalid port format: %s", in)
-	}
-}
-
-// convertDockerVolume converts a Docker volume string to a host path and
-// container path. If the host path is not specified, the container path is used
-// as the host path.
-// example: "/host/path=/container/path" -> "/host/path", "/container/path"
-//
-//	"/container/path" -> "/container/path", "/container/path"
-func convertDockerVolume(in string) (hostPath, containerPath string, err error) {
-	parts := strings.Split(in, "=")
-	switch len(parts) {
-	case 1:
-		return parts[0], parts[0], nil
-	case 2:
-		return parts[0], parts[1], nil
-	default:
-		return "", "", xerrors.Errorf("invalid volume format: %s", in)
 	}
 }

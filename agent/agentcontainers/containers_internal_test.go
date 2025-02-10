@@ -1,8 +1,10 @@
 package agentcontainers
 
 import (
+	"fmt"
 	"os/exec"
 	"runtime"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -39,18 +41,34 @@ func TestDockerCLIContainerLister(t *testing.T) {
 	pool, err := dockertest.NewPool("")
 	require.NoError(t, err, "Could not connect to docker")
 	testLabelValue := uuid.New().String()
+	// Create a temporary directory to validate that we surface mounts correctly.
+	testTempDir := t.TempDir()
+	// Pick a random port to expose for testing port bindings.
+	testRandPort := testutil.RandomPortNoListen(t)
 	ct, err := pool.RunWithOptions(&dockertest.RunOptions{
-		Repository: "busybox",
-		Tag:        "latest",
-		Cmd:        []string{"sleep", "infnity"},
-		Labels:     map[string]string{"com.coder.test": testLabelValue},
+		Repository:   "busybox",
+		Tag:          "latest",
+		Cmd:          []string{"sleep", "infnity"},
+		Labels:       map[string]string{"com.coder.test": testLabelValue},
+		Mounts:       []string{testTempDir + ":" + testTempDir},
+		ExposedPorts: []string{fmt.Sprintf("%d/tcp", testRandPort)},
+		PortBindings: map[docker.Port][]docker.PortBinding{
+			docker.Port(fmt.Sprintf("%d/tcp", testRandPort)): {
+				{
+					HostIP:   "0.0.0.0",
+					HostPort: strconv.FormatInt(int64(testRandPort), 10),
+				},
+			},
+		},
 	}, func(config *docker.HostConfig) {
 		config.AutoRemove = true
 		config.RestartPolicy = docker.RestartPolicy{Name: "no"}
 	})
 	require.NoError(t, err, "Could not start test docker container")
+	t.Logf("Created container %q", ct.Container.Name)
 	t.Cleanup(func() {
 		assert.NoError(t, pool.Purge(ct), "Could not purge resource %q", ct.Container.Name)
+		t.Logf("Purged container %q", ct.Container.Name)
 	})
 
 	dcl := NewDocker(agentexec.DefaultExecer)
@@ -70,8 +88,13 @@ func TestDockerCLIContainerLister(t *testing.T) {
 			assert.Equal(t, ct.Container.Config.Labels, foundContainer.Labels)
 			assert.True(t, foundContainer.Running)
 			assert.Equal(t, "running", foundContainer.Status)
-			assert.Len(t, foundContainer.Ports, 0)
-			assert.Len(t, foundContainer.Volumes, 0)
+			if assert.Len(t, foundContainer.Ports, 1) {
+				assert.Equal(t, testRandPort, foundContainer.Ports[0].Port)
+				assert.Equal(t, "tcp", foundContainer.Ports[0].Network)
+			}
+			if assert.Len(t, foundContainer.Volumes, 1) {
+				assert.Equal(t, testTempDir, foundContainer.Volumes[testTempDir])
+			}
 			break
 		}
 	}
