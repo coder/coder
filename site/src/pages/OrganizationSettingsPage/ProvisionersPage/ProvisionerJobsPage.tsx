@@ -1,23 +1,9 @@
-import { buildInfo } from "api/queries/buildInfo";
-import {
-	provisionerDaemonGroups,
-	provisionerJobs,
-} from "api/queries/organizations";
-import type {
-	Organization,
-	ProvisionerJob,
-	ProvisionerJobStatus,
-} from "api/typesGenerated";
+import { provisionerJobs } from "api/queries/organizations";
+import type { Organization, ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
-import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
-import {
-	StatusIndicator,
-	StatusIndicatorDot,
-	type StatusIndicatorProps,
-} from "components/StatusIndicator/StatusIndicator";
 import {
 	Table,
 	TableBody,
@@ -28,95 +14,30 @@ import {
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { TableLoader } from "components/TableLoader/TableLoader";
-import { TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { useEmbeddedMetadata } from "hooks/useEmbeddedMetadata";
-import { useSearchParamsKey } from "hooks/useSearchParamsKey";
 import {
 	BanIcon,
 	ChevronDownIcon,
 	ChevronRightIcon,
-	Tangent,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useDashboard } from "modules/dashboard/useDashboard";
-import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import { useState, type FC } from "react";
-import { Helmet } from "react-helmet-async";
 import { useQuery } from "react-query";
-import { useParams } from "react-router-dom";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
-import { pageTitle } from "utils/page";
 import { relativeTime } from "utils/time";
+import { JobStatusIndicator } from "./JobStatusIndicator";
 
-const OrganizationProvisionersPage: FC = () => {
-	// const { organization: organizationName } = useParams() as {
-	// 	organization: string;
-	// };
-	const { organization } = useOrganizationSettings();
-	const tab = useSearchParamsKey({
-		key: "tab",
-		defaultValue: "jobs",
-	});
-	// const { entitlements } = useDashboard();
-	// const { metadata } = useEmbeddedMetadata();
-	// const buildInfoQuery = useQuery(buildInfo(metadata["build-info"]));
-	// const provisionersQuery = useQuery(provisionerDaemonGroups(organizationName));
-
-	if (!organization) {
-		return <EmptyState message="Organization not found" />;
-	}
-
-	return (
-		<>
-			<Helmet>
-				<title>
-					{pageTitle(
-						"Provisioners",
-						organization.display_name || organization.name,
-					)}
-				</title>
-			</Helmet>
-
-			<div className="flex flex-col gap-12">
-				<header className="flex flex-row items-baseline justify-between">
-					<div className="flex flex-col gap-2">
-						<h1 className="text-3xl m-0">Provisioners</h1>
-					</div>
-				</header>
-
-				<main>
-					<Tabs active={tab.value}>
-						<TabsList>
-							<TabLink value="jobs" to="?tab=jobs">
-								Jobs
-							</TabLink>
-							<TabLink value="daemons" to="?tab=daemons">
-								Daemons
-							</TabLink>
-						</TabsList>
-					</Tabs>
-
-					<div className="mt-6">
-						{tab.value === "jobs" && <JobsTabContent org={organization} />}
-					</div>
-				</main>
-			</div>
-		</>
-	);
-};
-
-type JobsTabContentProps = {
+type ProvisionerJobsPageProps = {
 	org: Organization;
 };
 
-const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
+export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({ org }) => {
 	const { data: jobs, isLoadingError } = useQuery(provisionerJobs(org.id));
 
 	return (
@@ -135,6 +56,7 @@ const JobsTabContent: FC<JobsTabContentProps> = ({ org }) => {
 						<TableHead>Template</TableHead>
 						<TableHead>Tags</TableHead>
 						<TableHead>Status</TableHead>
+						<TableHead />
 					</TableRow>
 				</TableHeader>
 				<TableBody>
@@ -219,18 +141,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 					</div>
 				</TableCell>
 				<TableCell>
-					<StatusIndicator
-						size="sm"
-						variant={statusIndicatorVariant(job.status)}
-					>
-						<StatusIndicatorDot />
-						<span className="[&:first-letter]:uppercase">{job.status}</span>
-						{job.status === "failed" && (
-							<TriangleAlertIcon className="size-icon-xs p-[1px]" />
-						)}
-						{job.status === "pending" &&
-							`(${job.queue_position}/${job.queue_size})`}
-					</StatusIndicator>
+					<JobStatusIndicator job={job} />
 				</TableCell>
 				<TableCell className="text-right">
 					<TooltipProvider>
@@ -302,23 +213,3 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 		</>
 	);
 };
-
-function statusIndicatorVariant(
-	status: ProvisionerJobStatus,
-): StatusIndicatorProps["variant"] {
-	switch (status) {
-		case "succeeded":
-			return "success";
-		case "failed":
-			return "failed";
-		case "pending":
-		case "running":
-		case "canceling":
-			return "pending";
-		case "canceled":
-		case "unknown":
-			return "inactive";
-	}
-}
-
-export default OrganizationProvisionersPage;
