@@ -72,6 +72,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"email":              "alice@coder.com",
 		"email_verified":     true,
 		"preferred_username": username,
+		"sub":                uuid.NewString(),
 	}
 
 	helper := oidctest.NewLoginHelper(client, fake)
@@ -1828,6 +1829,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
 		"iss":   secondaryURLString,
 		"email": "alice@coder.com",
+		"sub":   uuid.NewString(),
 	})
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)
