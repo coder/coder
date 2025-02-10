@@ -310,16 +310,19 @@ message GetResourcesMonitoringConfigurationResponse {
 
 message PushResourcesMonitoringUsageRequest {
 	message Datapoint {
+		message MemoryUsage {
+			int64 used = 1;
+			int64 total = 2;
+		}
 		message VolumeUsage {
 			string volume = 1;
-			int32 space_used = 2;
-			int32 space_total = 3;
+			int64 used = 2;
+			int64 total = 3;
 		}
 
 		google.protobuf.Timestamp collected_at = 1;
-		int32 memory_used = 2;
-		int32 memory_total =3;
-		repeated VolumeUsage volumes = 4;
+		MemoryUsage memory = 2;
+		repeated VolumeUsage volumes = 3;
 
 	}
 	repeated Datapoint datapoints = 1;

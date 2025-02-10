@@ -103,7 +103,11 @@ func New(opts Options) *API {
 		appearanceFetcher: opts.AppearanceFetcher,
 	}
 
-	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{}
+	api.ResourcesMonitoringAPI = &ResourcesMonitoringAPI{
+		Log:      opts.Log,
+		AgentFn:  api.agent,
+		Database: opts.Database,
+	}
 
 	api.StatsAPI = &StatsAPI{
 		AgentFn:                   api.agent,

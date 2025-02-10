@@ -43,4 +43,6 @@ type DRPCAgentClient23 interface {
 
 type DRPCAgentClient24 interface {
 	DRPCAgentClient23
+	GetResourcesMonitoringConfiguration(ctx context.Context, in *GetResourcesMonitoringConfigurationRequest) (*GetResourcesMonitoringConfigurationResponse, error)
+	PushResourcesMonitoringUsage(ctx context.Context, in *PushResourcesMonitoringUsageRequest) (*PushResourcesMonitoringUsageResponse, error)
 }

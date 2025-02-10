@@ -785,6 +785,8 @@ func (a *agent) run() (retErr error) {
 	// metadata reporting can cease as soon as we start gracefully shutting down
 	connMan.startAgentAPI("report metadata", gracefulShutdownBehaviorStop, a.reportMetadata)
 
+	connMan.startAgentAPI("resources monitor", gracefulShutdownBehaviorStop, a.pushResourcesMonitoring)
+
 	// channels to sync goroutines below
 	//  handle manifest
 	//       |

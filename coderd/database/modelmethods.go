@@ -327,6 +327,14 @@ func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
 }
 
+func (c WorkspaceAgentMemoryResourceMonitor) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceAgentResourceMonitor.RBACObject()
+}
+
+func (c WorkspaceAgentVolumeResourceMonitor) RBACObject() rbac.Object {
+	return rbac.ResourceWorkspaceAgentResourceMonitor.RBACObject()
+}
+
 func (OAuth2ProviderAppSecret) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppSecret
 }
