@@ -7854,6 +7854,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get running containers for workspace agent",
+                "operationId": "get-running-containers-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "key=value",
+                        "description": "Labels",
+                        "name": "label",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
@@ -13229,6 +13272,9 @@ const docTemplate = `{
                 "template_display_name": {
                     "type": "string"
                 },
+                "template_icon": {
+                    "type": "string"
+                },
                 "template_id": {
                     "type": "string",
                     "format": "uuid"
@@ -15608,6 +15654,57 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentDevcontainer": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "CreatedAt is the time the container was created.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "description": "ID is the unique identifier of the container.",
+                    "type": "string"
+                },
+                "image": {
+                    "description": "Image is the name of the container image.",
+                    "type": "string"
+                },
+                "labels": {
+                    "description": "Labels is a map of key-value pairs of container labels.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "FriendlyName is the human-readable name of the container.",
+                    "type": "string"
+                },
+                "ports": {
+                    "description": "Ports includes ports exposed by the container.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
+                    }
+                },
+                "running": {
+                    "description": "Running is true if the container is currently running.",
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "Status is the current status of the container. This is somewhat\nimplementation-dependent, but should generally be a human-readable\nstring.",
+                    "type": "string"
+                },
+                "volumes": {
+                    "description": "Volumes is a map of \"things\" mounted into the container. Again, this\nis somewhat implementation-dependent.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceAgentHealth": {
             "type": "object",
             "properties": {
@@ -15647,6 +15744,25 @@ const docTemplate = `{
                 "WorkspaceAgentLifecycleShutdownError",
                 "WorkspaceAgentLifecycleOff"
             ]
+        },
+        "codersdk.WorkspaceAgentListContainersResponse": {
+            "type": "object",
+            "properties": {
+                "containers": {
+                    "description": "Containers is a list of containers visible to the workspace agent.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings is a list of warnings that may have occurred during the\nprocess of listing containers. This should not include fatal errors.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.WorkspaceAgentListeningPort": {
             "type": "object",

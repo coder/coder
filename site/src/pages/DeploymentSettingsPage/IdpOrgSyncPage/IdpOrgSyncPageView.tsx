@@ -1,4 +1,3 @@
-import { TooltipProvider } from "@radix-ui/react-tooltip";
 import type {
 	Organization,
 	OrganizationSyncSettings,
@@ -30,7 +29,6 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
-import { Stack } from "components/Stack/Stack";
 import { Switch } from "components/Switch/Switch";
 import {
 	Table,
@@ -42,6 +40,7 @@ import {
 import {
 	Tooltip,
 	TooltipContent,
+	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
@@ -368,7 +367,7 @@ const IdpMappingTable: FC<IdpMappingTableProps> = ({ isEmpty, children }) => {
 				<TableRow>
 					<TableCell width="45%">IdP organization</TableCell>
 					<TableCell width="55%">Coder organization</TableCell>
-					<TableCell width="10%" />
+					<TableCell width="5%" />
 				</TableRow>
 			</TableHeader>
 			<TableBody>

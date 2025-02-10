@@ -563,7 +563,8 @@ GEN_FILES := \
 	site/e2e/provisionerGenerated.ts \
 	examples/examples.gen.json \
 	$(TAILNETTEST_MOCKS) \
-	coderd/database/pubsub/psmock/psmock.go
+	coderd/database/pubsub/psmock/psmock.go \
+	agent/agentcontainers/acmock/acmock.go
 
 
 # all gen targets should be added here and to gen/mark-fresh
@@ -598,6 +599,7 @@ gen/mark-fresh:
 		examples/examples.gen.json \
 		$(TAILNETTEST_MOCKS) \
 		coderd/database/pubsub/psmock/psmock.go \
+		agent/agentcontainers/acmock/acmock.go \
 		"
 
 	for file in $$files; do
@@ -628,6 +630,9 @@ coderd/database/dbmock/dbmock.go: coderd/database/db.go coderd/database/querier.
 
 coderd/database/pubsub/psmock/psmock.go: coderd/database/pubsub/pubsub.go
 	go generate ./coderd/database/pubsub/psmock
+
+agent/agentcontainers/acmock/acmock.go: agent/agentcontainers/containers.go
+	go generate ./agent/agentcontainers/acmock/
 
 $(TAILNETTEST_MOCKS): tailnet/coordinator.go tailnet/service.go
 	go generate ./tailnet/tailnettest/

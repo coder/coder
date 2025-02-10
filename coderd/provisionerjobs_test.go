@@ -84,11 +84,12 @@ func TestProvisionerJobs(t *testing.T) {
 				require.Equal(t, job.ID, job2.ID)
 
 				// Verify that job metadata is correct.
-				assert.Equal(t, job2.Metadata, &codersdk.ProvisionerJobMetadata{
+				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
 					TemplateVersionName: version.Name,
 					TemplateID:          template.ID,
 					TemplateName:        template.Name,
 					TemplateDisplayName: template.DisplayName,
+					TemplateIcon:        template.Icon,
 					WorkspaceID:         &w.ID,
 					WorkspaceName:       w.Name,
 				})
@@ -105,11 +106,12 @@ func TestProvisionerJobs(t *testing.T) {
 				require.Equal(t, version.Job.ID, job2.ID)
 
 				// Verify that job metadata is correct.
-				assert.Equal(t, job2.Metadata, &codersdk.ProvisionerJobMetadata{
+				assert.Equal(t, job2.Metadata, codersdk.ProvisionerJobMetadata{
 					TemplateVersionName: version.Name,
 					TemplateID:          template.ID,
 					TemplateName:        template.Name,
 					TemplateDisplayName: template.DisplayName,
+					TemplateIcon:        template.Icon,
 				})
 			})
 		})
