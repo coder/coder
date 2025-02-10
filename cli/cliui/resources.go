@@ -96,7 +96,7 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 		for index, agent := range resource.Agents {
 			tableWriter.AppendRow(renderAgentRow(agent, index, totalAgents, options))
 			if options.ListeningPorts != nil {
-				if lp, ok := options.ListeningPorts[agent.ID]; ok {
+				if lp, ok := options.ListeningPorts[agent.ID]; ok && len(lp.Ports) > 0 {
 					tableWriter.AppendRow(table.Row{
 						fmt.Sprintf("   %s─ %s", renderPipe(index, totalAgents), "Open Ports"),
 					})
