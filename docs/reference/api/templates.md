@@ -2672,6 +2672,108 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
 
+## Get template version presets
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/presets \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/presets`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "id": "string",
+    "name": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.Preset](schemas.md#codersdkpreset) |
+
+<h3 id="get-template-version-presets-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `[array item]` | array  | false    |              |             |
+| `» id`         | string | false    |              |             |
+| `» name`       | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
+## Get template version preset parameters
+
+### Code samples
+
+```shell
+# Example request using curl
+curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/presets/parameters \
+  -H 'Accept: application/json' \
+  -H 'Coder-Session-Token: API_KEY'
+```
+
+`GET /templateversions/{templateversion}/presets/parameters`
+
+### Parameters
+
+| Name              | In   | Type         | Required | Description         |
+|-------------------|------|--------------|----------|---------------------|
+| `templateversion` | path | string(uuid) | true     | Template version ID |
+
+### Example responses
+
+> 200 Response
+
+```json
+[
+  {
+    "name": "string",
+    "presetID": "string",
+    "value": "string"
+  }
+]
+```
+
+### Responses
+
+| Status | Meaning                                                 | Description | Schema                                                                  |
+|--------|---------------------------------------------------------|-------------|-------------------------------------------------------------------------|
+| 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.PresetParameter](schemas.md#codersdkpresetparameter) |
+
+<h3 id="get-template-version-preset-parameters-responseschema">Response Schema</h3>
+
+Status Code **200**
+
+| Name           | Type   | Required | Restrictions | Description |
+|----------------|--------|----------|--------------|-------------|
+| `[array item]` | array  | false    |              |             |
+| `» name`       | string | false    |              |             |
+| `» presetID`   | string | false    |              |             |
+| `» value`      | string | false    |              |             |
+
+To perform this operation, you must be authenticated. [Learn more](authentication.md).
+
 ## Get resources by template version
 
 ### Code samples

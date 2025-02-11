@@ -1550,6 +1550,19 @@ export interface PprofConfig {
 	readonly address: string;
 }
 
+// From codersdk/presets.go
+export interface Preset {
+	readonly ID: string;
+	readonly Name: string;
+}
+
+// From codersdk/presets.go
+export interface PresetParameter {
+	readonly PresetID: string;
+	readonly Name: string;
+	readonly Value: string;
+}
+
 // From codersdk/deployment.go
 export interface PrometheusConfig {
 	readonly enable: boolean;
