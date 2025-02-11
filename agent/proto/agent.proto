@@ -297,16 +297,17 @@ message Timing {
 
 message PushResourcesMonitoringUsageRequest {
 	message Datapoint {
-		message VolumeUsage {
-			string path = 1;
-			int64 space_used = 2;
-			int64 space_total = 3;
-		}
-
 		message MemoryUsage {
 			int64 used = 1;
 			int64 total = 2;
 		}
+
+		message VolumeUsage {
+			string volume = 1;
+			int64 used = 2;
+			int64 total = 3;
+		}
+
 
 		google.protobuf.Timestamp collected_at = 1;
 		MemoryUsage memory = 2;

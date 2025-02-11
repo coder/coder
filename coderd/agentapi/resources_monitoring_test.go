@@ -376,8 +376,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 10, Total: 10},
+					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
 			},
 		},
@@ -402,8 +402,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 1, Total: 10},
+					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
 			},
 		},
@@ -428,8 +428,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 10, Total: 10},
+					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
 			},
 		},
@@ -451,8 +451,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 1, Total: 10},
+					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
 			},
 		},
@@ -474,8 +474,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 10, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 1, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 10, Total: 10},
+					{Volume: secondVolumePath, Used: 1, Total: 10},
 				},
 			},
 		},
@@ -500,8 +500,8 @@ func TestVolumeResourceMonitorDebounce(t *testing.T) {
 			{
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
-					{Path: firstVolumePath, SpaceUsed: 1, SpaceTotal: 10},
-					{Path: secondVolumePath, SpaceUsed: 10, SpaceTotal: 10},
+					{Volume: firstVolumePath, Used: 1, Total: 10},
+					{Volume: secondVolumePath, Used: 10, Total: 10},
 				},
 			},
 		},
@@ -623,9 +623,9 @@ func TestVolumeResourceMonitor(t *testing.T) {
 
 				volumeDatapoints := []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:       tt.volumePath,
-						SpaceUsed:  volumeUsage,
-						SpaceTotal: tt.volumeTotal,
+						Volume: tt.volumePath,
+						Used:   volumeUsage,
+						Total:  tt.volumeTotal,
 					},
 				}
 
@@ -686,14 +686,14 @@ func TestVolumeResourceMonitorMultiple(t *testing.T) {
 				CollectedAt: timestamppb.New(clock.Now()),
 				Volume: []*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage{
 					{
-						Path:       "/home/coder",
-						SpaceUsed:  10,
-						SpaceTotal: 10,
+						Volume: "/home/coder",
+						Used:   10,
+						Total:  10,
 					},
 					{
-						Path:       "/dev/coder",
-						SpaceUsed:  10,
-						SpaceTotal: 10,
+						Volume: "/dev/coder",
+						Used:   10,
+						Total:  10,
 					},
 				},
 			},

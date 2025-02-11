@@ -130,9 +130,9 @@ func (m *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	volumes := make(map[string][]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
 	for _, datapoint := range datapoints {
 		for _, volume := range datapoint.Volume {
-			volumeDatapoints := volumes[volume.Path]
+			volumeDatapoints := volumes[volume.Volume]
 			volumeDatapoints = append(volumeDatapoints, volume)
-			volumes[volume.Path] = volumeDatapoints
+			volumes[volume.Volume] = volumeDatapoints
 		}
 	}
 
@@ -258,7 +258,7 @@ func calculateVolumeUsageStates(
 	states := make([]database.WorkspaceAgentMonitorState, 0, len(datapoints))
 
 	for _, datapoint := range datapoints {
-		percent := int32(float64(datapoint.SpaceUsed) / float64(datapoint.SpaceTotal) * 100)
+		percent := int32(float64(datapoint.Used) / float64(datapoint.Total) * 100)
 
 		state := database.WorkspaceAgentMonitorStateOK
 		if percent >= monitor.Threshold {
