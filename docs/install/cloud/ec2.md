@@ -19,14 +19,22 @@ To launch a Coder AMI EC2 instance:
 1. Open the [Amazon EC2 console](https://console.aws.amazon.com/ec2/) and
    confirm that you're logged in.
 
-1. Access the
-   [Coder AMI in the AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc).
+1. Select **Launch instance**.
+
+1. Assign a name and, optionally, additional tags.
+
+1. In the **Application and OS Images** section, use the search bar to search for `coder`.
+
+   Select the **AWS Marketplace AMIs** tab, then **Select** next to the
+   **Coder** AMI.
 
    ![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
 
-1. Select **View purchase options** to continue to the configuration screen.
+   You can also access the
+   [Coder AMI directly](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc),
+   then select **View purchase options** to continue to the configuration screen.
 
-1. Name your instance and in the **Instance type** section, use the dropdown
+1. Name your instance, then in the **Instance type** section, use the dropdown
    list to select `t2.xlarge` (4 vCPU, 16 GiB memory)
 
    Keep in mind this platform is intended for proof-of-concept deployments and
