@@ -1392,10 +1392,6 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return database.WorkspaceAgentMemoryResourceMonitor{}, err
-	}
-
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
 
@@ -1407,10 +1403,6 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 }
 
 func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
-	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
-		return nil, err
-	}
-
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
 }
 
