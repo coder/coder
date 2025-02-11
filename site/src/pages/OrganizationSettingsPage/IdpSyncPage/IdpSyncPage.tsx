@@ -8,6 +8,7 @@ import {
 	roleIdpSyncSettings,
 } from "api/queries/organizations";
 import { organizationRoles } from "api/queries/roles";
+import type { GroupSyncSettings, RoleSyncSettings } from "api/typesGenerated";
 import { ChooseOne, Cond } from "components/Conditionals/ChooseOne";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError } from "components/GlobalSnackbar/utils";
@@ -16,7 +17,7 @@ import { Link } from "components/Link/Link";
 import { Paywall } from "components/Paywall/Paywall";
 import { useFeatureVisibility } from "modules/dashboard/useFeatureVisibility";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
-import type { FC } from "react";
+import { type FC, useEffect, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQueries, useQuery, useQueryClient } from "react-query";
 import { useParams, useSearchParams } from "react-router-dom";
@@ -26,13 +27,15 @@ import IdpSyncPageView from "./IdpSyncPageView";
 
 export const IdpSyncPage: FC = () => {
 	const queryClient = useQueryClient();
+	// IdP sync does not have its own entitlement and is based on templace_rbac
+	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organization: organizationName } = useParams() as {
 		organization: string;
 	};
-	// IdP sync does not have its own entitlement and is based on templace_rbac
-	const { template_rbac: isIdpSyncEnabled } = useFeatureVisibility();
 	const { organizations } = useOrganizationSettings();
 	const organization = organizations?.find((o) => o.name === organizationName);
+	const [groupField, setGroupField] = useState("");
+	const [roleField, setRoleField] = useState("");
 
 	const [
 		groupIdpSyncSettingsQuery,
@@ -48,12 +51,25 @@ export const IdpSyncPage: FC = () => {
 		],
 	});
 
+	useEffect(() => {
+		if (!groupIdpSyncSettingsQuery.data) {
+			return;
+		}
+
+		setGroupField(groupIdpSyncSettingsQuery.data.field);
+	}, [groupIdpSyncSettingsQuery.data]);
+
+	useEffect(() => {
+		if (!roleIdpSyncSettingsQuery.data) {
+			return;
+		}
+
+		setRoleField(roleIdpSyncSettingsQuery.data.field);
+	}, [roleIdpSyncSettingsQuery.data]);
+
 	const [searchParams] = useSearchParams();
 	const tab = searchParams.get("tab") || "groups";
-	const field =
-		tab === "groups"
-			? groupIdpSyncSettingsQuery.data?.field
-			: roleIdpSyncSettingsQuery.data?.field;
+	const field = tab === "groups" ? groupField : roleField;
 
 	const fieldValuesQuery = useQuery(
 		field
@@ -121,6 +137,8 @@ export const IdpSyncPage: FC = () => {
 							groupsMap={groupsMap}
 							roles={rolesQuery.data}
 							organization={organization}
+							onGroupSyncFieldChange={setGroupField}
+							onRoleSyncFieldChange={setRoleField}
 							error={error}
 							onSubmitGroupSyncSettings={async (data) => {
 								try {

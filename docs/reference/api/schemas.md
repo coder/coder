@@ -4488,7 +4488,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "current_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4498,7 +4501,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "previous_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "provisioners": [
     "string"
@@ -4545,16 +4551,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "status": "pending"
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_name": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                           | Required | Restrictions | Description |
-|----------|----------------------------------------------------------------|----------|--------------|-------------|
-| `id`     | string                                                         | false    |              |             |
-| `status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| Name                    | Type                                                           | Required | Restrictions | Description |
+|-------------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `id`                    | string                                                         | false    |              |             |
+| `status`                | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `template_display_name` | string                                                         | false    |              |             |
+| `template_icon`         | string                                                         | false    |              |             |
+| `template_name`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4604,6 +4616,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   },
   "metadata": {
     "template_display_name": "string",
+    "template_icon": "string",
     "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
     "template_name": "string",
     "template_version_name": "string",
@@ -4717,6 +4730,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "template_display_name": "string",
+  "template_icon": "string",
   "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
   "template_name": "string",
   "template_version_name": "string",
@@ -4730,6 +4744,7 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 | Name                    | Type   | Required | Restrictions | Description |
 |-------------------------|--------|----------|--------------|-------------|
 | `template_display_name` | string | false    |              |             |
+| `template_icon`         | string | false    |              |             |
 | `template_id`           | string | false    |              |             |
 | `template_name`         | string | false    |              |             |
 | `template_version_name` | string | false    |              |             |
@@ -4807,7 +4822,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "current_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4817,7 +4835,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "previous_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "provisioners": [
         "string"
@@ -6136,6 +6157,7 @@ Restarts will only happen on weekdays in this list on weeks which line up with W
     },
     "metadata": {
       "template_display_name": "string",
+      "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
@@ -7209,6 +7231,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
       },
       "metadata": {
         "template_display_name": "string",
+        "template_icon": "string",
         "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
         "template_name": "string",
         "template_version_name": "string",
@@ -7561,6 +7584,50 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `updated_at`                 | string                                                                                       | false    |              |                                                                                                                                                                              |
 | `version`                    | string                                                                                       | false    |              |                                                                                                                                                                              |
 
+## codersdk.WorkspaceAgentDevcontainer
+
+```json
+{
+  "created_at": "2019-08-24T14:15:22Z",
+  "id": "string",
+  "image": "string",
+  "labels": {
+    "property1": "string",
+    "property2": "string"
+  },
+  "name": "string",
+  "ports": [
+    {
+      "network": "string",
+      "port": 0,
+      "process_name": "string"
+    }
+  ],
+  "running": true,
+  "status": "string",
+  "volumes": {
+    "property1": "string",
+    "property2": "string"
+  }
+}
+```
+
+### Properties
+
+| Name               | Type                                                                                  | Required | Restrictions | Description                                                                                                                                |
+|--------------------|---------------------------------------------------------------------------------------|----------|--------------|--------------------------------------------------------------------------------------------------------------------------------------------|
+| `created_at`       | string                                                                                | false    |              | Created at is the time the container was created.                                                                                          |
+| `id`               | string                                                                                | false    |              | ID is the unique identifier of the container.                                                                                              |
+| `image`            | string                                                                                | false    |              | Image is the name of the container image.                                                                                                  |
+| `labels`           | object                                                                                | false    |              | Labels is a map of key-value pairs of container labels.                                                                                    |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+| `name`             | string                                                                                | false    |              | Name is the human-readable name of the container.                                                                                          |
+| `ports`            | array of [codersdk.WorkspaceAgentListeningPort](#codersdkworkspaceagentlisteningport) | false    |              | Ports includes ports exposed by the container.                                                                                             |
+| `running`          | boolean                                                                               | false    |              | Running is true if the container is currently running.                                                                                     |
+| `status`           | string                                                                                | false    |              | Status is the current status of the container. This is somewhat implementation-dependent, but should generally be a human-readable string. |
+| `volumes`          | object                                                                                | false    |              | Volumes is a map of "things" mounted into the container. Again, this is somewhat implementation-dependent.                                 |
+| » `[any property]` | string                                                                                | false    |              |                                                                                                                                            |
+
 ## codersdk.WorkspaceAgentHealth
 
 ```json
@@ -7598,6 +7665,48 @@ If the schedule is empty, the user will be updated to use the default schedule.|
 | `shutdown_timeout` |
 | `shutdown_error`   |
 | `off`              |
+
+## codersdk.WorkspaceAgentListContainersResponse
+
+```json
+{
+  "containers": [
+    {
+      "created_at": "2019-08-24T14:15:22Z",
+      "id": "string",
+      "image": "string",
+      "labels": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "name": "string",
+      "ports": [
+        {
+          "network": "string",
+          "port": 0,
+          "process_name": "string"
+        }
+      ],
+      "running": true,
+      "status": "string",
+      "volumes": {
+        "property1": "string",
+        "property2": "string"
+      }
+    }
+  ],
+  "warnings": [
+    "string"
+  ]
+}
+```
+
+### Properties
+
+| Name         | Type                                                                                | Required | Restrictions | Description                                                                                                                           |
+|--------------|-------------------------------------------------------------------------------------|----------|--------------|---------------------------------------------------------------------------------------------------------------------------------------|
+| `containers` | array of [codersdk.WorkspaceAgentDevcontainer](#codersdkworkspaceagentdevcontainer) | false    |              | Containers is a list of containers visible to the workspace agent.                                                                    |
+| `warnings`   | array of string                                                                     | false    |              | Warnings is a list of warnings that may have occurred during the process of listing containers. This should not include fatal errors. |
 
 ## codersdk.WorkspaceAgentListeningPort
 
@@ -7959,6 +8068,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
     },
     "metadata": {
       "template_display_name": "string",
+      "template_icon": "string",
       "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
       "template_name": "string",
       "template_version_name": "string",
@@ -8631,6 +8741,7 @@ If the schedule is empty, the user will be updated to use the default schedule.|
           },
           "metadata": {
             "template_display_name": "string",
+            "template_icon": "string",
             "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
             "template_name": "string",
             "template_version_name": "string",
@@ -9735,7 +9846,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "created_at": "2019-08-24T14:15:22Z",
           "current_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9745,7 +9859,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "previous_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "provisioners": [
             "string"
@@ -9871,7 +9988,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "created_at": "2019-08-24T14:15:22Z",
         "current_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9881,7 +10001,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "previous_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "provisioners": [
           "string"
@@ -9938,7 +10061,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "created_at": "2019-08-24T14:15:22Z",
     "current_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9948,7 +10074,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "previous_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "provisioners": [
       "string"

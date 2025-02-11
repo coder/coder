@@ -1,7 +1,6 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { Organization, Role, RoleSyncSettings } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Combobox } from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import {
@@ -9,6 +8,7 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
+import { TableCell, TableRow } from "components/Table/Table";
 import {
 	Tooltip,
 	TooltipContent,
@@ -17,7 +17,7 @@ import {
 } from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
 import { Plus, Trash, TriangleAlert } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
@@ -53,6 +53,7 @@ interface IdpRoleSyncFormProps {
 	organization: Organization;
 	roles: Role[];
 	onSubmit: (data: RoleSyncSettings) => void;
+	onSyncFieldChange: (value: string) => void;
 }
 
 export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
@@ -62,6 +63,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	organization,
 	roles,
 	onSubmit,
+	onSyncFieldChange,
 }) => {
 	const form = useFormik<RoleSyncSettings>({
 		initialValues: {
@@ -75,6 +77,8 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	const [idpRoleName, setIdpRoleName] = useState("");
 	const [coderRoles, setCoderRoles] = useState<Option[]>([]);
 	const id = useId();
+	const [comboInputValue, setComboInputValue] = useState("");
+	const [open, setOpen] = useState(false);
 
 	const handleDelete = async (idpOrg: string) => {
 		const newMapping = Object.fromEntries(
@@ -88,6 +92,21 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 		};
 		void form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
+	};
+
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+		if (
+			event.key === "Enter" &&
+			comboInputValue &&
+			!claimFieldValues?.some(
+				(value) => value === comboInputValue.toLowerCase(),
+			)
+		) {
+			event.preventDefault();
+			setIdpRoleName(comboInputValue);
+			setComboInputValue("");
+			setOpen(false);
+		}
 	};
 
 	return (
@@ -114,6 +133,7 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 								value={form.values.field}
 								onChange={(event) => {
 									void form.setFieldValue("field", event.target.value);
+									onSyncFieldChange(event.target.value);
 								}}
 								className="w-72"
 							/>
@@ -143,14 +163,31 @@ export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 						<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 							IdP role name
 						</Label>
-						<Input
-							id={`${id}-idp-role-name`}
-							value={idpRoleName}
-							className="w-72"
-							onChange={(event) => {
-								setIdpRoleName(event.target.value);
-							}}
-						/>
+						{claimFieldValues ? (
+							<Combobox
+								value={idpRoleName}
+								options={claimFieldValues}
+								placeholder="Select IdP role"
+								open={open}
+								onOpenChange={setOpen}
+								inputValue={comboInputValue}
+								onInputChange={setComboInputValue}
+								onKeyDown={handleKeyDown}
+								onSelect={(value) => {
+									setIdpRoleName(value);
+									setOpen(false);
+								}}
+							/>
+						) : (
+							<Input
+								id={`${id}-idp-role-name`}
+								value={idpRoleName}
+								className="w-72"
+								onChange={(event) => {
+									setIdpRoleName(event.target.value);
+								}}
+							/>
+						)}
 					</div>
 					<div className="grid items-center gap-1 flex-1">
 						<Label className="text-sm" htmlFor={`${id}-coder-role`}>

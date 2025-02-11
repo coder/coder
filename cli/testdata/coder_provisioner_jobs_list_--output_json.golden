@@ -22,7 +22,8 @@
       "template_version_name": "===========[version name]===========",
       "template_id": "===========[template ID]============",
       "template_name": "test-template",
-      "template_display_name": ""
+      "template_display_name": "",
+      "template_icon": ""
     },
     "organization_name": "Coder"
   },
@@ -50,6 +51,7 @@
       "template_id": "===========[template ID]============",
       "template_name": "test-template",
       "template_display_name": "",
+      "template_icon": "",
       "workspace_id": "===========[workspace ID]===========",
       "workspace_name": "test-workspace"
     },
