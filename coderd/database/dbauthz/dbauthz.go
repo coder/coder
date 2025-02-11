@@ -1392,9 +1392,9 @@ func (q *querier) FavoriteWorkspace(ctx context.Context, id uuid.UUID) error {
 }
 
 func (q *querier) FetchMemoryResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) (database.WorkspaceAgentMemoryResourceMonitor, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
-	// 	return database.WorkspaceAgentMemoryResourceMonitor{}, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
 
 	return q.db.FetchMemoryResourceMonitorsByAgentID(ctx, agentID)
 }
@@ -1407,9 +1407,9 @@ func (q *querier) FetchNewMessageMetadata(ctx context.Context, arg database.Fetc
 }
 
 func (q *querier) FetchVolumesResourceMonitorsByAgentID(ctx context.Context, agentID uuid.UUID) ([]database.WorkspaceAgentVolumeResourceMonitor, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
-	// 	return nil, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionRead, rbac.ResourceSystem); err != nil {
+		return nil, err
+	}
 
 	return q.db.FetchVolumesResourceMonitorsByAgentID(ctx, agentID)
 }
@@ -3020,9 +3020,9 @@ func (q *querier) InsertLicense(ctx context.Context, arg database.InsertLicenseP
 }
 
 func (q *querier) InsertMemoryResourceMonitor(ctx context.Context, arg database.InsertMemoryResourceMonitorParams) (database.WorkspaceAgentMemoryResourceMonitor, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
-	// 	return database.WorkspaceAgentMemoryResourceMonitor{}, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentMemoryResourceMonitor{}, err
+	}
 
 	return q.db.InsertMemoryResourceMonitor(ctx, arg)
 }
@@ -3220,9 +3220,9 @@ func (q *querier) InsertUserLink(ctx context.Context, arg database.InsertUserLin
 }
 
 func (q *querier) InsertVolumeResourceMonitor(ctx context.Context, arg database.InsertVolumeResourceMonitorParams) (database.WorkspaceAgentVolumeResourceMonitor, error) {
-	// if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceWorkspaceAgentResourceMonitor); err != nil {
-	// 	return database.WorkspaceAgentVolumeResourceMonitor{}, err
-	// }
+	if err := q.authorizeContext(ctx, policy.ActionCreate, rbac.ResourceSystem); err != nil {
+		return database.WorkspaceAgentVolumeResourceMonitor{}, err
+	}
 
 	return q.db.InsertVolumeResourceMonitor(ctx, arg)
 }

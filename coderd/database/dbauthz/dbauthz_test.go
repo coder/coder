@@ -4566,12 +4566,12 @@ func (s *MethodTestSuite) TestOAuth2ProviderAppTokens() {
 func (s *MethodTestSuite) TestResourcesMonitor() {
 	s.Run("InsertMemoryResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.InsertMemoryResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+		check.Args(database.InsertMemoryResourceMonitorParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 
 	s.Run("InsertVolumeResourceMonitor", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)
-		check.Args(database.InsertVolumeResourceMonitorParams{}).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionCreate)
+		check.Args(database.InsertVolumeResourceMonitorParams{}).Asserts(rbac.ResourceSystem, policy.ActionCreate)
 	}))
 
 	s.Run("FetchMemoryResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
@@ -4611,7 +4611,7 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitor, err := db.FetchMemoryResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitor)
+		check.Args(agt.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(monitor)
 	}))
 
 	s.Run("FetchVolumesResourceMonitorsByAgentID", s.Subtest(func(db database.Store, check *expects) {
@@ -4652,6 +4652,6 @@ func (s *MethodTestSuite) TestResourcesMonitor() {
 		monitors, err := db.FetchVolumesResourceMonitorsByAgentID(context.Background(), agt.ID)
 		require.NoError(s.T(), err)
 
-		check.Args(agt.ID).Asserts(rbac.ResourceWorkspaceAgentResourceMonitor, policy.ActionRead).Returns(monitors)
+		check.Args(agt.ID).Asserts(rbac.ResourceSystem, policy.ActionRead).Returns(monitors)
 	}))
 }
