@@ -2,8 +2,8 @@
  * @file This component was inspired by Radix's Spinner component. The animation
  * settings were developed using Vercel's v0.
  *
- * @see {@link https://www.radix-ui.com/themes/docs/components/spinner}
- * @see {@link https://v0.dev/}
+ * {@link https://www.radix-ui.com/themes/docs/components/spinner}
+ * {@link https://v0.dev/}
  */
 
 import isChromatic from "chromatic/isChromatic";
@@ -50,7 +50,9 @@ type SpinnerProps = Readonly<
 			 * If you do need reset all the state after a loading transition
 			 * and you can't unmount the component without creating invalid
 			 * HTML, use a render key to reset the state.
-			 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes}
+			 *
+			 * ---
+			 * {@link https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes}
 			 */
 			unmountChildrenWhileLoading?: boolean;
 
@@ -89,9 +91,9 @@ const animationSettings: CSSProperties = isChromatic()
 
 export const Spinner: FC<SpinnerProps> = ({
 	className,
-	size,
 	loading,
 	children,
+	size = "lg",
 	spinnerDelayMs = 0,
 	unmountChildrenWhileLoading = false,
 	...delegatedProps
@@ -109,7 +111,7 @@ export const Spinner: FC<SpinnerProps> = ({
 	 * Doing a bunch of mid-render state syncs to minimize risks of UI tearing
 	 * during re-renders. It's ugly, but it's what the React team officially
 	 * recommends.
-	 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
+	 * {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
 	 */
 	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
 	const canResetLapseOnRerender = delayLapsed && !loading;
