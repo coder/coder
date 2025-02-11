@@ -33,6 +33,9 @@ OPTIONS:
       --debug-address string, $CODER_AGENT_DEBUG_ADDRESS (default: 127.0.0.1:2113)
           The bind address to serve a debug HTTP server.
 
+      --devcontainers-enable bool, $CODER_AGENT_DEVCONTAINERS_ENABLE (default: true)
+          Allow the agent to automatically detect running devcontainers.
+
       --log-dir string, $CODER_AGENT_LOG_DIR (default: /tmp)
           Specify the location for the agent log files.
 
