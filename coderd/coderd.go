@@ -788,6 +788,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
+		stripSlashesMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -1730,4 +1731,35 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
+}
+
+var multipleSlashesRe = regexp.MustCompile(`/+`)
+
+func stripSlashesMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		var path string
+		rctx := chi.RouteContext(r.Context())
+		if rctx != nil && rctx.RoutePath != "" {
+			path = rctx.RoutePath
+		} else {
+			path = r.URL.Path
+		}
+
+		// Normalize multiple slashes to a single slash
+		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
+
+		// Ensure it doesn't strip the root `/`
+		if len(newPath) > 1 && newPath[len(newPath)-1] == '/' {
+			newPath = strings.TrimSuffix(newPath, "/")
+		}
+
+		// Apply the cleaned path
+		if rctx != nil {
+			rctx.RoutePath = newPath
+		}
+		r.URL.Path = newPath
+
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }
