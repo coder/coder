@@ -46,6 +46,11 @@ To launch a Coder AMI EC2 instance:
 
    ![AWS Security Groups](../../images/platforms/aws/security-groups.png)
 
+1. In the **Configure storage** section, enter `40` as the root volume size (in GiB).
+
+   The extra disk space is required for template and workspace builds and for
+   the embedded PostgreSQL DB.
+
 1. You can adjust other settings if you need to, then select **Launch instance**.
 
 After you launce the instance, wait 30 seconds and navigate to the public IPv4
