@@ -584,9 +584,6 @@ export const MockProvisioner: TypesGen.ProvisionerDaemon = {
 	status: "idle",
 	current_job: null,
 	previous_job: null,
-	template_display_name: "Test Template",
-	template_icon: "/icon/code.svg",
-	template_name: "test-template",
 };
 
 export const MockUserAuthProvisioner: TypesGen.ProvisionerDaemon = {
@@ -3776,9 +3773,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					current_job: null,
 					previous_job: null,
 					status: "idle",
-					template_display_name: "Test Template",
-					template_icon: "/icon/code.svg",
-					template_name: "test-template",
 				},
 				warnings: [],
 			},
@@ -3805,9 +3799,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					current_job: null,
 					previous_job: null,
 					status: "idle",
-					template_display_name: "Test Template",
-					template_icon: "/icon/code.svg",
-					template_name: "test-template",
 				},
 				warnings: [],
 			},
@@ -3834,9 +3825,6 @@ export const MockHealth: TypesGen.HealthcheckReport = {
 					current_job: null,
 					previous_job: null,
 					status: "idle",
-					template_display_name: "Test Template",
-					template_icon: "/icon/code.svg",
-					template_name: "test-template",
 				},
 				warnings: [
 					{
@@ -3994,9 +3982,6 @@ export const DeploymentHealthUnhealthy: TypesGen.HealthcheckReport = {
 					current_job: null,
 					previous_job: null,
 					status: "idle",
-					template_display_name: "Test Template",
-					template_icon: "/icon/code.svg",
-					template_name: "test-template",
 				},
 				warnings: [
 					{
