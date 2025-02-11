@@ -25,6 +25,7 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
+	"github.com/coder/coder/v2/agent/agentcontainers"
 	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
@@ -37,21 +38,22 @@ import (
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
-		auth                string
-		logDir              string
-		scriptDataDir       string
-		pprofAddress        string
-		noReap              bool
-		sshMaxTimeout       time.Duration
-		tailnetListenPort   int64
-		prometheusAddress   string
-		debugAddress        string
-		slogHumanPath       string
-		slogJSONPath        string
-		slogStackdriverPath string
-		blockFileTransfer   bool
-		agentHeaderCommand  string
-		agentHeader         []string
+		auth                 string
+		logDir               string
+		scriptDataDir        string
+		pprofAddress         string
+		noReap               bool
+		sshMaxTimeout        time.Duration
+		tailnetListenPort    int64
+		prometheusAddress    string
+		debugAddress         string
+		slogHumanPath        string
+		slogJSONPath         string
+		slogStackdriverPath  string
+		blockFileTransfer    bool
+		agentHeaderCommand   string
+		agentHeader          []string
+		devcontainersEnabled bool
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -314,6 +316,14 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				return xerrors.Errorf("create agent execer: %w", err)
 			}
 
+			var containerLister agentcontainers.Lister
+			if !devcontainersEnabled {
+				containerLister = &agentcontainers.NoopLister{}
+			} else {
+				logger.Info(ctx, "agent devcontainer detection not enabled")
+				containerLister = agentcontainers.NewDocker(execer)
+			}
+
 			agnt := agent.New(agent.Options{
 				Client:            client,
 				Logger:            logger,
@@ -339,6 +349,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				PrometheusRegistry: prometheusRegistry,
 				BlockFileTransfer:  blockFileTransfer,
 				Execer:             execer,
+				ContainerLister:    containerLister,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
@@ -460,6 +471,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Env:         "CODER_AGENT_BLOCK_FILE_TRANSFER",
 			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
+		},
+		{
+			Flag:        "devcontainers-enable",
+			Default:     "true",
+			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
+			Description: "Allow the agent to automatically detect running devcontainers.",
+			Value:       serpent.BoolOf(&devcontainersEnabled),
 		},
 	}
 

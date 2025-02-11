@@ -140,3 +140,10 @@ type Lister interface {
 	// This should include running and stopped containers.
 	List(ctx context.Context) (codersdk.WorkspaceAgentListContainersResponse, error)
 }
+
+// NoopLister is a Lister interface that never returns any containers.
+type NoopLister struct{}
+
+func (*NoopLister) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+	return codersdk.WorkspaceAgentListContainersResponse{}, nil
+}
