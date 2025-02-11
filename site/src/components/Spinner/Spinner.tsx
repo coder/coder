@@ -33,10 +33,24 @@ type SpinnerProps = Readonly<
 
 			/**
 			 * Indicates whether the `children` prop should be unmounted during
-			 * a loading state. Defaults to `false` - unmounting HTML elements
-			 * like form controls can lead to invalid HTML, so this prop should
-			 * be used with care and only if it prevents render performance
-			 * issues.
+			 * a loading state. Defaults to `false` - fully unmounting a child
+			 * component has two main risks:
+			 * 1. Hiding children can create invalid HTML. (For example, if you
+			 *    have an HTML input and a label, but only hide the input behind
+			 *    the spinner during loading state, the label becomes
+			 *    "detached"). This not only breaks behavior for screen readers
+			 *    but can also create nasty undefined behavior for some built-in
+			 *    HTML elements.
+			 * 2. Unmounting a component will cause any of its internal state to
+			 *    be completely wiped. Unless the component has all of its state
+			 *    controlled by a parent or external state management tool, the
+			 *    component will have all its initial state once the loading
+			 *    transition ends.
+			 *
+			 * If you do need reset all the state after a loading transition
+			 * and you can't unmount the component without creating invalid
+			 * HTML, use a render key to reset the state.
+			 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#resetting-all-state-when-a-prop-changes}
 			 */
 			unmountChildrenWhileLoading?: boolean;
 
@@ -82,12 +96,49 @@ export const Spinner: FC<SpinnerProps> = ({
 	unmountChildrenWhileLoading = false,
 	...delegatedProps
 }) => {
+	// Disallow negative timeout values and fractional values, but also round
+	// the delay down if it's small enough that it might as well be immediate
+	// from a user perspective
+	let safeDelay = Number.isNaN(spinnerDelayMs)
+		? 0
+		: Math.min(MAX_SPINNER_DELAY_MS, Math.trunc(spinnerDelayMs));
+	if (safeDelay < 100) {
+		safeDelay = 0;
+	}
+	/**
+	 * Doing a bunch of mid-render state syncs to minimize risks of UI tearing
+	 * during re-renders. It's ugly, but it's what the React team officially
+	 * recommends.
+	 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
+	 */
+	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
+	const canResetLapseOnRerender = delayLapsed && !loading;
+	if (canResetLapseOnRerender) {
+		setDelayLapsed(false);
+	}
+	// Have to cache delay so that we don't "ping-pong" between state syncs for
+	// the delayLapsed state and accidentally create an infinite render loop
+	const [cachedDelay, setCachedDelay] = useState(safeDelay);
+	const delayWasRemovedOnRerender =
+		!delayLapsed && safeDelay === 0 && safeDelay !== cachedDelay;
+	if (delayWasRemovedOnRerender) {
+		setDelayLapsed(true);
+		setCachedDelay(safeDelay);
+	}
+	useEffect(() => {
+		if (safeDelay === 0) {
+			return;
+		}
+		const id = window.setTimeout(() => setDelayLapsed(true), safeDelay);
+		return () => window.clearTimeout(id);
+	}, [safeDelay]);
+	const showSpinner = delayLapsed && loading;
+
 	// Conditional rendering logic is more convoluted than normal because we
 	// need to make sure that the children prop is always placed in the same JSX
 	// "slot" by default, no matter the value of `loading`. Even if the children
-	// prop value is exactly the same each time, the state will get wiped if the
-	// placement in the JSX output changes
-	const showSpinner = useShowSpinner(loading, spinnerDelayMs);
+	// prop value is exactly the same each time, the state for the associated
+	// component will get wiped if the parent changes
 	return (
 		<>
 			{showSpinner && (
@@ -137,47 +188,3 @@ export const Spinner: FC<SpinnerProps> = ({
 		</>
 	);
 };
-
-// Splitting off logic into custom hook so that we can abstract away the chaos
-// of handling Spinner's re-render logic. The result is a simple boolean, but
-// the steps to calculate that boolean accurately while avoiding re-render
-// issues got a little heady
-function useShowSpinner(loading: boolean, spinnerDelayMs: number): boolean {
-	// Disallow negative timeout values and fractional values, but also round
-	// the delay down if it's small enough that it might as well be immediate
-	// from a user perspective
-	let safeDelay = Number.isNaN(spinnerDelayMs)
-		? 0
-		: Math.min(MAX_SPINNER_DELAY_MS, Math.trunc(spinnerDelayMs));
-	if (safeDelay < 100) {
-		safeDelay = 0;
-	}
-
-	/**
-	 * Doing a bunch of mid-render state syncs to minimize risks of UI tearing
-	 * during re-renders. It's ugly, but it's what the React team officially
-	 * recommends.
-	 * @see {@link https://react.dev/learn/you-might-not-need-an-effect#adjusting-some-state-when-a-prop-changes}
-	 */
-	const [delayLapsed, setDelayLapsed] = useState(safeDelay === 0);
-	const [cachedDelay, setCachedDelay] = useState(safeDelay);
-	const canResetLapseOnRerender = delayLapsed && !loading;
-	if (canResetLapseOnRerender) {
-		setDelayLapsed(false);
-	}
-	const delayWasRemovedOnRerender =
-		!delayLapsed && safeDelay === 0 && safeDelay !== cachedDelay;
-	if (delayWasRemovedOnRerender) {
-		setDelayLapsed(true);
-		setCachedDelay(safeDelay);
-	}
-	useEffect(() => {
-		if (safeDelay === 0) {
-			return;
-		}
-		const id = window.setTimeout(() => setDelayLapsed(true), safeDelay);
-		return () => window.clearTimeout(id);
-	}, [safeDelay]);
-
-	return delayLapsed && loading;
-}
