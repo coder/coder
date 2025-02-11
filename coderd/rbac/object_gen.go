@@ -295,14 +295,6 @@ var (
 		Type: "workspace",
 	}
 
-	// ResourceWorkspaceAgentResourceMonitor
-	// Valid Actions
-	//  - "ActionCreate" :: create workspace agent resource monitor
-	//  - "ActionRead" :: read workspace agent resource monitor
-	ResourceWorkspaceAgentResourceMonitor = Object{
-		Type: "workspace_agent_resource_monitor",
-	}
-
 	// ResourceWorkspaceDormant
 	// Valid Actions
 	//  - "ActionApplicationConnect" :: connect to workspace apps via browser
@@ -361,7 +353,6 @@ func AllResources() []Objecter {
 		ResourceTemplate,
 		ResourceUser,
 		ResourceWorkspace,
-		ResourceWorkspaceAgentResourceMonitor,
 		ResourceWorkspaceDormant,
 		ResourceWorkspaceProxy,
 	}

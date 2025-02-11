@@ -12178,7 +12178,6 @@
 				"template",
 				"user",
 				"workspace",
-				"workspace_agent_resource_monitor",
 				"workspace_dormant",
 				"workspace_proxy"
 			],
@@ -12214,7 +12213,6 @@
 				"ResourceTemplate",
 				"ResourceUser",
 				"ResourceWorkspace",
-				"ResourceWorkspaceAgentResourceMonitor",
 				"ResourceWorkspaceDormant",
 				"ResourceWorkspaceProxy"
 			]
