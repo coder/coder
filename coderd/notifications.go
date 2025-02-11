@@ -11,8 +11,10 @@ import (
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/notifications"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 )
@@ -161,6 +163,42 @@ func (api *API) notificationDispatchMethods(rw http.ResponseWriter, r *http.Requ
 		AvailableNotificationMethods: methods,
 		DefaultNotificationMethod:    api.DeploymentValues.Notifications.Method.Value(),
 	})
+}
+
+// @Summary Send a test notification
+// @ID post-test-notification
+// @Security CoderSessionToken
+// @Tags Notifications
+// @Success 200
+// @Router /notifications/test [post]
+func (api *API) postTestNotification(rw http.ResponseWriter, r *http.Request) {
+	var (
+		ctx = r.Context()
+		key = httpmw.APIKey(r)
+	)
+
+	if _, err := api.NotificationsEnqueuer.EnqueueWithData(
+		//nolint:gocritic // We need to be notifier to send the notification.
+		dbauthz.AsNotifier(ctx),
+		key.UserID,
+		notifications.TemplateTestNotification,
+		map[string]string{},
+		map[string]any{
+			// TODO: This is maybe not the best idea, but we want to avoid
+			// the notification de-duplication logic.
+			"timestamp": api.Clock.Now(),
+		},
+		"send-test-notification",
+	); err != nil {
+		api.Logger.Error(ctx, "send notification", slog.Error(err))
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Failed to send test notification",
+			Detail:  err.Error(),
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, nil)
 }
 
 // @Summary Get user notification preferences

@@ -2,6 +2,7 @@ import type { Interpolation, Theme } from "@emotion/react";
 import {
 	notificationDispatchMethods,
 	selectTemplatesByGroup,
+	sendTestNotification,
 	systemNotificationTemplates,
 } from "api/queries/notifications";
 import { Loader } from "components/Loader/Loader";
@@ -12,11 +13,13 @@ import { castNotificationMethod } from "modules/notifications/utils";
 import { Section } from "pages/UserSettingsPage/Section";
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
-import { useQueries } from "react-query";
+import { useMutation, useQueries, useQueryClient } from "react-query";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { pageTitle } from "utils/page";
 import OptionsTable from "../OptionsTable";
 import { NotificationEvents } from "./NotificationEvents";
+import { Stack } from "components/Stack/Stack";
+import { Button } from "components/Button/Button";
 
 export const NotificationsPage: FC = () => {
 	const { deploymentConfig } = useDeploymentSettings();
@@ -33,6 +36,8 @@ export const NotificationsPage: FC = () => {
 		key: "tab",
 		defaultValue: "events",
 	});
+	const queryClient = useQueryClient();
+	const sendNotification = useMutation(sendTestNotification(queryClient));
 
 	const ready = !!(templatesByGroup.data && dispatchMethods.data);
 	return (
@@ -71,11 +76,22 @@ export const NotificationsPage: FC = () => {
 								)}
 							/>
 						) : (
-							<OptionsTable
-								options={deploymentConfig.options.filter((o) =>
-									deploymentGroupHasParent(o.group, "Notifications"),
-								)}
-							/>
+							<Stack>
+								<Button
+									className="w-fit"
+									onClick={async () => {
+										await sendNotification.mutateAsync();
+									}}
+								>
+									Send test notification
+								</Button>
+
+								<OptionsTable
+									options={deploymentConfig.options.filter((o) =>
+										deploymentGroupHasParent(o.group, "Notifications"),
+									)}
+								/>
+							</Stack>
 						)
 					) : (
 						<Loader />
