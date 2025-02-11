@@ -11,30 +11,47 @@ This guide assumes your AWS account has `AmazonEC2FullAccess` permissions.
 
 ## Launch a Coder instance from the from AWS Marketplace
 
-We publish an Ubuntu 22.04 AMI with Coder and Docker pre-installed. Search for
-`Coder` in the EC2 "Launch an Instance" screen or
-[launch directly from the marketplace](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc).
+We publish an Ubuntu 22.04 Amazon Machine Image (AMI) with Coder and Docker
+pre-installed.
 
-![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
+To launch a Coder AMI EC2 instance:
 
-Be sure to keep the default firewall (SecurityGroup) options checked so you can
-connect over HTTP, HTTPS, and SSH.
+1. Open the [Amazon EC2 console](https://console.aws.amazon.com/ec2/) and
+   confirm that you're logged in.
 
-![AWS Security Groups](../../images/platforms/aws/security-groups.png)
+1. Access the
+   [Coder AMI in the AWS Marketplace](https://aws.amazon.com/marketplace/pp/prodview-zaoq7tiogkxhc).
 
-You should keep the default instance type (`t2.xlarge`, 4 cores and 16 GB
-memory) if you plan on provisioning Docker containers as workspaces on this EC2
-instance. Keep in mind this platform is intended for proof-of-concept
-deployments and you should adjust your infrastructure when preparing for
-production use. See: [Scaling Coder](../../admin/infrastructure/index.md)
+   ![Coder on AWS Marketplace](../../images/platforms/aws/marketplace.png)
 
-Be sure to add a keypair so that you can connect over SSH to further
-[configure Coder](../../admin/setup/index.md).
+1. Select **View purchase options** to continue to the configuration screen.
 
-After launching the instance, wait 30 seconds and navigate to the public IPv4
+1. Name your instance and in the **Instance type** section, use the dropdown
+   list to select `t2.xlarge` (4 vCPU, 16 GiB memory)
+
+   Keep in mind this platform is intended for proof-of-concept deployments and
+   you should adjust your infrastructure when preparing for production use.
+
+   Consult the [scale Coder best practices](../../tutorials/best-practices/scale-coder.md)
+   for more considerations.
+
+1. Configure the key pair.
+
+1. In the **Firewall (security groups)** section of the **Network settings**,
+   enable  **Allow SSH traffic** and **Allow HTTPS traffic from the
+   internet**.
+   Select **Allow HTTP traffic from the internet** if you need it for your deployment.
+
+   Use the **Anywhere** dropdown list to select and customize what SSH traffic should be allowed:
+
+   ![AWS Security Groups](../../images/platforms/aws/security-groups.png)
+
+1. You can adjust other settings if you need to, then select **Launch instance**.
+
+After you launce the instance, wait 30 seconds and navigate to the public IPv4
 address. You should be redirected to a public tunnel URL.
 
-That's all! Use the UI to create your first user, template, and workspace. We
+That's all! Use the Coder UI to create your first user, template, and workspace. We
 recommend starting with a Docker template since the instance has Docker
 pre-installed.
 
