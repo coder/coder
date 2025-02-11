@@ -1,9 +1,13 @@
 package coderd
 
 import (
+	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+
+	"github.com/go-chi/chi/v5"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestStripSlashesMW(t *testing.T) {
@@ -30,18 +34,26 @@ func TestStripSlashesMW(t *testing.T) {
 
 	for _, tt := range tests {
 		tt := tt
-
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
 
 			req := httptest.NewRequest("GET", tt.inputPath, nil)
 			rec := httptest.NewRecorder()
 
+			// Create a chi RouteContext and attach it to the request
+			rctx := chi.NewRouteContext()
+			rctx.RoutePath = tt.inputPath // Simulate chi route path
+			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+
+			// Pass the request through the middleware
 			stripSlashesMW(handler).ServeHTTP(rec, req)
 
-			if req.URL.Path != tt.wantPath {
-				t.Errorf("stripSlashesMW got path = %q, want %q", req.URL.Path, tt.wantPath)
-			}
+			// Get the updated chi RouteContext after middleware processing
+			updatedCtx := chi.RouteContext(req.Context())
+
+			// Validate URL path
+			assert.Equal(t, tt.wantPath, req.URL.Path)
+			assert.Equal(t, tt.wantPath, updatedCtx.RoutePath)
 		})
 	}
 }
