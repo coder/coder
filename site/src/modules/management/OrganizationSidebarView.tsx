@@ -163,7 +163,7 @@ function urlForSubpage(organizationName: string, subpage = ""): string {
 
 interface OrganizationSettingsNavigationProps {
 	organization: Organization;
-	orgPermissions: AuthorizationResponse;
+	orgPermissions: OrganizationPermissions;
 }
 
 const OrganizationSettingsNavigation: FC<
@@ -184,7 +184,7 @@ const OrganizationSettingsNavigation: FC<
 						Groups
 					</SettingsSidebarNavItem>
 				)}
-				{orgPermissions.assignOrgRole && (
+				{orgPermissions.assignOrgRoles && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "roles")}
 					>
@@ -205,7 +205,7 @@ const OrganizationSettingsNavigation: FC<
 						IdP Sync
 					</SettingsSidebarNavItem>
 				)}
-				{orgPermissions.editOrganization && (
+				{orgPermissions.editSettings && (
 					<SettingsSidebarNavItem
 						href={urlForSubpage(organization.name, "settings")}
 					>

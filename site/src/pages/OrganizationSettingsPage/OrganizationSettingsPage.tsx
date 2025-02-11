@@ -1,17 +1,13 @@
 import {
 	deleteOrganization,
-	organizationsPermissions,
 	updateOrganization,
 } from "api/queries/organizations";
-import type { AuthorizationResponse } from "api/typesGenerated";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displaySuccess } from "components/GlobalSnackbar/utils";
-import { Loader } from "components/Loader/Loader";
 import { useOrganizationSettings } from "modules/management/OrganizationSettingsLayout";
 import type { FC } from "react";
-import { useMutation, useQuery, useQueryClient } from "react-query";
-import { Navigate, useNavigate, useParams } from "react-router-dom";
+import { useMutation, useQueryClient } from "react-query";
+import { useNavigate } from "react-router-dom";
 import { OrganizationSettingsPageView } from "./OrganizationSettingsPageView";
 
 const OrganizationSettingsPage: FC = () => {
