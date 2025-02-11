@@ -417,8 +417,13 @@ func (c Controller) provision(ctx context.Context, db database.Store, prebuildID
 		Initiator(PrebuildOwnerUUID).
 		ActiveVersion().
 		VersionID(template.ActiveVersionID).
-		MarkPrebuild().
-		RichParameterValues(params)
+		MarkPrebuild()
+
+	// We only inject the required params when the prebuild is being created.
+	// This mirrors the behaviour of regular workspace deletion (see cli/delete.go).
+	if transition != database.WorkspaceTransitionDelete {
+		builder = builder.RichParameterValues(params)
+	}
 
 	_, provisionerJob, _, err := builder.Build(
 		ctx,
