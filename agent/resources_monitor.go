@@ -15,9 +15,6 @@ import (
 func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgentClient24) error {
 	logger := a.logger.Named("resources_monitor")
 
-	ctx, cancel := context.WithCancel(ctx)
-	defer cancel()
-
 	clk := quartz.NewReal()
 
 	return PushResourcesMonitoringWithConfig(ctx, logger, clk, aAPI.GetResourcesMonitoringConfiguration, aAPI.PushResourcesMonitoringUsage)
@@ -40,7 +37,7 @@ func PushResourcesMonitoringWithConfig(ctx context.Context,
 	}
 
 	if !config.Enabled {
-		logger.Info(ctx, "resources monitoring is disabled")
+		logger.Info(ctx, "resources monitoring is disabled - skipping")
 		return nil
 	}
 
@@ -63,7 +60,7 @@ func PushResourcesMonitoringWithConfig(ctx context.Context,
 			volTotal, volUsed, err := fetchResourceMonitoredVolume(resourcesFetcher, volume)
 			if err != nil {
 				logger.Error(ctx, "failed to fetch volume", slog.Error(err))
-				return nil
+				continue
 			}
 
 			volumes = append(volumes, &ResourcesMonitorVolumeDatapoint{
