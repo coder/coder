@@ -4,6 +4,7 @@ import (
 	"context"
 	"testing"
 
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -26,11 +27,13 @@ func TestTemplateVersionPresets(t *testing.T) {
 	provisionerCtx := dbauthz.AsProvisionerd(ctx)
 
 	preset, err := db.InsertPreset(provisionerCtx, database.InsertPresetParams{
+		ID:                uuid.New(),
 		Name:              "My Preset",
 		TemplateVersionID: version.ID,
 	})
 	require.NoError(t, err)
 	_, err = db.InsertPresetParameters(provisionerCtx, database.InsertPresetParametersParams{
+		ID:                      uuid.New(),
 		TemplateVersionPresetID: preset.ID,
 		Names:                   []string{"preset_param1", "preset_param2"},
 		Values:                  []string{"A1B2C3", "D4E5F6"},
