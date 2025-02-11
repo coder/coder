@@ -376,6 +376,10 @@ func (b *Builder) buildTx(authFunc func(action policy.Action, object rbac.Object
 			Reason:            b.reason,
 			Deadline:          time.Time{}, // set by provisioner upon completion
 			MaxDeadline:       time.Time{}, // set by provisioner upon completion
+			TemplateVersionPresetID: uuid.NullUUID{
+				UUID:  uuid.Nil,
+				Valid: false,
+			},
 		})
 		if err != nil {
 			code := http.StatusInternalServerError

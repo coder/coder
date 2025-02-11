@@ -1265,6 +1265,20 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
+CREATE TABLE template_version_preset_parameters (
+    id uuid NOT NULL,
+    template_version_preset_id uuid NOT NULL,
+    name text NOT NULL,
+    value text NOT NULL
+);
+
+CREATE TABLE template_version_presets (
+    id uuid NOT NULL,
+    template_version_id uuid NOT NULL,
+    name text NOT NULL,
+    created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
+);
+
 CREATE TABLE template_version_variables (
     template_version_id uuid NOT NULL,
     name text NOT NULL,
@@ -1729,7 +1743,8 @@ CREATE TABLE workspace_builds (
     deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
     reason build_reason DEFAULT 'initiator'::build_reason NOT NULL,
     daily_cost integer DEFAULT 0 NOT NULL,
-    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL
+    max_deadline timestamp with time zone DEFAULT '0001-01-01 00:00:00+00'::timestamp with time zone NOT NULL,
+    template_version_preset_id uuid
 );
 
 CREATE VIEW workspace_build_with_user AS
@@ -1747,6 +1762,7 @@ CREATE VIEW workspace_build_with_user AS
     workspace_builds.reason,
     workspace_builds.daily_cost,
     workspace_builds.max_deadline,
+    workspace_builds.template_version_preset_id,
     COALESCE(visible_users.avatar_url, ''::text) AS initiator_by_avatar_url,
     COALESCE(visible_users.username, ''::text) AS initiator_by_username
    FROM (workspace_builds
@@ -2056,6 +2072,12 @@ ALTER TABLE ONLY template_usage_stats
 
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_name_key UNIQUE (template_version_id, name);
+
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_parameters_pkey PRIMARY KEY (id);
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_pkey PRIMARY KEY (id);
 
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_name_key UNIQUE (template_version_id, name);
@@ -2447,6 +2469,12 @@ ALTER TABLE ONLY tailnet_tunnels
 ALTER TABLE ONLY template_version_parameters
     ADD CONSTRAINT template_version_parameters_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
+ALTER TABLE ONLY template_version_preset_parameters
+    ADD CONSTRAINT template_version_preset_paramet_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY template_version_presets
+    ADD CONSTRAINT template_version_presets_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
 ALTER TABLE ONLY template_version_variables
     ADD CONSTRAINT template_version_variables_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
 
@@ -2530,6 +2558,9 @@ ALTER TABLE ONLY workspace_builds
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_template_version_id_fkey FOREIGN KEY (template_version_id) REFERENCES template_versions(id) ON DELETE CASCADE;
+
+ALTER TABLE ONLY workspace_builds
+    ADD CONSTRAINT workspace_builds_template_version_preset_id_fkey FOREIGN KEY (template_version_preset_id) REFERENCES template_version_presets(id) ON DELETE SET NULL;
 
 ALTER TABLE ONLY workspace_builds
     ADD CONSTRAINT workspace_builds_workspace_id_fkey FOREIGN KEY (workspace_id) REFERENCES workspaces(id) ON DELETE CASCADE;
