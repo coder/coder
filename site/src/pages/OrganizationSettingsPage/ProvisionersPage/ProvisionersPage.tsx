@@ -5,8 +5,8 @@ import { useOrganizationSettings } from "modules/management/OrganizationSettings
 import type { FC } from "react";
 import { Helmet } from "react-helmet-async";
 import { pageTitle } from "utils/page";
-import { ProvisionerJobsPage } from "./ProvisionerJobsPage";
 import { ProvisionerDaemonsPage } from "./ProvisionerDaemonsPage";
+import { ProvisionerJobsPage } from "./ProvisionerJobsPage";
 
 const ProvisionersPage: FC = () => {
 	const { organization } = useOrganizationSettings();

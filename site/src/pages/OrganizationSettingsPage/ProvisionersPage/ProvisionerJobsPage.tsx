@@ -3,7 +3,9 @@ import type { Organization, ProvisionerJob } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
 import { Badge } from "components/Badge/Badge";
 import { Button } from "components/Button/Button";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
+import { Loader } from "components/Loader/Loader";
 import {
 	Table,
 	TableBody,
@@ -24,16 +26,14 @@ import {
 	ChevronRightIcon,
 	TriangleAlertIcon,
 } from "lucide-react";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
-import { JobStatusIndicator } from "./JobStatusIndicator";
 import { DataGrid } from "./DataGrid";
+import { JobStatusIndicator } from "./JobStatusIndicator";
 import { ShrinkTags, Tag, Tags } from "./Tags";
-import { Loader } from "components/Loader/Loader";
-import { EmptyState } from "components/EmptyState/EmptyState";
 
 type ProvisionerJobsPageProps = {
 	org: Organization;

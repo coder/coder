@@ -1,6 +1,9 @@
 import { provisionerDaemons } from "api/queries/organizations";
 import type { Organization, ProvisionerDaemon } from "api/typesGenerated";
+import { Avatar } from "components/Avatar/Avatar";
+import { EmptyState } from "components/EmptyState/EmptyState";
 import { Link } from "components/Link/Link";
+import { Loader } from "components/Loader/Loader";
 import {
 	StatusIndicator,
 	StatusIndicatorDot,
@@ -15,17 +18,14 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
-import { useState, type FC } from "react";
+import { type FC, useState } from "react";
 import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
-import { JobStatusIndicator } from "./JobStatusIndicator";
-import { Avatar } from "components/Avatar/Avatar";
 import { DataGrid, DataGridSpace } from "./DataGrid";
+import { JobStatusIndicator } from "./JobStatusIndicator";
 import { ShrinkTags, Tag, Tags } from "./Tags";
-import { Loader } from "components/Loader/Loader";
-import { EmptyState } from "components/EmptyState/EmptyState";
 
 type ProvisionerDaemonsPageProps = {
 	org: Organization;
