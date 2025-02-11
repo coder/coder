@@ -33,6 +33,7 @@ module.exports = {
 					success: "hsl(var(--content-success))",
 					danger: "hsl(var(--content-danger))",
 					link: "hsl(var(--content-link))",
+					warning: "hsl(var(--content-warning))",
 				},
 				surface: {
 					primary: "hsl(var(--surface-primary))",
@@ -49,6 +50,7 @@ module.exports = {
 					DEFAULT: "hsl(var(--border-default))",
 					destructive: "hsl(var(--border-destructive))",
 				},
+				overlay: "hsla(var(--overlay-default))",
 				input: "hsl(var(--input))",
 				ring: "hsl(var(--ring))",
 				highlight: {

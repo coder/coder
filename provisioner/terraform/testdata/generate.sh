@@ -55,11 +55,23 @@ run() {
 	exit 0
 }
 
+if [[ " $* " == *" --help "* || " $* " == *" -h "* ]]; then
+	echo "Usage: $0 [module1 module2 ...]"
+	exit 0
+fi
+
 declare -a jobs=()
-for d in */; do
-	run "$d" &
-	jobs+=($!)
-done
+if [[ $# -gt 0 ]]; then
+	for d in "$@"; do
+		run "$d" &
+		jobs+=($!)
+	done
+else
+	for d in */; do
+		run "$d" &
+		jobs+=($!)
+	done
+fi
 
 err=0
 for job in "${jobs[@]}"; do

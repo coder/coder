@@ -694,7 +694,12 @@ func (r *RootCmd) Server(newAPI func(context.Context, *coderd.Options) (*coderd.
 				}
 			}
 
-			if vals.OIDC.ClientKeyFile != "" || vals.OIDC.ClientSecret != "" {
+			// As OIDC clients can be confidential or public,
+			// we should only check for a client id being set.
+			// The underlying library handles the case of no
+			// client secrets correctly. For more details on
+			// client types: https://oauth.net/2/client-types/
+			if vals.OIDC.ClientID != "" {
 				if vals.OIDC.IgnoreEmailVerified {
 					logger.Warn(ctx, "coder will not check email_verified for OIDC logins")
 				}

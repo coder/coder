@@ -228,14 +228,7 @@ const AdminSettingsSub: FC<MobileMenuPermissions> = ({
 						asChild
 						className={cn(itemStyles.default, itemStyles.sub)}
 					>
-						<Link to="/organizations">
-							Organizations
-							<FeatureStageBadge
-								contentType="beta"
-								size="sm"
-								showTooltip={false}
-							/>
-						</Link>
+						<Link to="/organizations">Organizations</Link>
 					</DropdownMenuItem>
 				)}
 				{canViewAuditLog && (

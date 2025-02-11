@@ -105,6 +105,7 @@
             drpc.defaultPackage.${system}
             formatter
             fzf
+            gawk
             gcc13
             gdk
             getopt
@@ -114,6 +115,7 @@
             gnumake
             gnused
             gnugrep
+            gnutar
             go_1_22
             go-migrate
             (pinnedPkgs.golangci-lint)
@@ -147,6 +149,7 @@
             sqlc
             terraform
             typos
+            which
             # Needed for many LD system libs!
             (lib.optional stdenv.isLinux util-linux)
             vim
@@ -274,8 +277,10 @@
                     docker_26
                     shadow.out
                     su
-                    ncurses # clear
+                    ncurses.out # clear
                     unzip
+                    zip
+                    gzip
                   ])
                   ++ oldAttrs.buildInputs;
               });

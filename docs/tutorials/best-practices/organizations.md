@@ -1,7 +1,5 @@
 # Organizations - best practices
 
-December 9, 2024
-
 ---
 
 Coder [Organizations](../../admin/users/organizations.md) allow administrators
@@ -80,10 +78,8 @@ cannot access. Instead, the control plane sends simple "provisioner jobs" to the
 provisioner and the provisioner is responsible for executing the Terraform.
 
 There are planned improvements to the troubleshooting provisioners process.
-Follow these GitHub issues for more details:
+Follow this GitHub issue for more details:
 
-- [coder/coder#15048](https://github.com/coder/coder/issues/15048)
-- [coder/coder#15087](https://github.com/coder/coder/issues/15087)
 - [coder/coder#15192](https://github.com/coder/coder/issues/15192)
 
 ## Identity Provider (SSO) Sync

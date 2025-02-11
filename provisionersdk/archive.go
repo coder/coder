@@ -175,7 +175,7 @@ func Untar(directory string, r io.Reader) error {
 			if err != nil {
 				return err
 			}
-			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR, os.FileMode(header.Mode))
+			file, err := os.OpenFile(target, os.O_CREATE|os.O_RDWR|os.O_TRUNC, os.FileMode(header.Mode))
 			if err != nil {
 				return err
 			}
