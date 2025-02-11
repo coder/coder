@@ -4,17 +4,17 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 )
 
-type resourcesMonitor_Datapoint struct {
-	Memory  *resourcesMonitor_MemoryDatapoint
-	Volumes []*resourcesMonitor_VolumeDatapoint
+type resourcesMonitorDatapoint struct {
+	Memory  *resourcesMonitorMemoryDatapoint
+	Volumes []*resourcesMonitorVolumeDatapoint
 }
 
-type resourcesMonitor_MemoryDatapoint struct {
+type resourcesMonitorMemoryDatapoint struct {
 	Total int64
 	Used  int64
 }
 
-type resourcesMonitor_VolumeDatapoint struct {
+type resourcesMonitorVolumeDatapoint struct {
 	Path  string
 	Total int64
 	Used  int64
@@ -22,20 +22,20 @@ type resourcesMonitor_VolumeDatapoint struct {
 
 // resourcesMonitorQueue represents a FIFO queue with a fixed size
 type resourcesMonitorQueue struct {
-	items []resourcesMonitor_Datapoint
+	items []resourcesMonitorDatapoint
 	size  int
 }
 
 // newResourcesMonitorQueue creates a new resourcesMonitorQueue with the given size
 func newResourcesMonitorQueue(size int) *resourcesMonitorQueue {
 	return &resourcesMonitorQueue{
-		items: make([]resourcesMonitor_Datapoint, 0, size),
+		items: make([]resourcesMonitorDatapoint, 0, size),
 		size:  size,
 	}
 }
 
 // Push adds a new item to the queue
-func (q *resourcesMonitorQueue) Push(item resourcesMonitor_Datapoint) {
+func (q *resourcesMonitorQueue) Push(item resourcesMonitorDatapoint) {
 	if len(q.items) >= q.size {
 		// Remove the first item (FIFO)
 		q.items = q.items[1:]
@@ -45,6 +45,10 @@ func (q *resourcesMonitorQueue) Push(item resourcesMonitor_Datapoint) {
 
 func (q *resourcesMonitorQueue) IsFull() bool {
 	return len(q.items) == q.size
+}
+
+func (q *resourcesMonitorQueue) Items() []resourcesMonitorDatapoint {
+	return q.items
 }
 
 func (q *resourcesMonitorQueue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Datapoint {

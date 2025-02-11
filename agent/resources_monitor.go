@@ -18,7 +18,21 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 	ctx, cancel := context.WithCancel(ctx)
 	defer cancel()
 
-	config, err := aAPI.GetResourcesMonitoringConfiguration(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
+	clk := quartz.NewReal()
+
+	return pushResourcesMonitoringWithConfig(ctx, logger, clk, aAPI.GetResourcesMonitoringConfiguration, aAPI.PushResourcesMonitoringUsage)
+}
+
+type resourcesMonitorConfigurationFetcher func(ctx context.Context, params *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error)
+type resourcesMonitorDatapointsPusher func(ctx context.Context, params *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
+
+func pushResourcesMonitoringWithConfig(ctx context.Context,
+	logger slog.Logger,
+	clk quartz.Clock,
+	configFetcher resourcesMonitorConfigurationFetcher,
+	datapointsPusher resourcesMonitorDatapointsPusher,
+) error {
+	config, err := configFetcher(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
 	if err != nil {
 		return xerrors.Errorf("failed to get resources monitoring configuration: %w", err)
 	}
@@ -27,8 +41,6 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 		logger.Info(ctx, "resources monitoring is disabled")
 		return nil
 	}
-
-	clk := quartz.NewReal()
 
 	resourcesFetcher, err := clistat.New()
 	if err != nil {
@@ -44,7 +56,7 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 			return nil
 		}
 
-		volumes := make([]*resourcesMonitor_VolumeDatapoint, 0, len(config.MonitoredVolumes))
+		volumes := make([]*resourcesMonitorVolumeDatapoint, 0, len(config.MonitoredVolumes))
 		for _, volume := range config.MonitoredVolumes {
 			volTotal, volUsed, err := fetchResourceMonitoredVolume(resourcesFetcher, volume)
 			if err != nil {
@@ -52,15 +64,15 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 				return nil
 			}
 
-			volumes = append(volumes, &resourcesMonitor_VolumeDatapoint{
+			volumes = append(volumes, &resourcesMonitorVolumeDatapoint{
 				Path:  volume,
 				Total: volTotal,
 				Used:  volUsed,
 			})
 		}
 
-		datapointsQueue.Push(resourcesMonitor_Datapoint{
-			Memory: &resourcesMonitor_MemoryDatapoint{
+		datapointsQueue.Push(resourcesMonitorDatapoint{
+			Memory: &resourcesMonitorMemoryDatapoint{
 				Total: memTotal,
 				Used:  memUsed,
 			},
@@ -68,7 +80,7 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 		})
 
 		if datapointsQueue.IsFull() {
-			_, err = aAPI.PushResourcesMonitoringUsage(ctx, &proto.PushResourcesMonitoringUsageRequest{
+			_, err = datapointsPusher(ctx, &proto.PushResourcesMonitoringUsageRequest{
 				Datapoints: datapointsQueue.ItemsAsProto(),
 			})
 			if err != nil {
@@ -82,7 +94,7 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 	return nil
 }
 
-func fetchResourceMonitoredMemory(fetcher *clistat.Statter) (int64, int64, error) {
+func fetchResourceMonitoredMemory(fetcher *clistat.Statter) (total int64, used int64, err error) {
 	mem, err := fetcher.HostMemory(clistat.PrefixMebi)
 	if err != nil {
 		return 0, 0, err
@@ -99,7 +111,7 @@ func fetchResourceMonitoredMemory(fetcher *clistat.Statter) (int64, int64, error
 	return memTotal, memUsed, nil
 }
 
-func fetchResourceMonitoredVolume(fetcher *clistat.Statter, volume string) (int64, int64, error) {
+func fetchResourceMonitoredVolume(fetcher *clistat.Statter, volume string) (total int64, used int64, err error) {
 	vol, err := fetcher.Disk(clistat.PrefixMebi, volume)
 	if err != nil {
 		return 0, 0, err
