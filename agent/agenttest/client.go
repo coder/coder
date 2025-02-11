@@ -219,7 +219,7 @@ func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ 
 	defer f.Unlock()
 
 	if f.getResourcesMonitoringConfigurationFunc == nil {
-		return nil, xerrors.Errorf("GetResourcesMonitoringConfiguration is not implemented")
+		return &agentproto.GetResourcesMonitoringConfigurationResponse{}, nil
 	}
 
 	return f.getResourcesMonitoringConfigurationFunc()
@@ -230,7 +230,7 @@ func (f *FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, req *agen
 	defer f.Unlock()
 
 	if f.pushResourcesMonitoringUsageFunc == nil {
-		return nil, xerrors.Errorf("PushResourcesMonitoringUsage is not implemented")
+		return &agentproto.PushResourcesMonitoringUsageResponse{}, nil
 	}
 
 	return f.pushResourcesMonitoringUsageFunc(req)
