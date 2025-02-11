@@ -10,7 +10,6 @@ import (
 	"flag"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -1738,10 +1737,6 @@ var multipleSlashesRe = regexp.MustCompile(`/+`)
 
 func singleSlashMW(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
-		if strings.Contains(r.URL.Path, "test-app-owner") {
-			log.Println(r.URL.Path)
-		}
-
 		var path string
 		rctx := chi.RouteContext(r.Context())
 		if rctx != nil && rctx.RoutePath != "" {
