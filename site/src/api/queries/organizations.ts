@@ -3,6 +3,7 @@ import type {
 	AuthorizationResponse,
 	CreateOrganizationRequest,
 	GroupSyncSettings,
+	ProvisionerDaemon,
 	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";

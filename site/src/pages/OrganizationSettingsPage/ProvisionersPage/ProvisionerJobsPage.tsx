@@ -13,7 +13,6 @@ import {
 	TableRow,
 } from "components/Table/Table";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
-import { TableLoader } from "components/TableLoader/TableLoader";
 import {
 	Tooltip,
 	TooltipContent,
@@ -32,6 +31,10 @@ import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
 import { JobStatusIndicator } from "./JobStatusIndicator";
+import { DataGrid } from "./DataGrid";
+import { ShrinkTags, Tag, Tags } from "./Tags";
+import { Loader } from "components/Loader/Loader";
+import { EmptyState } from "components/EmptyState/EmptyState";
 
 type ProvisionerJobsPageProps = {
 	org: Organization;
@@ -64,12 +67,24 @@ export const ProvisionerJobsPage: FC<ProvisionerJobsPageProps> = ({ org }) => {
 						jobs.length > 0 ? (
 							jobs.map((j) => <JobRow key={j.id} job={j} />)
 						) : (
-							<TableEmpty message="No provisioner jobs found" />
+							<TableRow>
+								<TableCell colSpan={999}>
+									<EmptyState message="No provisioner jobs found" />
+								</TableCell>
+							</TableRow>
 						)
 					) : isLoadingError ? (
-						<TableEmpty message="Error loading the provisioner jobs" />
+						<TableRow>
+							<TableCell colSpan={999}>
+								<EmptyState message="Error loading the provisioner jobs" />
+							</TableCell>
+						</TableRow>
 					) : (
-						<TableLoader />
+						<TableRow>
+							<TableCell colSpan={999}>
+								<Loader />
+							</TableCell>
+						</TableRow>
 					)}
 				</TableBody>
 			</Table>
@@ -127,18 +142,11 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 							{metadata.template_display_name ?? metadata.template_name}
 						</div>
 					) : (
-						"Not linked to any template"
+						<span className="whitespace-nowrap">Not linked</span>
 					)}
 				</TableCell>
 				<TableCell>
-					<div className="flex items-center gap-1 flex-wrap">
-						{Object.entries(job.tags).map(([k, v]) => (
-							<Badge size="sm" key={k} className="whitespace-nowrap">
-								[{k}
-								{v && `=${v}`}]
-							</Badge>
-						))}
-					</div>
+					<ShrinkTags tags={job.tags} />
 				</TableCell>
 				<TableCell>
 					<JobStatusIndicator job={job} />
@@ -176,13 +184,7 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 								<span className="[&:first-letter]:uppercase">{job.error}</span>
 							</div>
 						)}
-						<div
-							className={cn([
-								"grid grid-cols-[auto_1fr] gap-x-4 items-center",
-								"[&_span:nth-child(even)]:text-content-primary [&_span:nth-child(even)]:font-mono",
-								"[&_span:nth-child(even)]:leading-[22px]",
-							])}
-						>
+						<DataGrid>
 							<span>Job ID:</span>
 							<span>{job.id}</span>
 
@@ -206,7 +208,16 @@ const JobRow: FC<JobRowProps> = ({ job }) => {
 							<span>
 								{job.queue_position}/{job.queue_size}
 							</span>
-						</div>
+
+							<span>Tags:</span>
+							<span>
+								<Tags>
+									{Object.entries(job.tags).map(([key, value]) => (
+										<Tag key={key} label={key} value={value} />
+									))}
+								</Tags>
+							</span>
+						</DataGrid>
 					</TableCell>
 				</TableRow>
 			)}
