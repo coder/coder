@@ -859,6 +859,78 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceAssignOrgRole.InOrg(o.ID), policy.ActionAssign,
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
+	s.Run("InsertPreset", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+		})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+		})
+		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+		})
+		insertPresetParams := database.InsertPresetParams{
+			ID:                uuid.New(),
+			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			Name:              "test",
+		}
+		check.Args(insertPresetParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
+	s.Run("InsertPresetParameters", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+		})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+		})
+		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			WorkspaceID:       workspace.ID,
+			TemplateVersionID: templateVersion.ID,
+			InitiatorID:       user.ID,
+			JobID:             job.ID,
+		})
+		insertPresetParams := database.InsertPresetParams{
+			TemplateVersionID: workspaceBuild.TemplateVersionID,
+			Name:              "test",
+		}
+		preset, err := db.InsertPreset(context.Background(), insertPresetParams)
+		require.NoError(s.T(), err)
+		insertPresetParametersParams := database.InsertPresetParametersParams{
+			TemplateVersionPresetID: preset.ID,
+			Names:                   []string{"test"},
+			Values:                  []string{"test"},
+		}
+		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
+	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
 		o := dbgen.Organization(s.T(), db, database.Organization{})
 		u := dbgen.User(s.T(), db, database.User{})
@@ -3694,6 +3766,98 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			Asserts(tpl, policy.ActionRead).
 			ErrorsWithInMemDB(sql.ErrNoRows).
 			Returns([]database.ParameterSchema{})
+	}))
+	s.Run("GetPresetByWorkspaceBuildID", s.Subtest(func(db database.Store, check *expects) {
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset, err := db.InsertPreset(context.Background(), database.InsertPresetParams{
+			TemplateVersionID: templateVersion.ID,
+			Name:              "test",
+		})
+		require.NoError(s.T(), err)
+		workspace := dbgen.Workspace(s.T(), db, database.WorkspaceTable{
+			OrganizationID: org.ID,
+			OwnerID:        user.ID,
+			TemplateID:     template.ID,
+		})
+		job := dbgen.ProvisionerJob(s.T(), db, nil, database.ProvisionerJob{
+			OrganizationID: org.ID,
+		})
+		workspaceBuild := dbgen.WorkspaceBuild(s.T(), db, database.WorkspaceBuild{
+			WorkspaceID:             workspace.ID,
+			TemplateVersionID:       templateVersion.ID,
+			TemplateVersionPresetID: uuid.NullUUID{UUID: preset.ID, Valid: true},
+			InitiatorID:             user.ID,
+			JobID:                   job.ID,
+		})
+		_, err = db.GetPresetByWorkspaceBuildID(context.Background(), workspaceBuild.ID)
+		require.NoError(s.T(), err)
+		check.Args(workspaceBuild.ID).Asserts(rbac.ResourceTemplate, policy.ActionRead)
+	}))
+	s.Run("GetPresetParametersByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
+			ID:                uuid.New(),
+			TemplateVersionID: templateVersion.ID,
+			Name:              "test",
+		})
+		require.NoError(s.T(), err)
+		_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			ID:                      uuid.New(),
+			TemplateVersionPresetID: preset.ID,
+			Names:                   []string{"test"},
+			Values:                  []string{"test"},
+		})
+		require.NoError(s.T(), err)
+		presetParameters, err := db.GetPresetParametersByTemplateVersionID(ctx, templateVersion.ID)
+		require.NoError(s.T(), err)
+
+		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presetParameters)
+	}))
+	s.Run("GetPresetsByTemplateVersionID", s.Subtest(func(db database.Store, check *expects) {
+		ctx := context.Background()
+		org := dbgen.Organization(s.T(), db, database.Organization{})
+		user := dbgen.User(s.T(), db, database.User{})
+		template := dbgen.Template(s.T(), db, database.Template{
+			CreatedBy:      user.ID,
+			OrganizationID: org.ID,
+		})
+		templateVersion := dbgen.TemplateVersion(s.T(), db, database.TemplateVersion{
+			TemplateID:     uuid.NullUUID{UUID: template.ID, Valid: true},
+			OrganizationID: org.ID,
+			CreatedBy:      user.ID,
+		})
+
+		_, err := db.InsertPreset(ctx, database.InsertPresetParams{
+			TemplateVersionID: templateVersion.ID,
+			Name:              "test",
+		})
+		require.NoError(s.T(), err)
+
+		presets, err := db.GetPresetsByTemplateVersionID(ctx, templateVersion.ID)
+		require.NoError(s.T(), err)
+
+		check.Args(templateVersion.ID).Asserts(template.RBACObject(), policy.ActionRead).Returns(presets)
 	}))
 	s.Run("GetWorkspaceAppsByAgentIDs", s.Subtest(func(db database.Store, check *expects) {
 		dbtestutil.DisableForeignKeysAndTriggers(s.T(), db)

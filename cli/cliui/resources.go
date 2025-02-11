@@ -28,6 +28,7 @@ type WorkspaceResourcesOptions struct {
 	Title          string
 	ServerVersion  string
 	ListeningPorts map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse
+	Devcontainers  map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse
 }
 
 // WorkspaceResources displays the connection status and tree-view of provided resources.
@@ -95,15 +96,11 @@ func WorkspaceResources(writer io.Writer, resources []codersdk.WorkspaceResource
 		// Display all agents associated with the resource.
 		for index, agent := range resource.Agents {
 			tableWriter.AppendRow(renderAgentRow(agent, index, totalAgents, options))
-			if options.ListeningPorts != nil {
-				if lp, ok := options.ListeningPorts[agent.ID]; ok && len(lp.Ports) > 0 {
-					tableWriter.AppendRow(table.Row{
-						fmt.Sprintf("   %s─ %s", renderPipe(index, totalAgents), "Open Ports"),
-					})
-					for _, port := range lp.Ports {
-						tableWriter.AppendRow(renderPortRow(port, index, totalAgents))
-					}
-				}
+			for _, row := range renderListeningPorts(options, agent.ID, index, totalAgents) {
+				tableWriter.AppendRow(row)
+			}
+			for _, row := range renderDevcontainers(options, agent.ID, index, totalAgents) {
+				tableWriter.AppendRow(row)
 			}
 		}
 		tableWriter.AppendSeparator()
@@ -137,16 +134,75 @@ func renderAgentRow(agent codersdk.WorkspaceAgent, index, totalAgents int, optio
 	return row
 }
 
-func renderPortRow(port codersdk.WorkspaceAgentListeningPort, index, totalPorts int) table.Row {
+func renderListeningPorts(wro WorkspaceResourcesOptions, agentID uuid.UUID, idx, total int) []table.Row {
+	var rows []table.Row
+	if wro.ListeningPorts == nil {
+		return []table.Row{}
+	}
+	lp, ok := wro.ListeningPorts[agentID]
+	if !ok || len(lp.Ports) == 0 {
+		return []table.Row{}
+	}
+	rows = append(rows, table.Row{
+		fmt.Sprintf("   %s─ Open Ports", renderPipe(idx, total)),
+	})
+	for idx, port := range lp.Ports {
+		rows = append(rows, renderPortRow(port, idx, len(lp.Ports)))
+	}
+	return rows
+}
+
+func renderPortRow(port codersdk.WorkspaceAgentListeningPort, idx, total int) table.Row {
 	var sb strings.Builder
 	_, _ = sb.WriteString("      ")
-	_, _ = sb.WriteString(renderPipe(index, totalPorts))
+	_, _ = sb.WriteString(renderPipe(idx, total))
 	_, _ = sb.WriteString("─ ")
 	_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Code, "%5d/%s", port.Port, port.Network))
 	if port.ProcessName != "" {
 		_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Keyword, " [%s]", port.ProcessName))
 	}
 	return table.Row{sb.String()}
+}
+
+func renderDevcontainers(wro WorkspaceResourcesOptions, agentID uuid.UUID, index, totalAgents int) []table.Row {
+	var rows []table.Row
+	if wro.Devcontainers == nil {
+		return []table.Row{}
+	}
+	dc, ok := wro.Devcontainers[agentID]
+	if !ok || len(dc.Containers) == 0 {
+		return []table.Row{}
+	}
+	rows = append(rows, table.Row{
+		fmt.Sprintf("   %s─ %s", renderPipe(index, totalAgents), "Devcontainers"),
+	})
+	for idx, container := range dc.Containers {
+		rows = append(rows, renderDevcontainerRow(container, idx, len(dc.Containers)))
+	}
+	return rows
+}
+
+func renderDevcontainerRow(container codersdk.WorkspaceAgentDevcontainer, index, total int) table.Row {
+	var row table.Row
+	var sb strings.Builder
+	_, _ = sb.WriteString("      ")
+	_, _ = sb.WriteString(renderPipe(index, total))
+	_, _ = sb.WriteString("─ ")
+	_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Code, "%s", container.FriendlyName))
+	row = append(row, sb.String())
+	sb.Reset()
+	if container.Running {
+		_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Keyword, "(%s)", container.Status))
+	} else {
+		_, _ = sb.WriteString(pretty.Sprintf(DefaultStyles.Error, "(%s)", container.Status))
+	}
+	row = append(row, sb.String())
+	sb.Reset()
+	// "health" is not applicable here.
+	row = append(row, sb.String())
+	_, _ = sb.WriteString(container.Image)
+	row = append(row, sb.String())
+	return row
 }
 
 func renderAgentStatus(agent codersdk.WorkspaceAgent) string {
