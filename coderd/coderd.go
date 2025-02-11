@@ -10,6 +10,7 @@ import (
 	"flag"
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"net/url"
 	"path/filepath"
@@ -788,7 +789,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
-		stripSlashesMW,
+		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -1735,8 +1736,12 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 
 var multipleSlashesRe = regexp.MustCompile(`/+`)
 
-func stripSlashesMW(next http.Handler) http.Handler {
+func singleSlashMW(next http.Handler) http.Handler {
 	fn := func(w http.ResponseWriter, r *http.Request) {
+		if strings.Contains(r.URL.Path, "test-app-owner") {
+			log.Println(r.URL.Path)
+		}
+
 		var path string
 		rctx := chi.RouteContext(r.Context())
 		if rctx != nil && rctx.RoutePath != "" {
@@ -1747,11 +1752,6 @@ func stripSlashesMW(next http.Handler) http.Handler {
 
 		// Normalize multiple slashes to a single slash
 		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
-
-		// Ensure it doesn't strip the root `/`
-		if len(newPath) > 1 && newPath[len(newPath)-1] == '/' {
-			newPath = strings.TrimSuffix(newPath, "/")
-		}
 
 		// Apply the cleaned path
 		if rctx != nil {

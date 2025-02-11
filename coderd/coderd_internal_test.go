@@ -19,9 +19,8 @@ func TestStripSlashesMW(t *testing.T) {
 		wantPath  string
 	}{
 		{"No changes", "/api/v1/buildinfo", "/api/v1/buildinfo"},
-		{"Single trailing slash", "/api/v2/buildinfo/", "/api/v2/buildinfo"},
 		{"Double slashes", "/api//v2//buildinfo", "/api/v2/buildinfo"},
-		{"Triple slashes", "/api///v2///buildinfo///", "/api/v2/buildinfo"},
+		{"Triple slashes", "/api///v2///buildinfo", "/api/v2/buildinfo"},
 		{"Leading slashes", "///api/v2/buildinfo", "/api/v2/buildinfo"},
 		{"Root path", "/", "/"},
 		{"Double slashes root", "//", "/"},
@@ -46,7 +45,7 @@ func TestStripSlashesMW(t *testing.T) {
 			req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
 
 			// Pass the request through the middleware
-			stripSlashesMW(handler).ServeHTTP(rec, req)
+			singleSlashMW(handler).ServeHTTP(rec, req)
 
 			// Get the updated chi RouteContext after middleware processing
 			updatedCtx := chi.RouteContext(req.Context())
