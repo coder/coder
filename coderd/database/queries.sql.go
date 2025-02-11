@@ -5756,9 +5756,9 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	tmpl.name AS current_job_template_name,
-	tmpl.display_name AS current_job_template_display_name,
-	tmpl.icon AS current_job_template_icon
+	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
+	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -5810,9 +5810,9 @@ type GetProvisionerDaemonsWithStatusByOrganizationRow struct {
 	CurrentJobStatus              NullProvisionerJobStatus `db:"current_job_status" json:"current_job_status"`
 	PreviousJobID                 uuid.NullUUID            `db:"previous_job_id" json:"previous_job_id"`
 	PreviousJobStatus             NullProvisionerJobStatus `db:"previous_job_status" json:"previous_job_status"`
-	CurrentJobTemplateName        sql.NullString           `db:"current_job_template_name" json:"current_job_template_name"`
-	CurrentJobTemplateDisplayName sql.NullString           `db:"current_job_template_display_name" json:"current_job_template_display_name"`
-	CurrentJobTemplateIcon        sql.NullString           `db:"current_job_template_icon" json:"current_job_template_icon"`
+	CurrentJobTemplateName        string                   `db:"current_job_template_name" json:"current_job_template_name"`
+	CurrentJobTemplateDisplayName string                   `db:"current_job_template_display_name" json:"current_job_template_display_name"`
+	CurrentJobTemplateIcon        string                   `db:"current_job_template_icon" json:"current_job_template_icon"`
 }
 
 func (q *sqlQuerier) GetProvisionerDaemonsWithStatusByOrganization(ctx context.Context, arg GetProvisionerDaemonsWithStatusByOrganizationParams) ([]GetProvisionerDaemonsWithStatusByOrganizationRow, error) {

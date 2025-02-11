@@ -61,9 +61,9 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 			currentJob = &codersdk.ProvisionerDaemonJob{
 				ID:                  dbDaemon.CurrentJobID.UUID,
 				Status:              codersdk.ProvisionerJobStatus(dbDaemon.CurrentJobStatus.ProvisionerJobStatus),
-				TemplateName:        dbDaemon.CurrentJobTemplateName.String,
-				TemplateIcon:        dbDaemon.CurrentJobTemplateIcon.String,
-				TemplateDisplayName: dbDaemon.CurrentJobTemplateDisplayName.String,
+				TemplateName:        dbDaemon.CurrentJobTemplateName,
+				TemplateIcon:        dbDaemon.CurrentJobTemplateIcon,
+				TemplateDisplayName: dbDaemon.CurrentJobTemplateDisplayName,
 			}
 		}
 		if dbDaemon.PreviousJobID.Valid {

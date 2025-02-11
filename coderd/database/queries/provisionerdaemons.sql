@@ -45,9 +45,9 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	tmpl.name AS current_job_template_name,
-	tmpl.display_name AS current_job_template_display_name,
-	tmpl.icon AS current_job_template_icon
+	COALESCE(tmpl.name, ''::text) AS current_job_template_name,
+	COALESCE(tmpl.display_name, ''::text) AS current_job_template_display_name,
+	COALESCE(tmpl.icon, ''::text) AS current_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
