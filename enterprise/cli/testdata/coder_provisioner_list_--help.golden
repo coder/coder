@@ -11,7 +11,7 @@ OPTIONS:
   -O, --org string, $CODER_ORGANIZATION
           Select which organization (uuid or name) to use.
 
-  -c, --column [id|organization id|created at|last seen at|name|version|api version|tags|key name|status|current job id|current job status|previous job id|previous job status|organization] (default: name,organization,status,key name,created at,last seen at,version,tags)
+  -c, --column [id|organization id|created at|last seen at|name|version|api version|tags|key name|status|current job id|current job status|current job template name|current job template icon|current job template display name|previous job id|previous job status|previous job template name|previous job template icon|previous job template display name|organization] (default: name,organization,status,key name,created at,last seen at,version,tags)
           Columns to display in table output.
 
   -o, --output table|json (default: table)
