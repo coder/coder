@@ -318,9 +318,10 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 
 			var containerLister agentcontainers.Lister
 			if !devcontainersEnabled {
+				logger.Info(ctx, "agent devcontainer detection not enabled")
 				containerLister = &agentcontainers.NoopLister{}
 			} else {
-				logger.Info(ctx, "agent devcontainer detection not enabled")
+				logger.Info(ctx, "agent devcontainer detection enabled")
 				containerLister = agentcontainers.NewDocker(execer)
 			}
 

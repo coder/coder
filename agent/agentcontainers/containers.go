@@ -144,6 +144,6 @@ type Lister interface {
 // NoopLister is a Lister interface that never returns any containers.
 type NoopLister struct{}
 
-func (*NoopLister) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
+func (NoopLister) List(_ context.Context) (codersdk.WorkspaceAgentListContainersResponse, error) {
 	return codersdk.WorkspaceAgentListContainersResponse{}, nil
 }
