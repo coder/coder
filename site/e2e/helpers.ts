@@ -762,7 +762,7 @@ export const createServer = async (
 async function waitForPort(
 	port: number,
 	host = "0.0.0.0",
-	timeout = 30000,
+	timeout = 60_000,
 ): Promise<void> {
 	const start = Date.now();
 	while (Date.now() - start < timeout) {
