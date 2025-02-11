@@ -14,7 +14,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { ChevronDownIcon, ChevronRightIcon } from "lucide-react";
 import { useState, type FC } from "react";
 import { useQuery } from "react-query";

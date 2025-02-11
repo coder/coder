@@ -12,7 +12,6 @@ import {
 	TableHeader,
 	TableRow,
 } from "components/Table/Table";
-import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import {
 	Tooltip,
 	TooltipContent,
