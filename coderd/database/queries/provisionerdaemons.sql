@@ -72,7 +72,7 @@ LEFT JOIN
 			LIMIT 1
 		)
 	)
-JOIN
+LEFT JOIN
 	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
 LEFT JOIN
 	templates tmpl ON tmpl.id = version.template_id
