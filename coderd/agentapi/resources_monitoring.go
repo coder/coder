@@ -32,11 +32,11 @@ type ResourcesMonitoringAPI struct {
 
 	// How many datapoints in a row are required to
 	// put the monitor in an alert state.
-	ConsecutiveNOKs int
+	ConsecutiveNOKsToAlert int
 
 	// How many datapoints in total are required to
 	// put the monitor in an alert state.
-	MinimumNOKs int
+	MinimumNOKsToAlert int
 }
 
 func (m *ResourcesMonitoringAPI) PushResourcesMonitoringUsage(ctx context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
@@ -75,7 +75,7 @@ func (m *ResourcesMonitoringAPI) monitorMemory(ctx context.Context, datapoints [
 	usageStates := calculateMemoryUsageStates(monitor, usageDatapoints)
 
 	oldState := monitor.State
-	newState := m.nextState(oldState, usageStates)
+	newState := m.calculateNextState(oldState, usageStates)
 
 	shouldNotify := m.Clock.Now().After(monitor.DebouncedUntil) &&
 		oldState == database.WorkspaceAgentMonitorStateOK &&
@@ -128,7 +128,6 @@ func (m *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	}
 
 	volumes := make(map[string][]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint_VolumeUsage)
-
 	for _, datapoint := range datapoints {
 		for _, volume := range datapoint.Volume {
 			volumeDatapoints := volumes[volume.Path]
@@ -147,7 +146,7 @@ func (m *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 		usageStates := calculateVolumeUsageStates(monitor, volumes[monitor.Path])
 
 		oldState := monitor.State
-		newState := m.nextState(oldState, usageStates)
+		newState := m.calculateNextState(oldState, usageStates)
 
 		shouldNotify := m.Clock.Now().After(monitor.DebouncedUntil) &&
 			oldState == database.WorkspaceAgentMonitorStateOK &&
@@ -200,13 +199,13 @@ func (m *ResourcesMonitoringAPI) monitorVolumes(ctx context.Context, datapoints 
 	return nil
 }
 
-func (m *ResourcesMonitoringAPI) nextState(
+func (m *ResourcesMonitoringAPI) calculateNextState(
 	oldState database.WorkspaceAgentMonitorState,
 	states []database.WorkspaceAgentMonitorState,
 ) database.WorkspaceAgentMonitorState {
 	// If we do not have an OK in the last `X` datapoints, then we are
 	// in an alert state.
-	lastXStates := states[max(len(states)-m.ConsecutiveNOKs, 0):]
+	lastXStates := states[max(len(states)-m.ConsecutiveNOKsToAlert, 0):]
 	if !slices.Contains(lastXStates, database.WorkspaceAgentMonitorStateOK) {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
@@ -219,7 +218,7 @@ func (m *ResourcesMonitoringAPI) nextState(
 	}
 
 	// If there are enough NOK datapoints, we should be in an alert state.
-	if nokCount >= m.MinimumNOKs {
+	if nokCount >= m.MinimumNOKsToAlert {
 		return database.WorkspaceAgentMonitorStateNOK
 	}
 

@@ -162,8 +162,8 @@ func New(opts Options) *API {
 		NotificationsEnqueuer: opts.NotificationsEnqueuer,
 
 		// These values assume a window of 20
-		MinimumNOKs:     4,
-		ConsecutiveNOKs: 10,
+		MinimumNOKsToAlert:     4,
+		ConsecutiveNOKsToAlert: 10,
 	}
 
 	api.DRPCService = &tailnet.DRPCService{

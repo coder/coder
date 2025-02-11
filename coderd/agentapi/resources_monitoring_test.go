@@ -58,14 +58,14 @@ func resourceMonitorAPI(t *testing.T) (*agentapi.ResourcesMonitoringAPI, databas
 	clock := quartz.NewMock(t)
 
 	return &agentapi.ResourcesMonitoringAPI{
-		AgentID:               agent.ID,
-		WorkspaceID:           workspace.ID,
-		Clock:                 clock,
-		Database:              db,
-		NotificationsEnqueuer: notifyEnq,
-		MinimumNOKs:           4,
-		ConsecutiveNOKs:       10,
-		Debounce:              1 * time.Minute,
+		AgentID:                agent.ID,
+		WorkspaceID:            workspace.ID,
+		Clock:                  clock,
+		Database:               db,
+		NotificationsEnqueuer:  notifyEnq,
+		MinimumNOKsToAlert:     4,
+		ConsecutiveNOKsToAlert: 10,
+		Debounce:               1 * time.Minute,
 	}, user, clock, notifyEnq
 }
 
@@ -282,8 +282,8 @@ func TestMemoryResourceMonitor(t *testing.T) {
 			t.Parallel()
 
 			api, user, clock, notifyEnq := resourceMonitorAPI(t)
-			api.MinimumNOKs = tt.minimumNOKs
-			api.ConsecutiveNOKs = tt.consecutiveNOKs
+			api.MinimumNOKsToAlert = tt.minimumNOKs
+			api.ConsecutiveNOKsToAlert = tt.consecutiveNOKs
 
 			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.memoryUsage))
 			collectedAt := clock.Now()
@@ -613,8 +613,8 @@ func TestVolumeResourceMonitor(t *testing.T) {
 			t.Parallel()
 
 			api, user, clock, notifyEnq := resourceMonitorAPI(t)
-			api.MinimumNOKs = tt.minimumNOKs
-			api.ConsecutiveNOKs = tt.consecutiveNOKs
+			api.MinimumNOKsToAlert = tt.minimumNOKs
+			api.ConsecutiveNOKsToAlert = tt.consecutiveNOKs
 
 			datapoints := make([]*agentproto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(tt.volumeUsage))
 			collectedAt := clock.Now()
