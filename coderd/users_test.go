@@ -831,6 +831,7 @@ func TestPostUsers(t *testing.T) {
 		// Try to log in with OIDC.
 		userClient, _ := fake.Login(t, client, jwt.MapClaims{
 			"email": email,
+			"sub":   uuid.NewString(),
 		})
 
 		found, err := userClient.User(ctx, "me")

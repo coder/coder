@@ -660,6 +660,15 @@ export const MockProvisionerJob: TypesGen.ProvisionerJob = {
 	},
 	organization_id: MockOrganization.id,
 	type: "template_version_dry_run",
+	metadata: {
+		workspace_id: "test-workspace",
+		template_display_name: "Test Template",
+		template_icon: "/icon/code.svg",
+		template_id: "test-template",
+		template_name: "test-template",
+		template_version_name: "test-version",
+		workspace_name: "test-workspace",
+	},
 };
 
 export const MockFailedProvisionerJob: TypesGen.ProvisionerJob = {

@@ -48,7 +48,14 @@
         "input": {
           "workspace_build_id": "========[workspace build ID]========"
         },
-        "type": "workspace_build"
+        "type": "workspace_build",
+        "metadata": {
+          "template_version_name": "",
+          "template_id": "00000000-0000-0000-0000-000000000000",
+          "template_name": "",
+          "template_display_name": "",
+          "template_icon": ""
+        }
       },
       "reason": "initiator",
       "resources": [],

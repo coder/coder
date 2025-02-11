@@ -1215,6 +1215,7 @@ func New(options *Options) *API {
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
+				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.

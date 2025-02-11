@@ -6437,6 +6437,7 @@ SELECT
 	t.id AS template_id,
 	COALESCE(t.name, '') AS template_name,
 	COALESCE(t.display_name, '') AS template_display_name,
+	COALESCE(t.icon, '') AS template_icon,
 	w.id AS workspace_id,
 	COALESCE(w.name, '') AS workspace_name
 FROM
@@ -6466,6 +6467,7 @@ GROUP BY
 	t.id,
 	t.name,
 	t.display_name,
+	t.icon,
 	w.id,
 	w.name
 ORDER BY
@@ -6490,6 +6492,7 @@ type GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow
 	TemplateID          uuid.NullUUID  `db:"template_id" json:"template_id"`
 	TemplateName        string         `db:"template_name" json:"template_name"`
 	TemplateDisplayName string         `db:"template_display_name" json:"template_display_name"`
+	TemplateIcon        string         `db:"template_icon" json:"template_icon"`
 	WorkspaceID         uuid.NullUUID  `db:"workspace_id" json:"workspace_id"`
 	WorkspaceName       string         `db:"workspace_name" json:"workspace_name"`
 }
@@ -6535,6 +6538,7 @@ func (q *sqlQuerier) GetProvisionerJobsByOrganizationAndStatusWithQueuePositionA
 			&i.TemplateID,
 			&i.TemplateName,
 			&i.TemplateDisplayName,
+			&i.TemplateIcon,
 			&i.WorkspaceID,
 			&i.WorkspaceName,
 		); err != nil {
