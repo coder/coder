@@ -1830,6 +1830,7 @@ func InsertWorkspacePresetsAndParameters(ctx context.Context, logger slog.Logger
 func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, templateVersionID uuid.UUID, protoPreset *sdkproto.Preset, t time.Time) error {
 	err := db.InTx(func(tx database.Store) error {
 		dbPreset, err := tx.InsertPreset(ctx, database.InsertPresetParams{
+			ID:                uuid.New(),
 			TemplateVersionID: templateVersionID,
 			Name:              protoPreset.Name,
 			CreatedAt:         t,
@@ -1845,6 +1846,7 @@ func InsertWorkspacePresetAndParameters(ctx context.Context, db database.Store, 
 			presetParameterValues = append(presetParameterValues, parameter.Value)
 		}
 		_, err = tx.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			ID:                      uuid.New(),
 			TemplateVersionPresetID: dbPreset.ID,
 			Names:                   presetParameterNames,
 			Values:                  presetParameterValues,

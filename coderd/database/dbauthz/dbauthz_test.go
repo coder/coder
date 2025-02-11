@@ -860,7 +860,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			rbac.ResourceOrganizationMember.InOrg(o.ID).WithID(u.ID), policy.ActionCreate)
 	}))
 	s.Run("InsertPreset", s.Subtest(func(db database.Store, check *expects) {
-		ctx := context.Background()
 		org := dbgen.Organization(s.T(), db, database.Organization{})
 		user := dbgen.User(s.T(), db, database.User{})
 		template := dbgen.Template(s.T(), db, database.Template{
@@ -887,11 +886,10 @@ func (s *MethodTestSuite) TestOrganization() {
 			JobID:             job.ID,
 		})
 		insertPresetParams := database.InsertPresetParams{
+			ID:                uuid.New(),
 			TemplateVersionID: workspaceBuild.TemplateVersionID,
 			Name:              "test",
 		}
-		_, err := db.InsertPreset(ctx, insertPresetParams)
-		require.NoError(s.T(), err)
 		check.Args(insertPresetParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
 	s.Run("InsertPresetParameters", s.Subtest(func(db database.Store, check *expects) {
@@ -931,8 +929,6 @@ func (s *MethodTestSuite) TestOrganization() {
 			Names:                   []string{"test"},
 			Values:                  []string{"test"},
 		}
-		_, err = db.InsertPresetParameters(context.Background(), insertPresetParametersParams)
-		require.NoError(s.T(), err)
 		check.Args(insertPresetParametersParams).Asserts(rbac.ResourceTemplate, policy.ActionUpdate)
 	}))
 	s.Run("DeleteOrganizationMember", s.Subtest(func(db database.Store, check *expects) {
@@ -3821,11 +3817,13 @@ func (s *MethodTestSuite) TestSystemFunctions() {
 			CreatedBy:      user.ID,
 		})
 		preset, err := db.InsertPreset(ctx, database.InsertPresetParams{
+			ID:                uuid.New(),
 			TemplateVersionID: templateVersion.ID,
 			Name:              "test",
 		})
 		require.NoError(s.T(), err)
 		_, err = db.InsertPresetParameters(ctx, database.InsertPresetParametersParams{
+			ID:                      uuid.New(),
 			TemplateVersionPresetID: preset.ID,
 			Names:                   []string{"test"},
 			Values:                  []string{"test"},

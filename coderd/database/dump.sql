@@ -1266,14 +1266,14 @@ COMMENT ON COLUMN template_version_parameters.display_order IS 'Specifies the or
 COMMENT ON COLUMN template_version_parameters.ephemeral IS 'The value of an ephemeral parameter will not be preserved between consecutive workspace builds.';
 
 CREATE TABLE template_version_preset_parameters (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid NOT NULL,
     template_version_preset_id uuid NOT NULL,
     name text NOT NULL,
     value text NOT NULL
 );
 
 CREATE TABLE template_version_presets (
-    id uuid DEFAULT gen_random_uuid() NOT NULL,
+    id uuid NOT NULL,
     template_version_id uuid NOT NULL,
     name text NOT NULL,
     created_at timestamp with time zone DEFAULT CURRENT_TIMESTAMP NOT NULL
