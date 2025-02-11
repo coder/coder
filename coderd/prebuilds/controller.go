@@ -10,6 +10,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/hashicorp/go-multierror"
 	"golang.org/x/exp/slices"
 
 	"github.com/coder/coder/v2/coderd/audit"
@@ -297,6 +298,7 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 			return xerrors.Errorf("failed to retrieve template's prebuild states: %w", err)
 		}
 
+		var lastErr multierror.Error
 		for _, state := range versionStates {
 			vlogger := logger.With(slog.F("template_version_id", state.TemplateVersionID))
 
@@ -329,20 +331,24 @@ func (c Controller) reconcileTemplate(ctx context.Context, template database.Tem
 			// i.e. we hold the advisory lock until all reconciliatory actions have been taken.
 			// TODO: max per reconciliation iteration?
 
+			// TODO: probably need to split these to have a transaction each... rolling back would lead to an
+			// 		 inconsistent state if 1 of n creations/deletions fail.
 			for _, id := range actions.createIDs {
 				if err := c.createPrebuild(ownerCtx, db, id, template); err != nil {
 					vlogger.Error(ctx, "failed to create prebuild", slog.Error(err))
+					lastErr.Errors = append(lastErr.Errors, err)
 				}
 			}
 
 			for _, id := range actions.deleteIDs {
 				if err := c.deletePrebuild(ownerCtx, db, id, template); err != nil {
 					vlogger.Error(ctx, "failed to delete prebuild", slog.Error(err))
+					lastErr.Errors = append(lastErr.Errors, err)
 				}
 			}
 		}
 
-		return nil
+		return lastErr.ErrorOrNil()
 	}, &database.TxOptions{
 		// TODO: isolation
 		TxIdentifier: "template_prebuilds",
