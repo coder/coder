@@ -2286,6 +2286,10 @@ class ApiMethods {
 		return res.data;
 	};
 
+	postTestNotification = async () => {
+		await this.axios.post<void>("/api/v2/notifications/test");
+	};
+
 	updateNotificationTemplateMethod = async (
 		templateId: string,
 		req: TypesGen.UpdateNotificationTemplateMethod,
