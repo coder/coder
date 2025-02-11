@@ -327,11 +327,11 @@ func (c OAuth2ProviderAppCode) RBACObject() rbac.Object {
 	return rbac.ResourceOauth2AppCodeToken.WithOwner(c.UserID.String())
 }
 
-func (c WorkspaceAgentMemoryResourceMonitor) RBACObject() rbac.Object {
+func (WorkspaceAgentMemoryResourceMonitor) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspaceAgentResourceMonitor.RBACObject()
 }
 
-func (c WorkspaceAgentVolumeResourceMonitor) RBACObject() rbac.Object {
+func (WorkspaceAgentVolumeResourceMonitor) RBACObject() rbac.Object {
 	return rbac.ResourceWorkspaceAgentResourceMonitor.RBACObject()
 }
 

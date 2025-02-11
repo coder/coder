@@ -20,17 +20,19 @@ func (a *agent) pushResourcesMonitoring(ctx context.Context, aAPI proto.DRPCAgen
 
 	clk := quartz.NewReal()
 
-	return pushResourcesMonitoringWithConfig(ctx, logger, clk, aAPI.GetResourcesMonitoringConfiguration, aAPI.PushResourcesMonitoringUsage)
+	return PushResourcesMonitoringWithConfig(ctx, logger, clk, aAPI.GetResourcesMonitoringConfiguration, aAPI.PushResourcesMonitoringUsage)
 }
 
-type resourcesMonitorConfigurationFetcher func(ctx context.Context, params *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error)
-type resourcesMonitorDatapointsPusher func(ctx context.Context, params *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
+type (
+	ResourcesMonitorConfigurationFetcher func(ctx context.Context, params *proto.GetResourcesMonitoringConfigurationRequest) (*proto.GetResourcesMonitoringConfigurationResponse, error)
+	ResourcesMonitorDatapointsPusher     func(ctx context.Context, params *proto.PushResourcesMonitoringUsageRequest) (*proto.PushResourcesMonitoringUsageResponse, error)
+)
 
-func pushResourcesMonitoringWithConfig(ctx context.Context,
+func PushResourcesMonitoringWithConfig(ctx context.Context,
 	logger slog.Logger,
 	clk quartz.Clock,
-	configFetcher resourcesMonitorConfigurationFetcher,
-	datapointsPusher resourcesMonitorDatapointsPusher,
+	configFetcher ResourcesMonitorConfigurationFetcher,
+	datapointsPusher ResourcesMonitorDatapointsPusher,
 ) error {
 	config, err := configFetcher(ctx, &proto.GetResourcesMonitoringConfigurationRequest{})
 	if err != nil {
@@ -47,7 +49,7 @@ func pushResourcesMonitoringWithConfig(ctx context.Context,
 		return xerrors.Errorf("failed to create resources fetcher: %w", err)
 	}
 
-	datapointsQueue := newResourcesMonitorQueue(int(config.Config.NumDatapoints))
+	datapointsQueue := NewResourcesMonitorQueue(int(config.Config.NumDatapoints))
 
 	clk.TickerFunc(ctx, time.Duration(config.Config.TickInterval*int32(time.Second)), func() error {
 		memTotal, memUsed, err := fetchResourceMonitoredMemory(resourcesFetcher)
@@ -56,7 +58,7 @@ func pushResourcesMonitoringWithConfig(ctx context.Context,
 			return nil
 		}
 
-		volumes := make([]*resourcesMonitorVolumeDatapoint, 0, len(config.MonitoredVolumes))
+		volumes := make([]*ResourcesMonitorVolumeDatapoint, 0, len(config.MonitoredVolumes))
 		for _, volume := range config.MonitoredVolumes {
 			volTotal, volUsed, err := fetchResourceMonitoredVolume(resourcesFetcher, volume)
 			if err != nil {
@@ -64,15 +66,15 @@ func pushResourcesMonitoringWithConfig(ctx context.Context,
 				return nil
 			}
 
-			volumes = append(volumes, &resourcesMonitorVolumeDatapoint{
+			volumes = append(volumes, &ResourcesMonitorVolumeDatapoint{
 				Path:  volume,
 				Total: volTotal,
 				Used:  volUsed,
 			})
 		}
 
-		datapointsQueue.Push(resourcesMonitorDatapoint{
-			Memory: &resourcesMonitorMemoryDatapoint{
+		datapointsQueue.Push(ResourcesMonitorDatapoint{
+			Memory: &ResourcesMonitorMemoryDatapoint{
 				Total: memTotal,
 				Used:  memUsed,
 			},

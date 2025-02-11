@@ -1,4 +1,4 @@
-package agent
+package agent_test
 
 import (
 	"context"
@@ -7,6 +7,7 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
+	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/quartz"
 )
@@ -16,8 +17,8 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 
 	tests := []struct {
 		name             string
-		configFetcher    resourcesMonitorConfigurationFetcher
-		datapointsPusher resourcesMonitorDatapointsPusher
+		configFetcher    agent.ResourcesMonitorConfigurationFetcher
+		datapointsPusher agent.ResourcesMonitorDatapointsPusher
 		expectedError    bool
 		numTicks         int
 		counterCalls     int
@@ -104,7 +105,7 @@ func TestPushResourcesMonitoringWithConfig(t *testing.T) {
 				return tt.datapointsPusher(ctx, params)
 			}
 
-			err := pushResourcesMonitoringWithConfig(ctx, logger, clk, tt.configFetcher, datapointsPusher)
+			err := agent.PushResourcesMonitoringWithConfig(ctx, logger, clk, tt.configFetcher, datapointsPusher)
 			if (err != nil) != tt.expectedError {
 				t.Errorf("expected error: %v, got: %v", tt.expectedError, err)
 			}

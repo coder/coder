@@ -4,38 +4,38 @@ import (
 	"github.com/coder/coder/v2/agent/proto"
 )
 
-type resourcesMonitorDatapoint struct {
-	Memory  *resourcesMonitorMemoryDatapoint
-	Volumes []*resourcesMonitorVolumeDatapoint
+type ResourcesMonitorDatapoint struct {
+	Memory  *ResourcesMonitorMemoryDatapoint
+	Volumes []*ResourcesMonitorVolumeDatapoint
 }
 
-type resourcesMonitorMemoryDatapoint struct {
+type ResourcesMonitorMemoryDatapoint struct {
 	Total int64
 	Used  int64
 }
 
-type resourcesMonitorVolumeDatapoint struct {
+type ResourcesMonitorVolumeDatapoint struct {
 	Path  string
 	Total int64
 	Used  int64
 }
 
-// resourcesMonitorQueue represents a FIFO queue with a fixed size
-type resourcesMonitorQueue struct {
-	items []resourcesMonitorDatapoint
+// ResourcesMonitorQueue represents a FIFO queue with a fixed size
+type ResourcesMonitorQueue struct {
+	items []ResourcesMonitorDatapoint
 	size  int
 }
 
-// newResourcesMonitorQueue creates a new resourcesMonitorQueue with the given size
-func newResourcesMonitorQueue(size int) *resourcesMonitorQueue {
-	return &resourcesMonitorQueue{
-		items: make([]resourcesMonitorDatapoint, 0, size),
+// newResourcesMonitorQueue creates a new ResourcesMonitorQueue with the given size
+func NewResourcesMonitorQueue(size int) *ResourcesMonitorQueue {
+	return &ResourcesMonitorQueue{
+		items: make([]ResourcesMonitorDatapoint, 0, size),
 		size:  size,
 	}
 }
 
 // Push adds a new item to the queue
-func (q *resourcesMonitorQueue) Push(item resourcesMonitorDatapoint) {
+func (q *ResourcesMonitorQueue) Push(item ResourcesMonitorDatapoint) {
 	if len(q.items) >= q.size {
 		// Remove the first item (FIFO)
 		q.items = q.items[1:]
@@ -43,15 +43,15 @@ func (q *resourcesMonitorQueue) Push(item resourcesMonitorDatapoint) {
 	q.items = append(q.items, item)
 }
 
-func (q *resourcesMonitorQueue) IsFull() bool {
+func (q *ResourcesMonitorQueue) IsFull() bool {
 	return len(q.items) == q.size
 }
 
-func (q *resourcesMonitorQueue) Items() []resourcesMonitorDatapoint {
+func (q *ResourcesMonitorQueue) Items() []ResourcesMonitorDatapoint {
 	return q.items
 }
 
-func (q *resourcesMonitorQueue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Datapoint {
+func (q *ResourcesMonitorQueue) ItemsAsProto() []*proto.PushResourcesMonitoringUsageRequest_Datapoint {
 	items := make([]*proto.PushResourcesMonitoringUsageRequest_Datapoint, 0, len(q.items))
 
 	for _, item := range q.items {

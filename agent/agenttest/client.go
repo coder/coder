@@ -214,7 +214,7 @@ func (f *FakeAgentAPI) GetAnnouncementBanners(context.Context, *agentproto.GetAn
 	return &agentproto.GetAnnouncementBannersResponse{AnnouncementBanners: bannersProto}, nil
 }
 
-func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(ctx context.Context, req *agentproto.GetResourcesMonitoringConfigurationRequest) (*agentproto.GetResourcesMonitoringConfigurationResponse, error) {
+func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(_ context.Context, _ *agentproto.GetResourcesMonitoringConfigurationRequest) (*agentproto.GetResourcesMonitoringConfigurationResponse, error) {
 	f.Lock()
 	defer f.Unlock()
 
@@ -225,7 +225,7 @@ func (f *FakeAgentAPI) GetResourcesMonitoringConfiguration(ctx context.Context, 
 	return f.getResourcesMonitoringConfigurationFunc()
 }
 
-func (f *FakeAgentAPI) PushResourcesMonitoringUsage(ctx context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
+func (f *FakeAgentAPI) PushResourcesMonitoringUsage(_ context.Context, req *agentproto.PushResourcesMonitoringUsageRequest) (*agentproto.PushResourcesMonitoringUsageResponse, error) {
 	f.Lock()
 	defer f.Unlock()
 
