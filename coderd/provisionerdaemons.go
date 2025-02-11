@@ -59,8 +59,11 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		var currentJob, previousJob *codersdk.ProvisionerDaemonJob
 		if dbDaemon.CurrentJobID.Valid {
 			currentJob = &codersdk.ProvisionerDaemonJob{
-				ID:     dbDaemon.CurrentJobID.UUID,
-				Status: codersdk.ProvisionerJobStatus(dbDaemon.CurrentJobStatus.ProvisionerJobStatus),
+				ID:                  dbDaemon.CurrentJobID.UUID,
+				Status:              codersdk.ProvisionerJobStatus(dbDaemon.CurrentJobStatus.ProvisionerJobStatus),
+				TemplateName:        dbDaemon.CurrentJobTemplateName.String,
+				TemplateIcon:        dbDaemon.CurrentJobTemplateIcon.String,
+				TemplateDisplayName: dbDaemon.CurrentJobTemplateDisplayName.String,
 			}
 		}
 		if dbDaemon.PreviousJobID.Valid {
@@ -75,9 +78,6 @@ func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
 		pd.Status = ptr.Ref(codersdk.ProvisionerDaemonStatus(dbDaemon.Status))
 		pd.CurrentJob = currentJob
 		pd.PreviousJob = previousJob
-		pd.TemplateName = &dbDaemon.TemplateName.String
-		pd.TemplateDisplayName = &dbDaemon.TemplateDisplayName.String
-		pd.TemplateIcon = &dbDaemon.TemplateIcon.String
 
 		return pd
 	}))

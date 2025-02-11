@@ -45,9 +45,9 @@ SELECT
 	current_job.job_status AS current_job_status,
 	previous_job.id AS previous_job_id,
 	previous_job.job_status AS previous_job_status,
-	tmpl.name AS template_name,
-	tmpl.display_name AS template_display_name,
-	tmpl.icon AS template_icon
+	tmpl.name AS current_job_template_name,
+	tmpl.display_name AS current_job_template_display_name,
+	tmpl.icon AS current_job_template_icon
 FROM
 	provisioner_daemons pd
 JOIN
@@ -73,7 +73,7 @@ LEFT JOIN
 		)
 	)
 JOIN
-	template_versions version ON version.id::text = pd.version
+	template_versions version ON version.id = (current_job.input->>'template_version_id')::uuid
 LEFT JOIN
 	templates tmpl ON tmpl.id = version.template_id
 WHERE
