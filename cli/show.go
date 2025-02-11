@@ -38,15 +38,18 @@ func (r *RootCmd) show() *serpent.Command {
 			}
 			if workspace.LatestBuild.Status == codersdk.WorkspaceStatusRunning {
 				// Get listening ports for each agent.
-				options.ListeningPorts = fetchListeningPorts(inv, client, workspace.LatestBuild.Resources...)
+				ports, devcontainers := fetchRuntimeResources(inv, client, workspace.LatestBuild.Resources...)
+				options.ListeningPorts = ports
+				options.Devcontainers = devcontainers
 			}
 			return cliui.WorkspaceResources(inv.Stdout, workspace.LatestBuild.Resources, options)
 		},
 	}
 }
 
-func fetchListeningPorts(inv *serpent.Invocation, client *codersdk.Client, resources ...codersdk.WorkspaceResource) map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse {
+func fetchRuntimeResources(inv *serpent.Invocation, client *codersdk.Client, resources ...codersdk.WorkspaceResource) (map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse, map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse) {
 	ports := make(map[uuid.UUID]codersdk.WorkspaceAgentListeningPortsResponse)
+	devcontainers := make(map[uuid.UUID]codersdk.WorkspaceAgentListContainersResponse)
 	var wg sync.WaitGroup
 	var mu sync.Mutex
 	for _, res := range resources {
@@ -65,8 +68,23 @@ func fetchListeningPorts(inv *serpent.Invocation, client *codersdk.Client, resou
 				ports[agent.ID] = lp
 				mu.Unlock()
 			}()
+			wg.Add(1)
+			go func() {
+				defer wg.Done()
+				dc, err := client.WorkspaceAgentListContainers(inv.Context(), agent.ID, map[string]string{
+					// Labels set by VSCode Remote Containers and @devcontainers/cli.
+					"devcontainer.config_file":  "",
+					"devcontainer.local_folder": "",
+				})
+				if err != nil {
+					cliui.Warnf(inv.Stderr, "Failed to get devcontainers for agent %s: %v", agent.Name, err)
+				}
+				mu.Lock()
+				devcontainers[agent.ID] = dc
+				mu.Unlock()
+			}()
 		}
 	}
 	wg.Wait()
-	return ports
+	return ports, devcontainers
 }
