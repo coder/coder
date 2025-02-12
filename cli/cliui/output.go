@@ -83,6 +83,10 @@ func (f *OutputFormatter) Format(ctx context.Context, data any) (string, error) 
 	return "", xerrors.Errorf("unknown output format %q", f.formatID)
 }
 
+func (f *OutputFormatter) FormatID() string {
+	return f.formatID
+}
+
 type tableFormat struct {
 	defaultColumns []string
 	allColumns     []string
