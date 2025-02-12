@@ -2,6 +2,7 @@ package audit
 
 import (
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/idpsync"
 )
 
 // Auditable is mostly a marker interface. It contains a definitive list of all
@@ -12,7 +13,7 @@ type Auditable interface {
 		database.Template |
 		database.TemplateVersion |
 		database.User |
-		database.Workspace |
+		database.WorkspaceTable |
 		database.GitSSHKey |
 		database.WorkspaceBuild |
 		database.AuditableGroup |
@@ -26,7 +27,10 @@ type Auditable interface {
 		database.CustomRole |
 		database.AuditableOrganizationMember |
 		database.Organization |
-		database.NotificationTemplate
+		database.NotificationTemplate |
+		idpsync.OrganizationSyncSettings |
+		idpsync.GroupSyncSettings |
+		idpsync.RoleSyncSettings
 }
 
 // Map is a map of changed fields in an audited resource. It maps field names to

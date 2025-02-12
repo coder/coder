@@ -34,17 +34,19 @@ type Expectations struct {
 	Name   string
 	Claims jwt.MapClaims
 	// Parse
-	ParseError     func(t *testing.T, httpErr *idpsync.HTTPError)
-	ExpectedParams idpsync.OrganizationParams
+	ParseError      func(t *testing.T, httpErr *idpsync.HTTPError)
+	ExpectedParams  idpsync.OrganizationParams
+	ExpectedEnabled bool
 	// Mutate allows mutating the user before syncing
 	Mutate func(t *testing.T, db database.Store, user database.User)
 	Sync   ExpectedUser
 }
 
 type OrganizationSyncTestCase struct {
-	Settings     idpsync.DeploymentSyncSettings
-	Entitlements *entitlements.Set
-	Exps         []Expectations
+	Settings        idpsync.DeploymentSyncSettings
+	RuntimeSettings *idpsync.OrganizationSyncSettings
+	Entitlements    *entitlements.Set
+	Exps            []Expectations
 }
 
 func TestOrganizationSync(t *testing.T) {
@@ -100,10 +102,9 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "NoOrganizations",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    false,
-								IncludeDefault: true,
-								Organizations:  []uuid.UUID{},
+								SyncEntitled: true,
 							},
+							ExpectedEnabled: false,
 							Sync: ExpectedUser{
 								Organizations: []uuid.UUID{},
 							},
@@ -112,10 +113,9 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "AlreadyInOrgs",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    false,
-								IncludeDefault: true,
-								Organizations:  []uuid.UUID{},
+								SyncEntitled: true,
 							},
+							ExpectedEnabled: false,
 							Mutate: func(t *testing.T, db database.Store, user database.User) {
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
@@ -157,10 +157,9 @@ func TestOrganizationSync(t *testing.T) {
 							Name:   "NoOrganizations",
 							Claims: jwt.MapClaims{},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
-								IncludeDefault: true,
-								Organizations:  []uuid.UUID{},
+								SyncEntitled: true,
 							},
+							ExpectedEnabled: true,
 							Sync: ExpectedUser{
 								Organizations: []uuid.UUID{def.ID},
 							},
@@ -171,10 +170,9 @@ func TestOrganizationSync(t *testing.T) {
 								"organizations": []string{"second", "extra"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
-								IncludeDefault: true,
-								Organizations:  []uuid.UUID{two.ID},
+								SyncEntitled: true,
 							},
+							ExpectedEnabled: true,
 							Mutate: func(t *testing.T, db database.Store, user database.User) {
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
@@ -196,12 +194,9 @@ func TestOrganizationSync(t *testing.T) {
 								"organizations": []string{"second", "extra", "first", "third", "second", "second"},
 							},
 							ExpectedParams: idpsync.OrganizationParams{
-								SyncEnabled:    true,
-								IncludeDefault: true,
-								Organizations: []uuid.UUID{
-									two.ID, one.ID, three.ID,
-								},
+								SyncEntitled: true,
 							},
+							ExpectedEnabled: true,
 							Mutate: func(t *testing.T, db database.Store, user database.User) {
 								dbgen.OrganizationMember(t, db, database.OrganizationMember{
 									UserID:         user.ID,
@@ -214,6 +209,72 @@ func TestOrganizationSync(t *testing.T) {
 							},
 							Sync: ExpectedUser{
 								Organizations: []uuid.UUID{def.ID, one.ID, two.ID, three.ID},
+							},
+						},
+					},
+				}
+			},
+		},
+		{
+			Name: "DynamicSettings",
+			Case: func(t *testing.T, db database.Store) OrganizationSyncTestCase {
+				def, _ := db.GetDefaultOrganization(context.Background())
+				one := dbgen.Organization(t, db, database.Organization{})
+				two := dbgen.Organization(t, db, database.Organization{})
+				three := dbgen.Organization(t, db, database.Organization{})
+				return OrganizationSyncTestCase{
+					Entitlements: entitled,
+					Settings: idpsync.DeploymentSyncSettings{
+						OrganizationField: "organizations",
+						OrganizationMapping: map[string][]uuid.UUID{
+							"first":  {one.ID},
+							"second": {two.ID},
+							"third":  {three.ID},
+						},
+						OrganizationAssignDefault: true,
+					},
+					// Override
+					RuntimeSettings: &idpsync.OrganizationSyncSettings{
+						Field: "dynamic",
+						Mapping: map[string][]uuid.UUID{
+							"third": {three.ID},
+						},
+						AssignDefault: false,
+					},
+					Exps: []Expectations{
+						{
+							Name:   "NoOrganizations",
+							Claims: jwt.MapClaims{},
+							ExpectedParams: idpsync.OrganizationParams{
+								SyncEntitled: true,
+							},
+							ExpectedEnabled: true,
+							Sync: ExpectedUser{
+								Organizations: []uuid.UUID{},
+							},
+						},
+						{
+							Name: "AlreadyInOrgs",
+							Claims: jwt.MapClaims{
+								"organizations": []string{"second", "extra"},
+								"dynamic":       []string{"third"},
+							},
+							ExpectedParams: idpsync.OrganizationParams{
+								SyncEntitled: true,
+							},
+							ExpectedEnabled: true,
+							Mutate: func(t *testing.T, db database.Store, user database.User) {
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: def.ID,
+								})
+								dbgen.OrganizationMember(t, db, database.OrganizationMember{
+									UserID:         user.ID,
+									OrganizationID: one.ID,
+								})
+							},
+							Sync: ExpectedUser{
+								Organizations: []uuid.UUID{three.ID},
 							},
 						},
 					},
@@ -238,6 +299,11 @@ func TestOrganizationSync(t *testing.T) {
 
 			// Create a new sync object
 			sync := enidpsync.NewSync(logger, runtimeconfig.NewManager(), caseData.Entitlements, caseData.Settings)
+			if caseData.RuntimeSettings != nil {
+				err := sync.UpdateOrganizationSyncSettings(ctx, rdb, *caseData.RuntimeSettings)
+				require.NoError(t, err)
+			}
+
 			for _, exp := range caseData.Exps {
 				t.Run(exp.Name, func(t *testing.T) {
 					params, httpErr := sync.ParseOrganizationClaims(ctx, exp.Claims)
@@ -247,12 +313,8 @@ func TestOrganizationSync(t *testing.T) {
 					}
 					require.Nil(t, httpErr, "no parse error")
 
-					require.Equal(t, exp.ExpectedParams.SyncEnabled, params.SyncEnabled, "match enabled")
-					require.Equal(t, exp.ExpectedParams.IncludeDefault, params.IncludeDefault, "match include default")
-					if exp.ExpectedParams.Organizations == nil {
-						exp.ExpectedParams.Organizations = []uuid.UUID{}
-					}
-					require.ElementsMatch(t, exp.ExpectedParams.Organizations, params.Organizations, "match organizations")
+					require.Equal(t, exp.ExpectedParams.SyncEntitled, params.SyncEntitled, "match enabled")
+					require.Equal(t, exp.ExpectedEnabled, sync.OrganizationSyncEnabled(context.Background(), rdb))
 
 					user := dbgen.User(t, db, database.User{})
 					if exp.Mutate != nil {

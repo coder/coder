@@ -390,7 +390,7 @@ func TestStart_AlreadyRunning(t *testing.T) {
 	client, db := coderdtest.NewWithDatabase(t, nil)
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 	}).Do()
@@ -417,7 +417,7 @@ func TestStart_Starting(t *testing.T) {
 	client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
 	owner := coderdtest.CreateFirstUser(t, client)
 	memberClient, member := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OwnerID:        member.ID,
 		OrganizationID: owner.OrganizationID,
 	}).

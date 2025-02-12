@@ -192,12 +192,37 @@ func (gm GroupMember) RBACObject() rbac.Object {
 	return rbac.ResourceGroupMember.WithID(gm.UserID).InOrg(gm.OrganizationID).WithOwner(gm.UserID.String())
 }
 
-func (w GetWorkspaceByAgentIDRow) RBACObject() rbac.Object {
-	return w.Workspace.RBACObject()
+// WorkspaceTable converts a Workspace to it's reduced version.
+// A more generalized solution is to use json marshaling to
+// consistently keep these two structs in sync.
+// That would be a lot of overhead, and a more costly unit test is
+// written to make sure these match up.
+func (w Workspace) WorkspaceTable() WorkspaceTable {
+	return WorkspaceTable{
+		ID:                w.ID,
+		CreatedAt:         w.CreatedAt,
+		UpdatedAt:         w.UpdatedAt,
+		OwnerID:           w.OwnerID,
+		OrganizationID:    w.OrganizationID,
+		TemplateID:        w.TemplateID,
+		Deleted:           w.Deleted,
+		Name:              w.Name,
+		AutostartSchedule: w.AutostartSchedule,
+		Ttl:               w.Ttl,
+		LastUsedAt:        w.LastUsedAt,
+		DormantAt:         w.DormantAt,
+		DeletingAt:        w.DeletingAt,
+		AutomaticUpdates:  w.AutomaticUpdates,
+		Favorite:          w.Favorite,
+		NextStartAt:       w.NextStartAt,
+	}
 }
 
 func (w Workspace) RBACObject() rbac.Object {
-	// If a workspace is locked it cannot be accessed.
+	return w.WorkspaceTable().RBACObject()
+}
+
+func (w WorkspaceTable) RBACObject() rbac.Object {
 	if w.DormantAt.Valid {
 		return w.DormantRBAC()
 	}
@@ -207,7 +232,7 @@ func (w Workspace) RBACObject() rbac.Object {
 		WithOwner(w.OwnerID.String())
 }
 
-func (w Workspace) DormantRBAC() rbac.Object {
+func (w WorkspaceTable) DormantRBAC() rbac.Object {
 	return rbac.ResourceWorkspaceDormant.
 		WithID(w.ID).
 		InOrg(w.OrganizationID).
@@ -242,6 +267,14 @@ func (p ProvisionerDaemon) RBACObject() rbac.Object {
 	return rbac.ResourceProvisionerDaemon.
 		WithID(p.ID).
 		InOrg(p.OrganizationID)
+}
+
+func (p GetProvisionerDaemonsWithStatusByOrganizationRow) RBACObject() rbac.Object {
+	return p.ProvisionerDaemon.RBACObject()
+}
+
+func (p GetEligibleProvisionerDaemonsByProvisionerJobIDsRow) RBACObject() rbac.Object {
+	return p.ProvisionerDaemon.RBACObject()
 }
 
 func (p ProvisionerKey) RBACObject() rbac.Object {
@@ -389,21 +422,32 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 	workspaces := make([]Workspace, len(rows))
 	for i, r := range rows {
 		workspaces[i] = Workspace{
-			ID:                r.ID,
-			CreatedAt:         r.CreatedAt,
-			UpdatedAt:         r.UpdatedAt,
-			OwnerID:           r.OwnerID,
-			OrganizationID:    r.OrganizationID,
-			TemplateID:        r.TemplateID,
-			Deleted:           r.Deleted,
-			Name:              r.Name,
-			AutostartSchedule: r.AutostartSchedule,
-			Ttl:               r.Ttl,
-			LastUsedAt:        r.LastUsedAt,
-			DormantAt:         r.DormantAt,
-			DeletingAt:        r.DeletingAt,
-			AutomaticUpdates:  r.AutomaticUpdates,
-			Favorite:          r.Favorite,
+			ID:                      r.ID,
+			CreatedAt:               r.CreatedAt,
+			UpdatedAt:               r.UpdatedAt,
+			OwnerID:                 r.OwnerID,
+			OrganizationID:          r.OrganizationID,
+			TemplateID:              r.TemplateID,
+			Deleted:                 r.Deleted,
+			Name:                    r.Name,
+			AutostartSchedule:       r.AutostartSchedule,
+			Ttl:                     r.Ttl,
+			LastUsedAt:              r.LastUsedAt,
+			DormantAt:               r.DormantAt,
+			DeletingAt:              r.DeletingAt,
+			AutomaticUpdates:        r.AutomaticUpdates,
+			Favorite:                r.Favorite,
+			OwnerAvatarUrl:          r.OwnerAvatarUrl,
+			OwnerUsername:           r.OwnerUsername,
+			OrganizationName:        r.OrganizationName,
+			OrganizationDisplayName: r.OrganizationDisplayName,
+			OrganizationIcon:        r.OrganizationIcon,
+			OrganizationDescription: r.OrganizationDescription,
+			TemplateName:            r.TemplateName,
+			TemplateDisplayName:     r.TemplateDisplayName,
+			TemplateIcon:            r.TemplateIcon,
+			TemplateDescription:     r.TemplateDescription,
+			NextStartAt:             r.NextStartAt,
 		}
 	}
 
@@ -412,6 +456,18 @@ func ConvertWorkspaceRows(rows []GetWorkspacesRow) []Workspace {
 
 func (g Group) IsEveryone() bool {
 	return g.ID == g.OrganizationID
+}
+
+func (p ProvisionerJob) RBACObject() rbac.Object {
+	switch p.Type {
+	// Only acceptable for known job types at this time because template
+	// admins may not be allowed to view new types.
+	case ProvisionerJobTypeTemplateVersionImport, ProvisionerJobTypeTemplateVersionDryRun, ProvisionerJobTypeWorkspaceBuild:
+		return rbac.ResourceProvisionerJobs.InOrg(p.OrganizationID)
+
+	default:
+		panic("developer error: unknown provisioner job type " + string(p.Type))
+	}
 }
 
 func (p ProvisionerJob) Finished() bool {
@@ -466,4 +522,8 @@ func (k CryptoKey) CanVerify(now time.Time) bool {
 	hasSecret := k.Secret.Valid
 	isBeforeDeletion := !k.DeletesAt.Valid || now.Before(k.DeletesAt.Time)
 	return hasSecret && isBeforeDeletion
+}
+
+func (r GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) RBACObject() rbac.Object {
+	return r.ProvisionerJob.RBACObject()
 }

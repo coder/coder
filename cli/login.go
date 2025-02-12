@@ -209,7 +209,7 @@ func (r *RootCmd) login() *serpent.Command {
 
 			// nolint: nestif
 			if !hasFirstUser {
-				_, _ = fmt.Fprintf(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
+				_, _ = fmt.Fprint(inv.Stdout, Caret+"Your Coder deployment hasn't been set up!\n")
 
 				if username == "" {
 					if !isTTYIn(inv) {
@@ -267,12 +267,59 @@ func (r *RootCmd) login() *serpent.Command {
 					trial = v == "yes" || v == "y"
 				}
 
+				var trialInfo codersdk.CreateFirstUserTrialInfo
+				if trial {
+					if trialInfo.FirstName == "" {
+						trialInfo.FirstName, err = promptTrialInfo(inv, "firstName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.LastName == "" {
+						trialInfo.LastName, err = promptTrialInfo(inv, "lastName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.PhoneNumber == "" {
+						trialInfo.PhoneNumber, err = promptTrialInfo(inv, "phoneNumber")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.JobTitle == "" {
+						trialInfo.JobTitle, err = promptTrialInfo(inv, "jobTitle")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.CompanyName == "" {
+						trialInfo.CompanyName, err = promptTrialInfo(inv, "companyName")
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.Country == "" {
+						trialInfo.Country, err = promptCountry(inv)
+						if err != nil {
+							return err
+						}
+					}
+					if trialInfo.Developers == "" {
+						trialInfo.Developers, err = promptDevelopers(inv)
+						if err != nil {
+							return err
+						}
+					}
+				}
+
 				_, err = client.CreateFirstUser(ctx, codersdk.CreateFirstUserRequest{
-					Email:    email,
-					Username: username,
-					Name:     name,
-					Password: password,
-					Trial:    trial,
+					Email:     email,
+					Username:  username,
+					Name:      name,
+					Password:  password,
+					Trial:     trial,
+					TrialInfo: trialInfo,
 				})
 				if err != nil {
 					return xerrors.Errorf("create initial user: %w", err)
@@ -448,4 +495,53 @@ func openURL(inv *serpent.Invocation, urlToOpen string) error {
 	}
 
 	return browser.OpenURL(urlToOpen)
+}
+
+func promptTrialInfo(inv *serpent.Invocation, fieldName string) (string, error) {
+	value, err := cliui.Prompt(inv, cliui.PromptOptions{
+		Text: fmt.Sprintf("Please enter %s:", pretty.Sprint(cliui.DefaultStyles.Field, fieldName)),
+		Validate: func(s string) error {
+			if strings.TrimSpace(s) == "" {
+				return xerrors.Errorf("%s is required", fieldName)
+			}
+			return nil
+		},
+	})
+	if err != nil {
+		if errors.Is(err, cliui.Canceled) {
+			return "", nil
+		}
+		return "", err
+	}
+	return value, nil
+}
+
+func promptDevelopers(inv *serpent.Invocation) (string, error) {
+	options := []string{"1-100", "101-500", "501-1000", "1001-2500", "2500+"}
+	selection, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    options,
+		HideSearch: false,
+		Message:    "Select the number of developers:",
+	})
+	if err != nil {
+		return "", xerrors.Errorf("select developers: %w", err)
+	}
+	return selection, nil
+}
+
+func promptCountry(inv *serpent.Invocation) (string, error) {
+	options := make([]string, len(codersdk.Countries))
+	for i, country := range codersdk.Countries {
+		options[i] = country.Name
+	}
+
+	selection, err := cliui.Select(inv, cliui.SelectOptions{
+		Options:    options,
+		Message:    "Select the country:",
+		HideSearch: false,
+	})
+	if err != nil {
+		return "", xerrors.Errorf("select country: %w", err)
+	}
+	return selection, nil
 }

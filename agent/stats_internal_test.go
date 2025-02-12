@@ -1,10 +1,7 @@
 package agent
 
 import (
-	"bytes"
 	"context"
-	"encoding/json"
-	"io"
 	"net/netip"
 	"sync"
 	"testing"
@@ -16,9 +13,6 @@ import (
 
 	"tailscale.com/types/netlogtype"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogjson"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -26,7 +20,7 @@ import (
 func TestStatsReporter(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	fSource := newFakeNetworkStatsSource(ctx, t)
 	fCollector := newFakeCollector(t)
 	fDest := newFakeStatsDest()
@@ -70,7 +64,7 @@ func TestStatsReporter(t *testing.T) {
 	require.Equal(t, netStats, gotNetStats)
 
 	// while we are collecting the stats, send in two new netStats to simulate
-	// what happens if we don't keep up.  Only the latest should be kept.
+	// what happens if we don't keep up.  The stats should be accumulated.
 	netStats0 := map[netlogtype.Connection]netlogtype.Counts{
 		{
 			Proto: ipproto.TCP,
@@ -108,9 +102,21 @@ func TestStatsReporter(t *testing.T) {
 	require.Equal(t, stats, update.Stats)
 	testutil.RequireSendCtx(ctx, t, fDest.resps, &proto.UpdateStatsResponse{ReportInterval: durationpb.New(interval)})
 
-	// second update -- only netStats1 is reported
+	// second update -- netStat0 and netStats1 are accumulated and reported
+	wantNetStats := map[netlogtype.Connection]netlogtype.Counts{
+		{
+			Proto: ipproto.TCP,
+			Src:   netip.MustParseAddrPort("192.168.1.33:4887"),
+			Dst:   netip.MustParseAddrPort("192.168.2.99:9999"),
+		}: {
+			TxPackets: 21,
+			TxBytes:   21,
+			RxPackets: 21,
+			RxBytes:   21,
+		},
+	}
 	gotNetStats = testutil.RequireRecvCtx(ctx, t, fCollector.calls)
-	require.Equal(t, netStats1, gotNetStats)
+	require.Equal(t, wantNetStats, gotNetStats)
 	stats = &proto.Stats{SessionCountJetbrains: 66}
 	testutil.RequireSendCtx(ctx, t, fCollector.stats, stats)
 	update = testutil.RequireRecvCtx(ctx, t, fDest.reqs)
@@ -213,59 +219,4 @@ func newFakeStatsDest() *fakeStatsDest {
 		reqs:  make(chan *proto.UpdateStatsRequest),
 		resps: make(chan *proto.UpdateStatsResponse),
 	}
-}
-
-func Test_logDebouncer(t *testing.T) {
-	t.Parallel()
-
-	var (
-		buf    bytes.Buffer
-		logger = slog.Make(slogjson.Sink(&buf))
-		ctx    = context.Background()
-	)
-
-	debouncer := &logDebouncer{
-		logger:   logger,
-		messages: map[string]time.Time{},
-		interval: time.Minute,
-	}
-
-	fields := map[string]interface{}{
-		"field_1": float64(1),
-		"field_2": "2",
-	}
-
-	debouncer.Error(ctx, "my message", "field_1", 1, "field_2", "2")
-	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
-	// Shouldn't log this.
-	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
-
-	require.Len(t, debouncer.messages, 2)
-
-	type entry struct {
-		Msg    string                 `json:"msg"`
-		Level  string                 `json:"level"`
-		Fields map[string]interface{} `json:"fields"`
-	}
-
-	assertLog := func(msg string, level string, fields map[string]interface{}) {
-		line, err := buf.ReadString('\n')
-		require.NoError(t, err)
-
-		var e entry
-		err = json.Unmarshal([]byte(line), &e)
-		require.NoError(t, err)
-		require.Equal(t, msg, e.Msg)
-		require.Equal(t, level, e.Level)
-		require.Equal(t, fields, e.Fields)
-	}
-	assertLog("my message", "ERROR", fields)
-	assertLog("another message", "WARN", fields)
-
-	debouncer.messages["another message"] = time.Now().Add(-2 * time.Minute)
-	debouncer.Warn(ctx, "another message", "field_1", 1, "field_2", "2")
-	assertLog("another message", "WARN", fields)
-	// Assert nothing else was written.
-	_, err := buf.ReadString('\n')
-	require.ErrorIs(t, err, io.EOF)
 }

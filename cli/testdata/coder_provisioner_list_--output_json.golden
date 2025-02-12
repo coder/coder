@@ -1,0 +1,30 @@
+[
+  {
+    "id": "====[workspace build worker ID]=====",
+    "organization_id": "===========[first org ID]===========",
+    "key_id": "00000000-0000-0000-0000-000000000001",
+    "created_at": "====[timestamp]=====",
+    "last_seen_at": "====[timestamp]=====",
+    "name": "test",
+    "version": "v0.0.0-devel",
+    "api_version": "1.3",
+    "provisioners": [
+      "echo"
+    ],
+    "tags": {
+      "owner": "",
+      "scope": "organization"
+    },
+    "key_name": "built-in",
+    "status": "idle",
+    "current_job": null,
+    "previous_job": {
+      "id": "======[workspace build job ID]======",
+      "status": "succeeded",
+      "template_name": "",
+      "template_icon": "",
+      "template_display_name": ""
+    },
+    "organization_name": "Coder"
+  }
+]

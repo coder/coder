@@ -3,12 +3,14 @@ coder v0.0.0-devel
 USAGE:
   coder provisioner
 
-  Manage provisioner daemons
+  View and manage provisioner daemons and jobs
 
   Aliases: provisioners
 
 SUBCOMMANDS:
+    jobs     View and manage provisioner jobs
     keys     Manage provisioner keys
+    list     List provisioner daemons in an organization
     start    Run a provisioner daemon
 
 ———

@@ -1,7 +1,7 @@
-import react from "@vitejs/plugin-react";
 import * as path from "node:path";
+import react from "@vitejs/plugin-react";
 import { visualizer } from "rollup-plugin-visualizer";
-import { defineConfig, type PluginOption } from "vite";
+import { type PluginOption, defineConfig } from "vite";
 import checker from "vite-plugin-checker";
 
 const plugins: PluginOption[] = [
@@ -52,6 +52,12 @@ export default defineConfig({
 				"csrf_token=JXm9hOUdZctWt0ZZGAy9xiS/gxMKYOThdxjjMnMUyn4=; Path=/; HttpOnly; SameSite=Lax",
 		},
 		proxy: {
+			"//": {
+				changeOrigin: true,
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+				rewrite: (path) => path.replace(/\/+/g, "/"),
+			},
 			"/api": {
 				ws: true,
 				changeOrigin: true,
@@ -79,7 +85,12 @@ export default defineConfig({
 				target: process.env.CODER_HOST || "http://localhost:3000",
 				secure: process.env.NODE_ENV === "production",
 			},
+			"/healthz": {
+				target: process.env.CODER_HOST || "http://localhost:3000",
+				secure: process.env.NODE_ENV === "production",
+			},
 		},
+		allowedHosts: true,
 	},
 	resolve: {
 		alias: {

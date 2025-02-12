@@ -1,9 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import {
-	MockDeploymentDAUResponse,
-	MockEntitlementsWithUserLimit,
-	mockApiError,
-} from "testHelpers/entities";
+import { MockDeploymentDAUResponse } from "testHelpers/entities";
 import { GeneralSettingsPageView } from "./GeneralSettingsPageView";
 
 const meta: Meta<typeof GeneralSettingsPageView> = {
@@ -39,7 +35,7 @@ const meta: Meta<typeof GeneralSettingsPageView> = {
 				hidden: false,
 			},
 		],
-		deploymentDAUs: MockDeploymentDAUResponse,
+		dailyActiveUsers: MockDeploymentDAUResponse,
 		invalidExperiments: [],
 		safeExperiments: [],
 	},
@@ -49,28 +45,6 @@ export default meta;
 type Story = StoryObj<typeof GeneralSettingsPageView>;
 
 export const Page: Story = {};
-
-export const WithUserLimit: Story = {
-	args: {
-		deploymentDAUs: MockDeploymentDAUResponse,
-		entitlements: MockEntitlementsWithUserLimit,
-	},
-};
-
-export const NoDAUs: Story = {
-	args: {
-		deploymentDAUs: undefined,
-	},
-};
-
-export const DAUError: Story = {
-	args: {
-		deploymentDAUs: undefined,
-		deploymentDAUsError: mockApiError({
-			message: "Error fetching DAUs.",
-		}),
-	},
-};
 
 export const allExperimentsEnabled: Story = {
 	args: {

@@ -15,14 +15,11 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"golang.org/x/exp/maps"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc/drpcmux"
 	"storj.io/drpc/drpcserver"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
-	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
@@ -35,6 +32,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/websocket"
 )
 
 func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
@@ -48,30 +46,6 @@ func (api *API) provisionerDaemonsEnabledMW(next http.Handler) http.Handler {
 
 		next.ServeHTTP(rw, r)
 	})
-}
-
-// @Summary Get provisioner daemons
-// @ID get-provisioner-daemons
-// @Security CoderSessionToken
-// @Produce json
-// @Tags Enterprise
-// @Param organization path string true "Organization ID" format(uuid)
-// @Success 200 {array} codersdk.ProvisionerDaemon
-// @Router /organizations/{organization}/provisionerdaemons [get]
-func (api *API) provisionerDaemons(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
-	org := httpmw.OrganizationParam(r)
-
-	daemons, err := api.Database.GetProvisionerDaemonsByOrganization(ctx, org.ID)
-	if err != nil {
-		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
-			Message: "Internal error fetching provisioner daemons.",
-			Detail:  err.Error(),
-		})
-		return
-	}
-
-	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(daemons, db2sdk.ProvisionerDaemon))
 }
 
 type provisiionerDaemonAuthResponse struct {
@@ -383,6 +357,7 @@ func (api *API) provisionerDaemonServe(rw http.ResponseWriter, r *http.Request) 
 		provisionerdserver.Options{
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
 			OIDCConfig:          api.OIDCConfig,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 	)

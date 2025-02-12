@@ -3,6 +3,7 @@ import ErrorOutline from "@mui/icons-material/ErrorOutline";
 import Button from "@mui/material/Button";
 import FormControlLabel from "@mui/material/FormControlLabel";
 import FormHelperText from "@mui/material/FormHelperText";
+import type { InputBaseComponentProps } from "@mui/material/InputBase";
 import Radio from "@mui/material/Radio";
 import RadioGroup from "@mui/material/RadioGroup";
 import TextField, { type TextFieldProps } from "@mui/material/TextField";
@@ -217,6 +218,7 @@ export const RichParameterInput: FC<RichParameterInputProps> = ({
 					onChange={onChange}
 					size={size}
 					parameter={parameter}
+					parameterAutofill={parameterAutofill}
 				/>
 				{!parameter.ephemeral &&
 					autofillSource === "user_history" &&
@@ -250,6 +252,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 	disabled,
 	onChange,
 	parameter,
+	parameterAutofill,
 	value,
 	size,
 	...props
@@ -375,6 +378,30 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 		);
 	}
 
+	let inputProps: InputBaseComponentProps = {};
+	if (parameter.type === "number") {
+		switch (parameter.validation_monotonic) {
+			case "increasing":
+				inputProps = {
+					max: parameter.validation_max,
+					min: parameterAutofill?.value,
+				};
+				break;
+			case "decreasing":
+				inputProps = {
+					max: parameterAutofill?.value,
+					min: parameter.validation_min,
+				};
+				break;
+			default:
+				inputProps = {
+					max: parameter.validation_max,
+					min: parameter.validation_min,
+				};
+				break;
+		}
+	}
+
 	// A text field can technically handle all cases!
 	// As other cases become more prominent (like filtering for numbers),
 	// we should break this out into more finely scoped input fields.
@@ -389,6 +416,7 @@ const RichParameterField: FC<RichParameterInputProps> = ({
 			required={parameter.required}
 			placeholder={parameter.default_value}
 			value={value}
+			inputProps={inputProps}
 			onChange={(event) => {
 				onChange(event.target.value);
 			}}

@@ -19,11 +19,11 @@ locals {
     "eu-helsinki"   = "tcp://reinhard-hel-cdr-dev.tailscale.svc.cluster.local:2375"
     "ap-sydney"     = "tcp://wolfgang-syd-cdr-dev.tailscale.svc.cluster.local:2375"
     "sa-saopaulo"   = "tcp://oberstein-sao-cdr-dev.tailscale.svc.cluster.local:2375"
-    "za-jnb"        = "tcp://greenhill-jnb-cdr-dev.tailscale.svc.cluster.local:2375"
+    "za-cpt"        = "tcp://schonkopf-cpt-cdr-dev.tailscale.svc.cluster.local:2375"
   }
 
   repo_base_dir  = data.coder_parameter.repo_base_dir.value == "~" ? "/home/coder" : replace(data.coder_parameter.repo_base_dir.value, "/^~\\//", "/home/coder/")
-  repo_dir       = replace(module.git-clone.repo_dir, "/^~\\//", "/home/coder/")
+  repo_dir       = replace(try(module.git-clone[0].repo_dir, ""), "/^~\\//", "/home/coder/")
   container_name = "coder-${data.coder_workspace_owner.me.name}-${lower(data.coder_workspace.me.name)}"
 }
 
@@ -79,8 +79,8 @@ data "coder_parameter" "region" {
   }
   option {
     icon  = "/emojis/1f1ff-1f1e6.png"
-    name  = "Johannesburg"
-    value = "za-jnb"
+    name  = "Cape Town"
+    value = "za-cpt"
   }
 }
 
@@ -96,22 +96,31 @@ data "coder_external_auth" "github" {
 
 data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
+data "coder_workspace_tags" "tags" {
+  tags = {
+    "cluster" : "dogfood-v2"
+    "env" : "gke"
+  }
+}
 
 module "slackme" {
-  source           = "registry.coder.com/modules/slackme/coder"
+  count            = data.coder_workspace.me.start_count
+  source           = "dev.registry.coder.com/modules/slackme/coder"
   version          = ">= 1.0.0"
   agent_id         = coder_agent.dev.id
   auth_provider_id = "slack"
 }
 
 module "dotfiles" {
-  source   = "registry.coder.com/modules/dotfiles/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/dotfiles/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "git-clone" {
-  source   = "registry.coder.com/modules/git-clone/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/git-clone/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
   url      = "https://github.com/coder/coder"
@@ -119,21 +128,35 @@ module "git-clone" {
 }
 
 module "personalize" {
-  source   = "registry.coder.com/modules/personalize/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/personalize/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "code-server" {
-  source                  = "registry.coder.com/modules/code-server/coder"
+  count                   = data.coder_workspace.me.start_count
+  source                  = "dev.registry.coder.com/modules/code-server/coder"
   version                 = ">= 1.0.0"
   agent_id                = coder_agent.dev.id
   folder                  = local.repo_dir
   auto_install_extensions = true
 }
 
+module "vscode-web" {
+  count                   = data.coder_workspace.me.start_count
+  source                  = "registry.coder.com/modules/vscode-web/coder"
+  version                 = ">= 1.0.0"
+  agent_id                = coder_agent.dev.id
+  folder                  = local.repo_dir
+  extensions              = ["github.copilot"]
+  auto_install_extensions = true # will install extensions from the repos .vscode/extensions.json file
+  accept_license          = true
+}
+
 module "jetbrains_gateway" {
-  source         = "registry.coder.com/modules/jetbrains-gateway/coder"
+  count          = data.coder_workspace.me.start_count
+  source         = "dev.registry.coder.com/modules/jetbrains-gateway/coder"
   version        = ">= 1.0.0"
   agent_id       = coder_agent.dev.id
   agent_name     = "dev"
@@ -144,21 +167,31 @@ module "jetbrains_gateway" {
 }
 
 module "filebrowser" {
-  source     = "registry.coder.com/modules/filebrowser/coder"
+  count      = data.coder_workspace.me.start_count
+  source     = "dev.registry.coder.com/modules/filebrowser/coder"
   version    = ">= 1.0.0"
   agent_id   = coder_agent.dev.id
   agent_name = "dev"
 }
 
 module "coder-login" {
-  source   = "registry.coder.com/modules/coder-login/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/coder-login/coder"
   version  = ">= 1.0.0"
   agent_id = coder_agent.dev.id
 }
 
 module "cursor" {
-  source   = "registry.coder.com/modules/cursor/coder"
+  count    = data.coder_workspace.me.start_count
+  source   = "dev.registry.coder.com/modules/cursor/coder"
   version  = ">= 1.0.0"
+  agent_id = coder_agent.dev.id
+  folder   = local.repo_dir
+}
+
+module "zed" {
+  count    = data.coder_workspace.me.start_count
+  source   = "./zed"
   agent_id = coder_agent.dev.id
   folder   = local.repo_dir
 }
@@ -216,7 +249,7 @@ resource "coder_agent" "dev" {
     key          = "swap_usage_host"
     order        = 4
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "$(free -b | awk '/^Swap/ { printf("%.1f/%.1f", $3/1024.0/1024.0/1024.0, $2/1024.0/1024.0/1024.0) }') GiB"
     EOT
     interval     = 10
@@ -229,7 +262,7 @@ resource "coder_agent" "dev" {
     order        = 5
     # get load avg scaled by number of cores
     script   = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       echo "`cat /proc/loadavg | awk '{ print $1 }'` `nproc`" | awk '{ printf "%0.2f", $1/$2 }'
     EOT
     interval = 60
@@ -250,7 +283,7 @@ resource "coder_agent" "dev" {
     key          = "word"
     order        = 7
     script       = <<EOT
-      #!/bin/bash
+      #!/usr/bin/env bash
       curl -o - --silent https://www.merriam-webster.com/word-of-the-day 2>&1 | awk ' $0 ~ "Word of the Day: [A-z]+" { print $5; exit }'
     EOT
     interval     = 86400
@@ -258,6 +291,7 @@ resource "coder_agent" "dev" {
   }
 
   startup_script = <<-EOT
+    #!/usr/bin/env bash
     set -eux -o pipefail
 
     # Allow synchronization between scripts.
@@ -273,6 +307,12 @@ resource "coder_agent" "dev" {
     done
     cd "${local.repo_dir}/site" && pnpm install && pnpm playwright:install
   EOT
+}
+
+# Add a cost so we get some quota usage in dev.coder.com
+resource "coder_metadata" "home_volume" {
+  resource_id = docker_volume.home_volume.id
+  daily_cost  = 1
 }
 
 resource "docker_volume" "home_volume" {
@@ -312,7 +352,7 @@ resource "docker_image" "dogfood" {
     data.docker_registry_image.dogfood.sha256_digest,
     sha1(join("", [for f in fileset(path.module, "files/*") : filesha1(f)])),
     filesha1("Dockerfile"),
-    filesha1("Dockerfile.nix"),
+    filesha1("nix.hash"),
   ]
   keep_locally = true
 }
@@ -331,6 +371,10 @@ resource "docker_container" "workspace" {
   env = [
     "CODER_AGENT_TOKEN=${coder_agent.dev.token}",
     "USE_CAP_NET_ADMIN=true",
+    "CODER_PROC_PRIO_MGMT=1",
+    "CODER_PROC_OOM_SCORE=10",
+    "CODER_PROC_NICE_SCORE=1",
+    "CODER_AGENT_DEVCONTAINERS_ENABLE=1",
   ]
   host {
     host = "host.docker.internal"

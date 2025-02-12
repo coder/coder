@@ -97,7 +97,7 @@ export const NotificationsPage: FC = () => {
 			</Helmet>
 			<Section
 				title="Notifications"
-				description="Configure your notification preferences. Icons on the right of each notification indicate delivery method, either SMTP or Webhook."
+				description="Control which notifications you receive."
 				layout="fluid"
 				featureStage="beta"
 			>
@@ -105,7 +105,7 @@ export const NotificationsPage: FC = () => {
 					<Stack spacing={4}>
 						{Object.entries(templatesByGroup.data).map(([group, templates]) => {
 							const allDisabled = templates.some((tpl) => {
-								return disabledPreferences.data[tpl.id] === true;
+								return notificationIsDisabled(disabledPreferences.data, tpl);
 							});
 
 							return (
@@ -150,6 +150,11 @@ export const NotificationsPage: FC = () => {
 											const label = methodLabels[method];
 											const isLastItem = i === templates.length - 1;
 
+											const disabled = notificationIsDisabled(
+												disabledPreferences.data,
+												tmpl,
+											);
+
 											return (
 												<Fragment key={tmpl.id}>
 													<ListItem>
@@ -157,7 +162,7 @@ export const NotificationsPage: FC = () => {
 															<Switch
 																size="small"
 																id={tmpl.id}
-																checked={!disabledPreferences.data[tmpl.id]}
+																checked={!disabled}
 																onChange={async (_, checked) => {
 																	await updatePreferences.mutateAsync({
 																		template_disabled_map: {
@@ -183,7 +188,7 @@ export const NotificationsPage: FC = () => {
 															css={styles.listItemEndIcon}
 															aria-label="Delivery method"
 														>
-															<Tooltip title={label}>
+															<Tooltip title={`Delivery via ${label}`}>
 																<Icon aria-label={label} />
 															</Tooltip>
 														</ListItemIcon>
@@ -206,6 +211,16 @@ export const NotificationsPage: FC = () => {
 };
 
 export default NotificationsPage;
+
+function notificationIsDisabled(
+	disabledPreferences: Record<string, boolean>,
+	tmpl: NotificationTemplate,
+): boolean {
+	return (
+		(!tmpl.enabled_by_default && disabledPreferences[tmpl.id] === undefined) ||
+		!!disabledPreferences[tmpl.id]
+	);
+}
 
 function selectDisabledPreferences(data: NotificationPreference[]) {
 	return data.reduce(

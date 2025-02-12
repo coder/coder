@@ -1,4 +1,11 @@
-# Permissions (enterprise) (premium)
+# Permissions
+
+<blockquote class="info">
+
+Template permissions are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Licensed Coder administrators can control who can use and modify the template.
 
@@ -18,4 +25,4 @@ user can use the template to create a workspace. To prevent this, disable the
 
 ![Create Template Permissions](../../images/templates/create-template-permissions.png)
 
-Permissions is an enterprise-only feature.
+Permissions is a premium-only feature.

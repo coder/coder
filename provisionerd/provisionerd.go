@@ -60,6 +60,7 @@ type Options struct {
 	UpdateInterval      time.Duration
 	LogBufferInterval   time.Duration
 	Connector           Connector
+	InitConnectionCh    chan struct{} // only to be used in tests
 }
 
 // New creates and starts a provisioner daemon.
@@ -84,6 +85,9 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		mets := NewMetrics(reg)
 		opts.Metrics = &mets
 	}
+	if opts.InitConnectionCh == nil {
+		opts.InitConnectionCh = make(chan struct{})
+	}
 
 	ctx, ctxCancel := context.WithCancel(context.Background())
 	daemon := &Server{
@@ -93,11 +97,12 @@ func New(clientDialer Dialer, opts *Options) *Server {
 		clientDialer: clientDialer,
 		clientCh:     make(chan proto.DRPCProvisionerDaemonClient),
 
-		closeContext:   ctx,
-		closeCancel:    ctxCancel,
-		closedCh:       make(chan struct{}),
-		shuttingDownCh: make(chan struct{}),
-		acquireDoneCh:  make(chan struct{}),
+		closeContext:     ctx,
+		closeCancel:      ctxCancel,
+		closedCh:         make(chan struct{}),
+		shuttingDownCh:   make(chan struct{}),
+		acquireDoneCh:    make(chan struct{}),
+		initConnectionCh: opts.InitConnectionCh,
 	}
 
 	daemon.wg.Add(2)
@@ -114,6 +119,11 @@ type Server struct {
 	clientCh     chan proto.DRPCProvisionerDaemonClient
 
 	wg sync.WaitGroup
+
+	// initConnectionCh will receive when the daemon connects to coderd for the
+	// first time.
+	initConnectionCh   chan struct{}
+	initConnectionOnce sync.Once
 
 	// mutex protects all subsequent fields
 	mutex sync.Mutex
@@ -178,6 +188,22 @@ func NewMetrics(reg prometheus.Registerer) Metrics {
 				Name:      "workspace_builds_total",
 				Help:      "The number of workspaces started, updated, or deleted.",
 			}, []string{"workspace_owner", "workspace_name", "template_name", "template_version", "workspace_transition", "status"}),
+			WorkspaceBuildTimings: auto.NewHistogramVec(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "provisionerd",
+				Name:      "workspace_build_timings_seconds",
+				Help:      "The time taken for a workspace to build.",
+				Buckets: []float64{
+					1, // 1s
+					10,
+					30,
+					60, // 1min
+					60 * 5,
+					60 * 10,
+					60 * 30, // 30min
+					60 * 60, // 1hr
+				},
+			}, []string{"template_name", "template_version", "workspace_transition", "status"}),
 		},
 	}
 }
@@ -215,6 +241,9 @@ connectLoop:
 		}
 		p.opts.Logger.Info(p.closeContext, "successfully connected to coderd")
 		retrier.Reset()
+		p.initConnectionOnce.Do(func() {
+			close(p.initConnectionCh)
+		})
 
 		// serve the client until we are closed or it disconnects
 		for {

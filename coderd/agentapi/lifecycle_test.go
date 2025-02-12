@@ -13,12 +13,13 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/wspubsub"
+	"github.com/coder/coder/v2/testutil"
 )
 
 func TestUpdateLifecycle(t *testing.T) {
@@ -69,12 +70,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -111,11 +110,9 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentStarting, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
 			// Test that nil publish fn works.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -156,12 +153,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -204,11 +199,9 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
+			WorkspaceID:              workspaceID,
 			Database:                 dbM,
-			Log:                      slogtest.Make(t, nil),
+			Log:                      testutil.Logger(t),
 			PublishWorkspaceUpdateFn: nil,
 			TimeNowFn: func() time.Time {
 				return now
@@ -239,12 +232,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				atomic.AddInt64(&publishCalled, 1)
 				return nil
 			},
@@ -314,12 +305,10 @@ func TestUpdateLifecycle(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agentCreated, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
-			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent) error {
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
+			PublishWorkspaceUpdateFn: func(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
 				publishCalled = true
 				return nil
 			},
@@ -354,11 +343,9 @@ func TestUpdateStartup(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
 			// Not used by UpdateStartup.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -402,11 +389,9 @@ func TestUpdateStartup(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
 			// Not used by UpdateStartup.
 			PublishWorkspaceUpdateFn: nil,
 		}
@@ -435,11 +420,9 @@ func TestUpdateStartup(t *testing.T) {
 			AgentFn: func(ctx context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
 			},
-			WorkspaceIDFn: func(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-				return workspaceID, nil
-			},
-			Database: dbM,
-			Log:      slogtest.Make(t, nil),
+			WorkspaceID: workspaceID,
+			Database:    dbM,
+			Log:         testutil.Logger(t),
 			// Not used by UpdateStartup.
 			PublishWorkspaceUpdateFn: nil,
 		}

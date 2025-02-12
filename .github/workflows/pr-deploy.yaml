@@ -7,6 +7,7 @@ on:
   push:
     branches-ignore:
       - main
+      - "temp-cherry-pick-*"
   workflow_dispatch:
     inputs:
       experiments:
@@ -30,8 +31,6 @@ env:
 
 permissions:
   contents: read
-  packages: write
-  pull-requests: write # needed for commenting on PRs
 
 jobs:
   check_pr:
@@ -40,12 +39,12 @@ jobs:
       PR_OPEN: ${{ steps.check_pr.outputs.pr_open }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check if PR is open
         id: check_pr
@@ -75,12 +74,12 @@ jobs:
     runs-on: "ubuntu-latest"
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -112,7 +111,7 @@ jobs:
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
-          chmod 644 ~/.kube/config
+          chmod 600 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if the helm deployment already exists
@@ -164,16 +163,18 @@ jobs:
           set -euo pipefail
           # build if the workflow is manually triggered and the deployment doesn't exist (first build or force rebuild)
           echo "first_or_force_build=${{ (github.event_name == 'workflow_dispatch' && steps.check_deployment.outputs.NEW == 'true') || github.event.inputs.build == 'true' }}" >> $GITHUB_OUTPUT
-          # build if the deployment alreday exist and there are changes in the files that we care about (automatic updates)
+          # build if the deployment already exist and there are changes in the files that we care about (automatic updates)
           echo "automatic_rebuild=${{ steps.check_deployment.outputs.NEW == 'false' && steps.filter.outputs.all_count > steps.filter.outputs.ignored_count }}" >> $GITHUB_OUTPUT
 
   comment-pr:
     needs: get_info
     if: needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true'
     runs-on: "ubuntu-latest"
+    permissions:
+      pull-requests: write # needed for commenting on PRs
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
@@ -205,7 +206,10 @@ jobs:
     # Run build job only if there are changes in the files that we care about or if the workflow is manually triggered with --build flag
     if: needs.get_info.outputs.BUILD == 'true'
     runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-8' || 'ubuntu-latest' }}
-    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs chnages.
+    permissions:
+      # Necessary to push docker images to ghcr.io.
+      packages: write
+    # This concurrency only cancels build jobs if a new build is triggred. It will avoid cancelling the current deployemtn in case of docs changes.
     concurrency:
       group: build-${{ github.workflow }}-${{ github.ref }}-${{ needs.get_info.outputs.BUILD }}
       cancel-in-progress: true
@@ -213,8 +217,13 @@ jobs:
       DOCKER_CLI_EXPERIMENTAL: "enabled"
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
           fetch-depth: 0
 
@@ -257,6 +266,8 @@ jobs:
       always() && (needs.build.result == 'success' || needs.build.result == 'skipped') &&
       (needs.get_info.outputs.BUILD == 'true' || github.event.inputs.deploy == 'true')
     runs-on: "ubuntu-latest"
+    permissions:
+      pull-requests: write # needed for commenting on PRs
     env:
       CODER_IMAGE_TAG: ${{ needs.get_info.outputs.CODER_IMAGE_TAG }}
       PR_NUMBER: ${{ needs.get_info.outputs.PR_NUMBER }}
@@ -264,12 +275,17 @@ jobs:
       PR_URL: ${{ needs.get_info.outputs.PR_URL }}
       PR_HOSTNAME: "pr${{ needs.get_info.outputs.PR_NUMBER }}.${{ secrets.PR_DEPLOYMENTS_DOMAIN }}"
     steps:
+      - name: Harden Runner
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
+        with:
+          egress-policy: audit
+
       - name: Set up kubeconfig
         run: |
           set -euo pipefail
           mkdir -p ~/.kube
           echo "${{ secrets.PR_DEPLOYMENTS_KUBECONFIG_BASE64 }}" | base64 --decode > ~/.kube/config
-          chmod 644 ~/.kube/config
+          chmod 600 ~/.kube/config
           export KUBECONFIG=~/.kube/config
 
       - name: Check if image exists
@@ -309,7 +325,7 @@ jobs:
           kubectl create namespace "pr${{ env.PR_NUMBER }}"
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Check and Create Certificate
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -406,13 +422,13 @@ jobs:
           "${DEST}" version
           mv "${DEST}" /usr/local/bin/coder
 
-      - name: Create first user, template and workspace
+      - name: Create first user
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
         id: setup_deployment
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           set -euo pipefail
-
-          # Create first user
 
           # create a masked random password 12 characters long
           password=$(openssl rand -base64 16 | tr -d "=+/" | cut -c1-12)
@@ -422,20 +438,22 @@ jobs:
           echo "password=$password" >> $GITHUB_OUTPUT
 
           coder login \
-            --first-user-username coder \
+            --first-user-username pr${{ env.PR_NUMBER }}-admin \
             --first-user-email pr${{ env.PR_NUMBER }}@coder.com \
             --first-user-password $password \
-            --first-user-trial \
+            --first-user-trial=false \
             --use-token-as-session \
             https://${{ env.PR_HOSTNAME }}
 
-          # Create template
-          cd ./.github/pr-deployments/template
-          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+          # Create a user for the github.actor
+          # TODO: update once https://github.com/coder/coder/issues/15466 is resolved
+          # coder users create \
+          #   --username ${{ github.actor }} \
+          #   --login-type github
 
-          # Create workspace
-          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
-          coder stop kube -y
+          # promote the user to admin role
+          # coder org members edit-role ${{ github.actor }} organization-admin
+          # TODO: update once https://github.com/coder/internal/issues/207 is resolved
 
       - name: Send Slack notification
         if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
@@ -447,7 +465,7 @@ jobs:
               "pr_url": "'"${{ env.PR_URL }}"'",
               "pr_title": "'"${{ env.PR_TITLE }}"'",
               "pr_access_url": "'"https://${{ env.PR_HOSTNAME }}"'",
-              "pr_username": "'"test"'",
+              "pr_username": "'"pr${{ env.PR_NUMBER }}-admin"'",
               "pr_email": "'"pr${{ env.PR_NUMBER }}@coder.com"'",
               "pr_password": "'"${{ steps.setup_deployment.outputs.password }}"'",
               "pr_actor": "'"${{ github.actor }}"'"
@@ -480,3 +498,14 @@ jobs:
             cc: @${{ github.actor }}
           reactions: rocket
           reactions-edit-mode: replace
+
+      - name: Create template and workspace
+        if: needs.get_info.outputs.NEW == 'true' || github.event.inputs.deploy == 'true'
+        run: |
+          set -euo pipefail
+          cd .github/pr-deployments/template
+          coder templates push -y --variable namespace=pr${{ env.PR_NUMBER }} kubernetes
+
+          # Create workspace
+          coder create --template="kubernetes" kube --parameter cpu=2 --parameter memory=4 --parameter home_disk_size=2 -y
+          coder stop kube -y

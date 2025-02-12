@@ -1,7 +1,8 @@
 import { API } from "api/api";
+import { getErrorMessage } from "api/errors";
 import { templateByNameKey } from "api/queries/templates";
 import type { UpdateTemplateMeta } from "api/typesGenerated";
-import { displaySuccess } from "components/GlobalSnackbar/utils";
+import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
@@ -50,6 +51,9 @@ export const TemplateSettingsPage: FC = () => {
 				}
 				displaySuccess("Template updated successfully");
 				navigate(getLink(linkToTemplate(data.organization_name, data.name)));
+			},
+			onError: (error) => {
+				displayError(getErrorMessage(error, "Failed to update template"));
 			},
 		},
 	);

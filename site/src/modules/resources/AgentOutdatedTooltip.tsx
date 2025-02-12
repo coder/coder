@@ -9,8 +9,8 @@ import {
 	HelpTooltipText,
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
-import { PopoverTrigger } from "components/Popover/Popover";
 import { Stack } from "components/Stack/Stack";
+import { PopoverTrigger } from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { agentVersionStatus } from "../../utils/workspace";
 

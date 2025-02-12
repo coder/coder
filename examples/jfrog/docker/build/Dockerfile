@@ -1,4 +1,4 @@
-FROM ubuntu
+FROM ubuntu@sha256:99c35190e22d294cdace2783ac55effc69d32896daaa265f0bbedbcde4fbe3e5
 
 RUN apt-get update \
 	&& apt-get install -y \

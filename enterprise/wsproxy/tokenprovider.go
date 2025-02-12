@@ -7,6 +7,8 @@ import (
 
 	"cdr.dev/slog"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/enterprise/wsproxy/wsproxysdk"
 )
@@ -18,18 +20,19 @@ type TokenProvider struct {
 	AccessURL    *url.URL
 	AppHostname  string
 
-	Client      *wsproxysdk.Client
-	SecurityKey workspaceapps.SecurityKey
-	Logger      slog.Logger
+	Client                   *wsproxysdk.Client
+	TokenSigningKeycache     cryptokeys.SigningKeycache
+	APIKeyEncryptionKeycache cryptokeys.EncryptionKeycache
+	Logger                   slog.Logger
 }
 
 func (p *TokenProvider) FromRequest(r *http.Request) (*workspaceapps.SignedToken, bool) {
-	return workspaceapps.FromRequest(r, p.SecurityKey)
+	return workspaceapps.FromRequest(r, p.TokenSigningKeycache)
 }
 
 func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *http.Request, issueReq workspaceapps.IssueTokenRequest) (*workspaceapps.SignedToken, string, bool) {
 	appReq := issueReq.AppRequest.Normalize()
-	err := appReq.Validate()
+	err := appReq.Check()
 	if err != nil {
 		workspaceapps.WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "invalid app request")
 		return nil, "", false
@@ -42,7 +45,8 @@ func (p *TokenProvider) Issue(ctx context.Context, rw http.ResponseWriter, r *ht
 	}
 
 	// Check that it verifies properly and matches the string.
-	token, err := p.SecurityKey.VerifySignedToken(resp.SignedTokenStr)
+	var token workspaceapps.SignedToken
+	err = jwtutils.Verify(ctx, p.TokenSigningKeycache, resp.SignedTokenStr, &token)
 	if err != nil {
 		workspaceapps.WriteWorkspaceApp500(p.Logger, p.DashboardURL, rw, r, &appReq, err, "failed to verify newly generated signed token")
 		return nil, "", false

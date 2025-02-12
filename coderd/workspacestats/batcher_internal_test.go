@@ -53,7 +53,7 @@ func TestBatchStats(t *testing.T) {
 	tick <- t1
 	f := <-flushed
 	require.Equal(t, 0, f, "expected no data to be flushed")
-	t.Logf("flush 1 completed")
+	t.Log("flush 1 completed")
 
 	// Then: it should report no stats.
 	stats, err := store.GetWorkspaceAgentStats(ctx, t1)
@@ -62,15 +62,15 @@ func TestBatchStats(t *testing.T) {
 
 	// Given: a single data point is added for workspace
 	t2 := t1.Add(time.Second)
-	t.Logf("inserting 1 stat")
-	require.NoError(t, b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false))
+	t.Log("inserting 1 stat")
+	b.Add(t2.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
 
 	// When: it becomes time to report stats
 	// Signal a tick and wait for a flush to complete.
 	tick <- t2
 	f = <-flushed // Wait for a flush to complete.
 	require.Equal(t, 1, f, "expected one stat to be flushed")
-	t.Logf("flush 2 completed")
+	t.Log("flush 2 completed")
 
 	// Then: it should report a single stat.
 	stats, err = store.GetWorkspaceAgentStats(ctx, t2)
@@ -87,9 +87,9 @@ func TestBatchStats(t *testing.T) {
 		t.Logf("inserting %d stats", defaultBufferSize)
 		for i := 0; i < defaultBufferSize; i++ {
 			if i%2 == 0 {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false))
+				b.Add(t3.Add(time.Millisecond), deps1.Agent.ID, deps1.User.ID, deps1.Template.ID, deps1.Workspace.ID, randStats(t), false)
 			} else {
-				require.NoError(t, b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false))
+				b.Add(t3.Add(time.Millisecond), deps2.Agent.ID, deps2.User.ID, deps2.Template.ID, deps2.Workspace.ID, randStats(t), false)
 			}
 		}
 	}()
@@ -97,7 +97,7 @@ func TestBatchStats(t *testing.T) {
 	// When: the buffer comes close to capacity
 	// Then: The buffer will force-flush once.
 	f = <-flushed
-	t.Logf("flush 3 completed")
+	t.Log("flush 3 completed")
 	require.Greater(t, f, 819, "expected at least 819 stats to be flushed (>=80% of buffer)")
 	// And we should finish inserting the stats
 	<-done
@@ -110,7 +110,7 @@ func TestBatchStats(t *testing.T) {
 	t4 := t3.Add(time.Second)
 	tick <- t4
 	f2 := <-flushed
-	t.Logf("flush 4 completed")
+	t.Log("flush 4 completed")
 	expectedCount := defaultBufferSize - f
 	require.Equal(t, expectedCount, f2, "did not flush expected remaining rows")
 
@@ -119,7 +119,7 @@ func TestBatchStats(t *testing.T) {
 	tick <- t5
 	f = <-flushed
 	require.Zero(t, f, "expected zero stats to have been flushed")
-	t.Logf("flush 5 completed")
+	t.Log("flush 5 completed")
 
 	stats, err = store.GetWorkspaceAgentStats(ctx, t5)
 	require.NoError(t, err, "should not error getting stats")
@@ -162,7 +162,7 @@ type deps struct {
 	Agent     database.WorkspaceAgent
 	Template  database.Template
 	User      database.User
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 // setupDeps sets up a set of test dependencies.
@@ -189,7 +189,7 @@ func setupDeps(t *testing.T, store database.Store, ps pubsub.Pubsub) deps {
 		OrganizationID:  org.ID,
 		ActiveVersionID: tv.ID,
 	})
-	ws := dbgen.Workspace(t, store, database.Workspace{
+	ws := dbgen.Workspace(t, store, database.WorkspaceTable{
 		TemplateID:     tpl.ID,
 		OwnerID:        user.ID,
 		OrganizationID: org.ID,

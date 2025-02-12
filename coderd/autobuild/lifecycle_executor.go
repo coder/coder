@@ -3,6 +3,7 @@ package autobuild
 import (
 	"context"
 	"database/sql"
+	"fmt"
 	"net/http"
 	"sync"
 	"sync/atomic"
@@ -10,6 +11,8 @@ import (
 
 	"github.com/dustin/go-humanize"
 	"github.com/google/uuid"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promauto"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
 
@@ -39,6 +42,13 @@ type Executor struct {
 	statsCh               chan<- Stats
 	// NotificationsEnqueuer handles enqueueing notifications for delivery by SMTP, webhook, etc.
 	notificationsEnqueuer notifications.Enqueuer
+	reg                   prometheus.Registerer
+
+	metrics executorMetrics
+}
+
+type executorMetrics struct {
+	autobuildExecutionDuration prometheus.Histogram
 }
 
 // Stats contains information about one run of Executor.
@@ -49,7 +59,8 @@ type Stats struct {
 }
 
 // New returns a new wsactions executor.
-func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, reg prometheus.Registerer, tss *atomic.Pointer[schedule.TemplateScheduleStore], auditor *atomic.Pointer[audit.Auditor], acs *atomic.Pointer[dbauthz.AccessControlStore], log slog.Logger, tick <-chan time.Time, enqueuer notifications.Enqueuer) *Executor {
+	factory := promauto.With(reg)
 	le := &Executor{
 		//nolint:gocritic // Autostart has a limited set of permissions.
 		ctx:                   dbauthz.AsAutostart(ctx),
@@ -61,6 +72,16 @@ func NewExecutor(ctx context.Context, db database.Store, ps pubsub.Pubsub, tss *
 		auditor:               auditor,
 		accessControlStore:    acs,
 		notificationsEnqueuer: enqueuer,
+		reg:                   reg,
+		metrics: executorMetrics{
+			autobuildExecutionDuration: factory.NewHistogram(prometheus.HistogramOpts{
+				Namespace: "coderd",
+				Subsystem: "lifecycle",
+				Name:      "autobuild_execution_duration_seconds",
+				Help:      "Duration of each autobuild execution.",
+				Buckets:   prometheus.DefBuckets,
+			}),
+		},
 	}
 	return le
 }
@@ -86,6 +107,7 @@ func (e *Executor) Run() {
 					return
 				}
 				stats := e.runOnce(t)
+				e.metrics.autobuildExecutionDuration.Observe(stats.Elapsed.Seconds())
 				if e.statsCh != nil {
 					select {
 					case <-e.ctx.Done():
@@ -121,7 +143,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 	// NOTE: If a workspace build is created with a given TTL and then the user either
 	//       changes or unsets the TTL, the deadline for the workspace build will not
 	//       have changed. This behavior is as expected per #2229.
-	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, t)
+	workspaces, err := e.db.GetWorkspacesEligibleForTransition(e.ctx, currentTick)
 	if err != nil {
 		e.log.Error(e.ctx, "get workspaces for autostart or autostop", slog.Error(err))
 		return stats
@@ -156,6 +178,15 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				err := e.db.InTx(func(tx database.Store) error {
 					var err error
 
+					ok, err := tx.TryAcquireLock(e.ctx, database.GenLockID(fmt.Sprintf("lifecycle-executor:%s", wsID)))
+					if err != nil {
+						return xerrors.Errorf("try acquire lifecycle executor lock: %w", err)
+					}
+					if !ok {
+						log.Debug(e.ctx, "unable to acquire lock for workspace, skipping")
+						return nil
+					}
+
 					// Re-check eligibility since the first check was outside the
 					// transaction and the workspace settings may have changed.
 					ws, err = tx.GetWorkspaceByID(e.ctx, wsID)
@@ -182,6 +213,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					templateSchedule, err := (*(e.templateScheduleStore.Load())).Get(e.ctx, tx, ws.TemplateID)
 					if err != nil {
 						return xerrors.Errorf("get template scheduling options: %w", err)
+					}
+
+					// If next start at is not valid we need to re-compute it
+					if !ws.NextStartAt.Valid && ws.AutostartSchedule.Valid {
+						next, err := schedule.NextAllowedAutostart(currentTick, ws.AutostartSchedule.String, templateSchedule)
+						if err == nil {
+							nextStartAt := sql.NullTime{Valid: true, Time: dbtime.Time(next.UTC())}
+							if err = tx.UpdateWorkspaceNextStartAt(e.ctx, database.UpdateWorkspaceNextStartAtParams{
+								ID:          wsID,
+								NextStartAt: nextStartAt,
+							}); err != nil {
+								return xerrors.Errorf("update workspace next start at: %w", err)
+							}
+
+							// Save re-fetching the workspace
+							ws.NextStartAt = nextStartAt
+						}
 					}
 
 					tmpl, err = tx.GetTemplateByID(e.ctx, ws.TemplateID)
@@ -224,7 +272,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 							}
 						}
 
-						nextBuild, job, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
+						nextBuild, job, _, err = builder.Build(e.ctx, tx, nil, audit.WorkspaceBuildBaggage{IP: "127.0.0.1"})
 						if err != nil {
 							return xerrors.Errorf("build workspace with transition %q: %w", nextTransition, err)
 						}
@@ -234,21 +282,23 @@ func (e *Executor) runOnce(t time.Time) Stats {
 					// threshold for inactivity.
 					if reason == database.BuildReasonDormancy {
 						wsOld := ws
-						ws, err = tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
+						wsNew, err := tx.UpdateWorkspaceDormantDeletingAt(e.ctx, database.UpdateWorkspaceDormantDeletingAtParams{
 							ID: ws.ID,
 							DormantAt: sql.NullTime{
 								Time:  dbtime.Now(),
 								Valid: true,
 							},
 						})
-
-						auditLog = &auditParams{
-							Old: wsOld,
-							New: ws,
-						}
 						if err != nil {
 							return xerrors.Errorf("update workspace dormant deleting at: %w", err)
 						}
+
+						auditLog = &auditParams{
+							Old: wsOld.WorkspaceTable(),
+							New: wsNew,
+						}
+						// To keep the `ws` accurate without doing a sql fetch
+						ws.DormantAt = wsNew.DormantAt
 
 						shouldNotifyDormancy = true
 
@@ -283,7 +333,10 @@ func (e *Executor) runOnce(t time.Time) Stats {
 
 					// Run with RepeatableRead isolation so that the build process sees the same data
 					// as our calculation that determines whether an autobuild is necessary.
-				}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+				}, &database.TxOptions{
+					Isolation:    sql.LevelRepeatableRead,
+					TxIdentifier: "lifecycle",
+				})
 				if auditLog != nil {
 					// If the transition didn't succeed then updating the workspace
 					// to indicate dormant didn't either.
@@ -346,7 +399,7 @@ func (e *Executor) runOnce(t time.Time) Stats {
 				}
 				return nil
 			}()
-			if err != nil {
+			if err != nil && !xerrors.Is(err, context.Canceled) {
 				log.Error(e.ctx, "failed to transition workspace", slog.Error(err))
 				statsMu.Lock()
 				stats.Errors[wsID] = err
@@ -437,8 +490,8 @@ func isEligibleForAutostart(user database.User, ws database.Workspace, build dat
 		return false
 	}
 
-	nextTransition, allowed := schedule.NextAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
-	if !allowed {
+	nextTransition, err := schedule.NextAllowedAutostart(build.CreatedAt, ws.AutostartSchedule.String, templateSchedule)
+	if err != nil {
 		return false
 	}
 
@@ -510,8 +563,8 @@ func isEligibleForFailedStop(build database.WorkspaceBuild, job database.Provisi
 }
 
 type auditParams struct {
-	Old     database.Workspace
-	New     database.Workspace
+	Old     database.WorkspaceTable
+	New     database.WorkspaceTable
 	Success bool
 }
 
@@ -521,7 +574,7 @@ func auditBuild(ctx context.Context, log slog.Logger, auditor audit.Auditor, par
 		status = http.StatusOK
 	}
 
-	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.Workspace]{
+	audit.BackgroundAudit(ctx, &audit.BackgroundAuditParams[database.WorkspaceTable]{
 		Audit:          auditor,
 		Log:            log,
 		UserID:         params.New.OwnerID,

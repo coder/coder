@@ -7,7 +7,7 @@ import { organizationMembers } from "api/queries/organizations";
 import { users } from "api/queries/users";
 import type { OrganizationMemberWithUserData, User } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { useDebouncedFunction } from "hooks/debounce";
 import {
 	type ChangeEvent,
@@ -170,9 +170,11 @@ const InnerAutocomplete = <T extends SelectedUser>({
 						...params.InputProps,
 						onChange: debouncedInputOnChange,
 						startAdornment: value && (
-							<Avatar size="sm" src={value.avatar_url}>
-								{value.username}
-							</Avatar>
+							<Avatar
+								size="sm"
+								src={value.avatar_url}
+								fallback={value.username}
+							/>
 						),
 						endAdornment: (
 							<>

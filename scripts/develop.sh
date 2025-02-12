@@ -162,9 +162,11 @@ fatal() {
 	# Check if credentials are already set up to avoid setting up again.
 	"${CODER_DEV_SHIM}" list >/dev/null 2>&1 && touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
 
-	if [ ! -f "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup" ]; then
+	if ! "${CODER_DEV_SHIM}" whoami >/dev/null 2>&1; then
 		# Try to create the initial admin user.
-		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=true; then
+		echo "Login required; use admin@coder.com and password '${password}'" >&2
+
+		if "${CODER_DEV_SHIM}" login http://127.0.0.1:3000 --first-user-username=admin --first-user-email=admin@coder.com --first-user-password="${password}" --first-user-full-name="Admin User" --first-user-trial=false; then
 			# Only create this file if an admin user was successfully
 			# created, otherwise we won't retry on a later attempt.
 			touch "${PROJECT_ROOT}/.coderv2/developsh-did-first-setup"
@@ -203,6 +205,8 @@ fatal() {
 	# If we have docker available and the "docker" template doesn't already
 	# exist, then let's try to create a template!
 	template_name="docker"
+	# Determine the name of the default org with some jq hacks!
+	first_org_name=$("${CODER_DEV_SHIM}" organizations show me -o json | jq -r '.[] | select(.is_default) | .name')
 	if docker info >/dev/null 2>&1 && ! "${CODER_DEV_SHIM}" templates versions list "${template_name}" >/dev/null 2>&1; then
 		# sometimes terraform isn't installed yet when we go to create the
 		# template
@@ -212,12 +216,14 @@ fatal() {
 		echo "Initializing docker template..."
 		temp_template_dir="$(mktemp -d)"
 		"${CODER_DEV_SHIM}" templates init --id "${template_name}" "${temp_template_dir}"
+		# Run terraform init so we get a terraform.lock.hcl
+		pushd "${temp_template_dir}" && terraform init && popd
 
 		DOCKER_HOST="$(docker context inspect --format '{{ .Endpoints.docker.Host }}')"
 		printf 'docker_arch: "%s"\ndocker_host: "%s"\n' "${GOARCH}" "${DOCKER_HOST}" >"${temp_template_dir}/params.yaml"
 		(
-			echo "Pushing docker template to 'first-organization'..."
-			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org first-organization
+			echo "Pushing docker template to '${first_org_name}'..."
+			"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${first_org_name}"
 			if [ "${multi_org}" -gt "0" ]; then
 				echo "Pushing docker template to '${another_org}'..."
 				"${CODER_DEV_SHIM}" templates push "${template_name}" --directory "${temp_template_dir}" --variables-file "${temp_template_dir}/params.yaml" --yes --org "${another_org}"

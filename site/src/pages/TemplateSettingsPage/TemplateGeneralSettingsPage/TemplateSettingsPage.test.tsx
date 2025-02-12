@@ -2,9 +2,12 @@ import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API, withDefaultFeatures } from "api/api";
 import type { Template, UpdateTemplateMeta } from "api/typesGenerated";
-import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import { http, HttpResponse } from "msw";
-import { MockEntitlements, MockTemplate } from "testHelpers/entities";
+import {
+	MockEntitlements,
+	MockTemplate,
+	mockApiError,
+} from "testHelpers/entities";
 import {
 	renderWithTemplateSettingsLayout,
 	waitForLoaderToBeRemoved,
@@ -95,9 +98,7 @@ const fillAndSubmitForm = async ({
 		await userEvent.click(allowCancelJobsField);
 	}
 
-	const submitButton = await screen.findByText(
-		FooterFormLanguage.defaultSubmitLabel,
-	);
+	const submitButton = await screen.findByText(/save/i);
 	await userEvent.click(submitButton);
 };
 
@@ -110,6 +111,28 @@ describe("TemplateSettingsPage", () => {
 		});
 		await fillAndSubmitForm(validFormValues);
 		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+	});
+
+	it("displays an error if the name is taken", async () => {
+		await renderTemplateSettingsPage();
+		jest.spyOn(API, "updateTemplateMeta").mockRejectedValueOnce(
+			mockApiError({
+				message: `Template with name "test-template" already exists`,
+				validations: [
+					{
+						field: "name",
+						detail: "This value is already in use and should be unique.",
+					},
+				],
+			}),
+		);
+		await fillAndSubmitForm(validFormValues);
+		await waitFor(() => expect(API.updateTemplateMeta).toBeCalledTimes(1));
+		expect(
+			await screen.findByText(
+				"This value is already in use and should be unique.",
+			),
+		).toBeInTheDocument();
 	});
 
 	it("allows a description of 128 chars", () => {
@@ -148,7 +171,7 @@ describe("TemplateSettingsPage", () => {
 			const deprecationMessage = "This template is deprecated";
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate(MockTemplate, deprecationMessage);
+			await deprecateTemplate(deprecationMessage);
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -172,10 +195,7 @@ describe("TemplateSettingsPage", () => {
 			const updateTemplateMetaSpy = jest.spyOn(API, "updateTemplateMeta");
 
 			await renderTemplateSettingsPage();
-			await deprecateTemplate(
-				MockTemplate,
-				"This template should not be able to deprecate",
-			);
+			await deprecateTemplate("This template should not be able to deprecate");
 
 			const [templateId, data] = updateTemplateMetaSpy.mock.calls[0];
 
@@ -187,12 +207,9 @@ describe("TemplateSettingsPage", () => {
 	});
 });
 
-async function deprecateTemplate(template: Template, message: string) {
+async function deprecateTemplate(message: string) {
 	const deprecationField = screen.getByLabelText("Deprecation Message");
 	await userEvent.type(deprecationField, message);
-
-	const submitButton = await screen.findByText(
-		FooterFormLanguage.defaultSubmitLabel,
-	);
+	const submitButton = await screen.findByRole("button", { name: /save/i });
 	await userEvent.click(submitButton);
 }

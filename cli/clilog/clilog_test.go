@@ -2,7 +2,6 @@ package clilog_test
 
 import (
 	"encoding/json"
-	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
@@ -145,30 +144,6 @@ func TestBuilder(t *testing.T) {
 			assertLogsJSON(t, tempJSON, info, infoLog, warn, warnLog)
 		})
 	})
-
-	t.Run("NotFound", func(t *testing.T) {
-		t.Parallel()
-
-		tempFile := filepath.Join(t.TempDir(), "doesnotexist", "test.log")
-		cmd := &serpent.Command{
-			Use: "test",
-			Handler: func(inv *serpent.Invocation) error {
-				logger, closeLog, err := clilog.New(
-					clilog.WithFilter("foo", "baz"),
-					clilog.WithHuman(tempFile),
-					clilog.WithVerbose(),
-				).Build(inv)
-				if err != nil {
-					return err
-				}
-				defer closeLog()
-				logger.Error(inv.Context(), "you will never see this")
-				return nil
-			},
-		}
-		err := cmd.Invoke().Run()
-		require.ErrorIs(t, err, fs.ErrNotExist)
-	})
 }
 
 var (
@@ -206,7 +181,7 @@ func assertLogs(t testing.TB, path string, expected ...string) {
 
 	logs := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if !assert.Len(t, logs, len(expected)) {
-		t.Logf(string(data))
+		t.Log(string(data))
 		t.FailNow()
 	}
 	for i, log := range logs {
@@ -227,7 +202,7 @@ func assertLogsJSON(t testing.TB, path string, levelExpected ...string) {
 
 	logs := strings.Split(strings.TrimSpace(string(data)), "\n")
 	if !assert.Len(t, logs, len(levelExpected)/2) {
-		t.Logf(string(data))
+		t.Log(string(data))
 		t.FailNow()
 	}
 	for i, log := range logs {

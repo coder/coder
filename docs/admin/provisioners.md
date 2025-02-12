@@ -1,7 +1,7 @@
 # External provisioners
 
 By default, the Coder server runs
-[built-in provisioner daemons](../reference/cli/server.md#provisioner-daemons),
+[built-in provisioner daemons](../reference/cli/server.md#--provisioner-daemons),
 which execute `terraform` during workspace and template builds. However, there
 are often benefits to running external provisioner daemons:
 
@@ -41,36 +41,40 @@ The provisioner daemon must authenticate with your Coder deployment.
 ## Scoped Key (Recommended)
 
 We recommend creating finely-scoped keys for provisioners. Keys are scoped to an
-organization.
+organization, and optionally to a specific set of tags.
 
-```sh
-coder provisioner keys create my-key \
-  --org default
+1. Use `coder provisioner` to create the key:
 
-Successfully created provisioner key my-key! Save this authentication token, it will not be shown again.
+   - To create a key for an organization that will match untagged jobs:
 
-<key omitted>
-```
+     ```sh
+     coder provisioner keys create my-key \
+       --org default
 
-Or, restrict the provisioner to jobs with specific tags
+     Successfully created provisioner key   my-key! Save this authentication token, it   will not be shown    again.
 
-```sh
-coder provisioner keys create kubernetes-key \
-  --org default \
-  --tag environment=kubernetes
+     <key omitted>
+     ```
 
-Successfully created provisioner key kubernetes-key! Save this authentication token, it will not be shown again.
+   - To restrict the provisioner to jobs with specific tags:
 
-<key omitted>
-```
+     ```sh
+     coder provisioner keys create kubernetes-key \
+       --org default \
+       --tag environment=kubernetes
 
-To start the provisioner:
+     Successfully created provisioner key kubernetes-key! Save this    authentication token, it will not be    shown again.
 
-```sh
-export CODER_URL=https://<your-coder-url>
-export CODER_PROVISIONER_DAEMON_KEY=<key>
-coder provisioner start
-```
+     <key omitted>
+     ```
+
+1. Start the provisioner with the specified key:
+
+   ```sh
+   export CODER_URL=https://<your-coder-url>
+   export CODER_PROVISIONER_DAEMON_KEY=<key>
+   coder provisioner start
+   ```
 
 Keep reading to see instructions for running provisioners on
 Kubernetes/Docker/etc.
@@ -98,11 +102,15 @@ Note: Any user can start [user-scoped provisioners](#user-scoped-provisioners),
 but this will also require a template on your deployment with the corresponding
 tags.
 
-## Global PSK
+## Global PSK (Not Recommended)
 
-A deployment-wide PSK can be used to authenticate any provisioner. We do not
-recommend this approach anymore, as it makes key rotation or isolating
-provisioners far more difficult. To use a global PSK, set a
+> Global pre-shared keys (PSK) make it difficult to rotate keys or isolate
+> provisioners.
+>
+> We do not recommend using global PSK.
+
+A deployment-wide PSK can be used to authenticate any provisioner. To use a
+global PSK, set a
 [provisioner daemon pre-shared key (PSK)](../reference/cli/server.md#--provisioner-daemon-psk)
 on the Coder server.
 
@@ -170,7 +178,8 @@ A provisioner can run a given build job if one of the below is true:
 1. If a job has any explicit tags, it can only run on a provisioner with those
    explicit tags (the provisioner could have additional tags).
 
-The external provisioner in the above example can run build jobs with tags:
+The external provisioner in the above example can run build jobs in the same
+organization with tags:
 
 - `environment=on_prem`
 - `datacenter=chicago`
@@ -178,7 +187,8 @@ The external provisioner in the above example can run build jobs with tags:
 
 However, it will not pick up any build jobs that do not have either of the
 `environment` or `datacenter` tags set. It will also not pick up any build jobs
-from templates with the tag `scope=user` set.
+from templates with the tag `scope=user` set, or build jobs from templates in
+different organizations.
 
 > [!NOTE] If you only run tagged provisioners, you will need to specify a set of
 > tags that matches at least one provisioner for _all_ template import jobs and
@@ -190,51 +200,52 @@ from templates with the tag `scope=user` set.
 
 This is illustrated in the below table:
 
-| Provisioner Tags                                                  | Job Tags                                                         | Can Run Job? |
-| ----------------------------------------------------------------- | ---------------------------------------------------------------- | ------------ |
-| scope=organization owner=                                         | scope=organization owner=                                        | ✅           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅           |
-| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅           |
-| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅           |
-| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ❌           |
-| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
-| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ❌           |
-| scope=user owner=aaa                                              | scope=organization owner=                                        | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa                                             | ❌           |
-| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ❌           |
-| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ❌           |
-| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ❌           |
-| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ❌           |
+| Provisioner Tags                                                  | Job Tags                                                         | Same Org | Can Run Job? |
+|-------------------------------------------------------------------|------------------------------------------------------------------|----------|--------------|
+| scope=organization owner=                                         | scope=organization owner=                                        | ✅        | ✅            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ✅        | ✅            |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem                    | ✅        | ✅            |
+| scope=organization owner= environment=on-prem datacenter=chicago  | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ✅            |
+| scope=user owner=aaa                                              | scope=user owner=aaa                                             | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa                                             | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem                         | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem                         | ✅        | ✅            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅        | ✅            |
+| scope=organization owner=                                         | scope=organization owner= environment=on-prem                    | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner=                                        | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ❌            |
+| scope=organization owner= environment=on-prem datacenter=new_york | scope=organization owner= environment=on-prem datacenter=chicago | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=organization owner=                                        | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=user owner=bbb                                             | ✅        | ❌            |
+| scope=organization owner=                                         | scope=user owner=aaa                                             | ✅        | ❌            |
+| scope=organization owner=                                         | scope=user owner=aaa environment=on-prem                         | ✅        | ❌            |
+| scope=user owner=aaa                                              | scope=user owner=aaa environment=on-prem                         | ✅        | ❌            |
+| scope=user owner=aaa environment=on-prem                          | scope=user owner=aaa environment=on-prem datacenter=chicago      | ✅        | ❌            |
+| scope=user owner=aaa environment=on-prem datacenter=chicago       | scope=user owner=aaa environment=on-prem datacenter=new_york     | ✅        | ❌            |
+| scope=organization owner= environment=on-prem                     | scope=organization owner= environment=on-prem                    | ❌        | ❌            |
 
 > **Note to maintainers:** to generate this table, run the following command and
 > copy the output:
 >
-> ```
-> go test -v -count=1 ./coderd/provisionerserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
+> ```go
+> go test -v -count=1 ./coderd/provisionerdserver/ -test.run='^TestAcquirer_MatchTags/GenTable$'
 > ```
 
 ## Types of provisioners
 
 Provisioners can broadly be categorized by scope: `organization` or `user`. The
 scope of a provisioner can be specified with
-[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#t---tag) when
+[`-tag=scope=<scope>`](../reference/cli/provisioner_start.md#-t---tag) when
 starting the provisioner daemon. Only users with at least the
 [Template Admin](./users/index.md#roles) role or higher may create
 organization-scoped provisioner daemons.
 
 There are two exceptions:
 
-- [Built-in provisioners](../reference/cli/server.md#provisioner-daemons) are
+- [Built-in provisioners](../reference/cli/server.md#--provisioner-daemons) are
   always organization-scoped.
 - External provisioners started using a
-  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#psk) are always
+  [pre-shared key (PSK)](../reference/cli/provisioner_start.md#--psk) are always
   organization-scoped.
 
 ### Organization-Scoped Provisioners
@@ -275,32 +286,27 @@ coder templates push on-prem \
 Coder provides a Helm chart for running external provisioner daemons, which you
 will use in concert with the Helm chart for deploying the Coder server.
 
-1. Create a long, random pre-shared key (PSK) and store it in a Kubernetes
-   secret
+1. Create a provisioner key:
 
    ```sh
-   kubectl create secret generic coder-provisioner-psk --from-literal=psk=`head /dev/urandom | base64 | tr -dc A-Za-z0-9 | head -c 26`
+   coder provisioner keys create my-cool-key --org default
+   # Optionally, you can specify tags for the provisioner key:
+   # coder provisioner keys create my-cool-key --org default --tag location=auh --tag kind=k8s
+
+   Successfully created provisioner key kubernetes-key! Save this authentication
+   token, it will not be shown again.
+
+   <key omitted>
    ```
 
-1. Modify your Coder `values.yaml` to include
-
-   ```yaml
-   provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
-   ```
-
-1. Redeploy Coder with the new `values.yaml` to roll out the PSK. You can omit
-   `--version <your version>` to also upgrade Coder to the latest version.
+1. Store the key in a kubernetes secret:
 
    ```sh
-   helm upgrade coder coder-v2/coder \
-       --namespace coder \
-       --version <your version> \
-       --values values.yaml
+   kubectl create secret generic coder-provisioner-keys --from-literal=my-cool-key=`<key omitted>`
    ```
 
 1. Create a `provisioner-values.yaml` file for the provisioner daemons Helm
-   chart. For example
+   chart. For example:
 
    ```yaml
    coder:
@@ -309,15 +315,17 @@ will use in concert with the Helm chart for deploying the Coder server.
          value: "https://coder.example.com"
      replicaCount: 10
    provisionerDaemon:
-     pskSecretName: "coder-provisioner-psk"
-     tags:
-       location: auh
-       kind: k8s
+     # NOTE: in older versions of the Helm chart (2.17.0 and below), it is required to set this to an empty string.
+     pskSecretName: ""
+     keySecretName: "coder-provisioner-keys"
+     keySecretKey: "my-cool-key"
    ```
 
    This example creates a deployment of 10 provisioner daemons (for 10
-   concurrent builds) with the listed tags. For generic provisioners, remove the
-   tags.
+   concurrent builds) authenticating using the above key. The daemons will
+   authenticate using the provisioner key created in the previous step and
+   acquire jobs matching the tags specified when the provisioner key was
+   created. The set of tags is inferred automatically from the provisioner key.
 
    > Refer to the
    > [values.yaml](https://github.com/coder/coder/blob/main/helm/provisioner/values.yaml)
@@ -361,7 +369,7 @@ docker run --rm -it \
 
 As mentioned above, the Coder server will run built-in provisioners by default.
 This can be disabled with a server-wide
-[flag or environment variable](../reference/cli/server.md#provisioner-daemons).
+[flag or environment variable](../reference/cli/server.md#--provisioner-daemons).
 
 ```sh
 coder server --provisioner-daemons=0

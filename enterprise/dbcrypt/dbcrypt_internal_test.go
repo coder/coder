@@ -5,7 +5,6 @@ import (
 	"crypto/rand"
 	"database/sql"
 	"encoding/base64"
-	"encoding/json"
 	"io"
 	"testing"
 	"time"
@@ -18,6 +17,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/dbtime"
 )
 
 func TestUserLinks(t *testing.T) {
@@ -52,12 +52,37 @@ func TestUserLinks(t *testing.T) {
 			UserID: user.ID,
 		})
 
+		expectedClaims := database.UserLinkClaims{
+			IDTokenClaims: map[string]interface{}{
+				"sub": "123",
+				"groups": []interface{}{
+					"foo", "bar",
+				},
+			},
+			UserInfoClaims: map[string]interface{}{
+				"number": float64(2),
+				"struct": map[string]interface{}{
+					"number": float64(2),
+				},
+			},
+			MergedClaims: map[string]interface{}{
+				"sub": "123",
+				"groups": []interface{}{
+					"foo", "bar",
+				},
+				"number": float64(2),
+				"struct": map[string]interface{}{
+					"number": float64(2),
+				},
+			},
+		}
+
 		updated, err := crypt.UpdateUserLink(ctx, database.UpdateUserLinkParams{
 			OAuthAccessToken:  "access",
 			OAuthRefreshToken: "refresh",
 			UserID:            link.UserID,
 			LoginType:         link.LoginType,
-			DebugContext:      json.RawMessage("{}"),
+			Claims:            expectedClaims,
 		})
 		require.NoError(t, err)
 		require.Equal(t, "access", updated.OAuthAccessToken)
@@ -69,6 +94,32 @@ func TestUserLinks(t *testing.T) {
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthAccessToken, "access")
 		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "refresh")
+		require.EqualValues(t, expectedClaims, rawLink.Claims)
+	})
+
+	t.Run("UpdateExternalAuthLinkRefreshToken", func(t *testing.T) {
+		t.Parallel()
+		db, crypt, ciphers := setup(t)
+		user := dbgen.User(t, crypt, database.User{})
+		link := dbgen.ExternalAuthLink(t, crypt, database.ExternalAuthLink{
+			UserID: user.ID,
+		})
+
+		err := crypt.UpdateExternalAuthLinkRefreshToken(ctx, database.UpdateExternalAuthLinkRefreshTokenParams{
+			OAuthRefreshToken:      "",
+			OAuthRefreshTokenKeyID: link.OAuthRefreshTokenKeyID.String,
+			UpdatedAt:              dbtime.Now(),
+			ProviderID:             link.ProviderID,
+			UserID:                 link.UserID,
+		})
+		require.NoError(t, err)
+
+		rawLink, err := db.GetExternalAuthLink(ctx, database.GetExternalAuthLinkParams{
+			ProviderID: link.ProviderID,
+			UserID:     link.UserID,
+		})
+		require.NoError(t, err)
+		requireEncryptedEquals(t, ciphers[0], rawLink.OAuthRefreshToken, "")
 	})
 
 	t.Run("GetUserLinkByLinkedID", func(t *testing.T) {
@@ -397,12 +448,12 @@ func TestCryptoKeys(t *testing.T) {
 		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
-		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err := crypt.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		require.Equal(t, "test", key.Secret.String)
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
-		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceApps)
+		key, err = db.GetLatestCryptoKeyByFeature(ctx, database.CryptoKeyFeatureWorkspaceAppsAPIKey)
 		require.NoError(t, err)
 		requireEncryptedEquals(t, ciphers[0], key.Secret.String, "test")
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
@@ -415,7 +466,7 @@ func TestCryptoKeys(t *testing.T) {
 			Secret: sql.NullString{String: "test", Valid: true},
 		})
 		key, err := crypt.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -423,7 +474,7 @@ func TestCryptoKeys(t *testing.T) {
 		require.Equal(t, ciphers[0].HexDigest(), key.SecretKeyID.String)
 
 		key, err = db.GetCryptoKeyByFeatureAndSequence(ctx, database.GetCryptoKeyByFeatureAndSequenceParams{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: key.Sequence,
 		})
 		require.NoError(t, err)
@@ -459,7 +510,7 @@ func TestCryptoKeys(t *testing.T) {
 			Secret:   sql.NullString{String: "test", Valid: true},
 		})
 		_ = dbgen.CryptoKey(t, crypt, database.CryptoKey{
-			Feature:  database.CryptoKeyFeatureWorkspaceApps,
+			Feature:  database.CryptoKeyFeatureWorkspaceAppsAPIKey,
 			Sequence: 43,
 		})
 		keys, err := crypt.GetCryptoKeysByFeature(ctx, database.CryptoKeyFeatureTailnetResume)
@@ -773,7 +824,7 @@ func TestEncryptDecryptField(t *testing.T) {
 
 func expectInTx(mdb *dbmock.MockStore) *gomock.Call {
 	return mdb.EXPECT().InTx(gomock.Any(), gomock.Any()).Times(1).DoAndReturn(
-		func(f func(store database.Store) error, _ *sql.TxOptions) error {
+		func(f func(store database.Store) error, _ *database.TxOptions) error {
 			return f(mdb)
 		},
 	)

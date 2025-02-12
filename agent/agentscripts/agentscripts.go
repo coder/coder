@@ -290,7 +290,7 @@ func (r *Runner) run(ctx context.Context, script codersdk.WorkspaceAgentScript, 
 	cmd = cmdPty.AsExec()
 	cmd.SysProcAttr = cmdSysProcAttr()
 	cmd.WaitDelay = 10 * time.Second
-	cmd.Cancel = cmdCancel(cmd)
+	cmd.Cancel = cmdCancel(ctx, logger, cmd)
 
 	// Expose env vars that can be used in the script for storing data
 	// and binaries. In the future, we may want to expose more env vars

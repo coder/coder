@@ -13,33 +13,31 @@ provider "azurerm" {
   features {}
 }
 
-provider "coder" {
-}
-
+provider "coder" {}
 data "coder_workspace" "me" {}
 
-data "coder_parameter" "location" {
-  description  = "What location should your workspace live in?"
-  display_name = "Location"
-  name         = "location"
-  default      = "eastus"
-  mutable      = false
-  option {
-    value = "eastus"
-    name  = "East US"
-  }
-  option {
-    value = "centralus"
-    name  = "Central US"
-  }
-  option {
-    value = "southcentralus"
-    name  = "South Central US"
-  }
-  option {
-    value = "westus2"
-    name  = "West US 2"
-  }
+# See https://registry.coder.com/modules/azure-region
+module "azure_region" {
+  source = "registry.coder.com/modules/azure-region/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  default = "eastus"
+}
+
+# See https://registry.coder.com/modules/windows-rdp
+module "windows_rdp" {
+  source = "registry.coder.com/modules/windows-rdp/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  admin_username = local.admin_username
+  admin_password = random_password.admin_password.result
+
+  agent_id    = resource.coder_agent.main.id
+  resource_id = null # Unused, to be removed in a future version
 }
 
 data "coder_parameter" "data_disk_size" {
@@ -65,9 +63,9 @@ resource "random_password" "admin_password" {
   length  = 16
   special = true
   # https://docs.microsoft.com/en-us/windows/security/threat-protection/security-policy-settings/password-must-meet-complexity-requirements#reference
-  # we remove characters that require special handling in XML, as this is how we pass it to the VM
-  # namely: <>&'"
-  override_special = "~!@#$%^*_-+=`|\\(){}[]:;,.?/"
+  # we remove characters that require special handling in XML, as this is how we pass it to the VM; we also remove the powershell escape character
+  # namely: <>&'`"
+  override_special = "~!@#$%^*_-+=|\\(){}[]:;,.?/"
 }
 
 locals {
@@ -77,7 +75,7 @@ locals {
 
 resource "azurerm_resource_group" "main" {
   name     = "${local.prefix}-${data.coder_workspace.me.id}"
-  location = data.coder_parameter.location.value
+  location = module.azure_region.value
   tags = {
     Coder_Provisioned = "true"
   }
@@ -151,6 +149,7 @@ resource "azurerm_managed_disk" "data" {
 
 # Create virtual machine
 resource "azurerm_windows_virtual_machine" "main" {
+  count                 = data.coder_workspace.me.start_count
   name                  = "vm"
   admin_username        = local.admin_username
   admin_password        = random_password.admin_password.result
@@ -189,7 +188,8 @@ resource "azurerm_windows_virtual_machine" "main" {
 }
 
 resource "coder_metadata" "rdp_login" {
-  resource_id = azurerm_windows_virtual_machine.main.id
+  count       = data.coder_workspace.me.start_count
+  resource_id = azurerm_windows_virtual_machine.main[0].id
   item {
     key   = "Username"
     value = local.admin_username
@@ -202,27 +202,9 @@ resource "coder_metadata" "rdp_login" {
 }
 
 resource "azurerm_virtual_machine_data_disk_attachment" "main_data" {
+  count              = data.coder_workspace.me.start_count
   managed_disk_id    = azurerm_managed_disk.data.id
-  virtual_machine_id = azurerm_windows_virtual_machine.main.id
+  virtual_machine_id = azurerm_windows_virtual_machine.main[0].id
   lun                = "10"
   caching            = "ReadWrite"
-}
-
-# Stop the VM
-resource "null_resource" "stop_vm" {
-  count      = data.coder_workspace.me.transition == "stop" ? 1 : 0
-  depends_on = [azurerm_windows_virtual_machine.main]
-  provisioner "local-exec" {
-    # Use deallocate so the VM is not charged
-    command = "az vm deallocate --ids ${azurerm_windows_virtual_machine.main.id}"
-  }
-}
-
-# Start the VM
-resource "null_resource" "start" {
-  count      = data.coder_workspace.me.transition == "start" ? 1 : 0
-  depends_on = [azurerm_windows_virtual_machine.main]
-  provisioner "local-exec" {
-    command = "az vm start --ids ${azurerm_windows_virtual_machine.main.id}"
-  }
 }

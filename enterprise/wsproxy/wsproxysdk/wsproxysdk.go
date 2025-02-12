@@ -10,17 +10,15 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	agpl "github.com/coder/coder/v2/tailnet"
-	"github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // Client is a HTTP client for a subset of Coder API routes that external
@@ -205,7 +203,6 @@ type RegisterWorkspaceProxyRequest struct {
 }
 
 type RegisterWorkspaceProxyResponse struct {
-	AppSecurityKey      string           `json:"app_security_key"`
 	DERPMeshKey         string           `json:"derp_mesh_key"`
 	DERPRegionID        int32            `json:"derp_region_id"`
 	DERPMap             *tailcfg.DERPMap `json:"derp_map"`
@@ -372,12 +369,6 @@ func (l *RegisterWorkspaceProxyLoop) Start(ctx context.Context) (RegisterWorkspa
 			}
 			failedAttempts = 0
 
-			// Check for consistency.
-			if originalRes.AppSecurityKey != resp.AppSecurityKey {
-				l.failureFn(xerrors.New("app security key has changed, proxy must be restarted"))
-				return
-			}
-
 			if originalRes.DERPMeshKey != resp.DERPMeshKey {
 				l.failureFn(xerrors.New("DERP mesh key has changed, proxy must be restarted"))
 				return
@@ -508,18 +499,13 @@ type CoordinateNodes struct {
 	Nodes []*agpl.Node
 }
 
-func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, error) {
-	ctx, cancel := context.WithCancel(ctx)
-	logger := c.SDKClient.Logger().Named("multiagent")
+func (c *Client) TailnetDialer() (*workspacesdk.WebsocketDialer, error) {
+	logger := c.SDKClient.Logger().Named("tailnet_dialer")
 
 	coordinateURL, err := c.SDKClient.URL.Parse("/api/v2/workspaceproxies/me/coordinate")
 	if err != nil {
-		cancel()
 		return nil, xerrors.Errorf("parse url: %w", err)
 	}
-	q := coordinateURL.Query()
-	q.Add("version", proto.CurrentVersion.String())
-	coordinateURL.RawQuery = q.Encode()
 	coordinateHeaders := make(http.Header)
 	tokenHeader := codersdk.SessionTokenHeader
 	if c.SDKClient.SessionTokenHeader != "" {
@@ -527,69 +513,20 @@ func (c *Client) DialCoordinator(ctx context.Context) (agpl.MultiAgentConn, erro
 	}
 	coordinateHeaders.Set(tokenHeader, c.SessionToken())
 
-	//nolint:bodyclose
-	conn, _, err := websocket.Dial(ctx, coordinateURL.String(), &websocket.DialOptions{
+	return workspacesdk.NewWebsocketDialer(logger, coordinateURL, &websocket.DialOptions{
 		HTTPClient: c.SDKClient.HTTPClient,
 		HTTPHeader: coordinateHeaders,
-	})
-	if err != nil {
-		cancel()
-		return nil, xerrors.Errorf("dial coordinate websocket: %w", err)
-	}
-
-	go httpapi.HeartbeatClose(ctx, logger, cancel, conn)
-
-	nc := websocket.NetConn(ctx, conn, websocket.MessageBinary)
-	client, err := agpl.NewDRPCClient(nc, logger)
-	if err != nil {
-		logger.Debug(ctx, "failed to create DRPCClient", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, "")
-		return nil, xerrors.Errorf("failed to create DRPCClient: %w", err)
-	}
-	protocol, err := client.Coordinate(ctx)
-	if err != nil {
-		logger.Debug(ctx, "failed to reach the Coordinate endpoint", slog.Error(err))
-		_ = conn.Close(websocket.StatusInternalError, "")
-		return nil, xerrors.Errorf("failed to reach the Coordinate endpoint: %w", err)
-	}
-
-	rma := remoteMultiAgentHandler{
-		sdk:      c,
-		logger:   logger,
-		protocol: protocol,
-		cancel:   cancel,
-	}
-
-	ma := (&agpl.MultiAgent{
-		ID:            uuid.New(),
-		OnSubscribe:   rma.OnSubscribe,
-		OnUnsubscribe: rma.OnUnsubscribe,
-		OnNodeUpdate:  rma.OnNodeUpdate,
-		OnRemove:      rma.OnRemove,
-	}).Init()
-
-	go func() {
-		<-ctx.Done()
-		_ = ma.Close()
-		_ = client.DRPCConn().Close()
-		<-client.DRPCConn().Closed()
-		_ = conn.Close(websocket.StatusGoingAway, "closed")
-	}()
-
-	rma.ma = ma
-	go rma.respLoop()
-
-	return ma, nil
+	}), nil
 }
 
 type CryptoKeysResponse struct {
 	CryptoKeys []codersdk.CryptoKey `json:"crypto_keys"`
 }
 
-func (c *Client) CryptoKeys(ctx context.Context) (CryptoKeysResponse, error) {
+func (c *Client) CryptoKeys(ctx context.Context, feature codersdk.CryptoKeyFeature) (CryptoKeysResponse, error) {
 	res, err := c.Request(ctx, http.MethodGet,
-		"/api/v2/workspaceproxies/me/crypto-keys",
-		nil,
+		"/api/v2/workspaceproxies/me/crypto-keys", nil,
+		codersdk.WithQueryParam("feature", string(feature)),
 	)
 	if err != nil {
 		return CryptoKeysResponse{}, xerrors.Errorf("make request: %w", err)
@@ -601,56 +538,4 @@ func (c *Client) CryptoKeys(ctx context.Context) (CryptoKeysResponse, error) {
 	}
 	var resp CryptoKeysResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
-}
-
-type remoteMultiAgentHandler struct {
-	sdk      *Client
-	logger   slog.Logger
-	protocol proto.DRPCTailnet_CoordinateClient
-	ma       *agpl.MultiAgent
-	cancel   func()
-}
-
-func (a *remoteMultiAgentHandler) respLoop() {
-	{
-		defer a.cancel()
-		for {
-			resp, err := a.protocol.Recv()
-			if err != nil {
-				if xerrors.Is(err, io.EOF) {
-					a.logger.Info(context.Background(), "remote multiagent connection severed", slog.Error(err))
-					return
-				}
-
-				a.logger.Error(context.Background(), "error receiving multiagent responses", slog.Error(err))
-				return
-			}
-
-			err = a.ma.Enqueue(resp)
-			if err != nil {
-				a.logger.Error(context.Background(), "enqueue response from coordinator", slog.Error(err))
-				continue
-			}
-		}
-	}
-}
-
-func (a *remoteMultiAgentHandler) OnNodeUpdate(_ uuid.UUID, node *proto.Node) error {
-	return a.protocol.Send(&proto.CoordinateRequest{UpdateSelf: &proto.CoordinateRequest_UpdateSelf{Node: node}})
-}
-
-func (a *remoteMultiAgentHandler) OnSubscribe(_ agpl.Queue, agentID uuid.UUID) error {
-	return a.protocol.Send(&proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]}})
-}
-
-func (a *remoteMultiAgentHandler) OnUnsubscribe(_ agpl.Queue, agentID uuid.UUID) error {
-	return a.protocol.Send(&proto.CoordinateRequest{RemoveTunnel: &proto.CoordinateRequest_Tunnel{Id: agentID[:]}})
-}
-
-func (a *remoteMultiAgentHandler) OnRemove(_ agpl.Queue) {
-	err := a.protocol.Send(&proto.CoordinateRequest{Disconnect: &proto.CoordinateRequest_Disconnect{}})
-	if err != nil {
-		a.logger.Warn(context.Background(), "failed to gracefully disconnect", slog.Error(err))
-	}
-	_ = a.protocol.CloseSend()
 }

@@ -3,6 +3,7 @@ package notifications
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"sync"
 	"text/template"
 
@@ -22,6 +23,28 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 )
 
+const (
+	notificationsDefaultLogoURL = "https://coder.com/coder-logo-horizontal.png"
+	notificationsDefaultAppName = "Coder"
+)
+
+type decorateHelpersError struct {
+	inner error
+}
+
+func (e decorateHelpersError) Error() string {
+	return fmt.Sprintf("failed to decorate helpers: %s", e.inner.Error())
+}
+
+func (e decorateHelpersError) Unwrap() error {
+	return e.inner
+}
+
+func (decorateHelpersError) Is(other error) bool {
+	_, ok := other.(decorateHelpersError)
+	return ok
+}
+
 // notifier is a consumer of the notifications_messages queue. It dequeues messages from that table and processes them
 // through a pipeline of fetch -> prepare -> render -> acquire handler -> deliver.
 type notifier struct {
@@ -30,10 +53,11 @@ type notifier struct {
 	log   slog.Logger
 	store Store
 
-	tick     *quartz.Ticker
-	stopOnce sync.Once
-	quit     chan any
-	done     chan any
+	stopOnce       sync.Once
+	outerCtx       context.Context
+	gracefulCtx    context.Context
+	gracefulCancel context.CancelFunc
+	done           chan any
 
 	handlers map[database.NotificationMethod]Handler
 	metrics  *Metrics
@@ -43,28 +67,29 @@ type notifier struct {
 	clock quartz.Clock
 }
 
-func newNotifier(cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
+func newNotifier(outerCtx context.Context, cfg codersdk.NotificationsConfig, id uuid.UUID, log slog.Logger, db Store,
 	hr map[database.NotificationMethod]Handler, helpers template.FuncMap, metrics *Metrics, clock quartz.Clock,
 ) *notifier {
-	tick := clock.NewTicker(cfg.FetchInterval.Value(), "notifier", "fetchInterval")
+	gracefulCtx, gracefulCancel := context.WithCancel(outerCtx)
 	return &notifier{
-		id:       id,
-		cfg:      cfg,
-		log:      log.Named("notifier").With(slog.F("notifier_id", id)),
-		quit:     make(chan any),
-		done:     make(chan any),
-		tick:     tick,
-		store:    db,
-		handlers: hr,
-		helpers:  helpers,
-		metrics:  metrics,
-		clock:    clock,
+		id:             id,
+		cfg:            cfg,
+		log:            log.Named("notifier").With(slog.F("notifier_id", id)),
+		outerCtx:       outerCtx,
+		gracefulCtx:    gracefulCtx,
+		gracefulCancel: gracefulCancel,
+		done:           make(chan any),
+		store:          db,
+		handlers:       hr,
+		helpers:        helpers,
+		metrics:        metrics,
+		clock:          clock,
 	}
 }
 
 // run is the main loop of the notifier.
-func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failure chan<- dispatchResult) error {
-	n.log.Info(ctx, "started")
+func (n *notifier) run(success chan<- dispatchResult, failure chan<- dispatchResult) error {
+	n.log.Info(n.outerCtx, "started")
 
 	defer func() {
 		close(n.done)
@@ -75,39 +100,32 @@ func (n *notifier) run(ctx context.Context, success chan<- dispatchResult, failu
 	//		 if 100 notifications are enqueued, we shouldn't activate this routine for each one; so how to debounce these?
 	//		 PLUS we should also have an interval (but a longer one, maybe 1m) to account for retries (those will not get
 	//		 triggered by a code path, but rather by a timeout expiring which makes the message retryable)
-	for {
-		select {
-		case <-ctx.Done():
-			return xerrors.Errorf("notifier %q context canceled: %w", n.id, ctx.Err())
-		case <-n.quit:
-			return nil
-		default:
-		}
 
+	// run the ticker with the graceful context, so we stop fetching after stop() is called
+	tick := n.clock.TickerFunc(n.gracefulCtx, n.cfg.FetchInterval.Value(), func() error {
 		// Check if notifier is not paused.
-		ok, err := n.ensureRunning(ctx)
+		ok, err := n.ensureRunning(n.outerCtx)
 		if err != nil {
-			n.log.Warn(ctx, "failed to check notifier state", slog.Error(err))
+			n.log.Warn(n.outerCtx, "failed to check notifier state", slog.Error(err))
 		}
 
 		if ok {
-			// Call process() immediately (i.e. don't wait an initial tick).
-			err = n.process(ctx, success, failure)
+			err = n.process(n.outerCtx, success, failure)
 			if err != nil {
-				n.log.Error(ctx, "failed to process messages", slog.Error(err))
+				n.log.Error(n.outerCtx, "failed to process messages", slog.Error(err))
 			}
 		}
+		// we don't return any errors because we don't want to kill the loop because of them.
+		return nil
+	}, "notifier", "fetchInterval")
 
-		// Shortcut to bail out quickly if stop() has been called or the context canceled.
-		select {
-		case <-ctx.Done():
-			return xerrors.Errorf("notifier %q context canceled: %w", n.id, ctx.Err())
-		case <-n.quit:
-			return nil
-		case <-n.tick.C:
-			// sleep until next invocation
-		}
+	_ = tick.Wait()
+	// only errors we can return are context errors.  Only return an error if the outer context
+	// was canceled, not if we were gracefully stopped.
+	if n.outerCtx.Err() != nil {
+		return xerrors.Errorf("notifier %q context canceled: %w", n.id, n.outerCtx.Err())
 	}
+	return nil
 }
 
 // ensureRunning checks if notifier is not paused.
@@ -162,9 +180,12 @@ func (n *notifier) process(ctx context.Context, success chan<- dispatchResult, f
 		// A message failing to be prepared correctly should not affect other messages.
 		deliverFn, err := n.prepare(ctx, msg)
 		if err != nil {
-			n.log.Warn(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
-			failure <- n.newFailedDispatch(msg, err, false)
-
+			if database.IsQueryCanceledError(err) {
+				n.log.Debug(ctx, "dispatcher construction canceled", slog.F("msg_id", msg.ID), slog.Error(err))
+			} else {
+				n.log.Error(ctx, "dispatcher construction failed", slog.F("msg_id", msg.ID), slog.Error(err))
+			}
+			failure <- n.newFailedDispatch(msg, err, xerrors.Is(err, decorateHelpersError{}))
 			n.metrics.PendingUpdates.Set(float64(len(success) + len(failure)))
 			continue
 		}
@@ -223,15 +244,20 @@ func (n *notifier) prepare(ctx context.Context, msg database.AcquireNotification
 		return nil, xerrors.Errorf("failed to resolve handler %q", msg.Method)
 	}
 
+	helpers, err := n.fetchHelpers(ctx)
+	if err != nil {
+		return nil, decorateHelpersError{err}
+	}
+
 	var title, body string
-	if title, err = render.GoTemplate(msg.TitleTemplate, payload, n.helpers); err != nil {
+	if title, err = render.GoTemplate(msg.TitleTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render title: %w", err)
 	}
-	if body, err = render.GoTemplate(msg.BodyTemplate, payload, n.helpers); err != nil {
+	if body, err = render.GoTemplate(msg.BodyTemplate, payload, helpers); err != nil {
 		return nil, xerrors.Errorf("render body: %w", err)
 	}
 
-	return handler.Dispatcher(payload, title, body)
+	return handler.Dispatcher(payload, title, body, helpers)
 }
 
 // deliver sends a given notification message via its defined method.
@@ -343,9 +369,7 @@ func (n *notifier) newInhibitedDispatch(msg database.AcquireNotificationMessages
 func (n *notifier) stop() {
 	n.stopOnce.Do(func() {
 		n.log.Info(context.Background(), "graceful stop requested")
-
-		n.tick.Stop()
-		close(n.quit)
+		n.gracefulCancel()
 		<-n.done
 	})
 }

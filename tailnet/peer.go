@@ -121,7 +121,7 @@ func (p *peer) storeMappingLocked(
 	}, nil
 }
 
-func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(*peer, *proto.CoordinateRequest) error) {
+func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(context.Context, *peer, *proto.CoordinateRequest) error) {
 	for {
 		select {
 		case <-ctx.Done():
@@ -133,7 +133,7 @@ func (p *peer) reqLoop(ctx context.Context, logger slog.Logger, handler func(*pe
 				return
 			}
 			logger.Debug(ctx, "peerReadLoop got request")
-			if err := handler(p, req); err != nil {
+			if err := handler(ctx, p, req); err != nil {
 				if xerrors.Is(err, ErrAlreadyRemoved) || xerrors.Is(err, ErrClosed) {
 					return
 				}

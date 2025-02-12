@@ -7,9 +7,13 @@ import {
 	startAgent,
 	stopAgent,
 } from "../helpers";
+import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("web terminal", async ({ context, page }) => {
 	const token = randomUUID();
@@ -22,9 +26,7 @@ test("web terminal", async ({ context, page }) => {
 							agents: [
 								{
 									token,
-									displayApps: {
-										webTerminal: true,
-									},
+									displayApps: { webTerminal: true },
 									order: 0,
 								},
 							],

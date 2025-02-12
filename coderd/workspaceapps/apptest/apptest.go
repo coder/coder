@@ -3,6 +3,7 @@ package apptest
 import (
 	"bufio"
 	"context"
+	"crypto/rand"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -19,7 +20,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-jose/go-jose/v3"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,6 +28,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/workspaceapps"
 	"github.com/coder/coder/v2/codersdk"
@@ -408,6 +410,67 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 			require.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 			assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
 		})
+
+		t.Run("BadJWT", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := appDetails.PathAppURL(appDetails.Apps.Owner)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, proxyTestAppBody, string(body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			appTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			require.NotNil(t, appTokenCookie, "no signed app token cookie in response")
+			require.Equal(t, appTokenCookie.Path, u.Path, "incorrect path on app token cookie")
+
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
+			require.NoError(t, err)
+			require.Len(t, object.Signatures, 1)
+
+			// Parse the payload.
+			var tok workspaceapps.SignedToken
+			//nolint:gosec
+			err = json.Unmarshal(object.UnsafePayloadWithoutVerification(), &tok)
+			require.NoError(t, err)
+
+			appTokenClient := appDetails.AppClient(t)
+			apiKey := appTokenClient.SessionToken()
+			appTokenClient.SetSessionToken("")
+			appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+			require.NoError(t, err)
+			// Sign the token with an old-style key.
+			appTokenCookie.Value = generateBadJWT(t, tok)
+			appTokenClient.HTTPClient.Jar.SetCookies(u,
+				[]*http.Cookie{
+					appTokenCookie,
+					{
+						Name:  codersdk.PathAppSessionTokenCookie,
+						Value: apiKey,
+					},
+				},
+			)
+
+			resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, proxyTestAppBody, string(body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
+
+			// Since the old token is invalid, the signed app token cookie should have a new value.
+			newTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			require.NotEqual(t, appTokenCookie.Value, newTokenCookie.Value)
+		})
 	})
 
 	t.Run("WorkspaceApplicationAuth", func(t *testing.T) {
@@ -463,7 +526,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					appClient.SetSessionToken("")
 
 					// Try to load the application without authentication.
-					u := c.appURL
+					u := *c.appURL
 					u.Path = path.Join(u.Path, "/test")
 					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
 					require.NoError(t, err)
@@ -500,7 +563,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 					// Copy the query parameters and then check equality.
 					u.RawQuery = gotLocation.RawQuery
-					require.Equal(t, u, gotLocation)
+					require.Equal(t, u, *gotLocation)
 
 					// Verify the API key is set.
 					encryptedAPIKey := gotLocation.Query().Get(workspaceapps.SubdomainProxyAPIKeyParam)
@@ -580,6 +643,38 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 					resp.Body.Close()
 					require.Equal(t, http.StatusOK, resp.StatusCode)
 				})
+
+				t.Run("BadJWE", func(t *testing.T) {
+					t.Parallel()
+
+					ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+					defer cancel()
+
+					currentKeyStr := appDetails.SDKClient.SessionToken()
+					appClient := appDetails.AppClient(t)
+					appClient.SetSessionToken("")
+					u := *c.appURL
+					u.Path = path.Join(u.Path, "/test")
+					badToken := generateBadJWE(t, workspaceapps.EncryptedAPIKeyPayload{
+						APIKey: currentKeyStr,
+					})
+
+					u.RawQuery = (url.Values{
+						workspaceapps.SubdomainProxyAPIKeyParam: {badToken},
+					}).Encode()
+
+					req, err := http.NewRequestWithContext(ctx, http.MethodGet, u.String(), nil)
+					require.NoError(t, err)
+
+					var resp *http.Response
+					resp, err = doWithRetries(t, appClient, req)
+					require.NoError(t, err)
+					defer resp.Body.Close()
+					require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+					body, err := io.ReadAll(resp.Body)
+					require.NoError(t, err)
+					require.Contains(t, string(body), "Could not decrypt API key. Please remove the query parameter and try again.")
+				})
 			}
 		})
 	})
@@ -618,7 +713,7 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 
 		// Parse the JWT without verifying it (since we can't access the key
 		// from this test).
-		object, err := jose.ParseSigned(appTokenCookie.Value)
+		object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
 		require.NoError(t, err)
 		require.Len(t, object.Signatures, 1)
 
@@ -1076,6 +1171,68 @@ func Run(t *testing.T, appHostIsPrimary bool, factory DeploymentFactory) {
 				require.NotContains(t, string(body), proxyTestAppBody)
 				assertWorkspaceLastUsedAtNotUpdated(t, appDetails)
 			})
+		})
+
+		t.Run("BadJWT", func(t *testing.T) {
+			t.Parallel()
+
+			appDetails := setupProxyTest(t, nil)
+			ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+			defer cancel()
+
+			u := appDetails.SubdomainAppURL(appDetails.Apps.Owner)
+			resp, err := requestWithRetries(ctx, t, appDetails.AppClient(t), http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err := io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, proxyTestAppBody, string(body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+
+			appTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			require.NotNil(t, appTokenCookie, "no signed token cookie in response")
+			require.Equal(t, appTokenCookie.Path, "/", "incorrect path on signed token cookie")
+
+			object, err := jose.ParseSigned(appTokenCookie.Value, []jose.SignatureAlgorithm{jwtutils.SigningAlgo})
+			require.NoError(t, err)
+			require.Len(t, object.Signatures, 1)
+
+			// Parse the payload.
+			var tok workspaceapps.SignedToken
+			//nolint:gosec
+			err = json.Unmarshal(object.UnsafePayloadWithoutVerification(), &tok)
+			require.NoError(t, err)
+
+			appTokenClient := appDetails.AppClient(t)
+			apiKey := appTokenClient.SessionToken()
+			appTokenClient.SetSessionToken("")
+			appTokenClient.HTTPClient.Jar, err = cookiejar.New(nil)
+			require.NoError(t, err)
+			// Sign the token with an old-style key.
+			appTokenCookie.Value = generateBadJWT(t, tok)
+			appTokenClient.HTTPClient.Jar.SetCookies(u,
+				[]*http.Cookie{
+					appTokenCookie,
+					{
+						Name:  codersdk.SubdomainAppSessionTokenCookie,
+						Value: apiKey,
+					},
+				},
+			)
+
+			// We should still be able to successfully proxy.
+			resp, err = requestWithRetries(ctx, t, appTokenClient, http.MethodGet, u.String(), nil)
+			require.NoError(t, err)
+			defer resp.Body.Close()
+			body, err = io.ReadAll(resp.Body)
+			require.NoError(t, err)
+			require.Equal(t, proxyTestAppBody, string(body))
+			require.Equal(t, http.StatusOK, resp.StatusCode)
+			assertWorkspaceLastUsedAtUpdated(t, appDetails)
+
+			// Since the old token is invalid, the signed app token cookie should have a new value.
+			newTokenCookie := findCookie(resp.Cookies(), codersdk.SignedAppTokenCookie)
+			require.NotEqual(t, appTokenCookie.Value, newTokenCookie.Value)
 		})
 	})
 
@@ -1788,4 +1945,58 @@ func assertWorkspaceLastUsedAtNotUpdated(t testing.TB, details *Details) {
 	after, err := details.SDKClient.Workspace(context.Background(), details.Workspace.ID)
 	require.NoError(t, err)
 	require.Equal(t, before.LastUsedAt, after.LastUsedAt, "workspace LastUsedAt updated when it should not have been")
+}
+
+func generateBadJWE(t *testing.T, claims interface{}) string {
+	t.Helper()
+	var buf [32]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	encrypt, err := jose.NewEncrypter(
+		jose.A256GCM,
+		jose.Recipient{
+			Algorithm: jose.A256GCMKW,
+			Key:       buf[:],
+		}, &jose.EncrypterOptions{
+			Compression: jose.DEFLATE,
+		},
+	)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := encrypt.Encrypt(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
+}
+
+// generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
+func generateBadJWT(t *testing.T, claims interface{}) string {
+	t.Helper()
+
+	var buf [64]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS512,
+		Key:       buf[:],
+	}, nil)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
+}
+
+func findCookie(cookies []*http.Cookie, name string) *http.Cookie {
+	for _, cookie := range cookies {
+		if cookie.Name == name {
+			return cookie
+		}
+	}
+	return nil
 }

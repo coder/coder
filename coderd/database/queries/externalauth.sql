@@ -42,3 +42,17 @@ UPDATE external_auth_links SET
     oauth_expiry = $8,
 	oauth_extra = $9
 WHERE provider_id = $1 AND user_id = $2 RETURNING *;
+
+-- name: UpdateExternalAuthLinkRefreshToken :exec
+UPDATE
+	external_auth_links
+SET
+	oauth_refresh_token = @oauth_refresh_token,
+	updated_at = @updated_at
+WHERE
+    provider_id = @provider_id
+AND
+    user_id = @user_id
+AND
+    -- Required for sqlc to generate a parameter for the oauth_refresh_token_key_id
+    @oauth_refresh_token_key_id :: text = @oauth_refresh_token_key_id :: text;

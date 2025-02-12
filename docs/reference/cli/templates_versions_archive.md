@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # templates versions archive
 
 Archive a template version(s).
@@ -7,7 +6,7 @@ Archive a template version(s).
 ## Usage
 
 ```console
-coder templates versions archive [flags] <template-name> [template-version-names...]
+coder templates versions archive [flags] <template-name> [template-version-names...] 
 ```
 
 ## Options
@@ -15,7 +14,7 @@ coder templates versions archive [flags] <template-name> [template-version-names
 ### -y, --yes
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass prompts.
@@ -23,7 +22,7 @@ Bypass prompts.
 ### -O, --org
 
 |             |                                  |
-| ----------- | -------------------------------- |
+|-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 

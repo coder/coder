@@ -34,20 +34,23 @@ env:
   value: "0.0.0.0:2112"
 {{- if and (empty .Values.provisionerDaemon.pskSecretName) (empty .Values.provisionerDaemon.keySecretName) }}
 {{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified." }}
-{{- end }}
-{{- if .Values.provisionerDaemon.pskSecretName }}
-- name: CODER_PROVISIONER_DAEMON_PSK
-  valueFrom:
-    secretKeyRef:
-      name: {{ .Values.provisionerDaemon.pskSecretName | quote }}
-      key: psk
-{{- end }}
-{{- if and .Values.provisionerDaemon.keySecretName .Values.provisionerDaemon.keySecretKey }}
+{{- else if and .Values.provisionerDaemon.keySecretName .Values.provisionerDaemon.keySecretKey }}
+	{{- if and (not (empty .Values.provisionerDaemon.pskSecretName)) (ne .Values.provisionerDaemon.pskSecretName "coder-provisioner-psk") }}
+	{{ fail "Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both." }}
+	{{- else if .Values.provisionerDaemon.tags }}
+	{{ fail "provisionerDaemon.tags may not be specified with provisionerDaemon.keySecretName." }}
+	{{- end }}
 - name: CODER_PROVISIONER_DAEMON_KEY
   valueFrom:
     secretKeyRef:
       name: {{ .Values.provisionerDaemon.keySecretName | quote }}
       key: {{ .Values.provisionerDaemon.keySecretKey | quote }}
+{{- else }}
+- name: CODER_PROVISIONER_DAEMON_PSK
+  valueFrom:
+    secretKeyRef:
+      name: {{ .Values.provisionerDaemon.pskSecretName | quote }}
+      key: psk
 {{- end }}
 {{- if include "provisioner.tags" . }}
 - name: CODER_PROVISIONERD_TAGS

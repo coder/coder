@@ -16,17 +16,19 @@
  * Storybook decorator function used to inject baseline data dependencies into
  * our React components during testing.
  */
+import "../src/index.css";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
 	StyledEngineProvider,
+	// biome-ignore lint/nursery/noRestrictedImports: we extend the MUI theme
 } from "@mui/material/styles";
 import { DecoratorHelpers } from "@storybook/addon-themes";
 import isChromatic from "chromatic/isChromatic";
 import React, { StrictMode } from "react";
 import { HelmetProvider } from "react-helmet-async";
-import { parseQueryArgs, QueryClient, QueryClientProvider } from "react-query";
+import { QueryClient, QueryClientProvider, parseQueryArgs } from "react-query";
 import { withRouter } from "storybook-addon-remix-react-router";
 import "theme/globalFonts";
 import themes from "../src/theme";
@@ -61,6 +63,14 @@ export const parameters = {
 					width: "768px",
 				},
 				type: "tablet",
+			},
+			iphone12: {
+				name: "iPhone 12",
+				styles: {
+					height: "844px",
+					width: "390px",
+				},
+				type: "mobile",
 			},
 			terminal: {
 				name: "Terminal",
@@ -104,15 +114,17 @@ function withQuery(Story, { parameters }) {
 
 	if (parameters.queries) {
 		for (const query of parameters.queries) {
-			if (query.data instanceof Error) {
-				// This is copied from setQueryData() but sets the error.
+			if (query.isError) {
+				// Based on `setQueryData`, but modified to set the result as an error.
 				const cache = queryClient.getQueryCache();
 				const parsedOptions = parseQueryArgs(query.key);
 				const defaultedOptions = queryClient.defaultQueryOptions(parsedOptions);
+				// Adds an uninitialized response to the cache, which we can now mutate.
 				const cachedQuery = cache.build(queryClient, defaultedOptions);
-				// Set manual data so react-query will not try to refetch.
+				// Setting `manual` prevents retries.
 				cachedQuery.setData(undefined, { manual: true });
-				cachedQuery.setState({ error: query.data });
+				// Set the `error` value and the appropriate status.
+				cachedQuery.setState({ error: query.data, status: "error" });
 			} else {
 				queryClient.setQueryData(query.key, query.data);
 			}
@@ -131,6 +143,12 @@ function withTheme(Story, context) {
 	const selectedTheme = DecoratorHelpers.pluckThemeFromContext(context);
 	const { themeOverride } = DecoratorHelpers.useThemeParameters();
 	const selected = themeOverride || selectedTheme || "dark";
+
+	// Ensure the correct theme is applied to Tailwind CSS classes by adding the
+	// theme to the HTML class list. This approach is necessary because Tailwind
+	// CSS relies on class names to apply styles, and dynamically changing themes
+	// requires updating the class list accordingly.
+	document.querySelector("html")?.setAttribute("class", selected);
 
 	return (
 		<StrictMode>

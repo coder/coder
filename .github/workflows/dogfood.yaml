@@ -24,15 +24,18 @@ permissions:
 jobs:
   build_image:
     if: github.actor != 'dependabot[bot]' # Skip Dependabot PRs
-    runs-on: ubuntu-latest
+    runs-on: ${{ github.repository_owner == 'coder' && 'depot-ubuntu-22.04-4' || 'ubuntu-latest' }}
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+
+      - name: Setup Nix
+        uses: DeterminateSystems/nix-installer-action@e50d5f73bfe71c2dd0aa4218de8f4afa59f8f81d # v16
 
       - name: Get branch name
         id: branch-name
@@ -50,7 +53,7 @@ jobs:
         uses: depot/setup-action@b0b1ea4f69e92ebf5dea3f8713a1b0c37b2126a5 # v1.6.0
 
       - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@c47758b77c9736f4b2ef4073d4d51994fabfe349 # v3.7.1
+        uses: docker/setup-buildx-action@f7ce87c1d6bead3e36075b2ce75da1f6cc28aaca # v3.9.0
 
       - name: Login to DockerHub
         if: github.ref == 'refs/heads/main'
@@ -71,36 +74,39 @@ jobs:
           push: ${{ github.ref == 'refs/heads/main' }}
           tags: "codercom/oss-dogfood:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood:latest"
 
-      - name: Build and push Nix image
-        uses: depot/build-push-action@636daae76684e38c301daa0c5eca1c095b24e780 # v1.14.0
-        with:
-          project: b4q6ltmpzh
-          token: ${{ secrets.DEPOT_TOKEN }}
-          buildx-fallback: true
-          context: "."
-          file: "dogfood/contents/Dockerfile.nix"
-          pull: true
-          save: true
-          push: ${{ github.ref == 'refs/heads/main' }}
-          tags: "codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }},codercom/oss-dogfood-nix:latest"
+      - name: Build Nix image
+        run: nix build .#dev_image
+
+      - name: Push Nix image
+        if: github.ref == 'refs/heads/main'
+        run: |
+          docker load -i result
+
+          CURRENT_SYSTEM=$(nix eval --impure --raw --expr 'builtins.currentSystem')
+
+          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+          docker image push codercom/oss-dogfood-nix:${{ steps.docker-tag-name.outputs.tag }}
+
+          docker image tag codercom/oss-dogfood-nix:latest-$CURRENT_SYSTEM codercom/oss-dogfood-nix:latest
+          docker image push codercom/oss-dogfood-nix:latest
 
   deploy_template:
     needs: build_image
     runs-on: ubuntu-latest
     steps:
       - name: Harden Runner
-        uses: step-security/harden-runner@91182cccc01eb5e619899d80e4e971d6181294a7 # v2.10.1
+        uses: step-security/harden-runner@cb605e52c26070c328afc4562f0b4ada7618a84e # v2.10.4
         with:
           egress-policy: audit
 
       - name: Checkout
-        uses: actions/checkout@eef61447b9ff4aafe5dcd4e0bbf5d482be7e7871 # v4.2.1
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
 
       - name: Setup Terraform
         uses: ./.github/actions/setup-tf
 
       - name: Authenticate to Google Cloud
-        uses: google-github-actions/auth@8254fb75a33b976a221574d287e93919e6a36f70 # v2.1.6
+        uses: google-github-actions/auth@71f986410dfbc7added4569d411d040a91dc6935 # v2.1.8
         with:
           workload_identity_provider: projects/573722524737/locations/global/workloadIdentityPools/github/providers/github
           service_account: coder-ci@coder-dogfood.iam.gserviceaccount.com

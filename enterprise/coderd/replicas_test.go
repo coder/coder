@@ -8,9 +8,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/codersdk"
@@ -120,7 +117,7 @@ func TestReplicas(t *testing.T) {
 		conn, err := workspacesdk.New(secondClient).
 			DialAgent(context.Background(), r.sdkAgent.ID, &workspacesdk.DialAgentOptions{
 				BlockEndpoints: true,
-				Logger:         slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+				Logger:         testutil.Logger(t),
 			})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {
@@ -167,7 +164,7 @@ func TestReplicas(t *testing.T) {
 		conn, err := workspacesdk.New(secondClient).
 			DialAgent(context.Background(), r.sdkAgent.ID, &workspacesdk.DialAgentOptions{
 				BlockEndpoints: true,
-				Logger:         slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug),
+				Logger:         testutil.Logger(t).Named("client"),
 			})
 		require.NoError(t, err)
 		require.Eventually(t, func() bool {

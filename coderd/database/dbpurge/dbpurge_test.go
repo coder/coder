@@ -34,7 +34,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // Ensures no goroutines leak.
@@ -47,14 +47,14 @@ func TestPurge(t *testing.T) {
 	// We want to make sure dbpurge is actually started so that this test is meaningful.
 	clk := quartz.NewMock(t)
 	done := awaitDoTick(ctx, t, clk)
-	purger := dbpurge.New(context.Background(), slogtest.Make(t, nil), dbmem.New(), clk)
+	purger := dbpurge.New(context.Background(), testutil.Logger(t), dbmem.New(), clk)
 	<-done // wait for doTick() to run.
 	require.NoError(t, purger.Close())
 }
 
 //nolint:paralleltest // It uses LockIDDBPurge.
 func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 	defer cancel()
 
 	now := dbtime.Now()
@@ -66,7 +66,7 @@ func TestDeleteOldWorkspaceAgentStats(t *testing.T) {
 
 	defer func() {
 		if t.Failed() {
-			t.Logf("Test failed, printing rows...")
+			t.Log("Test failed, printing rows...")
 			ctx := testutil.Context(t, testutil.WaitShort)
 			buf := &bytes.Buffer{}
 			enc := json.NewEncoder(buf)
@@ -195,7 +195,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 
 	// Workspace A was built twice before the threshold, and never connected on
 	// either attempt.
-	wsA := dbgen.Workspace(t, db, database.Workspace{Name: "a", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsA := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "a", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbA1 := mustCreateWorkspaceBuild(t, db, org, tv, wsA.ID, beforeThreshold, 1)
 	wbA2 := mustCreateWorkspaceBuild(t, db, org, tv, wsA.ID, beforeThreshold, 2)
 	agentA1 := mustCreateAgent(t, db, wbA1)
@@ -204,7 +204,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	mustCreateAgentLogs(ctx, t, db, agentA2, nil, "agent a2 logs should be retained")
 
 	// Workspace B was built twice before the threshold.
-	wsB := dbgen.Workspace(t, db, database.Workspace{Name: "b", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsB := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "b", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbB1 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 1)
 	wbB2 := mustCreateWorkspaceBuild(t, db, org, tv, wsB.ID, beforeThreshold, 2)
 	agentB1 := mustCreateAgent(t, db, wbB1)
@@ -213,7 +213,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	mustCreateAgentLogs(ctx, t, db, agentB2, &beforeThreshold, "agent b2 logs should be retained")
 
 	// Workspace C was built once before the threshold, and once after.
-	wsC := dbgen.Workspace(t, db, database.Workspace{Name: "c", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsC := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "c", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbC1 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, beforeThreshold, 1)
 	wbC2 := mustCreateWorkspaceBuild(t, db, org, tv, wsC.ID, afterThreshold, 2)
 	agentC1 := mustCreateAgent(t, db, wbC1)
@@ -222,7 +222,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	mustCreateAgentLogs(ctx, t, db, agentC2, &afterThreshold, "agent c2 logs should be retained")
 
 	// Workspace D was built twice after the threshold.
-	wsD := dbgen.Workspace(t, db, database.Workspace{Name: "d", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsD := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "d", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbD1 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 1)
 	wbD2 := mustCreateWorkspaceBuild(t, db, org, tv, wsD.ID, afterThreshold, 2)
 	agentD1 := mustCreateAgent(t, db, wbD1)
@@ -231,7 +231,7 @@ func TestDeleteOldWorkspaceAgentLogs(t *testing.T) {
 	mustCreateAgentLogs(ctx, t, db, agentD2, &afterThreshold, "agent d2 logs should be retained")
 
 	// Workspace E was build once after threshold but never connected.
-	wsE := dbgen.Workspace(t, db, database.Workspace{Name: "e", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
+	wsE := dbgen.Workspace(t, db, database.WorkspaceTable{Name: "e", OwnerID: user.ID, OrganizationID: org.ID, TemplateID: tmpl.ID})
 	wbE1 := mustCreateWorkspaceBuild(t, db, org, tv, wsE.ID, beforeThreshold, 1)
 	agentE1 := mustCreateAgent(t, db, wbE1)
 	mustCreateAgentLogs(ctx, t, db, agentE1, nil, "agent e1 logs should be retained")
@@ -413,7 +413,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -426,7 +426,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -441,7 +441,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 	_, err = db.UpsertProvisionerDaemon(ctx, database.UpsertProvisionerDaemonParams{
@@ -457,7 +457,7 @@ func TestDeleteOldProvisionerDaemons(t *testing.T) {
 		Version:        "1.0.0",
 		APIVersion:     proto.CurrentVersion.String(),
 		OrganizationID: defaultOrg.ID,
-		KeyID:          uuid.MustParse(codersdk.ProvisionerKeyIDBuiltIn),
+		KeyID:          codersdk.ProvisionerKeyUUIDBuiltIn,
 	})
 	require.NoError(t, err)
 

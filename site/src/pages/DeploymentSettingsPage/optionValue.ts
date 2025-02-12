@@ -40,7 +40,8 @@ export function optionValue(
 		case "Experiments": {
 			const experimentMap = additionalValues?.reduce<Record<string, boolean>>(
 				(acc, v) => {
-					acc[v] = option.value.includes("*");
+					// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+					acc[v] = (option.value as any).includes("*");
 					return acc;
 				},
 				{},
@@ -52,7 +53,8 @@ export function optionValue(
 
 			// We show all experiments (including unsafe) that are currently enabled on a deployment
 			// but only show safe experiments that are not.
-			for (const v of option.value) {
+			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+			for (const v of option.value as any) {
 				if (v !== "*") {
 					experimentMap[v] = true;
 				}
@@ -61,6 +63,7 @@ export function optionValue(
 			return experimentMap;
 		}
 		default:
-			return option.value;
+			// biome-ignore lint/suspicious/noExplicitAny: opt.value is any
+			return option.value as any;
 	}
 }

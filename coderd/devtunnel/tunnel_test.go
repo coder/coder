@@ -16,12 +16,9 @@ import (
 	"testing"
 	"time"
 
-	"cdr.dev/slog"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/devtunnel"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/wgtunnel/tunneld"
@@ -76,7 +73,7 @@ func TestTunnel(t *testing.T) {
 			tunServer := newTunnelServer(t)
 			cfg := tunServer.config(t, c.version)
 
-			tun, err := devtunnel.NewWithConfig(ctx, slogtest.Make(t, nil).Leveled(slog.LevelDebug), cfg)
+			tun, err := devtunnel.NewWithConfig(ctx, testutil.Logger(t), cfg)
 			require.NoError(t, err)
 			require.Len(t, tun.OtherURLs, 1)
 			t.Log(tun.URL, tun.OtherURLs[0])

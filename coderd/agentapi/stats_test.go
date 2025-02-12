@@ -23,6 +23,7 @@ import (
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/workspacestats"
 	"github.com/coder/coder/v2/coderd/workspacestats/workspacestatstest"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -40,10 +41,11 @@ func TestUpdateStates(t *testing.T) {
 			Name: "tpl",
 		}
 		workspace = database.Workspace{
-			ID:         uuid.New(),
-			OwnerID:    user.ID,
-			TemplateID: template.ID,
-			Name:       "xyz",
+			ID:           uuid.New(),
+			OwnerID:      user.ID,
+			TemplateID:   template.ID,
+			Name:         "xyz",
+			TemplateName: template.Name,
 		}
 		agent = database.WorkspaceAgent{
 			ID:   uuid.New(),
@@ -69,6 +71,11 @@ func TestUpdateStates(t *testing.T) {
 			}
 			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
+			tickCh                     = make(chan time.Time)
+			flushCh                    = make(chan int, 1)
+			wut                        = workspacestats.NewTracker(dbM,
+				workspacestats.TrackerWithTickFlush(tickCh, flushCh),
+			)
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -108,6 +115,7 @@ func TestUpdateStates(t *testing.T) {
 				Database:              dbM,
 				Pubsub:                ps,
 				StatsBatcher:          batcher,
+				UsageTracker:          wut,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
@@ -125,12 +133,13 @@ func TestUpdateStates(t *testing.T) {
 				return now
 			},
 		}
+		defer wut.Close()
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
+
+		// User gets fetched to hit the UpdateAgentMetricsFn.
+		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
@@ -139,27 +148,35 @@ func TestUpdateStates(t *testing.T) {
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
+		dbM.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs:        []uuid.UUID{workspace.ID},
 			LastUsedAt: now,
 		}).Return(nil)
 
-		// User gets fetched to hit the UpdateAgentMetricsFn.
-		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
-
 		// Ensure that pubsub notifications are sent.
-		notifyDescription := make(chan []byte)
-		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
-			go func() {
-				notifyDescription <- description
-			}()
-		})
+		notifyDescription := make(chan struct{})
+		ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			wspubsub.HandleWorkspaceEvent(
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
+					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
+						go func() {
+							notifyDescription <- struct{}{}
+						}()
+					}
+				}))
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
+
+		tickCh <- now
+		count := <-flushCh
+		require.Equal(t, 1, count, "expected one flush with one id")
 
 		batcher.Mu.Lock()
 		defer batcher.Mu.Unlock()
@@ -174,8 +191,7 @@ func TestUpdateStates(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out while waiting for pubsub notification")
-		case description := <-notifyDescription:
-			require.Equal(t, description, []byte{})
+		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})
@@ -213,6 +229,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          workspacestats.NewTracker(dbM),
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				// Ignored when nil.
@@ -225,16 +242,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
-
-		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
-		}).Return(nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		_, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
@@ -311,6 +319,11 @@ func TestUpdateStates(t *testing.T) {
 			}
 			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
+			tickCh                     = make(chan time.Time)
+			flushCh                    = make(chan int, 1)
+			wut                        = workspacestats.NewTracker(dbM,
+				workspacestats.TrackerWithTickFlush(tickCh, flushCh),
+			)
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -330,6 +343,7 @@ func TestUpdateStates(t *testing.T) {
 			StatsReporter: workspacestats.NewReporter(workspacestats.ReporterOptions{
 				Database:              dbM,
 				Pubsub:                ps,
+				UsageTracker:          wut,
 				StatsBatcher:          batcher,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
@@ -348,12 +362,10 @@ func TestUpdateStates(t *testing.T) {
 				return now
 			},
 		}
+		defer wut.Close()
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0. However, the
 		// next autostart time will be set on the bump.
@@ -363,9 +375,9 @@ func TestUpdateStates(t *testing.T) {
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
-			LastUsedAt: now,
+		dbM.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs:        []uuid.UUID{workspace.ID},
+			LastUsedAt: now.UTC(),
 		}).Return(nil)
 
 		// User gets fetched to hit the UpdateAgentMetricsFn.
@@ -376,6 +388,10 @@ func TestUpdateStates(t *testing.T) {
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(15 * time.Second),
 		}, resp)
+
+		tickCh <- now
+		count := <-flushCh
+		require.Equal(t, 1, count, "expected one flush with one id")
 
 		require.True(t, updateAgentMetricsFnCalled)
 	})
@@ -400,6 +416,11 @@ func TestUpdateStates(t *testing.T) {
 			}
 			batcher                    = &workspacestatstest.StatsBatcher{}
 			updateAgentMetricsFnCalled = false
+			tickCh                     = make(chan time.Time)
+			flushCh                    = make(chan int, 1)
+			wut                        = workspacestats.NewTracker(dbM,
+				workspacestats.TrackerWithTickFlush(tickCh, flushCh),
+			)
 
 			req = &agentproto.UpdateStatsRequest{
 				Stats: &agentproto.Stats{
@@ -430,6 +451,7 @@ func TestUpdateStates(t *testing.T) {
 				},
 			}
 		)
+		defer wut.Close()
 		api := agentapi.StatsAPI{
 			AgentFn: func(context.Context) (database.WorkspaceAgent, error) {
 				return agent, nil
@@ -439,6 +461,7 @@ func TestUpdateStates(t *testing.T) {
 				Database:              dbM,
 				Pubsub:                ps,
 				StatsBatcher:          batcher,
+				UsageTracker:          wut,
 				TemplateScheduleStore: templateScheduleStorePtr(templateScheduleStore),
 				UpdateAgentMetricsFn: func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric) {
 					updateAgentMetricsFnCalled = true
@@ -461,10 +484,7 @@ func TestUpdateStates(t *testing.T) {
 		}
 
 		// Workspace gets fetched.
-		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(database.GetWorkspaceByAgentIDRow{
-			Workspace:    workspace,
-			TemplateName: template.Name,
-		}, nil)
+		dbM.EXPECT().GetWorkspaceByAgentID(gomock.Any(), agent.ID).Return(workspace, nil)
 
 		// We expect an activity bump because ConnectionCount > 0.
 		dbM.EXPECT().ActivityBumpWorkspace(gomock.Any(), database.ActivityBumpWorkspaceParams{
@@ -473,8 +493,8 @@ func TestUpdateStates(t *testing.T) {
 		}).Return(nil)
 
 		// Workspace last used at gets bumped.
-		dbM.EXPECT().UpdateWorkspaceLastUsedAt(gomock.Any(), database.UpdateWorkspaceLastUsedAtParams{
-			ID:         workspace.ID,
+		dbM.EXPECT().BatchUpdateWorkspaceLastUsedAt(gomock.Any(), database.BatchUpdateWorkspaceLastUsedAtParams{
+			IDs:        []uuid.UUID{workspace.ID},
 			LastUsedAt: now,
 		}).Return(nil)
 
@@ -482,18 +502,29 @@ func TestUpdateStates(t *testing.T) {
 		dbM.EXPECT().GetUserByID(gomock.Any(), user.ID).Return(user, nil)
 
 		// Ensure that pubsub notifications are sent.
-		notifyDescription := make(chan []byte)
-		ps.Subscribe(codersdk.WorkspaceNotifyChannel(workspace.ID), func(_ context.Context, description []byte) {
-			go func() {
-				notifyDescription <- description
-			}()
-		})
+		notifyDescription := make(chan struct{})
+		ps.SubscribeWithErr(wspubsub.WorkspaceEventChannel(workspace.OwnerID),
+			wspubsub.HandleWorkspaceEvent(
+				func(_ context.Context, e wspubsub.WorkspaceEvent, err error) {
+					if err != nil {
+						return
+					}
+					if e.Kind == wspubsub.WorkspaceEventKindStatsUpdate && e.WorkspaceID == workspace.ID {
+						go func() {
+							notifyDescription <- struct{}{}
+						}()
+					}
+				}))
 
 		resp, err := api.UpdateStats(context.Background(), req)
 		require.NoError(t, err)
 		require.Equal(t, &agentproto.UpdateStatsResponse{
 			ReportInterval: durationpb.New(10 * time.Second),
 		}, resp)
+
+		tickCh <- now
+		count := <-flushCh
+		require.Equal(t, 1, count, "expected one flush with one id")
 
 		batcher.Mu.Lock()
 		defer batcher.Mu.Unlock()
@@ -506,8 +537,7 @@ func TestUpdateStates(t *testing.T) {
 		select {
 		case <-ctx.Done():
 			t.Error("timed out while waiting for pubsub notification")
-		case description := <-notifyDescription:
-			require.Equal(t, description, []byte{})
+		case <-notifyDescription:
 		}
 		require.True(t, updateAgentMetricsFnCalled)
 	})

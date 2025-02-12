@@ -76,7 +76,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 			</p>
 
 			{externalAuth.installations.length > 0 && (
-				<div css={styles.authorizedInstalls}>
+				<div
+					css={styles.authorizedInstalls}
+					className="flex gap-2 items-center"
+				>
 					{externalAuth.installations.map((install) => {
 						if (!install.account) {
 							return;
@@ -88,9 +91,10 @@ const ExternalAuthPageView: FC<ExternalAuthPageViewProps> = ({
 									target="_blank"
 									rel="noreferrer"
 								>
-									<Avatar size="sm" src={install.account.avatar_url}>
-										{install.account.login}
-									</Avatar>
+									<Avatar
+										src={install.account.avatar_url}
+										fallback={install.account.login}
+									/>
 								</Link>
 							</Tooltip>
 						);

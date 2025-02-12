@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # provisioner
 
-Manage provisioner daemons
+View and manage provisioner daemons and jobs
 
 Aliases:
 
-- provisioners
+* provisioners
 
 ## Usage
 
@@ -16,7 +15,9 @@ coder provisioner
 
 ## Subcommands
 
-| Name                                         | Purpose                  |
-| -------------------------------------------- | ------------------------ |
-| [<code>start</code>](./provisioner_start.md) | Run a provisioner daemon |
-| [<code>keys</code>](./provisioner_keys.md)   | Manage provisioner keys  |
+| Name                                         | Purpose                                     |
+|----------------------------------------------|---------------------------------------------|
+| [<code>list</code>](./provisioner_list.md)   | List provisioner daemons in an organization |
+| [<code>jobs</code>](./provisioner_jobs.md)   | View and manage provisioner jobs            |
+| [<code>start</code>](./provisioner_start.md) | Run a provisioner daemon                    |
+| [<code>keys</code>](./provisioner_keys.md)   | Manage provisioner keys                     |

@@ -9,7 +9,7 @@ import { ThemeProvider } from "contexts/ThemeProvider";
 import { RequireAuth } from "contexts/auth/RequireAuth";
 import { DashboardLayout } from "modules/dashboard/DashboardLayout";
 import type { DashboardProvider } from "modules/dashboard/DashboardProvider";
-import { ManagementSettingsLayout } from "modules/management/ManagementSettingsLayout";
+import OrganizationSettingsLayout from "modules/management/OrganizationSettingsLayout";
 import { TemplateSettingsLayout } from "pages/TemplateSettingsPage/TemplateSettingsLayout";
 import { WorkspaceSettingsLayout } from "pages/WorkspaceSettingsPage/WorkspaceSettingsLayout";
 import type { ReactNode } from "react";
@@ -195,7 +195,7 @@ export function renderWithWorkspaceSettingsLayout(
 	};
 }
 
-export function renderWithManagementSettingsLayout(
+export function renderWithOrganizationSettingsLayout(
 	element: JSX.Element,
 	{
 		path = "/",
@@ -212,7 +212,7 @@ export function renderWithManagementSettingsLayout(
 					element: <DashboardLayout />,
 					children: [
 						{
-							element: <ManagementSettingsLayout />,
+							element: <OrganizationSettingsLayout />,
 							children: [{ element, path }, ...extraRoutes],
 						},
 					],

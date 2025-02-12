@@ -17,7 +17,7 @@ Please note that these logs are not recorded or captured by the Coder
 organization in any way, shape, or form.
 
 > This is an [Premium or Enterprise](https://coder.com/pricing) feature. To
-> learn more about Coder Enterprise, please
+> learn more about Coder licensing, please
 > [contact sales](https://coder.com/contact).
 
 ## How this works
@@ -254,28 +254,28 @@ The raw logs will look something like this:
 
 ```json
 {
-	"ts": "2022-02-28T20:29:38.038452202Z",
-	"level": "INFO",
-	"msg": "exec",
-	"fields": {
-		"labels": {
-			"user_email": "jessie@coder.com",
-			"user_id": "5e876e9a-121663f01ebd1522060d5270",
-			"username": "jessie",
-			"workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
-			"workspace_name": "main"
-		},
-		"cmdline": "uname -a",
-		"event": {
-			"filename": "/usr/bin/uname",
-			"argv": ["uname", "-a"],
-			"truncated": false,
-			"pid": 920684,
-			"uid": 101000,
-			"gid": 101000,
-			"comm": "bash"
-		}
-	}
+    "ts": "2022-02-28T20:29:38.038452202Z",
+    "level": "INFO",
+    "msg": "exec",
+    "fields": {
+        "labels": {
+            "user_email": "jessie@coder.com",
+            "user_id": "5e876e9a-121663f01ebd1522060d5270",
+            "username": "jessie",
+            "workspace_id": "621d2e52-a6987ef6c56210058ee2593c",
+            "workspace_name": "main"
+        },
+        "cmdline": "uname -a",
+        "event": {
+            "filename": "/usr/bin/uname",
+            "argv": ["uname", "-a"],
+            "truncated": false,
+            "pid": 920684,
+            "uid": 101000,
+            "gid": 101000,
+            "comm": "bash"
+        }
+    }
 }
 ```
 

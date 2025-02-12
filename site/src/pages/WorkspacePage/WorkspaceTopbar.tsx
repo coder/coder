@@ -6,8 +6,8 @@ import Link from "@mui/material/Link";
 import Tooltip from "@mui/material/Tooltip";
 import { workspaceQuota } from "api/queries/workspaceQuota";
 import type * as TypesGen from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import {
 	Topbar,
 	TopbarAvatar,
@@ -17,15 +17,13 @@ import {
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
 import { HelpTooltipContent } from "components/HelpTooltip/HelpTooltip";
-import { Popover, PopoverTrigger } from "components/Popover/Popover";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { Popover, PopoverTrigger } from "components/deprecated/Popover/Popover";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import { WorkspaceStatusBadge } from "modules/workspaces/WorkspaceStatusBadge/WorkspaceStatusBadge";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { Link as RouterLink } from "react-router-dom";
-import { isEmojiUrl } from "utils/appearance";
 import { displayDormantDeletion } from "utils/dormant";
 import { WorkspaceActions } from "./WorkspaceActions/WorkspaceActions";
 import { WorkspaceNotifications } from "./WorkspaceNotifications/WorkspaceNotifications";
@@ -160,7 +158,9 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 						templateIconUrl={workspace.template_icon}
 						rootTemplateUrl={templateLink}
 						templateVersionName={workspace.latest_build.template_version_name}
-						templateVersionDisplayName={workspace.template_display_name}
+						templateDisplayName={
+							workspace.template_display_name || workspace.template_name
+						}
 						latestBuildVersionName={
 							workspace.latest_build.template_version_name
 						}
@@ -232,9 +232,7 @@ export const WorkspaceTopbar: FC<WorkspaceProps> = ({
 					<WorkspaceScheduleControls
 						workspace={workspace}
 						template={template}
-						canUpdateSchedule={
-							canUpdateWorkspace && template.allow_user_autostop
-						}
+						canUpdateSchedule={canUpdateWorkspace}
 					/>
 					<WorkspaceNotifications
 						workspace={workspace}
@@ -285,11 +283,7 @@ const OwnerBreadcrumb: FC<OwnerBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<UserAvatar
-						size="xs"
-						username={ownerName}
-						avatarURL={ownerAvatarUrl}
-					/>
+					<Avatar size="sm" fallback={ownerName} src={ownerAvatarUrl} />
 					<span css={styles.breadcrumbText}>{ownerName}</span>
 				</span>
 			</PopoverTrigger>
@@ -319,7 +313,12 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<UserAvatar size="xs" src={orgIconUrl ?? ""} username={orgName} />
+					<Avatar
+						size="sm"
+						variant="icon"
+						src={orgIconUrl}
+						fallback={orgName}
+					/>
 					<span css={styles.breadcrumbText}>{orgName}</span>
 				</span>
 			</PopoverTrigger>
@@ -345,12 +344,7 @@ const OrganizationBreadcrumb: FC<OrganizationBreadcrumbProps> = ({
 					subtitle="Organization"
 					avatar={
 						orgIconUrl && (
-							<ExternalAvatar
-								src={orgIconUrl}
-								title={orgName}
-								variant={isEmojiUrl(orgIconUrl) ? "square" : "circular"}
-								fitImage
-							/>
+							<Avatar variant="icon" src={orgIconUrl} fallback={orgName} />
 						)
 					}
 					imgFallbackText={orgName}
@@ -366,7 +360,7 @@ type WorkspaceBreadcrumbProps = Readonly<{
 	rootTemplateUrl: string;
 	templateVersionName: string;
 	latestBuildVersionName: string;
-	templateVersionDisplayName?: string;
+	templateDisplayName: string;
 }>;
 
 const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
@@ -375,13 +369,13 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 	rootTemplateUrl,
 	templateVersionName,
 	latestBuildVersionName,
-	templateVersionDisplayName = templateVersionName,
+	templateDisplayName,
 }) => {
 	return (
 		<Popover mode="hover">
 			<PopoverTrigger>
 				<span css={styles.breadcrumbSegment}>
-					<TopbarAvatar src={templateIconUrl} />
+					<TopbarAvatar src={templateIconUrl} fallback={templateDisplayName} />
 					<span css={[styles.breadcrumbText, { fontWeight: 500 }]}>
 						{workspaceName}
 					</span>
@@ -399,7 +393,7 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 							to={rootTemplateUrl}
 							css={{ color: "inherit" }}
 						>
-							{templateVersionDisplayName}
+							{templateDisplayName}
 						</Link>
 					}
 					subtitle={
@@ -412,14 +406,13 @@ const WorkspaceBreadcrumb: FC<WorkspaceBreadcrumbProps> = ({
 						</Link>
 					}
 					avatar={
-						<ExternalAvatar
+						<Avatar
+							variant="icon"
 							src={templateIconUrl}
-							title={workspaceName}
-							variant={isEmojiUrl(templateIconUrl) ? "square" : "circular"}
-							fitImage
+							fallback={templateDisplayName}
 						/>
 					}
-					imgFallbackText={templateVersionDisplayName}
+					imgFallbackText={templateDisplayName}
 				/>
 			</HelpTooltipContent>
 		</Popover>
@@ -440,6 +433,7 @@ const styles = {
 
 	breadcrumbSegment: {
 		display: "flex",
+		alignItems: "center",
 		flexFlow: "row nowrap",
 		gap: "8px",
 		maxWidth: "160px",

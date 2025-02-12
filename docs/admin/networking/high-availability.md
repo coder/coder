@@ -42,7 +42,7 @@ rendezvous for the Coder nodes.
 Here's an example 3-node network configuration setup:
 
 | Name      | `CODER_HTTP_ADDRESS` | `CODER_DERP_SERVER_RELAY_URL` | `CODER_ACCESS_URL`       |
-| --------- | -------------------- | ----------------------------- | ------------------------ |
+|-----------|----------------------|-------------------------------|--------------------------|
 | `coder-1` | `*:80`               | `http://10.0.0.1:80`          | `https://coder.big.corp` |
 | `coder-2` | `*:80`               | `http://10.0.0.2:80`          | `https://coder.big.corp` |
 | `coder-3` | `*:80`               | `http://10.0.0.3:80`          | `https://coder.big.corp` |

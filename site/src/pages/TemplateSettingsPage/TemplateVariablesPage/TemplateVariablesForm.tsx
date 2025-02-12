@@ -4,12 +4,14 @@ import type {
 	TemplateVersionVariable,
 	VariableValue,
 } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { type FormikContextType, type FormikTouched, useFormik } from "formik";
 import type { FC } from "react";
 import { type FormHelpers, getFormHelpers } from "utils/formUtils";
@@ -106,7 +108,16 @@ export const TemplateVariablesForm: FC<TemplateVariablesForm> = ({
 				);
 			})}
 
-			<FormFooter onCancel={onCancel} isLoading={isSubmitting} />
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button type="submit" disabled={isSubmitting}>
+					<Spinner loading={isSubmitting} />
+					Save
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

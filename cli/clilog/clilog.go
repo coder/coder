@@ -4,11 +4,12 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"os"
 	"regexp"
 	"strings"
+	"sync"
 
 	"golang.org/x/xerrors"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
@@ -104,7 +105,6 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 	addSinkIfProvided := func(sinkFn func(io.Writer) slog.Sink, loc string) error {
 		switch loc {
 		case "":
-
 		case "/dev/stdout":
 			sinks = append(sinks, sinkFn(inv.Stdout))
 
@@ -112,12 +112,14 @@ func (b *Builder) Build(inv *serpent.Invocation) (log slog.Logger, closeLog func
 			sinks = append(sinks, sinkFn(inv.Stderr))
 
 		default:
-			fi, err := os.OpenFile(loc, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0o644)
-			if err != nil {
-				return xerrors.Errorf("open log file %q: %w", loc, err)
-			}
-			closers = append(closers, fi.Close)
-			sinks = append(sinks, sinkFn(fi))
+			logWriter := &LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
+				Filename: loc,
+				MaxSize:  5, // MB
+				// Without this, rotated logs will never be deleted.
+				MaxBackups: 1,
+			}}
+			closers = append(closers, logWriter.Close)
+			sinks = append(sinks, sinkFn(logWriter))
 		}
 		return nil
 	}
@@ -208,4 +210,31 @@ func (f *debugFilterSink) Sync() {
 	for _, sink := range f.next {
 		sink.Sync()
 	}
+}
+
+// LumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
+// prevents writes after Close. This is necessary because lumberjack
+// re-opens the file on Write.
+type LumberjackWriteCloseFixer struct {
+	Writer io.WriteCloser
+	mu     sync.Mutex // Protects following.
+	closed bool
+}
+
+func (c *LumberjackWriteCloseFixer) Close() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	c.closed = true
+	return c.Writer.Close()
+}
+
+func (c *LumberjackWriteCloseFixer) Write(p []byte) (int, error) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	if c.closed {
+		return 0, io.ErrClosedPipe
+	}
+	return c.Writer.Write(p)
 }

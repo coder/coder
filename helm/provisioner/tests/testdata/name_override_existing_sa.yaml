@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+  serviceAccount:
+    name: "existing-coder-provisioner-serviceaccount"
+    disableCreate: true
+    workspacePerms: false
+nameOverride: "other-coder-provisioner"

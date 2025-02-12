@@ -25,7 +25,7 @@ const (
 )
 
 type Batcher interface {
-	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats, usage bool) error
+	Add(now time.Time, agentID uuid.UUID, templateID uuid.UUID, userID uuid.UUID, workspaceID uuid.UUID, st *agentproto.Stats, usage bool)
 }
 
 // DBBatcher holds a buffer of agent stats and periodically flushes them to
@@ -139,7 +139,7 @@ func (b *DBBatcher) Add(
 	workspaceID uuid.UUID,
 	st *agentproto.Stats,
 	usage bool,
-) error {
+) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
@@ -176,7 +176,6 @@ func (b *DBBatcher) Add(
 		b.flushLever <- struct{}{}
 		b.flushForced.Store(true)
 	}
-	return nil
 }
 
 // Run runs the batcher.

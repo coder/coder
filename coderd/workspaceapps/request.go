@@ -124,9 +124,9 @@ func (r Request) Normalize() Request {
 	return req
 }
 
-// Validate ensures the request is correct and contains the necessary
+// Check ensures the request is correct and contains the necessary
 // parameters.
-func (r Request) Validate() error {
+func (r Request) Check() error {
 	switch r.AccessMethod {
 	case AccessMethodPath, AccessMethodSubdomain, AccessMethodTerminal:
 	default:

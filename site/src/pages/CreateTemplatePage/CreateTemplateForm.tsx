@@ -11,6 +11,7 @@ import type {
 	VariableValue,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
@@ -19,6 +20,7 @@ import {
 } from "components/Form/Form";
 import { IconField } from "components/IconField/IconField";
 import { OrganizationAutocomplete } from "components/OrganizationAutocomplete/OrganizationAutocomplete";
+import { Spinner } from "components/Spinner/Spinner";
 import { useFormik } from "formik";
 import camelCase from "lodash/camelCase";
 import capitalize from "lodash/capitalize";
@@ -350,37 +352,37 @@ export const CreateTemplateForm: FC<CreateTemplateFormProps> = (props) => {
 				</FormSection>
 			)}
 
-			<div className="flex items-center">
-				<FormFooter
-					extraActions={
-						logs && (
-							<button
-								type="button"
-								onClick={onOpenBuildLogsDrawer}
-								css={(theme) => ({
-									backgroundColor: "transparent",
-									border: 0,
-									fontWeight: 500,
-									fontSize: 14,
-									cursor: "pointer",
-									color: theme.palette.text.secondary,
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+				<Button type="submit" disabled={isSubmitting}>
+					<Spinner loading={isSubmitting} />
+					{jobError ? "Retry" : "Save"}
+				</Button>
+				{logs && (
+					<button
+						type="button"
+						onClick={onOpenBuildLogsDrawer}
+						css={(theme) => ({
+							backgroundColor: "transparent",
+							border: 0,
+							fontWeight: 500,
+							fontSize: 14,
+							cursor: "pointer",
+							color: theme.palette.text.secondary,
 
-									"&:hover": {
-										textDecoration: "underline",
-										textUnderlineOffset: 4,
-										color: theme.palette.text.primary,
-									},
-								})}
-							>
-								Show build logs
-							</button>
-						)
-					}
-					onCancel={onCancel}
-					isLoading={isSubmitting}
-					submitLabel={jobError ? "Retry" : "Create template"}
-				/>
-			</div>
+							"&:hover": {
+								textDecoration: "underline",
+								textUnderlineOffset: 4,
+								color: theme.palette.text.primary,
+							},
+						})}
+					>
+						Show build logs
+					</button>
+				)}
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

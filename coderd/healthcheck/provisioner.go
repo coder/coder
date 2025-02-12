@@ -50,7 +50,7 @@ func (r *ProvisionerDaemonsReport) Run(ctx context.Context, opts *ProvisionerDae
 	now := opts.TimeNow()
 
 	if opts.StaleInterval == 0 {
-		opts.StaleInterval = provisionerdserver.DefaultHeartbeatInterval * 3
+		opts.StaleInterval = provisionerdserver.StaleInterval
 	}
 
 	if opts.CurrentVersion == "" {

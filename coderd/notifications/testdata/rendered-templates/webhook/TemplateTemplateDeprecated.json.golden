@@ -1,0 +1,33 @@
+{
+  "_version": "1.1",
+  "msg_id": "00000000-0000-0000-0000-000000000000",
+  "payload": {
+    "_version": "1.1",
+    "notification_name": "Template Deprecated",
+    "notification_template_id": "00000000-0000-0000-0000-000000000000",
+    "user_id": "00000000-0000-0000-0000-000000000000",
+    "user_email": "bobby@coder.com",
+    "user_name": "Bobby",
+    "user_username": "bobby",
+    "actions": [
+      {
+        "label": "See affected workspaces",
+        "url": "http://test.com/workspaces?filter=owner%3Ame+template%3Aalpha"
+      },
+      {
+        "label": "View template",
+        "url": "http://test.com/templates/coder/alpha"
+      }
+    ],
+    "labels": {
+      "message": "This template has been replaced by beta",
+      "organization": "coder",
+      "template": "alpha"
+    },
+    "data": null
+  },
+  "title": "Template 'alpha' has been deprecated",
+  "title_markdown": "Template 'alpha' has been deprecated",
+  "body": "Hello Bobby,\n\nThe template alpha has been deprecated with the following message:\n\nThis template has been replaced by beta\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally.",
+  "body_markdown": "Hello Bobby,\n\nThe template **alpha** has been deprecated with the following message:\n\n**This template has been replaced by beta**\n\nNew workspaces may not be created from this template. Existing workspaces will continue to function normally."
+}

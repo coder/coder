@@ -56,3 +56,11 @@ export const infiniteWorkspaceBuilds = (
 		},
 	};
 };
+
+// We use readyAgentsCount to invalidate the query when an agent connects
+export const workspaceBuildTimings = (workspaceBuildId: string) => {
+	return {
+		queryKey: ["workspaceBuilds", workspaceBuildId, "timings"],
+		queryFn: () => API.workspaceBuildTimings(workspaceBuildId),
+	};
+};

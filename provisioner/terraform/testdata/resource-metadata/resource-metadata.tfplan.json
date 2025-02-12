@@ -1,6 +1,6 @@
 {
   "format_version": "1.2",
-  "terraform_version": "1.9.2",
+  "terraform_version": "1.9.8",
   "planned_values": {
     "root_module": {
       "resources": [
@@ -10,14 +10,13 @@
           "type": "coder_agent",
           "name": "main",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
             "connection_timeout": 120,
             "dir": null,
             "env": null,
-            "login_before_ready": true,
             "metadata": [
               {
                 "display_name": "Process Count",
@@ -31,11 +30,10 @@
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
+            "startup_script_behavior": "non-blocking",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -43,6 +41,7 @@
             "metadata": [
               {}
             ],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -52,7 +51,7 @@
           "type": "coder_metadata",
           "name": "about_info",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "daily_cost": 29,
             "hide": true,
@@ -122,7 +121,6 @@
           "connection_timeout": 120,
           "dir": null,
           "env": null,
-          "login_before_ready": true,
           "metadata": [
             {
               "display_name": "Process Count",
@@ -136,11 +134,10 @@
           "motd_file": null,
           "order": null,
           "os": "linux",
+          "resources_monitoring": [],
           "shutdown_script": null,
-          "shutdown_script_timeout": 300,
           "startup_script": null,
-          "startup_script_behavior": null,
-          "startup_script_timeout": 300,
+          "startup_script_behavior": "non-blocking",
           "troubleshooting_url": null
         },
         "after_unknown": {
@@ -150,6 +147,7 @@
           "metadata": [
             {}
           ],
+          "resources_monitoring": [],
           "token": true
         },
         "before_sensitive": false,
@@ -158,6 +156,7 @@
           "metadata": [
             {}
           ],
+          "resources_monitoring": [],
           "token": true
         }
       }
@@ -301,7 +300,7 @@
               "constant_value": "linux"
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "coder_metadata.about_info",
@@ -360,7 +359,7 @@
               ]
             }
           },
-          "schema_version": 0
+          "schema_version": 1
         },
         {
           "address": "null_resource.about",
@@ -384,7 +383,7 @@
       ]
     }
   ],
-  "timestamp": "2024-07-15T17:48:52Z",
+  "timestamp": "2025-01-29T22:48:12Z",
   "applyable": true,
   "complete": true,
   "errored": false

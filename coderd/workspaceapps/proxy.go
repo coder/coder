@@ -11,23 +11,27 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/go-chi/chi/v5"
+	"github.com/go-jose/go-jose/v4/jwt"
 	"github.com/google/uuid"
 	"go.opentelemetry.io/otel/trace"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/agent/agentssh"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/workspacesdk"
 	"github.com/coder/coder/v2/site"
+	"github.com/coder/websocket"
 )
 
 const (
@@ -97,8 +101,8 @@ type Server struct {
 	HostnameRegex *regexp.Regexp
 	RealIPConfig  *httpmw.RealIPConfig
 
-	SignedTokenProvider SignedTokenProvider
-	AppSecurityKey      SecurityKey
+	SignedTokenProvider      SignedTokenProvider
+	APIKeyEncryptionKeycache cryptokeys.EncryptionKeycache
 
 	// DisablePathApps disables path-based apps. This is a security feature as path
 	// based apps share the same cookie as the dashboard, and are susceptible to XSS
@@ -176,7 +180,10 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	}
 
 	// Exchange the encoded API key for a real one.
-	token, err := s.AppSecurityKey.DecryptAPIKey(encryptedAPIKey)
+	var payload EncryptedAPIKeyPayload
+	err := jwtutils.Decrypt(ctx, s.APIKeyEncryptionKeycache, encryptedAPIKey, &payload, jwtutils.WithDecryptExpected(jwt.Expected{
+		Time: time.Now(),
+	}))
 	if err != nil {
 		s.Logger.Debug(ctx, "could not decrypt smuggled workspace app API key", slog.Error(err))
 		site.RenderStaticErrorPage(rw, r, site.ErrorPageData{
@@ -225,7 +232,7 @@ func (s *Server) handleAPIKeySmuggling(rw http.ResponseWriter, r *http.Request, 
 	// server using the wrong value.
 	http.SetCookie(rw, &http.Cookie{
 		Name:     AppConnectSessionTokenCookieName(accessMethod),
-		Value:    token,
+		Value:    payload.APIKey,
 		Domain:   domain,
 		Path:     "/",
 		MaxAge:   0,
@@ -593,7 +600,6 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 	tracing.EndHTTPSpan(r, http.StatusOK, trace.SpanFromContext(ctx))
 
 	report := newStatsReportFromSignedToken(appToken)
-	s.collectStats(report)
 	defer func() {
 		// We must use defer here because ServeHTTP may panic.
 		report.SessionEndedAt = dbtime.Now()
@@ -614,7 +620,8 @@ func (s *Server) proxyWorkspaceApp(rw http.ResponseWriter, r *http.Request, appT
 // @Success 101
 // @Router /workspaceagents/{workspaceagent}/pty [get]
 func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
-	ctx := r.Context()
+	ctx, cancel := context.WithCancel(r.Context())
+	defer cancel()
 
 	s.websocketWaitMutex.Lock()
 	s.websocketWaitGroup.Add(1)
@@ -670,11 +677,10 @@ func (s *Server) workspaceAgentPTY(rw http.ResponseWriter, r *http.Request) {
 		})
 		return
 	}
+	go httpapi.HeartbeatClose(ctx, s.Logger, cancel, conn)
 
 	ctx, wsNetConn := WebsocketNetConn(ctx, conn, websocket.MessageBinary)
 	defer wsNetConn.Close() // Also closes conn.
-
-	go httpapi.Heartbeat(ctx, conn)
 
 	agentConn, release, err := s.AgentProvider.AgentConn(ctx, appToken.AgentID)
 	if err != nil {

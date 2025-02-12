@@ -10,6 +10,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
 	"github.com/coder/coder/v2/pty"
@@ -22,10 +23,11 @@ func TestPrompt(t *testing.T) {
 	t.Parallel()
 	t.Run("Success", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		msgChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
 			assert.NoError(t, err)
@@ -33,15 +35,17 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("hello")
-		require.Equal(t, "hello", <-msgChan)
+		resp := testutil.RequireRecvCtx(ctx, t, msgChan)
+		require.Equal(t, "hello", resp)
 	})
 
 	t.Run("Confirm", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text:      "Example",
 				IsConfirm: true,
 			}, nil)
@@ -50,18 +54,20 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("yes")
-		require.Equal(t, "yes", <-doneChan)
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, "yes", resp)
 	})
 
 	t.Run("Skip", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		var buf bytes.Buffer
 
 		// Copy all data written out to a buffer. When we close the ptty, we can
 		// no longer read from the ptty.Output(), but we can read what was
 		// written to the buffer.
-		dataRead, doneReading := context.WithTimeout(context.Background(), testutil.WaitShort)
+		dataRead, doneReading := context.WithCancel(ctx)
 		go func() {
 			// This will throw an error sometimes. The underlying ptty
 			// has its own cleanup routines in t.Cleanup. Instead of
@@ -74,7 +80,7 @@ func TestPrompt(t *testing.T) {
 
 		doneChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text:      "ShouldNotSeeThis",
 				IsConfirm: true,
 			}, func(inv *serpent.Invocation) {
@@ -85,7 +91,8 @@ func TestPrompt(t *testing.T) {
 			doneChan <- resp
 		}()
 
-		require.Equal(t, "yes", <-doneChan)
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, "yes", resp)
 		// Close the reader to end the io.Copy
 		require.NoError(t, ptty.Close(), "close eof reader")
 		// Wait for the IO copy to finish
@@ -96,10 +103,11 @@ func TestPrompt(t *testing.T) {
 	})
 	t.Run("JSON", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
 			assert.NoError(t, err)
@@ -107,15 +115,17 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{}")
-		require.Equal(t, "{}", <-doneChan)
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, "{}", resp)
 	})
 
 	t.Run("BadJSON", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
 			assert.NoError(t, err)
@@ -123,15 +133,17 @@ func TestPrompt(t *testing.T) {
 		}()
 		ptty.ExpectMatch("Example")
 		ptty.WriteLine("{a")
-		require.Equal(t, "{a", <-doneChan)
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, "{a", resp)
 	})
 
 	t.Run("MultilineJSON", func(t *testing.T) {
 		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ptty := ptytest.New(t)
 		doneChan := make(chan string)
 		go func() {
-			resp, err := newPrompt(ptty, cliui.PromptOptions{
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
 				Text: "Example",
 			}, nil)
 			assert.NoError(t, err)
@@ -141,11 +153,37 @@ func TestPrompt(t *testing.T) {
 		ptty.WriteLine(`{
 "test": "wow"
 }`)
-		require.Equal(t, `{"test":"wow"}`, <-doneChan)
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, `{"test":"wow"}`, resp)
+	})
+
+	t.Run("InvalidValid", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+		ptty := ptytest.New(t)
+		doneChan := make(chan string)
+		go func() {
+			resp, err := newPrompt(ctx, ptty, cliui.PromptOptions{
+				Text: "Example",
+				Validate: func(s string) error {
+					t.Logf("validate: %q", s)
+					if s != "valid" {
+						return xerrors.New("invalid")
+					}
+					return nil
+				},
+			}, nil)
+			assert.NoError(t, err)
+			doneChan <- resp
+		}()
+		ptty.ExpectMatch("Example")
+		ptty.WriteLine("foo\nbar\nbaz\n\n\nvalid\n")
+		resp := testutil.RequireRecvCtx(ctx, t, doneChan)
+		require.Equal(t, "valid", resp)
 	})
 }
 
-func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
+func newPrompt(ctx context.Context, ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *serpent.Invocation)) (string, error) {
 	value := ""
 	cmd := &serpent.Command{
 		Handler: func(inv *serpent.Invocation) error {
@@ -163,7 +201,7 @@ func newPrompt(ptty *ptytest.PTY, opts cliui.PromptOptions, invOpt func(inv *ser
 	inv.Stdout = ptty.Output()
 	inv.Stderr = ptty.Output()
 	inv.Stdin = ptty.Input()
-	return value, inv.WithContext(context.Background()).Run()
+	return value, inv.WithContext(ctx).Run()
 }
 
 func TestPasswordTerminalState(t *testing.T) {

@@ -76,7 +76,7 @@ the sum of their allowances.
 For example:
 
 | Group Name | Quota Allowance |
-| ---------- | --------------- |
+|------------|-----------------|
 | Frontend   | 10              |
 | Backend    | 20              |
 | Data       | 30              |
@@ -84,7 +84,7 @@ For example:
 <br/>
 
 | Username | Groups            | Effective Budget |
-| -------- | ----------------- | ---------------- |
+|----------|-------------------|------------------|
 | jill     | Frontend, Backend | 30               |
 | jack     | Backend, Data     | 50               |
 | sam      | Data              | 30               |

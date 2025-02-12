@@ -15,7 +15,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/hashicorp/yamux"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"storj.io/drpc"
 	"tailscale.com/tailcfg"
 
@@ -24,6 +23,8 @@ import (
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/codersdk"
 	drpcsdk "github.com/coder/coder/v2/codersdk/drpc"
+	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
+	"github.com/coder/websocket"
 )
 
 // ExternalLogSourceID is the statically-defined ID of a log-source that
@@ -159,6 +160,7 @@ func (c *Client) RewriteDERPMap(derpMap *tailcfg.DERPMap) {
 // ConnectRPC20 returns a dRPC client to the Agent API v2.0.  Notably, it is missing
 // GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
 // Release Versions from 2.9+
+// Deprecated: use ConnectRPC20WithTailnet
 func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, error) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
 	if err != nil {
@@ -167,14 +169,64 @@ func (c *Client) ConnectRPC20(ctx context.Context) (proto.DRPCAgentClient20, err
 	return proto.NewDRPCAgentClient(conn), nil
 }
 
+// ConnectRPC20WithTailnet returns a dRPC client to the Agent API v2.0.  Notably, it is missing
+// GetAnnouncementBanners, but is useful when you want to be maximally compatible with Coderd
+// Release Versions from 2.9+
+func (c *Client) ConnectRPC20WithTailnet(ctx context.Context) (
+	proto.DRPCAgentClient20, tailnetproto.DRPCTailnetClient20, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 0))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
 // ConnectRPC21 returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
 // maximally compatible with Coderd Release Versions from 2.12+
+// Deprecated: use ConnectRPC21WithTailnet
 func (c *Client) ConnectRPC21(ctx context.Context) (proto.DRPCAgentClient21, error) {
 	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
 	if err != nil {
 		return nil, err
 	}
 	return proto.NewDRPCAgentClient(conn), nil
+}
+
+// ConnectRPC21WithTailnet returns a dRPC client to the Agent API v2.1.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.12+
+func (c *Client) ConnectRPC21WithTailnet(ctx context.Context) (
+	proto.DRPCAgentClient21, tailnetproto.DRPCTailnetClient21, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 1))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC22 returns a dRPC client to the Agent API v2.2.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.13+
+func (c *Client) ConnectRPC22(ctx context.Context) (
+	proto.DRPCAgentClient22, tailnetproto.DRPCTailnetClient22, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 2))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
+}
+
+// ConnectRPC23 returns a dRPC client to the Agent API v2.3.  It is useful when you want to be
+// maximally compatible with Coderd Release Versions from 2.18+
+func (c *Client) ConnectRPC23(ctx context.Context) (
+	proto.DRPCAgentClient23, tailnetproto.DRPCTailnetClient23, error,
+) {
+	conn, err := c.connectRPCVersion(ctx, apiversion.New(2, 3))
+	if err != nil {
+		return nil, nil, err
+	}
+	return proto.NewDRPCAgentClient(conn), tailnetproto.NewDRPCTailnetClient(conn), nil
 }
 
 // ConnectRPC connects to the workspace agent API and tailnet API

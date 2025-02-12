@@ -3,7 +3,7 @@ import Grid from "@mui/material/Grid";
 import { isApiError } from "api/errors";
 import type { Group } from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { AvatarCard } from "components/AvatarCard/AvatarCard";
+import { AvatarCard } from "components/Avatar/AvatarCard";
 import { Loader } from "components/Loader/Loader";
 import { useDashboard } from "modules/dashboard/useDashboard";
 import type { FC } from "react";
@@ -53,9 +53,7 @@ export const AccountUserGroups: FC<AccountGroupsProps> = ({
 						{groups.map((group) => (
 							<Grid item key={group.id} xs={1}>
 								<AvatarCard
-									background
 									imgUrl={group.avatar_url}
-									altText={group.display_name || group.name}
 									header={group.display_name || group.name}
 									subtitle={
 										showOrganizations ? (

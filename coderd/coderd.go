@@ -5,6 +5,7 @@ import (
 	"crypto/tls"
 	"crypto/x509"
 	"database/sql"
+	"errors"
 	"expvar"
 	"flag"
 	"fmt"
@@ -40,6 +41,7 @@ import (
 	"github.com/coder/quartz"
 	"github.com/coder/serpent"
 
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/entitlements"
 	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -185,9 +187,6 @@ type Options struct {
 	TemplateScheduleStore          *atomic.Pointer[schedule.TemplateScheduleStore]
 	UserQuietHoursScheduleStore    *atomic.Pointer[schedule.UserQuietHoursScheduleStore]
 	AccessControlStore             *atomic.Pointer[dbauthz.AccessControlStore]
-	// AppSecurityKey is the crypto key used to sign and encrypt tokens related to
-	// workspace applications. It consists of both a signing and encryption key.
-	AppSecurityKey workspaceapps.SecurityKey
 	// CoordinatorResumeTokenProvider is used to provide and validate resume
 	// tokens issued by and passed to the coordinator DRPC API.
 	CoordinatorResumeTokenProvider tailnet.ResumeTokenProvider
@@ -251,6 +250,12 @@ type Options struct {
 
 	// OneTimePasscodeValidityPeriod specifies how long a one time passcode should be valid for.
 	OneTimePasscodeValidityPeriod time.Duration
+
+	// Keycaches
+	AppSigningKeyCache    cryptokeys.SigningKeycache
+	AppEncryptionKeyCache cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache   cryptokeys.SigningKeycache
+	Clock                 quartz.Clock
 }
 
 // @title Coder API
@@ -266,6 +271,10 @@ type Options struct {
 // @license.url https://github.com/coder/coder/blob/main/LICENSE
 
 // @BasePath /api/v2
+
+// @securitydefinitions.apiKey Authorization
+// @in header
+// @name Authorizaiton
 
 // @securitydefinitions.apiKey CoderSessionToken
 // @in header
@@ -351,6 +360,9 @@ func New(options *Options) *API {
 	}
 	if options.PrometheusRegistry == nil {
 		options.PrometheusRegistry = prometheus.NewRegistry()
+	}
+	if options.Clock == nil {
+		options.Clock = quartz.NewReal()
 	}
 	if options.DERPServer == nil && options.DeploymentValues.DERP.Server.Enable {
 		options.DERPServer = derp.NewServer(key.NewNode(), tailnet.Logger(options.Logger.Named("derp")))
@@ -444,6 +456,71 @@ func New(options *Options) *API {
 	if err != nil {
 		panic(xerrors.Errorf("get deployment ID: %w", err))
 	}
+
+	fetcher := &cryptokeys.DBFetcher{
+		DB: options.Database,
+	}
+
+	if options.OIDCConvertKeyCache == nil {
+		options.OIDCConvertKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("oidc_convert_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureOIDCConvert,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate oidc convert signing cache", slog.Error(err))
+		}
+	}
+
+	if options.AppSigningKeyCache == nil {
+		options.AppSigningKeyCache, err = cryptokeys.NewSigningCache(ctx,
+			options.Logger.Named("app_signing_keycache"),
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate app signing key cache", slog.Error(err))
+		}
+	}
+
+	if options.AppEncryptionKeyCache == nil {
+		options.AppEncryptionKeyCache, err = cryptokeys.NewEncryptionCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate app encryption key cache", slog.Error(err))
+		}
+	}
+
+	if options.CoordinatorResumeTokenProvider == nil {
+		fetcher := &cryptokeys.DBFetcher{
+			DB: options.Database,
+		}
+
+		resumeKeycache, err := cryptokeys.NewSigningCache(ctx,
+			options.Logger,
+			fetcher,
+			codersdk.CryptoKeyFeatureTailnetResume,
+		)
+		if err != nil {
+			options.Logger.Fatal(ctx, "failed to properly instantiate tailnet resume signing cache", slog.Error(err))
+		}
+		options.CoordinatorResumeTokenProvider = tailnet.NewResumeTokenKeyProvider(
+			resumeKeycache,
+			options.Clock,
+			tailnet.DefaultResumeTokenExpiry,
+		)
+	}
+
+	updatesProvider := NewUpdatesProvider(options.Logger.Named("workspace_updates"), options.Pubsub, options.Database, options.Authorizer)
+
+	// Start a background process that rotates keys. We intentionally start this after the caches
+	// are created to force initial requests for a key to populate the caches. This helps catch
+	// bugs that may only occur when a key isn't precached in tests and the latency cost is minimal.
+	cryptokeys.StartRotator(ctx, options.Logger, options.Database)
+
 	api := &API{
 		ctx:          ctx,
 		cancel:       cancel,
@@ -464,11 +541,12 @@ func New(options *Options) *API {
 			options.DeploymentValues,
 			oauthConfigs,
 			options.AgentInactiveDisconnectTimeout,
-			options.AppSecurityKey,
+			options.AppSigningKeyCache,
 		),
 		metricsCache:                metricsCache,
 		Auditor:                     atomic.Pointer[audit.Auditor]{},
 		TailnetCoordinator:          atomic.Pointer[tailnet.Coordinator]{},
+		UpdatesProvider:             updatesProvider,
 		TemplateScheduleStore:       options.TemplateScheduleStore,
 		UserQuietHoursScheduleStore: options.UserQuietHoursScheduleStore,
 		AccessControlStore:          options.AccessControlStore,
@@ -507,6 +585,8 @@ func New(options *Options) *API {
 		AppearanceFetcher: &api.AppearanceFetcher,
 		BuildInfo:         buildInfo,
 		Entitlements:      options.Entitlements,
+		Telemetry:         options.Telemetry,
+		Logger:            options.Logger.Named("site"),
 	})
 	api.SiteHandler.Experiments.Store(&experiments)
 
@@ -550,7 +630,8 @@ func New(options *Options) *API {
 					CurrentVersion:         buildinfo.Version(),
 					CurrentAPIMajorVersion: proto.CurrentMajor,
 					Store:                  options.Database,
-					// TimeNow and StaleInterval set to defaults, see healthcheck/provisioner.go
+					StaleInterval:          provisionerdserver.StaleInterval,
+					// TimeNow set to default, see healthcheck/provisioner.go
 				},
 			})
 		}
@@ -570,14 +651,17 @@ func New(options *Options) *API {
 
 	api.Auditor.Store(&options.Auditor)
 	api.TailnetCoordinator.Store(&options.TailnetCoordinator)
+	dialer := &InmemTailnetDialer{
+		CoordPtr: &api.TailnetCoordinator,
+		DERPFn:   api.DERPMap,
+		Logger:   options.Logger,
+		ClientID: uuid.New(),
+	}
 	stn, err := NewServerTailnet(api.ctx,
 		options.Logger,
 		options.DERPServer,
-		api.DERPMap,
+		dialer,
 		options.DeploymentValues.DERP.Config.ForceWebSockets.Value(),
-		func(context.Context) (tailnet.MultiAgentConn, error) {
-			return (*api.TailnetCoordinator.Load()).ServeMultiAgent(uuid.New()), nil
-		},
 		options.DeploymentValues.DERP.Config.BlockDirect.Value(),
 		api.TracerProvider,
 	)
@@ -598,15 +682,16 @@ func New(options *Options) *API {
 		panic("CoordinatorResumeTokenProvider is nil")
 	}
 	api.TailnetClientService, err = tailnet.NewClientService(tailnet.ClientServiceOptions{
-		Logger:                  api.Logger.Named("tailnetclient"),
-		CoordPtr:                &api.TailnetCoordinator,
-		DERPMapUpdateFrequency:  api.Options.DERPMapUpdateFrequency,
-		DERPMapFn:               api.DERPMap,
-		NetworkTelemetryHandler: api.NetworkTelemetryBatcher.Handler,
-		ResumeTokenProvider:     api.Options.CoordinatorResumeTokenProvider,
+		Logger:                   api.Logger.Named("tailnetclient"),
+		CoordPtr:                 &api.TailnetCoordinator,
+		DERPMapUpdateFrequency:   api.Options.DERPMapUpdateFrequency,
+		DERPMapFn:                api.DERPMap,
+		NetworkTelemetryHandler:  api.NetworkTelemetryBatcher.Handler,
+		ResumeTokenProvider:      api.Options.CoordinatorResumeTokenProvider,
+		WorkspaceUpdatesProvider: api.UpdatesProvider,
 	})
 	if err != nil {
-		api.Logger.Fatal(api.ctx, "failed to initialize tailnet client service", slog.Error(err))
+		api.Logger.Fatal(context.Background(), "failed to initialize tailnet client service", slog.Error(err))
 	}
 
 	api.statsReporter = workspacestats.NewReporter(workspacestats.ReporterOptions{
@@ -628,9 +713,6 @@ func New(options *Options) *API {
 		options.WorkspaceAppsStatsCollectorOptions.Reporter = api.statsReporter
 	}
 
-	if options.AppSecurityKey.IsZero() {
-		api.Logger.Fatal(api.ctx, "app security key cannot be zero")
-	}
 	api.workspaceAppServer = &workspaceapps.Server{
 		Logger: workspaceAppsLogger,
 
@@ -642,15 +724,16 @@ func New(options *Options) *API {
 
 		SignedTokenProvider: api.WorkspaceAppsProvider,
 		AgentProvider:       api.agentProvider,
-		AppSecurityKey:      options.AppSecurityKey,
 		StatsCollector:      workspaceapps.NewStatsCollector(options.WorkspaceAppsStatsCollectorOptions),
 
-		DisablePathApps:  options.DeploymentValues.DisablePathApps.Value(),
-		SecureAuthCookie: options.DeploymentValues.SecureAuthCookie.Value(),
+		DisablePathApps:          options.DeploymentValues.DisablePathApps.Value(),
+		SecureAuthCookie:         options.DeploymentValues.SecureAuthCookie.Value(),
+		APIKeyEncryptionKeycache: options.AppEncryptionKeyCache,
 	}
 
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           ActivateDormantUser(options.Logger, &api.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -705,6 +788,7 @@ func New(options *Options) *API {
 		httpmw.AttachRequestID,
 		httpmw.ExtractRealIP(api.RealIPConfig),
 		httpmw.Logger(api.Logger),
+		singleSlashMW,
 		rolestore.CustomRoleMW,
 		prometheusMW,
 		// Build-Version is helpful for debugging.
@@ -926,6 +1010,13 @@ func New(options *Options) *API {
 						})
 					})
 				})
+				r.Route("/provisionerdaemons", func(r chi.Router) {
+					r.Get("/", api.provisionerDaemons)
+				})
+				r.Route("/provisionerjobs", func(r chi.Router) {
+					r.Get("/{job}", api.provisionerJob)
+					r.Get("/", api.provisionerJobs)
+				})
 			})
 		})
 		r.Route("/templates", func(r chi.Router) {
@@ -967,6 +1058,7 @@ func New(options *Options) *API {
 			r.Get("/rich-parameters", api.templateVersionRichParameters)
 			r.Get("/external-auth", api.templateVersionExternalAuth)
 			r.Get("/variables", api.templateVersionVariables)
+			r.Get("/presets", api.templateVersionPresets)
 			r.Get("/resources", api.templateVersionResources)
 			r.Get("/logs", api.templateVersionLogs)
 			r.Route("/dry-run", func(r chi.Router) {
@@ -974,6 +1066,7 @@ func New(options *Options) *API {
 				r.Get("/{jobID}", api.templateVersionDryRun)
 				r.Get("/{jobID}/resources", api.templateVersionDryRunResources)
 				r.Get("/{jobID}/logs", api.templateVersionDryRunLogs)
+				r.Get("/{jobID}/matched-provisioners", api.templateVersionDryRunMatchedProvisioners)
 				r.Patch("/{jobID}/cancel", api.patchTemplateVersionDryRunCancel)
 			})
 		})
@@ -991,6 +1084,7 @@ func New(options *Options) *API {
 				r.Use(httpmw.RateLimit(options.LoginRateLimit, time.Minute))
 				r.Post("/login", api.postLogin)
 				r.Post("/otp/request", api.postRequestOneTimePasscode)
+				r.Post("/validate-password", api.validateUserPassword)
 				r.Post("/otp/change-password", api.postChangePasswordWithOneTimePasscode)
 				r.Route("/oauth2", func(r chi.Router) {
 					r.Route("/github", func(r chi.Router) {
@@ -1119,6 +1213,7 @@ func New(options *Options) *API {
 				r.Get("/logs", api.workspaceAgentLogs)
 				r.Get("/listening-ports", api.workspaceAgentListeningPorts)
 				r.Get("/connection", api.workspaceAgentConnection)
+				r.Get("/containers", api.workspaceAgentListContainers)
 				r.Get("/coordinate", api.workspaceAgentClientCoordinate)
 
 				// PTY is part of workspaceAppServer.
@@ -1198,6 +1293,7 @@ func New(options *Options) *API {
 			r.Use(apiKeyMiddleware)
 			r.Get("/daus", api.deploymentDAUs)
 			r.Get("/user-activity", api.insightsUserActivity)
+			r.Get("/user-status-counts", api.insightsUserStatusCounts)
 			r.Get("/user-latency", api.insightsUserLatency)
 			r.Get("/templates", api.insightsTemplates)
 		})
@@ -1275,6 +1371,10 @@ func New(options *Options) *API {
 			})
 			r.Get("/dispatch-methods", api.notificationDispatchMethods)
 		})
+		r.Route("/tailnet", func(r chi.Router) {
+			r.Use(apiKeyMiddleware)
+			r.Get("/", api.tailnetRPCConn)
+		})
 	})
 
 	if options.SwaggerEndpoint {
@@ -1294,6 +1394,26 @@ func New(options *Options) *API {
 		r.Get("/swagger/*", swaggerDisabled)
 	}
 
+	additionalCSPHeaders := make(map[httpmw.CSPFetchDirective][]string, len(api.DeploymentValues.AdditionalCSPPolicy))
+	var cspParseErrors error
+	for _, v := range api.DeploymentValues.AdditionalCSPPolicy {
+		// Format is "<directive> <value> <value> ..."
+		v = strings.TrimSpace(v)
+		parts := strings.Split(v, " ")
+		if len(parts) < 2 {
+			cspParseErrors = errors.Join(cspParseErrors, xerrors.Errorf("invalid CSP header %q, not enough parts to be valid", v))
+			continue
+		}
+		additionalCSPHeaders[httpmw.CSPFetchDirective(strings.ToLower(parts[0]))] = parts[1:]
+	}
+
+	if cspParseErrors != nil {
+		// Do not fail Coder deployment startup because of this. Just log an error
+		// and continue
+		api.Logger.Error(context.Background(),
+			"parsing additional CSP headers", slog.Error(cspParseErrors))
+	}
+
 	// Add CSP headers to all static assets and pages. CSP headers only affect
 	// browsers, so these don't make sense on api routes.
 	cspMW := httpmw.CSPHeaders(options.Telemetry.Enabled(), func() []string {
@@ -1306,7 +1426,7 @@ func New(options *Options) *API {
 		}
 		// By default we do not add extra websocket connections to the CSP
 		return []string{}
-	})
+	}, additionalCSPHeaders)
 
 	// Static file handler must be wrapped with HSTS handler if the
 	// StrictTransportSecurityAge is set. We only need to set this header on
@@ -1356,6 +1476,8 @@ type API struct {
 	AccessControlStore *atomic.Pointer[dbauthz.AccessControlStore]
 	PortSharer         atomic.Pointer[portsharing.PortSharer]
 
+	UpdatesProvider tailnet.WorkspaceUpdatesProvider
+
 	HTTPAuth *HTTPAuthorizer
 
 	// APIHandler serves "/api/v2"
@@ -1399,9 +1521,6 @@ func (api *API) Close() error {
 	default:
 		api.cancel()
 	}
-	if api.derpCloseFunc != nil {
-		api.derpCloseFunc()
-	}
 
 	wsDone := make(chan struct{})
 	timer := time.NewTimer(10 * time.Second)
@@ -1427,13 +1546,22 @@ func (api *API) Close() error {
 		api.updateChecker.Close()
 	}
 	_ = api.workspaceAppServer.Close()
+	_ = api.agentProvider.Close()
+	if api.derpCloseFunc != nil {
+		api.derpCloseFunc()
+	}
+	// The coordinator should be closed after the agent provider, and the DERP
+	// handler.
 	coordinator := api.TailnetCoordinator.Load()
 	if coordinator != nil {
 		_ = (*coordinator).Close()
 	}
-	_ = api.agentProvider.Close()
 	_ = api.statsReporter.Close()
 	_ = api.NetworkTelemetryBatcher.Close()
+	_ = api.OIDCConvertKeyCache.Close()
+	_ = api.AppSigningKeyCache.Close()
+	_ = api.AppEncryptionKeyCache.Close()
+	_ = api.UpdatesProvider.Close()
 	return nil
 }
 
@@ -1535,6 +1663,7 @@ func (api *API) CreateInMemoryTaggedProvisionerDaemon(dialCtx context.Context, n
 		provisionerdserver.Options{
 			OIDCConfig:          api.OIDCConfig,
 			ExternalAuthConfigs: api.ExternalAuthConfigs,
+			Clock:               api.Clock,
 		},
 		api.NotificationsEnqueuer,
 	)
@@ -1603,4 +1732,32 @@ func ReadExperiments(log slog.Logger, raw []string) codersdk.Experiments {
 		}
 	}
 	return exps
+}
+
+var multipleSlashesRe = regexp.MustCompile(`/+`)
+
+func singleSlashMW(next http.Handler) http.Handler {
+	fn := func(w http.ResponseWriter, r *http.Request) {
+		var path string
+		rctx := chi.RouteContext(r.Context())
+		if rctx != nil && rctx.RoutePath != "" {
+			path = rctx.RoutePath
+		} else {
+			path = r.URL.Path
+		}
+
+		// Normalize multiple slashes to a single slash
+		newPath := multipleSlashesRe.ReplaceAllString(path, "/")
+
+		// Apply the cleaned path
+		// The approach is consistent with: https://github.com/go-chi/chi/blob/e846b8304c769c4f1a51c9de06bebfaa4576bd88/middleware/strip.go#L24-L28
+		if rctx != nil {
+			rctx.RoutePath = newPath
+		} else {
+			r.URL.Path = newPath
+		}
+
+		next.ServeHTTP(w, r)
+	}
+	return http.HandlerFunc(fn)
 }

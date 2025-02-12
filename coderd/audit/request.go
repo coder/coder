@@ -20,6 +20,7 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/coderd/tracing"
 )
 
@@ -62,12 +63,13 @@ type BackgroundAuditParams[T Auditable] struct {
 	Audit Auditor
 	Log   slog.Logger
 
-	UserID           uuid.UUID
-	RequestID        uuid.UUID
-	Status           int
-	Action           database.AuditAction
-	OrganizationID   uuid.UUID
-	IP               string
+	UserID         uuid.UUID
+	RequestID      uuid.UUID
+	Status         int
+	Action         database.AuditAction
+	OrganizationID uuid.UUID
+	IP             string
+	// todo: this should automatically marshal an interface{} instead of accepting a raw message.
 	AdditionalFields json.RawMessage
 
 	New T
@@ -82,7 +84,7 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.User:
 		return typed.Username
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return typed.Name
 	case database.WorkspaceBuild:
 		// this isn't used
@@ -120,10 +122,21 @@ func ResourceTarget[T Auditable](tgt T) string {
 		return typed.Name
 	case database.NotificationTemplate:
 		return typed.Name
+	case idpsync.OrganizationSyncSettings:
+		return "Organization Sync"
+	case idpsync.GroupSyncSettings:
+		return "Organization Group Sync"
+	case idpsync.RoleSyncSettings:
+		return "Organization Role Sync"
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceTarget", tgt))
 	}
 }
+
+// noID can be used for resources that do not have an uuid.
+// An example is singleton configuration resources.
+// 51A51C = "Static"
+var noID = uuid.MustParse("51A51C00-0000-0000-0000-000000000000")
 
 func ResourceID[T Auditable](tgt T) uuid.UUID {
 	switch typed := any(tgt).(type) {
@@ -133,7 +146,7 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.User:
 		return typed.ID
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return typed.ID
 	case database.WorkspaceBuild:
 		return typed.ID
@@ -168,6 +181,12 @@ func ResourceID[T Auditable](tgt T) uuid.UUID {
 		return typed.ID
 	case database.NotificationTemplate:
 		return typed.ID
+	case idpsync.OrganizationSyncSettings:
+		return noID // Deployment all uses the same org sync settings
+	case idpsync.GroupSyncSettings:
+		return noID // Org field on audit log has org id
+	case idpsync.RoleSyncSettings:
+		return noID // Org field on audit log has org id
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceID", tgt))
 	}
@@ -181,7 +200,7 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeTemplateVersion
 	case database.User:
 		return database.ResourceTypeUser
-	case database.Workspace:
+	case database.WorkspaceTable:
 		return database.ResourceTypeWorkspace
 	case database.WorkspaceBuild:
 		return database.ResourceTypeWorkspaceBuild
@@ -213,6 +232,12 @@ func ResourceType[T Auditable](tgt T) database.ResourceType {
 		return database.ResourceTypeOrganization
 	case database.NotificationTemplate:
 		return database.ResourceTypeNotificationTemplate
+	case idpsync.OrganizationSyncSettings:
+		return database.ResourceTypeIdpSyncSettingsOrganization
+	case idpsync.RoleSyncSettings:
+		return database.ResourceTypeIdpSyncSettingsRole
+	case idpsync.GroupSyncSettings:
+		return database.ResourceTypeIdpSyncSettingsGroup
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceType", typed))
 	}
@@ -225,7 +250,7 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 	switch any(tgt).(type) {
 	case database.Template, database.TemplateVersion:
 		return true
-	case database.Workspace, database.WorkspaceBuild:
+	case database.WorkspaceTable, database.WorkspaceBuild:
 		return true
 	case database.AuditableGroup:
 		return true
@@ -260,6 +285,12 @@ func ResourceRequiresOrgID[T Auditable]() bool {
 		return true
 	case database.NotificationTemplate:
 		return false
+	case idpsync.OrganizationSyncSettings:
+		return false
+	case idpsync.GroupSyncSettings:
+		return true
+	case idpsync.RoleSyncSettings:
+		return true
 	default:
 		panic(fmt.Sprintf("unknown resource %T for ResourceRequiresOrgID", tgt))
 	}

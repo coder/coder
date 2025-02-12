@@ -82,6 +82,7 @@ const (
 
 type ExtractAPIKeyConfig struct {
 	DB                          database.Store
+	ActivateDormantUser         func(ctx context.Context, u database.User) (database.User, error)
 	OAuth2Configs               *OAuth2Configs
 	RedirectToLogin             bool
 	DisableSessionExpiryRefresh bool
@@ -376,7 +377,7 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 				OAuthExpiry:            link.OAuthExpiry,
 				// Refresh should keep the same debug context because we use
 				// the original claims for the group/role sync.
-				DebugContext: link.DebugContext,
+				Claims: link.Claims,
 			})
 			if err != nil {
 				return write(http.StatusInternalServerError, codersdk.Response{
@@ -414,21 +415,20 @@ func ExtractAPIKey(rw http.ResponseWriter, r *http.Request, cfg ExtractAPIKeyCon
 		})
 	}
 
-	if userStatus == database.UserStatusDormant {
-		// If coder confirms that the dormant user is valid, it can switch their account to active.
-		// nolint:gocritic
-		u, err := cfg.DB.UpdateUserStatus(dbauthz.AsSystemRestricted(ctx), database.UpdateUserStatusParams{
-			ID:        key.UserID,
-			Status:    database.UserStatusActive,
-			UpdatedAt: dbtime.Now(),
+	if userStatus == database.UserStatusDormant && cfg.ActivateDormantUser != nil {
+		id, _ := uuid.Parse(actor.ID)
+		user, err := cfg.ActivateDormantUser(ctx, database.User{
+			ID:       id,
+			Username: actor.FriendlyName,
+			Status:   userStatus,
 		})
 		if err != nil {
 			return write(http.StatusInternalServerError, codersdk.Response{
 				Message: internalErrorMessage,
-				Detail:  fmt.Sprintf("can't activate a dormant user: %s", err.Error()),
+				Detail:  fmt.Sprintf("update user status: %s", err.Error()),
 			})
 		}
-		userStatus = u.Status
+		userStatus = user.Status
 	}
 
 	if userStatus != database.UserStatusActive {

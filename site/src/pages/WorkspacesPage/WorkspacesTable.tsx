@@ -11,9 +11,9 @@ import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import { visuallyHidden } from "@mui/utils";
 import type { Template, Workspace } from "api/typesGenerated";
-import { ExternalAvatar } from "components/Avatar/Avatar";
-import { AvatarData } from "components/AvatarData/AvatarData";
-import { AvatarDataSkeleton } from "components/AvatarData/AvatarDataSkeleton";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
+import { AvatarDataSkeleton } from "components/Avatar/AvatarDataSkeleton";
 import { InfoTooltip } from "components/InfoTooltip/InfoTooltip";
 import { Stack } from "components/Stack/Stack";
 import {
@@ -186,15 +186,11 @@ export const WorkspacesTable: FC<WorkspacesTableProps> = ({
 												</div>
 											}
 											avatar={
-												<ExternalAvatar
+												<Avatar
+													variant="icon"
 													src={workspace.template_icon}
-													variant={
-														workspace.template_icon ? "square" : undefined
-													}
-													fitImage={Boolean(workspace.template_icon)}
-												>
-													{workspace.name}
-												</ExternalAvatar>
+													fallback={workspace.name}
+												/>
 											}
 										/>
 									</div>

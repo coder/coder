@@ -17,10 +17,10 @@ const (
 	// requirement where we skip the requirement and fall back to the next
 	// scheduled stop. This avoids workspaces being stopped too soon.
 	//
-	// E.g. If the workspace is started within an hour of the quiet hours, we
+	// E.g. If the workspace is started within two hours of the quiet hours, we
 	//      will skip the autostop requirement and use the next scheduled
 	//      stop time instead.
-	autostopRequirementLeeway = 1 * time.Hour
+	autostopRequirementLeeway = 2 * time.Hour
 
 	// autostopRequirementBuffer is the duration of time we subtract from the
 	// time when calculating the next scheduled stop time. This avoids issues
@@ -51,7 +51,7 @@ type CalculateAutostopParams struct {
 	WorkspaceAutostart string
 
 	Now       time.Time
-	Workspace database.Workspace
+	Workspace database.WorkspaceTable
 }
 
 type AutostopTime struct {

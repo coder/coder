@@ -10,10 +10,11 @@ import (
 
 	"cdr.dev/slog/sloggers/slogtest"
 
+	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/enterprise/coderd/dormancy"
-	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
 
 func TestCheckInactiveUsers(t *testing.T) {
@@ -42,29 +43,34 @@ func TestCheckInactiveUsers(t *testing.T) {
 	suspendedUser2 := setupUser(ctx, t, db, "suspended-user-2@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-time.Hour))
 	suspendedUser3 := setupUser(ctx, t, db, "suspended-user-3@coder.com", database.UserStatusSuspended, time.Now().Add(-dormancyPeriod).Add(-6*time.Hour))
 
+	mAudit := audit.NewMock()
+	mClock := quartz.NewMock(t)
 	// Run the periodic job
-	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, db, interval, dormancyPeriod)
+	closeFunc := dormancy.CheckInactiveUsersWithOptions(ctx, logger, mClock, db, mAudit, interval, dormancyPeriod)
 	t.Cleanup(closeFunc)
 
-	var rows []database.GetUsersRow
-	var err error
-	require.Eventually(t, func() bool {
-		rows, err = db.GetUsers(ctx, database.GetUsersParams{})
-		if err != nil {
-			return false
-		}
+	dur, w := mClock.AdvanceNext()
+	require.Equal(t, interval, dur)
+	w.MustWait(ctx)
 
-		var dormant, suspended int
-		for _, row := range rows {
-			if row.Status == database.UserStatusDormant {
-				dormant++
-			} else if row.Status == database.UserStatusSuspended {
-				suspended++
-			}
+	rows, err := db.GetUsers(ctx, database.GetUsersParams{})
+	require.NoError(t, err)
+
+	var dormant, suspended int
+	for _, row := range rows {
+		if row.Status == database.UserStatusDormant {
+			dormant++
+		} else if row.Status == database.UserStatusSuspended {
+			suspended++
 		}
-		// 6 users in total, 3 dormant, 3 suspended
-		return len(rows) == 9 && dormant == 3 && suspended == 3
-	}, testutil.WaitShort, testutil.IntervalMedium)
+	}
+
+	// 9 users in total, 3 active, 3 dormant, 3 suspended
+	require.Len(t, rows, 9)
+	require.Equal(t, 3, dormant)
+	require.Equal(t, 3, suspended)
+
+	require.Len(t, mAudit.AuditLogs(), 3)
 
 	allUsers := ignoreUpdatedAt(database.ConvertUserRows(rows))
 

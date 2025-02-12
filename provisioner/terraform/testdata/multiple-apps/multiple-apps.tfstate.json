@@ -1,6 +1,6 @@
 {
   "format_version": "1.0",
-  "terraform_version": "1.9.2",
+  "terraform_version": "1.9.8",
   "values": {
     "root_module": {
       "resources": [
@@ -10,7 +10,7 @@
           "type": "coder_agent",
           "name": "dev1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
             "arch": "amd64",
             "auth": "token",
@@ -26,19 +26,17 @@
               }
             ],
             "env": null,
-            "id": "af75acda-ef6d-4f1f-97e3-31133118b1b9",
+            "id": "cae4d590-8332-45b6-9453-e0151ca4f219",
             "init_script": "",
-            "login_before_ready": true,
             "metadata": [],
             "motd_file": null,
             "order": null,
             "os": "linux",
+            "resources_monitoring": [],
             "shutdown_script": null,
-            "shutdown_script_timeout": 300,
             "startup_script": null,
-            "startup_script_behavior": null,
-            "startup_script_timeout": 300,
-            "token": "eb7478f3-26ff-4c6d-b307-7c5cb78c692d",
+            "startup_script_behavior": "non-blocking",
+            "token": "6db086ba-440b-4e66-8803-80e021cda61a",
             "troubleshooting_url": null
           },
           "sensitive_values": {
@@ -46,6 +44,7 @@
               {}
             ],
             "metadata": [],
+            "resources_monitoring": [],
             "token": true
           }
         },
@@ -55,18 +54,18 @@
           "type": "coder_app",
           "name": "app1",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
-            "agent_id": "af75acda-ef6d-4f1f-97e3-31133118b1b9",
+            "agent_id": "cae4d590-8332-45b6-9453-e0151ca4f219",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
+            "hidden": false,
             "icon": null,
-            "id": "ae194f56-c14c-4d04-a05b-7cd9c4a95dbe",
-            "name": null,
+            "id": "64803468-4ec4-49fe-beb7-e65eaf8e01ca",
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app1",
             "subdomain": null,
@@ -85,9 +84,9 @@
           "type": "coder_app",
           "name": "app2",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
-            "agent_id": "af75acda-ef6d-4f1f-97e3-31133118b1b9",
+            "agent_id": "cae4d590-8332-45b6-9453-e0151ca4f219",
             "command": null,
             "display_name": null,
             "external": false,
@@ -98,11 +97,11 @@
                 "url": "http://localhost:13337/healthz"
               }
             ],
+            "hidden": false,
             "icon": null,
-            "id": "8254828f-8582-497a-8f9d-c2bc2b3495cc",
-            "name": null,
+            "id": "df3f07ab-1796-41c9-8e7d-b957dca031d4",
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app2",
             "subdomain": true,
@@ -123,18 +122,18 @@
           "type": "coder_app",
           "name": "app3",
           "provider_name": "registry.terraform.io/coder/coder",
-          "schema_version": 0,
+          "schema_version": 1,
           "values": {
-            "agent_id": "af75acda-ef6d-4f1f-97e3-31133118b1b9",
+            "agent_id": "cae4d590-8332-45b6-9453-e0151ca4f219",
             "command": null,
             "display_name": null,
             "external": false,
             "healthcheck": [],
+            "hidden": false,
             "icon": null,
-            "id": "ec4dea85-191b-4543-b19c-90f298c514fb",
-            "name": null,
+            "id": "fdb06774-4140-42ef-989b-12b98254b27c",
+            "open_in": "slim-window",
             "order": null,
-            "relative_path": null,
             "share": "owner",
             "slug": "app3",
             "subdomain": false,
@@ -155,7 +154,7 @@
           "provider_name": "registry.terraform.io/hashicorp/null",
           "schema_version": 0,
           "values": {
-            "id": "7610101534452317567",
+            "id": "8206837964247342986",
             "triggers": null
           },
           "sensitive_values": {},

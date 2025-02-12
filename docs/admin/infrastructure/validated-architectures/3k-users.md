@@ -18,15 +18,15 @@ continuously improve the reliability and performance of the platform.
 
 ### Coderd nodes
 
-| Users       | Node capacity        | Replicas          | GCP             | AWS         | Azure             |
-| ----------- | -------------------- | ----------------- | --------------- | ----------- | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 4 / 1 coderd each | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
+| Users       | Node capacity        | Replicas              | GCP             | AWS         | Azure             |
+|-------------|----------------------|-----------------------|-----------------|-------------|-------------------|
+| Up to 3,000 | 8 vCPU, 32 GB memory | 4 node, 1 coderd each | `n1-standard-4` | `t3.xlarge` | `Standard_D4s_v3` |
 
 ### Provisioner nodes
 
-| Users       | Node capacity        | Replicas                 | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 8 / 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
+|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
+| Up to 3,000 | 8 vCPU, 32 GB memory | 8 nodes, 30 provisioners each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -38,9 +38,9 @@ continuously improve the reliability and performance of the platform.
 
 ### Workspace nodes
 
-| Users       | Node capacity        | Replicas                       | GCP              | AWS          | Azure             |
-| ----------- | -------------------- | ------------------------------ | ---------------- | ------------ | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 256 nodes / 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
+| Users       | Node capacity        | Replicas                      | GCP              | AWS          | Azure             |
+|-------------|----------------------|-------------------------------|------------------|--------------|-------------------|
+| Up to 3,000 | 8 vCPU, 32 GB memory | 256 nodes, 12 workspaces each | `t2d-standard-8` | `t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 
@@ -53,8 +53,8 @@ continuously improve the reliability and performance of the platform.
 ### Database nodes
 
 | Users       | Node capacity        | Replicas | Storage | GCP                 | AWS             | Azure             |
-| ----------- | -------------------- | -------- | ------- | ------------------- | --------------- | ----------------- |
-| Up to 3,000 | 8 vCPU, 32 GB memory | 2        | 1.5 TB  | `db-custom-8-30720` | `db.t3.2xlarge` | `Standard_D8s_v3` |
+|-------------|----------------------|----------|---------|---------------------|-----------------|-------------------|
+| Up to 3,000 | 8 vCPU, 32 GB memory | 2 nodes  | 1.5 TB  | `db-custom-8-30720` | `db.t3.2xlarge` | `Standard_D8s_v3` |
 
 **Footnotes**:
 

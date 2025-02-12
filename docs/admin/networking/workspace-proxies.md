@@ -4,7 +4,8 @@ Workspace proxies provide low-latency experiences for geo-distributed teams.
 
 Coder's networking does a best effort to make direct connections to a workspace.
 In situations where this is not possible, such as connections via the web
-terminal and [web IDEs](../../user-guides/workspace-access/index.md#web-ides),
+terminal and
+[web IDEs](../../user-guides/workspace-access/index.md#other-web-ides),
 workspace proxies are able to reduce the amount of distance the network traffic
 needs to travel.
 
@@ -13,13 +14,11 @@ connecting with their workspace over SSH, a workspace app, port forwarding, etc.
 Dashboard connections and API calls (e.g. the workspaces list) are not served
 over workspace proxies.
 
-![ProxyDiagram](../../images/admin/networking/workspace-proxies/proxydiagram.png)
+## Deploy a workspace proxy
 
-# Deploy a workspace proxy
-
-Each workspace proxy should be a unique instance. At no point should 2 workspace
-proxy instances share the same authentication token. They only require port 443
-to be open and are expected to have network connectivity to the coderd
+Each workspace proxy should be a unique instance. At no point should two
+workspace proxy instances share the same authentication token. They only require
+port 443 to be open and are expected to have network connectivity to the coderd
 dashboard. Workspace proxies **do not** make any database connections.
 
 Workspace proxies can be used in the browser by navigating to the user
@@ -56,12 +55,13 @@ Deploying the workspace proxy will also register the proxy with coderd and make
 the workspace proxy usable. If the proxy deployment is successful,
 `coder wsproxy ls` will show an `ok` status code:
 
-```
+```shell
 $ coder wsproxy ls
 NAME              URL                         STATUS STATUS
-brazil-saopaulo   https://brazil.example.com  ok
-europe-frankfurt  https://europe.example.com  ok
-sydney            https://sydney.example.com  ok
+primary           https://dev.coder.com        ok
+brazil-saopaulo   https://brazil.example.com   ok
+europe-frankfurt  https://europe.example.com   ok
+sydney            https://sydney.example.com   ok
 ```
 
 Other Status codes:

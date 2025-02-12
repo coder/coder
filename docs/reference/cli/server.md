@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # server
 
 Start a Coder server
@@ -13,7 +12,7 @@ coder server [flags]
 ## Subcommands
 
 | Name                                                                      | Purpose                                                                                                |
-| ------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+|---------------------------------------------------------------------------|--------------------------------------------------------------------------------------------------------|
 | [<code>create-admin-user</code>](./server_create-admin-user.md)           | Create a new admin user with the given username, email and password and adds it to every organization. |
 | [<code>postgres-builtin-url</code>](./server_postgres-builtin-url.md)     | Output the connection URL for the built-in PostgreSQL deployment.                                      |
 | [<code>postgres-builtin-serve</code>](./server_postgres-builtin-serve.md) | Run the built-in PostgreSQL deployment.                                                                |
@@ -24,7 +23,7 @@ coder server [flags]
 ### --access-url
 
 |             |                                   |
-| ----------- | --------------------------------- |
+|-------------|-----------------------------------|
 | Type        | <code>url</code>                  |
 | Environment | <code>$CODER_ACCESS_URL</code>    |
 | YAML        | <code>networking.accessURL</code> |
@@ -34,17 +33,17 @@ The URL that users will use to access the Coder deployment.
 ### --wildcard-access-url
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WILDCARD_ACCESS_URL</code>   |
 | YAML        | <code>networking.wildcardAccessURL</code> |
 
-Specifies the wildcard hostname to use for workspace applications in the form "\*.example.com".
+Specifies the wildcard hostname to use for workspace applications in the form "*.example.com".
 
 ### --docs-url
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>url</code>                    |
 | Environment | <code>$CODER_DOCS_URL</code>        |
 | YAML        | <code>networking.docsURL</code>     |
@@ -55,7 +54,7 @@ Specifies the custom docs URL.
 ### --redirect-to-access-url
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>bool</code>                           |
 | Environment | <code>$CODER_REDIRECT_TO_ACCESS_URL</code>  |
 | YAML        | <code>networking.redirectToAccessURL</code> |
@@ -65,7 +64,7 @@ Specifies whether to redirect requests that do not match the access URL host.
 ### --http-address
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_HTTP_ADDRESS</code>         |
 | YAML        | <code>networking.http.httpAddress</code> |
@@ -76,7 +75,7 @@ HTTP bind address of the server. Unset to disable the HTTP endpoint.
 ### --tls-address
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>host:port</code>              |
 | Environment | <code>$CODER_TLS_ADDRESS</code>     |
 | YAML        | <code>networking.tls.address</code> |
@@ -87,7 +86,7 @@ HTTPS bind address of the server.
 ### --tls-enable
 
 |             |                                    |
-| ----------- | ---------------------------------- |
+|-------------|------------------------------------|
 | Type        | <code>bool</code>                  |
 | Environment | <code>$CODER_TLS_ENABLE</code>     |
 | YAML        | <code>networking.tls.enable</code> |
@@ -97,7 +96,7 @@ Whether TLS will be enabled.
 ### --tls-cert-file
 
 |             |                                       |
-| ----------- | ------------------------------------- |
+|-------------|---------------------------------------|
 | Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_TLS_CERT_FILE</code>     |
 | YAML        | <code>networking.tls.certFiles</code> |
@@ -107,7 +106,7 @@ Path to each certificate for TLS. It requires a PEM-encoded file. To configure t
 ### --tls-client-ca-file
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_TLS_CLIENT_CA_FILE</code>   |
 | YAML        | <code>networking.tls.clientCAFile</code> |
@@ -117,7 +116,7 @@ PEM-encoded Certificate Authority file used for checking the authenticity of cli
 ### --tls-client-auth
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_TLS_CLIENT_AUTH</code>    |
 | YAML        | <code>networking.tls.clientAuth</code> |
@@ -128,7 +127,7 @@ Policy the server will follow for TLS Client Authentication. Accepted values are
 ### --tls-key-file
 
 |             |                                      |
-| ----------- | ------------------------------------ |
+|-------------|--------------------------------------|
 | Type        | <code>string-array</code>            |
 | Environment | <code>$CODER_TLS_KEY_FILE</code>     |
 | YAML        | <code>networking.tls.keyFiles</code> |
@@ -138,7 +137,7 @@ Paths to the private keys for each of the certificates. It requires a PEM-encode
 ### --tls-min-version
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_TLS_MIN_VERSION</code>    |
 | YAML        | <code>networking.tls.minVersion</code> |
@@ -149,7 +148,7 @@ Minimum supported version of TLS. Accepted values are "tls10", "tls11", "tls12" 
 ### --tls-client-cert-file
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_TLS_CLIENT_CERT_FILE</code>   |
 | YAML        | <code>networking.tls.clientCertFile</code> |
@@ -159,7 +158,7 @@ Path to certificate for client TLS authentication. It requires a PEM-encoded fil
 ### --tls-client-key-file
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_TLS_CLIENT_KEY_FILE</code>   |
 | YAML        | <code>networking.tls.clientKeyFile</code> |
@@ -169,7 +168,7 @@ Path to key for client TLS authentication. It requires a PEM-encoded file.
 ### --tls-ciphers
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>string-array</code>              |
 | Environment | <code>$CODER_TLS_CIPHERS</code>        |
 | YAML        | <code>networking.tls.tlsCiphers</code> |
@@ -179,7 +178,7 @@ Specify specific TLS ciphers that allowed to be used. See https://github.com/gol
 ### --tls-allow-insecure-ciphers
 
 |             |                                                     |
-| ----------- | --------------------------------------------------- |
+|-------------|-----------------------------------------------------|
 | Type        | <code>bool</code>                                   |
 | Environment | <code>$CODER_TLS_ALLOW_INSECURE_CIPHERS</code>      |
 | YAML        | <code>networking.tls.tlsAllowInsecureCiphers</code> |
@@ -190,7 +189,7 @@ By default, only ciphers marked as 'secure' are allowed to be used. See https://
 ### --derp-server-enable
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_DERP_SERVER_ENABLE</code> |
 | YAML        | <code>networking.derp.enable</code>    |
@@ -201,7 +200,7 @@ Whether to enable or disable the embedded DERP relay server.
 ### --derp-server-region-name
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_DERP_SERVER_REGION_NAME</code> |
 | YAML        | <code>networking.derp.regionName</code>     |
@@ -212,7 +211,7 @@ Region name that for the embedded DERP server.
 ### --derp-server-stun-addresses
 
 |             |                                                                                                                                          |
-| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
+|-------------|------------------------------------------------------------------------------------------------------------------------------------------|
 | Type        | <code>string-array</code>                                                                                                                |
 | Environment | <code>$CODER_DERP_SERVER_STUN_ADDRESSES</code>                                                                                           |
 | YAML        | <code>networking.derp.stunAddresses</code>                                                                                               |
@@ -223,7 +222,7 @@ Addresses for STUN servers to establish P2P connections. It's recommended to hav
 ### --derp-server-relay-url
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>url</code>                          |
 | Environment | <code>$CODER_DERP_SERVER_RELAY_URL</code> |
 | YAML        | <code>networking.derp.relayURL</code>     |
@@ -233,7 +232,7 @@ An HTTP URL that is accessible by other replicas to relay DERP traffic. Required
 ### --block-direct-connections
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_BLOCK_DIRECT</code>         |
 | YAML        | <code>networking.derp.blockDirect</code> |
@@ -243,7 +242,7 @@ Block peer-to-peer (aka. direct) workspace connections. All workspace connection
 ### --derp-force-websockets
 
 |             |                                              |
-| ----------- | -------------------------------------------- |
+|-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_DERP_FORCE_WEBSOCKETS</code>    |
 | YAML        | <code>networking.derp.forceWebSockets</code> |
@@ -253,7 +252,7 @@ Force clients and agents to always use WebSocket to connect to DERP relay server
 ### --derp-config-url
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_DERP_CONFIG_URL</code> |
 | YAML        | <code>networking.derp.url</code>    |
@@ -263,7 +262,7 @@ URL to fetch a DERP mapping on startup. See: https://tailscale.com/kb/1118/custo
 ### --derp-config-path
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_DERP_CONFIG_PATH</code>    |
 | YAML        | <code>networking.derp.configPath</code> |
@@ -273,7 +272,7 @@ Path to read a DERP mapping from. See: https://tailscale.com/kb/1118/custom-derp
 ### --prometheus-enable
 
 |             |                                              |
-| ----------- | -------------------------------------------- |
+|-------------|----------------------------------------------|
 | Type        | <code>bool</code>                            |
 | Environment | <code>$CODER_PROMETHEUS_ENABLE</code>        |
 | YAML        | <code>introspection.prometheus.enable</code> |
@@ -283,7 +282,7 @@ Serve prometheus metrics on the address defined by prometheus address.
 ### --prometheus-address
 
 |             |                                               |
-| ----------- | --------------------------------------------- |
+|-------------|-----------------------------------------------|
 | Type        | <code>host:port</code>                        |
 | Environment | <code>$CODER_PROMETHEUS_ADDRESS</code>        |
 | YAML        | <code>introspection.prometheus.address</code> |
@@ -294,7 +293,7 @@ The bind address to serve prometheus metrics.
 ### --prometheus-collect-agent-stats
 
 |             |                                                           |
-| ----------- | --------------------------------------------------------- |
+|-------------|-----------------------------------------------------------|
 | Type        | <code>bool</code>                                         |
 | Environment | <code>$CODER_PROMETHEUS_COLLECT_AGENT_STATS</code>        |
 | YAML        | <code>introspection.prometheus.collect_agent_stats</code> |
@@ -304,7 +303,7 @@ Collect agent stats (may increase charges for metrics storage).
 ### --prometheus-aggregate-agent-stats-by
 
 |             |                                                                |
-| ----------- | -------------------------------------------------------------- |
+|-------------|----------------------------------------------------------------|
 | Type        | <code>string-array</code>                                      |
 | Environment | <code>$CODER_PROMETHEUS_AGGREGATE_AGENT_STATS_BY</code>        |
 | YAML        | <code>introspection.prometheus.aggregate_agent_stats_by</code> |
@@ -315,18 +314,18 @@ When collecting agent stats, aggregate metrics by a given set of comma-separated
 ### --prometheus-collect-db-metrics
 
 |             |                                                          |
-| ----------- | -------------------------------------------------------- |
+|-------------|----------------------------------------------------------|
 | Type        | <code>bool</code>                                        |
 | Environment | <code>$CODER_PROMETHEUS_COLLECT_DB_METRICS</code>        |
 | YAML        | <code>introspection.prometheus.collect_db_metrics</code> |
 | Default     | <code>false</code>                                       |
 
-Collect database metrics (may increase charges for metrics storage).
+Collect database query metrics (may increase charges for metrics storage). If set to false, a reduced set of database metrics are still collected.
 
 ### --pprof-enable
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>bool</code>                       |
 | Environment | <code>$CODER_PPROF_ENABLE</code>        |
 | YAML        | <code>introspection.pprof.enable</code> |
@@ -336,7 +335,7 @@ Serve pprof metrics on the address defined by pprof address.
 ### --pprof-address
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>host:port</code>                   |
 | Environment | <code>$CODER_PPROF_ADDRESS</code>        |
 | YAML        | <code>introspection.pprof.address</code> |
@@ -347,7 +346,7 @@ The bind address to serve pprof.
 ### --oauth2-github-client-id
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_ID</code> |
 | YAML        | <code>oauth2.github.clientID</code>         |
@@ -357,7 +356,7 @@ Client ID for Login with GitHub.
 ### --oauth2-github-client-secret
 
 |             |                                                 |
-| ----------- | ----------------------------------------------- |
+|-------------|-------------------------------------------------|
 | Type        | <code>string</code>                             |
 | Environment | <code>$CODER_OAUTH2_GITHUB_CLIENT_SECRET</code> |
 
@@ -366,7 +365,7 @@ Client secret for Login with GitHub.
 ### --oauth2-github-allowed-orgs
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>string-array</code>                      |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_ORGS</code> |
 | YAML        | <code>oauth2.github.allowedOrgs</code>         |
@@ -376,7 +375,7 @@ Organizations the user must be a member of to Login with GitHub.
 ### --oauth2-github-allowed-teams
 
 |             |                                                 |
-| ----------- | ----------------------------------------------- |
+|-------------|-------------------------------------------------|
 | Type        | <code>string-array</code>                       |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOWED_TEAMS</code> |
 | YAML        | <code>oauth2.github.allowedTeams</code>         |
@@ -386,7 +385,7 @@ Teams inside organizations the user must be a member of to Login with GitHub. St
 ### --oauth2-github-allow-signups
 
 |             |                                                 |
-| ----------- | ----------------------------------------------- |
+|-------------|-------------------------------------------------|
 | Type        | <code>bool</code>                               |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_SIGNUPS</code> |
 | YAML        | <code>oauth2.github.allowSignups</code>         |
@@ -396,7 +395,7 @@ Whether new users can sign up with GitHub.
 ### --oauth2-github-allow-everyone
 
 |             |                                                  |
-| ----------- | ------------------------------------------------ |
+|-------------|--------------------------------------------------|
 | Type        | <code>bool</code>                                |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ALLOW_EVERYONE</code> |
 | YAML        | <code>oauth2.github.allowEveryone</code>         |
@@ -406,7 +405,7 @@ Allow all logins, setting this option means allowed orgs and teams must be empty
 ### --oauth2-github-enterprise-base-url
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_OAUTH2_GITHUB_ENTERPRISE_BASE_URL</code> |
 | YAML        | <code>oauth2.github.enterpriseBaseURL</code>          |
@@ -416,7 +415,7 @@ Base URL of a GitHub Enterprise deployment to use for Login with GitHub.
 ### --oidc-allow-signups
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_OIDC_ALLOW_SIGNUPS</code> |
 | YAML        | <code>oidc.allowSignups</code>         |
@@ -427,7 +426,7 @@ Whether new users can sign up with OIDC.
 ### --oidc-client-id
 
 |             |                                    |
-| ----------- | ---------------------------------- |
+|-------------|------------------------------------|
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_OIDC_CLIENT_ID</code> |
 | YAML        | <code>oidc.clientID</code>         |
@@ -437,7 +436,7 @@ Client ID to use for Login with OIDC.
 ### --oidc-client-secret
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>string</code>                    |
 | Environment | <code>$CODER_OIDC_CLIENT_SECRET</code> |
 
@@ -446,7 +445,7 @@ Client secret to use for Login with OIDC.
 ### --oidc-client-key-file
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_OIDC_CLIENT_KEY_FILE</code> |
 | YAML        | <code>oidc.oidcClientKeyFile</code>      |
@@ -456,7 +455,7 @@ Pem encoded RSA private key to use for oauth2 PKI/JWT authorization. This can be
 ### --oidc-client-cert-file
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_OIDC_CLIENT_CERT_FILE</code> |
 | YAML        | <code>oidc.oidcClientCertFile</code>      |
@@ -466,7 +465,7 @@ Pem encoded certificate file to use for oauth2 PKI/JWT authorization. The public
 ### --oidc-email-domain
 
 |             |                                       |
-| ----------- | ------------------------------------- |
+|-------------|---------------------------------------|
 | Type        | <code>string-array</code>             |
 | Environment | <code>$CODER_OIDC_EMAIL_DOMAIN</code> |
 | YAML        | <code>oidc.emailDomain</code>         |
@@ -476,7 +475,7 @@ Email domains that clients logging in with OIDC must match.
 ### --oidc-issuer-url
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OIDC_ISSUER_URL</code> |
 | YAML        | <code>oidc.issuerURL</code>         |
@@ -486,7 +485,7 @@ Issuer URL to use for Login with OIDC.
 ### --oidc-scopes
 
 |             |                                   |
-| ----------- | --------------------------------- |
+|-------------|-----------------------------------|
 | Type        | <code>string-array</code>         |
 | Environment | <code>$CODER_OIDC_SCOPES</code>   |
 | YAML        | <code>oidc.scopes</code>          |
@@ -497,7 +496,7 @@ Scopes to grant when authenticating with OIDC.
 ### --oidc-ignore-email-verified
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_OIDC_IGNORE_EMAIL_VERIFIED</code> |
 | YAML        | <code>oidc.ignoreEmailVerified</code>          |
@@ -507,7 +506,7 @@ Ignore the email_verified claim from the upstream provider.
 ### --oidc-username-field
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_OIDC_USERNAME_FIELD</code> |
 | YAML        | <code>oidc.usernameField</code>         |
@@ -518,7 +517,7 @@ OIDC claim field to use as the username.
 ### --oidc-name-field
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_OIDC_NAME_FIELD</code> |
 | YAML        | <code>oidc.nameField</code>         |
@@ -529,7 +528,7 @@ OIDC claim field to use as the name.
 ### --oidc-email-field
 
 |             |                                      |
-| ----------- | ------------------------------------ |
+|-------------|--------------------------------------|
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_OIDC_EMAIL_FIELD</code> |
 | YAML        | <code>oidc.emailField</code>         |
@@ -540,7 +539,7 @@ OIDC claim field to use as the email.
 ### --oidc-auth-url-params
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>struct[map[string]string]</code>   |
 | Environment | <code>$CODER_OIDC_AUTH_URL_PARAMS</code> |
 | YAML        | <code>oidc.authURLParams</code>          |
@@ -551,7 +550,7 @@ OIDC auth URL parameters to pass to the upstream provider.
 ### --oidc-ignore-userinfo
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_OIDC_IGNORE_USERINFO</code> |
 | YAML        | <code>oidc.ignoreUserInfo</code>         |
@@ -559,42 +558,10 @@ OIDC auth URL parameters to pass to the upstream provider.
 
 Ignore the userinfo endpoint and only use the ID token for user information.
 
-### --oidc-organization-field
-
-|             |                                             |
-| ----------- | ------------------------------------------- |
-| Type        | <code>string</code>                         |
-| Environment | <code>$CODER_OIDC_ORGANIZATION_FIELD</code> |
-| YAML        | <code>oidc.organizationField</code>         |
-
-This field must be set if using the organization sync feature. Set to the claim to be used for organizations.
-
-### --oidc-organization-assign-default
-
-|             |                                                      |
-| ----------- | ---------------------------------------------------- |
-| Type        | <code>bool</code>                                    |
-| Environment | <code>$CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT</code> |
-| YAML        | <code>oidc.organizationAssignDefault</code>          |
-| Default     | <code>true</code>                                    |
-
-If set to true, users will always be added to the default organization. If organization sync is enabled, then the default org is always added to the user's set of expectedorganizations.
-
-### --oidc-organization-mapping
-
-|             |                                               |
-| ----------- | --------------------------------------------- |
-| Type        | <code>struct[map[string][]uuid.UUID]</code>   |
-| Environment | <code>$CODER_OIDC_ORGANIZATION_MAPPING</code> |
-| YAML        | <code>oidc.organizationMapping</code>         |
-| Default     | <code>{}</code>                               |
-
-A map of OIDC claims and the organizations in Coder it should map to. This is required because organization IDs must be used within Coder.
-
 ### --oidc-group-field
 
 |             |                                      |
-| ----------- | ------------------------------------ |
+|-------------|--------------------------------------|
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_OIDC_GROUP_FIELD</code> |
 | YAML        | <code>oidc.groupField</code>         |
@@ -604,7 +571,7 @@ This field must be set if using the group sync feature and the scope name is not
 ### --oidc-group-mapping
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>struct[map[string]string]</code> |
 | Environment | <code>$CODER_OIDC_GROUP_MAPPING</code> |
 | YAML        | <code>oidc.groupMapping</code>         |
@@ -615,7 +582,7 @@ A map of OIDC group IDs and the group in Coder it should map to. This is useful 
 ### --oidc-group-auto-create
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>bool</code>                          |
 | Environment | <code>$CODER_OIDC_GROUP_AUTO_CREATE</code> |
 | YAML        | <code>oidc.enableGroupAutoCreate</code>    |
@@ -626,18 +593,18 @@ Automatically creates missing groups from a user's groups claim.
 ### --oidc-group-regex-filter
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>regexp</code>                         |
 | Environment | <code>$CODER_OIDC_GROUP_REGEX_FILTER</code> |
 | YAML        | <code>oidc.groupRegexFilter</code>          |
-| Default     | <code>.\*</code>                            |
+| Default     | <code>.*</code>                             |
 
 If provided any group name not matching the regex is ignored. This allows for filtering out groups that are not needed. This filter is applied after the group mapping.
 
 ### --oidc-allowed-groups
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>string-array</code>               |
 | Environment | <code>$CODER_OIDC_ALLOWED_GROUPS</code> |
 | YAML        | <code>oidc.groupAllowed</code>          |
@@ -647,7 +614,7 @@ If provided any group name not in the list will not be allowed to authenticate. 
 ### --oidc-user-role-field
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_OIDC_USER_ROLE_FIELD</code> |
 | YAML        | <code>oidc.userRoleField</code>          |
@@ -657,7 +624,7 @@ This field must be set if using the user roles sync feature. Set this to the nam
 ### --oidc-user-role-mapping
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>struct[map[string][]string]</code>   |
 | Environment | <code>$CODER_OIDC_USER_ROLE_MAPPING</code> |
 | YAML        | <code>oidc.userRoleMapping</code>          |
@@ -668,7 +635,7 @@ A map of the OIDC passed in user roles and the groups in Coder it should map to.
 ### --oidc-user-role-default
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>string-array</code>                  |
 | Environment | <code>$CODER_OIDC_USER_ROLE_DEFAULT</code> |
 | YAML        | <code>oidc.userRoleDefault</code>          |
@@ -678,7 +645,7 @@ If user role sync is enabled, these roles are always included for all authentica
 ### --oidc-sign-in-text
 
 |             |                                       |
-| ----------- | ------------------------------------- |
+|-------------|---------------------------------------|
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_OIDC_SIGN_IN_TEXT</code> |
 | YAML        | <code>oidc.signInText</code>          |
@@ -689,7 +656,7 @@ The text to show on the OpenID Connect sign in button.
 ### --oidc-icon-url
 
 |             |                                   |
-| ----------- | --------------------------------- |
+|-------------|-----------------------------------|
 | Type        | <code>url</code>                  |
 | Environment | <code>$CODER_OIDC_ICON_URL</code> |
 | YAML        | <code>oidc.iconURL</code>         |
@@ -699,7 +666,7 @@ URL pointing to the icon to use on the OpenID Connect login button.
 ### --oidc-signups-disabled-text
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>string</code>                            |
 | Environment | <code>$CODER_OIDC_SIGNUPS_DISABLED_TEXT</code> |
 | YAML        | <code>oidc.signupsDisabledText</code>          |
@@ -709,7 +676,7 @@ The custom text to show on the error page informing about disabled OIDC signups.
 ### --dangerous-oidc-skip-issuer-checks
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>bool</code>                                     |
 | Environment | <code>$CODER_DANGEROUS_OIDC_SKIP_ISSUER_CHECKS</code> |
 | YAML        | <code>oidc.dangerousSkipIssuerChecks</code>           |
@@ -719,7 +686,7 @@ OIDC issuer urls must match in the request, the id_token 'iss' claim, and in the
 ### --telemetry
 
 |             |                                      |
-| ----------- | ------------------------------------ |
+|-------------|--------------------------------------|
 | Type        | <code>bool</code>                    |
 | Environment | <code>$CODER_TELEMETRY_ENABLE</code> |
 | YAML        | <code>telemetry.enable</code>        |
@@ -730,7 +697,7 @@ Whether telemetry is enabled or not. Coder collects anonymized usage data to hel
 ### --trace
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>bool</code>                         |
 | Environment | <code>$CODER_TRACE_ENABLE</code>          |
 | YAML        | <code>introspection.tracing.enable</code> |
@@ -740,7 +707,7 @@ Whether application tracing data is collected. It exports to a backend configure
 ### --trace-honeycomb-api-key
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_TRACE_HONEYCOMB_API_KEY</code> |
 
@@ -749,7 +716,7 @@ Enables trace exporting to Honeycomb.io using the provided API Key.
 ### --trace-logs
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_TRACE_LOGS</code>                 |
 | YAML        | <code>introspection.tracing.captureLogs</code> |
@@ -759,7 +726,7 @@ Enables capturing of logs as events in traces. This is useful for debugging, but
 ### --provisioner-daemons
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>int</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMONS</code> |
 | YAML        | <code>provisioning.daemons</code>       |
@@ -770,7 +737,7 @@ Number of provisioner daemons to create on start. If builds are stuck in queued 
 ### --provisioner-daemon-poll-interval
 
 |             |                                                      |
-| ----------- | ---------------------------------------------------- |
+|-------------|------------------------------------------------------|
 | Type        | <code>duration</code>                                |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_INTERVAL</code> |
 | YAML        | <code>provisioning.daemonPollInterval</code>         |
@@ -781,7 +748,7 @@ Deprecated and ignored.
 ### --provisioner-daemon-poll-jitter
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>duration</code>                              |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_POLL_JITTER</code> |
 | YAML        | <code>provisioning.daemonPollJitter</code>         |
@@ -792,7 +759,7 @@ Deprecated and ignored.
 ### --provisioner-force-cancel-interval
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>duration</code>                                 |
 | Environment | <code>$CODER_PROVISIONER_FORCE_CANCEL_INTERVAL</code> |
 | YAML        | <code>provisioning.forceCancelInterval</code>         |
@@ -803,7 +770,7 @@ Time to force cancel provisioning tasks that are stuck.
 ### --provisioner-daemon-psk
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>string</code>                        |
 | Environment | <code>$CODER_PROVISIONER_DAEMON_PSK</code> |
 
@@ -812,17 +779,17 @@ Pre-shared key to authenticate external provisioner daemons to Coder server.
 ### -l, --log-filter
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>string-array</code>                 |
 | Environment | <code>$CODER_LOG_FILTER</code>            |
 | YAML        | <code>introspection.logging.filter</code> |
 
-Filter debug logs by matching against a given regex. Use .\* to match all debug logs.
+Filter debug logs by matching against a given regex. Use .* to match all debug logs.
 
 ### --log-human
 
 |             |                                              |
-| ----------- | -------------------------------------------- |
+|-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_LOGGING_HUMAN</code>            |
 | YAML        | <code>introspection.logging.humanPath</code> |
@@ -833,7 +800,7 @@ Output human-readable logs to a given file.
 ### --log-json
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string</code>                         |
 | Environment | <code>$CODER_LOGGING_JSON</code>            |
 | YAML        | <code>introspection.logging.jsonPath</code> |
@@ -843,7 +810,7 @@ Output JSON logs to a given file.
 ### --log-stackdriver
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>string</code>                                |
 | Environment | <code>$CODER_LOGGING_STACKDRIVER</code>            |
 | YAML        | <code>introspection.logging.stackdriverPath</code> |
@@ -853,7 +820,7 @@ Output Stackdriver compatible logs to a given file.
 ### --enable-terraform-debug-mode
 
 |             |                                                             |
-| ----------- | ----------------------------------------------------------- |
+|-------------|-------------------------------------------------------------|
 | Type        | <code>bool</code>                                           |
 | Environment | <code>$CODER_ENABLE_TERRAFORM_DEBUG_MODE</code>             |
 | YAML        | <code>introspection.logging.enableTerraformDebugMode</code> |
@@ -861,10 +828,20 @@ Output Stackdriver compatible logs to a given file.
 
 Allow administrators to enable Terraform debug output.
 
+### --additional-csp-policy
+
+|             |                                                  |
+|-------------|--------------------------------------------------|
+| Type        | <code>string-array</code>                        |
+| Environment | <code>$CODER_ADDITIONAL_CSP_POLICY</code>        |
+| YAML        | <code>networking.http.additionalCSPPolicy</code> |
+
+Coder configures a Content Security Policy (CSP) to protect against XSS attacks. This setting allows you to add additional CSP directives, which can open the attack surface of the deployment. Format matches the CSP directive format, e.g. --additional-csp-policy="script-src https://example.com".
+
 ### --dangerous-allow-path-app-sharing
 
 |             |                                                      |
-| ----------- | ---------------------------------------------------- |
+|-------------|------------------------------------------------------|
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SHARING</code> |
 
@@ -873,7 +850,7 @@ Allow workspace apps that are not served from subdomains to be shared. Path-base
 ### --dangerous-allow-path-app-site-owner-access
 
 |             |                                                                |
-| ----------- | -------------------------------------------------------------- |
+|-------------|----------------------------------------------------------------|
 | Type        | <code>bool</code>                                              |
 | Environment | <code>$CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS</code> |
 
@@ -882,17 +859,17 @@ Allow site-owners to access workspace apps from workspaces they do not own. Owne
 ### --experiments
 
 |             |                                 |
-| ----------- | ------------------------------- |
+|-------------|---------------------------------|
 | Type        | <code>string-array</code>       |
 | Environment | <code>$CODER_EXPERIMENTS</code> |
 | YAML        | <code>experiments</code>        |
 
-Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '\*' to opt-in to all available experiments.
+Enable one or more experiments. These are not ready for production. Separate multiple experiments with commas, or enter '*' to opt-in to all available experiments.
 
 ### --update-check
 
 |             |                                  |
-| ----------- | -------------------------------- |
+|-------------|----------------------------------|
 | Type        | <code>bool</code>                |
 | Environment | <code>$CODER_UPDATE_CHECK</code> |
 | YAML        | <code>updateCheck</code>         |
@@ -903,7 +880,7 @@ Periodically check for new releases of Coder and inform the owner. The check is 
 ### --max-token-lifetime
 
 |             |                                               |
-| ----------- | --------------------------------------------- |
+|-------------|-----------------------------------------------|
 | Type        | <code>duration</code>                         |
 | Environment | <code>$CODER_MAX_TOKEN_LIFETIME</code>        |
 | YAML        | <code>networking.http.maxTokenLifetime</code> |
@@ -914,7 +891,7 @@ The maximum lifetime duration users can specify when creating an API token.
 ### --default-token-lifetime
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>duration</code>                      |
 | Environment | <code>$CODER_DEFAULT_TOKEN_LIFETIME</code> |
 | YAML        | <code>defaultTokenLifetime</code>          |
@@ -925,7 +902,7 @@ The default lifetime duration for API tokens. This value is used when creating a
 ### --swagger-enable
 
 |             |                                    |
-| ----------- | ---------------------------------- |
+|-------------|------------------------------------|
 | Type        | <code>bool</code>                  |
 | Environment | <code>$CODER_SWAGGER_ENABLE</code> |
 | YAML        | <code>enableSwagger</code>         |
@@ -935,7 +912,7 @@ Expose the swagger endpoint via /swagger.
 ### --proxy-trusted-headers
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string-array</code>                   |
 | Environment | <code>$CODER_PROXY_TRUSTED_HEADERS</code>   |
 | YAML        | <code>networking.proxyTrustedHeaders</code> |
@@ -945,7 +922,7 @@ Headers to trust for forwarding IP addresses. e.g. Cf-Connecting-Ip, True-Client
 ### --proxy-trusted-origins
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>string-array</code>                   |
 | Environment | <code>$CODER_PROXY_TRUSTED_ORIGINS</code>   |
 | YAML        | <code>networking.proxyTrustedOrigins</code> |
@@ -955,7 +932,7 @@ Origin addresses to respect "proxy-trusted-headers". e.g. 192.168.1.0/24.
 ### --cache-dir
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>string</code>                 |
 | Environment | <code>$CODER_CACHE_DIRECTORY</code> |
 | YAML        | <code>cacheDir</code>               |
@@ -966,27 +943,27 @@ The directory to cache temporary files. If unspecified and $CACHE_DIRECTORY is s
 ### --postgres-url
 
 |             |                                       |
-| ----------- | ------------------------------------- |
+|-------------|---------------------------------------|
 | Type        | <code>string</code>                   |
 | Environment | <code>$CODER_PG_CONNECTION_URL</code> |
 
-URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url".
+URL of a PostgreSQL database. If empty, PostgreSQL binaries will be downloaded from Maven (https://repo1.maven.org/maven2) and store all data in the config root. Access the built-in database with "coder server postgres-builtin-url". Note that any special characters in the URL must be URL-encoded.
 
 ### --postgres-auth
 
 |             |                                  |
-| ----------- | -------------------------------- |
+|-------------|----------------------------------|
 | Type        | <code>password\|awsiamrds</code> |
 | Environment | <code>$CODER_PG_AUTH</code>      |
 | YAML        | <code>pgAuth</code>              |
 | Default     | <code>password</code>            |
 
-Type of auth to use when connecting to postgres.
+Type of auth to use when connecting to postgres. For AWS RDS, using IAM authentication (awsiamrds) is recommended.
 
 ### --secure-auth-cookie
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>bool</code>                        |
 | Environment | <code>$CODER_SECURE_AUTH_COOKIE</code>   |
 | YAML        | <code>networking.secureAuthCookie</code> |
@@ -996,7 +973,7 @@ Controls if the 'Secure' property is set on browser session cookies.
 ### --terms-of-service-url
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_TERMS_OF_SERVICE_URL</code> |
 | YAML        | <code>termsOfServiceURL</code>           |
@@ -1006,7 +983,7 @@ A URL to an external Terms of Service that must be accepted by users when loggin
 ### --strict-transport-security
 
 |             |                                                     |
-| ----------- | --------------------------------------------------- |
+|-------------|-----------------------------------------------------|
 | Type        | <code>int</code>                                    |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY</code>       |
 | YAML        | <code>networking.tls.strictTransportSecurity</code> |
@@ -1017,7 +994,7 @@ Controls if the 'Strict-Transport-Security' header is set on all static file res
 ### --strict-transport-security-options
 
 |             |                                                            |
-| ----------- | ---------------------------------------------------------- |
+|-------------|------------------------------------------------------------|
 | Type        | <code>string-array</code>                                  |
 | Environment | <code>$CODER_STRICT_TRANSPORT_SECURITY_OPTIONS</code>      |
 | YAML        | <code>networking.tls.strictTransportSecurityOptions</code> |
@@ -1027,7 +1004,7 @@ Two optional fields can be set in the Strict-Transport-Security header; 'include
 ### --ssh-keygen-algorithm
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_SSH_KEYGEN_ALGORITHM</code> |
 | YAML        | <code>sshKeygenAlgorithm</code>          |
@@ -1038,7 +1015,7 @@ The algorithm to use for generating ssh keys. Accepted values are "ed25519", "ec
 ### --browser-only
 
 |             |                                     |
-| ----------- | ----------------------------------- |
+|-------------|-------------------------------------|
 | Type        | <code>bool</code>                   |
 | Environment | <code>$CODER_BROWSER_ONLY</code>    |
 | YAML        | <code>networking.browserOnly</code> |
@@ -1048,7 +1025,7 @@ Whether Coder only allows connections to workspaces via the browser.
 ### --scim-auth-header
 
 |             |                                      |
-| ----------- | ------------------------------------ |
+|-------------|--------------------------------------|
 | Type        | <code>string</code>                  |
 | Environment | <code>$CODER_SCIM_AUTH_HEADER</code> |
 
@@ -1057,7 +1034,7 @@ Enables SCIM and sets the authentication header for the built-in SCIM server. Ne
 ### --external-token-encryption-keys
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>string-array</code>                          |
 | Environment | <code>$CODER_EXTERNAL_TOKEN_ENCRYPTION_KEYS</code> |
 
@@ -1066,7 +1043,7 @@ Encrypt OIDC and Git authentication tokens with AES-256-GCM in the database. The
 ### --disable-path-apps
 
 |             |                                       |
-| ----------- | ------------------------------------- |
+|-------------|---------------------------------------|
 | Type        | <code>bool</code>                     |
 | Environment | <code>$CODER_DISABLE_PATH_APPS</code> |
 | YAML        | <code>disablePathApps</code>          |
@@ -1076,7 +1053,7 @@ Disable workspace apps that are not served from subdomains. Path-based apps can 
 ### --disable-owner-workspace-access
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>bool</code>                                  |
 | Environment | <code>$CODER_DISABLE_OWNER_WORKSPACE_ACCESS</code> |
 | YAML        | <code>disableOwnerWorkspaceAccess</code>           |
@@ -1086,7 +1063,7 @@ Remove the permission for the 'owner' role to have workspace execution on all wo
 ### --session-duration
 
 |             |                                              |
-| ----------- | -------------------------------------------- |
+|-------------|----------------------------------------------|
 | Type        | <code>duration</code>                        |
 | Environment | <code>$CODER_SESSION_DURATION</code>         |
 | YAML        | <code>networking.http.sessionDuration</code> |
@@ -1097,7 +1074,7 @@ The token expiry duration for browser sessions. Sessions may last longer if they
 ### --disable-session-expiry-refresh
 
 |             |                                                          |
-| ----------- | -------------------------------------------------------- |
+|-------------|----------------------------------------------------------|
 | Type        | <code>bool</code>                                        |
 | Environment | <code>$CODER_DISABLE_SESSION_EXPIRY_REFRESH</code>       |
 | YAML        | <code>networking.http.disableSessionExpiryRefresh</code> |
@@ -1107,7 +1084,7 @@ Disable automatic session expiry bumping due to activity. This forces all sessio
 ### --disable-password-auth
 
 |             |                                                  |
-| ----------- | ------------------------------------------------ |
+|-------------|--------------------------------------------------|
 | Type        | <code>bool</code>                                |
 | Environment | <code>$CODER_DISABLE_PASSWORD_AUTH</code>        |
 | YAML        | <code>networking.http.disablePasswordAuth</code> |
@@ -1117,7 +1094,7 @@ Disable password authentication. This is recommended for security purposes in pr
 ### -c, --config
 
 |             |                                 |
-| ----------- | ------------------------------- |
+|-------------|---------------------------------|
 | Type        | <code>yaml-config-path</code>   |
 | Environment | <code>$CODER_CONFIG_PATH</code> |
 
@@ -1126,7 +1103,7 @@ Specify a YAML file to load configuration from.
 ### --ssh-hostname-prefix
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_SSH_HOSTNAME_PREFIX</code> |
 | YAML        | <code>client.sshHostnamePrefix</code>   |
@@ -1137,7 +1114,7 @@ The SSH deployment prefix is used in the Host of the ssh config.
 ### --ssh-config-options
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>string-array</code>              |
 | Environment | <code>$CODER_SSH_CONFIG_OPTIONS</code> |
 | YAML        | <code>client.sshConfigOptions</code>   |
@@ -1147,7 +1124,7 @@ These SSH config options will override the default SSH config options. Provide o
 ### --cli-upgrade-message
 
 |             |                                         |
-| ----------- | --------------------------------------- |
+|-------------|-----------------------------------------|
 | Type        | <code>string</code>                     |
 | Environment | <code>$CODER_CLI_UPGRADE_MESSAGE</code> |
 | YAML        | <code>client.cliUpgradeMessage</code>   |
@@ -1157,7 +1134,7 @@ The upgrade message to display to users when a client/server mismatch is detecte
 ### --write-config
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 <br/>Write out the current server config as YAML to stdout.
@@ -1165,7 +1142,7 @@ The upgrade message to display to users when a client/server mismatch is detecte
 ### --support-links
 
 |             |                                            |
-| ----------- | ------------------------------------------ |
+|-------------|--------------------------------------------|
 | Type        | <code>struct[[]codersdk.LinkConfig]</code> |
 | Environment | <code>$CODER_SUPPORT_LINKS</code>          |
 | YAML        | <code>supportLinks</code>                  |
@@ -1175,7 +1152,7 @@ Support links to display in the top right drop down menu.
 ### --proxy-health-interval
 
 |             |                                                  |
-| ----------- | ------------------------------------------------ |
+|-------------|--------------------------------------------------|
 | Type        | <code>duration</code>                            |
 | Environment | <code>$CODER_PROXY_HEALTH_INTERVAL</code>        |
 | YAML        | <code>networking.http.proxyHealthInterval</code> |
@@ -1186,18 +1163,18 @@ The interval in which coderd should be checking the status of workspace proxies.
 ### --default-quiet-hours-schedule
 
 |             |                                                               |
-| ----------- | ------------------------------------------------------------- |
+|-------------|---------------------------------------------------------------|
 | Type        | <code>string</code>                                           |
 | Environment | <code>$CODER_QUIET_HOURS_DEFAULT_SCHEDULE</code>              |
 | YAML        | <code>userQuietHoursSchedule.defaultQuietHoursSchedule</code> |
-| Default     | <code>CRON_TZ=UTC 0 0 \* \* \*</code>                         |
+| Default     | <code>CRON_TZ=UTC 0 0 ** *</code>                             |
 
-The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be \*. Only one hour and minute can be specified (ranges or comma separated values are not supported).
+The default daily cron schedule applied to users that haven't set a custom quiet hours schedule themselves. The quiet hours schedule determines when workspaces will be force stopped due to the template's autostop requirement, and will round the max deadline up to be within the user's quiet hours window (or default). The format is the same as the standard cron format, but the day-of-month, month and day-of-week must be *. Only one hour and minute can be specified (ranges or comma separated values are not supported).
 
 ### --allow-custom-quiet-hours
 
 |             |                                                           |
-| ----------- | --------------------------------------------------------- |
+|-------------|-----------------------------------------------------------|
 | Type        | <code>bool</code>                                         |
 | Environment | <code>$CODER_ALLOW_CUSTOM_QUIET_HOURS</code>              |
 | YAML        | <code>userQuietHoursSchedule.allowCustomQuietHours</code> |
@@ -1208,7 +1185,7 @@ Allow users to set their own quiet hours schedule for workspaces to stop in (dep
 ### --web-terminal-renderer
 
 |             |                                           |
-| ----------- | ----------------------------------------- |
+|-------------|-------------------------------------------|
 | Type        | <code>string</code>                       |
 | Environment | <code>$CODER_WEB_TERMINAL_RENDERER</code> |
 | YAML        | <code>client.webTerminalRenderer</code>   |
@@ -1219,7 +1196,7 @@ The renderer to use when opening a web terminal. Valid values are 'canvas', 'web
 ### --allow-workspace-renames
 
 |             |                                             |
-| ----------- | ------------------------------------------- |
+|-------------|---------------------------------------------|
 | Type        | <code>bool</code>                           |
 | Environment | <code>$CODER_ALLOW_WORKSPACE_RENAMES</code> |
 | YAML        | <code>allowWorkspaceRenames</code>          |
@@ -1230,7 +1207,7 @@ DEPRECATED: Allow users to rename their workspaces. Use only for temporary compa
 ### --health-check-refresh
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>duration</code>                          |
 | Environment | <code>$CODER_HEALTH_CHECK_REFRESH</code>       |
 | YAML        | <code>introspection.healthcheck.refresh</code> |
@@ -1241,7 +1218,7 @@ Refresh interval for healthchecks.
 ### --health-check-threshold-database
 
 |             |                                                          |
-| ----------- | -------------------------------------------------------- |
+|-------------|----------------------------------------------------------|
 | Type        | <code>duration</code>                                    |
 | Environment | <code>$CODER_HEALTH_CHECK_THRESHOLD_DATABASE</code>      |
 | YAML        | <code>introspection.healthcheck.thresholdDatabase</code> |
@@ -1249,10 +1226,151 @@ Refresh interval for healthchecks.
 
 The threshold for the database health check. If the median latency of the database exceeds this threshold over 5 attempts, the database is considered unhealthy. The default value is 15ms.
 
+### --email-from
+
+|             |                                |
+|-------------|--------------------------------|
+| Type        | <code>string</code>            |
+| Environment | <code>$CODER_EMAIL_FROM</code> |
+| YAML        | <code>email.from</code>        |
+
+The sender's address to use.
+
+### --email-smarthost
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>string</code>                 |
+| Environment | <code>$CODER_EMAIL_SMARTHOST</code> |
+| YAML        | <code>email.smarthost</code>        |
+
+The intermediary SMTP host through which emails are sent.
+
+### --email-hello
+
+|             |                                 |
+|-------------|---------------------------------|
+| Type        | <code>string</code>             |
+| Environment | <code>$CODER_EMAIL_HELLO</code> |
+| YAML        | <code>email.hello</code>        |
+| Default     | <code>localhost</code>          |
+
+The hostname identifying the SMTP server.
+
+### --email-force-tls
+
+|             |                                     |
+|-------------|-------------------------------------|
+| Type        | <code>bool</code>                   |
+| Environment | <code>$CODER_EMAIL_FORCE_TLS</code> |
+| YAML        | <code>email.forceTLS</code>         |
+| Default     | <code>false</code>                  |
+
+Force a TLS connection to the configured SMTP smarthost.
+
+### --email-auth-identity
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_EMAIL_AUTH_IDENTITY</code> |
+| YAML        | <code>email.emailAuth.identity</code>   |
+
+Identity to use with PLAIN authentication.
+
+### --email-auth-username
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_EMAIL_AUTH_USERNAME</code> |
+| YAML        | <code>email.emailAuth.username</code>   |
+
+Username to use with PLAIN/LOGIN authentication.
+
+### --email-auth-password
+
+|             |                                         |
+|-------------|-----------------------------------------|
+| Type        | <code>string</code>                     |
+| Environment | <code>$CODER_EMAIL_AUTH_PASSWORD</code> |
+
+Password to use with PLAIN/LOGIN authentication.
+
+### --email-auth-password-file
+
+|             |                                              |
+|-------------|----------------------------------------------|
+| Type        | <code>string</code>                          |
+| Environment | <code>$CODER_EMAIL_AUTH_PASSWORD_FILE</code> |
+| YAML        | <code>email.emailAuth.passwordFile</code>    |
+
+File from which to load password for use with PLAIN/LOGIN authentication.
+
+### --email-tls-starttls
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>bool</code>                      |
+| Environment | <code>$CODER_EMAIL_TLS_STARTTLS</code> |
+| YAML        | <code>email.emailTLS.startTLS</code>   |
+
+Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+
+### --email-tls-server-name
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_EMAIL_TLS_SERVERNAME</code> |
+| YAML        | <code>email.emailTLS.serverName</code>   |
+
+Server name to verify against the target certificate.
+
+### --email-tls-skip-verify
+
+|             |                                                |
+|-------------|------------------------------------------------|
+| Type        | <code>bool</code>                              |
+| Environment | <code>$CODER_EMAIL_TLS_SKIPVERIFY</code>       |
+| YAML        | <code>email.emailTLS.insecureSkipVerify</code> |
+
+Skip verification of the target server's certificate (insecure).
+
+### --email-tls-ca-cert-file
+
+|             |                                          |
+|-------------|------------------------------------------|
+| Type        | <code>string</code>                      |
+| Environment | <code>$CODER_EMAIL_TLS_CACERTFILE</code> |
+| YAML        | <code>email.emailTLS.caCertFile</code>   |
+
+CA certificate file to use.
+
+### --email-tls-cert-file
+
+|             |                                        |
+|-------------|----------------------------------------|
+| Type        | <code>string</code>                    |
+| Environment | <code>$CODER_EMAIL_TLS_CERTFILE</code> |
+| YAML        | <code>email.emailTLS.certFile</code>   |
+
+Certificate file to use.
+
+### --email-tls-cert-key-file
+
+|             |                                           |
+|-------------|-------------------------------------------|
+| Type        | <code>string</code>                       |
+| Environment | <code>$CODER_EMAIL_TLS_CERTKEYFILE</code> |
+| YAML        | <code>email.emailTLS.certKeyFile</code>   |
+
+Certificate key file to use.
+
 ### --notifications-method
 
 |             |                                          |
-| ----------- | ---------------------------------------- |
+|-------------|------------------------------------------|
 | Type        | <code>string</code>                      |
 | Environment | <code>$CODER_NOTIFICATIONS_METHOD</code> |
 | YAML        | <code>notifications.method</code>        |
@@ -1263,7 +1381,7 @@ Which delivery method to use (available options: 'smtp', 'webhook').
 ### --notifications-dispatch-timeout
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>duration</code>                              |
 | Environment | <code>$CODER_NOTIFICATIONS_DISPATCH_TIMEOUT</code> |
 | YAML        | <code>notifications.dispatchTimeout</code>         |
@@ -1274,7 +1392,7 @@ How long to wait while a notification is being sent before giving up.
 ### --notifications-email-from
 
 |             |                                              |
-| ----------- | -------------------------------------------- |
+|-------------|----------------------------------------------|
 | Type        | <code>string</code>                          |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FROM</code> |
 | YAML        | <code>notifications.email.from</code>        |
@@ -1284,40 +1402,37 @@ The sender's address to use.
 ### --notifications-email-smarthost
 
 |             |                                                   |
-| ----------- | ------------------------------------------------- |
-| Type        | <code>host:port</code>                            |
+|-------------|---------------------------------------------------|
+| Type        | <code>string</code>                               |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_SMARTHOST</code> |
 | YAML        | <code>notifications.email.smarthost</code>        |
-| Default     | <code>localhost:587</code>                        |
 
 The intermediary SMTP host through which emails are sent.
 
 ### --notifications-email-hello
 
 |             |                                               |
-| ----------- | --------------------------------------------- |
+|-------------|-----------------------------------------------|
 | Type        | <code>string</code>                           |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_HELLO</code> |
 | YAML        | <code>notifications.email.hello</code>        |
-| Default     | <code>localhost</code>                        |
 
 The hostname identifying the SMTP server.
 
 ### --notifications-email-force-tls
 
 |             |                                                   |
-| ----------- | ------------------------------------------------- |
+|-------------|---------------------------------------------------|
 | Type        | <code>bool</code>                                 |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_FORCE_TLS</code> |
 | YAML        | <code>notifications.email.forceTLS</code>         |
-| Default     | <code>false</code>                                |
 
 Force a TLS connection to the configured SMTP smarthost.
 
 ### --notifications-email-auth-identity
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY</code> |
 | YAML        | <code>notifications.email.emailAuth.identity</code>   |
@@ -1327,7 +1442,7 @@ Identity to use with PLAIN authentication.
 ### --notifications-email-auth-username
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME</code> |
 | YAML        | <code>notifications.email.emailAuth.username</code>   |
@@ -1337,7 +1452,7 @@ Username to use with PLAIN/LOGIN authentication.
 ### --notifications-email-auth-password
 
 |             |                                                       |
-| ----------- | ----------------------------------------------------- |
+|-------------|-------------------------------------------------------|
 | Type        | <code>string</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD</code> |
 
@@ -1346,7 +1461,7 @@ Password to use with PLAIN/LOGIN authentication.
 ### --notifications-email-auth-password-file
 
 |             |                                                            |
-| ----------- | ---------------------------------------------------------- |
+|-------------|------------------------------------------------------------|
 | Type        | <code>string</code>                                        |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE</code> |
 | YAML        | <code>notifications.email.emailAuth.passwordFile</code>    |
@@ -1356,7 +1471,7 @@ File from which to load password for use with PLAIN/LOGIN authentication.
 ### --notifications-email-tls-starttls
 
 |             |                                                      |
-| ----------- | ---------------------------------------------------- |
+|-------------|------------------------------------------------------|
 | Type        | <code>bool</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS</code> |
 | YAML        | <code>notifications.email.emailTLS.startTLS</code>   |
@@ -1366,7 +1481,7 @@ Enable STARTTLS to upgrade insecure SMTP connections using TLS.
 ### --notifications-email-tls-server-name
 
 |             |                                                        |
-| ----------- | ------------------------------------------------------ |
+|-------------|--------------------------------------------------------|
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME</code> |
 | YAML        | <code>notifications.email.emailTLS.serverName</code>   |
@@ -1376,7 +1491,7 @@ Server name to verify against the target certificate.
 ### --notifications-email-tls-skip-verify
 
 |             |                                                              |
-| ----------- | ------------------------------------------------------------ |
+|-------------|--------------------------------------------------------------|
 | Type        | <code>bool</code>                                            |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY</code>       |
 | YAML        | <code>notifications.email.emailTLS.insecureSkipVerify</code> |
@@ -1386,7 +1501,7 @@ Skip verification of the target server's certificate (insecure).
 ### --notifications-email-tls-ca-cert-file
 
 |             |                                                        |
-| ----------- | ------------------------------------------------------ |
+|-------------|--------------------------------------------------------|
 | Type        | <code>string</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE</code> |
 | YAML        | <code>notifications.email.emailTLS.caCertFile</code>   |
@@ -1396,7 +1511,7 @@ CA certificate file to use.
 ### --notifications-email-tls-cert-file
 
 |             |                                                      |
-| ----------- | ---------------------------------------------------- |
+|-------------|------------------------------------------------------|
 | Type        | <code>string</code>                                  |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE</code> |
 | YAML        | <code>notifications.email.emailTLS.certFile</code>   |
@@ -1406,7 +1521,7 @@ Certificate file to use.
 ### --notifications-email-tls-cert-key-file
 
 |             |                                                         |
-| ----------- | ------------------------------------------------------- |
+|-------------|---------------------------------------------------------|
 | Type        | <code>string</code>                                     |
 | Environment | <code>$CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE</code> |
 | YAML        | <code>notifications.email.emailTLS.certKeyFile</code>   |
@@ -1416,7 +1531,7 @@ Certificate key file to use.
 ### --notifications-webhook-endpoint
 
 |             |                                                    |
-| ----------- | -------------------------------------------------- |
+|-------------|----------------------------------------------------|
 | Type        | <code>url</code>                                   |
 | Environment | <code>$CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT</code> |
 | YAML        | <code>notifications.webhook.endpoint</code>        |
@@ -1426,7 +1541,7 @@ The endpoint to which to send webhooks.
 ### --notifications-max-send-attempts
 
 |             |                                                     |
-| ----------- | --------------------------------------------------- |
+|-------------|-----------------------------------------------------|
 | Type        | <code>int</code>                                    |
 | Environment | <code>$CODER_NOTIFICATIONS_MAX_SEND_ATTEMPTS</code> |
 | YAML        | <code>notifications.maxSendAttempts</code>          |

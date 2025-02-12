@@ -17,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/render"
 	"github.com/coder/coder/v2/coderd/workspaceapps/appurl"
 	"github.com/coder/coder/v2/codersdk"
@@ -518,6 +519,7 @@ func Apps(dbApps []database.WorkspaceApp, agent database.WorkspaceAgent, ownerNa
 			},
 			Health: codersdk.WorkspaceAppHealth(dbApp.Health),
 			Hidden: dbApp.Hidden,
+			OpenIn: codersdk.WorkspaceAppOpenIn(dbApp.OpenIn),
 		})
 	}
 	return apps
@@ -672,4 +674,34 @@ func CryptoKey(key database.CryptoKey) codersdk.CryptoKey {
 		DeletesAt: key.DeletesAt.Time,
 		Secret:    key.Secret.String,
 	}
+}
+
+func MatchedProvisioners(provisionerDaemons []database.ProvisionerDaemon, now time.Time, staleInterval time.Duration) codersdk.MatchedProvisioners {
+	minLastSeenAt := now.Add(-staleInterval)
+	mostRecentlySeen := codersdk.NullTime{}
+	var matched codersdk.MatchedProvisioners
+	for _, provisioner := range provisionerDaemons {
+		if !provisioner.LastSeenAt.Valid {
+			continue
+		}
+		matched.Count++
+		if provisioner.LastSeenAt.Time.After(minLastSeenAt) {
+			matched.Available++
+		}
+		if provisioner.LastSeenAt.Time.After(mostRecentlySeen.Time) {
+			matched.MostRecentlySeen.Valid = true
+			matched.MostRecentlySeen.Time = provisioner.LastSeenAt.Time
+		}
+	}
+	return matched
+}
+
+func TemplateRoleActions(role codersdk.TemplateRole) []policy.Action {
+	switch role {
+	case codersdk.TemplateRoleAdmin:
+		return []policy.Action{policy.WildcardSymbol}
+	case codersdk.TemplateRoleUse:
+		return []policy.Action{policy.ActionRead, policy.ActionUse}
+	}
+	return []policy.Action{}
 }

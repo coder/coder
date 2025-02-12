@@ -35,7 +35,7 @@ const fillForm = async ({
 	await userEvent.type(loginTypeField, "password");
 	await userEvent.type(passwordField as HTMLElement, password);
 	const submitButton = screen.getByRole("button", {
-		name: "Create user",
+		name: /save/i,
 	});
 	fireEvent.click(submitButton);
 };

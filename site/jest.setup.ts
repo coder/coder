@@ -1,10 +1,10 @@
 import "@testing-library/jest-dom";
 import "jest-location-mock";
+import crypto from "node:crypto";
 import { cleanup } from "@testing-library/react";
-import crypto from "crypto";
-import { useMemo } from "react";
 import type { Region } from "api/typesGenerated";
 import type { ProxyLatencyReport } from "contexts/useProxyLatency";
+import { useMemo } from "react";
 import { server } from "testHelpers/server";
 
 // useProxyLatency does some http requests to determine latency.
@@ -48,9 +48,7 @@ global.ResizeObserver = require("resize-observer-polyfill");
 // Polyfill the getRandomValues that is used on utils/random.ts
 Object.defineProperty(global.self, "crypto", {
 	value: {
-		getRandomValues: function (buffer: Buffer) {
-			return crypto.randomFillSync(buffer);
-		},
+		getRandomValues: crypto.randomFillSync,
 	},
 });
 
@@ -72,5 +70,5 @@ afterEach(() => {
 // Clean up after the tests are finished.
 afterAll(() => server.close());
 
-// This is needed because we are compiling under `--isolatedModules`
+// biome-ignore lint/complexity/noUselessEmptyExport: This is needed because we are compiling under `--isolatedModules`
 export {};

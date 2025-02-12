@@ -4,6 +4,7 @@ import (
 	"database/sql/driver"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/google/uuid"
@@ -173,4 +174,61 @@ func (*NameOrganizationPair) Scan(_ interface{}) error {
 //	SELECT ARRAY[('customrole'::text,'ece79dac-926e-44ca-9790-2ff7c5eb6e0c'::uuid)];
 func (a NameOrganizationPair) Value() (driver.Value, error) {
 	return fmt.Sprintf(`(%s,%s)`, a.Name, a.OrganizationID.String()), nil
+}
+
+// AgentIDNamePair is used as a result tuple for workspace and agent rows.
+type AgentIDNamePair struct {
+	ID   uuid.UUID `db:"id" json:"id"`
+	Name string    `db:"name" json:"name"`
+}
+
+func (p *AgentIDNamePair) Scan(src interface{}) error {
+	var v string
+	switch a := src.(type) {
+	case []byte:
+		v = string(a)
+	case string:
+		v = a
+	default:
+		return xerrors.Errorf("unexpected type %T", src)
+	}
+	parts := strings.Split(strings.Trim(v, "()"), ",")
+	if len(parts) != 2 {
+		return xerrors.New("invalid format for AgentIDNamePair")
+	}
+	id, err := uuid.Parse(strings.TrimSpace(parts[0]))
+	if err != nil {
+		return err
+	}
+	p.ID, p.Name = id, strings.TrimSpace(parts[1])
+	return nil
+}
+
+func (p AgentIDNamePair) Value() (driver.Value, error) {
+	return fmt.Sprintf(`(%s,%s)`, p.ID.String(), p.Name), nil
+}
+
+// UserLinkClaims is the returned IDP claims for a given user link.
+// These claims are fetched at login time. These are the claims that were
+// used for IDP sync.
+type UserLinkClaims struct {
+	IDTokenClaims  map[string]interface{} `json:"id_token_claims"`
+	UserInfoClaims map[string]interface{} `json:"user_info_claims"`
+	// MergeClaims are computed in Golang. It is the result of merging
+	// the IDTokenClaims and UserInfoClaims. UserInfoClaims take precedence.
+	MergedClaims map[string]interface{} `json:"merged_claims"`
+}
+
+func (a *UserLinkClaims) Scan(src interface{}) error {
+	switch v := src.(type) {
+	case string:
+		return json.Unmarshal([]byte(v), &a)
+	case []byte:
+		return json.Unmarshal(v, &a)
+	}
+	return xerrors.Errorf("unexpected type %T", src)
+}
+
+func (a UserLinkClaims) Value() (driver.Value, error) {
+	return json.Marshal(a)
 }

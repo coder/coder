@@ -1,0 +1,111 @@
+coder:
+  workspaceProxy: ${workspace_proxy}
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: "cloud.google.com/gke-nodepool"
+            operator: "In"
+            values: ["${node_pool}"]
+    podAntiAffinity:
+      preferredDuringSchedulingIgnoredDuringExecution:
+      - weight: 1
+        podAffinityTerm:
+          topologyKey: "kubernetes.io/hostname"
+          labelSelector:
+            matchExpressions:
+            - key:      "app.kubernetes.io/instance"
+              operator: "In"
+              values:   ["${release_name}"]
+  env:
+    %{~ if workspace_proxy ~}
+    - name: "CODER_ACCESS_URL"
+      value: "${access_url}"
+    - name: CODER_PRIMARY_ACCESS_URL
+      value: "${primary_url}"
+    - name: CODER_PROXY_SESSION_TOKEN
+      valueFrom:
+        secretKeyRef:
+          key: token
+          name: "${proxy_token}"
+    %{~ endif ~}
+    %{~ if provisionerd ~}
+    - name: "CODER_URL"
+      value: "${access_url}"
+    - name: "CODER_PROVISIONERD_TAGS"
+      value: "scope=organization,deployment=${deployment}"
+    - name: "CODER_PROVISIONER_DAEMON_NAME"
+      valueFrom:
+        fieldRef:
+          fieldPath: metadata.name
+    - name: "CODER_CONFIG_DIR"
+      value: "/tmp/config"
+    %{~ endif ~}
+    %{~ if !workspace_proxy && !provisionerd ~}
+    - name: "CODER_ACCESS_URL"
+      value: "${access_url}"
+    - name: "CODER_PG_CONNECTION_URL"
+      valueFrom:
+        secretKeyRef:
+          name: "${db_secret}"
+          key: url
+    - name: "CODER_PROVISIONER_DAEMONS"
+      value: "0"
+    - name: CODER_PROVISIONER_DAEMON_PSK
+      valueFrom:
+        secretKeyRef:
+          key: psk
+          name: "${provisionerd_psk}"
+    - name: "CODER_PROMETHEUS_COLLECT_AGENT_STATS"
+      value: "true"
+    - name: "CODER_PROMETHEUS_COLLECT_DB_METRICS"
+      value: "true"
+    - name: "CODER_PPROF_ENABLE"
+      value: "true"
+    %{~ endif ~}
+    - name: "CODER_CACHE_DIRECTORY"
+      value: "/tmp/coder"
+    - name: "CODER_TELEMETRY_ENABLE"
+      value: "false"
+    - name: "CODER_LOGGING_HUMAN"
+      value: "/dev/null"
+    - name: "CODER_LOGGING_STACKDRIVER"
+      value: "/dev/stderr"
+    - name: "CODER_PROMETHEUS_ENABLE"
+      value: "true"
+    - name: "CODER_VERBOSE"
+      value: "true"
+    - name: "CODER_EXPERIMENTS"
+      value: "${experiments}"
+    - name: "CODER_DANGEROUS_DISABLE_RATE_LIMITS"
+      value: "true"
+    - name: "CODER_DANGEROUS_ALLOW_PATH_APP_SITE_OWNER_ACCESS"
+      value: "true"
+  image:
+    repo: ${image_repo}
+    tag: ${image_tag}
+  replicaCount: "${replicas}"
+  resources:
+    requests:
+      cpu: "${cpu_request}"
+      memory: "${mem_request}"
+    limits:
+      cpu: "${cpu_limit}"
+      memory: "${mem_limit}"
+  securityContext:
+    readOnlyRootFilesystem: true
+  %{~ if !provisionerd ~}
+  service:
+    enable: true
+    sessionAffinity: None
+    loadBalancerIP: "${ip_address}"
+  %{~ endif ~}
+  volumeMounts:
+  - mountPath: "/tmp"
+    name: cache
+    readOnly: false
+  volumes:
+  - emptyDir:
+      sizeLimit: 1024Mi
+    name: cache

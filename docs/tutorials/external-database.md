@@ -44,9 +44,9 @@ CREATE SCHEMA myschema;
 
 Once the schema is created, you can list all schemas with `\dn`:
 
-```
-     List of schemas
-     Name  |  Owner
+```text
+List of schemas
+ Name      | Owner
 -----------+----------
  myschema  | coder
  public    | postgres

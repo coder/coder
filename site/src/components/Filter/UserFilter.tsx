@@ -1,10 +1,10 @@
 import { API } from "api/api";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	SelectFilter,
 	type SelectFilterOption,
 	SelectFilterSearch,
 } from "components/Filter/SelectFilter";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import { useAuthenticated } from "contexts/auth/RequireAuth";
 import type { FC } from "react";
 import { type UseFilterMenuOptions, useFilterMenu } from "./menu";
@@ -23,11 +23,7 @@ export const useUserFilterMenu = ({
 				label: me.username,
 				value: me.username,
 				startIcon: (
-					<UserAvatar
-						username={me.username}
-						avatarURL={me.avatar_url}
-						size="xs"
-					/>
+					<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
 				),
 			},
 			...filtered,
@@ -45,11 +41,7 @@ export const useUserFilterMenu = ({
 					label: me.username,
 					value: me.username,
 					startIcon: (
-						<UserAvatar
-							username={me.username}
-							avatarURL={me.avatar_url}
-							size="xs"
-						/>
+						<Avatar fallback={me.username} src={me.avatar_url} size="sm" />
 					),
 				};
 			}
@@ -61,10 +53,10 @@ export const useUserFilterMenu = ({
 					label: firstUser.username,
 					value: firstUser.username,
 					startIcon: (
-						<UserAvatar
-							username={firstUser.username}
-							avatarURL={firstUser.avatar_url}
-							size="xs"
+						<Avatar
+							fallback={firstUser.username}
+							src={firstUser.avatar_url}
+							size="sm"
 						/>
 					),
 				};
@@ -77,11 +69,7 @@ export const useUserFilterMenu = ({
 				label: user.username,
 				value: user.username,
 				startIcon: (
-					<UserAvatar
-						username={user.username}
-						avatarURL={user.avatar_url}
-						size="xs"
-					/>
+					<Avatar fallback={user.username} src={user.avatar_url} size="sm" />
 				),
 			}));
 			options = addMeAsFirstOption(options);

@@ -5,14 +5,21 @@ import {
 	getCurrentOrgId,
 	setupApiCalls,
 } from "../../api";
+import { defaultOrganizationName } from "../../constants";
 import { requiresLicense } from "../../helpers";
+import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 
-test.beforeEach(async ({ page }) => await beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("add members", async ({ page, baseURL }) => {
 	requiresLicense();
-	await setupApiCalls(page);
+
+	const orgName = defaultOrganizationName;
 	const orgId = await getCurrentOrgId();
 	const group = await createGroup(orgId);
 	const numberOfMembers = 3;
@@ -20,7 +27,7 @@ test("add members", async ({ page, baseURL }) => {
 		Array.from({ length: numberOfMembers }, () => createUser(orgId)),
 	);
 
-	await page.goto(`${baseURL}/groups/${group.name}`, {
+	await page.goto(`${baseURL}/organizations/${orgName}/groups/${group.name}`, {
 		waitUntil: "domcontentloaded",
 	});
 	await expect(page).toHaveTitle(`${group.display_name} - Coder`);

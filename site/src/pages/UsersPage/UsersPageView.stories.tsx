@@ -34,7 +34,6 @@ const meta: Meta<typeof UsersPageView> = {
 		isNonInitialPage: false,
 		users: [MockUser, MockUser2],
 		roles: MockAssignableSiteRoles,
-
 		canEditUsers: true,
 		filterProps: defaultFilterProps,
 		authMethods: MockAuthMethodsPasswordOnly,

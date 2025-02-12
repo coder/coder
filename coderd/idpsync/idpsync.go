@@ -24,8 +24,13 @@ import (
 // claims to the internal representation of a user in Coder.
 // TODO: Move group + role sync into this interface.
 type IDPSync interface {
-	AssignDefaultOrganization() bool
-	OrganizationSyncEnabled() bool
+	OrganizationSyncEntitled() bool
+	OrganizationSyncSettings(ctx context.Context, db database.Store) (*OrganizationSyncSettings, error)
+	UpdateOrganizationSyncSettings(ctx context.Context, db database.Store, settings OrganizationSyncSettings) error
+	// OrganizationSyncEnabled returns true if all OIDC users are assigned
+	// to organizations via org sync settings.
+	// This is used to know when to disable manual org membership assignment.
+	OrganizationSyncEnabled(ctx context.Context, db database.Store) bool
 	// ParseOrganizationClaims takes claims from an OIDC provider, and returns the
 	// organization sync params for assigning users into organizations.
 	ParseOrganizationClaims(ctx context.Context, mergedClaims jwt.MapClaims) (OrganizationParams, *HTTPError)
@@ -33,7 +38,7 @@ type IDPSync interface {
 	// provided params.
 	SyncOrganizations(ctx context.Context, tx database.Store, user database.User, params OrganizationParams) error
 
-	GroupSyncEnabled() bool
+	GroupSyncEntitled() bool
 	// ParseGroupClaims takes claims from an OIDC provider, and returns the params
 	// for group syncing. Most of the logic happens in SyncGroups.
 	ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (GroupParams, *HTTPError)
@@ -43,7 +48,7 @@ type IDPSync interface {
 	// on the settings used by IDPSync. This entry is thread safe and can be
 	// accessed concurrently. The settings are stored in the database.
 	GroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*GroupSyncSettings, error)
-	UpdateGroupSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
+	UpdateGroupSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings GroupSyncSettings) error
 
 	// RoleSyncEntitled returns true if the deployment is entitled to role syncing.
 	RoleSyncEntitled() bool
@@ -56,7 +61,7 @@ type IDPSync interface {
 	// RoleSyncSettings is similar to GroupSyncSettings. See GroupSyncSettings for
 	// rational.
 	RoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store) (*RoleSyncSettings, error)
-	UpdateRoleSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error
+	UpdateRoleSyncSettings(ctx context.Context, orgID uuid.UUID, db database.Store, settings RoleSyncSettings) error
 	// ParseRoleClaims takes claims from an OIDC provider, and returns the params
 	// for role syncing. Most of the logic happens in SyncRoles.
 	ParseRoleClaims(ctx context.Context, mergedClaims jwt.MapClaims) (RoleParams, *HTTPError)
@@ -64,6 +69,9 @@ type IDPSync interface {
 	// Site & org roles are handled in this method.
 	SyncRoles(ctx context.Context, db database.Store, user database.User, params RoleParams) error
 }
+
+// AGPLIDPSync implements the IDPSync interface
+var _ IDPSync = AGPLIDPSync{}
 
 // AGPLIDPSync is the configuration for syncing user information from an external
 // IDP. All related code to syncing user information should be in this package.
@@ -147,8 +155,9 @@ func FromDeploymentValues(dv *codersdk.DeploymentValues) DeploymentSyncSettings 
 type SyncSettings struct {
 	DeploymentSyncSettings
 
-	Group runtimeconfig.RuntimeEntry[*GroupSyncSettings]
-	Role  runtimeconfig.RuntimeEntry[*RoleSyncSettings]
+	Group        runtimeconfig.RuntimeEntry[*GroupSyncSettings]
+	Role         runtimeconfig.RuntimeEntry[*RoleSyncSettings]
+	Organization runtimeconfig.RuntimeEntry[*OrganizationSyncSettings]
 }
 
 func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings DeploymentSyncSettings) *AGPLIDPSync {
@@ -159,6 +168,7 @@ func NewAGPLSync(logger slog.Logger, manager *runtimeconfig.Manager, settings De
 			DeploymentSyncSettings: settings,
 			Group:                  runtimeconfig.MustNew[*GroupSyncSettings]("group-sync-settings"),
 			Role:                   runtimeconfig.MustNew[*RoleSyncSettings]("role-sync-settings"),
+			Organization:           runtimeconfig.MustNew[*OrganizationSyncSettings]("organization-sync-settings"),
 		},
 	}
 }

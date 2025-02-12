@@ -49,9 +49,16 @@ Workspaces will automatically shut down after a period of inactivity. This can
 be configured at the template level, but is visible in the autostop description
 for your workspace.
 
-## Autostop requirement (enterprise) (premium)
+## Autostop requirement
 
-Enterprise template admins may enforce a required stop for workspaces to apply
+<blockquote class="info">
+
+Autostop requirement is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
+
+Licensed template admins may enforce a required stop for workspaces to apply
 updates or undergo maintenance. These stops ignore any active connections or
 inactivity bumps. Rather than being specified with a CRON, admins set a
 frequency for updates, either in **days** or **weeks**. Workspaces will apply
@@ -61,7 +68,14 @@ and specified quiet hours (see below).
 > Admins: See the template schedule settings for more information on configuring
 > Autostop Requirement.
 
-### User quiet hours (enterprise) (premium)
+### User quiet hours
+
+<blockquote class="info">
+
+User quiet hours are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 User quiet hours can be configured in the user's schedule settings page.
 Workspaces on templates with an autostop requirement will only be forcibly
@@ -99,12 +113,19 @@ Let's say that both are set to 5 hours. When either your workspace autostarts or
 you sign in, you will have confidence that the only condition for shutdown is 5
 hours of inactivity.
 
-## Dormancy (enterprise) (premium)
+## Dormancy
+
+<blockquote class="info">
+
+Dormancy is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Dormancy automatically deletes workspaces which remain unused for long
 durations. Template admins configure an inactivity period after which your
 workspaces will gain a `dormant` badge. A separate period determines how long
 workspaces will remain in the dormant state before automatic deletion.
 
-Enterprise admins may also configure failure cleanup, which will automatically
+Licensed admins may also configure failure cleanup, which will automatically
 delete workspaces that remain in a `failed` state for too long.

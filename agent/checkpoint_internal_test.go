@@ -12,7 +12,7 @@ import (
 
 func TestCheckpoint_CompleteWait(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	uut := newCheckpoint(logger)
 	err := xerrors.New("test")
@@ -35,7 +35,7 @@ func TestCheckpoint_CompleteTwice(t *testing.T) {
 
 func TestCheckpoint_WaitComplete(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil)
+	logger := testutil.Logger(t)
 	ctx := testutil.Context(t, testutil.WaitShort)
 	uut := newCheckpoint(logger)
 	err := xerrors.New("test")

@@ -1398,6 +1398,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/insights/user-status-counts": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Insights"
+                ],
+                "summary": "Get insights about user status counts",
+                "operationId": "get-insights-about-user-status-counts",
+                "parameters": [
+                    {
+                        "type": "integer",
+                        "description": "Time-zone offset (e.g. -2)",
+                        "name": "tz_offset",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GetUserStatusCountsResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/integrations/jfrog/xray-scan": {
             "get": {
                 "security": [
@@ -2929,7 +2963,7 @@ const docTemplate = `{
                     "application/json"
                 ],
                 "tags": [
-                    "Enterprise"
+                    "Provisioning"
                 ],
                 "summary": "Get provisioner daemons",
                 "operationId": "get-provisioner-daemons",
@@ -2941,6 +2975,12 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "type": "object",
+                        "description": "Provisioner tags to filter by (JSON of the form {'tag1':'value1','tag2':'value2'})",
+                        "name": "tags",
+                        "in": "query"
                     }
                 ],
                 "responses": {
@@ -2981,6 +3021,114 @@ const docTemplate = `{
                 "responses": {
                     "101": {
                         "description": "Switching Protocols"
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerjobs": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get provisioner jobs",
+                "operationId": "get-provisioner-jobs",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "integer",
+                        "description": "Page limit",
+                        "name": "limit",
+                        "in": "query"
+                    },
+                    {
+                        "enum": [
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed",
+                            "unknown",
+                            "pending",
+                            "running",
+                            "succeeded",
+                            "canceling",
+                            "canceled",
+                            "failed"
+                        ],
+                        "type": "string",
+                        "description": "Filter results by status",
+                        "name": "status",
+                        "in": "query"
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.ProvisionerJob"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/provisionerjobs/{job}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Organizations"
+                ],
+                "summary": "Get provisioner job",
+                "operationId": "get-provisioner-job",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "job",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerJob"
+                        }
                     }
                 }
             }
@@ -3126,6 +3274,90 @@ const docTemplate = `{
                 }
             }
         },
+        "/organizations/{organization}/settings/idpsync/available-fields": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the available organization idp sync claim fields",
+                "operationId": "get-the-available-organization-idp-sync-claim-fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/field-values": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the organization idp sync claim field values",
+                "operationId": "get-the-organization-idp-sync-claim-field-values",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Claim Field",
+                        "name": "claimField",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "/organizations/{organization}/settings/idpsync/groups": {
             "get": {
                 "security": [
@@ -3166,6 +3398,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3182,6 +3417,109 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/groups/config": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update group IdP Sync config",
+                "operationId": "update-group-idp-sync-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New config values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchGroupIDPSyncConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.GroupSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/groups/mapping": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update group IdP Sync mapping",
+                "operationId": "update-group-idp-sync-mapping",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Description of the mappings to add and remove",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchGroupIDPSyncMappingRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -3234,6 +3572,9 @@ const docTemplate = `{
                         "CoderSessionToken": []
                     }
                 ],
+                "consumes": [
+                    "application/json"
+                ],
                 "produces": [
                     "application/json"
                 ],
@@ -3250,6 +3591,109 @@ const docTemplate = `{
                         "name": "organization",
                         "in": "path",
                         "required": true
+                    },
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/roles/config": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update role IdP Sync config",
+                "operationId": "update-role-idp-sync-config",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "New config values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchRoleIDPSyncConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.RoleSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/organizations/{organization}/settings/idpsync/roles/mapping": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update role IdP Sync mapping",
+                "operationId": "update-role-idp-sync-mapping",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID or name",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Description of the mappings to add and remove",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchRoleIDPSyncMappingRequest"
+                        }
                     }
                 ],
                 "responses": {
@@ -3570,6 +4014,40 @@ const docTemplate = `{
                 }
             }
         },
+        "/provisionerkeys/{provisionerkey}": {
+            "get": {
+                "security": [
+                    {
+                        "CoderProvisionerKey": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Fetch provisioner key details",
+                "operationId": "fetch-provisioner-key-details",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Provisioner Key",
+                        "name": "provisionerkey",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ProvisionerKey"
+                        }
+                    }
+                }
+            }
+        },
         "/regions": {
             "get": {
                 "security": [
@@ -3623,11 +4101,28 @@ const docTemplate = `{
                 }
             }
         },
+        "/scim/v2/ServiceProviderConfig": {
+            "get": {
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Service Provider Config",
+                "operationId": "scim-get-service-provider-config",
+                "responses": {
+                    "200": {
+                        "description": "OK"
+                    }
+                }
+            }
+        },
         "/scim/v2/Users": {
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3647,7 +4142,7 @@ const docTemplate = `{
             "post": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3683,7 +4178,7 @@ const docTemplate = `{
             "get": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3710,10 +4205,52 @@ const docTemplate = `{
                     }
                 }
             },
+            "put": {
+                "security": [
+                    {
+                        "Authorization": []
+                    }
+                ],
+                "produces": [
+                    "application/scim+json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "SCIM 2.0: Replace user account",
+                "operationId": "scim-replace-user-status",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "User ID",
+                        "name": "id",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "description": "Replace user request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/coderd.SCIMUser"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.User"
+                        }
+                    }
+                }
+            },
             "patch": {
                 "security": [
                     {
-                        "CoderSessionToken": []
+                        "Authorization": []
                     }
                 ],
                 "produces": [
@@ -3749,6 +4286,249 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/codersdk.User"
                         }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/available-fields": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the available idp sync claim fields",
+                "operationId": "get-the-available-idp-sync-claim-fields",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/field-values": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get the idp sync claim field values",
+                "operationId": "get-the-idp-sync-claim-field-values",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Organization ID",
+                        "name": "organization",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "string",
+                        "description": "Claim Field",
+                        "name": "claimField",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/organization": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Get organization IdP Sync settings",
+                "operationId": "get-organization-idp-sync-settings",
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            },
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync settings",
+                "operationId": "update-organization-idp-sync-settings",
+                "parameters": [
+                    {
+                        "description": "New settings",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/organization/config": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync config",
+                "operationId": "update-organization-idp-sync-config",
+                "parameters": [
+                    {
+                        "description": "New config values",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchOrganizationIDPSyncConfigRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/settings/idpsync/organization/mapping": {
+            "patch": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Enterprise"
+                ],
+                "summary": "Update organization IdP Sync mapping",
+                "operationId": "update-organization-idp-sync-mapping",
+                "parameters": [
+                    {
+                        "description": "Description of the mappings to add and remove",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.PatchOrganizationIDPSyncMappingRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.OrganizationSyncSettings"
+                        }
+                    }
+                }
+            }
+        },
+        "/tailnet": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "User-scoped tailnet RPC connection",
+                "operationId": "user-scoped-tailnet-rpc-connection",
+                "responses": {
+                    "101": {
+                        "description": "Switching Protocols"
                     }
                 }
             }
@@ -4613,6 +5393,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/templateversions/{templateversion}/dry-run/{jobID}/matched-provisioners": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version dry-run matched provisioners",
+                "operationId": "get-template-version-dry-run-matched-provisioners",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Job ID",
+                        "name": "jobID",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.MatchedProvisioners"
+                        }
+                    }
+                }
+            }
+        },
         "/templateversions/{templateversion}/dry-run/{jobID}/resources": {
             "get": {
                 "security": [
@@ -4778,6 +5601,44 @@ const docTemplate = `{
                 "responses": {
                     "200": {
                         "description": "OK"
+                    }
+                }
+            }
+        },
+        "/templateversions/{templateversion}/presets": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Templates"
+                ],
+                "summary": "Get template version presets",
+                "operationId": "get-template-version-presets",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Template version ID",
+                        "name": "templateversion",
+                        "in": "path",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "type": "array",
+                            "items": {
+                                "$ref": "#/definitions/codersdk.Preset"
+                            }
+                        }
                     }
                 }
             }
@@ -5332,6 +6193,45 @@ const docTemplate = `{
                             "items": {
                                 "$ref": "#/definitions/codersdk.AssignableRoles"
                             }
+                        }
+                    }
+                }
+            }
+        },
+        "/users/validate-password": {
+            "post": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Authorization"
+                ],
+                "summary": "Validate user password",
+                "operationId": "validate-user-password",
+                "parameters": [
+                    {
+                        "description": "Validate user password request",
+                        "name": "request",
+                        "in": "body",
+                        "required": true,
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordRequest"
+                        }
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.ValidateUserPasswordResponse"
                         }
                     }
                 }
@@ -6992,6 +7892,49 @@ const docTemplate = `{
                 }
             }
         },
+        "/workspaceagents/{workspaceagent}/containers": {
+            "get": {
+                "security": [
+                    {
+                        "CoderSessionToken": []
+                    }
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Agents"
+                ],
+                "summary": "Get running containers for workspace agent",
+                "operationId": "get-running-containers-for-workspace-agent",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Workspace agent ID",
+                        "name": "workspaceagent",
+                        "in": "path",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "format": "key=value",
+                        "description": "Labels",
+                        "name": "label",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
+                "responses": {
+                    "200": {
+                        "description": "OK",
+                        "schema": {
+                            "$ref": "#/definitions/codersdk.WorkspaceAgentListContainersResponse"
+                        }
+                    }
+                }
+            }
+        },
         "/workspaceagents/{workspaceagent}/coordinate": {
             "get": {
                 "security": [
@@ -7334,13 +8277,13 @@ const docTemplate = `{
                     },
                     {
                         "type": "integer",
-                        "description": "Before Unix timestamp",
+                        "description": "Before log id",
                         "name": "before",
                         "in": "query"
                     },
                     {
                         "type": "integer",
-                        "description": "After Unix timestamp",
+                        "description": "After log id",
                         "name": "after",
                         "in": "query"
                     },
@@ -7646,6 +8589,15 @@ const docTemplate = `{
                 ],
                 "summary": "Get workspace proxy crypto keys",
                 "operationId": "get-workspace-proxy-crypto-keys",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Feature key",
+                        "name": "feature",
+                        "in": "query",
+                        "required": true
+                    }
+                ],
                 "responses": {
                     "200": {
                         "description": "OK",
@@ -8797,6 +9749,7 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "active": {
+                    "description": "Active is a ptr to prevent the empty value from being interpreted as false.",
                     "type": "boolean"
                 },
                 "emails": {
@@ -8975,6 +9928,28 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.AgentConnectionTiming": {
+            "type": "object",
+            "properties": {
+                "ended_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "stage": {
+                    "$ref": "#/definitions/codersdk.TimingStage"
+                },
+                "started_at": {
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.AgentScriptTiming": {
             "type": "object",
             "properties": {
@@ -8989,13 +9964,19 @@ const docTemplate = `{
                     "type": "integer"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
                     "format": "date-time"
                 },
                 "status": {
+                    "type": "string"
+                },
+                "workspace_agent_id": {
+                    "type": "string"
+                },
+                "workspace_agent_name": {
                     "type": "string"
                 }
             }
@@ -9116,7 +10097,8 @@ const docTemplate = `{
                 "stop",
                 "login",
                 "logout",
-                "register"
+                "register",
+                "request_password_reset"
             ],
             "x-enum-varnames": [
                 "AuditActionCreate",
@@ -9126,7 +10108,8 @@ const docTemplate = `{
                 "AuditActionStop",
                 "AuditActionLogin",
                 "AuditActionLogout",
-                "AuditActionRegister"
+                "AuditActionRegister",
+                "AuditActionRequestPasswordReset"
             ]
         },
         "codersdk.AuditDiff": {
@@ -9868,6 +10851,14 @@ const docTemplate = `{
                 "password": {
                     "type": "string"
                 },
+                "user_status": {
+                    "description": "UserStatus defaults to UserStatusDormant.",
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.UserStatus"
+                        }
+                    ]
+                },
                 "username": {
                     "type": "string"
                 }
@@ -9916,7 +10907,6 @@ const docTemplate = `{
                 },
                 "transition": {
                     "enum": [
-                        "create",
                         "start",
                         "stop",
                         "delete"
@@ -10009,12 +10999,14 @@ const docTemplate = `{
         "codersdk.CryptoKeyFeature": {
             "type": "string",
             "enum": [
-                "workspace_apps",
+                "workspace_apps_api_key",
+                "workspace_apps_token",
                 "oidc_convert",
                 "tailnet_resume"
             ],
             "x-enum-varnames": [
-                "CryptoKeyFeatureWorkspaceApp",
+                "CryptoKeyFeatureWorkspaceAppsAPIKey",
+                "CryptoKeyFeatureWorkspaceAppsToken",
                 "CryptoKeyFeatureOIDCConvert",
                 "CryptoKeyFeatureTailnetResume"
             ]
@@ -10211,6 +11203,12 @@ const docTemplate = `{
                 "access_url": {
                     "$ref": "#/definitions/serpent.URL"
                 },
+                "additional_csp_policy": {
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                },
                 "address": {
                     "description": "DEPRECATED: Use HTTPAddress or TLS.Address instead.",
                     "allOf": [
@@ -10265,6 +11263,9 @@ const docTemplate = `{
                     "$ref": "#/definitions/serpent.URL"
                 },
                 "enable_terraform_debug_mode": {
+                    "type": "boolean"
+                },
+                "ephemeral_deployment": {
                     "type": "boolean"
                 },
                 "experiments": {
@@ -10698,6 +11699,20 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.GetUserStatusCountsResponse": {
+            "type": "object",
+            "properties": {
+                "status_counts": {
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "$ref": "#/definitions/codersdk.UserStatusChangeCount"
+                        }
+                    }
+                }
+            }
+        },
         "codersdk.GetUsersResponse": {
             "type": "object",
             "properties": {
@@ -10795,7 +11810,7 @@ const docTemplate = `{
                     "type": "boolean"
                 },
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what groups a user\nshould be in. If empty, no groups will be synced.",
                     "type": "string"
                 },
                 "legacy_group_name_mapping": {
@@ -10806,7 +11821,7 @@ const docTemplate = `{
                     }
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder group ID",
+                    "description": "Mapping is a map from OIDC groups to Coder group IDs",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -11057,6 +12072,24 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.MatchedProvisioners": {
+            "type": "object",
+            "properties": {
+                "available": {
+                    "description": "Available is the number of provisioner daemons that are available to\ntake jobs. This may be less than the count if some provisioners are\nbusy or have been stopped.",
+                    "type": "integer"
+                },
+                "count": {
+                    "description": "Count is the number of provisioner daemons that matched the given\ntags. If the count is 0, it means no provisioner daemons matched the\nrequested tags.",
+                    "type": "integer"
+                },
+                "most_recently_seen": {
+                    "description": "MostRecentlySeen is the most recently seen time of the set of matched\nprovisioners. If no provisioners matched, this field will be null.",
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
         "codersdk.MinimalOrganization": {
             "type": "object",
             "required": [
@@ -11136,6 +12169,9 @@ const docTemplate = `{
                 },
                 "body_template": {
                     "type": "string"
+                },
+                "enabled_by_default": {
+                    "type": "boolean"
                 },
                 "group": {
                     "type": "string"
@@ -11261,11 +12297,7 @@ const docTemplate = `{
                 },
                 "smarthost": {
                     "description": "The intermediary SMTP host through which emails are sent (host:port).",
-                    "allOf": [
-                        {
-                            "$ref": "#/definitions/serpent.HostPort"
-                        }
-                    ]
+                    "type": "string"
                 },
                 "tls": {
                     "description": "TLS details.",
@@ -11683,6 +12715,80 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.OrganizationSyncSettings": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "description": "Field selects the claim field to be used as the created user's\norganizations. If the field is the empty string, then no organization\nupdates will ever come from the OIDC provider.",
+                    "type": "string"
+                },
+                "mapping": {
+                    "description": "Mapping maps from an OIDC claim --\u003e Coder organization uuid",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                            "type": "string"
+                        }
+                    }
+                },
+                "organization_assign_default": {
+                    "description": "AssignDefault will ensure the default org is always included\nfor every user, regardless of their claims. This preserves legacy behavior.",
+                    "type": "boolean"
+                }
+            }
+        },
+        "codersdk.PatchGroupIDPSyncConfigRequest": {
+            "type": "object",
+            "properties": {
+                "auto_create_missing_groups": {
+                    "type": "boolean"
+                },
+                "field": {
+                    "type": "string"
+                },
+                "regex_filter": {
+                    "$ref": "#/definitions/regexp.Regexp"
+                }
+            }
+        },
+        "codersdk.PatchGroupIDPSyncMappingRequest": {
+            "type": "object",
+            "properties": {
+                "add": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
         "codersdk.PatchGroupRequest": {
             "type": "object",
             "properties": {
@@ -11708,6 +12814,99 @@ const docTemplate = `{
                     "type": "array",
                     "items": {
                         "type": "string"
+                    }
+                }
+            }
+        },
+        "codersdk.PatchOrganizationIDPSyncConfigRequest": {
+            "type": "object",
+            "properties": {
+                "assign_default": {
+                    "type": "boolean"
+                },
+                "field": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PatchOrganizationIDPSyncMappingRequest": {
+            "type": "object",
+            "properties": {
+                "add": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
+                    }
+                }
+            }
+        },
+        "codersdk.PatchRoleIDPSyncConfigRequest": {
+            "type": "object",
+            "properties": {
+                "field": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.PatchRoleIDPSyncMappingRequest": {
+            "type": "object",
+            "properties": {
+                "add": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
+                    }
+                },
+                "remove": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "gets": {
+                                "description": "The ID of the Coder resource the user should be added to",
+                                "type": "string"
+                            },
+                            "given": {
+                                "description": "The IdP claim the user has",
+                                "type": "string"
+                            }
+                        }
                     }
                 }
             }
@@ -11806,6 +13005,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.Preset": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string"
+                },
+                "name": {
+                    "type": "string"
+                },
+                "parameters": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.PresetParameter"
+                    }
+                }
+            }
+        },
+        "codersdk.PresetParameter": {
+            "type": "object",
+            "properties": {
+                "name": {
+                    "type": "string"
+                },
+                "value": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.PrometheusConfig": {
             "type": "object",
             "properties": {
@@ -11866,6 +13093,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "date-time"
                 },
+                "current_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "id": {
                     "type": "string",
                     "format": "uuid"
@@ -11873,6 +13103,10 @@ const docTemplate = `{
                 "key_id": {
                     "type": "string",
                     "format": "uuid"
+                },
+                "key_name": {
+                    "description": "Optional fields.",
+                    "type": "string"
                 },
                 "last_seen_at": {
                     "type": "string",
@@ -11885,11 +13119,26 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "previous_job": {
+                    "$ref": "#/definitions/codersdk.ProvisionerDaemonJob"
+                },
                 "provisioners": {
                     "type": "array",
                     "items": {
                         "type": "string"
                     }
+                },
+                "status": {
+                    "enum": [
+                        "offline",
+                        "idle",
+                        "busy"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerDaemonStatus"
+                        }
+                    ]
                 },
                 "tags": {
                     "type": "object",
@@ -11902,9 +13151,62 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ProvisionerDaemonJob": {
+            "type": "object",
+            "properties": {
+                "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "status": {
+                    "enum": [
+                        "pending",
+                        "running",
+                        "succeeded",
+                        "canceling",
+                        "canceled",
+                        "failed"
+                    ],
+                    "allOf": [
+                        {
+                            "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
+                        }
+                    ]
+                },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ProvisionerDaemonStatus": {
+            "type": "string",
+            "enum": [
+                "offline",
+                "idle",
+                "busy"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerDaemonOffline",
+                "ProvisionerDaemonIdle",
+                "ProvisionerDaemonBusy"
+            ]
+        },
         "codersdk.ProvisionerJob": {
             "type": "object",
             "properties": {
+                "available_workers": {
+                    "type": "array",
+                    "items": {
+                        "type": "string",
+                        "format": "uuid"
+                    }
+                },
                 "canceled_at": {
                     "type": "string",
                     "format": "date-time"
@@ -11935,6 +13237,16 @@ const docTemplate = `{
                     "format": "uuid"
                 },
                 "id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "input": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobInput"
+                },
+                "metadata": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobMetadata"
+                },
+                "organization_id": {
                     "type": "string",
                     "format": "uuid"
                 },
@@ -11969,7 +13281,26 @@ const docTemplate = `{
                         "type": "string"
                     }
                 },
+                "type": {
+                    "$ref": "#/definitions/codersdk.ProvisionerJobType"
+                },
                 "worker_id": {
+                    "type": "string",
+                    "format": "uuid"
+                }
+            }
+        },
+        "codersdk.ProvisionerJobInput": {
+            "type": "object",
+            "properties": {
+                "error": {
+                    "type": "string"
+                },
+                "template_version_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_build_id": {
                     "type": "string",
                     "format": "uuid"
                 }
@@ -12010,6 +13341,34 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.ProvisionerJobMetadata": {
+            "type": "object",
+            "properties": {
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "template_name": {
+                    "type": "string"
+                },
+                "template_version_name": {
+                    "type": "string"
+                },
+                "workspace_id": {
+                    "type": "string",
+                    "format": "uuid"
+                },
+                "workspace_name": {
+                    "type": "string"
+                }
+            }
+        },
         "codersdk.ProvisionerJobStatus": {
             "type": "string",
             "enum": [
@@ -12029,6 +13388,19 @@ const docTemplate = `{
                 "ProvisionerJobCanceled",
                 "ProvisionerJobFailed",
                 "ProvisionerJobUnknown"
+            ]
+        },
+        "codersdk.ProvisionerJobType": {
+            "type": "string",
+            "enum": [
+                "template_version_import",
+                "workspace_build",
+                "template_version_dry_run"
+            ],
+            "x-enum-varnames": [
+                "ProvisionerJobTypeTemplateVersionImport",
+                "ProvisionerJobTypeWorkspaceBuild",
+                "ProvisionerJobTypeTemplateVersionDryRun"
             ]
         },
         "codersdk.ProvisionerKey": {
@@ -12113,7 +13485,7 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "stage": {
-                    "type": "string"
+                    "$ref": "#/definitions/codersdk.TimingStage"
                 },
                 "started_at": {
                     "type": "string",
@@ -12235,6 +13607,7 @@ const docTemplate = `{
                 "group_member",
                 "idpsync_settings",
                 "license",
+                "notification_message",
                 "notification_preference",
                 "notification_template",
                 "oauth2_app",
@@ -12243,6 +13616,7 @@ const docTemplate = `{
                 "organization",
                 "organization_member",
                 "provisioner_daemon",
+                "provisioner_jobs",
                 "provisioner_keys",
                 "replicas",
                 "system",
@@ -12250,6 +13624,7 @@ const docTemplate = `{
                 "template",
                 "user",
                 "workspace",
+                "workspace_agent_resource_monitor",
                 "workspace_dormant",
                 "workspace_proxy"
             ],
@@ -12268,6 +13643,7 @@ const docTemplate = `{
                 "ResourceGroupMember",
                 "ResourceIdpsyncSettings",
                 "ResourceLicense",
+                "ResourceNotificationMessage",
                 "ResourceNotificationPreference",
                 "ResourceNotificationTemplate",
                 "ResourceOauth2App",
@@ -12276,6 +13652,7 @@ const docTemplate = `{
                 "ResourceOrganization",
                 "ResourceOrganizationMember",
                 "ResourceProvisionerDaemon",
+                "ResourceProvisionerJobs",
                 "ResourceProvisionerKeys",
                 "ResourceReplicas",
                 "ResourceSystem",
@@ -12283,6 +13660,7 @@ const docTemplate = `{
                 "ResourceTemplate",
                 "ResourceUser",
                 "ResourceWorkspace",
+                "ResourceWorkspaceAgentResourceMonitor",
                 "ResourceWorkspaceDormant",
                 "ResourceWorkspaceProxy"
             ]
@@ -12481,7 +13859,12 @@ const docTemplate = `{
                 "organization",
                 "oauth2_provider_app",
                 "oauth2_provider_app_secret",
-                "custom_role"
+                "custom_role",
+                "organization_member",
+                "notification_template",
+                "idp_sync_settings_organization",
+                "idp_sync_settings_group",
+                "idp_sync_settings_role"
             ],
             "x-enum-varnames": [
                 "ResourceTypeTemplate",
@@ -12500,7 +13883,12 @@ const docTemplate = `{
                 "ResourceTypeOrganization",
                 "ResourceTypeOAuth2ProviderApp",
                 "ResourceTypeOAuth2ProviderAppSecret",
-                "ResourceTypeCustomRole"
+                "ResourceTypeCustomRole",
+                "ResourceTypeOrganizationMember",
+                "ResourceTypeNotificationTemplate",
+                "ResourceTypeIdpSyncSettingsOrganization",
+                "ResourceTypeIdpSyncSettingsGroup",
+                "ResourceTypeIdpSyncSettingsRole"
             ]
         },
         "codersdk.Response": {
@@ -12561,11 +13949,11 @@ const docTemplate = `{
             "type": "object",
             "properties": {
                 "field": {
-                    "description": "Field selects the claim field to be used as the created user's\ngroups. If the group field is the empty string, then no group updates\nwill ever come from the OIDC provider.",
+                    "description": "Field is the name of the claim field that specifies what organization roles\na user should be given. If empty, no roles will be synced.",
                     "type": "string"
                 },
                 "mapping": {
-                    "description": "Mapping maps from an OIDC group --\u003e Coder organization role",
+                    "description": "Mapping is a map from OIDC groups to Coder organization roles.",
                     "type": "object",
                     "additionalProperties": {
                         "type": "array",
@@ -13229,6 +14617,9 @@ const docTemplate = `{
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
                 },
+                "matched_provisioners": {
+                    "$ref": "#/definitions/codersdk.MatchedProvisioners"
+                },
                 "message": {
                     "type": "string"
                 },
@@ -13412,6 +14803,29 @@ const docTemplate = `{
             ],
             "x-enum-varnames": [
                 "TemplateVersionWarningUnsupportedWorkspaces"
+            ]
+        },
+        "codersdk.TimingStage": {
+            "type": "string",
+            "enum": [
+                "init",
+                "plan",
+                "graph",
+                "apply",
+                "start",
+                "stop",
+                "cron",
+                "connect"
+            ],
+            "x-enum-varnames": [
+                "TimingStageInit",
+                "TimingStagePlan",
+                "TimingStageGraph",
+                "TimingStageApply",
+                "TimingStageStart",
+                "TimingStageStop",
+                "TimingStageCron",
+                "TimingStageConnect"
             ]
         },
         "codersdk.TokenConfig": {
@@ -13986,6 +15400,41 @@ const docTemplate = `{
                 "UserStatusSuspended"
             ]
         },
+        "codersdk.UserStatusChangeCount": {
+            "type": "object",
+            "properties": {
+                "count": {
+                    "type": "integer",
+                    "example": 10
+                },
+                "date": {
+                    "type": "string",
+                    "format": "date-time"
+                }
+            }
+        },
+        "codersdk.ValidateUserPasswordRequest": {
+            "type": "object",
+            "required": [
+                "password"
+            ],
+            "properties": {
+                "password": {
+                    "type": "string"
+                }
+            }
+        },
+        "codersdk.ValidateUserPasswordResponse": {
+            "type": "object",
+            "properties": {
+                "details": {
+                    "type": "string"
+                },
+                "valid": {
+                    "type": "boolean"
+                }
+            }
+        },
         "codersdk.ValidationError": {
             "type": "object",
             "required": [
@@ -14081,6 +15530,10 @@ const docTemplate = `{
                 },
                 "name": {
                     "type": "string"
+                },
+                "next_start_at": {
+                    "type": "string",
+                    "format": "date-time"
                 },
                 "organization_id": {
                     "type": "string",
@@ -14276,6 +15729,57 @@ const docTemplate = `{
                 }
             }
         },
+        "codersdk.WorkspaceAgentDevcontainer": {
+            "type": "object",
+            "properties": {
+                "created_at": {
+                    "description": "CreatedAt is the time the container was created.",
+                    "type": "string",
+                    "format": "date-time"
+                },
+                "id": {
+                    "description": "ID is the unique identifier of the container.",
+                    "type": "string"
+                },
+                "image": {
+                    "description": "Image is the name of the container image.",
+                    "type": "string"
+                },
+                "labels": {
+                    "description": "Labels is a map of key-value pairs of container labels.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                },
+                "name": {
+                    "description": "FriendlyName is the human-readable name of the container.",
+                    "type": "string"
+                },
+                "ports": {
+                    "description": "Ports includes ports exposed by the container.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentListeningPort"
+                    }
+                },
+                "running": {
+                    "description": "Running is true if the container is currently running.",
+                    "type": "boolean"
+                },
+                "status": {
+                    "description": "Status is the current status of the container. This is somewhat\nimplementation-dependent, but should generally be a human-readable\nstring.",
+                    "type": "string"
+                },
+                "volumes": {
+                    "description": "Volumes is a map of \"things\" mounted into the container. Again, this\nis somewhat implementation-dependent.",
+                    "type": "object",
+                    "additionalProperties": {
+                        "type": "string"
+                    }
+                }
+            }
+        },
         "codersdk.WorkspaceAgentHealth": {
             "type": "object",
             "properties": {
@@ -14315,6 +15819,25 @@ const docTemplate = `{
                 "WorkspaceAgentLifecycleShutdownError",
                 "WorkspaceAgentLifecycleOff"
             ]
+        },
+        "codersdk.WorkspaceAgentListContainersResponse": {
+            "type": "object",
+            "properties": {
+                "containers": {
+                    "description": "Containers is a list of containers visible to the workspace agent.",
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.WorkspaceAgentDevcontainer"
+                    }
+                },
+                "warnings": {
+                    "description": "Warnings is a list of warnings that may have occurred during the\nprocess of listing containers. This should not include fatal errors.",
+                    "type": "array",
+                    "items": {
+                        "type": "string"
+                    }
+                }
+            }
         },
         "codersdk.WorkspaceAgentListeningPort": {
             "type": "object",
@@ -14561,6 +16084,9 @@ const docTemplate = `{
                     "type": "string",
                     "format": "uuid"
                 },
+                "open_in": {
+                    "$ref": "#/definitions/codersdk.WorkspaceAppOpenIn"
+                },
                 "sharing_level": {
                     "enum": [
                         "owner",
@@ -14606,6 +16132,17 @@ const docTemplate = `{
                 "WorkspaceAppHealthUnhealthy"
             ]
         },
+        "codersdk.WorkspaceAppOpenIn": {
+            "type": "string",
+            "enum": [
+                "slim-window",
+                "tab"
+            ],
+            "x-enum-varnames": [
+                "WorkspaceAppOpenInSlimWindow",
+                "WorkspaceAppOpenInTab"
+            ]
+        },
         "codersdk.WorkspaceAppSharingLevel": {
             "type": "string",
             "enum": [
@@ -14649,6 +16186,9 @@ const docTemplate = `{
                 },
                 "job": {
                     "$ref": "#/definitions/codersdk.ProvisionerJob"
+                },
+                "matched_provisioners": {
+                    "$ref": "#/definitions/codersdk.MatchedProvisioners"
                 },
                 "max_deadline": {
                     "type": "string",
@@ -14747,7 +16287,14 @@ const docTemplate = `{
         "codersdk.WorkspaceBuildTimings": {
             "type": "object",
             "properties": {
+                "agent_connection_timings": {
+                    "type": "array",
+                    "items": {
+                        "$ref": "#/definitions/codersdk.AgentConnectionTiming"
+                    }
+                },
                 "agent_script_timings": {
+                    "description": "TODO: Consolidate agent-related timing metrics into a single struct when\nupdating the API version",
                     "type": "array",
                     "items": {
                         "$ref": "#/definitions/codersdk.AgentScriptTiming"
@@ -16242,9 +17789,6 @@ const docTemplate = `{
         "wsproxysdk.RegisterWorkspaceProxyResponse": {
             "type": "object",
             "properties": {
-                "app_security_key": {
-                    "type": "string"
-                },
                 "derp_force_websockets": {
                     "type": "boolean"
                 },
@@ -16279,6 +17823,11 @@ const docTemplate = `{
         }
     },
     "securityDefinitions": {
+        "Authorization": {
+            "type": "apiKey",
+            "name": "Authorizaiton",
+            "in": "header"
+        },
         "CoderSessionToken": {
             "type": "apiKey",
             "name": "Coder-Session-Token",

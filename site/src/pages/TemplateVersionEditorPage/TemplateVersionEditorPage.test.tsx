@@ -226,6 +226,28 @@ test("Patch request is not send when there are no changes", async () => {
 	expect(patchTemplateVersion).toBeCalledTimes(0);
 });
 
+test("The file is uploaded with the correct content type", async () => {
+	const user = userEvent.setup();
+	renderTemplateEditorPage();
+	const topbar = await screen.findByTestId("topbar");
+
+	const newTemplateVersion = {
+		...MockTemplateVersion,
+		id: "new-version-id",
+		name: "new-version",
+	};
+
+	await typeOnEditor("new content", user);
+	await buildTemplateVersion(newTemplateVersion, user, topbar);
+
+	expect(API.uploadFile).toHaveBeenCalledWith(
+		expect.objectContaining({
+			name: "template.tar",
+			type: "application/x-tar",
+		}),
+	);
+});
+
 describe.each([
 	{
 		testName: "Do not ask when template version has no errors",
@@ -324,14 +346,13 @@ test("display pending badge and update it to running when status changes", async
 		},
 	};
 
-	let calls = 0;
+	let running = false;
 	server.use(
 		http.get(
 			"/api/v2/organizations/:org/templates/:template/versions/:version",
 			() => {
-				calls += 1;
 				return HttpResponse.json(
-					calls > 1 ? MockRunningTemplateVersion : MockPendingTemplateVersion,
+					running ? MockRunningTemplateVersion : MockPendingTemplateVersion,
 				);
 			},
 		),
@@ -347,6 +368,10 @@ test("display pending badge and update it to running when status changes", async
 
 	const status = await screen.findByRole("status");
 	expect(status).toHaveTextContent("Pending");
+
+	// Manually update the endpoint, as to not rely on the editor page
+	// making a specific number of requests.
+	running = true;
 
 	await waitFor(
 		() => {

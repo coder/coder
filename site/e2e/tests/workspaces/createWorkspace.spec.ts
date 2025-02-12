@@ -8,6 +8,7 @@ import {
 	requireTerraformProvisioner,
 	verifyParameters,
 } from "../../helpers";
+import { login } from "../../helpers";
 import { beforeCoderTest } from "../../hooks";
 import {
 	fifthParameter,
@@ -21,7 +22,12 @@ import {
 } from "../../parameters";
 import type { RichParameter } from "../../provisionerGenerated";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("create workspace", async ({ page }) => {
 	const template = await createTemplate(page, {
@@ -88,12 +94,10 @@ test("create workspace with default and required parameters", async ({
 		page,
 		echoResponsesWithParameters(richParameters),
 	);
-	const workspaceName = await createWorkspace(
-		page,
-		template,
+	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
-	);
+	});
 	await verifyParameters(page, workspaceName, richParameters, [
 		// user values:
 		...buildParameters,
@@ -120,12 +124,10 @@ test("create workspace and overwrite default parameters", async ({ page }) => {
 		echoResponsesWithParameters(richParameters),
 	);
 
-	const workspaceName = await createWorkspace(
-		page,
-		template,
+	const workspaceName = await createWorkspace(page, template, {
 		richParameters,
 		buildParameters,
-	);
+	});
 	await verifyParameters(page, workspaceName, richParameters, buildParameters);
 });
 
@@ -151,11 +153,9 @@ test("create workspace with disable_param search params", async ({ page }) => {
 	await expect(page.getByLabel(/Second parameter/i)).toBeDisabled();
 });
 
-test("create docker workspace", async ({ context, page }) => {
-	test.skip(
-		true,
-		"creating docker containers is currently leaky. They are not cleaned up when the tests are over.",
-	);
+// Creating docker containers is currently leaky. They are not cleaned up when
+// the tests are over.
+test.skip("create docker workspace", async ({ context, page }) => {
 	requireTerraformProvisioner();
 	const template = await createTemplate(page, StarterTemplates.STARTER_DOCKER);
 

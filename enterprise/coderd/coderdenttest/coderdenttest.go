@@ -7,36 +7,35 @@ import (
 	"crypto/tls"
 	"io"
 	"net/http"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
-	"golang.org/x/xerrors"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
+
+	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/drpc"
+	"github.com/coder/coder/v2/enterprise/coderd"
+	"github.com/coder/coder/v2/enterprise/coderd/license"
+	"github.com/coder/coder/v2/enterprise/dbcrypt"
 	"github.com/coder/coder/v2/provisioner/echo"
+	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionerd"
 	provisionerdproto "github.com/coder/coder/v2/provisionerd/proto"
 	"github.com/coder/coder/v2/provisionersdk"
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/golang-jwt/jwt/v4"
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-
-	"github.com/coder/coder/v2/coderd/coderdtest"
-	"github.com/coder/coder/v2/codersdk"
-	"github.com/coder/coder/v2/enterprise/coderd"
-	"github.com/coder/coder/v2/enterprise/coderd/license"
-	"github.com/coder/coder/v2/enterprise/dbcrypt"
 )
 
 const (
@@ -308,14 +307,31 @@ func CreateOrganization(t *testing.T, client *codersdk.Client, opts CreateOrgani
 	return org
 }
 
+// NewExternalProvisionerDaemon runs an external provisioner daemon in a
+// goroutine and returns a closer to stop it. The echo provisioner is used
+// here. This is the default provisioner for tests and should be fine for
+// most use cases. If you need to test terraform-specific behaviors, use
+// NewExternalProvisionerDaemonTerraform instead.
 func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
 	t.Helper()
+	return newExternalProvisionerDaemon(t, client, org, tags, codersdk.ProvisionerTypeEcho)
+}
 
-	// Without this check, the provisioner will silently fail.
+// NewExternalProvisionerDaemonTerraform runs an external provisioner daemon in
+// a goroutine and returns a closer to stop it. The terraform provisioner is
+// used here. Avoid using this unless you need to test terraform-specific
+// behaviors!
+func NewExternalProvisionerDaemonTerraform(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string) io.Closer {
+	t.Helper()
+	return newExternalProvisionerDaemon(t, client, org, tags, codersdk.ProvisionerTypeTerraform)
+}
+
+// nolint // This function is a helper for tests and should not be linted.
+func newExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uuid.UUID, tags map[string]string, provisionerType codersdk.ProvisionerType) io.Closer {
+	t.Helper()
+
 	entitlements, err := client.Entitlements(context.Background())
 	if err != nil {
-		// AGPL instances will throw this error. They cannot use external
-		// provisioners.
 		t.Errorf("external provisioners requires a license with entitlements. The client failed to fetch the entitlements, is this an enterprise instance of coderd?")
 		t.FailNow()
 		return nil
@@ -323,42 +339,67 @@ func NewExternalProvisionerDaemon(t testing.TB, client *codersdk.Client, org uui
 
 	feature := entitlements.Features[codersdk.FeatureExternalProvisionerDaemons]
 	if !feature.Enabled || feature.Entitlement != codersdk.EntitlementEntitled {
-		require.NoError(t, xerrors.Errorf("external provisioner daemons require an entitled license"))
+		t.Errorf("external provisioner daemons require an entitled license")
+		t.FailNow()
 		return nil
 	}
 
-	echoClient, echoServer := drpc.MemTransportPipe()
+	provisionerClient, provisionerSrv := drpc.MemTransportPipe()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serveDone := make(chan struct{})
 	t.Cleanup(func() {
-		_ = echoClient.Close()
-		_ = echoServer.Close()
+		_ = provisionerClient.Close()
+		_ = provisionerSrv.Close()
 		cancelFunc()
 		<-serveDone
 	})
-	go func() {
-		defer close(serveDone)
-		err := echo.Serve(ctx, &provisionersdk.ServeOptions{
-			Listener:      echoServer,
-			WorkDirectory: t.TempDir(),
-		})
-		assert.NoError(t, err)
-	}()
+
+	switch provisionerType {
+	case codersdk.ProvisionerTypeTerraform:
+		// Ensure the Terraform binary is present in the path.
+		// If not, we fail this test rather than downloading it.
+		terraformPath, err := exec.LookPath("terraform")
+		require.NoError(t, err, "terraform binary not found in PATH")
+		t.Logf("using Terraform binary at %s", terraformPath)
+
+		go func() {
+			defer close(serveDone)
+			assert.NoError(t, terraform.Serve(ctx, &terraform.ServeOptions{
+				BinaryPath: terraformPath,
+				CachePath:  t.TempDir(),
+				ServeOptions: &provisionersdk.ServeOptions{
+					Listener:      provisionerSrv,
+					WorkDirectory: t.TempDir(),
+				},
+			}))
+		}()
+	case codersdk.ProvisionerTypeEcho:
+		go func() {
+			defer close(serveDone)
+			assert.NoError(t, echo.Serve(ctx, &provisionersdk.ServeOptions{
+				Listener:      provisionerSrv,
+				WorkDirectory: t.TempDir(),
+			}))
+		}()
+	default:
+		t.Fatalf("unsupported provisioner type: %s", provisionerType)
+		return nil
+	}
 
 	daemon := provisionerd.New(func(ctx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return client.ServeProvisionerDaemon(ctx, codersdk.ServeProvisionerDaemonRequest{
 			ID:           uuid.New(),
-			Name:         t.Name(),
+			Name:         testutil.GetRandomName(t),
 			Organization: org,
-			Provisioners: []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho},
+			Provisioners: []codersdk.ProvisionerType{provisionerType},
 			Tags:         tags,
 		})
 	}, &provisionerd.Options{
-		Logger:              slogtest.Make(t, nil).Named("provisionerd").Leveled(slog.LevelDebug),
+		Logger:              testutil.Logger(t).Named("provisionerd").Leveled(slog.LevelDebug),
 		UpdateInterval:      250 * time.Millisecond,
 		ForceCancelInterval: 5 * time.Second,
 		Connector: provisionerd.LocalProvisioners{
-			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
+			string(provisionerType): sdkproto.NewDRPCProvisionerClient(provisionerClient),
 		},
 	})
 	closer := coderdtest.NewProvisionerDaemonCloser(daemon)

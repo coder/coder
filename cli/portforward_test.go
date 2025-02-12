@@ -68,6 +68,17 @@ func TestPortForward(t *testing.T) {
 			localAddress: []string{"127.0.0.1:5555", "127.0.0.1:6666"},
 		},
 		{
+			name:    "TCP-opportunistic-ipv6",
+			network: "tcp",
+			flag:    []string{"--tcp=5566:%v", "--tcp=6655:%v"},
+			setupRemote: func(t *testing.T) net.Listener {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener")
+				return l
+			},
+			localAddress: []string{"[::1]:5566", "[::1]:6655"},
+		},
+		{
 			name:    "UDP",
 			network: "udp",
 			flag:    []string{"--udp=7777:%v", "--udp=8888:%v"},
@@ -83,6 +94,21 @@ func TestPortForward(t *testing.T) {
 			localAddress: []string{"127.0.0.1:7777", "127.0.0.1:8888"},
 		},
 		{
+			name:    "UDP-opportunistic-ipv6",
+			network: "udp",
+			flag:    []string{"--udp=7788:%v", "--udp=8877:%v"},
+			setupRemote: func(t *testing.T) net.Listener {
+				addr := net.UDPAddr{
+					IP:   net.ParseIP("127.0.0.1"),
+					Port: 0,
+				}
+				l, err := udp.Listen("udp", &addr)
+				require.NoError(t, err, "create UDP listener")
+				return l
+			},
+			localAddress: []string{"[::1]:7788", "[::1]:8877"},
+		},
+		{
 			name:    "TCPWithAddress",
 			network: "tcp", flag: []string{"--tcp=10.10.10.99:9999:%v", "--tcp=10.10.10.10:1010:%v"},
 			setupRemote: func(t *testing.T) net.Listener {
@@ -91,6 +117,16 @@ func TestPortForward(t *testing.T) {
 				return l
 			},
 			localAddress: []string{"10.10.10.99:9999", "10.10.10.10:1010"},
+		},
+		{
+			name:    "TCP-IPv6",
+			network: "tcp", flag: []string{"--tcp=[fe80::99]:9999:%v", "--tcp=[fe80::10]:1010:%v"},
+			setupRemote: func(t *testing.T) net.Listener {
+				l, err := net.Listen("tcp", "127.0.0.1:0")
+				require.NoError(t, err, "create TCP listener")
+				return l
+			},
+			localAddress: []string{"[fe80::99]:9999", "[fe80::10]:1010"},
 		},
 	}
 
@@ -285,17 +321,74 @@ func TestPortForward(t *testing.T) {
 		require.NoError(t, err)
 		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
 	})
+
+	t.Run("IPv6Busy", func(t *testing.T) {
+		t.Parallel()
+
+		remoteLis, err := net.Listen("tcp", "127.0.0.1:0")
+		require.NoError(t, err, "create TCP listener")
+		p1 := setupTestListener(t, remoteLis)
+
+		// Create a flag that forwards from local 5555 to remote listener port.
+		flag := fmt.Sprintf("--tcp=5555:%v", p1)
+
+		// Launch port-forward in a goroutine so we can start dialing
+		// the "local" listener.
+		inv, root := clitest.New(t, "-v", "port-forward", workspace.Name, flag)
+		clitest.SetupConfig(t, member, root)
+		pty := ptytest.New(t)
+		inv.Stdin = pty.Input()
+		inv.Stdout = pty.Output()
+		inv.Stderr = pty.Output()
+
+		iNet := newInProcNet()
+		inv.Net = iNet
+
+		// listen on port 5555 on IPv6 so it's busy when we try to port forward
+		busyLis, err := iNet.Listen("tcp", "[::1]:5555")
+		require.NoError(t, err)
+		defer busyLis.Close()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+		errC := make(chan error)
+		go func() {
+			err := inv.WithContext(ctx).Run()
+			t.Logf("command complete; err=%s", err.Error())
+			errC <- err
+		}()
+		pty.ExpectMatchContext(ctx, "Ready!")
+
+		// Test IPv4 still works
+		dialCtx, dialCtxCancel := context.WithTimeout(ctx, testutil.WaitShort)
+		defer dialCtxCancel()
+		c1, err := iNet.dial(dialCtx, addr{"tcp", "127.0.0.1:5555"})
+		require.NoError(t, err, "open connection 1 to 'local' listener")
+		defer c1.Close()
+		testDial(t, c1)
+
+		cancel()
+		err = <-errC
+		require.ErrorIs(t, err, context.Canceled)
+
+		flushCtx := testutil.Context(t, testutil.WaitShort)
+		testutil.RequireSendCtx(flushCtx, t, wuTick, dbtime.Now())
+		_ = testutil.RequireRecvCtx(flushCtx, t, wuFlush)
+		updated, err := client.Workspace(context.Background(), workspace.ID)
+		require.NoError(t, err)
+		require.Greater(t, updated.LastUsedAt, workspace.LastUsedAt)
+	})
 }
 
 // runAgent creates a fake workspace and starts an agent locally for that
 // workspace. The agent will be cleaned up on test completion.
 // nolint:unused
-func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db database.Store) database.Workspace {
+func runAgent(t *testing.T, client *codersdk.Client, owner uuid.UUID, db database.Store) database.WorkspaceTable {
 	user, err := client.User(context.Background(), codersdk.Me)
 	require.NoError(t, err, "specified user does not exist")
 	require.Greater(t, len(user.OrganizationIDs), 0, "user has no organizations")
 	orgID := user.OrganizationIDs[0]
-	r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: orgID,
 		OwnerID:        owner,
 	}).WithAgent().Do()

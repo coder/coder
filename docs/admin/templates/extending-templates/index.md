@@ -39,7 +39,7 @@ information displayed in the dashboard's workspace view.
 ![A healthy workspace agent](../../../images/templates/healthy-workspace-agent.png)
 
 Multiple agents may be used in a single template or even a single resource. Each
-agent may have it's own apps, startup script, and metadata. This can be used to
+agent may have its own apps, startup script, and metadata. This can be used to
 associate multiple containers or VMs with a workspace.
 
 ## Resource persistence

@@ -42,6 +42,16 @@ environments:
 - [Amazon Web Services](https://registry.terraform.io/providers/hashicorp/aws/latest/docs)
 - [Microsoft Azure](https://registry.terraform.io/providers/hashicorp/azurerm/latest/docs)
 - [Kubernetes](https://registry.terraform.io/providers/hashicorp/kubernetes/latest/docs)
+- [Docker](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs)
+
+## Use a remote Docker host for authentication
+
+There are two ways to use a remote Docker host for authentication:
+
+- Configure the Docker provider to use a
+  [remote host over SSH or TCP](https://registry.terraform.io/providers/kreuzwerker/docker/latest/docs#remote-hosts).
+- Run an [external provisioner](../../provisioners.md) on the remote docker
+  host.
 
 Other providers might also support authenticated environments. Check the
 [documentation of the Terraform provider](https://registry.terraform.io/browse/providers)

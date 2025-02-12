@@ -88,9 +88,16 @@ manually updated the workspace.
 
 ![Automatic Updates](../images/workspace-automatic-updates.png)
 
-## Bulk operations (enterprise) (premium)
+## Bulk operations
 
-Enterprise admins may apply bulk operations (update, delete, start, stop) in the
+<blockquote class="info">
+
+Bulk operations are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
+
+Licensed admins may apply bulk operations (update, delete, start, stop) in the
 **Workspaces** tab. Select the workspaces you'd like to modify with the
 checkboxes on the left, then use the top-right **Actions** dropdown to apply the
 operation.
@@ -112,7 +119,8 @@ To set a workspace's schedule, go to the workspace, then **Settings** >
 ![Scheduling UI](../images/schedule.png)
 
 Coder might also stop a workspace automatically if there is a
-[template update](../admin/templates/index.md#Start/stop) available.
+[template update](../admin/templates/managing-templates/index.md#updating-templates)
+available.
 
 Learn more about [workspace lifecycle](./workspace-lifecycle.md) and our
 [scheduling features](./workspace-scheduling.md).
@@ -169,7 +177,7 @@ coder state push <username>/<workspace name>
 Coder stores macOS and Linux logs at the following locations:
 
 | Service           | Location                         |
-| ----------------- | -------------------------------- |
+|-------------------|----------------------------------|
 | `startup_script`  | `/tmp/coder-startup-script.log`  |
 | `shutdown_script` | `/tmp/coder-shutdown-script.log` |
 | Agent             | `/tmp/coder-agent.log`           |

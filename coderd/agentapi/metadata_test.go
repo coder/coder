@@ -12,14 +12,13 @@ import (
 	"go.uber.org/mock/gomock"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/coderd/agentapi"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type fakePublisher struct {
@@ -87,7 +86,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Database: dbM,
 			Pubsub:   pub,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -172,7 +171,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Database: dbM,
 			Pubsub:   pub,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},
@@ -241,7 +240,7 @@ func TestBatchUpdateMetadata(t *testing.T) {
 			},
 			Database: dbM,
 			Pubsub:   pub,
-			Log:      slogtest.Make(t, nil),
+			Log:      testutil.Logger(t),
 			TimeNowFn: func() time.Time {
 				return now
 			},

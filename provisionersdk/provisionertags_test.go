@@ -1,7 +1,6 @@
 package provisionersdk_test
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/coder/coder/v2/provisionersdk"
@@ -18,13 +17,13 @@ func TestMutateTags(t *testing.T) {
 	for _, tt := range []struct {
 		name   string
 		userID uuid.UUID
-		tags   map[string]string
+		tags   []map[string]string
 		want   map[string]string
 	}{
 		{
 			name:   "nil tags",
 			userID: uuid.Nil,
-			tags:   nil,
+			tags:   []map[string]string{nil},
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				provisionersdk.TagOwner: "",
@@ -33,15 +32,17 @@ func TestMutateTags(t *testing.T) {
 		{
 			name:   "empty tags",
 			userID: uuid.Nil,
-			tags:   map[string]string{},
+			tags:   []map[string]string{{}},
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
 				provisionersdk.TagOwner: "",
 			},
 		},
 		{
-			name:   "user scope",
-			tags:   map[string]string{provisionersdk.TagScope: provisionersdk.ScopeUser},
+			name: "user scope",
+			tags: []map[string]string{
+				{provisionersdk.TagScope: provisionersdk.ScopeUser},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeUser,
@@ -49,8 +50,10 @@ func TestMutateTags(t *testing.T) {
 			},
 		},
 		{
-			name:   "organization scope",
-			tags:   map[string]string{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+			name: "organization scope",
+			tags: []map[string]string{
+				{provisionersdk.TagScope: provisionersdk.ScopeOrganization},
+			},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -59,9 +62,11 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "organization scope with owner",
-			tags: map[string]string{
-				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
-				provisionersdk.TagOwner: testUserID.String(),
+			tags: []map[string]string{
+				{
+					provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+					provisionersdk.TagOwner: testUserID.String(),
+				},
 			},
 			userID: uuid.Nil,
 			want: map[string]string{
@@ -71,8 +76,10 @@ func TestMutateTags(t *testing.T) {
 		},
 		{
 			name: "owner tag with no other context",
-			tags: map[string]string{
-				provisionersdk.TagOwner: testUserID.String(),
+			tags: []map[string]string{
+				{
+					provisionersdk.TagOwner: testUserID.String(),
+				},
 			},
 			userID: uuid.Nil,
 			want: map[string]string{
@@ -81,8 +88,96 @@ func TestMutateTags(t *testing.T) {
 			},
 		},
 		{
-			name:   "invalid scope",
-			tags:   map[string]string{provisionersdk.TagScope: "360noscope"},
+			name: "invalid scope",
+			tags: []map[string]string{
+				{provisionersdk.TagScope: "360noscope"},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		},
+		{
+			name: "merge two empty maps",
+			tags: []map[string]string{
+				{},
+				{},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+			},
+		},
+		{
+			name: "merge empty map with non-empty map",
+			tags: []map[string]string{
+				{},
+				{"foo": "bar"},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+		},
+		{
+			name: "merge non-empty map with empty map",
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+		},
+		{
+			name: "merge map with same map",
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": "bar"},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+		},
+		{
+			name: "merge map with override",
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": "baz"},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "baz",
+			},
+		},
+		{
+			name: "do not override empty in second map",
+			tags: []map[string]string{
+				{"foo": "bar"},
+				{"foo": ""},
+			},
+			userID: testUserID,
+			want: map[string]string{
+				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
+				provisionersdk.TagOwner: "",
+				"foo":                   "bar",
+			},
+		},
+		{
+			name:   "merge nil map with nil map",
+			tags:   []map[string]string{nil, nil},
 			userID: testUserID,
 			want: map[string]string{
 				provisionersdk.TagScope: provisionersdk.ScopeOrganization,
@@ -93,14 +188,7 @@ func TestMutateTags(t *testing.T) {
 		tt := tt
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			// make a copy of the map because the function under test
-			// mutates the map
-			bytes, err := json.Marshal(tt.tags)
-			require.NoError(t, err)
-			var tags map[string]string
-			err = json.Unmarshal(bytes, &tags)
-			require.NoError(t, err)
-			got := provisionersdk.MutateTags(tt.userID, tags)
+			got := provisionersdk.MutateTags(tt.userID, tt.tags...)
 			require.Equal(t, tt.want, got)
 		})
 	}

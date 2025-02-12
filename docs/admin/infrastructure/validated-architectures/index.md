@@ -23,7 +23,7 @@ This guide targets the following personas. It assumes a basic understanding of
 cloud/on-premise computing, containerization, and the Coder platform.
 
 | Role                      | Description                                                                    |
-| ------------------------- | ------------------------------------------------------------------------------ |
+|---------------------------|--------------------------------------------------------------------------------|
 | Platform Engineers        | Responsible for deploying, operating the Coder deployment and infrastructure   |
 | Enterprise Architects     | Responsible for architecting Coder deployments to meet enterprise requirements |
 | Managed Service Providers | Entities that deploy and run Coder software as a service for customers         |
@@ -31,7 +31,7 @@ cloud/on-premise computing, containerization, and the Coder platform.
 ## CVA Guidance
 
 | CVA provides:                                  | CVA does not provide:                                                                    |
-| ---------------------------------------------- | ---------------------------------------------------------------------------------------- |
+|------------------------------------------------|------------------------------------------------------------------------------------------|
 | Single and multi-region K8s deployment options | Prescribing OS, or cloud vs. on-premise                                                  |
 | Reference architectures for up to 3,000 users  | An approval of your architecture; the CVA solely provides recommendations and guidelines |
 | Best practices for building a Coder deployment | Recommendations for every possible deployment scenario                                   |
@@ -340,10 +340,10 @@ could affect workspace users experience once the platform is live.
 1. Maintain Coder templates using
    [version control](../../templates/managing-templates/change-management.md).
 1. Consider implementing a GitOps workflow to automatically push new template
-   versions into Coder from git. For example, on Github, you can use the
+   versions into Coder from git. For example, on GitHub, you can use the
    [Setup Coder](https://github.com/marketplace/actions/setup-coder) action.
 1. Evaluate enabling
-   [automatic template updates](../../templates/managing-templates/index.md#template-update-policies-enterprise-premium)
+   [automatic template updates](../../templates/managing-templates/index.md#template-update-policies)
    upon workspace startup.
 
 ### Observability

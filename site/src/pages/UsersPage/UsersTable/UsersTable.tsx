@@ -8,7 +8,7 @@ import type { GroupsByUserId } from "api/queries/groups";
 import type * as TypesGen from "api/typesGenerated";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
-import { TableColumnHelpTooltip } from "../../ManagementSettingsPage/UserTable/TableColumnHelpTooltip";
+import { TableColumnHelpTooltip } from "../../OrganizationSettingsPage/UserTable/TableColumnHelpTooltip";
 import { UsersTableBody } from "./UsersTableBody";
 
 export const Language = {

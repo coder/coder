@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/testutil"
@@ -274,7 +272,7 @@ func TestStartupLogsSender(t *testing.T) {
 				return nil
 			}
 
-			sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+			sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, testutil.Logger(t))
 			defer func() {
 				err := flushAndClose(ctx)
 				require.NoError(t, err)
@@ -313,7 +311,7 @@ func TestStartupLogsSender(t *testing.T) {
 			return nil
 		}
 
-		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug))
+		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, testutil.Logger(t))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()
@@ -349,7 +347,7 @@ func TestStartupLogsSender(t *testing.T) {
 
 		// Prevent race between auto-flush and context cancellation with
 		// a really long timeout.
-		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, slogtest.Make(t, nil).Leveled(slog.LevelDebug), agentsdk.LogsSenderFlushTimeout(time.Hour))
+		sendLog, flushAndClose := agentsdk.LogsSender(uuid.New(), patchLogs, testutil.Logger(t), agentsdk.LogsSenderFlushTimeout(time.Hour))
 		defer func() {
 			_ = flushAndClose(ctx)
 		}()

@@ -70,8 +70,6 @@ export const formValuesToTTLRequest = (
 	return {
 		// minutes to nanoseconds
 		ttl_ms:
-			values.autostopEnabled && values.ttl
-				? values.ttl * 60 * 60 * 1000
-				: undefined,
+			values.autostopEnabled && values.ttl ? values.ttl * 60 * 60 * 1000 : null,
 	};
 };

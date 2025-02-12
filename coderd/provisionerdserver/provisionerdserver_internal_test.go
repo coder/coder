@@ -38,6 +38,16 @@ func TestObtainOIDCAccessToken(t *testing.T) {
 		_, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
 		require.NoError(t, err)
 	})
+	t.Run("MissingLink", func(t *testing.T) {
+		t.Parallel()
+		db := dbmem.New()
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+		})
+		tok, err := obtainOIDCAccessToken(ctx, db, &oauth2.Config{}, user.ID)
+		require.Empty(t, tok)
+		require.NoError(t, err)
+	})
 	t.Run("Exchange", func(t *testing.T) {
 		t.Parallel()
 		db := dbmem.New()

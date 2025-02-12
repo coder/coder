@@ -20,13 +20,13 @@ import (
 func TestWorkspaceBuildParam(t *testing.T) {
 	t.Parallel()
 
-	setupAuthentication := func(db database.Store) (*http.Request, database.Workspace) {
+	setupAuthentication := func(db database.Store) (*http.Request, database.WorkspaceTable) {
 		var (
 			user     = dbgen.User(t, db, database.User{})
 			_, token = dbgen.APIKey(t, db, database.APIKey{
 				UserID: user.ID,
 			})
-			workspace = dbgen.Workspace(t, db, database.Workspace{
+			workspace = dbgen.Workspace(t, db, database.WorkspaceTable{
 				OwnerID: user.ID,
 			})
 		)

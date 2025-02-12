@@ -78,6 +78,9 @@ func TestDeploymentValues_HighlyConfigurable(t *testing.T) {
 		"Provisioner Daemon Pre-shared Key (PSK)": {
 			yaml: true,
 		},
+		"Email Auth: Password": {
+			yaml: true,
+		},
 		"Notifications: Email Auth: Password": {
 			yaml: true,
 		},
@@ -306,8 +309,8 @@ func TestDeploymentValues_DurationFormatNanoseconds(t *testing.T) {
 			continue
 		}
 		t.Logf("Option %q is a duration but does not have the format_duration annotation.", s.Name)
-		t.Logf("To fix this, add the following to the option declaration:")
-		t.Logf(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
+		t.Log("To fix this, add the following to the option declaration:")
+		t.Log(`Annotations: serpent.Annotations{}.Mark(annotationFormatDurationNS, "true"),`)
 		t.FailNow()
 	}
 }
@@ -564,4 +567,70 @@ func TestPremiumSuperSet(t *testing.T) {
 	// with zero'd values.
 	require.NotContains(t, enterprise.Features(), "", "enterprise should not contain empty string")
 	require.NotContains(t, premium.Features(), "", "premium should not contain empty string")
+}
+
+func TestNotificationsCanBeDisabled(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                       string
+		expectNotificationsEnabled bool
+		environment                []serpent.EnvVar
+	}{
+		{
+			name:                       "NoDeliveryMethodSet",
+			environment:                []serpent.EnvVar{},
+			expectNotificationsEnabled: false,
+		},
+		{
+			name: "SMTP_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:587",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+		{
+			name: "Webhook_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+					Value: "https://example.com/webhook",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+		{
+			name: "WebhookAndSMTP_DeliveryMethodSet",
+			environment: []serpent.EnvVar{
+				{
+					Name:  "CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT",
+					Value: "https://example.com/webhook",
+				},
+				{
+					Name:  "CODER_EMAIL_SMARTHOST",
+					Value: "localhost:587",
+				},
+			},
+			expectNotificationsEnabled: true,
+		},
+	}
+
+	for _, tt := range tests {
+		tt := tt
+
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+
+			dv := codersdk.DeploymentValues{}
+			opts := dv.Options()
+
+			err := opts.ParseEnv(tt.environment)
+			require.NoError(t, err)
+
+			require.Equal(t, tt.expectNotificationsEnabled, dv.Notifications.Enabled())
+		})
+	}
 }

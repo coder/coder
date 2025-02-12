@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # coder
 
 ## Usage
@@ -24,7 +23,7 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 ## Subcommands
 
 | Name                                               | Purpose                                                                                               |
-| -------------------------------------------------- | ----------------------------------------------------------------------------------------------------- |
+|----------------------------------------------------|-------------------------------------------------------------------------------------------------------|
 | [<code>completion</code>](./completion.md)         | Install or update shell completion scripts for the detected or chosen shell.                          |
 | [<code>dotfiles</code>](./dotfiles.md)             | Personalize your workspace by applying a canonical dotfiles repository                                |
 | [<code>external-auth</code>](./external-auth.md)   | Manage external authentication                                                                        |
@@ -66,14 +65,14 @@ Coder — A tool for provisioning self-hosted development environments with Terr
 | [<code>features</code>](./features.md)             | List Enterprise features                                                                              |
 | [<code>licenses</code>](./licenses.md)             | Add, delete, and list licenses                                                                        |
 | [<code>groups</code>](./groups.md)                 | Manage groups                                                                                         |
-| [<code>provisioner</code>](./provisioner.md)       | Manage provisioner daemons                                                                            |
+| [<code>provisioner</code>](./provisioner.md)       | View and manage provisioner daemons and jobs                                                          |
 
 ## Options
 
 ### --url
 
 |             |                         |
-| ----------- | ----------------------- |
+|-------------|-------------------------|
 | Type        | <code>url</code>        |
 | Environment | <code>$CODER_URL</code> |
 
@@ -82,7 +81,7 @@ URL to a deployment.
 ### --debug-options
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Print all options, how they're set, then exit.
@@ -90,7 +89,7 @@ Print all options, how they're set, then exit.
 ### --token
 
 |             |                                   |
-| ----------- | --------------------------------- |
+|-------------|-----------------------------------|
 | Type        | <code>string</code>               |
 | Environment | <code>$CODER_SESSION_TOKEN</code> |
 
@@ -99,7 +98,7 @@ Specify an authentication token. For security reasons setting CODER_SESSION_TOKE
 ### --no-version-warning
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_VERSION_WARNING</code> |
 
@@ -108,7 +107,7 @@ Suppress warning when client and server versions do not match.
 ### --no-feature-warning
 
 |             |                                        |
-| ----------- | -------------------------------------- |
+|-------------|----------------------------------------|
 | Type        | <code>bool</code>                      |
 | Environment | <code>$CODER_NO_FEATURE_WARNING</code> |
 
@@ -117,7 +116,7 @@ Suppress warnings about unlicensed features.
 ### --header
 
 |             |                            |
-| ----------- | -------------------------- |
+|-------------|----------------------------|
 | Type        | <code>string-array</code>  |
 | Environment | <code>$CODER_HEADER</code> |
 
@@ -126,7 +125,7 @@ Additional HTTP headers added to all requests. Provide as key=value. Can be spec
 ### --header-command
 
 |             |                                    |
-| ----------- | ---------------------------------- |
+|-------------|------------------------------------|
 | Type        | <code>string</code>                |
 | Environment | <code>$CODER_HEADER_COMMAND</code> |
 
@@ -135,7 +134,7 @@ An external command that outputs additional HTTP headers added to all requests. 
 ### -v, --verbose
 
 |             |                             |
-| ----------- | --------------------------- |
+|-------------|-----------------------------|
 | Type        | <code>bool</code>           |
 | Environment | <code>$CODER_VERBOSE</code> |
 
@@ -144,7 +143,7 @@ Enable verbose output.
 ### --disable-direct-connections
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_DISABLE_DIRECT_CONNECTIONS</code> |
 
@@ -153,7 +152,7 @@ Disable direct (P2P) connections to workspaces.
 ### --disable-network-telemetry
 
 |             |                                               |
-| ----------- | --------------------------------------------- |
+|-------------|-----------------------------------------------|
 | Type        | <code>bool</code>                             |
 | Environment | <code>$CODER_DISABLE_NETWORK_TELEMETRY</code> |
 
@@ -162,7 +161,7 @@ Disable network telemetry. Network telemetry is collected when connecting to wor
 ### --global-config
 
 |             |                                |
-| ----------- | ------------------------------ |
+|-------------|--------------------------------|
 | Type        | <code>string</code>            |
 | Environment | <code>$CODER_CONFIG_DIR</code> |
 | Default     | <code>~/.config/coderv2</code> |

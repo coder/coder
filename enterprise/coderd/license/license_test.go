@@ -54,7 +54,7 @@ func TestEntitlements(t *testing.T) {
 		db := dbmem.New()
 		db.InsertLicense(context.Background(), database.InsertLicenseParams{
 			JWT: coderdenttest.GenerateLicense(t, coderdenttest.LicenseOptions{}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: dbtime.Now().Add(time.Hour),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
@@ -78,7 +78,7 @@ func TestEntitlements(t *testing.T) {
 					return f
 				}(),
 			}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: dbtime.Now().Add(time.Hour),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, empty)
 		require.NoError(t, err)
@@ -98,10 +98,10 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAuditLog:  1,
 				},
 
-				GraceAt:   time.Now().Add(-time.Hour),
-				ExpiresAt: time.Now().Add(time.Hour),
+				GraceAt:   dbtime.Now().Add(-time.Hour),
+				ExpiresAt: dbtime.Now().Add(time.Hour),
 			}),
-			Exp: time.Now().Add(time.Hour),
+			Exp: dbtime.Now().Add(time.Hour),
 		})
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
 		require.NoError(t, err)
@@ -124,10 +124,10 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAuditLog:  1,
 				},
 
-				GraceAt:   time.Now().AddDate(0, 0, 2),
-				ExpiresAt: time.Now().AddDate(0, 0, 5),
+				GraceAt:   dbtime.Now().AddDate(0, 0, 2),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 5),
 			}),
-			Exp: time.Now().AddDate(0, 0, 5),
+			Exp: dbtime.Now().AddDate(0, 0, 5),
 		})
 
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
@@ -153,8 +153,8 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAuditLog:  1,
 				},
 
-				GraceAt:   time.Now().AddDate(0, 0, 1),
-				ExpiresAt: time.Now().AddDate(0, 0, 5),
+				GraceAt:   dbtime.Now().AddDate(0, 0, 1),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 5),
 			}),
 			Exp: time.Now().AddDate(0, 0, 5),
 		})
@@ -183,10 +183,10 @@ func TestEntitlements(t *testing.T) {
 				},
 
 				Trial:     true,
-				GraceAt:   time.Now().AddDate(0, 0, 8),
-				ExpiresAt: time.Now().AddDate(0, 0, 5),
+				GraceAt:   dbtime.Now().AddDate(0, 0, 8),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 5),
 			}),
-			Exp: time.Now().AddDate(0, 0, 5),
+			Exp: dbtime.Now().AddDate(0, 0, 5),
 		})
 
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)
@@ -212,10 +212,10 @@ func TestEntitlements(t *testing.T) {
 					codersdk.FeatureAuditLog:  1,
 				},
 
-				GraceAt:   time.Now().AddDate(0, 0, 30),
-				ExpiresAt: time.Now().AddDate(0, 0, 5),
+				GraceAt:   dbtime.Now().AddDate(0, 0, 30),
+				ExpiresAt: dbtime.Now().AddDate(0, 0, 5),
 			}),
-			Exp: time.Now().AddDate(0, 0, 5),
+			Exp: dbtime.Now().AddDate(0, 0, 5),
 		})
 
 		entitlements, err := license.Entitlements(context.Background(), db, 1, 1, coderdenttest.Keys, all)

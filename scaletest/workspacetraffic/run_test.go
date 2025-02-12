@@ -12,8 +12,10 @@ import (
 	"testing"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"golang.org/x/exp/slices"
-	"nhooyr.io/websocket"
 
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
@@ -22,10 +24,7 @@ import (
 	"github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/scaletest/workspacetraffic"
 	"github.com/coder/coder/v2/testutil"
-
-	"github.com/google/uuid"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	"github.com/coder/websocket"
 )
 
 func TestRun(t *testing.T) {
@@ -116,7 +115,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -236,7 +235,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})
@@ -338,7 +337,7 @@ func TestRun(t *testing.T) {
 		go func() {
 			defer close(runDone)
 			err := runner.Run(ctx, "", &logs)
-			assert.NoError(t, err, "unexpected error calling Run()")
+			assert.NoError(t, err, "RUN LOGS:\n%s\nEND RUN LOGS\n", logs.String())
 		}()
 
 		gotMetrics := make(chan struct{})

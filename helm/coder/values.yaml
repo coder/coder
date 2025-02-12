@@ -113,6 +113,8 @@ coder:
     annotations: {}
     # coder.serviceAccount.name -- The service account name
     name: coder
+    # coder.serviceAccount.disableCreate -- Whether to create the service account or use existing service account.
+    disableCreate: false
 
   # coder.securityContext -- Fields related to the container's security
   # context (as opposed to the pod). Some fields are also present in the pod
@@ -234,6 +236,14 @@ coder:
             topologyKey: kubernetes.io/hostname
           weight: 1
 
+  topologySpreadConstraints:
+    # - maxSkew: 1
+    #   topologyKey: kubernetes.io/hostname
+    #   whenUnsatisfiable: DoNotSchedule
+    #   labelSelector:
+    #     matchLabels:
+    #       app.kubernetes.io/instance: coder
+
   # coder.tolerations -- Tolerations for tainted nodes.
   # See: https://kubernetes.io/docs/concepts/configuration/taint-and-toleration/
   tolerations:
@@ -271,15 +281,18 @@ coder:
     # your cloud and specify it here in production to avoid accidental IP
     # address changes.
     loadBalancerIP: ""
+    # coder.service.loadBalancerClass -- The class name of the LoadBalancer. See:
+    # https://kubernetes.io/docs/concepts/services-networking/service/#load-balancer-class
+    loadBalancerClass: ""
     # coder.service.annotations -- The service annotations. See:
     # https://kubernetes.io/docs/concepts/services-networking/service/#internal-load-balancer
     annotations: {}
     # coder.service.httpNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpNodePort: ""
     # coder.service.httpsNodePort -- Enabled if coder.service.type is set to
-    # NodePort. If not set, Kubernetes will allocate a port from the default
+    # NodePort or LoadBalancer. If not set, Kubernetes will allocate a port from the default
     # range, 30000-32767.
     httpsNodePort: ""
 

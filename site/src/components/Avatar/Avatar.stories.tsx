@@ -1,59 +1,76 @@
-import PauseIcon from "@mui/icons-material/PauseOutlined";
 import type { Meta, StoryObj } from "@storybook/react";
-import { Avatar, AvatarIcon } from "./Avatar";
+import { Avatar } from "./Avatar";
 
 const meta: Meta<typeof Avatar> = {
 	title: "components/Avatar",
 	component: Avatar,
+	args: {
+		src: "https://github.com/kylecarbs.png",
+	},
 };
 
 export default meta;
 type Story = StoryObj<typeof Avatar>;
 
-export const WithLetter: Story = {
+export const ImageLgSize: Story = {
+	args: { size: "lg" },
+};
+
+export const ImageMdSize: Story = {};
+
+export const ImageSmSize: Story = {
+	args: { size: "sm" },
+};
+
+export const IconLgSize: Story = {
 	args: {
-		children: "Coder",
+		size: "lg",
+		variant: "icon",
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
-export const WithLetterXL = {
+export const IconMdSize: Story = {
 	args: {
-		children: "Coder",
-		size: "xl",
+		variant: "icon",
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
-export const WithImage = {
+export const IconSmSize: Story = {
 	args: {
-		src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
+		variant: "icon",
+		size: "sm",
+		src: "https://em-content.zobj.net/source/apple/391/billed-cap_1f9e2.png",
 	},
 };
 
-export const WithImageXL = {
+export const NonSquaredIcon: Story = {
 	args: {
-		src: "https://avatars.githubusercontent.com/u/95932066?s=200&v=4",
-		size: "xl",
+		variant: "icon",
+		src: "/icon/docker.png",
 	},
 };
 
-export const WithMuiIcon = {
+export const FallbackLgSize: Story = {
 	args: {
-		background: true,
-		children: <PauseIcon />,
+		src: "",
+		size: "lg",
+		fallback: "Adriana Rodrigues",
 	},
 };
 
-export const WithMuiIconXL = {
+export const FallbackMdSize: Story = {
 	args: {
-		background: true,
-		children: <PauseIcon />,
-		size: "xl",
+		src: "",
+		fallback: "Adriana Rodrigues",
 	},
 };
 
-export const WithAvatarIcon = {
+export const FallbackSmSize: Story = {
 	args: {
-		background: true,
-		children: <AvatarIcon src="/icon/database.svg" alt="Database" />,
+		src: "",
+		size: "sm",
+		fallback: "Adriana Rodrigues",
 	},
 };

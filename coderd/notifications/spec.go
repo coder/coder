@@ -2,6 +2,7 @@ package notifications
 
 import (
 	"context"
+	"text/template"
 
 	"github.com/google/uuid"
 
@@ -22,12 +23,14 @@ type Store interface {
 	FetchNewMessageMetadata(ctx context.Context, arg database.FetchNewMessageMetadataParams) (database.FetchNewMessageMetadataRow, error)
 	GetNotificationMessagesByStatus(ctx context.Context, arg database.GetNotificationMessagesByStatusParams) ([]database.NotificationMessage, error)
 	GetNotificationsSettings(ctx context.Context) (string, error)
+	GetApplicationName(ctx context.Context) (string, error)
+	GetLogoURL(ctx context.Context) (string, error)
 }
 
 // Handler is responsible for preparing and delivering a notification by a given method.
 type Handler interface {
 	// Dispatcher constructs a DeliveryFunc to be used for delivering a notification via the chosen method.
-	Dispatcher(payload types.MessagePayload, title, body string) (dispatch.DeliveryFunc, error)
+	Dispatcher(payload types.MessagePayload, title, body string, helpers template.FuncMap) (dispatch.DeliveryFunc, error)
 }
 
 // Enqueuer enqueues a new notification message in the store and returns its ID, should it enqueue without failure.

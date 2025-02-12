@@ -19,7 +19,7 @@ func TestFavoriteUnfavorite(t *testing.T) {
 		client, db           = coderdtest.NewWithDatabase(t, nil)
 		owner                = coderdtest.CreateFirstUser(t, client)
 		memberClient, member = coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		ws                   = dbfake.WorkspaceBuild(t, db, database.Workspace{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
+		ws                   = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{OwnerID: member.ID, OrganizationID: owner.OrganizationID}).Do()
 	)
 
 	inv, root := clitest.New(t, "favorite", ws.Workspace.Name)

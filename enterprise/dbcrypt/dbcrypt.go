@@ -60,7 +60,7 @@ type dbCrypt struct {
 	database.Store
 }
 
-func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *sql.TxOptions) error {
+func (db *dbCrypt) InTx(function func(database.Store) error, txOpts *database.TxOptions) error {
 	return db.Store.InTx(func(s database.Store) error {
 		return function(&dbCrypt{
 			primaryCipherDigest: db.primaryCipherDigest,
@@ -261,6 +261,21 @@ func (db *dbCrypt) UpdateExternalAuthLink(ctx context.Context, params database.U
 	return link, nil
 }
 
+func (db *dbCrypt) UpdateExternalAuthLinkRefreshToken(ctx context.Context, params database.UpdateExternalAuthLinkRefreshTokenParams) error {
+	// We would normally use a sql.NullString here, but sqlc does not want to make
+	// a params struct with a nullable string.
+	var digest sql.NullString
+	if params.OAuthRefreshTokenKeyID != "" {
+		digest.String = params.OAuthRefreshTokenKeyID
+		digest.Valid = true
+	}
+	if err := db.encryptField(&params.OAuthRefreshToken, &digest); err != nil {
+		return err
+	}
+
+	return db.Store.UpdateExternalAuthLinkRefreshToken(ctx, params)
+}
+
 func (db *dbCrypt) GetCryptoKeys(ctx context.Context) ([]database.CryptoKey, error) {
 	keys, err := db.Store.GetCryptoKeys(ctx)
 	if err != nil {
@@ -445,5 +460,5 @@ func (db *dbCrypt) ensureEncrypted(ctx context.Context) error {
 			ActiveKeyDigest: db.primaryCipherDigest,
 			Test:            testValue,
 		})
-	}, &sql.TxOptions{Isolation: sql.LevelRepeatableRead})
+	}, &database.TxOptions{Isolation: sql.LevelRepeatableRead})
 }

@@ -3,6 +3,8 @@ package coderd_test
 import (
 	"context"
 	"crypto"
+	"crypto/rand"
+	"encoding/json"
 	"fmt"
 	"io"
 	"net/http"
@@ -13,6 +15,7 @@ import (
 	"time"
 
 	"github.com/coreos/go-oidc/v3/oidc"
+	"github.com/go-jose/go-jose/v4"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/go-github/v43/github"
 	"github.com/google/uuid"
@@ -27,11 +30,14 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/coderdtest/oidctest"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/jwtutils"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/promoauth"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/cryptorand"
@@ -66,6 +72,7 @@ func TestOIDCOauthLoginWithExisting(t *testing.T) {
 		"email":              "alice@coder.com",
 		"email_verified":     true,
 		"preferred_username": username,
+		"sub":                uuid.NewString(),
 	}
 
 	helper := oidctest.NewLoginHelper(client, fake)
@@ -837,7 +844,7 @@ func TestUserOAuth2Github(t *testing.T) {
 			OAuthAccessToken:  "random",
 			OAuthRefreshToken: "random",
 			OAuthExpiry:       time.Now(),
-			DebugContext:      []byte(`{}`),
+			Claims:            database.UserLinkClaims{},
 		})
 		require.ErrorContains(t, err, "Cannot create user_link for deleted user")
 
@@ -894,9 +901,18 @@ func TestUserOIDC(t *testing.T) {
 		IgnoreUserInfo      bool
 	}{
 		{
+			Name: "NoSub",
+			IDTokenClaims: jwt.MapClaims{
+				"email": "kyle@kwc.io",
+			},
+			AllowSignups: true,
+			StatusCode:   http.StatusBadRequest,
+		},
+		{
 			Name: "EmailOnly",
 			IDTokenClaims: jwt.MapClaims{
 				"email": "kyle@kwc.io",
+				"sub":   uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -909,6 +925,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusForbidden,
@@ -918,6 +935,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          3.14159,
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
@@ -927,6 +945,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -940,6 +959,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -952,6 +972,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "cian@coder.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -964,6 +985,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -976,6 +998,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@KWC.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -991,6 +1014,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "colin@gmail.com",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			EmailDomain: []string{
@@ -1009,6 +1033,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			StatusCode: http.StatusForbidden,
 		},
@@ -1017,6 +1042,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1030,6 +1056,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":              "kyle@kwc.io",
 				"email_verified":     true,
 				"preferred_username": "hotdog",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "hotdog", u.Username)
@@ -1043,6 +1070,7 @@ func TestUserOIDC(t *testing.T) {
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
 				"name":           "Hot Dog",
+				"sub":            uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "Hot Dog", u.Name)
@@ -1059,6 +1087,7 @@ func TestUserOIDC(t *testing.T) {
 				// However, we should not fail to log someone in if their name is too long.
 				// Just truncate it.
 				"name": strings.Repeat("a", 129),
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1074,6 +1103,7 @@ func TestUserOIDC(t *testing.T) {
 				// Full names must not have leading or trailing whitespace, but this is a
 				// daft reason to fail a login.
 				"name": " Bobby  Whitespace ",
+				"sub":  uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1090,6 +1120,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "Kylium Carbonate",
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1102,6 +1133,7 @@ func TestUserOIDC(t *testing.T) {
 			Name: "UsernameIsEmail",
 			IDTokenClaims: jwt.MapClaims{
 				"preferred_username": "kyle@kwc.io",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "kyle", u.Username)
@@ -1117,6 +1149,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"preferred_username": "kyle",
 				"picture":            "/example.png",
+				"sub":                uuid.NewString(),
 			},
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "/example.png", u.AvatarURL)
@@ -1130,6 +1163,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "kyle@kwc.io",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"preferred_username": "potato",
@@ -1149,6 +1183,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":  "coolin@coder.com",
 				"groups": []string{"pingpong"},
+				"sub":    uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusOK,
@@ -1158,6 +1193,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "externaluser@external.domain",
@@ -1176,6 +1212,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "internaluser@internal.domain",
 				"email_verified": false,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email": 1,
@@ -1191,6 +1228,7 @@ func TestUserOIDC(t *testing.T) {
 				"email_verified":     true,
 				"name":               "User McName",
 				"preferred_username": "user",
+				"sub":                uuid.NewString(),
 			},
 			UserInfoClaims: jwt.MapClaims{
 				"email":              "user.mcname@external.domain",
@@ -1210,6 +1248,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: inflateClaims(t, jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
 				assert.Equal(t, "user", u.Username)
@@ -1222,6 +1261,7 @@ func TestUserOIDC(t *testing.T) {
 			IDTokenClaims: jwt.MapClaims{
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			UserInfoClaims: inflateClaims(t, jwt.MapClaims{}, 65536),
 			AssertUser: func(t testing.TB, u codersdk.User) {
@@ -1236,6 +1276,7 @@ func TestUserOIDC(t *testing.T) {
 				"iss":            "https://mismatch.com",
 				"email":          "user@domain.tld",
 				"email_verified": true,
+				"sub":            uuid.NewString(),
 			},
 			AllowSignups: true,
 			StatusCode:   http.StatusBadRequest,
@@ -1280,7 +1321,7 @@ func TestUserOIDC(t *testing.T) {
 				tc.AssertResponse(t, resp)
 			}
 
-			ctx := testutil.Context(t, testutil.WaitLong)
+			ctx := testutil.Context(t, testutil.WaitShort)
 
 			if tc.AssertUser != nil {
 				user, err := client.User(ctx, "me")
@@ -1294,6 +1335,50 @@ func TestUserOIDC(t *testing.T) {
 			}
 		})
 	}
+
+	t.Run("OIDCDormancy", func(t *testing.T) {
+		t.Parallel()
+		ctx := testutil.Context(t, testutil.WaitShort)
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true}).Leveled(slog.LevelDebug)
+		owner, db := coderdtest.NewWithDatabase(t, &coderdtest.Options{
+			Auditor:    auditor,
+			OIDCConfig: cfg,
+			Logger:     &logger,
+		})
+
+		user := dbgen.User(t, db, database.User{
+			LoginType: database.LoginTypeOIDC,
+			Status:    database.UserStatusDormant,
+		})
+		auditor.ResetLogs()
+
+		client, resp := fake.AttemptLogin(t, owner, jwt.MapClaims{
+			"email": user.Email,
+			"sub":   uuid.NewString(),
+		})
+		require.Equal(t, http.StatusOK, resp.StatusCode)
+
+		auditor.Contains(t, database.AuditLog{
+			ResourceType:     database.ResourceTypeUser,
+			AdditionalFields: json.RawMessage(`{"automatic_actor":"coder","automatic_subsystem":"dormancy"}`),
+		})
+		me, err := client.User(ctx, "me")
+		require.NoError(t, err)
+
+		require.Equal(t, codersdk.UserStatusActive, me.Status)
+	})
 
 	t.Run("OIDCConvert", func(t *testing.T) {
 		t.Parallel()
@@ -1316,22 +1401,26 @@ func TestUserOIDC(t *testing.T) {
 
 		owner := coderdtest.CreateFirstUser(t, client)
 		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+		require.Equal(t, codersdk.LoginTypePassword, userData.LoginType)
 
 		claims := jwt.MapClaims{
 			"email": userData.Email,
+			"sub":   uuid.NewString(),
 		}
 		var err error
 		user.HTTPClient.Jar, err = cookiejar.New(nil)
 		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
 
 		ctx := testutil.Context(t, testutil.WaitShort)
+
 		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
 			ToType:   codersdk.LoginTypeOIDC,
 			Password: "SomeSecurePassword!",
 		})
 		require.NoError(t, err)
 
-		fake.LoginWithClient(t, user, claims, func(r *http.Request) {
+		_, _ = fake.LoginWithClient(t, user, claims, func(r *http.Request) {
 			r.URL.RawQuery = url.Values{
 				"oidc_merge_state": {convertResponse.StateString},
 			}.Encode()
@@ -1341,6 +1430,100 @@ func TestUserOIDC(t *testing.T) {
 				r.AddCookie(cookie)
 			}
 		})
+
+		info, err := client.User(ctx, userData.ID.String())
+		require.NoError(t, err)
+		require.Equal(t, codersdk.LoginTypeOIDC, info.LoginType)
+	})
+
+	t.Run("BadJWT", func(t *testing.T) {
+		t.Parallel()
+
+		var (
+			ctx    = testutil.Context(t, testutil.WaitMedium)
+			logger = testutil.Logger(t)
+		)
+
+		auditor := audit.NewMock()
+		fake := oidctest.NewFakeIDP(t,
+			oidctest.WithRefresh(func(_ string) error {
+				return xerrors.New("refreshing token should never occur")
+			}),
+			oidctest.WithServing(),
+		)
+		cfg := fake.OIDCConfig(t, nil, func(cfg *coderd.OIDCConfig) {
+			cfg.AllowSignups = true
+		})
+
+		db, ps := dbtestutil.NewDB(t)
+		fetcher := &cryptokeys.DBFetcher{
+			DB: db,
+		}
+
+		kc, err := cryptokeys.NewSigningCache(ctx, logger, fetcher, codersdk.CryptoKeyFeatureOIDCConvert)
+		require.NoError(t, err)
+
+		client := coderdtest.New(t, &coderdtest.Options{
+			Auditor:             auditor,
+			OIDCConfig:          cfg,
+			Database:            db,
+			Pubsub:              ps,
+			OIDCConvertKeyCache: kc,
+		})
+
+		owner := coderdtest.CreateFirstUser(t, client)
+		user, userData := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
+
+		claims := jwt.MapClaims{
+			"email": userData.Email,
+			"sub":   uuid.NewString(),
+		}
+		user.HTTPClient.Jar, err = cookiejar.New(nil)
+		require.NoError(t, err)
+		user.HTTPClient.Transport = http.DefaultTransport.(*http.Transport).Clone()
+
+		convertResponse, err := user.ConvertLoginType(ctx, codersdk.ConvertLoginRequest{
+			ToType:   codersdk.LoginTypeOIDC,
+			Password: "SomeSecurePassword!",
+		})
+		require.NoError(t, err)
+
+		// Update the cookie to use a bad signing key. We're asserting the behavior of the scenario
+		// where a JWT gets minted on an old version of Coder but gets verified on a new version.
+		_, resp := fake.AttemptLogin(t, user, claims, func(r *http.Request) {
+			r.URL.RawQuery = url.Values{
+				"oidc_merge_state": {convertResponse.StateString},
+			}.Encode()
+			r.Header.Set(codersdk.SessionTokenHeader, user.SessionToken())
+
+			cookies := user.HTTPClient.Jar.Cookies(user.URL)
+			for i, cookie := range cookies {
+				if cookie.Name != coderd.OAuthConvertCookieValue {
+					continue
+				}
+
+				jwt := cookie.Value
+				var claims coderd.OAuthConvertStateClaims
+				err := jwtutils.Verify(ctx, kc, jwt, &claims)
+				require.NoError(t, err)
+				badJWT := generateBadJWT(t, claims)
+				cookie.Value = badJWT
+				cookies[i] = cookie
+			}
+
+			user.HTTPClient.Jar.SetCookies(user.URL, cookies)
+
+			for _, cookie := range cookies {
+				fmt.Printf("cookie: %+v\n", cookie)
+				r.AddCookie(cookie)
+			}
+		})
+		defer resp.Body.Close()
+		require.Equal(t, http.StatusBadRequest, resp.StatusCode)
+		var respErr codersdk.Response
+		err = json.NewDecoder(resp.Body).Decode(&respErr)
+		require.NoError(t, err)
+		require.Contains(t, respErr.Message, "Using an invalid jwt to authorize this action.")
 	})
 
 	t.Run("AlternateUsername", func(t *testing.T) {
@@ -1364,6 +1547,7 @@ func TestUserOIDC(t *testing.T) {
 		numLogs := len(auditor.AuditLogs())
 		claims := jwt.MapClaims{
 			"email": "jon@coder.com",
+			"sub":   uuid.NewString(),
 		}
 
 		userClient, _ := fake.Login(t, client, claims)
@@ -1484,6 +1668,7 @@ func TestUserOIDC(t *testing.T) {
 		claims := jwt.MapClaims{
 			"email":          "user@example.com",
 			"email_verified": true,
+			"sub":            uuid.NewString(),
 		}
 
 		// Perform the login
@@ -1649,6 +1834,7 @@ func TestOIDCSkipIssuer(t *testing.T) {
 	userClient, _ := fake.Login(t, owner, jwt.MapClaims{
 		"iss":   secondaryURLString,
 		"email": "alice@coder.com",
+		"sub":   uuid.NewString(),
 	})
 	found, err := userClient.User(ctx, "me")
 	require.NoError(t, err)
@@ -1661,7 +1847,7 @@ func TestUserForgotPassword(t *testing.T) {
 	const oldPassword = "SomeSecurePassword!"
 	const newPassword = "SomeNewSecurePassword!"
 
-	requireOneTimePasscodeNotification := func(t *testing.T, notif *testutil.Notification, userID uuid.UUID) {
+	requireOneTimePasscodeNotification := func(t *testing.T, notif *notificationstest.FakeNotification, userID uuid.UUID) {
 		require.Equal(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
 		require.Equal(t, userID, notif.UserID)
 		require.Equal(t, 1, len(notif.Targets))
@@ -1687,17 +1873,15 @@ func TestUserForgotPassword(t *testing.T) {
 		require.Contains(t, apiErr.Message, "Incorrect email or password.")
 	}
 
-	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *testutil.FakeNotificationsEnqueuer, email string, userID uuid.UUID) string {
-		notifsSent := len(notifyEnq.Sent)
-
+	requireRequestOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, notifyEnq *notificationstest.FakeEnqueuer, email string, userID uuid.UUID) string {
+		notifyEnq.Clear()
 		err := client.RequestOneTimePasscode(ctx, codersdk.RequestOneTimePasscodeRequest{Email: email})
 		require.NoError(t, err)
+		sent := notifyEnq.Sent()
+		require.Len(t, sent, 1)
 
-		require.Equal(t, notifsSent+1, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[notifsSent]
-		requireOneTimePasscodeNotification(t, notif, userID)
-		return notif.Labels["one_time_passcode"]
+		requireOneTimePasscodeNotification(t, sent[0], userID)
+		return sent[0].Labels["one_time_passcode"]
 	}
 
 	requireChangePasswordWithOneTimePasscode := func(t *testing.T, ctx context.Context, client *codersdk.Client, email string, passcode string, password string) {
@@ -1712,7 +1896,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CanChangePassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1753,7 +1937,7 @@ func TestUserForgotPassword(t *testing.T) {
 
 		const oneTimePasscodeValidityPeriod = 1 * time.Millisecond
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer:         notifyEnq,
@@ -1790,7 +1974,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithoutRequestingOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1819,7 +2003,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithInvalidOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1850,7 +2034,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithNoOneTimePasscode", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1883,7 +2067,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordWithWeakPassword", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1916,7 +2100,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("CannotChangePasswordOfAnotherUser", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1951,7 +2135,7 @@ func TestUserForgotPassword(t *testing.T) {
 	t.Run("GivenOKResponseWithInvalidEmail", func(t *testing.T) {
 		t.Parallel()
 
-		notifyEnq := &testutil.FakeNotificationsEnqueuer{}
+		notifyEnq := &notificationstest.FakeEnqueuer{}
 
 		client := coderdtest.New(t, &coderdtest.Options{
 			NotificationsEnqueuer: notifyEnq,
@@ -1968,10 +2152,9 @@ func TestUserForgotPassword(t *testing.T) {
 		})
 		require.NoError(t, err)
 
-		require.Equal(t, 1, len(notifyEnq.Sent))
-
-		notif := notifyEnq.Sent[0]
-		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, notif.TemplateID)
+		sent := notifyEnq.Sent()
+		require.Len(t, notifyEnq.Sent(), 1)
+		require.NotEqual(t, notifications.TemplateUserRequestedOneTimePasscode, sent[0].TemplateID)
 	})
 }
 
@@ -2021,4 +2204,25 @@ func inflateClaims(t testing.TB, seed jwt.MapClaims, size int) jwt.MapClaims {
 	require.NoError(t, err)
 	seed["random_data"] = junk
 	return seed
+}
+
+// generateBadJWT generates a JWT with a random key. It's intended to emulate the old-style JWT's we generated.
+func generateBadJWT(t *testing.T, claims interface{}) string {
+	t.Helper()
+
+	var buf [64]byte
+	_, err := rand.Read(buf[:])
+	require.NoError(t, err)
+	signer, err := jose.NewSigner(jose.SigningKey{
+		Algorithm: jose.HS512,
+		Key:       buf[:],
+	}, nil)
+	require.NoError(t, err)
+	payload, err := json.Marshal(claims)
+	require.NoError(t, err)
+	signed, err := signer.Sign(payload)
+	require.NoError(t, err)
+	compact, err := signed.CompactSerialize()
+	require.NoError(t, err)
+	return compact
 }

@@ -5,15 +5,18 @@ import Checkbox from "@mui/material/Checkbox";
 import Link from "@mui/material/Link";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { countries } from "api/countriesGenerated";
 import type * as TypesGen from "api/typesGenerated";
 import { isAxiosError } from "axios";
 import { Alert, AlertDetail } from "components/Alert/Alert";
 import { FormFields, VerticalForm } from "components/Form/Form";
 import { CoderIcon } from "components/Icons/CoderIcon";
+import { PasswordField } from "components/PasswordField/PasswordField";
 import { SignInLayout } from "components/SignInLayout/SignInLayout";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
+import { useEffect } from "react";
 import { docs } from "utils/docs";
 import {
 	getFormHelpers,
@@ -21,7 +24,6 @@ import {
 	onChangeTrimmed,
 } from "utils/formUtils";
 import * as Yup from "yup";
-import { countries } from "./countries";
 
 export const Language = {
 	emailLabel: "Email",
@@ -33,7 +35,6 @@ export const Language = {
 	passwordRequired: "Please enter a password.",
 	create: "Create account",
 	welcomeMessage: <>Welcome to Coder</>,
-
 	firstNameLabel: "First name",
 	lastNameLabel: "Last name",
 	companyLabel: "Company",
@@ -120,12 +121,7 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 	return (
 		<SignInLayout>
 			<header css={{ textAlign: "center", marginBottom: 32 }}>
-				<CoderIcon
-					css={(theme) => ({
-						color: theme.palette.text.primary,
-						fontSize: 64,
-					})}
-				/>
+				<CoderIcon className="w-12 h-12" />
 				<h1
 					css={{
 						fontWeight: 400,
@@ -167,13 +163,11 @@ export const SetupPageView: FC<SetupPageViewProps> = ({
 						fullWidth
 						label={Language.emailLabel}
 					/>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password")}
 						autoComplete="current-password"
 						fullWidth
-						id="password"
 						label={Language.passwordLabel}
-						type="password"
 					/>
 					<label
 						htmlFor="trial"

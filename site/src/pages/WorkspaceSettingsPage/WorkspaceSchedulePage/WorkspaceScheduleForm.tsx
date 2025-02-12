@@ -8,12 +8,14 @@ import MenuItem from "@mui/material/MenuItem";
 import Switch from "@mui/material/Switch";
 import TextField from "@mui/material/TextField";
 import type { Template } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import {
 	StackLabel,
@@ -441,15 +443,23 @@ export const WorkspaceScheduleForm: FC<WorkspaceScheduleFormProps> = ({
 					/>
 				</FormFields>
 			</FormSection>
-			<FormFooter
-				onCancel={onCancel}
-				isLoading={isLoading}
-				// If both options, autostart and autostop, are disabled at the template
-				// level, the form is disabled.
-				submitDisabled={
-					!template.allow_user_autostart && !template.allow_user_autostop
-				}
-			/>
+
+			<FormFooter>
+				<Button onClick={onCancel} variant="outline">
+					Cancel
+				</Button>
+
+				<Button
+					type="submit"
+					disabled={
+						isLoading ||
+						(!template.allow_user_autostart && !template.allow_user_autostop)
+					}
+				>
+					<Spinner loading={isLoading} />
+					Save
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };
@@ -464,7 +474,7 @@ export const ttlShutdownAt = (formTTL: number): string => {
 		return `Your workspace will shut down ${formatDuration(
 			intervalToDuration({ start: 0, end: formTTL * 60 * 60 * 1000 }),
 			{ delimiter: " and " },
-		)} after its next start. We delay shutdown by 1 hour whenever we detect activity.`;
+		)} after its next start.`;
 	} catch (e) {
 		if (e instanceof RangeError) {
 			return Language.errorTtlMax;

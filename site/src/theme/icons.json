@@ -25,6 +25,7 @@
 	"database.svg",
 	"datagrip.svg",
 	"dataspell.svg",
+	"dcv.svg",
 	"debian.svg",
 	"desktop.svg",
 	"discord.svg",
@@ -35,6 +36,7 @@
 	"dotfiles.svg",
 	"dotnet.svg",
 	"fedora.svg",
+	"filebrowser.svg",
 	"fleet.svg",
 	"fly.io.svg",
 	"folder.svg",
@@ -52,6 +54,7 @@
 	"java.svg",
 	"javascript.svg",
 	"jax.svg",
+	"jetbrains-toolbox.svg",
 	"jfrog.svg",
 	"jupyter.svg",
 	"k8s.png",
@@ -81,6 +84,7 @@
 	"ruby.png",
 	"rubymine.svg",
 	"rust.svg",
+	"rustrover.svg",
 	"slack.svg",
 	"swift.svg",
 	"tensorflow.svg",
@@ -90,5 +94,6 @@
 	"ubuntu.svg",
 	"vault.svg",
 	"webstorm.svg",
-	"widgets.svg"
+	"widgets.svg",
+	"zed.svg"
 ]

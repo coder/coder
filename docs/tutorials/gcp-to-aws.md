@@ -3,7 +3,7 @@
 <div>
   <a href="https://github.com/ericpaulsen" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Eric Paulsen</span>
-    <img src="https://github.com/ericpaulsen.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/ericpaulsen.png" alt="ericpaulsen" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 January 4, 2024
@@ -39,21 +39,21 @@ following:
 
 ```json
 {
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Effect": "Allow",
-			"Principal": {
-				"Federated": "accounts.google.com"
-			},
-			"Action": "sts:AssumeRoleWithWebIdentity",
-			"Condition": {
-				"StringEquals": {
-					"accounts.google.com:aud": "<enter-OAuth-client-ID-here"
-				}
-			}
-		}
-	]
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Principal": {
+                "Federated": "accounts.google.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+                "StringEquals": {
+                    "accounts.google.com:aud": "<enter-OAuth-client-ID-here"
+                }
+            }
+        }
+    ]
 }
 ```
 
@@ -64,50 +64,50 @@ following policy to the role:
 
 ```json
 {
-	"Version": "2012-10-17",
-	"Statement": [
-		{
-			"Sid": "VisualEditor0",
-			"Effect": "Allow",
-			"Action": [
-				"ec2:GetDefaultCreditSpecification",
-				"ec2:DescribeIamInstanceProfileAssociations",
-				"ec2:DescribeTags",
-				"ec2:DescribeInstances",
-				"ec2:DescribeInstanceTypes",
-				"ec2:CreateTags",
-				"ec2:RunInstances",
-				"ec2:DescribeInstanceCreditSpecifications",
-				"ec2:DescribeImages",
-				"ec2:ModifyDefaultCreditSpecification",
-				"ec2:DescribeVolumes"
-			],
-			"Resource": "*"
-		},
-		{
-			"Sid": "CoderResources",
-			"Effect": "Allow",
-			"Action": [
-				"ec2:DescribeInstanceAttribute",
-				"ec2:UnmonitorInstances",
-				"ec2:TerminateInstances",
-				"ec2:StartInstances",
-				"ec2:StopInstances",
-				"ec2:DeleteTags",
-				"ec2:MonitorInstances",
-				"ec2:CreateTags",
-				"ec2:RunInstances",
-				"ec2:ModifyInstanceAttribute",
-				"ec2:ModifyInstanceCreditSpecification"
-			],
-			"Resource": "arn:aws:ec2:*:*:instance/*",
-			"Condition": {
-				"StringEquals": {
-					"aws:ResourceTag/Coder_Provisioned": "true"
-				}
-			}
-		}
-	]
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Sid": "VisualEditor0",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:GetDefaultCreditSpecification",
+                "ec2:DescribeIamInstanceProfileAssociations",
+                "ec2:DescribeTags",
+                "ec2:DescribeInstances",
+                "ec2:DescribeInstanceTypes",
+                "ec2:CreateTags",
+                "ec2:RunInstances",
+                "ec2:DescribeInstanceCreditSpecifications",
+                "ec2:DescribeImages",
+                "ec2:ModifyDefaultCreditSpecification",
+                "ec2:DescribeVolumes"
+            ],
+            "Resource": "*"
+        },
+        {
+            "Sid": "CoderResources",
+            "Effect": "Allow",
+            "Action": [
+                "ec2:DescribeInstanceAttribute",
+                "ec2:UnmonitorInstances",
+                "ec2:TerminateInstances",
+                "ec2:StartInstances",
+                "ec2:StopInstances",
+                "ec2:DeleteTags",
+                "ec2:MonitorInstances",
+                "ec2:CreateTags",
+                "ec2:RunInstances",
+                "ec2:ModifyInstanceAttribute",
+                "ec2:ModifyInstanceCreditSpecification"
+            ],
+            "Resource": "arn:aws:ec2:*:*:instance/*",
+            "Condition": {
+                "StringEquals": {
+                    "aws:ResourceTag/Coder_Provisioned": "true"
+                }
+            }
+        }
+    ]
 }
 ```
 

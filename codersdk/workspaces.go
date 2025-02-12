@@ -63,6 +63,7 @@ type Workspace struct {
 	AutomaticUpdates AutomaticUpdates `json:"automatic_updates" enums:"always,never"`
 	AllowRenames     bool             `json:"allow_renames"`
 	Favorite         bool             `json:"favorite"`
+	NextStartAt      *time.Time       `json:"next_start_at" format:"date-time"`
 }
 
 func (w Workspace) FullName() string {
@@ -93,7 +94,7 @@ const (
 // CreateWorkspaceBuildRequest provides options to update the latest workspace build.
 type CreateWorkspaceBuildRequest struct {
 	TemplateVersionID uuid.UUID           `json:"template_version_id,omitempty" format:"uuid"`
-	Transition        WorkspaceTransition `json:"transition" validate:"oneof=create start stop delete,required"`
+	Transition        WorkspaceTransition `json:"transition" validate:"oneof=start stop delete,required"`
 	DryRun            bool                `json:"dry_run,omitempty"`
 	ProvisionerState  []byte              `json:"state,omitempty"`
 	// Orphan may be set for the Destroy transition.
@@ -259,7 +260,7 @@ type UpdateWorkspaceAutostartRequest struct {
 	// Schedule is expected to be of the form `CRON_TZ=<IANA Timezone> <min> <hour> * * <dow>`
 	// Example: `CRON_TZ=US/Central 30 9 * * 1-5` represents 0930 in the timezone US/Central
 	// on weekdays (Mon-Fri). `CRON_TZ` defaults to UTC if not present.
-	Schedule *string `json:"schedule"`
+	Schedule *string `json:"schedule,omitempty"`
 }
 
 // UpdateWorkspaceAutostart sets the autostart schedule for workspace by id.
@@ -638,11 +639,4 @@ func (c *Client) WorkspaceTimings(ctx context.Context, id uuid.UUID) (WorkspaceB
 	}
 	var timings WorkspaceBuildTimings
 	return timings, json.NewDecoder(res.Body).Decode(&timings)
-}
-
-// WorkspaceNotifyChannel is the PostgreSQL NOTIFY
-// channel to listen for updates on. The payload is empty,
-// because the size of a workspace payload can be very large.
-func WorkspaceNotifyChannel(id uuid.UUID) string {
-	return fmt.Sprintf("workspace:%s", id)
 }

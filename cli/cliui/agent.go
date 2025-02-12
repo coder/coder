@@ -120,7 +120,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			if agent.Status == codersdk.WorkspaceAgentTimeout {
 				now := time.Now()
 				sw.Log(now, codersdk.LogLevelInfo, "The workspace agent is having trouble connecting, wait for it to connect or restart your workspace.")
-				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#agent-connection-issues", opts.DocsURL)))
+				sw.Log(now, codersdk.LogLevelInfo, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", opts.DocsURL)))
 				for agent.Status == codersdk.WorkspaceAgentTimeout {
 					if agent, err = fetch(); err != nil {
 						return xerrors.Errorf("fetch: %w", err)
@@ -225,13 +225,13 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 				sw.Fail(stage, safeDuration(sw, agent.ReadyAt, agent.StartedAt))
 				// Use zero time (omitted) to separate these from the startup logs.
 				sw.Log(time.Time{}, codersdk.LogLevelWarn, "Warning: A startup script exited with an error and your workspace may be incomplete.")
-				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#startup-script-exited-with-an-error", opts.DocsURL)))
+				sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#startup-script-exited-with-an-error", opts.DocsURL)))
 			default:
 				switch {
 				case agent.LifecycleState.Starting():
 					// Use zero time (omitted) to separate these from the startup logs.
 					sw.Log(time.Time{}, codersdk.LogLevelWarn, "Notice: The startup scripts are still running and your workspace may be incomplete.")
-					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#your-workspace-may-be-incomplete", opts.DocsURL)))
+					sw.Log(time.Time{}, codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#your-workspace-may-be-incomplete", opts.DocsURL)))
 					// Note: We don't complete or fail the stage here, it's
 					// intentionally left open to indicate this stage didn't
 					// complete.
@@ -253,7 +253,7 @@ func Agent(ctx context.Context, writer io.Writer, agentID uuid.UUID, opts AgentO
 			stage := "The workspace agent lost connection"
 			sw.Start(stage)
 			sw.Log(time.Now(), codersdk.LogLevelWarn, "Wait for it to reconnect or restart your workspace.")
-			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/templates#agent-connection-issues", opts.DocsURL)))
+			sw.Log(time.Now(), codersdk.LogLevelWarn, troubleshootingMessage(agent, fmt.Sprintf("%s/admin/templates/troubleshooting#agent-connection-issues", opts.DocsURL)))
 
 			disconnectedAt := agent.DisconnectedAt
 			for agent.Status == codersdk.WorkspaceAgentDisconnected {
@@ -411,7 +411,8 @@ func (d ConnDiags) splitDiagnostics() (general, client, agent []string) {
 	}
 
 	if d.DisableDirect {
-		general = append(general, "❗ Direct connections are disabled locally, by `--disable-direct` or `CODER_DISABLE_DIRECT`")
+		general = append(general, "❗ Direct connections are disabled locally, by `--disable-direct-connections` or `CODER_DISABLE_DIRECT_CONNECTIONS`.\n"+
+			"   They may still be established over a private network.")
 		if !d.Verbose {
 			return general, client, agent
 		}

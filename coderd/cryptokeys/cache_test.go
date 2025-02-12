@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
@@ -20,7 +18,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestCryptoKeyCache(t *testing.T) {
@@ -33,7 +31,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			t.Parallel()
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -63,7 +61,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			t.Parallel()
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -103,7 +101,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 			now := clock.Now().UTC()
@@ -143,7 +141,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 			)
 
 			ff := &fakeFetcher{
@@ -166,7 +164,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -202,7 +200,7 @@ func TestCryptoKeyCache(t *testing.T) {
 			t.Parallel()
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -238,7 +236,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -270,7 +268,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -302,7 +300,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 			var (
 				ctx    = testutil.Context(t, testutil.WaitShort)
-				logger = slogtest.Make(t, nil)
+				logger = testutil.Logger(t)
 				clock  = quartz.NewMock(t)
 			)
 
@@ -323,7 +321,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, nil)
+			logger = testutil.Logger(t)
 			clock  = quartz.NewMock(t)
 		)
 
@@ -386,7 +384,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, nil)
+			logger = testutil.Logger(t)
 			clock  = quartz.NewMock(t)
 		)
 
@@ -442,7 +440,7 @@ func TestCryptoKeyCache(t *testing.T) {
 
 		var (
 			ctx    = testutil.Context(t, testutil.WaitShort)
-			logger = slogtest.Make(t, nil)
+			logger = testutil.Logger(t)
 			clock  = quartz.NewMock(t)
 		)
 
@@ -488,7 +486,7 @@ type fakeFetcher struct {
 	called int
 }
 
-func (f *fakeFetcher) Fetch(_ context.Context) ([]codersdk.CryptoKey, error) {
+func (f *fakeFetcher) Fetch(_ context.Context, _ codersdk.CryptoKeyFeature) ([]codersdk.CryptoKey, error) {
 	f.called++
 	return f.keys, nil
 }

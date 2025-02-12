@@ -8,6 +8,8 @@ import { visuallyHidden } from "@mui/utils";
 import { JobError } from "api/queries/templates";
 import type { TemplateVersion } from "api/typesGenerated";
 import { Loader } from "components/Loader/Loader";
+import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { useWatchVersionLogs } from "modules/templates/useWatchVersionLogs";
 import { WorkspaceBuildLogs } from "modules/workspaces/WorkspaceBuildLogs/WorkspaceBuildLogs";
 import { type FC, useLayoutEffect, useRef } from "react";
@@ -27,6 +29,10 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 	variablesSectionRef,
 	...drawerProps
 }) => {
+	const matchingProvisioners = templateVersion?.matched_provisioners?.count;
+	const availableProvisioners =
+		templateVersion?.matched_provisioners?.available;
+
 	const logs = useWatchVersionLogs(templateVersion);
 	const logsContainer = useRef<HTMLDivElement>(null);
 
@@ -65,6 +71,8 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 					</IconButton>
 				</header>
 
+				{}
+
 				{isMissingVariables ? (
 					<MissingVariablesBanner
 						onFillVariables={() => {
@@ -82,7 +90,15 @@ export const BuildLogsDrawer: FC<BuildLogsDrawerProps> = ({
 						<WorkspaceBuildLogs logs={logs} css={{ border: 0 }} />
 					</section>
 				) : (
-					<Loader />
+					<>
+						<ProvisionerStatusAlert
+							matchingProvisioners={matchingProvisioners}
+							availableProvisioners={availableProvisioners}
+							tags={templateVersion?.job.tags ?? {}}
+							variant={AlertVariant.Inline}
+						/>
+						<Loader />
+					</>
 				)}
 			</div>
 		</Drawer>

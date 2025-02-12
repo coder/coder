@@ -24,6 +24,7 @@ import (
 	"github.com/coder/coder/v2/coderd/prometheusmetrics"
 	"github.com/coder/coder/v2/coderd/tracing"
 	"github.com/coder/coder/v2/coderd/workspacestats"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/coder/v2/tailnet"
@@ -45,14 +46,15 @@ type API struct {
 	*ScriptsAPI
 	*tailnet.DRPCService
 
-	mu                sync.Mutex
-	cachedWorkspaceID uuid.UUID
+	mu sync.Mutex
 }
 
 var _ agentproto.DRPCAgentServer = &API{}
 
 type Options struct {
-	AgentID uuid.UUID
+	AgentID     uuid.UUID
+	OwnerID     uuid.UUID
+	WorkspaceID uuid.UUID
 
 	Ctx                               context.Context
 	Log                               slog.Logger
@@ -62,7 +64,7 @@ type Options struct {
 	TailnetCoordinator                *atomic.Pointer[tailnet.Coordinator]
 	StatsReporter                     *workspacestats.Reporter
 	AppearanceFetcher                 *atomic.Pointer[appearance.Fetcher]
-	PublishWorkspaceUpdateFn          func(ctx context.Context, workspaceID uuid.UUID)
+	PublishWorkspaceUpdateFn          func(ctx context.Context, userID uuid.UUID, event wspubsub.WorkspaceEvent)
 	PublishWorkspaceAgentLogsUpdateFn func(ctx context.Context, workspaceAgentID uuid.UUID, msg agentsdk.LogsNotifyMessage)
 	NetworkTelemetryHandler           func(batch []*tailnetproto.TelemetryEvent)
 
@@ -75,18 +77,13 @@ type Options struct {
 	ExternalAuthConfigs       []*externalauth.Config
 	Experiments               codersdk.Experiments
 
-	// Optional:
-	// WorkspaceID avoids a future lookup to find the workspace ID by setting
-	// the cache in advance.
-	WorkspaceID          uuid.UUID
 	UpdateAgentMetricsFn func(ctx context.Context, labels prometheusmetrics.AgentMetricLabels, metrics []*agentproto.Stats_Metric)
 }
 
 func New(opts Options) *API {
 	api := &API{
-		opts:              opts,
-		mu:                sync.Mutex{},
-		cachedWorkspaceID: opts.WorkspaceID,
+		opts: opts,
+		mu:   sync.Mutex{},
 	}
 
 	api.ManifestAPI = &ManifestAPI{
@@ -98,16 +95,7 @@ func New(opts Options) *API {
 		AgentFn:                  api.agent,
 		Database:                 opts.Database,
 		DerpMapFn:                opts.DerpMapFn,
-		WorkspaceIDFn: func(ctx context.Context, wa *database.WorkspaceAgent) (uuid.UUID, error) {
-			if opts.WorkspaceID != uuid.Nil {
-				return opts.WorkspaceID, nil
-			}
-			ws, err := opts.Database.GetWorkspaceByAgentID(ctx, wa.ID)
-			if err != nil {
-				return uuid.Nil, err
-			}
-			return ws.Workspace.ID, nil
-		},
+		WorkspaceID:              opts.WorkspaceID,
 	}
 
 	api.AnnouncementBannerAPI = &AnnouncementBannerAPI{
@@ -125,7 +113,7 @@ func New(opts Options) *API {
 
 	api.LifecycleAPI = &LifecycleAPI{
 		AgentFn:                  api.agent,
-		WorkspaceIDFn:            api.workspaceID,
+		WorkspaceID:              opts.WorkspaceID,
 		Database:                 opts.Database,
 		Log:                      opts.Log,
 		PublishWorkspaceUpdateFn: api.publishWorkspaceUpdate,
@@ -209,39 +197,11 @@ func (a *API) agent(ctx context.Context) (database.WorkspaceAgent, error) {
 	return agent, nil
 }
 
-func (a *API) workspaceID(ctx context.Context, agent *database.WorkspaceAgent) (uuid.UUID, error) {
-	a.mu.Lock()
-	if a.cachedWorkspaceID != uuid.Nil {
-		id := a.cachedWorkspaceID
-		a.mu.Unlock()
-		return id, nil
-	}
-
-	if agent == nil {
-		agnt, err := a.agent(ctx)
-		if err != nil {
-			return uuid.Nil, err
-		}
-		agent = &agnt
-	}
-
-	getWorkspaceAgentByIDRow, err := a.opts.Database.GetWorkspaceByAgentID(ctx, agent.ID)
-	if err != nil {
-		return uuid.Nil, xerrors.Errorf("get workspace by agent id %q: %w", agent.ID, err)
-	}
-
-	a.mu.Lock()
-	a.cachedWorkspaceID = getWorkspaceAgentByIDRow.Workspace.ID
-	a.mu.Unlock()
-	return getWorkspaceAgentByIDRow.Workspace.ID, nil
-}
-
-func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent) error {
-	workspaceID, err := a.workspaceID(ctx, agent)
-	if err != nil {
-		return err
-	}
-
-	a.opts.PublishWorkspaceUpdateFn(ctx, workspaceID)
+func (a *API) publishWorkspaceUpdate(ctx context.Context, agent *database.WorkspaceAgent, kind wspubsub.WorkspaceEventKind) error {
+	a.opts.PublishWorkspaceUpdateFn(ctx, a.opts.OwnerID, wspubsub.WorkspaceEvent{
+		Kind:        kind,
+		WorkspaceID: a.opts.WorkspaceID,
+		AgentID:     &agent.ID,
+	})
 	return nil
 }

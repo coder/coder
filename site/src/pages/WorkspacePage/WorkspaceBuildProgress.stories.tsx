@@ -40,11 +40,7 @@ export const Starting: Story = {};
 export const StartingUnknown: Story = {
 	args: {
 		transitionStats: {
-			// HACK: the codersdk type generator doesn't support null values, but this
-			// can be null when the template is new.
-			// @ts-expect-error
 			P50: null,
-			// @ts-expect-error
 			P95: null,
 		},
 	},

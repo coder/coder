@@ -318,7 +318,7 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 		Identifier:  RoleTemplateAdmin(),
 		DisplayName: "Template Admin",
 		Site: Permissions(map[string][]policy.Action{
-			ResourceTemplate.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+			ResourceTemplate.Type: ResourceTemplate.AvailableActions(),
 			// CRUD all files, even those they did not upload.
 			ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
 			ResourceWorkspace.Type: {policy.ActionRead},
@@ -352,6 +352,8 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 			ResourceOrganizationMember.Type: {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroup.Type:              {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
 			ResourceGroupMember.Type:        {policy.ActionRead},
+			// Manage org membership based on OIDC claims
+			ResourceIdpsyncSettings.Type: {policy.ActionRead, policy.ActionUpdate},
 		}),
 		Org:  map[string][]Permission{},
 		User: []Permission{},
@@ -474,13 +476,14 @@ func ReloadBuiltinRoles(opts *RoleOptions) {
 				Site:        []Permission{},
 				Org: map[string][]Permission{
 					organizationID.String(): Permissions(map[string][]policy.Action{
-						ResourceTemplate.Type:  {policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete, policy.ActionViewInsights},
+						ResourceTemplate.Type:  ResourceTemplate.AvailableActions(),
 						ResourceFile.Type:      {policy.ActionCreate, policy.ActionRead},
 						ResourceWorkspace.Type: {policy.ActionRead},
 						// Assigning template perms requires this permission.
 						ResourceOrganizationMember.Type: {policy.ActionRead},
 						ResourceGroup.Type:              {policy.ActionRead},
 						ResourceGroupMember.Type:        {policy.ActionRead},
+						ResourceProvisionerJobs.Type:    {policy.ActionRead},
 					}),
 				},
 				User: []Permission{},

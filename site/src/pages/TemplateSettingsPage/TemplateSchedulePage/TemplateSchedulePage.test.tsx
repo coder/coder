@@ -1,7 +1,6 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
 	MockEntitlementsWithScheduling,
 	MockTemplate,
@@ -100,7 +99,7 @@ const fillAndSubmitForm = async ({
 	}
 
 	const submitButton = screen.getByRole("button", {
-		name: FooterFormLanguage.defaultSubmitLabel,
+		name: /save/i,
 	});
 
 	expect(submitButton).not.toBeDisabled();

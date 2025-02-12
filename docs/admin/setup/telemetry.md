@@ -1,7 +1,7 @@
 # Telemetry
 
 <blockquote class="info">
-TL;DR: disable telemetry by setting <code>CODER_TELEMETRY=false</code>.
+TL;DR: disable telemetry by setting <code>CODER_TELEMETRY_ENABLE=false</code>.
 </blockquote>
 
 Coder collects telemetry from all installations by default. We believe our users
@@ -17,10 +17,10 @@ In particular, look at the struct types such as `Template` or `Workspace`.
 As a rule, we **do not collect** the following types of information:
 
 - Any data that could make your installation less secure
-- Any data that could identify individual users
+- Any data that could identify individual users, except the administrator.
 
 For example, we do not collect parameters, environment variables, or user email
-addresses.
+addresses. We do collect the administrator email.
 
 ## Why we collect
 
@@ -40,5 +40,6 @@ telemetry to identify affected installations and notify their administrators.
 
 ## Toggling
 
-You can turn telemetry on or off using either the `CODER_TELEMETRY=[true|false]`
-environment variable or the `--telemetry=[true|false]` command-line flag.
+You can turn telemetry on or off using either the
+`CODER_TELEMETRY_ENABLE=[true|false]` environment variable or the
+`--telemetry=[true|false]` command-line flag.

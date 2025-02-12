@@ -33,6 +33,7 @@ import (
 
 	"cloud.google.com/go/compute/metadata"
 	"github.com/fullsailor/pkcs7"
+	"github.com/go-chi/chi/v5"
 	"github.com/golang-jwt/jwt/v4"
 	"github.com/google/uuid"
 	"github.com/moby/moby/pkg/namesgenerator"
@@ -55,6 +56,7 @@ import (
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/autobuild"
 	"github.com/coder/coder/v2/coderd/awsidentity"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
@@ -65,6 +67,7 @@ import (
 	"github.com/coder/coder/v2/coderd/gitsshkey"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/rbac/policy"
 	"github.com/coder/coder/v2/coderd/runtimeconfig"
@@ -88,11 +91,8 @@ import (
 	sdkproto "github.com/coder/coder/v2/provisionersdk/proto"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/quartz"
 )
-
-// AppSecurityKey is a 96-byte key used to sign JWTs and encrypt JWEs for
-// workspace app tokens in tests.
-var AppSecurityKey = must(workspaceapps.KeyFromString("6465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e207761732068657265206465616e2077617320686572"))
 
 type Options struct {
 	// AccessURL denotes a custom access URL. By default we use the httptest
@@ -147,6 +147,11 @@ type Options struct {
 	Database database.Store
 	Pubsub   pubsub.Pubsub
 
+	// APIMiddleware inserts middleware before api.RootHandler, this can be
+	// useful in certain tests where you want to intercept requests before
+	// passing them on to the API, e.g. for synchronization of execution.
+	APIMiddleware func(http.Handler) http.Handler
+
 	ConfigSSH codersdk.SSHConfigResponse
 
 	SwaggerEndpoint bool
@@ -161,8 +166,10 @@ type Options struct {
 	DatabaseRolluper                   *dbrollup.Rolluper
 	WorkspaceUsageTrackerFlush         chan int
 	WorkspaceUsageTrackerTick          chan time.Time
-
-	NotificationsEnqueuer notifications.Enqueuer
+	NotificationsEnqueuer              notifications.Enqueuer
+	APIKeyEncryptionCache              cryptokeys.EncryptionKeycache
+	OIDCConvertKeyCache                cryptokeys.SigningKeycache
+	Clock                              quartz.Clock
 }
 
 // New constructs a codersdk client connected to an in-memory API instance.
@@ -251,7 +258,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 	}
 
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = new(testutil.FakeNotificationsEnqueuer)
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
 	}
 
 	accessControlStore := &atomic.Pointer[dbauthz.AccessControlStore]{}
@@ -311,7 +318,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		t.Cleanup(closeBatcher)
 	}
 	if options.NotificationsEnqueuer == nil {
-		options.NotificationsEnqueuer = &testutil.FakeNotificationsEnqueuer{}
+		options.NotificationsEnqueuer = &notificationstest.FakeEnqueuer{}
 	}
 
 	if options.OneTimePasscodeValidityPeriod == 0 {
@@ -335,6 +342,7 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 		ctx,
 		options.Database,
 		options.Pubsub,
+		prometheus.NewRegistry(),
 		&templateScheduleStore,
 		&auditor,
 		accessControlStore,
@@ -525,7 +533,6 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			DeploymentOptions:                  codersdk.DeploymentOptionsWithoutSecrets(options.DeploymentValues.Options()),
 			UpdateCheckOptions:                 options.UpdateCheckOptions,
 			SwaggerEndpoint:                    options.SwaggerEndpoint,
-			AppSecurityKey:                     AppSecurityKey,
 			SSHConfig:                          options.ConfigSSH,
 			HealthcheckFunc:                    options.HealthcheckFunc,
 			HealthcheckTimeout:                 options.HealthcheckTimeout,
@@ -538,6 +545,9 @@ func NewOptions(t testing.TB, options *Options) (func(http.Handler), context.Can
 			WorkspaceUsageTracker:              wuTracker,
 			NotificationsEnqueuer:              options.NotificationsEnqueuer,
 			OneTimePasscodeValidityPeriod:      options.OneTimePasscodeValidityPeriod,
+			Clock:                              options.Clock,
+			AppEncryptionKeyCache:              options.APIKeyEncryptionCache,
+			OIDCConvertKeyCache:                options.OIDCConvertKeyCache,
 		}
 }
 
@@ -551,7 +561,14 @@ func NewWithAPI(t testing.TB, options *Options) (*codersdk.Client, io.Closer, *c
 	setHandler, cancelFunc, serverURL, newOptions := NewOptions(t, options)
 	// We set the handler after server creation for the access URL.
 	coderAPI := coderd.New(newOptions)
-	setHandler(coderAPI.RootHandler)
+	rootHandler := coderAPI.RootHandler
+	if options.APIMiddleware != nil {
+		r := chi.NewRouter()
+		r.Use(options.APIMiddleware)
+		r.Mount("/", rootHandler)
+		rootHandler = r
+	}
+	setHandler(rootHandler)
 	var provisionerCloser io.Closer = nopcloser{}
 	if options.IncludeProvisionerDaemon {
 		provisionerCloser = NewTaggedProvisionerDaemon(t, coderAPI, "test", options.ProvisionerDaemonTags)
@@ -627,6 +644,7 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		assert.NoError(t, err)
 	}()
 
+	connectedCh := make(chan struct{})
 	daemon := provisionerd.New(func(dialCtx context.Context) (provisionerdproto.DRPCProvisionerDaemonClient, error) {
 		return coderAPI.CreateInMemoryTaggedProvisionerDaemon(dialCtx, name, []codersdk.ProvisionerType{codersdk.ProvisionerTypeEcho}, provisionerTags)
 	}, &provisionerd.Options{
@@ -636,7 +654,12 @@ func NewTaggedProvisionerDaemon(t testing.TB, coderAPI *coderd.API, name string,
 		Connector: provisionerd.LocalProvisioners{
 			string(database.ProvisionerTypeEcho): sdkproto.NewDRPCProvisionerClient(echoClient),
 		},
+		InitConnectionCh: connectedCh,
 	})
+	// Wait for the provisioner daemon to connect before continuing.
+	// Users of this function tend to assume that the provisioner is connected
+	// and ready to use when that may not strictly be the case.
+	<-connectedCh
 	closer := NewProvisionerDaemonCloser(daemon)
 	t.Cleanup(func() {
 		_ = closer.Close()
@@ -649,6 +672,16 @@ var FirstUserParams = codersdk.CreateFirstUserRequest{
 	Username: "testuser",
 	Password: "SomeSecurePassword!",
 	Name:     "Test User",
+}
+
+var TrialUserParams = codersdk.CreateFirstUserTrialInfo{
+	FirstName:   "John",
+	LastName:    "Doe",
+	PhoneNumber: "9999999999",
+	JobTitle:    "Engineer",
+	CompanyName: "Acme Inc",
+	Country:     "United States",
+	Developers:  "10-50",
 }
 
 // CreateFirstUser creates a user with preset credentials and authenticates
@@ -706,6 +739,9 @@ func createAnotherUserRetry(t testing.TB, client *codersdk.Client, organizationI
 		Name:            RandomName(t),
 		Password:        "SomeSecurePassword!",
 		OrganizationIDs: organizationIDs,
+		// Always create users as active in tests to ignore an extra audit log
+		// when logging in.
+		UserStatus: ptr.Ref(codersdk.UserStatusActive),
 	}
 	for _, m := range mutators {
 		m(&req)

@@ -6,146 +6,20 @@ terraform {
     azurerm = {
       source = "hashicorp/azurerm"
     }
+    cloudinit = {
+      source = "hashicorp/cloudinit"
+    }
   }
 }
 
-data "coder_parameter" "location" {
-  name         = "location"
-  display_name = "Location"
-  description  = "What location should your workspace live in?"
-  default      = "eastus"
-  icon         = "/emojis/1f310.png"
-  mutable      = false
-  option {
-    name  = "US (Virginia)"
-    value = "eastus"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "US (Virginia) 2"
-    value = "eastus2"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "US (Texas)"
-    value = "southcentralus"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "US (Washington)"
-    value = "westus2"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "US (Arizona)"
-    value = "westus3"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "US (Iowa)"
-    value = "centralus"
-    icon  = "/emojis/1f1fa-1f1f8.png"
-  }
-  option {
-    name  = "Canada (Toronto)"
-    value = "canadacentral"
-    icon  = "/emojis/1f1e8-1f1e6.png"
-  }
-  option {
-    name  = "Brazil (Sao Paulo)"
-    value = "brazilsouth"
-    icon  = "/emojis/1f1e7-1f1f7.png"
-  }
-  option {
-    name  = "East Asia (Hong Kong)"
-    value = "eastasia"
-    icon  = "/emojis/1f1f0-1f1f7.png"
-  }
-  option {
-    name  = "Southeast Asia (Singapore)"
-    value = "southeastasia"
-    icon  = "/emojis/1f1f0-1f1f7.png"
-  }
-  option {
-    name  = "Australia (New South Wales)"
-    value = "australiaeast"
-    icon  = "/emojis/1f1e6-1f1fa.png"
-  }
-  option {
-    name  = "China (Hebei)"
-    value = "chinanorth3"
-    icon  = "/emojis/1f1e8-1f1f3.png"
-  }
-  option {
-    name  = "India (Pune)"
-    value = "centralindia"
-    icon  = "/emojis/1f1ee-1f1f3.png"
-  }
-  option {
-    name  = "Japan (Tokyo)"
-    value = "japaneast"
-    icon  = "/emojis/1f1ef-1f1f5.png"
-  }
-  option {
-    name  = "Korea (Seoul)"
-    value = "koreacentral"
-    icon  = "/emojis/1f1f0-1f1f7.png"
-  }
-  option {
-    name  = "Europe (Ireland)"
-    value = "northeurope"
-    icon  = "/emojis/1f1ea-1f1fa.png"
-  }
-  option {
-    name  = "Europe (Netherlands)"
-    value = "westeurope"
-    icon  = "/emojis/1f1ea-1f1fa.png"
-  }
-  option {
-    name  = "France (Paris)"
-    value = "francecentral"
-    icon  = "/emojis/1f1eb-1f1f7.png"
-  }
-  option {
-    name  = "Germany (Frankfurt)"
-    value = "germanywestcentral"
-    icon  = "/emojis/1f1e9-1f1ea.png"
-  }
-  option {
-    name  = "Norway (Oslo)"
-    value = "norwayeast"
-    icon  = "/emojis/1f1f3-1f1f4.png"
-  }
-  option {
-    name  = "Sweden (Gävle)"
-    value = "swedencentral"
-    icon  = "/emojis/1f1f8-1f1ea.png"
-  }
-  option {
-    name  = "Switzerland (Zurich)"
-    value = "switzerlandnorth"
-    icon  = "/emojis/1f1e8-1f1ed.png"
-  }
-  option {
-    name  = "Qatar (Doha)"
-    value = "qatarcentral"
-    icon  = "/emojis/1f1f6-1f1e6.png"
-  }
-  option {
-    name  = "UAE (Dubai)"
-    value = "uaenorth"
-    icon  = "/emojis/1f1e6-1f1ea.png"
-  }
-  option {
-    name  = "South Africa (Johannesburg)"
-    value = "southafricanorth"
-    icon  = "/emojis/1f1ff-1f1e6.png"
-  }
-  option {
-    name  = "UK (London)"
-    value = "uksouth"
-    icon  = "/emojis/1f1ec-1f1e7.png"
-  }
+# See https://registry.coder.com/modules/azure-region
+module "azure_region" {
+  source = "registry.coder.com/modules/azure-region/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  default = "eastus"
 }
 
 data "coder_parameter" "instance_type" {
@@ -219,8 +93,7 @@ provider "azurerm" {
   features {}
 }
 
-data "coder_workspace" "me" {
-}
+data "coder_workspace" "me" {}
 data "coder_workspace_owner" "me" {}
 
 resource "coder_agent" "main" {
@@ -263,19 +136,63 @@ resource "coder_agent" "main" {
   }
 }
 
+# See https://registry.coder.com/modules/code-server
+module "code-server" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/code-server/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id = coder_agent.main.id
+  order    = 1
+}
+
+# See https://registry.coder.com/modules/jetbrains-gateway
+module "jetbrains_gateway" {
+  count  = data.coder_workspace.me.start_count
+  source = "registry.coder.com/modules/jetbrains-gateway/coder"
+
+  # JetBrains IDEs to make available for the user to select
+  jetbrains_ides = ["IU", "PY", "WS", "PS", "RD", "CL", "GO", "RM"]
+  default        = "IU"
+
+  # Default folder to open when starting a JetBrains IDE
+  folder = "/home/coder"
+
+  # This ensures that the latest version of the module gets downloaded, you can also pin the module version to prevent breaking changes in production.
+  version = ">= 1.0.0"
+
+  agent_id   = coder_agent.main.id
+  agent_name = "main"
+  order      = 2
+}
+
 locals {
   prefix = "coder-${data.coder_workspace_owner.me.name}-${data.coder_workspace.me.name}"
+}
 
-  userdata = templatefile("cloud-config.yaml.tftpl", {
-    username    = "coder" # Ensure this user/group does not exist in your VM image
-    init_script = base64encode(coder_agent.main.init_script)
-    hostname    = lower(data.coder_workspace.me.name)
-  })
+data "cloudinit_config" "user_data" {
+  gzip          = false
+  base64_encode = true
+
+  boundary = "//"
+
+  part {
+    filename     = "cloud-config.yaml"
+    content_type = "text/cloud-config"
+
+    content = templatefile("${path.module}/cloud-init/cloud-config.yaml.tftpl", {
+      username    = "coder" # Ensure this user/group does not exist in your VM image
+      init_script = base64encode(coder_agent.main.init_script)
+      hostname    = lower(data.coder_workspace.me.name)
+    })
+  }
 }
 
 resource "azurerm_resource_group" "main" {
   name     = "${local.prefix}-resources"
-  location = data.coder_parameter.location.value
+  location = module.azure_region.value
 
   tags = {
     Coder_Provisioned = "true"
@@ -347,7 +264,7 @@ resource "tls_private_key" "dummy" {
 }
 
 resource "azurerm_linux_virtual_machine" "main" {
-  count               = data.coder_workspace.me.transition == "start" ? 1 : 0
+  count               = data.coder_workspace.me.start_count
   name                = "vm"
   resource_group_name = azurerm_resource_group.main.name
   location            = azurerm_resource_group.main.location
@@ -373,7 +290,7 @@ resource "azurerm_linux_virtual_machine" "main" {
     sku       = "20_04-lts-gen2"
     version   = "latest"
   }
-  user_data = base64encode(local.userdata)
+  user_data = data.cloudinit_config.user_data.rendered
 
   tags = {
     Coder_Provisioned = "true"

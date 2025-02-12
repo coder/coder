@@ -12,8 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/tailnet"
 	"github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/tailnet/tailnettest"
@@ -21,7 +19,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestTailnet(t *testing.T) {
@@ -29,7 +27,7 @@ func TestTailnet(t *testing.T) {
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	t.Run("InstantClose", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		conn, err := tailnet.NewConn(&tailnet.Options{
 			Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
 			Logger:    logger.Named("w1"),
@@ -41,7 +39,7 @@ func TestTailnet(t *testing.T) {
 	})
 	t.Run("Connect", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -104,7 +102,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("ForcesWebSockets", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitMedium)
 
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
@@ -131,23 +129,28 @@ func TestTailnet(t *testing.T) {
 		stitch(t, w2, w1)
 		stitch(t, w1, w2)
 		require.True(t, w2.AwaitReachable(ctx, w1IP))
-		conn := make(chan struct{}, 1)
+		done := make(chan struct{})
+		listening := make(chan struct{})
 		go func() {
+			defer close(done)
 			listener, err := w1.Listen("tcp", ":35565")
-			assert.NoError(t, err)
+			if !assert.NoError(t, err) {
+				return
+			}
 			defer listener.Close()
+			close(listening)
 			nc, err := listener.Accept()
 			if !assert.NoError(t, err) {
 				return
 			}
 			_ = nc.Close()
-			conn <- struct{}{}
 		}()
 
+		testutil.RequireRecvCtx(ctx, t, listening)
 		nc, err := w2.DialContextTCP(ctx, netip.AddrPortFrom(w1IP, 35565))
 		require.NoError(t, err)
 		_ = nc.Close()
-		<-conn
+		testutil.RequireRecvCtx(ctx, t, done)
 
 		nodes := make(chan *tailnet.Node, 1)
 		w2.SetNodeCallback(func(node *tailnet.Node) {
@@ -167,7 +170,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("PingDirect", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -210,7 +213,7 @@ func TestTailnet(t *testing.T) {
 
 	t.Run("PingDERPOnly", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx := testutil.Context(t, testutil.WaitLong)
 		w1IP := tailnet.TailscaleServicePrefix.RandomAddr()
 		w1, err := tailnet.NewConn(&tailnet.Options{
@@ -259,7 +262,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 	t.Parallel()
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	conn, err := tailnet.NewConn(&tailnet.Options{
 		Addresses: []netip.Prefix{tailnet.TailscaleServicePrefix.RandomPrefix()},
@@ -288,7 +291,7 @@ func TestConn_PreferredDERP(t *testing.T) {
 // preferred DERP server and new connections can be made from clients.
 func TestConn_UpdateDERP(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	derpMap1, _ := tailnettest.RunDERPAndSTUN(t)
 	ip := tailnet.TailscaleServicePrefix.RandomAddr()
@@ -421,7 +424,7 @@ parentLoop:
 
 func TestConn_BlockEndpoints(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 

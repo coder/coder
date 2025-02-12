@@ -22,20 +22,21 @@ import (
 var (
 	// Only some templates are embedded that we want to display inside the UI.
 	// The metadata in examples.gen.json is generated via scripts/examplegen.
+	// Template IDs should not change over time. They are used as persistent identifiers in telemetry.
 	//go:embed examples.gen.json
 	//go:embed templates/aws-devcontainer
 	//go:embed templates/aws-linux
 	//go:embed templates/aws-windows
 	//go:embed templates/azure-linux
-	//go:embed templates/do-linux
+	//go:embed templates/digitalocean-linux
 	//go:embed templates/docker
-	//go:embed templates/devcontainer-docker
-	//go:embed templates/devcontainer-kubernetes
+	//go:embed templates/docker-devcontainer
 	//go:embed templates/gcp-devcontainer
 	//go:embed templates/gcp-linux
 	//go:embed templates/gcp-vm-container
 	//go:embed templates/gcp-windows
 	//go:embed templates/kubernetes
+	//go:embed templates/kubernetes-devcontainer
 	//go:embed templates/nomad-docker
 	//go:embed templates/scratch
 	files embed.FS

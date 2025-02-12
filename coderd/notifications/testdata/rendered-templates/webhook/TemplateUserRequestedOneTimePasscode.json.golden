@@ -6,13 +6,13 @@
     "notification_name": "One-Time Passcode",
     "notification_template_id": "00000000-0000-0000-0000-000000000000",
     "user_id": "00000000-0000-0000-0000-000000000000",
-    "user_email": "bobby@coder.com",
+    "user_email": "bobby/drop-table+user@coder.com",
     "user_name": "Bobby",
     "user_username": "bobby",
     "actions": [
       {
         "label": "Reset password",
-        "url": "http://test.com/reset-password/change?otp=00000000-0000-0000-0000-000000000000\u0026email=bobby@coder.com"
+        "url": "http://test.com/reset-password/change?otp=00000000-0000-0000-0000-000000000000\u0026email=bobby%2Fdrop-table%2Buser%40coder.com"
       }
     ],
     "labels": {

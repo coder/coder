@@ -5,13 +5,13 @@ import {
 	PremiumBadge,
 } from "components/Badges/Badges";
 import { PopoverPaywall } from "components/Paywall/PopoverPaywall";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
+import { Stack } from "components/Stack/Stack";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
-} from "components/Popover/Popover";
-import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
-import { Stack } from "components/Stack/Stack";
+} from "components/deprecated/Popover/Popover";
 import type { FC } from "react";
 import { deploymentGroupHasParent } from "utils/deployOptions";
 import { docs } from "utils/docs";

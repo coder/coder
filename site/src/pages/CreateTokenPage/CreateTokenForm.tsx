@@ -1,12 +1,14 @@
 import { css } from "@emotion/css";
 import MenuItem from "@mui/material/MenuItem";
 import TextField from "@mui/material/TextField";
+import { Button } from "components/Button/Button";
 import {
 	FormFields,
 	FormFooter,
 	FormSection,
 	HorizontalForm,
 } from "components/Form/Form";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc";
@@ -78,6 +80,7 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 				</FormFields>
 			</FormSection>
 			<FormSection
+				data-chromatic="ignore"
 				title="Expiration"
 				description={
 					form.values.lifetime
@@ -144,11 +147,16 @@ export const CreateTokenForm: FC<CreateTokenFormProps> = ({
 					</Stack>
 				</FormFields>
 			</FormSection>
-			<FormFooter
-				onCancel={() => navigate("/settings/tokens")}
-				isLoading={isCreating}
-				submitLabel={creationFailed ? "Retry" : "Create token"}
-			/>
+
+			<FormFooter>
+				<Button onClick={() => navigate("/settings/tokens")} variant="outline">
+					Cancel
+				</Button>
+				<Button type="submit" disabled={isCreating}>
+					<Spinner loading={isCreating} />
+					{creationFailed ? "Retry" : "Create token"}
+				</Button>
+			</FormFooter>
 		</HorizontalForm>
 	);
 };

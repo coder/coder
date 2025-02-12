@@ -12,8 +12,6 @@ import (
 	"go.uber.org/goleak"
 	"go.uber.org/mock/gomock"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -31,7 +29,7 @@ func TestTracker(t *testing.T) {
 
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
-	log := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	log := testutil.Logger(t)
 
 	tickCh := make(chan time.Time)
 	flushCh := make(chan int, 1)
@@ -149,7 +147,7 @@ func TestTracker_MultipleInstances(t *testing.T) {
 	numWorkspaces := 10
 	w := make([]dbfake.WorkspaceResponse, numWorkspaces)
 	for i := 0; i < numWorkspaces; i++ {
-		wr := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		wr := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OwnerID:        owner.UserID,
 			OrganizationID: owner.OrganizationID,
 			LastUsedAt:     now,
@@ -221,5 +219,5 @@ func TestTracker_MultipleInstances(t *testing.T) {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }

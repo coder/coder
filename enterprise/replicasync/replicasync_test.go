@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
@@ -26,7 +25,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestReplica(t *testing.T) {
@@ -46,7 +45,7 @@ func TestReplica(t *testing.T) {
 		defer cancel()
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, nil)
 		require.NoError(t, err)
 		<-closeChan
 		_ = server.Close()
@@ -73,7 +72,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 		})
 		require.NoError(t, err)
@@ -118,7 +117,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress: "http://169.254.169.254",
 			TLSConfig:    tlsConfig,
 		})
@@ -146,7 +145,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			PeerTimeout:  1 * time.Millisecond,
 			RelayAddress: "http://127.0.0.1:1",
 		})
@@ -165,7 +164,7 @@ func TestReplica(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, nil)
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, nil)
 		require.NoError(t, err)
 		defer server.Close()
 		dh := &derpyHandler{}
@@ -200,7 +199,7 @@ func TestReplica(t *testing.T) {
 		require.NoError(t, err)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress:    "google.com",
 			CleanupInterval: time.Millisecond,
 		})
@@ -221,7 +220,7 @@ func TestReplica(t *testing.T) {
 		// configuration tweaking.
 		db := dbmem.New()
 		pubsub := pubsub.NewInMemory()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		dh := &derpyHandler{}
 		defer dh.requireOnlyDERPPaths(t)
 		srv := httptest.NewServer(dh)
@@ -260,7 +259,7 @@ func TestReplica(t *testing.T) {
 		db, pubsub := dbtestutil.NewDB(t)
 		ctx, cancelCtx := context.WithCancel(context.Background())
 		defer cancelCtx()
-		server, err := replicasync.New(ctx, slogtest.Make(t, nil), db, pubsub, &replicasync.Options{
+		server, err := replicasync.New(ctx, testutil.Logger(t), db, pubsub, &replicasync.Options{
 			RelayAddress:    "google.com",
 			CleanupInterval: time.Millisecond,
 			UpdateInterval:  time.Millisecond,

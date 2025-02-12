@@ -28,13 +28,13 @@ func TestTimingsFromProvision(t *testing.T) {
 	// Given: a fake terraform bin that behaves as we expect it to.
 	fakeBin := filepath.Join(cwd, "testdata", "timings-aggregation/fake-terraform.sh")
 
-	t.Logf(fakeBin)
+	t.Log(fakeBin)
 
 	ctx, api := setupProvisioner(t, &provisionerServeOptions{
 		binaryPath: fakeBin,
 	})
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	ctx, cancel := context.WithTimeout(ctx, testutil.WaitLong)

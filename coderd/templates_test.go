@@ -11,15 +11,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
+	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/coderd/schedule"
 	"github.com/coder/coder/v2/coderd/util/ptr"
@@ -610,6 +610,32 @@ func TestPatchTemplateMeta(t *testing.T) {
 
 		require.Len(t, auditor.AuditLogs(), 5)
 		assert.Equal(t, database.AuditActionWrite, auditor.AuditLogs()[4].Action)
+	})
+
+	t.Run("AlreadyExists", func(t *testing.T) {
+		t.Parallel()
+
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("This test requires Postgres constraints")
+		}
+
+		ownerClient := coderdtest.New(t, nil)
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.ScopedRoleOrgTemplateAdmin(owner.OrganizationID))
+
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		version2 := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, nil)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		template2 := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version2.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+
+		_, err := client.UpdateTemplateMeta(ctx, template.ID, codersdk.UpdateTemplateMeta{
+			Name: template2.Name,
+		})
+		var apiErr *codersdk.Error
+		require.ErrorAs(t, err, &apiErr)
+		require.Equal(t, http.StatusConflict, apiErr.StatusCode())
 	})
 
 	t.Run("AGPL_Deprecated", func(t *testing.T) {
@@ -1314,7 +1340,7 @@ func TestTemplateMetrics(t *testing.T) {
 
 	conn, err := workspacesdk.New(client).
 		DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-			Logger: slogtest.Make(t, nil).Named("tailnet"),
+			Logger: testutil.Logger(t).Named("tailnet"),
 		})
 	require.NoError(t, err)
 	defer func() {
@@ -1377,7 +1403,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: an initiator
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1394,8 +1420,8 @@ func TestTemplateNotifications(t *testing.T) {
 			require.NoError(t, err)
 
 			// Then: the delete notification is not sent to the initiator.
-			deleteNotifications := make([]*testutil.Notification, 0)
-			for _, n := range notifyEnq.Sent {
+			deleteNotifications := make([]*notificationstest.FakeNotification, 0)
+			for _, n := range notifyEnq.Sent() {
 				if n.TemplateID == notifications.TemplateTemplateDeleted {
 					deleteNotifications = append(deleteNotifications, n)
 				}
@@ -1408,7 +1434,7 @@ func TestTemplateNotifications(t *testing.T) {
 
 			// Given: multiple users with different roles
 			var (
-				notifyEnq = &testutil.FakeNotificationsEnqueuer{}
+				notifyEnq = &notificationstest.FakeEnqueuer{}
 				client    = coderdtest.New(t, &coderdtest.Options{
 					IncludeProvisionerDaemon: true,
 					NotificationsEnqueuer:    notifyEnq,
@@ -1438,8 +1464,8 @@ func TestTemplateNotifications(t *testing.T) {
 			// Then: only owners and template admins should receive the
 			// notification.
 			shouldBeNotified := []uuid.UUID{owner.ID, tmplAdmin.ID}
-			var deleteTemplateNotifications []*testutil.Notification
-			for _, n := range notifyEnq.Sent {
+			var deleteTemplateNotifications []*notificationstest.FakeNotification
+			for _, n := range notifyEnq.Sent() {
 				if n.TemplateID == notifications.TemplateTemplateDeleted {
 					deleteTemplateNotifications = append(deleteTemplateNotifications, n)
 				}

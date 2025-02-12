@@ -57,14 +57,14 @@ func (acquireLockError) Error() string {
 	return "lock is held by another client"
 }
 
-// jobInelligibleError is returned when a job is not eligible to be terminated
+// jobIneligibleError is returned when a job is not eligible to be terminated
 // anymore.
-type jobInelligibleError struct {
+type jobIneligibleError struct {
 	Err error
 }
 
 // Error implements error.
-func (e jobInelligibleError) Error() string {
+func (e jobIneligibleError) Error() string {
 	return fmt.Sprintf("job is no longer eligible to be terminated: %s", e.Err)
 }
 
@@ -198,7 +198,7 @@ func (d *Detector) run(t time.Time) Stats {
 
 		err := unhangJob(ctx, log, d.db, d.pubsub, job.ID)
 		if err != nil {
-			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobInelligibleError{})) {
+			if !(xerrors.As(err, &acquireLockError{}) || xerrors.As(err, &jobIneligibleError{})) {
 				log.Error(ctx, "error forcefully terminating hung provisioner job", slog.Error(err))
 			}
 			continue
@@ -233,17 +233,17 @@ func unhangJob(ctx context.Context, log slog.Logger, db database.Store, pub pubs
 		if !job.StartedAt.Valid {
 			// This shouldn't be possible to hit because the query only selects
 			// started and not completed jobs, and a job can't be "un-started".
-			return jobInelligibleError{
+			return jobIneligibleError{
 				Err: xerrors.New("job is not started"),
 			}
 		}
 		if job.CompletedAt.Valid {
-			return jobInelligibleError{
+			return jobIneligibleError{
 				Err: xerrors.Errorf("job is completed (status %s)", job.JobStatus),
 			}
 		}
 		if job.UpdatedAt.After(time.Now().Add(-HungJobDuration)) {
-			return jobInelligibleError{
+			return jobIneligibleError{
 				Err: xerrors.New("job has been updated recently"),
 			}
 		}

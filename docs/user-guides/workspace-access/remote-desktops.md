@@ -58,3 +58,12 @@ requires just a few lines of Terraform in your template, see the documentation
 on our registry for setup.
 
 ![Web RDP Module in a Workspace](../../images/user-guides/web-rdp-demo.png)
+
+## Amazon DCV Windows
+
+Our [Amazon DCV Windows](https://registry.coder.com/modules/amazon-dcv-windows)
+module adds a one-click button to open an Amazon DCV session in the browser.
+This requires just a few lines of Terraform in your template, see the
+documentation on our registry for setup.
+
+![Amazon DCV Windows Module in a Workspace](../../images/user-guides/amazon-dcv-windows-demo.png)

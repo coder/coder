@@ -63,7 +63,16 @@ type Story = StoryObj<typeof Workspace>;
 
 export const Running: Story = {
 	args: {
-		workspace: Mocks.MockWorkspace,
+		workspace: {
+			...Mocks.MockWorkspace,
+			latest_build: {
+				...Mocks.MockWorkspace.latest_build,
+				matched_provisioners: {
+					count: 0,
+					available: 0,
+				},
+			},
+		},
 		handleStart: action("start"),
 		handleStop: action("stop"),
 		buildInfo: Mocks.MockBuildInfo,
@@ -92,6 +101,51 @@ export const PendingInQueue: Story = {
 	args: {
 		...Running.args,
 		workspace: Mocks.MockPendingWorkspace,
+	},
+};
+
+export const PendingWithNoProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: {
+					count: 0,
+					available: 0,
+				},
+			},
+		},
+	},
+};
+
+export const PendingWithNoAvailableProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: {
+					count: 1,
+					available: 0,
+				},
+			},
+		},
+	},
+};
+
+export const PendingWithUndefinedProvisioners: Story = {
+	args: {
+		...Running.args,
+		workspace: {
+			...Mocks.MockPendingWorkspace,
+			latest_build: {
+				...Mocks.MockPendingWorkspace.latest_build,
+				matched_provisioners: undefined,
+			},
+		},
 	},
 };
 
@@ -130,7 +184,7 @@ export const FailedWithLogs: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 
@@ -148,7 +202,7 @@ export const FailedWithRetry: Story = {
 				},
 			},
 		},
-		buildLogs: <WorkspaceBuildLogsSection logs={makeFailedBuildLogs()} />,
+		buildLogs: makeFailedBuildLogs(),
 	},
 };
 

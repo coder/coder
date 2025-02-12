@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # users
 
 Manage users
 
 Aliases:
 
-- user
+* user
 
 ## Usage
 
@@ -17,7 +16,7 @@ coder users [subcommand]
 ## Subcommands
 
 | Name                                         | Purpose                                                                               |
-| -------------------------------------------- | ------------------------------------------------------------------------------------- |
+|----------------------------------------------|---------------------------------------------------------------------------------------|
 | [<code>create</code>](./users_create.md)     |                                                                                       |
 | [<code>list</code>](./users_list.md)         |                                                                                       |
 | [<code>show</code>](./users_show.md)         | Show a single user. Use 'me' to indicate the currently authenticated user.            |

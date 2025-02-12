@@ -6,8 +6,6 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
@@ -22,7 +20,7 @@ func TestPGCoordinator_ReadyForHandshake_OK(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -38,7 +36,7 @@ func TestPGCoordinator_ReadyForHandshake_NoPermission(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()

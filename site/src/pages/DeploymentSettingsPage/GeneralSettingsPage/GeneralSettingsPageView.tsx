@@ -5,11 +5,7 @@ import type {
 	Experiments,
 	SerpentOption,
 } from "api/typesGenerated";
-import {
-	ActiveUserChart,
-	ActiveUsersTitle,
-} from "components/ActiveUserChart/ActiveUserChart";
-import { ErrorAlert } from "components/Alert/ErrorAlert";
+import { Link } from "components/Link/Link";
 import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import type { FC } from "react";
@@ -17,22 +13,18 @@ import { useDeploymentOptions } from "utils/deployOptions";
 import { docs } from "utils/docs";
 import { Alert } from "../../../components/Alert/Alert";
 import OptionsTable from "../OptionsTable";
-import { ChartSection } from "./ChartSection";
+import { UserEngagementChart } from "./UserEngagementChart";
 
 export type GeneralSettingsPageViewProps = {
 	deploymentOptions: SerpentOption[];
-	deploymentDAUs?: DAUsResponse;
-	deploymentDAUsError: unknown;
-	entitlements: Entitlements | undefined;
+	dailyActiveUsers: DAUsResponse | undefined;
 	readonly invalidExperiments: Experiments | string[];
 	readonly safeExperiments: Experiments | string[];
 };
 
 export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 	deploymentOptions,
-	deploymentDAUs,
-	deploymentDAUsError,
-	entitlements,
+	dailyActiveUsers,
 	safeExperiments,
 	invalidExperiments,
 }) => {
@@ -44,24 +36,12 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 				docsHref={docs("/admin/setup")}
 			/>
 			<Stack spacing={4}>
-				{Boolean(deploymentDAUsError) && (
-					<ErrorAlert error={deploymentDAUsError} />
-				)}
-				{deploymentDAUs && (
-					<div css={{ marginBottom: 24, height: 200 }}>
-						<ChartSection title={<ActiveUsersTitle />}>
-							<ActiveUserChart
-								data={deploymentDAUs.entries}
-								interval="day"
-								userLimit={
-									entitlements?.features.user_limit.enabled
-										? entitlements?.features.user_limit.limit
-										: undefined
-								}
-							/>
-						</ChartSection>
-					</div>
-				)}
+				<UserEngagementChart
+					data={dailyActiveUsers?.entries.map((i) => ({
+						date: i.date,
+						users: i.amount,
+					}))}
+				/>
 				{invalidExperiments.length > 0 && (
 					<Alert severity="warning">
 						<AlertTitle>Invalid experiments in use:</AlertTitle>
@@ -74,13 +54,13 @@ export const GeneralSettingsPageView: FC<GeneralSettingsPageViewProps> = ({
 						</ul>
 						It is recommended that you remove these experiments from your
 						configuration as they have no effect. See{" "}
-						<a
+						<Link
 							href="https://coder.com/docs/cli/server#--experiments"
 							target="_blank"
 							rel="noreferrer"
 						>
 							the documentation
-						</a>{" "}
+						</Link>{" "}
 						for more details.
 					</Alert>
 				)}

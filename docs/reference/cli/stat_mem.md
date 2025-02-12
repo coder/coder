@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # stat mem
 
 Show memory usage, in gigabytes.
@@ -15,7 +14,7 @@ coder stat mem [flags]
 ### --host
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Force host memory measurement.
@@ -23,7 +22,7 @@ Force host memory measurement.
 ### --prefix
 
 |         |                             |
-| ------- | --------------------------- |
+|---------|-----------------------------|
 | Type    | <code>Ki\|Mi\|Gi\|Ti</code> |
 | Default | <code>Gi</code>             |
 
@@ -32,7 +31,7 @@ SI Prefix for memory measurement.
 ### -o, --output
 
 |         |                         |
-| ------- | ----------------------- |
+|---------|-------------------------|
 | Type    | <code>text\|json</code> |
 | Default | <code>text</code>       |
 

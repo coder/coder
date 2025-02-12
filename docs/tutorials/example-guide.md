@@ -1,9 +1,9 @@
-# Guide Title (Only Visible in Github)
+# Guide Title (Only Visible in GitHub)
 
 <div>
   <a href="https://github.com/coder" style="text-decoration: none; color: inherit;">
     <span style="vertical-align:middle;">Your Name</span>
-    <img src="https://github.com/coder.png" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
+    <img src="https://github.com/coder.png" alt="Coder" width="24px" height="24px" style="vertical-align:middle; margin: 0px;"/>
   </a>
 </div>
 December 13, 2023
@@ -28,7 +28,7 @@ Use relative imports in the markdown and store photos in
 ### Setting the author data
 
 At the top of this example you will find a small html snippet that nicely
-renders the author's name and photo, while linking to their Github profile.
+renders the author's name and photo, while linking to their GitHub profile.
 Before submitting your guide in a PR, replace `your_github_handle`,
 `your_github_profile_photo_url` and "Your Name". The entire `<img>` element can
 be omitted.

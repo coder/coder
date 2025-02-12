@@ -1,6 +1,7 @@
 package codersdk
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 
@@ -98,9 +99,12 @@ func UserRealNameValid(str string) error {
 
 // GroupNameValid returns whether the input string is a valid group name.
 func GroupNameValid(str string) error {
-	// 36 is to support using UUIDs as the group name.
-	if len(str) > 36 {
-		return xerrors.New("must be <= 36 characters")
+	// We want to support longer names for groups to allow users to sync their
+	// group names with their identity providers without manual mapping. Related
+	// to: https://github.com/coder/coder/issues/15184
+	limit := 255
+	if len(str) > limit {
+		return xerrors.New(fmt.Sprintf("must be <= %d characters", limit))
 	}
 	// Avoid conflicts with routes like /groups/new and /groups/create.
 	if str == "new" || str == "create" {

@@ -122,5 +122,5 @@ func durations(ds ...time.Duration) []time.Duration {
 }
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }

@@ -14,6 +14,7 @@ import (
 
 	"github.com/cenkalti/backoff/v4"
 	"github.com/google/uuid"
+	"github.com/tailscale/wireguard-go/tun"
 	"golang.org/x/xerrors"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/wrapperspb"
@@ -22,6 +23,7 @@ import (
 	"tailscale.com/envknob"
 	"tailscale.com/ipn/ipnstate"
 	"tailscale.com/net/connstats"
+	"tailscale.com/net/dns"
 	"tailscale.com/net/netmon"
 	"tailscale.com/net/netns"
 	"tailscale.com/net/tsdial"
@@ -32,6 +34,7 @@ import (
 	tslogger "tailscale.com/types/logger"
 	"tailscale.com/types/netlogtype"
 	"tailscale.com/types/netmap"
+	"tailscale.com/util/dnsname"
 	"tailscale.com/wgengine"
 	"tailscale.com/wgengine/capture"
 	"tailscale.com/wgengine/magicsock"
@@ -106,6 +109,16 @@ type Options struct {
 	ClientType proto.TelemetryEvent_ClientType
 	// TelemetrySink is optional.
 	TelemetrySink TelemetrySink
+	// DNSConfigurator is optional, and is passed to the underlying wireguard
+	// engine.
+	DNSConfigurator dns.OSConfigurator
+	// Router is optional, and is passed to the underlying wireguard engine.
+	Router router.Router
+	// TUNDev is optional, and is passed to the underlying wireguard engine.
+	TUNDev tun.Device
+	// WireguardMonitor is optional, and is passed to the underlying wireguard
+	// engine.
+	WireguardMonitor *netmon.Monitor
 }
 
 // TelemetrySink allows tailnet.Conn to send network telemetry to the Coder
@@ -136,6 +149,8 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return nil, xerrors.New("At least one IP range must be provided")
 	}
 
+	netns.SetEnabled(options.TUNDev != nil)
+
 	var telemetryStore *TelemetryStore
 	if options.TelemetrySink != nil {
 		var err error
@@ -159,13 +174,15 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		nodeID = tailcfg.NodeID(uid)
 	}
 
-	wireguardMonitor, err := netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
-	if err != nil {
-		return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
+	if options.WireguardMonitor == nil {
+		options.WireguardMonitor, err = netmon.New(Logger(options.Logger.Named("net.wgmonitor")))
+		if err != nil {
+			return nil, xerrors.Errorf("create wireguard link monitor: %w", err)
+		}
 	}
 	defer func() {
 		if err != nil {
-			wireguardMonitor.Close()
+			options.WireguardMonitor.Close()
 		}
 	}()
 
@@ -174,10 +191,13 @@ func NewConn(options *Options) (conn *Conn, err error) {
 	}
 	sys := new(tsd.System)
 	wireguardEngine, err := wgengine.NewUserspaceEngine(Logger(options.Logger.Named("net.wgengine")), wgengine.Config{
-		NetMon:       wireguardMonitor,
+		NetMon:       options.WireguardMonitor,
 		Dialer:       dialer,
 		ListenPort:   options.ListenPort,
 		SetSubsystem: sys.Set,
+		DNS:          options.DNSConfigurator,
+		Router:       options.Router,
+		Tun:          options.TUNDev,
 	})
 	if err != nil {
 		return nil, xerrors.Errorf("create wgengine: %w", err)
@@ -188,11 +208,14 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		}
 	}()
 	wireguardEngine.InstallCaptureHook(options.CaptureHook)
-	dialer.UseNetstackForIP = func(ip netip.Addr) bool {
-		_, ok := wireguardEngine.PeerForIP(ip)
-		return ok
+	if options.TUNDev == nil {
+		dialer.UseNetstackForIP = func(ip netip.Addr) bool {
+			_, ok := wireguardEngine.PeerForIP(ip)
+			return ok
+		}
 	}
 
+	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 	sys.Set(wireguardEngine)
 
 	magicConn := sys.MagicSock.Get()
@@ -235,11 +258,12 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		return nil, xerrors.Errorf("create netstack: %w", err)
 	}
 
-	dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
-		return netStack.DialContextTCP(ctx, dst)
+	if options.TUNDev == nil {
+		dialer.NetstackDialTCP = func(ctx context.Context, dst netip.AddrPort) (net.Conn, error) {
+			return netStack.DialContextTCP(ctx, dst)
+		}
+		netStack.ProcessLocalIPs = true
 	}
-	netStack.ProcessLocalIPs = true
-	wireguardEngine = wgengine.NewWatchdog(wireguardEngine)
 
 	cfgMaps := newConfigMaps(
 		options.Logger,
@@ -274,7 +298,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		listeners:        map[listenKey]*listener{},
 		tunDevice:        sys.Tun.Get(),
 		netStack:         netStack,
-		wireguardMonitor: wireguardMonitor,
+		wireguardMonitor: options.WireguardMonitor,
 		wireguardRouter: &router.Config{
 			LocalAddrs: options.Addresses,
 		},
@@ -282,6 +306,7 @@ func NewConn(options *Options) (conn *Conn, err error) {
 		configMaps:      cfgMaps,
 		nodeUpdater:     nodeUp,
 		telemetrySink:   options.TelemetrySink,
+		dnsConfigurator: options.DNSConfigurator,
 		telemetryStore:  telemetryStore,
 		createdAt:       time.Now(),
 		watchCtx:        ctx,
@@ -371,6 +396,12 @@ func (p ServicePrefix) RandomPrefix() netip.Prefix {
 	return netip.PrefixFrom(p.RandomAddr(), 128)
 }
 
+func (p ServicePrefix) AsNetip() netip.Prefix {
+	out := [16]byte{}
+	copy(out[:], p[:])
+	return netip.PrefixFrom(netip.AddrFrom16(out), 48)
+}
+
 // Conn is an actively listening Wireguard connection.
 type Conn struct {
 	// Unique ID used for telemetry.
@@ -388,6 +419,7 @@ type Conn struct {
 	wireguardMonitor *netmon.Monitor
 	wireguardRouter  *router.Config
 	wireguardEngine  wgengine.Engine
+	dnsConfigurator  dns.OSConfigurator
 	listeners        map[listenKey]*listener
 	clientType       proto.TelemetryEvent_ClientType
 	createdAt        time.Time
@@ -431,6 +463,15 @@ func (c *Conn) MagicsockSetDebugLoggingEnabled(enabled bool) {
 func (c *Conn) SetAddresses(ips []netip.Prefix) error {
 	c.configMaps.setAddresses(ips)
 	c.nodeUpdater.setAddresses(ips)
+	return nil
+}
+
+// SetDNSHosts replaces the map of DNS hosts for the connection.
+func (c *Conn) SetDNSHosts(hosts map[dnsname.FQDN][]netip.Addr) error {
+	if c.dnsConfigurator == nil {
+		return xerrors.New("no DNSConfigurator set")
+	}
+	c.configMaps.setHosts(hosts)
 	return nil
 }
 

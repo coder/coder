@@ -8,6 +8,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"github.com/coder/coder/v2/cli/cliui"
+	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/serpent"
 )
@@ -35,6 +36,23 @@ func (r *RootCmd) start() *serpent.Command {
 			}
 			var build codersdk.WorkspaceBuild
 			switch workspace.LatestBuild.Status {
+			case codersdk.WorkspaceStatusPending:
+				// The above check is technically duplicated in cliutil.WarnmatchedProvisioners
+				// but we still want to avoid users spamming multiple builds that will
+				// not be picked up.
+				_, _ = fmt.Fprintf(
+					inv.Stdout,
+					"\nThe %s workspace is waiting to start!\n",
+					cliui.Keyword(workspace.Name),
+				)
+				cliutil.WarnMatchedProvisioners(inv.Stderr, workspace.LatestBuild.MatchedProvisioners, workspace.LatestBuild.Job)
+				if _, err := cliui.Prompt(inv, cliui.PromptOptions{
+					Text:      "Enqueue another start?",
+					IsConfirm: true,
+					Default:   cliui.ConfirmNo,
+				}); err != nil {
+					return err
+				}
 			case codersdk.WorkspaceStatusRunning:
 				_, _ = fmt.Fprintf(
 					inv.Stdout, "\nThe %s workspace is already running!\n",
@@ -159,6 +177,7 @@ func startWorkspace(inv *serpent.Invocation, client *codersdk.Client, workspace 
 	if err != nil {
 		return codersdk.WorkspaceBuild{}, xerrors.Errorf("create workspace build: %w", err)
 	}
+	cliutil.WarnMatchedProvisioners(inv.Stderr, build.MatchedProvisioners, build.Job)
 
 	return build, nil
 }

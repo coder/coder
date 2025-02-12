@@ -8,7 +8,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
@@ -203,7 +202,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-				Logger: slogtest.Make(t, nil),
+				Logger: testutil.Logger(t),
 			})
 		require.NoError(t, err)
 		defer conn.Close()
@@ -241,7 +240,7 @@ func TestWorkspaceActivityBump(t *testing.T) {
 		resources := coderdtest.AwaitWorkspaceAgents(t, client, workspace.ID)
 		conn, err := workspacesdk.New(client).
 			DialAgent(ctx, resources[0].Agents[0].ID, &workspacesdk.DialAgentOptions{
-				Logger: slogtest.Make(t, nil),
+				Logger: testutil.Logger(t),
 			})
 		require.NoError(t, err)
 		defer conn.Close()

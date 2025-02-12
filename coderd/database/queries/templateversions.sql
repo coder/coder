@@ -87,10 +87,11 @@ INSERT INTO
 		message,
 		readme,
 		job_id,
-		created_by
+		created_by,
+		source_example_id
 	)
 VALUES
-	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);
+	($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);
 
 -- name: UpdateTemplateVersionByID :exec
 UPDATE

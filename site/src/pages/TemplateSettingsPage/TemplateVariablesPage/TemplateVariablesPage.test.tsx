@@ -1,7 +1,6 @@
 import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
-import { Language as FooterFormLanguage } from "components/FormFooter/FormFooter";
 import {
 	MockTemplate,
 	MockTemplateVersion,
@@ -100,9 +99,7 @@ describe("TemplateVariablesPage", () => {
 		await userEvent.type(secondVariableField, validFormValues.second_variable);
 
 		// Submit the form
-		const submitButton = await screen.findByText(
-			FooterFormLanguage.defaultSubmitLabel,
-		);
+		const submitButton = await screen.findByText(/save/i);
 		await userEvent.click(submitButton);
 		// Wait for the success message
 		await delay(1500);

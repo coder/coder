@@ -11,6 +11,8 @@ IDEs are supported for remote development:
 - Rider
 - RubyMine
 - WebStorm
+- PhpStorm
+- RustRover
 - [JetBrains Fleet](#jetbrains-fleet)
 
 ## JetBrains Gateway
@@ -248,14 +250,14 @@ windows-x64, windows-aarch64, linux-x64, linux-aarch64, osx-x64, osx-aarch64
 
 To install both backends and clients, you will need to run two commands.
 
-**Backends**
+#### Backends
 
 ```shell
 mkdir ~/backends
 ./jetbrains-clients-downloader-linux-x86_64-1867/bin/jetbrains-clients-downloader --products-filter <product-code> --build-filter <build-number> --platforms-filter linux-x64,windows-x64,osx-x64 --download-backends ~/backends
 ```
 
-**Clients**
+#### Clients
 
 This is the same command as above, with the `--download-backends` flag removed.
 
@@ -318,7 +320,7 @@ https://internal.site/KEYS
 
 The location of these files will depend upon your local operating system:
 
-**macOS**
+#### macOS
 
 ```console
 # User-specific settings
@@ -327,7 +329,7 @@ The location of these files will depend upon your local operating system:
 /Library/Application Support/JetBrains/RemoteDev/
 ```
 
-**Linux**
+#### Linux
 
 ```console
 # User-specific settings
@@ -336,7 +338,7 @@ $HOME/.config/JetBrains/RemoteDev
 /etc/xdg/JetBrains/RemoteDev/
 ```
 
-**Windows**
+#### Windows
 
 ```console
 # User-specific settings
@@ -378,14 +380,18 @@ Fleet can connect to a Coder workspace by following these steps.
 
 1. [Install Fleet](https://www.jetbrains.com/fleet/download)
 2. Install Coder CLI
+
    ```shell
    curl -L https://coder.com/install.sh | sh
    ```
+
 3. Login and configure Coder SSH.
+
    ```shell
    coder login coder.example.com
    coder config-ssh
    ```
+
 4. Connect via SSH with the Host set to `coder.workspace-name`
    ![Fleet Connect to Coder](../../images/fleet/ssh-connect-to-coder.png)
 

@@ -26,7 +26,7 @@ func TestProvisionerKeys(t *testing.T) {
 		client, owner := coderdenttest.New(t, &coderdenttest.Options{
 			LicenseOptions: &coderdenttest.LicenseOptions{
 				Features: license.Features{
-					codersdk.FeatureMultipleOrganizations: 1,
+					codersdk.FeatureExternalProvisionerDaemons: 1,
 				},
 			},
 		})

@@ -23,12 +23,12 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestRollup_Close(t *testing.T) {
 	t.Parallel()
-	rolluper := dbrollup.New(slogtest.Make(t, nil), dbmem.New(), dbrollup.WithInterval(250*time.Millisecond))
+	rolluper := dbrollup.New(testutil.Logger(t), dbmem.New(), dbrollup.WithInterval(250*time.Millisecond))
 	err := rolluper.Close()
 	require.NoError(t, err)
 }
@@ -38,7 +38,7 @@ type wrapUpsertDB struct {
 	resume <-chan struct{}
 }
 
-func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *sql.TxOptions) error {
+func (w *wrapUpsertDB) InTx(fn func(database.Store) error, opts *database.TxOptions) error {
 	return w.Store.InTx(func(tx database.Store) error {
 		return fn(&wrapUpsertDB{Store: tx, resume: w.resume})
 	}, opts)
@@ -57,14 +57,14 @@ func TestRollup_TwoInstancesUseLocking(t *testing.T) {
 	}
 
 	db, ps := dbtestutil.NewDB(t, dbtestutil.WithDumpOnFailure())
-	logger := slogtest.Make(t, &slogtest.Options{IgnoreErrors: false}).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	var (
 		org   = dbgen.Organization(t, db, database.Organization{})
 		user  = dbgen.User(t, db, database.User{Name: "user1"})
 		tpl   = dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
 		ver   = dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, CreatedBy: user.ID})
-		ws    = dbgen.Workspace(t, db, database.Workspace{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
+		ws    = dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
 		job   = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID})
 		build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: job.ID, TemplateVersionID: ver.ID})
 		res   = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})
@@ -151,7 +151,7 @@ func TestRollupTemplateUsageStats(t *testing.T) {
 		user  = dbgen.User(t, db, database.User{Name: "user1"})
 		tpl   = dbgen.Template(t, db, database.Template{OrganizationID: org.ID, CreatedBy: user.ID})
 		ver   = dbgen.TemplateVersion(t, db, database.TemplateVersion{OrganizationID: org.ID, TemplateID: uuid.NullUUID{UUID: tpl.ID, Valid: true}, CreatedBy: user.ID})
-		ws    = dbgen.Workspace(t, db, database.Workspace{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
+		ws    = dbgen.Workspace(t, db, database.WorkspaceTable{OrganizationID: org.ID, TemplateID: tpl.ID, OwnerID: user.ID})
 		job   = dbgen.ProvisionerJob(t, db, ps, database.ProvisionerJob{OrganizationID: org.ID})
 		build = dbgen.WorkspaceBuild(t, db, database.WorkspaceBuild{WorkspaceID: ws.ID, JobID: job.ID, TemplateVersionID: ver.ID})
 		res   = dbgen.WorkspaceResource(t, db, database.WorkspaceResource{JobID: build.JobID})

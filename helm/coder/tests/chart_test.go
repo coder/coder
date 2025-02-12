@@ -88,6 +88,30 @@ var testCases = []testCase{
 		name:          "sa_extra_rules",
 		expectedError: "",
 	},
+	{
+		name:          "sa_disabled",
+		expectedError: "",
+	},
+	{
+		name:          "topology",
+		expectedError: "",
+	},
+	{
+		name:          "svc_loadbalancer_class",
+		expectedError: "",
+	},
+	{
+		name:          "svc_nodeport",
+		expectedError: "",
+	},
+	{
+		name:          "svc_loadbalancer",
+		expectedError: "",
+	},
+	{
+		name:          "securitycontext",
+		expectedError: "",
+	},
 }
 
 type testCase struct {

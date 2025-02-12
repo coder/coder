@@ -86,7 +86,8 @@ type Metrics struct {
 	// JobTimings also counts the total amount of jobs.
 	JobTimings *prometheus.HistogramVec
 	// WorkspaceBuilds counts workspace build successes and failures.
-	WorkspaceBuilds *prometheus.CounterVec
+	WorkspaceBuilds       *prometheus.CounterVec
+	WorkspaceBuildTimings *prometheus.HistogramVec
 }
 
 type JobUpdater interface {
@@ -189,6 +190,12 @@ func (r *Runner) Run() {
 				build.Metadata.WorkspaceTransition.String(),
 				status,
 			).Inc()
+			r.metrics.WorkspaceBuildTimings.WithLabelValues(
+				build.Metadata.TemplateName,
+				build.Metadata.TemplateVersion,
+				build.Metadata.WorkspaceTransition.String(),
+				status,
+			).Observe(time.Since(start).Seconds())
 		}
 		r.metrics.JobTimings.WithLabelValues(r.job.Provisioner, status).Observe(time.Since(start).Seconds())
 	}()
@@ -581,6 +588,8 @@ func (r *Runner) runTemplateImport(ctx context.Context) (*proto.CompletedJob, *p
 				RichParameters:             startProvision.Parameters,
 				ExternalAuthProvidersNames: externalAuthProviderNames,
 				ExternalAuthProviders:      startProvision.ExternalAuthProviders,
+				StartModules:               startProvision.Modules,
+				StopModules:                stopProvision.Modules,
 			},
 		},
 	}, nil
@@ -604,7 +613,7 @@ func (r *Runner) runTemplateImportParse(ctx context.Context) (
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "parse job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "parse job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -640,6 +649,7 @@ type templateImportProvision struct {
 	Resources             []*sdkproto.Resource
 	Parameters            []*sdkproto.RichParameter
 	ExternalAuthProviders []*sdkproto.ExternalAuthProviderResource
+	Modules               []*sdkproto.Module
 }
 
 // Performs a dry-run provision when importing a template.
@@ -701,7 +711,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 		}
 		switch msgType := msg.Type.(type) {
 		case *sdkproto.Response_Log:
-			r.logger.Debug(context.Background(), "template import provision job logged",
+			r.logProvisionerJobLog(context.Background(), msgType.Log.Level, "template import provision job logged",
 				slog.F("level", msgType.Log.Level),
 				slog.F("output", msgType.Log.Output),
 			)
@@ -731,6 +741,7 @@ func (r *Runner) runTemplateImportProvisionWithRichParameters(
 				Resources:             c.Resources,
 				Parameters:            c.Parameters,
 				ExternalAuthProviders: c.ExternalAuthProviders,
+				Modules:               c.Modules,
 			}, nil
 		default:
 			return nil, xerrors.Errorf("invalid message type %q received from provisioner",
@@ -793,6 +804,7 @@ func (r *Runner) runTemplateDryRun(ctx context.Context) (*proto.CompletedJob, *p
 		Type: &proto.CompletedJob_TemplateDryRun_{
 			TemplateDryRun: &proto.CompletedJob_TemplateDryRun{
 				Resources: provision.Resources,
+				Modules:   provision.Modules,
 			},
 		},
 	}, nil
@@ -1033,6 +1045,10 @@ func (r *Runner) runWorkspaceBuild(ctx context.Context) (*proto.CompletedJob, *p
 				State:     applyComplete.State,
 				Resources: applyComplete.Resources,
 				Timings:   applyComplete.Timings,
+				// Modules are created on disk by `terraform init`, and that is only
+				// called by `plan`. `apply` does not modify them, so we can use the
+				// modules from the plan response.
+				Modules: planComplete.Modules,
 			},
 		},
 	}, nil

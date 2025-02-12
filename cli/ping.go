@@ -103,11 +103,6 @@ func (r *RootCmd) ping() *serpent.Command {
 			ctx, cancel := context.WithCancel(inv.Context())
 			defer cancel()
 
-			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
-			spin.Writer = inv.Stderr
-			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
-			spin.Start()
-
 			notifyCtx, notifyCancel := inv.SignalNotifyContext(ctx, StopSignals...)
 			defer notifyCancel()
 
@@ -121,6 +116,14 @@ func (r *RootCmd) ping() *serpent.Command {
 				return err
 			}
 
+			// Start spinner after any build logs have finished streaming
+			spin := spinner.New(spinner.CharSets[5], 100*time.Millisecond)
+			spin.Writer = inv.Stderr
+			spin.Suffix = pretty.Sprint(cliui.DefaultStyles.Keyword, " Collecting diagnostics...")
+			if !r.verbose {
+				spin.Start()
+			}
+
 			opts := &workspacesdk.DialAgentOptions{}
 
 			if r.verbose {
@@ -128,7 +131,6 @@ func (r *RootCmd) ping() *serpent.Command {
 			}
 
 			if r.disableDirect {
-				_, _ = fmt.Fprintln(inv.Stderr, "Direct connections disabled.")
 				opts.BlockEndpoints = true
 			}
 			if !r.disableNetworkTelemetry {
@@ -137,6 +139,7 @@ func (r *RootCmd) ping() *serpent.Command {
 			wsClient := workspacesdk.New(client)
 			conn, err := wsClient.DialAgent(ctx, workspaceAgent.ID, opts)
 			if err != nil {
+				spin.Stop()
 				return err
 			}
 			defer conn.Close()
@@ -156,7 +159,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				LocalNetInfo:       ni,
 				Verbose:            r.verbose,
 				PingP2P:            didP2p,
-				TroubleshootingURL: appearanceConfig.DocsURL + "/networking/troubleshooting",
+				TroubleshootingURL: appearanceConfig.DocsURL + "/admin/networking/troubleshooting",
 			}
 
 			awsRanges, err := cliutil.FetchAWSIPRanges(diagCtx, cliutil.AWSIPRangesURL)
@@ -168,6 +171,7 @@ func (r *RootCmd) ping() *serpent.Command {
 
 			connInfo, err := wsClient.AgentConnectionInfoGeneric(diagCtx)
 			if err != nil || connInfo.DERPMap == nil {
+				spin.Stop()
 				return xerrors.Errorf("Failed to retrieve connection info from server: %w\n", err)
 			}
 			connDiags.ConnInfo = connInfo
@@ -197,6 +201,11 @@ func (r *RootCmd) ping() *serpent.Command {
 			results := &pingSummary{
 				Workspace: workspaceName,
 			}
+			var (
+				pong *ipnstate.PingResult
+				dur  time.Duration
+				p2p  bool
+			)
 			n := 0
 			start := time.Now()
 		pingLoop:
@@ -207,7 +216,7 @@ func (r *RootCmd) ping() *serpent.Command {
 				n++
 
 				ctx, cancel := context.WithTimeout(ctx, pingTimeout)
-				dur, p2p, pong, err := conn.Ping(ctx)
+				dur, p2p, pong, err = conn.Ping(ctx)
 				cancel()
 				results.addResult(pong)
 				if err != nil {
@@ -275,10 +284,15 @@ func (r *RootCmd) ping() *serpent.Command {
 				}
 			}
 
-			if didP2p {
-				_, _ = fmt.Fprintf(inv.Stderr, "✔ You are connected directly (p2p)\n")
+			if p2p {
+				msg := "✔ You are connected directly (p2p)"
+				if pong != nil && isPrivateEndpoint(pong.Endpoint) {
+					msg += ", over a private network"
+				}
+				_, _ = fmt.Fprintln(inv.Stderr, msg)
 			} else {
-				_, _ = fmt.Fprintf(inv.Stderr, "❗ You are connected via a DERP relay, not directly (p2p)\n%s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
+				_, _ = fmt.Fprintf(inv.Stderr, "❗ You are connected via a DERP relay, not directly (p2p)\n"+
+					"   %s#common-problems-with-direct-connections\n", connDiags.TroubleshootingURL)
 			}
 
 			results.Write(inv.Stdout)
@@ -328,4 +342,12 @@ func isAWSIP(awsRanges *cliutil.AWSIPRanges, ni *tailcfg.NetInfo) bool {
 		}
 	}
 	return false
+}
+
+func isPrivateEndpoint(endpoint string) bool {
+	ip, err := netip.ParseAddrPort(endpoint)
+	if err != nil {
+		return false
+	}
+	return ip.Addr().IsPrivate()
 }

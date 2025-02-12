@@ -26,7 +26,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
 	"tailscale.com/tailcfg"
@@ -40,6 +39,7 @@ import (
 	"github.com/coder/coder/v2/tailnet"
 	tailnetproto "github.com/coder/coder/v2/tailnet/proto"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 type ClientNumber int
@@ -467,7 +467,9 @@ func startClientOptions(t *testing.T, logger slog.Logger, serverURL *url.URL, me
 		_ = conn.Close()
 	})
 
-	coordination := tailnet.NewRemoteCoordination(logger, coord, conn, peer.ID)
+	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+	ctrl.AddDestination(peer.ID)
+	coordination := ctrl.New(coord)
 	t.Cleanup(func() {
 		cctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 		defer cancel()
@@ -590,7 +592,7 @@ func ExecBackground(t *testing.T, processName string, netNS *os.File, name strin
 		select {
 		case err := <-waitErr:
 			if err != nil {
-				t.Logf("subprocess exited: " + err.Error())
+				t.Log("subprocess exited: " + err.Error())
 			}
 			return
 		default:

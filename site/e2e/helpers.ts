@@ -1,5 +1,6 @@
 import { type ChildProcess, exec, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
+import net from "node:net";
 import path from "node:path";
 import { Duplex } from "node:stream";
 import { type BrowserContext, type Page, expect, test } from "@playwright/test";
@@ -14,13 +15,15 @@ import * as ssh from "ssh2";
 import { TarWriter } from "utils/tar";
 import {
 	agentPProfPort,
-	coderMain,
+	coderBinary,
 	coderPort,
 	defaultOrganizationName,
+	defaultPassword,
 	license,
 	premiumTestsRequired,
 	prometheusPort,
 	requireTerraformTests,
+	users,
 } from "./constants";
 import { expectUrl } from "./expectUrl";
 import {
@@ -47,6 +50,10 @@ export function requiresLicense() {
 	test.skip(!license);
 }
 
+export function requiresUnlicensed() {
+	test.skip(license.length > 0);
+}
+
 /**
  * requireTerraformProvisioner by default is enabled.
  */
@@ -54,28 +61,75 @@ export function requireTerraformProvisioner() {
 	test.skip(!requireTerraformTests);
 }
 
+type LoginOptions = {
+	username: string;
+	email: string;
+	password: string;
+};
+
+export async function login(page: Page, options: LoginOptions = users.admin) {
+	const ctx = page.context();
+	// biome-ignore lint/suspicious/noExplicitAny: reset the current user
+	(ctx as any)[Symbol.for("currentUser")] = undefined;
+	await ctx.clearCookies();
+	await page.goto("/login");
+	await page.getByLabel("Email").fill(options.email);
+	await page.getByLabel("Password").fill(options.password);
+	await page.getByRole("button", { name: "Sign In" }).click();
+	await expectUrl(page).toHavePathName("/workspaces");
+	// biome-ignore lint/suspicious/noExplicitAny: update once logged in
+	(ctx as any)[Symbol.for("currentUser")] = options;
+}
+
+export function currentUser(page: Page): LoginOptions {
+	const ctx = page.context();
+	// biome-ignore lint/suspicious/noExplicitAny: get the current user
+	const user = (ctx as any)[Symbol.for("currentUser")];
+
+	if (!user) {
+		throw new Error("page context does not have a user. did you call `login`?");
+	}
+
+	return user;
+}
+
+type CreateWorkspaceOptions = {
+	richParameters?: RichParameter[];
+	buildParameters?: WorkspaceBuildParameter[];
+	useExternalAuth?: boolean;
+};
+
 /**
  * createWorkspace creates a workspace for a template. It does not wait for it
  * to be running, but it does navigate to the page.
  */
 export const createWorkspace = async (
 	page: Page,
-	templateName: string,
-	richParameters: RichParameter[] = [],
-	buildParameters: WorkspaceBuildParameter[] = [],
-	useExternalAuthProvider: string | undefined = undefined,
+	template: string | { organization: string; name: string },
+	options: CreateWorkspaceOptions = {},
 ): Promise<string> => {
-	await page.goto(`/templates/${templateName}/workspace`, {
+	const {
+		richParameters = [],
+		buildParameters = [],
+		useExternalAuth,
+	} = options;
+
+	const templatePath =
+		typeof template === "string"
+			? template
+			: `${template.organization}/${template.name}`;
+
+	await page.goto(`/templates/${templatePath}/workspace`, {
 		waitUntil: "domcontentloaded",
 	});
-	await expectUrl(page).toHavePathName(`/templates/${templateName}/workspace`);
+	await expectUrl(page).toHavePathName(`/templates/${templatePath}/workspace`);
 
 	const name = randomName();
 	await page.getByLabel("name").fill(name);
 
 	await fillParameters(page, richParameters, buildParameters);
 
-	if (useExternalAuthProvider !== undefined) {
+	if (useExternalAuth) {
 		// Create a new context for the popup which will be created when clicking the button
 		const popupPromise = page.waitForEvent("popup");
 
@@ -93,9 +147,11 @@ export const createWorkspace = async (
 		await popup.waitForSelector("text=You are now authenticated.");
 	}
 
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /create workspace/i }).click();
 
-	await expectUrl(page).toHavePathName(`/@admin/${name}`);
+	const user = currentUser(page);
+
+	await expectUrl(page).toHavePathName(`/@${user.username}/${name}`);
 
 	await page.waitForSelector("[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -208,13 +264,19 @@ export const createTemplate = async (
 	const orgPicker = page.getByLabel("Belongs to *");
 	const organizationsEnabled = await orgPicker.isVisible();
 	if (organizationsEnabled) {
+		if (orgName !== defaultOrganizationName) {
+			throw new Error(
+				`No provisioners registered for ${orgName}, creating this template will fail`,
+			);
+		}
+
 		await orgPicker.click();
 		await page.getByText(orgName, { exact: true }).click();
 	}
 
 	const name = randomName();
 	await page.getByLabel("Name *").fill(name);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 	await expectUrl(page).toHavePathName(
 		organizationsEnabled
 			? `/templates/${orgName}/${name}/files`
@@ -230,14 +292,22 @@ export const createTemplate = async (
  * createGroup navigates to the /groups/create page and creates a group with a
  * random name.
  */
-export const createGroup = async (page: Page): Promise<string> => {
-	await page.goto("/groups/create", { waitUntil: "domcontentloaded" });
-	await expectUrl(page).toHavePathName("/groups/create");
+export const createGroup = async (
+	page: Page,
+	organization?: string,
+): Promise<string> => {
+	const prefix = organization
+		? `/organizations/${organization}`
+		: "/deployment";
+	await page.goto(`${prefix}/groups/create`, {
+		waitUntil: "domcontentloaded",
+	});
+	await expectUrl(page).toHavePathName(`${prefix}/groups/create`);
 
 	const name = randomName();
 	await page.getByLabel("Name", { exact: true }).fill(name);
-	await page.getByTestId("form-submit").click();
-	await expectUrl(page).toHavePathName(`/groups/${name}`);
+	await page.getByRole("button", { name: /save/i }).click();
+	await expectUrl(page).toHavePathName(`${prefix}/groups/${name}`);
 	return name;
 };
 
@@ -247,12 +317,9 @@ export const createGroup = async (page: Page): Promise<string> => {
 export const sshIntoWorkspace = async (
 	page: Page,
 	workspace: string,
-	binaryPath = "go",
+	binaryPath = coderBinary,
 	binaryArgs: string[] = [],
 ): Promise<ssh.Client> => {
-	if (binaryPath === "go") {
-		binaryArgs = ["run", coderMain];
-	}
 	const sessionToken = await findSessionToken(page);
 	return new Promise<ssh.Client>((resolve, reject) => {
 		const cp = spawn(binaryPath, [...binaryArgs, "ssh", "--stdio", workspace], {
@@ -334,7 +401,7 @@ export const startAgent = async (
 	page: Page,
 	token: string,
 ): Promise<ChildProcess> => {
-	return startAgentWithCommand(page, token, "go", "run", coderMain);
+	return startAgentWithCommand(page, token, coderBinary);
 };
 
 /**
@@ -415,25 +482,21 @@ export const startAgentWithCommand = async (
 		},
 	});
 	cp.stdout.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stdout] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stdout] ${data.toString().replace(/\n$/g, "")}`);
 	});
 	cp.stderr.on("data", (data: Buffer) => {
-		console.info(
-			`[agent] [stderr] [onData] ${data.toString().replace(/\n$/g, "")}`,
-		);
+		console.info(`[agent][stderr] ${data.toString().replace(/\n$/g, "")}`);
 	});
 
-	await page.getByTestId("agent-status-ready").waitFor({ state: "visible" });
+	await page
+		.getByTestId("agent-status-ready")
+		.waitFor({ state: "visible", timeout: 15_000 });
 	return cp;
 };
 
-export const stopAgent = async (cp: ChildProcess, goRun = true) => {
-	// When the web server is started with `go run`, it spawns a child process with coder server.
-	// `pkill -P` terminates child processes belonging the same group as `go run`.
-	// The command `kill` is used to terminate a web server started as a standalone binary.
-	exec(goRun ? `pkill -P ${cp.pid}` : `kill ${cp.pid}`, (error) => {
+export const stopAgent = async (cp: ChildProcess) => {
+	// The command `kill` is used to terminate an agent started as a standalone binary.
+	exec(`kill ${cp.pid}`, (error) => {
 		if (error) {
 			throw new Error(`exec error: ${JSON.stringify(error)}`);
 		}
@@ -606,6 +669,7 @@ const createTemplateVersionTar = async (
 			metadata: [],
 			name: "dev",
 			type: "echo",
+			modulePath: "",
 			...resource,
 		} as Resource;
 	};
@@ -634,6 +698,7 @@ const createTemplateVersionTar = async (
 			parameters: [],
 			externalAuthProviders: [],
 			timings: [],
+			modules: [],
 			...response.plan,
 		} as PlanComplete;
 		response.plan.resources = response.plan.resources?.map(fillResource);
@@ -649,8 +714,9 @@ const createTemplateVersionTar = async (
 	);
 };
 
-export const randomName = () => {
-	return randomUUID().slice(0, 8);
+export const randomName = (annotation?: string) => {
+	const base = randomUUID().slice(0, 8);
+	return annotation ? `${annotation}-${base}` : base;
 };
 
 /**
@@ -683,6 +749,8 @@ export class Awaiter {
 export const createServer = async (
 	port: number,
 ): Promise<ReturnType<typeof express>> => {
+	await waitForPort(port); // Wait until the port is available
+
 	const e = express();
 	// We need to specify the local IP address as the web server
 	// tends to fail with IPv6 related error:
@@ -690,6 +758,44 @@ export const createServer = async (
 	await new Promise<void>((r) => e.listen(port, "0.0.0.0", r));
 	return e;
 };
+
+async function waitForPort(
+	port: number,
+	host = "0.0.0.0",
+	timeout = 60_000,
+): Promise<void> {
+	const start = Date.now();
+	while (Date.now() - start < timeout) {
+		const available = await isPortAvailable(port, host);
+		if (available) {
+			return;
+		}
+		console.warn(`${host}:${port} is in use, checking again in 1s`);
+		await new Promise((resolve) => setTimeout(resolve, 1000)); // Wait 1 second before retrying
+	}
+	throw new Error(
+		`Timeout: port ${port} is still in use after ${timeout / 1000} seconds.`,
+	);
+}
+
+function isPortAvailable(port: number, host = "0.0.0.0"): Promise<boolean> {
+	return new Promise((resolve) => {
+		const probe = net
+			.createServer()
+			.once("error", (err: NodeJS.ErrnoException) => {
+				if (err.code === "EADDRINUSE") {
+					resolve(false); // port is in use
+				} else {
+					resolve(false); // some other error occurred
+				}
+			})
+			.once("listening", () => {
+				probe.close();
+				resolve(true); // port is available
+			})
+			.listen(port, host);
+	});
+}
 
 export const findSessionToken = async (page: Page): Promise<string> => {
 	const cookies = await page.context().cookies();
@@ -805,6 +911,7 @@ export const fillParameters = async (
 
 export const updateTemplate = async (
 	page: Page,
+	organization: string,
 	templateName: string,
 	responses?: EchoProvisionerResponses,
 ) => {
@@ -812,10 +919,8 @@ export const updateTemplate = async (
 
 	const sessionToken = await findSessionToken(page);
 	const child = spawn(
-		"go",
+		coderBinary,
 		[
-			"run",
-			coderMain,
 			"templates",
 			"push",
 			"--test.provisioner",
@@ -823,6 +928,8 @@ export const updateTemplate = async (
 			"-y",
 			"-d",
 			"-",
+			"-O",
+			organization,
 			templateName,
 		],
 		{
@@ -835,6 +942,7 @@ export const updateTemplate = async (
 	);
 
 	const uploaded = new Awaiter();
+
 	child.on("exit", (code) => {
 		if (code === 0) {
 			uploaded.done();
@@ -871,7 +979,7 @@ export const updateTemplateSettings = async (
 		await page.getByLabel(labelText, { exact: true }).fill(value);
 	}
 
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	const name = templateSettingValues.name ?? templateName;
 	await expectUrl(page).toHavePathNameEndingWith(`/${name}`);
@@ -892,7 +1000,7 @@ export const updateWorkspace = async (
 	await page.getByTestId("confirm-button").click();
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /update parameters/i }).click();
 
 	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -913,7 +1021,7 @@ export const updateWorkspaceParameters = async (
 	);
 
 	await fillParameters(page, richParameters, buildParameters);
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /submit and restart/i }).click();
 
 	await page.waitForSelector("*[data-testid='build-status'] >> text=Running", {
 		state: "visible",
@@ -928,7 +1036,7 @@ export async function openTerminalWindow(
 ): Promise<Page> {
 	// Wait for the web terminal to open in a new tab
 	const pagePromise = context.waitForEvent("page");
-	await page.getByTestId("terminal").click();
+	await page.getByTestId("terminal").click({ timeout: 60_000 });
 	const terminal = await pagePromise;
 	await terminal.waitForLoadState("domcontentloaded");
 
@@ -941,4 +1049,81 @@ export async function openTerminalWindow(
 	await terminal.goto(`/@admin/${workspaceName}.dev/terminal${commandQuery}`);
 
 	return terminal;
+}
+
+type UserValues = {
+	name: string;
+	username: string;
+	email: string;
+	password: string;
+	roles: string[];
+};
+
+export async function createUser(
+	page: Page,
+	userValues: Partial<UserValues> = {},
+): Promise<UserValues> {
+	const returnTo = page.url();
+
+	await page.goto("/deployment/users", { waitUntil: "domcontentloaded" });
+	await expect(page).toHaveTitle("Users - Coder");
+
+	await page.getByRole("link", { name: "Create user" }).click();
+	await expect(page).toHaveTitle("Create User - Coder");
+
+	const username = userValues.username ?? randomName();
+	const name = userValues.name ?? username;
+	const email = userValues.email ?? `${username}@coder.com`;
+	const password = userValues.password || defaultPassword;
+	const roles = userValues.roles ?? [];
+
+	await page.getByLabel("Username").fill(username);
+	if (name) {
+		await page.getByLabel("Full name").fill(name);
+	}
+	await page.getByLabel("Email").fill(email);
+	await page.getByLabel("Login Type").click();
+	await page.getByRole("option", { name: "Password", exact: false }).click();
+	// Using input[name=password] due to the select element utilizing 'password'
+	// as the label for the currently active option.
+	const passwordField = page.locator("input[name=password]");
+	await passwordField.fill(password);
+	await page.getByRole("button", { name: /save/i }).click();
+	await expect(page.getByText("Successfully created user.")).toBeVisible();
+
+	await expect(page).toHaveTitle("Users - Coder");
+	const addedRow = page.locator("tr", { hasText: email });
+	await expect(addedRow).toBeVisible();
+
+	// Give them a role
+	await addedRow.getByLabel("Edit user roles").click();
+	for (const role of roles) {
+		await page.getByText(role, { exact: true }).click();
+	}
+	await page.mouse.click(10, 10); // close the popover by clicking outside of it
+
+	await page.goto(returnTo, { waitUntil: "domcontentloaded" });
+	return { name, username, email, password, roles };
+}
+
+export async function createOrganization(page: Page): Promise<{
+	name: string;
+	displayName: string;
+	description: string;
+}> {
+	// Create a new organization to test
+	await page.goto("/organizations/new", { waitUntil: "domcontentloaded" });
+	const name = randomName();
+	await page.getByLabel("Slug").fill(name);
+	const displayName = `Org ${name}`;
+	await page.getByLabel("Display name").fill(displayName);
+	const description = `Org description ${name}`;
+	await page.getByLabel("Description").fill(description);
+	await page.getByLabel("Icon", { exact: true }).fill("/emojis/1f957.png");
+	await page.getByRole("button", { name: /save/i }).click();
+
+	await expectUrl(page).toHavePathName(`/organizations/${name}`);
+	await expect(page.getByText("Organization created.")).toBeVisible();
+
+	return { name, displayName, description };
 }

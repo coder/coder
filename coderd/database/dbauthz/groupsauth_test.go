@@ -13,7 +13,6 @@ import (
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
-	"github.com/coder/coder/v2/coderd/database/dbmem"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/rbac"
 )
@@ -22,13 +21,9 @@ import (
 func TestGroupsAuth(t *testing.T) {
 	t.Parallel()
 
-	if dbtestutil.WillUsePostgres() {
-		t.Skip("this test would take too long to run on postgres")
-	}
-
 	authz := rbac.NewAuthorizer(prometheus.NewRegistry())
-
-	db := dbauthz.New(dbmem.New(), authz, slogtest.Make(t, &slogtest.Options{
+	store, _ := dbtestutil.NewDB(t)
+	db := dbauthz.New(store, authz, slogtest.Make(t, &slogtest.Options{
 		IgnoreErrors: true,
 	}), coderdtest.AccessControlStorePointer())
 

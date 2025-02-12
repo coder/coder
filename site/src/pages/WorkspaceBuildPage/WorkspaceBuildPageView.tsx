@@ -5,8 +5,9 @@ import type {
 	WorkspaceBuild,
 } from "api/typesGenerated";
 import { Alert } from "components/Alert/Alert";
-import { BuildAvatar } from "components/BuildAvatar/BuildAvatar";
+import { ErrorAlert } from "components/Alert/ErrorAlert";
 import { Loader } from "components/Loader/Loader";
+import { Margins } from "components/Margins/Margins";
 import {
 	FullWidthPageHeader,
 	PageHeaderSubtitle,
@@ -16,6 +17,7 @@ import { Stack } from "components/Stack/Stack";
 import { Stats, StatsItem } from "components/Stats/Stats";
 import { TAB_PADDING_X, TabLink, Tabs, TabsList } from "components/Tabs/Tabs";
 import { useSearchParamsKey } from "hooks/useSearchParamsKey";
+import { BuildAvatar } from "modules/builds/BuildAvatar/BuildAvatar";
 import { DashboardFullPage } from "modules/dashboard/DashboardLayout";
 import { AgentLogs } from "modules/resources/AgentLogs/AgentLogs";
 import { useAgentLogs } from "modules/resources/AgentLogs/useAgentLogs";
@@ -48,6 +50,7 @@ const sortLogsByCreatedAt = (logs: ProvisionerJobLog[]) => {
 export interface WorkspaceBuildPageViewProps {
 	logs: ProvisionerJobLog[] | undefined;
 	build: WorkspaceBuild | undefined;
+	buildError?: unknown;
 	builds: WorkspaceBuild[] | undefined;
 	activeBuildNumber: number;
 }
@@ -55,6 +58,7 @@ export interface WorkspaceBuildPageViewProps {
 export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	logs,
 	build,
+	buildError,
 	builds,
 	activeBuildNumber,
 }) => {
@@ -63,6 +67,17 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 		key: LOGS_TAB_KEY,
 		defaultValue: "build",
 	});
+
+	if (buildError) {
+		return (
+			<Margins>
+				<ErrorAlert
+					error={buildError}
+					css={{ marginTop: 16, marginBottom: 16 }}
+				/>
+			</Margins>
+		);
+	}
 
 	if (!build) {
 		return <Loader />;
@@ -74,8 +89,8 @@ export const WorkspaceBuildPageView: FC<WorkspaceBuildPageViewProps> = ({
 	return (
 		<DashboardFullPage>
 			<FullWidthPageHeader sticky={false}>
-				<Stack direction="row" alignItems="center" spacing={3}>
-					<BuildAvatar build={build} />
+				<Stack direction="row">
+					<BuildAvatar build={build} size="lg" />
 					<div>
 						<PageHeaderTitle>Build #{build.build_number}</PageHeaderTitle>
 						<PageHeaderSubtitle>{build.initiator_name}</PageHeaderSubtitle>

@@ -52,13 +52,15 @@ OPTIONS:
           all available experiments.
 
       --postgres-auth password|awsiamrds, $CODER_PG_AUTH (default: password)
-          Type of auth to use when connecting to postgres.
+          Type of auth to use when connecting to postgres. For AWS RDS, using
+          IAM authentication (awsiamrds) is recommended.
 
       --postgres-url string, $CODER_PG_CONNECTION_URL
           URL of a PostgreSQL database. If empty, PostgreSQL binaries will be
           downloaded from Maven (https://repo1.maven.org/maven2) and store all
           data in the config root. Access the built-in database with "coder
-          server postgres-builtin-url".
+          server postgres-builtin-url". Note that any special characters in the
+          URL must be URL-encoded.
 
       --ssh-keygen-algorithm string, $CODER_SSH_KEYGEN_ALGORITHM (default: ed25519)
           The algorithm to use for generating ssh keys. Accepted values are
@@ -107,6 +109,58 @@ Use a YAML configuration file when your server launch become unwieldy.
           
           Write out the current server config as YAML to stdout.
 
+EMAIL OPTIONS: 
+Configure how emails are sent.
+
+      --email-force-tls bool, $CODER_EMAIL_FORCE_TLS (default: false)
+          Force a TLS connection to the configured SMTP smarthost.
+
+      --email-from string, $CODER_EMAIL_FROM
+          The sender's address to use.
+
+      --email-hello string, $CODER_EMAIL_HELLO (default: localhost)
+          The hostname identifying the SMTP server.
+
+      --email-smarthost string, $CODER_EMAIL_SMARTHOST
+          The intermediary SMTP host through which emails are sent.
+
+EMAIL / EMAIL AUTHENTICATION OPTIONS: 
+Configure SMTP authentication options.
+
+      --email-auth-identity string, $CODER_EMAIL_AUTH_IDENTITY
+          Identity to use with PLAIN authentication.
+
+      --email-auth-password string, $CODER_EMAIL_AUTH_PASSWORD
+          Password to use with PLAIN/LOGIN authentication.
+
+      --email-auth-password-file string, $CODER_EMAIL_AUTH_PASSWORD_FILE
+          File from which to load password for use with PLAIN/LOGIN
+          authentication.
+
+      --email-auth-username string, $CODER_EMAIL_AUTH_USERNAME
+          Username to use with PLAIN/LOGIN authentication.
+
+EMAIL / EMAIL TLS OPTIONS: 
+Configure TLS for your SMTP server target.
+
+      --email-tls-ca-cert-file string, $CODER_EMAIL_TLS_CACERTFILE
+          CA certificate file to use.
+
+      --email-tls-cert-file string, $CODER_EMAIL_TLS_CERTFILE
+          Certificate file to use.
+
+      --email-tls-cert-key-file string, $CODER_EMAIL_TLS_CERTKEYFILE
+          Certificate key file to use.
+
+      --email-tls-server-name string, $CODER_EMAIL_TLS_SERVERNAME
+          Server name to verify against the target certificate.
+
+      --email-tls-skip-verify bool, $CODER_EMAIL_TLS_SKIPVERIFY
+          Skip verification of the target server's certificate (insecure).
+
+      --email-tls-starttls bool, $CODER_EMAIL_TLS_STARTTLS
+          Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+
 INTROSPECTION / HEALTH CHECK OPTIONS: 
       --health-check-refresh duration, $CODER_HEALTH_CHECK_REFRESH (default: 10m0s)
           Refresh interval for healthchecks.
@@ -146,7 +200,9 @@ INTROSPECTION / PROMETHEUS OPTIONS:
           Collect agent stats (may increase charges for metrics storage).
 
       --prometheus-collect-db-metrics bool, $CODER_PROMETHEUS_COLLECT_DB_METRICS (default: false)
-          Collect database metrics (may increase charges for metrics storage).
+          Collect database query metrics (may increase charges for metrics
+          storage). If set to false, a reduced set of database metrics are still
+          collected.
 
       --prometheus-enable bool, $CODER_PROMETHEUS_ENABLE
           Serve prometheus metrics on the address defined by prometheus address.
@@ -241,6 +297,13 @@ backed by Tailscale and WireGuard.
           + 1`. Use special value 'disable' to turn off STUN completely.
 
 NETWORKING / HTTP OPTIONS: 
+      --additional-csp-policy string-array, $CODER_ADDITIONAL_CSP_POLICY
+          Coder configures a Content Security Policy (CSP) to protect against
+          XSS attacks. This setting allows you to add additional CSP directives,
+          which can open the attack surface of the deployment. Format matches
+          the CSP directive format, e.g. --additional-csp-policy="script-src
+          https://example.com".
+
       --disable-password-auth bool, $CODER_DISABLE_PASSWORD_AUTH
           Disable password authentication. This is recommended for security
           purposes in production deployments that rely on an identity provider.
@@ -348,54 +411,68 @@ Configure how notifications are processed and delivered.
 NOTIFICATIONS / EMAIL OPTIONS: 
 Configure how email notifications are sent.
 
-      --notifications-email-force-tls bool, $CODER_NOTIFICATIONS_EMAIL_FORCE_TLS (default: false)
+      --notifications-email-force-tls bool, $CODER_NOTIFICATIONS_EMAIL_FORCE_TLS
           Force a TLS connection to the configured SMTP smarthost.
+          DEPRECATED: Use --email-force-tls instead.
 
       --notifications-email-from string, $CODER_NOTIFICATIONS_EMAIL_FROM
           The sender's address to use.
+          DEPRECATED: Use --email-from instead.
 
-      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO (default: localhost)
+      --notifications-email-hello string, $CODER_NOTIFICATIONS_EMAIL_HELLO
           The hostname identifying the SMTP server.
+          DEPRECATED: Use --email-hello instead.
 
-      --notifications-email-smarthost host:port, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST (default: localhost:587)
+      --notifications-email-smarthost string, $CODER_NOTIFICATIONS_EMAIL_SMARTHOST
           The intermediary SMTP host through which emails are sent.
+          DEPRECATED: Use --email-smarthost instead.
 
 NOTIFICATIONS / EMAIL / EMAIL AUTHENTICATION OPTIONS: 
 Configure SMTP authentication options.
 
       --notifications-email-auth-identity string, $CODER_NOTIFICATIONS_EMAIL_AUTH_IDENTITY
           Identity to use with PLAIN authentication.
+          DEPRECATED: Use --email-auth-identity instead.
 
       --notifications-email-auth-password string, $CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD
           Password to use with PLAIN/LOGIN authentication.
+          DEPRECATED: Use --email-auth-password instead.
 
       --notifications-email-auth-password-file string, $CODER_NOTIFICATIONS_EMAIL_AUTH_PASSWORD_FILE
           File from which to load password for use with PLAIN/LOGIN
           authentication.
+          DEPRECATED: Use --email-auth-password-file instead.
 
       --notifications-email-auth-username string, $CODER_NOTIFICATIONS_EMAIL_AUTH_USERNAME
           Username to use with PLAIN/LOGIN authentication.
+          DEPRECATED: Use --email-auth-username instead.
 
 NOTIFICATIONS / EMAIL / EMAIL TLS OPTIONS: 
 Configure TLS for your SMTP server target.
 
       --notifications-email-tls-ca-cert-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CACERTFILE
           CA certificate file to use.
+          DEPRECATED: Use --email-tls-ca-cert-file instead.
 
       --notifications-email-tls-cert-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CERTFILE
           Certificate file to use.
+          DEPRECATED: Use --email-tls-cert-file instead.
 
       --notifications-email-tls-cert-key-file string, $CODER_NOTIFICATIONS_EMAIL_TLS_CERTKEYFILE
           Certificate key file to use.
+          DEPRECATED: Use --email-tls-cert-key-file instead.
 
       --notifications-email-tls-server-name string, $CODER_NOTIFICATIONS_EMAIL_TLS_SERVERNAME
           Server name to verify against the target certificate.
+          DEPRECATED: Use --email-tls-server-name instead.
 
       --notifications-email-tls-skip-verify bool, $CODER_NOTIFICATIONS_EMAIL_TLS_SKIPVERIFY
           Skip verification of the target server's certificate (insecure).
+          DEPRECATED: Use --email-tls-skip-verify instead.
 
       --notifications-email-tls-starttls bool, $CODER_NOTIFICATIONS_EMAIL_TLS_STARTTLS
           Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+          DEPRECATED: Use --email-tls-starttls instead.
 
 NOTIFICATIONS / WEBHOOK OPTIONS: 
       --notifications-webhook-endpoint url, $CODER_NOTIFICATIONS_WEBHOOK_ENDPOINT
@@ -438,11 +515,6 @@ OIDC OPTIONS:
           authenticate. This allows for restricting access to a specific set of
           groups. This filter is applied after the group mapping and before the
           regex filter.
-
-      --oidc-organization-assign-default bool, $CODER_OIDC_ORGANIZATION_ASSIGN_DEFAULT (default: true)
-          If set to true, users will always be added to the default
-          organization. If organization sync is enabled, then the default org is
-          always added to the user's set of expectedorganizations.
 
       --oidc-auth-url-params struct[map[string]string], $CODER_OIDC_AUTH_URL_PARAMS (default: {"access_type": "offline"})
           OIDC auth URL parameters to pass to the upstream provider.
@@ -489,14 +561,6 @@ OIDC OPTIONS:
 
       --oidc-name-field string, $CODER_OIDC_NAME_FIELD (default: name)
           OIDC claim field to use as the name.
-
-      --oidc-organization-field string, $CODER_OIDC_ORGANIZATION_FIELD
-          This field must be set if using the organization sync feature. Set to
-          the claim to be used for organizations.
-
-      --oidc-organization-mapping struct[map[string][]uuid.UUID], $CODER_OIDC_ORGANIZATION_MAPPING (default: {})
-          A map of OIDC claims and the organizations in Coder it should map to.
-          This is required because organization IDs must be used within Coder.
 
       --oidc-group-regex-filter regexp, $CODER_OIDC_GROUP_REGEX_FILTER (default: .*)
           If provided any group name not matching the regex is ignored. This
@@ -561,9 +625,9 @@ updating, and deleting workspace resources.
           in queued state for a long time, consider increasing this.
 
 TELEMETRY OPTIONS: 
-Telemetry is critical to our ability to improve Coder. We strip all
-personalinformation before sending data to our servers. Please only disable
-telemetrywhen required by your organization's security policy.
+Telemetry is critical to our ability to improve Coder. We strip all personal
+information before sending data to our servers. Please only disable telemetry
+when required by your organization's security policy.
 
       --telemetry bool, $CODER_TELEMETRY_ENABLE (default: false)
           Whether telemetry is enabled or not. Coder collects anonymized usage

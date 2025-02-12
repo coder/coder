@@ -9,9 +9,10 @@ but otherwise, all topologies _just work_ with Coder.
 When possible, we establish direct connections between users and workspaces.
 Direct connections are as fast as connecting to the workspace outside of Coder.
 When NAT traversal fails, connections are relayed through the coder server. All
-user <-> workspace connections are end-to-end encrypted.
+user-workspace connections are end-to-end encrypted.
 
-[Tailscale's open source](https://tailscale.com) backs our networking logic.
+[Tailscale's open source](https://tailscale.com) backs our websocket/HTTPS
+networking logic.
 
 ## Requirements
 
@@ -29,14 +30,6 @@ In order for clients and workspaces to be able to connect:
   server (`CODER_ACCESS_URL`) over HTTP/HTTPS.
 - Any reverse proxy or ingress between the Coder control plane and
   clients/agents must support WebSockets.
-
-> **Note:** We strongly recommend that clients connect to Coder and their
-> workspaces over a good quality, broadband network connection. The following
-> are minimum requirements:
->
-> - better than 400ms round-trip latency to the Coder server and to their
->   workspace
-> - better than 0.5% random packet loss
 
 In order for clients to be able to establish direct connections:
 
@@ -56,7 +49,7 @@ In order for clients to be able to establish direct connections:
   communicate with each other using their locally assigned IP addresses, then a
   direct connection can be established immediately. Otherwise, the client and
   agent will contact
-  [the configured STUN servers](../../reference/cli/server.md#derp-server-stun-addresses)
+  [the configured STUN servers](../../reference/cli/server.md#--derp-server-stun-addresses)
   to try and determine which `ip:port` can be used to communicate with their
   counterpart. See [STUN and NAT](./stun.md) for more details on how this
   process works.
@@ -128,12 +121,13 @@ but this can be disabled or changed for
 By default, your Coder server also runs a built-in DERP relay which can be used
 for both public and [offline deployments](../../install/offline.md).
 
-However, Tailscale has graciously allowed us to use
+However, our Wireguard integration through Tailscale has graciously allowed us
+to use
 [their global DERP relays](https://tailscale.com/kb/1118/custom-derp-servers/#what-are-derp-servers).
 You can launch `coder server` with Tailscale's DERPs like so:
 
 ```bash
-$ coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
+coder server --derp-config-url https://controlplane.tailscale.com/derpmap/default
 ```
 
 #### Custom Relays
@@ -166,17 +160,24 @@ After you have custom DERP servers, you can launch Coder with them like so:
 ```
 
 ```bash
-$ coder server --derp-config-path derpmap.json
+coder server --derp-config-path derpmap.json
 ```
 
 ### Dashboard connections
 
 The dashboard (and web apps opened through the dashboard) are served from the
 coder server, so they can only be geo-distributed with High Availability mode in
-our Enterprise Edition. [Reach out to Sales](https://coder.com/contact) to learn
+our Premium Edition. [Reach out to Sales](https://coder.com/contact) to learn
 more.
 
-## Browser-only connections (enterprise) (premium)
+## Browser-only connections
+
+<blockquote class="info">
+
+Browser-only connections is an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Some Coder deployments require that all access is through the browser to comply
 with security policies. In these cases, pass the `--browser-only` flag to
@@ -186,7 +187,14 @@ With browser-only connections, developers can only connect to their workspaces
 via the web terminal and
 [web IDEs](../../user-guides/workspace-access/web-ides.md).
 
-### Workspace Proxies (enterprise) (premium)
+### Workspace Proxies
+
+<blockquote class="info">
+
+Workspace proxies are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
 
 Workspace proxies are a Coder Enterprise feature that allows you to provide
 low-latency browser experiences for geo-distributed teams.

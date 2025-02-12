@@ -34,15 +34,15 @@ import (
 	"github.com/coder/serpent"
 )
 
-type closers []func()
+type closerFuncs []func()
 
-func (c closers) Close() {
+func (c closerFuncs) Close() {
 	for _, closeF := range c {
 		closeF()
 	}
 }
 
-func (c *closers) Add(f func()) {
+func (c *closerFuncs) Add(f func()) {
 	*c = append(*c, f)
 }
 
@@ -110,11 +110,11 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 		Options: opts,
 		Middleware: serpent.Chain(
 			cli.WriteConfigMW(cfg),
-			cli.PrintDeprecatedOptions(),
 			serpent.RequireNArgs(0),
 		),
 		Handler: func(inv *serpent.Invocation) error {
-			var closers closers
+			var closers closerFuncs
+			defer closers.Close()
 			// Main command context for managing cancellation of running
 			// services.
 			ctx, topCancel := context.WithCancel(inv.Context())
@@ -205,7 +205,7 @@ func (r *RootCmd) proxyServer() *serpent.Command {
 			httpClient.Transport = headerTransport
 
 			accessURL := cfg.AccessURL.String()
-			cliui.Infof(inv.Stdout, lipgloss.NewStyle().
+			cliui.Info(inv.Stdout, lipgloss.NewStyle().
 				Border(lipgloss.DoubleBorder()).
 				Align(lipgloss.Center).
 				Padding(0, 3).

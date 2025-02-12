@@ -33,11 +33,11 @@ counterpart can be reached. Once communication succeeds in one direction, we can
 inspect the source address of the received packet to determine the return
 address.
 
-At a high level, STUN works like this:
-
 > The below glosses over a lot of the complexity of traversing NATs. For a more
 > in-depth technical explanation, see
 > [How NAT traversal works (tailscale.com)](https://tailscale.com/blog/how-nat-traversal-works).
+
+At a high level, STUN works like this:
 
 - **Discovery:** Both the client and agent will send UDP traffic to one or more
   configured STUN servers. These STUN servers are generally located on the

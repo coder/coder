@@ -39,12 +39,13 @@ import (
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog/sloggers/slogtest"
-
+	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli"
 	"github.com/coder/coder/v2/cli/clitest"
 	"github.com/coder/coder/v2/cli/config"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
+	"github.com/coder/coder/v2/coderd/database/migrations"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/telemetry"
 	"github.com/coder/coder/v2/codersdk"
@@ -176,6 +177,43 @@ func TestServer(t *testing.T) {
 			rawURL, err := cfg.URL().Read()
 			return err == nil && rawURL != ""
 		}, superDuperLong, testutil.IntervalFast, "failed to get access URL")
+	})
+	t.Run("EphemeralDeployment", func(t *testing.T) {
+		t.Parallel()
+		if testing.Short() {
+			t.SkipNow()
+		}
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--ephemeral",
+		)
+		pty := ptytest.New(t).Attach(inv)
+
+		// Embedded postgres takes a while to fire up.
+		const superDuperLong = testutil.WaitSuperLong * 3
+		ctx, cancelFunc := context.WithCancel(testutil.Context(t, superDuperLong))
+		errCh := make(chan error, 1)
+		go func() {
+			errCh <- inv.WithContext(ctx).Run()
+		}()
+		pty.ExpectMatch("Using an ephemeral deployment directory")
+		rootDirLine := pty.ReadLine(ctx)
+		rootDir := strings.TrimPrefix(rootDirLine, "Using an ephemeral deployment directory")
+		rootDir = strings.TrimSpace(rootDir)
+		rootDir = strings.TrimPrefix(rootDir, "(")
+		rootDir = strings.TrimSuffix(rootDir, ")")
+		require.NotEmpty(t, rootDir)
+		require.DirExists(t, rootDir)
+
+		pty.ExpectMatchContext(ctx, "View the Web UI")
+
+		cancelFunc()
+		<-errCh
+
+		require.NoDirExists(t, rootDir)
 	})
 	t.Run("BuiltinPostgresURL", func(t *testing.T) {
 		t.Parallel()
@@ -910,36 +948,40 @@ func TestServer(t *testing.T) {
 	t.Run("Telemetry", func(t *testing.T) {
 		t.Parallel()
 
-		deployment := make(chan struct{}, 64)
-		snapshot := make(chan *telemetry.Snapshot, 64)
-		r := chi.NewRouter()
-		r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusAccepted)
-			deployment <- struct{}{}
-		})
-		r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
-			w.WriteHeader(http.StatusAccepted)
-			ss := &telemetry.Snapshot{}
-			err := json.NewDecoder(r.Body).Decode(ss)
-			require.NoError(t, err)
-			snapshot <- ss
-		})
-		server := httptest.NewServer(r)
-		defer server.Close()
+		telemetryServerURL, deployment, snapshot := mockTelemetryServer(t)
 
-		inv, _ := clitest.New(t,
+		inv, cfg := clitest.New(t,
 			"server",
 			"--in-memory",
 			"--http-address", ":0",
 			"--access-url", "http://example.com",
 			"--telemetry",
-			"--telemetry-url", server.URL,
+			"--telemetry-url", telemetryServerURL.String(),
 			"--cache-dir", t.TempDir(),
 		)
 		clitest.Start(t, inv)
 
 		<-deployment
 		<-snapshot
+
+		accessURL := waitAccessURL(t, cfg)
+
+		ctx := testutil.Context(t, testutil.WaitMedium)
+		client := codersdk.New(accessURL)
+		body, err := client.Request(ctx, http.MethodGet, "/", nil)
+		require.NoError(t, err)
+		require.NoError(t, body.Body.Close())
+
+		require.Eventually(t, func() bool {
+			snap := <-snapshot
+			htmlFirstServedFound := false
+			for _, item := range snap.TelemetryItems {
+				if item.Key == string(telemetry.TelemetryItemKeyHTMLFirstServedAt) {
+					htmlFirstServedFound = true
+				}
+			}
+			return htmlFirstServedFound
+		}, testutil.WaitMedium, testutil.IntervalFast, "no html_first_served telemetry item")
 	})
 	t.Run("Prometheus", func(t *testing.T) {
 		t.Parallel()
@@ -1350,26 +1392,6 @@ func TestServer(t *testing.T) {
 		})
 	})
 
-	waitFile := func(t *testing.T, fiName string, dur time.Duration) {
-		var lastStat os.FileInfo
-		require.Eventually(t, func() bool {
-			var err error
-			lastStat, err = os.Stat(fiName)
-			if err != nil {
-				if !os.IsNotExist(err) {
-					t.Fatalf("unexpected error: %v", err)
-				}
-				return false
-			}
-			return lastStat.Size() > 0
-		},
-			dur, //nolint:gocritic
-			testutil.IntervalFast,
-			"file at %s should exist, last stat: %+v",
-			fiName, lastStat,
-		)
-	}
-
 	t.Run("Logging", func(t *testing.T) {
 		t.Parallel()
 
@@ -1389,7 +1411,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fiName, testutil.WaitLong)
+			loggingWaitFile(t, fiName, testutil.WaitLong)
 		})
 
 		t.Run("Human", func(t *testing.T) {
@@ -1408,7 +1430,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fi, testutil.WaitShort)
+			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
 
 		t.Run("JSON", func(t *testing.T) {
@@ -1427,77 +1449,7 @@ func TestServer(t *testing.T) {
 			)
 			clitest.Start(t, root)
 
-			waitFile(t, fi, testutil.WaitShort)
-		})
-
-		t.Run("Stackdriver", func(t *testing.T) {
-			t.Parallel()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-			defer cancelFunc()
-
-			fi := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			inv, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				"--in-memory",
-				"--http-address", ":0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-stackdriver", fi,
-			)
-			// Attach pty so we get debug output from the command if this test
-			// fails.
-			pty := ptytest.New(t).Attach(inv)
-
-			clitest.Start(t, inv.WithContext(ctx))
-
-			// Wait for server to listen on HTTP, this is a good
-			// starting point for expecting logs.
-			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
-
-			waitFile(t, fi, testutil.WaitSuperLong)
-		})
-
-		t.Run("Multiple", func(t *testing.T) {
-			t.Parallel()
-			ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
-			defer cancelFunc()
-
-			fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
-			fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
-			fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
-
-			// NOTE(mafredri): This test might end up downloading Terraform
-			// which can take a long time and end up failing the test.
-			// This is why we wait extra long below for server to listen on
-			// HTTP.
-			inv, _ := clitest.New(t,
-				"server",
-				"--log-filter=.*",
-				"--in-memory",
-				"--http-address", ":0",
-				"--access-url", "http://example.com",
-				"--provisioner-daemons=3",
-				"--provisioner-types=echo",
-				"--log-human", fi1,
-				"--log-json", fi2,
-				"--log-stackdriver", fi3,
-			)
-			// Attach pty so we get debug output from the command if this test
-			// fails.
-			pty := ptytest.New(t).Attach(inv)
-
-			clitest.Start(t, inv)
-
-			// Wait for server to listen on HTTP, this is a good
-			// starting point for expecting logs.
-			_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
-
-			waitFile(t, fi1, testutil.WaitSuperLong)
-			waitFile(t, fi2, testutil.WaitSuperLong)
-			waitFile(t, fi3, testutil.WaitSuperLong)
+			loggingWaitFile(t, fi, testutil.WaitShort)
 		})
 	})
 
@@ -1592,15 +1544,127 @@ func TestServer(t *testing.T) {
 	})
 }
 
+//nolint:tparallel,paralleltest // This test sets environment variables.
+func TestServer_Logging_NoParallel(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		_, _ = io.Copy(io.Discard, r.Body)
+		_ = r.Body.Close()
+		w.WriteHeader(http.StatusOK)
+	}))
+	t.Cleanup(func() { server.Close() })
+
+	// Speed up stackdriver test by using custom host. This is like
+	// saying we're running on GCE, so extra checks are skipped.
+	//
+	// Note, that the server isn't actually hit by the test, unsure why
+	// but kept just in case.
+	//
+	// From cloud.google.com/go/compute/metadata/metadata.go (used by coder/slog):
+	//
+	// metadataHostEnv is the environment variable specifying the
+	// GCE metadata hostname.  If empty, the default value of
+	// metadataIP ("169.254.169.254") is used instead.
+	// This is variable name is not defined by any spec, as far as
+	// I know; it was made up for the Go package.
+	t.Setenv("GCE_METADATA_HOST", server.URL)
+
+	t.Run("Stackdriver", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancelFunc()
+
+		fi := testutil.TempFile(t, "", "coder-logging-test-*")
+
+		inv, _ := clitest.New(t,
+			"server",
+			"--log-filter=.*",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--provisioner-daemons=3",
+			"--provisioner-types=echo",
+			"--log-stackdriver", fi,
+		)
+		// Attach pty so we get debug output from the command if this test
+		// fails.
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv.WithContext(ctx))
+
+		// Wait for server to listen on HTTP, this is a good
+		// starting point for expecting logs.
+		_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+
+		loggingWaitFile(t, fi, testutil.WaitSuperLong)
+	})
+
+	t.Run("Multiple", func(t *testing.T) {
+		ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
+		defer cancelFunc()
+
+		fi1 := testutil.TempFile(t, "", "coder-logging-test-*")
+		fi2 := testutil.TempFile(t, "", "coder-logging-test-*")
+		fi3 := testutil.TempFile(t, "", "coder-logging-test-*")
+
+		// NOTE(mafredri): This test might end up downloading Terraform
+		// which can take a long time and end up failing the test.
+		// This is why we wait extra long below for server to listen on
+		// HTTP.
+		inv, _ := clitest.New(t,
+			"server",
+			"--log-filter=.*",
+			"--in-memory",
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--provisioner-daemons=3",
+			"--provisioner-types=echo",
+			"--log-human", fi1,
+			"--log-json", fi2,
+			"--log-stackdriver", fi3,
+		)
+		// Attach pty so we get debug output from the command if this test
+		// fails.
+		pty := ptytest.New(t).Attach(inv)
+
+		clitest.Start(t, inv)
+
+		// Wait for server to listen on HTTP, this is a good
+		// starting point for expecting logs.
+		_ = pty.ExpectMatchContext(ctx, "Started HTTP listener at")
+
+		loggingWaitFile(t, fi1, testutil.WaitSuperLong)
+		loggingWaitFile(t, fi2, testutil.WaitSuperLong)
+		loggingWaitFile(t, fi3, testutil.WaitSuperLong)
+	})
+}
+
+func loggingWaitFile(t *testing.T, fiName string, dur time.Duration) {
+	var lastStat os.FileInfo
+	require.Eventually(t, func() bool {
+		var err error
+		lastStat, err = os.Stat(fiName)
+		if err != nil {
+			if !os.IsNotExist(err) {
+				t.Fatalf("unexpected error: %v", err)
+			}
+			return false
+		}
+		return lastStat.Size() > 0
+	},
+		dur, //nolint:gocritic
+		testutil.IntervalFast,
+		"file at %s should exist, last stat: %+v",
+		fiName, lastStat,
+	)
+}
+
 func TestServer_Production(t *testing.T) {
 	t.Parallel()
 	if runtime.GOOS != "linux" || testing.Short() {
 		// Skip on non-Linux because it spawns a PostgreSQL instance.
 		t.SkipNow()
 	}
-	connectionURL, closeFunc, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closeFunc()
 
 	// Postgres + race detector + CI = slow.
 	ctx, cancelFunc := context.WithTimeout(context.Background(), testutil.WaitSuperLong*3)
@@ -1619,6 +1683,39 @@ func TestServer_Production(t *testing.T) {
 
 	_, err = client.CreateFirstUser(ctx, coderdtest.FirstUserParams)
 	require.NoError(t, err)
+}
+
+//nolint:tparallel,paralleltest // This test sets environment variables.
+func TestServer_TelemetryDisable(t *testing.T) {
+	// Set the default telemetry to true (normally disabled in tests).
+	t.Setenv("CODER_TEST_TELEMETRY_DEFAULT_ENABLE", "true")
+
+	//nolint:paralleltest // No need to reinitialise the variable tt (Go version).
+	for _, tt := range []struct {
+		key  string
+		val  string
+		want bool
+	}{
+		{"", "", true},
+		{"CODER_TELEMETRY_ENABLE", "true", true},
+		{"CODER_TELEMETRY_ENABLE", "false", false},
+		{"CODER_TELEMETRY", "true", true},
+		{"CODER_TELEMETRY", "false", false},
+	} {
+		t.Run(fmt.Sprintf("%s=%s", tt.key, tt.val), func(t *testing.T) {
+			t.Parallel()
+			var b bytes.Buffer
+			inv, _ := clitest.New(t, "server", "--write-config")
+			inv.Stdout = &b
+			inv.Environ.Set(tt.key, tt.val)
+			clitest.Run(t, inv)
+
+			var dv codersdk.DeploymentValues
+			err := yaml.Unmarshal(b.Bytes(), &dv)
+			require.NoError(t, err)
+			assert.Equal(t, tt.want, dv.Telemetry.Enable.Value())
+		})
+	}
 }
 
 //nolint:tparallel,paralleltest // This test cannot be run in parallel due to signal handling.
@@ -1798,21 +1895,51 @@ func TestConnectToPostgres(t *testing.T) {
 	if !dbtestutil.WillUsePostgres() {
 		t.Skip("this test does not make sense without postgres")
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-	t.Cleanup(cancel)
 
-	log := slogtest.Make(t, nil)
+	t.Run("Migrate", func(t *testing.T) {
+		t.Parallel()
 
-	dbURL, closeFunc, err := dbtestutil.Open()
-	require.NoError(t, err)
-	t.Cleanup(closeFunc)
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
 
-	sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL)
-	require.NoError(t, err)
-	t.Cleanup(func() {
-		_ = sqlDB.Close()
+		log := testutil.Logger(t)
+
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		sqlDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, migrations.Up)
+		require.NoError(t, err)
+		t.Cleanup(func() {
+			_ = sqlDB.Close()
+		})
+		require.NoError(t, sqlDB.PingContext(ctx))
 	})
-	require.NoError(t, sqlDB.PingContext(ctx))
+
+	t.Run("NoMigrate", func(t *testing.T) {
+		t.Parallel()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
+		t.Cleanup(cancel)
+
+		log := slogtest.Make(t, &slogtest.Options{IgnoreErrors: true})
+
+		dbURL, err := dbtestutil.Open(t)
+		require.NoError(t, err)
+
+		okDB, err := cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		require.NoError(t, err)
+		defer okDB.Close()
+
+		// Set the migration number forward
+		_, err = okDB.Exec(`UPDATE schema_migrations SET version = version + 1`)
+		require.NoError(t, err)
+
+		_, err = cli.ConnectToPostgres(ctx, log, "postgres", dbURL, nil)
+		require.Error(t, err)
+		require.ErrorContains(t, err, "database needs migration")
+
+		require.NoError(t, okDB.PingContext(ctx))
+	})
 }
 
 func TestServer_InvalidDERP(t *testing.T) {
@@ -1867,4 +1994,149 @@ func TestServer_DisabledDERP(t *testing.T) {
 	// DERP should fail to connect
 	err = c.Connect(ctx)
 	require.Error(t, err)
+}
+
+type runServerOpts struct {
+	waitForSnapshot               bool
+	telemetryDisabled             bool
+	waitForTelemetryDisabledCheck bool
+}
+
+func TestServer_TelemetryDisabled_FinalReport(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("this test requires postgres")
+	}
+
+	telemetryServerURL, deployment, snapshot := mockTelemetryServer(t)
+	dbConnURL, err := dbtestutil.Open(t)
+	require.NoError(t, err)
+
+	cacheDir := t.TempDir()
+	runServer := func(t *testing.T, opts runServerOpts) (chan error, context.CancelFunc) {
+		ctx, cancelFunc := context.WithCancel(context.Background())
+		inv, _ := clitest.New(t,
+			"server",
+			"--postgres-url", dbConnURL,
+			"--http-address", ":0",
+			"--access-url", "http://example.com",
+			"--telemetry="+strconv.FormatBool(!opts.telemetryDisabled),
+			"--telemetry-url", telemetryServerURL.String(),
+			"--cache-dir", cacheDir,
+			"--log-filter", ".*",
+		)
+		finished := make(chan bool, 2)
+		errChan := make(chan error, 1)
+		pty := ptytest.New(t).Attach(inv)
+		go func() {
+			errChan <- inv.WithContext(ctx).Run()
+			finished <- true
+		}()
+		go func() {
+			defer func() {
+				finished <- true
+			}()
+			if opts.waitForSnapshot {
+				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "submitted snapshot")
+			}
+			if opts.waitForTelemetryDisabledCheck {
+				pty.ExpectMatchContext(testutil.Context(t, testutil.WaitLong), "finished telemetry status check")
+			}
+		}()
+		<-finished
+		return errChan, cancelFunc
+	}
+	waitForShutdown := func(t *testing.T, errChan chan error) error {
+		t.Helper()
+		select {
+		case err := <-errChan:
+			return err
+		case <-time.After(testutil.WaitMedium):
+			t.Fatalf("timed out waiting for server to shutdown")
+		}
+		return nil
+	}
+
+	errChan, cancelFunc := runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+
+	// Since telemetry was disabled, we expect no deployments or snapshots.
+	require.Empty(t, deployment)
+	require.Empty(t, snapshot)
+
+	errChan, cancelFunc = runServer(t, runServerOpts{waitForSnapshot: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+	// we expect to see a deployment and a snapshot twice:
+	// 1. the first pair is sent when the server starts
+	// 2. the second pair is sent when the server shuts down
+	for i := 0; i < 2; i++ {
+		select {
+		case <-snapshot:
+		case <-time.After(testutil.WaitShort / 2):
+			t.Fatalf("timed out waiting for snapshot")
+		}
+		select {
+		case <-deployment:
+		case <-time.After(testutil.WaitShort / 2):
+			t.Fatalf("timed out waiting for deployment")
+		}
+	}
+
+	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+
+	// Since telemetry is disabled, we expect no deployment. We expect a snapshot
+	// with the telemetry disabled item.
+	require.Empty(t, deployment)
+	select {
+	case ss := <-snapshot:
+		require.Len(t, ss.TelemetryItems, 1)
+		require.Equal(t, string(telemetry.TelemetryItemKeyTelemetryEnabled), ss.TelemetryItems[0].Key)
+		require.Equal(t, "false", ss.TelemetryItems[0].Value)
+	case <-time.After(testutil.WaitShort / 2):
+		t.Fatalf("timed out waiting for snapshot")
+	}
+
+	errChan, cancelFunc = runServer(t, runServerOpts{telemetryDisabled: true, waitForTelemetryDisabledCheck: true})
+	cancelFunc()
+	require.NoError(t, waitForShutdown(t, errChan))
+	// Since telemetry is disabled and we've already sent a snapshot, we expect no
+	// new deployments or snapshots.
+	require.Empty(t, deployment)
+	require.Empty(t, snapshot)
+}
+
+func mockTelemetryServer(t *testing.T) (*url.URL, chan *telemetry.Deployment, chan *telemetry.Snapshot) {
+	t.Helper()
+	deployment := make(chan *telemetry.Deployment, 64)
+	snapshot := make(chan *telemetry.Snapshot, 64)
+	r := chi.NewRouter()
+	r.Post("/deployment", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
+		dd := &telemetry.Deployment{}
+		err := json.NewDecoder(r.Body).Decode(dd)
+		require.NoError(t, err)
+		deployment <- dd
+		// Ensure the header is sent only after deployment is sent
+		w.WriteHeader(http.StatusAccepted)
+	})
+	r.Post("/snapshot", func(w http.ResponseWriter, r *http.Request) {
+		require.Equal(t, buildinfo.Version(), r.Header.Get(telemetry.VersionHeader))
+		ss := &telemetry.Snapshot{}
+		err := json.NewDecoder(r.Body).Decode(ss)
+		require.NoError(t, err)
+		snapshot <- ss
+		// Ensure the header is sent only after snapshot is sent
+		w.WriteHeader(http.StatusAccepted)
+	})
+	server := httptest.NewServer(r)
+	t.Cleanup(server.Close)
+	serverURL, err := url.Parse(server.URL)
+	require.NoError(t, err)
+
+	return serverURL, deployment, snapshot
 }

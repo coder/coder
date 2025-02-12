@@ -172,6 +172,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	}
 	apiKeyMiddleware := httpmw.ExtractAPIKeyMW(httpmw.ExtractAPIKeyConfig{
 		DB:                            options.Database,
+		ActivateDormantUser:           coderd.ActivateDormantUser(options.Logger, &api.AGPL.Auditor, options.Database),
 		OAuth2Configs:                 oauthConfigs,
 		RedirectToLogin:               false,
 		DisableSessionExpiryRefresh:   options.DeploymentValues.Sessions.DisableExpiryRefresh.Value(),
@@ -289,13 +290,38 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		r.Group(func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
+			)
+			r.Route("/settings/idpsync", func(r chi.Router) {
+				r.Route("/organization", func(r chi.Router) {
+					r.Get("/", api.organizationIDPSyncSettings)
+					r.Patch("/", api.patchOrganizationIDPSyncSettings)
+					r.Patch("/config", api.patchOrganizationIDPSyncConfig)
+					r.Patch("/mapping", api.patchOrganizationIDPSyncMapping)
+				})
+
+				r.Get("/available-fields", api.deploymentIDPSyncClaimFields)
+				r.Get("/field-values", api.deploymentIDPSyncClaimFieldValues)
+			})
+		})
+
+		r.Group(func(r chi.Router) {
+			r.Use(
+				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
 			r.Route("/organizations/{organization}/settings", func(r chi.Router) {
 				r.Get("/idpsync/groups", api.groupIDPSyncSettings)
 				r.Patch("/idpsync/groups", api.patchGroupIDPSyncSettings)
+				r.Patch("/idpsync/groups/config", api.patchGroupIDPSyncConfig)
+				r.Patch("/idpsync/groups/mapping", api.patchGroupIDPSyncMapping)
+
 				r.Get("/idpsync/roles", api.roleIDPSyncSettings)
 				r.Patch("/idpsync/roles", api.patchRoleIDPSyncSettings)
+				r.Patch("/idpsync/roles/config", api.patchRoleIDPSyncConfig)
+				r.Patch("/idpsync/roles/mapping", api.patchRoleIDPSyncMapping)
+
+				r.Get("/idpsync/available-fields", api.organizationIDPSyncClaimFields)
+				r.Get("/idpsync/field-values", api.organizationIDPSyncClaimFieldValues)
 			})
 		})
 
@@ -328,11 +354,20 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				r.Get("/", api.groupByOrganization)
 			})
 		})
+		r.Route("/provisionerkeys", func(r chi.Router) {
+			r.Use(
+				httpmw.ExtractProvisionerDaemonAuthenticated(httpmw.ExtractProvisionerAuthConfig{
+					DB:       api.Database,
+					Optional: false,
+				}),
+			)
+			r.Get("/{provisionerkey}", api.fetchProvisionerKey)
+		})
 		r.Route("/organizations/{organization}/provisionerkeys", func(r chi.Router) {
 			r.Use(
 				apiKeyMiddleware,
 				httpmw.ExtractOrganizationParam(api.Database),
-				api.RequireFeatureMW(codersdk.FeatureMultipleOrganizations),
+				api.RequireFeatureMW(codersdk.FeatureExternalProvisionerDaemons),
 			)
 			r.Get("/", api.provisionerKeys)
 			r.Post("/", api.postProvisionerKey)
@@ -353,7 +388,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 		//
 		// We may in future decide to scope provisioner daemons to organizations, so we'll keep the API
 		// route as is.
-		r.Route("/organizations/{organization}/provisionerdaemons", func(r chi.Router) {
+		r.Route("/organizations/{organization}/provisionerdaemons/serve", func(r chi.Router) {
 			r.Use(
 				api.provisionerDaemonsEnabledMW,
 				apiKeyMiddlewareOptional,
@@ -367,8 +402,7 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 				httpmw.RequireAPIKeyOrProvisionerDaemonAuth(),
 				httpmw.ExtractOrganizationParam(api.Database),
 			)
-			r.With(apiKeyMiddleware).Get("/", api.provisionerDaemons)
-			r.With(apiKeyMiddlewareOptional).Get("/serve", api.provisionerDaemonServe)
+			r.Get("/", api.provisionerDaemonServe)
 		})
 		r.Route("/templates/{template}/acl", func(r chi.Router) {
 			r.Use(
@@ -455,16 +489,37 @@ func New(ctx context.Context, options *Options) (_ *API, err error) {
 	if len(options.SCIMAPIKey) != 0 {
 		api.AGPL.RootHandler.Route("/scim/v2", func(r chi.Router) {
 			r.Use(
-				api.scimEnabledMW,
+				api.RequireFeatureMW(codersdk.FeatureSCIM),
 			)
+			r.Get("/ServiceProviderConfig", api.scimServiceProviderConfig)
 			r.Post("/Users", api.scimPostUser)
 			r.Route("/Users", func(r chi.Router) {
 				r.Get("/", api.scimGetUsers)
 				r.Post("/", api.scimPostUser)
 				r.Get("/{id}", api.scimGetUser)
 				r.Patch("/{id}", api.scimPatchUser)
+				r.Put("/{id}", api.scimPutUser)
+			})
+			r.NotFound(func(w http.ResponseWriter, r *http.Request) {
+				u := r.URL.String()
+				httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+					Message: fmt.Sprintf("SCIM endpoint %s not found", u),
+					Detail:  "This endpoint is not implemented. If it is correct and required, please contact support.",
+				})
 			})
 		})
+	} else {
+		// Show a helpful 404 error. Because this is not under the /api/v2 routes,
+		// the frontend is the fallback. A html page is not a helpful error for
+		// a SCIM provider. This JSON has a call to action that __may__ resolve
+		// the issue.
+		// Using Mount to cover all subroute possibilities.
+		api.AGPL.RootHandler.Mount("/scim/v2", http.Handler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			httpapi.Write(r.Context(), w, http.StatusNotFound, codersdk.Response{
+				Message: "SCIM is disabled, please contact your administrator if you believe this is an error",
+				Detail:  "SCIM endpoints are disabled if no SCIM is configured. Configure 'CODER_SCIM_AUTH_HEADER' to enable.",
+			})
+		})))
 	}
 
 	meshTLSConfig, err := replicasync.CreateDERPMeshTLSConfig(options.AccessURL.Hostname(), options.TLSCertificates)
@@ -694,7 +749,7 @@ func (api *API) updateEntitlements(ctx context.Context) error {
 
 		if initial, changed, enabled := featureChanged(codersdk.FeatureAdvancedTemplateScheduling); shouldUpdate(initial, changed, enabled) {
 			if enabled {
-				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"))
+				templateStore := schedule.NewEnterpriseTemplateScheduleStore(api.AGPL.UserQuietHoursScheduleStore, api.NotificationsEnqueuer, api.Logger.Named("template.schedule-store"), api.Clock)
 				templateStoreInterface := agplschedule.TemplateScheduleStore(templateStore)
 				api.AGPL.TemplateScheduleStore.Store(&templateStoreInterface)
 

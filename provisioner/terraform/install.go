@@ -20,7 +20,7 @@ var (
 	// when Terraform is not available on the system.
 	// NOTE: Keep this in sync with the version in scripts/Dockerfile.base.
 	// NOTE: Keep this in sync with the version in install.sh.
-	TerraformVersion = version.Must(version.NewVersion("1.9.2"))
+	TerraformVersion = version.Must(version.NewVersion("1.9.8"))
 
 	minTerraformVersion = version.Must(version.NewVersion("1.1.0"))
 	maxTerraformVersion = version.Must(version.NewVersion("1.9.9")) // use .9 to automatically allow patch releases
@@ -49,9 +49,13 @@ func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *vers
 
 	binPath := filepath.Join(dir, product.Terraform.BinaryName())
 
+	hasVersionStr := "nil"
 	hasVersion, err := versionFromBinaryPath(ctx, binPath)
-	if err == nil && hasVersion.Equal(wantVersion) {
-		return binPath, err
+	if err == nil {
+		hasVersionStr = hasVersion.String()
+		if hasVersion.Equal(wantVersion) {
+			return binPath, err
+		}
 	}
 
 	installer := &releases.ExactVersion{
@@ -63,7 +67,7 @@ func Install(ctx context.Context, log slog.Logger, dir string, wantVersion *vers
 	log.Debug(
 		ctx,
 		"installing terraform",
-		slog.F("prev_version", hasVersion),
+		slog.F("prev_version", hasVersionStr),
 		slog.F("dir", dir),
 		slog.F("version", TerraformVersion),
 	)

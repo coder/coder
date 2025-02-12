@@ -19,7 +19,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // TestSpeaker_RawPeer tests the speaker with a peer that we simulate by directly making reads and
@@ -38,7 +38,7 @@ func TestSpeaker_RawPeer(t *testing.T) {
 	require.NoError(t, err)
 	err = mp.SetWriteDeadline(time.Now().Add(testutil.WaitShort))
 	require.NoError(t, err)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	errCh := make(chan error, 1)
 	go func() {
@@ -47,14 +47,14 @@ func TestSpeaker_RawPeer(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.0\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, expectedHandshake, string(b[:n]))
 
-	_, err = mp.Write([]byte("codervpn 1.0 manager\n"))
+	_, err = mp.Write([]byte("codervpn manager 1.3,2.1\n"))
 	require.NoError(t, err)
 
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
@@ -155,7 +155,7 @@ func TestSpeaker_OversizeHandshake(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.0\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
@@ -177,10 +177,10 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 	for _, tc := range []struct {
 		name, handshake string
 	}{
-		{name: "preamble", handshake: "ssh 1.0 manager\n"},
+		{name: "preamble", handshake: "ssh manager 1.0\n"},
 		{name: "2components", handshake: "ssh manager\n"},
-		{name: "newversion", handshake: "codervpn 1.1 manager\n"},
-		{name: "oldversion", handshake: "codervpn 0.1 manager\n"},
+		{name: "newmajors", handshake: "codervpn manager 2.0,3.0\n"},
+		{name: "0version", handshake: "codervpn 0.1 manager\n"},
 		{name: "unknown_role", handshake: "codervpn 1.0 supervisor\n"},
 		{name: "unexpected_role", handshake: "codervpn 1.0 tunnel\n"},
 	} {
@@ -208,7 +208,7 @@ func TestSpeaker_HandshakeInvalid(t *testing.T) {
 			_, err = mp.Write([]byte(tc.handshake))
 			require.NoError(t, err)
 
-			expectedHandshake := "codervpn 1.0 tunnel\n"
+			expectedHandshake := "codervpn tunnel 1.0\n"
 			b := make([]byte, 256)
 			n, err := mp.Read(b)
 			require.NoError(t, err)
@@ -246,14 +246,14 @@ func TestSpeaker_CorruptMessage(t *testing.T) {
 		errCh <- err
 	}()
 
-	expectedHandshake := "codervpn 1.0 tunnel\n"
+	expectedHandshake := "codervpn tunnel 1.0\n"
 
 	b := make([]byte, 256)
 	n, err := mp.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, expectedHandshake, string(b[:n]))
 
-	_, err = mp.Write([]byte("codervpn 1.0 manager\n"))
+	_, err = mp.Write([]byte("codervpn manager 1.0\n"))
 	require.NoError(t, err)
 
 	err = testutil.RequireRecvCtx(ctx, t, errCh)
@@ -427,7 +427,7 @@ func setupSpeakers(t *testing.T) (
 	t.Cleanup(func() { _ = mp.Close() })
 	t.Cleanup(func() { _ = tp.Close() })
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	var tun *speaker[*TunnelMessage, *ManagerMessage, ManagerMessage]
 	var mgr *speaker[*ManagerMessage, *TunnelMessage, TunnelMessage]

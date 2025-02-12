@@ -303,10 +303,15 @@ VALUES
 RETURNING workspace_agent_script_timings.*;
 
 -- name: GetWorkspaceAgentScriptTimingsByBuildID :many
-SELECT workspace_agent_script_timings.*, workspace_agent_scripts.display_name
+SELECT
+	DISTINCT ON (workspace_agent_script_timings.script_id) workspace_agent_script_timings.*,
+	workspace_agent_scripts.display_name,
+	workspace_agents.id as workspace_agent_id,
+	workspace_agents.name as workspace_agent_name
 FROM workspace_agent_script_timings
 INNER JOIN workspace_agent_scripts ON workspace_agent_scripts.id = workspace_agent_script_timings.script_id
 INNER JOIN workspace_agents ON workspace_agents.id = workspace_agent_scripts.workspace_agent_id
 INNER JOIN workspace_resources ON workspace_resources.id = workspace_agents.resource_id
 INNER JOIN workspace_builds ON workspace_builds.job_id = workspace_resources.job_id
-WHERE workspace_builds.id = $1;
+WHERE workspace_builds.id = $1
+ORDER BY workspace_agent_script_timings.script_id, workspace_agent_script_timings.started_at;

@@ -12,7 +12,6 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"time"
 
 	"cloud.google.com/go/compute/metadata"
@@ -26,10 +25,12 @@ import (
 	"cdr.dev/slog/sloggers/slogjson"
 	"cdr.dev/slog/sloggers/slogstackdriver"
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentproc"
+	"github.com/coder/coder/v2/agent/agentcontainers"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/reaper"
 	"github.com/coder/coder/v2/buildinfo"
+	"github.com/coder/coder/v2/cli/clilog"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/codersdk/agentsdk"
 	"github.com/coder/serpent"
@@ -37,21 +38,22 @@ import (
 
 func (r *RootCmd) workspaceAgent() *serpent.Command {
 	var (
-		auth                string
-		logDir              string
-		scriptDataDir       string
-		pprofAddress        string
-		noReap              bool
-		sshMaxTimeout       time.Duration
-		tailnetListenPort   int64
-		prometheusAddress   string
-		debugAddress        string
-		slogHumanPath       string
-		slogJSONPath        string
-		slogStackdriverPath string
-		blockFileTransfer   bool
-		agentHeaderCommand  string
-		agentHeader         []string
+		auth                 string
+		logDir               string
+		scriptDataDir        string
+		pprofAddress         string
+		noReap               bool
+		sshMaxTimeout        time.Duration
+		tailnetListenPort    int64
+		prometheusAddress    string
+		debugAddress         string
+		slogHumanPath        string
+		slogJSONPath         string
+		slogStackdriverPath  string
+		blockFileTransfer    bool
+		agentHeaderCommand   string
+		agentHeader          []string
+		devcontainersEnabled bool
 	)
 	cmd := &serpent.Command{
 		Use:   "agent",
@@ -110,7 +112,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// Spawn a reaper so that we don't accumulate a ton
 			// of zombie processes.
 			if reaper.IsInitProcess() && !noReap && isLinux {
-				logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
+				logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 					Filename: filepath.Join(logDir, "coder-agent-init.log"),
 					MaxSize:  5, // MB
 					// Without this, rotated logs will never be deleted.
@@ -153,7 +155,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			// reaper.
 			go DumpHandler(ctx, "agent")
 
-			logWriter := &lumberjackWriteCloseFixer{w: &lumberjack.Logger{
+			logWriter := &clilog.LumberjackWriteCloseFixer{Writer: &lumberjack.Logger{
 				Filename: filepath.Join(logDir, "coder-agent.log"),
 				MaxSize:  5, // MB
 				// Per customer incident on November 17th, 2023, its helpful
@@ -171,6 +173,7 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				slog.F("auth", auth),
 				slog.F("version", version),
 			)
+
 			client := agentsdk.New(r.agentURL)
 			client.SDK.SetLogger(logger)
 			// Set a reasonable timeout so requests can't hang forever!
@@ -292,11 +295,34 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			environmentVariables := map[string]string{
 				"GIT_ASKPASS": executablePath,
 			}
-			if v, ok := os.LookupEnv(agent.EnvProcPrioMgmt); ok {
-				environmentVariables[agent.EnvProcPrioMgmt] = v
+
+			enabled := os.Getenv(agentexec.EnvProcPrioMgmt)
+			if enabled != "" && runtime.GOOS == "linux" {
+				logger.Info(ctx, "process priority management enabled",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
+			} else {
+				logger.Info(ctx, "process priority management not enabled (linux-only) ",
+					slog.F("env_var", agentexec.EnvProcPrioMgmt),
+					slog.F("enabled", enabled),
+					slog.F("os", runtime.GOOS),
+				)
 			}
-			if v, ok := os.LookupEnv(agent.EnvProcOOMScore); ok {
-				environmentVariables[agent.EnvProcOOMScore] = v
+
+			execer, err := agentexec.NewExecer()
+			if err != nil {
+				return xerrors.Errorf("create agent execer: %w", err)
+			}
+
+			var containerLister agentcontainers.Lister
+			if !devcontainersEnabled {
+				logger.Info(ctx, "agent devcontainer detection not enabled")
+				containerLister = &agentcontainers.NoopLister{}
+			} else {
+				logger.Info(ctx, "agent devcontainer detection enabled")
+				containerLister = agentcontainers.NewDocker(execer)
 			}
 
 			agnt := agent.New(agent.Options{
@@ -322,12 +348,9 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 				Subsystems:           subsystems,
 
 				PrometheusRegistry: prometheusRegistry,
-				Syscaller:          agentproc.NewSyscaller(),
-				// Intentionally set this to nil. It's mainly used
-				// for testing.
-				ModifiedProcesses: nil,
-
-				BlockFileTransfer: blockFileTransfer,
+				BlockFileTransfer:  blockFileTransfer,
+				Execer:             execer,
+				ContainerLister:    containerLister,
 			})
 
 			promHandler := agent.PrometheusMetricsHandler(prometheusRegistry, logger)
@@ -450,6 +473,13 @@ func (r *RootCmd) workspaceAgent() *serpent.Command {
 			Description: fmt.Sprintf("Block file transfer using known applications: %s.", strings.Join(agentssh.BlockedFileTransferCommands, ",")),
 			Value:       serpent.BoolOf(&blockFileTransfer),
 		},
+		{
+			Flag:        "devcontainers-enable",
+			Default:     "false",
+			Env:         "CODER_AGENT_DEVCONTAINERS_ENABLE",
+			Description: "Allow the agent to automatically detect running devcontainers.",
+			Value:       serpent.BoolOf(&devcontainersEnabled),
+		},
 	}
 
 	return cmd
@@ -476,33 +506,6 @@ func ServeHandler(ctx context.Context, logger slog.Logger, handler http.Handler,
 	return func() {
 		_ = srv.Close()
 	}
-}
-
-// lumberjackWriteCloseFixer is a wrapper around an io.WriteCloser that
-// prevents writes after Close. This is necessary because lumberjack
-// re-opens the file on Write.
-type lumberjackWriteCloseFixer struct {
-	w      io.WriteCloser
-	mu     sync.Mutex // Protects following.
-	closed bool
-}
-
-func (c *lumberjackWriteCloseFixer) Close() error {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	c.closed = true
-	return c.w.Close()
-}
-
-func (c *lumberjackWriteCloseFixer) Write(p []byte) (int, error) {
-	c.mu.Lock()
-	defer c.mu.Unlock()
-
-	if c.closed {
-		return 0, io.ErrClosedPipe
-	}
-	return c.w.Write(p)
 }
 
 // extractPort handles different url strings.

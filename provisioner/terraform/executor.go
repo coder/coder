@@ -356,7 +356,7 @@ func (e *executor) planResources(ctx, killCtx context.Context, planfilePath stri
 	}
 	modules = append(modules, plan.PlannedValues.RootModule)
 
-	state, err := ConvertState(modules, rawGraph)
+	state, err := ConvertState(ctx, modules, rawGraph, e.server.logger)
 	if err != nil {
 		return nil, err
 	}
@@ -484,9 +484,9 @@ func (e *executor) stateResources(ctx, killCtx context.Context) (*State, error) 
 		return converted, nil
 	}
 
-	converted, err = ConvertState([]*tfjson.StateModule{
+	converted, err = ConvertState(ctx, []*tfjson.StateModule{
 		state.Values.RootModule,
-	}, rawGraph)
+	}, rawGraph, e.server.logger)
 	if err != nil {
 		return nil, err
 	}

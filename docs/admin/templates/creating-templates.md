@@ -145,7 +145,7 @@ You will then see your new template in the dashboard.
 ## From scratch (advanced)
 
 There may be cases where you want to create a template from scratch. You can use
-[any Terraform provider](https://registry.terraform.com) with Coder to create
+[any Terraform provider](https://registry.terraform.io) with Coder to create
 templates for additional clouds (e.g. Hetzner, Alibaba) or orchestrators
 (VMware, Proxmox) that we do not provide example templates for.
 

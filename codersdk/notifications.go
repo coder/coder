@@ -17,14 +17,15 @@ type NotificationsSettings struct {
 }
 
 type NotificationTemplate struct {
-	ID            uuid.UUID `json:"id" format:"uuid"`
-	Name          string    `json:"name"`
-	TitleTemplate string    `json:"title_template"`
-	BodyTemplate  string    `json:"body_template"`
-	Actions       string    `json:"actions" format:""`
-	Group         string    `json:"group"`
-	Method        string    `json:"method"`
-	Kind          string    `json:"kind"`
+	ID               uuid.UUID `json:"id" format:"uuid"`
+	Name             string    `json:"name"`
+	TitleTemplate    string    `json:"title_template"`
+	BodyTemplate     string    `json:"body_template"`
+	Actions          string    `json:"actions" format:""`
+	Group            string    `json:"group"`
+	Method           string    `json:"method"`
+	Kind             string    `json:"kind"`
+	EnabledByDefault bool      `json:"enabled_by_default"`
 }
 
 type NotificationMethodsResponse struct {

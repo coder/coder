@@ -31,7 +31,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
@@ -42,7 +42,7 @@ func TestPGCoordinatorSingle_ClientWithoutAgent(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -77,7 +77,7 @@ func TestPGCoordinatorSingle_AgentWithoutClients(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -111,7 +111,7 @@ func TestPGCoordinatorSingle_AgentInvalidIP(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -138,7 +138,7 @@ func TestPGCoordinatorSingle_AgentInvalidIPBits(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -165,7 +165,7 @@ func TestPGCoordinatorSingle_AgentValidIP(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -204,7 +204,7 @@ func TestPGCoordinatorSingle_AgentWithClient(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -253,7 +253,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	mClock := quartz.NewMock(t)
 	afTrap := mClock.Trap().AfterFunc("heartbeats", "recvBeat")
 	defer afTrap.Close()
@@ -338,7 +338,7 @@ func TestPGCoordinatorSingle_MissedHeartbeats_NoDrop(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
@@ -384,7 +384,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	mu := sync.Mutex{}
 	heartbeats := []time.Time{}
@@ -410,7 +410,7 @@ func TestPGCoordinatorSingle_SendsHeartbeats(t *testing.T) {
 		}
 		require.Greater(t, heartbeats[0].Sub(start), time.Duration(0))
 		require.Greater(t, heartbeats[1].Sub(start), time.Duration(0))
-		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*9/10)
+		return assert.Greater(t, heartbeats[1].Sub(heartbeats[0]), tailnet.HeartbeatPeriod*3/4)
 	}, testutil.WaitMedium, testutil.IntervalMedium)
 }
 
@@ -434,7 +434,7 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -462,33 +462,33 @@ func TestPGCoordinatorDual_Mainline(t *testing.T) {
 	defer client22.Close(ctx)
 	t.Logf("client22=%s", client22.ID)
 
-	t.Logf("client11 -> Node 11")
+	t.Log("client11 -> Node 11")
 	client11.UpdateDERP(11)
 	agent1.AssertEventuallyHasDERP(client11.ID, 11)
 
-	t.Logf("client21 -> Node 21")
+	t.Log("client21 -> Node 21")
 	client21.UpdateDERP(21)
 	agent1.AssertEventuallyHasDERP(client21.ID, 21)
 
-	t.Logf("client22 -> Node 22")
+	t.Log("client22 -> Node 22")
 	client22.UpdateDERP(22)
 	agent2.AssertEventuallyHasDERP(client22.ID, 22)
 
-	t.Logf("agent2 -> Node 2")
+	t.Log("agent2 -> Node 2")
 	agent2.UpdateDERP(2)
 	client22.AssertEventuallyHasDERP(agent2.ID, 2)
 	client12.AssertEventuallyHasDERP(agent2.ID, 2)
 
-	t.Logf("client12 -> Node 12")
+	t.Log("client12 -> Node 12")
 	client12.UpdateDERP(12)
 	agent2.AssertEventuallyHasDERP(client12.ID, 12)
 
-	t.Logf("agent1 -> Node 1")
+	t.Log("agent1 -> Node 1")
 	agent1.UpdateDERP(1)
 	client21.AssertEventuallyHasDERP(agent1.ID, 1)
 	client11.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	t.Logf("close coord2")
+	t.Log("close coord2")
 	err = coord2.Close()
 	require.NoError(t, err)
 
@@ -532,7 +532,7 @@ func TestPGCoordinator_MultiCoordinatorAgent(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coord1, err := tailnet.NewPGCoord(ctx, logger.Named("coord1"), ps, store)
 	require.NoError(t, err)
 	defer coord1.Close()
@@ -665,7 +665,7 @@ func TestPGCoordinator_Node_Empty(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mStore := dbmock.NewMockStore(ctrl)
 	ps := pubsub.NewInMemory()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	id := uuid.New()
 	mStore.EXPECT().GetTailnetPeers(gomock.Any(), id).Times(1).Return(nil, nil)
@@ -700,7 +700,7 @@ func TestPGCoordinator_BidirectionalTunnels(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -715,7 +715,7 @@ func TestPGCoordinator_GracefulDisconnect(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -730,7 +730,7 @@ func TestPGCoordinator_Lost(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -745,7 +745,7 @@ func TestPGCoordinator_NoDeleteOnClose(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator, err := tailnet.NewPGCoord(ctx, logger, ps, store)
 	require.NoError(t, err)
 	defer coordinator.Close()
@@ -798,9 +798,8 @@ func TestPGCoordinatorDual_FailedHeartbeat(t *testing.T) {
 		t.Skip("test only with postgres")
 	}
 
-	dburl, closeFn, err := dbtestutil.Open()
+	dburl, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	t.Cleanup(closeFn)
 
 	store1, ps1, sdb1 := dbtestutil.NewDBWithSQLDB(t, dbtestutil.WithURL(dburl))
 	defer sdb1.Close()
@@ -868,7 +867,7 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	store, ps := dbtestutil.NewDB(t)
 	ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitSuperLong)
 	defer cancel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	// Create two coordinators, 1 for each peer.
 	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
@@ -911,6 +910,42 @@ func TestPGCoordinatorDual_PeerReconnect(t *testing.T) {
 	p1.AssertEventuallyHasDERP(p2.ID, 4)
 	// Make sure peer2 never got an update about peer1 disconnecting.
 	p2.AssertNeverUpdateKind(p1.ID, proto.CoordinateResponse_PeerUpdate_DISCONNECTED)
+}
+
+// TestPGCoordinatorPropogatedPeerContext tests that the context for a specific peer
+// is propogated through to the `Authorize` method of the coordinatee auth
+func TestPGCoordinatorPropogatedPeerContext(t *testing.T) {
+	t.Parallel()
+
+	if !dbtestutil.WillUsePostgres() {
+		t.Skip("test only with postgres")
+	}
+
+	ctx := testutil.Context(t, testutil.WaitMedium)
+	store, ps := dbtestutil.NewDB(t)
+	logger := testutil.Logger(t)
+
+	peerCtx := context.WithValue(ctx, agpltest.FakeSubjectKey{}, struct{}{})
+	peerID := uuid.UUID{0x01}
+	agentID := uuid.UUID{0x02}
+
+	c1, err := tailnet.NewPGCoord(ctx, logger, ps, store)
+	require.NoError(t, err)
+	defer func() {
+		err := c1.Close()
+		require.NoError(t, err)
+	}()
+
+	ch := make(chan struct{})
+	auth := agpltest.FakeCoordinateeAuth{
+		Chan: ch,
+	}
+
+	reqs, _ := c1.Coordinate(peerCtx, peerID, "peer1", auth)
+
+	testutil.RequireSendCtx(ctx, t, reqs, &proto.CoordinateRequest{AddTunnel: &proto.CoordinateRequest_Tunnel{Id: agpl.UUIDToByteSlice(agentID)}})
+
+	_ = testutil.RequireRecvCtx(ctx, t, ch)
 }
 
 func assertEventuallyStatus(ctx context.Context, t *testing.T, store database.Store, agentID uuid.UUID, status database.TailnetStatus) {

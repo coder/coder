@@ -198,7 +198,7 @@ func (e *outExpecter) expectMatcherFunc(ctx context.Context, str string, fn func
 		e.fatalf("read error", "%v (wanted %q; got %q)", err, str, buffer.String())
 		return ""
 	}
-	e.logf("matched %q = %q", str, stripansi.Strip(buffer.String()))
+	e.logf("matched %q = %q", str, buffer.String())
 	return buffer.String()
 }
 
@@ -252,6 +252,7 @@ func (e *outExpecter) Peek(ctx context.Context, n int) []byte {
 	return slices.Clone(out)
 }
 
+//nolint:govet // We don't care about conforming to ReadRune() (rune, int, error).
 func (e *outExpecter) ReadRune(ctx context.Context) rune {
 	e.t.Helper()
 

@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # users suspend
 
 Update a user's status to 'suspended'. A suspended user cannot log into the platform
@@ -13,7 +12,7 @@ coder users suspend [flags] <username|user_id>
 ## Description
 
 ```console
- $ coder users suspend example_user
+ coder users suspend example_user
 ```
 
 ## Options
@@ -21,7 +20,7 @@ coder users suspend [flags] <username|user_id>
 ### -c, --column
 
 |         |                                                    |
-| ------- | -------------------------------------------------- |
+|---------|----------------------------------------------------|
 | Type    | <code>[username\|email\|created at\|status]</code> |
 | Default | <code>username,email,created at,status</code>      |
 

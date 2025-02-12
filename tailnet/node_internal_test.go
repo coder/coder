@@ -14,15 +14,13 @@ import (
 	"tailscale.com/types/key"
 	"tailscale.com/wgengine"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/testutil"
 )
 
 func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -75,7 +73,7 @@ func TestNodeUpdater_setNetInfo_different(t *testing.T) {
 func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -116,7 +114,7 @@ func TestNodeUpdater_setNetInfo_same(t *testing.T) {
 func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -155,7 +153,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_different(t *testing.T) {
 func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -193,7 +191,7 @@ func TestNodeUpdater_setDERPForcedWebsocket_same(t *testing.T) {
 func TestNodeUpdater_setStatus_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -243,7 +241,7 @@ func TestNodeUpdater_setStatus_different(t *testing.T) {
 func TestNodeUpdater_setStatus_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -283,7 +281,7 @@ func TestNodeUpdater_setStatus_same(t *testing.T) {
 func TestNodeUpdater_setStatus_error(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -321,7 +319,7 @@ func TestNodeUpdater_setStatus_error(t *testing.T) {
 func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -363,7 +361,7 @@ func TestNodeUpdater_setStatus_outdated(t *testing.T) {
 func TestNodeUpdater_setAddresses_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -404,7 +402,7 @@ func TestNodeUpdater_setAddresses_different(t *testing.T) {
 func TestNodeUpdater_setAddresses_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -443,7 +441,7 @@ func TestNodeUpdater_setAddresses_same(t *testing.T) {
 func TestNodeUpdater_setCallback(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -484,7 +482,7 @@ func TestNodeUpdater_setCallback(t *testing.T) {
 func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -533,7 +531,7 @@ func TestNodeUpdater_setBlockEndpoints_different(t *testing.T) {
 func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -571,7 +569,7 @@ func TestNodeUpdater_setBlockEndpoints_same(t *testing.T) {
 func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()
@@ -619,7 +617,7 @@ func TestNodeUpdater_fillPeerDiagnostics(t *testing.T) {
 func TestNodeUpdater_fillPeerDiagnostics_noCallback(t *testing.T) {
 	t.Parallel()
 	ctx := testutil.Context(t, testutil.WaitShort)
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	id := tailcfg.NodeID(1)
 	nodeKey := key.NewNode().Public()
 	discoKey := key.NewDisco().Public()

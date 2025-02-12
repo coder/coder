@@ -123,7 +123,7 @@ it is still accessible.
 ![Annotated port controls in the UI](../../images/networking/annotatedports.png)
 
 > The sharing level is limited by the maximum level enforced in the template
-> settings in enterprise deployments, and not restricted in OSS deployments.
+> settings in licensed deployments, and not restricted in OSS deployments.
 
 This can also be used to change the sharing level of port-based `coder_app`s by
 entering their port number in the sharable ports UI. The `share` attribute on
@@ -141,7 +141,7 @@ protocol configuration for each shared port individually.
 You can also access any port on the workspace and can configure the port
 protocol manually by appending a `s` to the port in the URL.
 
-```
+```console
 # Uses HTTP
 https://33295--agent--workspace--user--apps.example.com/
 # Uses HTTPS

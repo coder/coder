@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
@@ -27,6 +28,8 @@ import (
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/coder/v2/coderd/externalauth"
+	"github.com/coder/coder/v2/coderd/notifications"
+	"github.com/coder/coder/v2/coderd/notifications/notificationstest"
 	"github.com/coder/coder/v2/coderd/rbac"
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/provisioner/echo"
@@ -557,6 +560,136 @@ func TestWorkspaceBuildResources(t *testing.T) {
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[2], "first_resource", "example", 1)  // resource has 1 agent with explicit order
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[3], "fourth_resource", "example", 0) // resource has no agents, sorted by name
 		assertWorkspaceResource(t, workspace.LatestBuild.Resources[4], "third_resource", "example", 0)  // resource is the last one
+	})
+}
+
+func TestWorkspaceBuildWithUpdatedTemplateVersionSendsNotification(t *testing.T) {
+	t.Parallel()
+
+	t.Run("NoRepeatedNotifications", func(t *testing.T) {
+		t.Parallel()
+
+		notify := &notificationstest.FakeEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		first := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create a template with an initial version
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, first.OrganizationID, version.ID)
+
+		// Create a workspace using this template
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create a new version of the template
+		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, newVersion.ID)
+
+		// Create a workspace build using this new template version
+		build := coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
+			cwbr.TemplateVersionID = newVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create the workspace build _again_. We are doing this to
+		// ensure we do not create _another_ notification. This is
+		// separate to the notifications subsystem dedupe mechanism
+		// as this build shouldn't create a notification. It shouldn't
+		// create another notification as this new build isn't changing
+		// the template version.
+		build = coderdtest.CreateWorkspaceBuild(t, userClient, workspace, database.WorkspaceTransitionStart, func(cwbr *codersdk.CreateWorkspaceBuildRequest) {
+			cwbr.TemplateVersionID = newVersion.ID
+		})
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// We're going to have two notifications (one for the first user and one for the template admin)
+		// By ensuring we only have these two, we are sure the second build didn't trigger more
+		// notifications.
+		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		require.Len(t, sent, 2)
+
+		receivers := make([]uuid.UUID, len(sent))
+		for idx, notif := range sent {
+			receivers[idx] = notif.UserID
+		}
+
+		// Check the notification was sent to the first user and template admin
+		// (both of whom have the "template admin" role), and explicitly not the
+		// workspace owner (since they initiated the workspace build).
+		require.Contains(t, receivers, templateAdmin.ID)
+		require.Contains(t, receivers, first.UserID)
+		require.NotContains(t, receivers, user.ID)
+
+		require.Contains(t, sent[0].Targets, template.ID)
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		require.Contains(t, sent[1].Targets, template.ID)
+		require.Contains(t, sent[1].Targets, workspace.ID)
+		require.Contains(t, sent[1].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[1].Targets, workspace.OwnerID)
+	})
+
+	t.Run("ToCorrectUser", func(t *testing.T) {
+		t.Parallel()
+
+		notify := &notificationstest.FakeEnqueuer{}
+
+		client := coderdtest.New(t, &coderdtest.Options{IncludeProvisionerDaemon: true, NotificationsEnqueuer: notify})
+		first := coderdtest.CreateFirstUser(t, client)
+		templateAdminClient, templateAdmin := coderdtest.CreateAnotherUser(t, client, first.OrganizationID, rbac.RoleTemplateAdmin())
+		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
+
+		// Create a template with an initial version
+		version := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, version.ID)
+		template := coderdtest.CreateTemplate(t, templateAdminClient, first.OrganizationID, version.ID)
+
+		// Create a workspace using this template
+		workspace := coderdtest.CreateWorkspace(t, userClient, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, workspace.LatestBuild.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Create a new version of the template
+		newVersion := coderdtest.CreateTemplateVersion(t, templateAdminClient, first.OrganizationID, nil, func(ctvr *codersdk.CreateTemplateVersionRequest) {
+			ctvr.TemplateID = template.ID
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, templateAdminClient, newVersion.ID)
+
+		// Create a workspace build using this new template version from a different user
+		ctx := testutil.Context(t, testutil.WaitShort)
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			Transition:        codersdk.WorkspaceTransitionStart,
+			TemplateVersionID: newVersion.ID,
+		})
+		require.NoError(t, err)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, userClient, build.ID)
+		coderdtest.MustTransitionWorkspace(t, userClient, workspace.ID, database.WorkspaceTransitionStart, database.WorkspaceTransitionStop)
+
+		// Ensure we receive only 1 workspace manually updated notification and to the right user
+		sent := notify.Sent(notificationstest.WithTemplateID(notifications.TemplateWorkspaceManuallyUpdated))
+		require.Len(t, sent, 1)
+		require.Equal(t, templateAdmin.ID, sent[0].UserID)
+		require.Contains(t, sent[0].Targets, template.ID)
+		require.Contains(t, sent[0].Targets, workspace.ID)
+		require.Contains(t, sent[0].Targets, workspace.OrganizationID)
+		require.Contains(t, sent[0].Targets, workspace.OwnerID)
+
+		owner, ok := sent[0].Data["owner"].(map[string]any)
+		require.True(t, ok, "notification data should have owner")
+		require.Equal(t, user.ID, owner["id"])
+		require.Equal(t, user.Name, owner["name"])
+		require.Equal(t, user.Email, owner["email"])
 	})
 }
 
@@ -1097,6 +1230,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		require.Eventually(t, func() bool {
@@ -1124,6 +1263,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			Transition:        codersdk.WorkspaceTransitionStart,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
 	})
 
@@ -1150,6 +1295,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 			ProvisionerState:  wantState,
 		})
 		require.NoError(t, err)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		gotState, err := client.WorkspaceBuildState(ctx, build.ID)
 		require.NoError(t, err)
 		require.Equal(t, wantState, gotState)
@@ -1173,6 +1324,12 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		})
 		require.NoError(t, err)
 		require.Equal(t, workspace.LatestBuild.BuildNumber+1, build.BuildNumber)
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			require.Equal(t, 1, build.MatchedProvisioners.Count)
+			require.Equal(t, 1, build.MatchedProvisioners.Available)
+			require.NotZero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+		}
+
 		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, build.ID)
 
 		res, err := client.Workspaces(ctx, codersdk.WorkspaceFilter{
@@ -1181,23 +1338,122 @@ func TestPostWorkspaceBuild(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, res.Workspaces, 0)
 	})
+
+	t.Run("NoProvisionersAvailable", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		// Stop the provisioner daemon.
+		require.NoError(t, closeDaemon.Close())
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: no provisioner daemons exist.
+		_, err := db.ExecContext(ctx, `DELETE FROM provisioner_daemons;`)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed.
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending.
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+		// Then: the response should indicate no provisioners are available.
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Count)
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Zero(t, build.MatchedProvisioners.MostRecentlySeen.Time)
+			assert.False(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
+
+	t.Run("AllProvisionersStale", func(t *testing.T) {
+		t.Parallel()
+		if !dbtestutil.WillUsePostgres() {
+			t.Skip("this test requires postgres")
+		}
+		// Given: a coderd instance with a provisioner daemon
+		store, ps, db := dbtestutil.NewDBWithSQLDB(t)
+		client, closeDaemon := coderdtest.NewWithProvisionerCloser(t, &coderdtest.Options{
+			Database:                 store,
+			Pubsub:                   ps,
+			IncludeProvisionerDaemon: true,
+		})
+		defer closeDaemon.Close()
+		// Given: a user, template, and workspace
+		user := coderdtest.CreateFirstUser(t, client)
+		version := coderdtest.CreateTemplateVersion(t, client, user.OrganizationID, nil)
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, user.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+
+		ctx := testutil.Context(t, testutil.WaitLong)
+		// Given: all provisioner daemons are stale
+		// First stop the provisioner
+		require.NoError(t, closeDaemon.Close())
+		newLastSeenAt := dbtime.Now().Add(-time.Hour)
+		// Update the last seen at for all provisioner daemons. We have to use the
+		// SQL db directly because store.UpdateProvisionerDaemonLastSeenAt has a
+		// built-in check to prevent updating the last seen at to a time in the past.
+		_, err := db.ExecContext(ctx, `UPDATE provisioner_daemons SET last_seen_at = $1;`, newLastSeenAt)
+		require.NoError(t, err)
+
+		// When: a new workspace build is created
+		build, err := client.CreateWorkspaceBuild(ctx, workspace.ID, codersdk.CreateWorkspaceBuildRequest{
+			TemplateVersionID: template.ActiveVersionID,
+			Transition:        codersdk.WorkspaceTransitionStart,
+		})
+		// Then: the request should succeed
+		require.NoError(t, err)
+		// Then: the provisioner job should remain pending
+		require.Equal(t, codersdk.ProvisionerJobPending, build.Job.Status)
+		// Then: the response should indicate no provisioners are available
+		if assert.NotNil(t, build.MatchedProvisioners) {
+			assert.Zero(t, build.MatchedProvisioners.Available)
+			assert.Equal(t, 1, build.MatchedProvisioners.Count)
+			assert.Equal(t, newLastSeenAt.UTC(), build.MatchedProvisioners.MostRecentlySeen.Time.UTC())
+			assert.True(t, build.MatchedProvisioners.MostRecentlySeen.Valid)
+		}
+	})
 }
 
-//nolint:paralleltest
 func TestWorkspaceBuildTimings(t *testing.T) {
+	t.Parallel()
+
 	// Setup the test environment with a template and version
 	db, pubsub := dbtestutil.NewDB(t)
-	client := coderdtest.New(t, &coderdtest.Options{
+	ownerClient := coderdtest.New(t, &coderdtest.Options{
 		Database: db,
 		Pubsub:   pubsub,
 	})
-	owner := coderdtest.CreateFirstUser(t, client)
+	owner := coderdtest.CreateFirstUser(t, ownerClient)
+	client, user := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID)
+
 	file := dbgen.File(t, db, database.File{
 		CreatedBy: owner.UserID,
 	})
 	versionJob := dbgen.ProvisionerJob(t, db, pubsub, database.ProvisionerJob{
 		OrganizationID: owner.OrganizationID,
-		InitiatorID:    owner.UserID,
+		InitiatorID:    user.ID,
 		FileID:         file.ID,
 		Tags: database.StringMap{
 			"custom": "true",
@@ -1216,9 +1472,9 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 
 	// Tests will run in parallel. To avoid conflicts and race conditions on the
 	// build number, each test will have its own workspace and build.
-	makeBuild := func() database.WorkspaceBuild {
-		ws := dbgen.Workspace(t, db, database.Workspace{
-			OwnerID:        owner.UserID,
+	makeBuild := func(t *testing.T) database.WorkspaceBuild {
+		ws := dbgen.Workspace(t, db, database.WorkspaceTable{
+			OwnerID:        user.ID,
 			OrganizationID: owner.OrganizationID,
 			TemplateID:     template.ID,
 		})
@@ -1237,10 +1493,13 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		})
 	}
 
-	//nolint:paralleltest
 	t.Run("NonExistentBuild", func(t *testing.T) {
-		// When: fetching an inexistent build
+		t.Parallel()
+
+		// Given: a non-existent build
 		buildID := uuid.New()
+
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		_, err := client.WorkspaceBuildTimings(ctx, buildID)
@@ -1250,10 +1509,13 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		require.Contains(t, err.Error(), "not found")
 	})
 
-	//nolint:paralleltest
 	t.Run("EmptyTimings", func(t *testing.T) {
-		// When: fetching timings for a build with no timings
-		build := makeBuild()
+		t.Parallel()
+
+		// Given: a build with no timings
+		build := makeBuild(t)
+
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
@@ -1264,25 +1526,27 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		require.Empty(t, res.AgentScriptTimings)
 	})
 
-	//nolint:paralleltest
 	t.Run("ProvisionerTimings", func(t *testing.T) {
-		// When: fetching timings for a build with provisioner timings
-		build := makeBuild()
+		t.Parallel()
+
+		// Given: a build with provisioner timings
+		build := makeBuild(t)
 		provisionerTimings := dbgen.ProvisionerJobTimings(t, db, build, 5)
 
-		// Then: return a response with the expected timings
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
-		require.Len(t, res.ProvisionerTimings, 5)
 
+		// Then: return a response with the expected timings
+		require.Len(t, res.ProvisionerTimings, 5)
 		for i := range res.ProvisionerTimings {
 			timingRes := res.ProvisionerTimings[i]
 			genTiming := provisionerTimings[i]
 			require.Equal(t, genTiming.Resource, timingRes.Resource)
 			require.Equal(t, genTiming.Action, timingRes.Action)
-			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.JobID.String(), timingRes.JobID.String())
 			require.Equal(t, genTiming.Source, timingRes.Source)
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
@@ -1290,10 +1554,11 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		}
 	})
 
-	//nolint:paralleltest
-	t.Run("AgentScriptTimings", func(t *testing.T) {
-		// When: fetching timings for a build with agent script timings
-		build := makeBuild()
+	t.Run("MultipleTimingsForSameAgentScript", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with multiple timings for the same script
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1303,30 +1568,81 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 		script := dbgen.WorkspaceAgentScript(t, db, database.WorkspaceAgentScript{
 			WorkspaceAgentID: agent.ID,
 		})
-		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, script, 5)
+		timings := make([]database.WorkspaceAgentScriptTiming, 3)
+		scriptStartedAt := dbtime.Now()
+		for i := range timings {
+			timings[i] = dbgen.WorkspaceAgentScriptTiming(t, db, database.WorkspaceAgentScriptTiming{
+				StartedAt: scriptStartedAt,
+				EndedAt:   scriptStartedAt.Add(1 * time.Minute),
+				ScriptID:  script.ID,
+			})
 
-		// Then: return a response with the expected timings
+			// Add an hour to the previous "started at" so we can
+			// reliably differentiate the scripts from each other.
+			scriptStartedAt = scriptStartedAt.Add(1 * time.Hour)
+		}
+
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
-		require.Len(t, res.AgentScriptTimings, 5)
 
+		// Then: return a response with the first agent script timing
+		require.Len(t, res.AgentScriptTimings, 1)
+
+		require.Equal(t, timings[0].StartedAt.UnixMilli(), res.AgentScriptTimings[0].StartedAt.UnixMilli())
+		require.Equal(t, timings[0].EndedAt.UnixMilli(), res.AgentScriptTimings[0].EndedAt.UnixMilli())
+	})
+
+	t.Run("AgentScriptTimings", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with agent script timings
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+		scripts := dbgen.WorkspaceAgentScripts(t, db, 5, database.WorkspaceAgentScript{
+			WorkspaceAgentID: agent.ID,
+		})
+		agentScriptTimings := dbgen.WorkspaceAgentScriptTimings(t, db, scripts)
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the expected timings
+		require.Len(t, res.AgentScriptTimings, 5)
+		slices.SortFunc(res.AgentScriptTimings, func(a, b codersdk.AgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
+		slices.SortFunc(agentScriptTimings, func(a, b database.WorkspaceAgentScriptTiming) int {
+			return a.StartedAt.Compare(b.StartedAt)
+		})
 		for i := range res.AgentScriptTimings {
 			timingRes := res.AgentScriptTimings[i]
 			genTiming := agentScriptTimings[i]
 			require.Equal(t, genTiming.ExitCode, timingRes.ExitCode)
 			require.Equal(t, string(genTiming.Status), timingRes.Status)
-			require.Equal(t, string(genTiming.Stage), timingRes.Stage)
+			require.Equal(t, string(genTiming.Stage), string(timingRes.Stage))
 			require.Equal(t, genTiming.StartedAt.UnixMilli(), timingRes.StartedAt.UnixMilli())
 			require.Equal(t, genTiming.EndedAt.UnixMilli(), timingRes.EndedAt.UnixMilli())
+			require.Equal(t, agent.ID.String(), timingRes.WorkspaceAgentID)
+			require.Equal(t, agent.Name, timingRes.WorkspaceAgentName)
 		}
 	})
 
-	//nolint:paralleltest
 	t.Run("NoAgentScripts", func(t *testing.T) {
-		// When: fetching timings for a build with no agent scripts
-		build := makeBuild()
+		t.Parallel()
+
+		// Given: a build with no agent scripts
+		build := makeBuild(t)
 		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
@@ -1334,29 +1650,88 @@ func TestWorkspaceBuildTimings(t *testing.T) {
 			ResourceID: resource.ID,
 		})
 
-		// Then: return a response with empty agent script timings
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
+
+		// Then: return a response with empty agent script timings
 		require.Empty(t, res.AgentScriptTimings)
 	})
 
 	// Some workspaces might not have agents. It is improbable, but possible.
-	//nolint:paralleltest
 	t.Run("NoAgents", func(t *testing.T) {
-		// When: fetching timings for a build with no agents
-		build := makeBuild()
+		t.Parallel()
+
+		// Given: a build with no agents
+		build := makeBuild(t)
 		dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
 			JobID: build.JobID,
 		})
 
-		// Then: return a response with empty agent script timings
-		// trigger build
+		// When: fetching timings for the build
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		t.Cleanup(cancel)
 		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
 		require.NoError(t, err)
+
+		// Then: return a response with empty agent script timings
 		require.Empty(t, res.AgentScriptTimings)
+		require.Empty(t, res.AgentConnectionTimings)
+	})
+
+	t.Run("AgentConnectionTimings", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with an agent
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agent := dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+			ResourceID: resource.ID,
+		})
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the expected timings
+		require.Len(t, res.AgentConnectionTimings, 1)
+		for i := range res.ProvisionerTimings {
+			timingRes := res.AgentConnectionTimings[i]
+			require.Equal(t, agent.ID.String(), timingRes.WorkspaceAgentID)
+			require.Equal(t, agent.Name, timingRes.WorkspaceAgentName)
+			require.NotEmpty(t, timingRes.StartedAt)
+			require.NotEmpty(t, timingRes.EndedAt)
+		}
+	})
+
+	t.Run("MultipleAgents", func(t *testing.T) {
+		t.Parallel()
+
+		// Given: a build with multiple agents
+		build := makeBuild(t)
+		resource := dbgen.WorkspaceResource(t, db, database.WorkspaceResource{
+			JobID: build.JobID,
+		})
+		agents := make([]database.WorkspaceAgent, 5)
+		for i := range agents {
+			agents[i] = dbgen.WorkspaceAgent(t, db, database.WorkspaceAgent{
+				ResourceID: resource.ID,
+			})
+		}
+
+		// When: fetching timings for the build
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		t.Cleanup(cancel)
+		res, err := client.WorkspaceBuildTimings(ctx, build.ID)
+		require.NoError(t, err)
+
+		// Then: return a response with the expected timings
+		require.Len(t, res.AgentConnectionTimings, 5)
 	})
 }

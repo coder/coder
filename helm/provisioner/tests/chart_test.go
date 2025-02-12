@@ -56,16 +56,38 @@ var testCases = []testCase{
 		name:          "provisionerd_key",
 		expectedError: "",
 	},
+	// Test explicitly for the workaround where setting provisionerDaemon.pskSecretName=""
+	// was required to use provisioner keys.
+	{
+		name:          "provisionerd_key_psk_empty_workaround",
+		expectedError: "",
+	},
 	{
 		name:          "provisionerd_psk_and_key",
-		expectedError: "",
+		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified, but not both.`,
 	},
 	{
 		name:          "provisionerd_no_psk_or_key",
 		expectedError: `Either provisionerDaemon.pskSecretName or provisionerDaemon.keySecretName must be specified.`,
 	},
 	{
+		name:          "provisionerd_key_tags",
+		expectedError: `provisionerDaemon.tags may not be specified with provisionerDaemon.keySecretName.`,
+	},
+	{
 		name:          "extra_templates",
+		expectedError: "",
+	},
+	{
+		name:          "sa_disabled",
+		expectedError: "",
+	},
+	{
+		name:          "name_override",
+		expectedError: "",
+	},
+	{
+		name:          "name_override_existing_sa",
 		expectedError: "",
 	},
 }
@@ -99,6 +121,7 @@ func TestRenderChart(t *testing.T) {
 	helmPath := lookupHelm(t)
 	err := updateHelmDependencies(t, helmPath, "..")
 	require.NoError(t, err, "failed to build Helm dependencies")
+
 	for _, tc := range testCases {
 		tc := tc
 		t.Run(tc.name, func(t *testing.T) {
@@ -140,6 +163,9 @@ func TestUpdateGoldenFiles(t *testing.T) {
 	}
 
 	helmPath := lookupHelm(t)
+	err := updateHelmDependencies(t, helmPath, "..")
+	require.NoError(t, err, "failed to build Helm dependencies")
+
 	for _, tc := range testCases {
 		if tc.expectedError != "" {
 			t.Logf("skipping test case %q with render error", tc.name)
@@ -149,7 +175,8 @@ func TestUpdateGoldenFiles(t *testing.T) {
 		valuesPath := tc.valuesFilePath()
 		templateOutput, err := runHelmTemplate(t, helmPath, "..", valuesPath)
 		if err != nil {
-			t.Logf("Command output:\n%s", templateOutput)
+			t.Logf("error running `helm template -f %q`: %v", valuesPath, err)
+			t.Logf("output: %s", templateOutput)
 		}
 		require.NoError(t, err, "failed to run `helm template -f %q`", valuesPath)
 

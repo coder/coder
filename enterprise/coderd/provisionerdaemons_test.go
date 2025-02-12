@@ -3,21 +3,23 @@ package coderd_test
 import (
 	"bytes"
 	"context"
+	"database/sql"
 	"fmt"
 	"io"
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/apiversion"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/provisionerkey"
 	"github.com/coder/coder/v2/coderd/rbac"
@@ -283,7 +285,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			daemons, err := client.ProvisionerDaemons(context.Background())
 			assert.NoError(t, err, "failed to get provisioner daemons")
 			return len(daemons) > 0 &&
-				assert.Equal(t, t.Name(), daemons[0].Name) &&
+				assert.NotEmpty(t, daemons[0].Name) &&
 				assert.Equal(t, provisionersdk.ScopeUser, daemons[0].Tags[provisionersdk.TagScope]) &&
 				assert.Equal(t, user.UserID.String(), daemons[0].Tags[provisionersdk.TagOwner])
 		}, testutil.WaitShort, testutil.IntervalMedium)
@@ -395,7 +397,7 @@ func TestProvisionerDaemonServe(t *testing.T) {
 			},
 			ProvisionerDaemonPSK: provPSK,
 		})
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
 		defer cancel()
 
@@ -768,7 +770,7 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		require.NoError(t, err)
 		srv.DRPCConn().Close()
 
-		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID)
+		daemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, nil)
 		require.NoError(t, err)
 		require.Len(t, daemons, 1)
 
@@ -780,10 +782,14 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		pkDaemons, err := orgAdmin.ListProvisionerKeyDaemons(ctx, org.ID)
 		require.NoError(t, err)
 
-		require.Len(t, pkDaemons, 1)
+		require.Len(t, pkDaemons, 2)
 		require.Len(t, pkDaemons[0].Daemons, 1)
 		assert.Equal(t, keys[0].ID, pkDaemons[0].Key.ID)
 		assert.Equal(t, keys[0].Name, pkDaemons[0].Key.Name)
+		// user-auth provisioners
+		require.Len(t, pkDaemons[1].Daemons, 0)
+		assert.Equal(t, codersdk.ProvisionerKeyUUIDUserAuth, pkDaemons[1].Key.ID)
+		assert.Equal(t, codersdk.ProvisionerKeyNameUserAuth, pkDaemons[1].Key.Name)
 
 		assert.Equal(t, daemonName, pkDaemons[0].Daemons[0].Name)
 		assert.Equal(t, buildinfo.Version(), pkDaemons[0].Daemons[0].Version)
@@ -793,5 +799,208 @@ func TestGetProvisionerDaemons(t *testing.T) {
 		// Verify user outside the org cannot read the provisioners
 		_, err = outsideOrg.ListProvisionerKeyDaemons(ctx, org.ID)
 		require.Error(t, err)
+	})
+
+	t.Run("filtered by tags", func(t *testing.T) {
+		t.Parallel()
+
+		testCases := []struct {
+			name                  string
+			tagsToFilterBy        map[string]string
+			provisionerDaemonTags map[string]string
+			expectToGetDaemon     bool
+		}{
+			{
+				name:                  "only an empty tagset finds an untagged provisioner",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": ""},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": ""},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "an exact match with a single optional tag finds a provisioner daemon",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "a subset of filter tags finds a daemon with a superset of tags",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "an exact match with two additional tags finds a provisioner daemon",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "a user scoped filter tag set finds a user scoped provisioner daemon",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "a user scoped filter tag set finds a user scoped provisioner daemon with an additional tag",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "user-scoped provisioner with tags and user-scoped filter with tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "user-scoped provisioner with multiple tags and user-scoped filter with a subset of tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "user-scoped provisioner with multiple tags and user-scoped filter with multiple tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+				expectToGetDaemon:     true,
+			},
+			{
+				name:                  "untagged provisioner and tagged filter",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": ""},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "tagged provisioner and untagged filter",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": ""},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "tagged provisioner and double-tagged filter",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "double-tagged provisioner and double-tagged filter with differing tags",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "chicago"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": "", "environment": "on-prem", "datacenter": "new_york"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner and untagged filter",
+				tagsToFilterBy:        map[string]string{"scope": "organization", "owner": ""},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner and different user-scoped filter",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "bbb"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "org-scoped provisioner and user-scoped filter",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": ""},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner and org-scoped filter with tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "organization", "owner": ""},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner and user-scoped filter with tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner with tags and user-scoped filter with multiple tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem"},
+				expectToGetDaemon:     false,
+			},
+			{
+				name:                  "user-scoped provisioner with tags and user-scoped filter with differing tags",
+				tagsToFilterBy:        map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "new_york"},
+				provisionerDaemonTags: map[string]string{"scope": "user", "owner": "aaa", "environment": "on-prem", "datacenter": "chicago"},
+				expectToGetDaemon:     false,
+			},
+		}
+		for _, tt := range testCases {
+			tt := tt
+			t.Run(tt.name, func(t *testing.T) {
+				t.Parallel()
+				dv := coderdtest.DeploymentValues(t)
+				client, db, _ := coderdenttest.NewWithDatabase(t, &coderdenttest.Options{
+					Options: &coderdtest.Options{
+						DeploymentValues: dv,
+					},
+					ProvisionerDaemonPSK: "provisionersftw",
+					LicenseOptions: &coderdenttest.LicenseOptions{
+						Features: license.Features{
+							codersdk.FeatureExternalProvisionerDaemons: 1,
+							codersdk.FeatureMultipleOrganizations:      1,
+						},
+					},
+				})
+				ctx := testutil.Context(t, testutil.WaitShort)
+
+				org := coderdenttest.CreateOrganization(t, client, coderdenttest.CreateOrganizationOptions{
+					IncludeProvisionerDaemon: false,
+				})
+				orgAdmin, _ := coderdtest.CreateAnotherUser(t, client, org.ID, rbac.ScopedRoleOrgMember(org.ID))
+
+				daemonCreatedAt := time.Now()
+
+				//nolint:gocritic // We're not testing auth on the following in this test
+				provisionerKey, err := db.InsertProvisionerKey(dbauthz.AsSystemRestricted(ctx), database.InsertProvisionerKeyParams{
+					Name:           "Test Provisioner Key",
+					ID:             uuid.New(),
+					CreatedAt:      daemonCreatedAt,
+					OrganizationID: org.ID,
+					HashedSecret:   []byte{},
+					Tags:           tt.provisionerDaemonTags,
+				})
+				require.NoError(t, err, "should be able to create a provisioner key")
+
+				//nolint:gocritic // We're not testing auth on the following in this test
+				pd, err := db.UpsertProvisionerDaemon(dbauthz.AsSystemRestricted(ctx), database.UpsertProvisionerDaemonParams{
+					CreatedAt:    daemonCreatedAt,
+					Name:         "Test Provisioner Daemon",
+					Provisioners: []database.ProvisionerType{},
+					Tags:         tt.provisionerDaemonTags,
+					LastSeenAt: sql.NullTime{
+						Time:  daemonCreatedAt,
+						Valid: true,
+					},
+					Version:        "",
+					OrganizationID: org.ID,
+					APIVersion:     "",
+					KeyID:          provisionerKey.ID,
+				})
+				require.NoError(t, err, "should be able to create provisioner daemon")
+				daemonAsCreated := db2sdk.ProvisionerDaemon(pd)
+
+				allDaemons, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, nil)
+				require.NoError(t, err)
+				require.Len(t, allDaemons, 1)
+
+				daemonsAsFound, err := orgAdmin.OrganizationProvisionerDaemons(ctx, org.ID, tt.tagsToFilterBy)
+				if tt.expectToGetDaemon {
+					require.NoError(t, err)
+					require.Len(t, daemonsAsFound, 1)
+					require.Equal(t, daemonAsCreated.Tags, daemonsAsFound[0].Tags, "found daemon should have the same tags as created daemon")
+					require.Equal(t, daemonsAsFound[0].KeyID, provisionerKey.ID)
+				} else {
+					require.NoError(t, err)
+					assert.Empty(t, daemonsAsFound, "should not have found daemon")
+				}
+			})
+		}
 	})
 }

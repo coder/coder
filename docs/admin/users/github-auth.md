@@ -1,6 +1,6 @@
-## GitHub
+# GitHub
 
-### Step 1: Configure the OAuth application in GitHub
+## Step 1: Configure the OAuth application in GitHub
 
 First,
 [register a GitHub OAuth app](https://developer.github.com/apps/building-oauth-apps/creating-an-oauth-app/).
@@ -22,7 +22,7 @@ values in the next step.
 Coder will need permission to access user email addresses. Find the "Account
 Permissions" settings for your app and select "read-only" for "Email addresses".
 
-### Step 2: Configure Coder with the OAuth credentials
+## Step 2: Configure Coder with the OAuth credentials
 
 Navigate to your Coder host and run the following command to start up the Coder
 server:

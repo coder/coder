@@ -1,5 +1,5 @@
 import { screen } from "@testing-library/react";
-import { Popover } from "components/Popover/Popover";
+import { Popover } from "components/deprecated/Popover/Popover";
 import { MockUser } from "testHelpers/entities";
 import { render, waitForLoaderToBeRemoved } from "testHelpers/renderHelpers";
 import { Language, UserDropdownContent } from "./UserDropdownContent";

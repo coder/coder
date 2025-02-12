@@ -48,6 +48,23 @@ func (r *RootCmd) organizationSettings(orgContext *OrganizationContext) *serpent
 				return cli.RoleIDPSyncSettings(ctx, org.String())
 			},
 		},
+		{
+			Name:              "organization-sync",
+			Aliases:           []string{"organizationsync", "org-sync", "orgsync"},
+			Short:             "Organization sync settings to sync organization memberships from an IdP.",
+			DisableOrgContext: true,
+			Patch: func(ctx context.Context, cli *codersdk.Client, _ uuid.UUID, input json.RawMessage) (any, error) {
+				var req codersdk.OrganizationSyncSettings
+				err := json.Unmarshal(input, &req)
+				if err != nil {
+					return nil, xerrors.Errorf("unmarshalling organization sync settings: %w", err)
+				}
+				return cli.PatchOrganizationIDPSyncSettings(ctx, req)
+			},
+			Fetch: func(ctx context.Context, cli *codersdk.Client, _ uuid.UUID) (any, error) {
+				return cli.OrganizationIDPSyncSettings(ctx)
+			},
+		},
 	}
 	cmd := &serpent.Command{
 		Use:     "settings",
@@ -68,8 +85,13 @@ type organizationSetting struct {
 	Name    string
 	Aliases []string
 	Short   string
-	Patch   func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error)
-	Fetch   func(ctx context.Context, cli *codersdk.Client, org uuid.UUID) (any, error)
+	// DisableOrgContext is kinda a kludge. It tells the command constructor
+	// to not require an organization context. This is used for the organization
+	// sync settings which are not tied to a specific organization.
+	// It feels excessive to build a more elaborate solution for this one-off.
+	DisableOrgContext bool
+	Patch             func(ctx context.Context, cli *codersdk.Client, org uuid.UUID, input json.RawMessage) (any, error)
+	Fetch             func(ctx context.Context, cli *codersdk.Client, org uuid.UUID) (any, error)
 }
 
 func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, settings []organizationSetting) *serpent.Command {
@@ -107,9 +129,14 @@ func (r *RootCmd) setOrganizationSettings(orgContext *OrganizationContext, setti
 			),
 			Handler: func(inv *serpent.Invocation) error {
 				ctx := inv.Context()
-				org, err := orgContext.Selected(inv, client)
-				if err != nil {
-					return err
+				var org codersdk.Organization
+				var err error
+
+				if !set.DisableOrgContext {
+					org, err = orgContext.Selected(inv, client)
+					if err != nil {
+						return err
+					}
 				}
 
 				// Read in the json
@@ -178,9 +205,14 @@ func (r *RootCmd) printOrganizationSetting(orgContext *OrganizationContext, sett
 			),
 			Handler: func(inv *serpent.Invocation) error {
 				ctx := inv.Context()
-				org, err := orgContext.Selected(inv, client)
-				if err != nil {
-					return err
+				var org codersdk.Organization
+				var err error
+
+				if !set.DisableOrgContext {
+					org, err = orgContext.Selected(inv, client)
+					if err != nil {
+						return err
+					}
 				}
 
 				output, err := fetch(ctx, client, org.ID)

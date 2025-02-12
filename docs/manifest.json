@@ -8,9 +8,9 @@
 			"icon_path": "./images/icons/home.svg",
 			"children": [
 				{
-					"title": "Tour Coder",
-					"description": "Tour Coder by creating a deployment with Docker",
-					"path": "./start/coder-tour.md"
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
 				},
 				{
 					"title": "Screenshots",
@@ -150,6 +150,11 @@
 							"title": "Web IDEs and Coder Apps",
 							"description": "Access your workspace with IDEs in the browser",
 							"path": "./user-guides/workspace-access/web-ides.md"
+						},
+						{
+							"title": "Zed",
+							"description": "Access your workspace with Zed",
+							"path": "./user-guides/workspace-access/zed.md"
 						}
 					]
 				},
@@ -243,6 +248,11 @@
 							"title": "Scaling Utilities",
 							"description": "Tools to help you scale your deployment",
 							"path": "./admin/infrastructure/scale-utility.md"
+						},
+						{
+							"title": "Scaling best practices",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
 						}
 					]
 				},
@@ -274,14 +284,14 @@
 							"state": ["enterprise", "premium"]
 						},
 						{
-							"title": "IDP Sync",
+							"title": "IdP Sync",
 							"path": "./admin/users/idp-sync.md",
 							"state": ["enterprise", "premium"]
 						},
 						{
 							"title": "Organizations",
 							"path": "./admin/users/organizations.md",
-							"state": ["premium", "beta"]
+							"state": ["premium"]
 						},
 						{
 							"title": "Quotas",
@@ -321,14 +331,36 @@
 									"path": "./admin/templates/managing-templates/change-management.md"
 								},
 								{
-									"title": "Devcontainers",
-									"description": "Learn about using devcontainers in templates",
-									"path": "./admin/templates/managing-templates/devcontainers.md"
+									"title": "Dev containers",
+									"description": "Learn about using development containers in templates",
+									"path": "./admin/templates/managing-templates/devcontainers/index.md",
+									"children": [
+										{
+											"title": "Add a dev container template",
+											"description": "How to add a dev container template to Coder",
+											"path": "./admin/templates/managing-templates/devcontainers/add-devcontainer.md"
+										},
+										{
+											"title": "Dev container security and caching",
+											"description": "Configure dev container authentication and caching",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-security-caching.md"
+										},
+										{
+											"title": "Dev container releases and known issues",
+											"description": "Dev container releases and known issues",
+											"path": "./admin/templates/managing-templates/devcontainers/devcontainer-releases-known-issues.md"
+										}
+									]
 								},
 								{
 									"title": "Template Dependencies",
 									"description": "Learn how to manage template dependencies",
 									"path": "./admin/templates/managing-templates/dependencies.md"
+								},
+								{
+									"title": "Workspace Scheduling",
+									"description": "Learn how to control how workspaces are started and stopped",
+									"path": "./admin/templates/managing-templates/schedule.md"
 								}
 							]
 						},
@@ -471,6 +503,11 @@
 							"title": "Island Secure Browser",
 							"description": "Integrate Coder with Island's Secure Browser",
 							"path": "./admin/integrations/island.md"
+						},
+						{
+							"title": "DX PlatformX",
+							"description": "Integrate Coder with DX PlatformX",
+							"path": "./admin/integrations/platformx.md"
 						},
 						{
 							"title": "Hashicorp Vault",
@@ -635,6 +672,11 @@
 			"icon_path": "./images/icons/generic.svg",
 			"children": [
 				{
+					"title": "Quickstart",
+					"description": "Learn how to install and run Coder quickly",
+					"path": "./tutorials/quickstart.md"
+				},
+				{
 					"title": "Write a Template from Scratch",
 					"description": "Learn how to author Coder templates",
 					"path": "./tutorials/template-from-scratch.md"
@@ -670,6 +712,11 @@
 					"path": "./admin/integrations/jfrog-artifactory.md"
 				},
 				{
+					"title": "Istio Integration",
+					"description": "Integrate Coder with Istio",
+					"path": "./admin/integrations/istio.md"
+				},
+				{
 					"title": "Island Secure Browser Integration",
 					"description": "Integrate Coder with Island's Secure Browser",
 					"path": "./admin/integrations/island.md"
@@ -700,6 +747,11 @@
 					"path": "./tutorials/cloning-git-repositories.md"
 				},
 				{
+					"title": "Test Templates Through CI/CD",
+					"description": "Learn how to test and publish Coder templates in a CI/CD pipeline",
+					"path": "./tutorials/testing-templates.md"
+				},
+				{
 					"title": "Use Apache as a Reverse Proxy",
 					"description": "Learn how to use Apache as a reverse proxy",
 					"path": "./tutorials/reverse-proxy-apache.md"
@@ -718,6 +770,33 @@
 					"title": "FAQs",
 					"description": "Miscellaneous FAQs from our community",
 					"path": "./tutorials/faqs.md"
+				},
+				{
+					"title": "Best practices",
+					"description": "Guides to help you make the most of your Coder experience",
+					"path": "./tutorials/best-practices/index.md",
+					"children": [
+						{
+							"title": "Organizations - best practices",
+							"description": "How to make the best use of Coder Organizations",
+							"path": "./tutorials/best-practices/organizations.md"
+						},
+						{
+							"title": "Scale Coder",
+							"description": "How to prepare a Coder deployment for scale",
+							"path": "./tutorials/best-practices/scale-coder.md"
+						},
+						{
+							"title": "Security - best practices",
+							"description": "Make your Coder deployment more secure",
+							"path": "./tutorials/best-practices/security-best-practices.md"
+						},
+						{
+							"title": "Speed up your workspaces",
+							"description": "Speed up your Coder templates and workspaces",
+							"path": "./tutorials/best-practices/speed-up-templates.md"
+						}
+					]
 				}
 			]
 		},
@@ -1035,6 +1114,11 @@
 							"path": "reference/cli/organizations_settings_set_group-sync.md"
 						},
 						{
+							"title": "organizations settings set organization-sync",
+							"description": "Organization sync settings to sync organization memberships from an IdP.",
+							"path": "reference/cli/organizations_settings_set_organization-sync.md"
+						},
+						{
 							"title": "organizations settings set role-sync",
 							"description": "Role sync settings to sync organization roles from an IdP.",
 							"path": "reference/cli/organizations_settings_set_role-sync.md"
@@ -1048,6 +1132,11 @@
 							"title": "organizations settings show group-sync",
 							"description": "Group sync settings to sync groups from an IdP.",
 							"path": "reference/cli/organizations_settings_show_group-sync.md"
+						},
+						{
+							"title": "organizations settings show organization-sync",
+							"description": "Organization sync settings to sync organization memberships from an IdP.",
+							"path": "reference/cli/organizations_settings_show_organization-sync.md"
 						},
 						{
 							"title": "organizations settings show role-sync",
@@ -1071,8 +1160,23 @@
 						},
 						{
 							"title": "provisioner",
-							"description": "Manage provisioner daemons",
+							"description": "View and manage provisioner daemons and jobs",
 							"path": "reference/cli/provisioner.md"
+						},
+						{
+							"title": "provisioner jobs",
+							"description": "View and manage provisioner jobs",
+							"path": "reference/cli/provisioner_jobs.md"
+						},
+						{
+							"title": "provisioner jobs cancel",
+							"description": "Cancel a provisioner job",
+							"path": "reference/cli/provisioner_jobs_cancel.md"
+						},
+						{
+							"title": "provisioner jobs list",
+							"description": "List provisioner jobs",
+							"path": "reference/cli/provisioner_jobs_list.md"
 						},
 						{
 							"title": "provisioner keys",
@@ -1093,6 +1197,11 @@
 							"title": "provisioner keys list",
 							"description": "List provisioner keys in an organization",
 							"path": "reference/cli/provisioner_keys_list.md"
+						},
+						{
+							"title": "provisioner list",
+							"description": "List provisioner daemons in an organization",
+							"path": "reference/cli/provisioner_list.md"
 						},
 						{
 							"title": "provisioner start",
@@ -1125,9 +1234,9 @@
 							"path": "reference/cli/schedule.md"
 						},
 						{
-							"title": "schedule override-stop",
-							"description": "Override the stop time of a currently running workspace instance.",
-							"path": "reference/cli/schedule_override-stop.md"
+							"title": "schedule extend",
+							"description": "Extend the stop time of a currently running workspace instance.",
+							"path": "reference/cli/schedule_extend.md"
 						},
 						{
 							"title": "schedule show",

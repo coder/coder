@@ -10,8 +10,11 @@ USAGE:
        $ coder organization settings show groupsync
 
 SUBCOMMANDS:
-    group-sync    Group sync settings to sync groups from an IdP.
-    role-sync     Role sync settings to sync organization roles from an IdP.
+    group-sync           Group sync settings to sync groups from an IdP.
+    organization-sync    Organization sync settings to sync organization
+                         memberships from an IdP.
+    role-sync            Role sync settings to sync organization roles from an
+                         IdP.
 
 ———
 Run `coder --help` for a list of global options.

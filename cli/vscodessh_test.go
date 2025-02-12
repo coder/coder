@@ -9,9 +9,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/agent/agenttest"
 	agentproto "github.com/coder/coder/v2/agent/proto"
 	"github.com/coder/coder/v2/cli/clitest"
@@ -38,10 +35,10 @@ func TestVSCodeSSH(t *testing.T) {
 		DeploymentValues: dv,
 		StatsBatcher:     batcher,
 	})
-	admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+	admin.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, admin)
 	client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent().Do()

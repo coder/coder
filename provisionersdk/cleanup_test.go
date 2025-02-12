@@ -11,8 +11,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -27,7 +25,7 @@ func TestStaleSessions(t *testing.T) {
 	prepare := func() (afero.Fs, slog.Logger) {
 		tempDir := t.TempDir()
 		fs := afero.NewBasePathFs(afero.NewOsFs(), tempDir)
-		logger := slogtest.Make(t, nil).
+		logger := testutil.Logger(t).
 			Leveled(slog.LevelDebug).
 			Named("cleanup-test")
 		return fs, logger

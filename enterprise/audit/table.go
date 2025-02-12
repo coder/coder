@@ -5,8 +5,10 @@ import (
 	"os"
 	"reflect"
 	"runtime"
+	"strings"
 
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/idpsync"
 	"github.com/coder/coder/v2/codersdk"
 )
 
@@ -127,6 +129,7 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"created_by_avatar_url":   ActionIgnore,
 		"created_by_username":     ActionIgnore,
 		"archived":                ActionTrack,
+		"source_example_id":       ActionIgnore, // Never changes.
 	},
 	&database.User{}: {
 		"id":                           ActionTrack,
@@ -145,11 +148,10 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"theme_preference":             ActionIgnore,
 		"name":                         ActionTrack,
 		"github_com_user_id":           ActionIgnore,
-		"hashed_one_time_passcode":     ActionSecret, // Do not expose a user's one time passcode.
+		"hashed_one_time_passcode":     ActionIgnore,
 		"one_time_passcode_expires_at": ActionTrack,
-		"must_reset_password":          ActionTrack,
 	},
-	&database.Workspace{}: {
+	&database.WorkspaceTable{}: {
 		"id":                 ActionTrack,
 		"created_at":         ActionIgnore, // Never changes.
 		"updated_at":         ActionIgnore, // Changes, but is implicit and not helpful in a diff.
@@ -165,24 +167,26 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"deleting_at":        ActionTrack,
 		"automatic_updates":  ActionTrack,
 		"favorite":           ActionTrack,
+		"next_start_at":      ActionTrack,
 	},
 	&database.WorkspaceBuild{}: {
-		"id":                      ActionIgnore,
-		"created_at":              ActionIgnore,
-		"updated_at":              ActionIgnore,
-		"workspace_id":            ActionIgnore,
-		"template_version_id":     ActionTrack,
-		"build_number":            ActionIgnore,
-		"transition":              ActionIgnore,
-		"initiator_id":            ActionIgnore,
-		"provisioner_state":       ActionIgnore,
-		"job_id":                  ActionIgnore,
-		"deadline":                ActionIgnore,
-		"reason":                  ActionIgnore,
-		"daily_cost":              ActionIgnore,
-		"max_deadline":            ActionIgnore,
-		"initiator_by_avatar_url": ActionIgnore,
-		"initiator_by_username":   ActionIgnore,
+		"id":                         ActionIgnore,
+		"created_at":                 ActionIgnore,
+		"updated_at":                 ActionIgnore,
+		"workspace_id":               ActionIgnore,
+		"template_version_id":        ActionTrack,
+		"build_number":               ActionIgnore,
+		"transition":                 ActionIgnore,
+		"initiator_id":               ActionIgnore,
+		"provisioner_state":          ActionIgnore,
+		"job_id":                     ActionIgnore,
+		"deadline":                   ActionIgnore,
+		"reason":                     ActionIgnore,
+		"daily_cost":                 ActionIgnore,
+		"max_deadline":               ActionIgnore,
+		"initiator_by_avatar_url":    ActionIgnore,
+		"initiator_by_username":      ActionIgnore,
+		"template_version_preset_id": ActionIgnore, // Never changes.
 	},
 	&database.AuditableGroup{}: {
 		"id":              ActionTrack,
@@ -276,14 +280,32 @@ var auditableResourcesTypes = map[any]map[string]Action{
 		"icon":         ActionTrack,
 	},
 	&database.NotificationTemplate{}: {
-		"id":             ActionIgnore,
-		"name":           ActionTrack,
-		"title_template": ActionTrack,
-		"body_template":  ActionTrack,
-		"actions":        ActionTrack,
-		"group":          ActionTrack,
-		"method":         ActionTrack,
-		"kind":           ActionTrack,
+		"id":                 ActionIgnore,
+		"name":               ActionTrack,
+		"title_template":     ActionTrack,
+		"body_template":      ActionTrack,
+		"actions":            ActionTrack,
+		"group":              ActionTrack,
+		"method":             ActionTrack,
+		"kind":               ActionTrack,
+		"enabled_by_default": ActionTrack,
+	},
+	&idpsync.OrganizationSyncSettings{}: {
+		"field":          ActionTrack,
+		"mapping":        ActionTrack,
+		"assign_default": ActionTrack,
+	},
+	&idpsync.GroupSyncSettings{}: {
+		"field":                      ActionTrack,
+		"mapping":                    ActionTrack,
+		"regex_filter":               ActionTrack,
+		"auto_create_missing_groups": ActionTrack,
+		// Configured in env vars
+		"legacy_group_name_mapping": ActionIgnore,
+	},
+	&idpsync.RoleSyncSettings{}: {
+		"field":   ActionTrack,
+		"mapping": ActionTrack,
 	},
 }
 
@@ -334,6 +356,7 @@ func entry(v any, f map[string]Action) (string, map[string]Action) {
 			// This field is explicitly ignored.
 			continue
 		}
+		jsonTag = strings.TrimSuffix(jsonTag, ",omitempty")
 		if _, ok := fcpy[jsonTag]; !ok {
 			_, _ = fmt.Fprintf(os.Stderr, "ERROR: Audit table entry missing action for field %q in type %q\nPlease update the auditable resource types in: %s\n", d.FieldType.Name, name, self())
 			//nolint:revive

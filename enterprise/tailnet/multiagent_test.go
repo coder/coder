@@ -10,7 +10,6 @@ import (
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database/dbtestutil"
 	"github.com/coder/coder/v2/enterprise/tailnet"
-	"github.com/coder/coder/v2/tailnet/tailnettest"
 	agpltest "github.com/coder/coder/v2/tailnet/test"
 	"github.com/coder/coder/v2/testutil"
 )
@@ -39,19 +38,19 @@ func TestPGCoordinator_MultiAgent(t *testing.T) {
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord1, "client")
+	defer ma1.Close(ctx)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 
-	ma1.Close()
+	ma1.Disconnect()
 	agent1.UngracefulDisconnect(ctx)
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
@@ -72,13 +71,13 @@ func TestPGCoordinator_MultiAgent_CoordClose(t *testing.T) {
 	require.NoError(t, err)
 	defer coord1.Close()
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord1, "client")
+	defer ma1.Close(ctx)
 
 	err = coord1.Close()
 	require.NoError(t, err)
 
-	ma1.RequireEventuallyClosed(ctx)
+	ma1.AssertEventuallyResponsesClosed()
 }
 
 // TestPGCoordinator_MultiAgent_UnsubscribeRace tests a single coordinator with
@@ -106,20 +105,20 @@ func TestPGCoordinator_MultiAgent_UnsubscribeRace(t *testing.T) {
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord1, "client")
+	defer ma1.Close(ctx)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 
-	ma1.RequireUnsubscribeAgent(agent1.ID)
-	ma1.Close()
+	ma1.RemoveTunnel(agent1.ID)
+	ma1.Close(ctx)
 	agent1.UngracefulDisconnect(ctx)
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
@@ -151,35 +150,35 @@ func TestPGCoordinator_MultiAgent_Unsubscribe(t *testing.T) {
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord1)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord1, "client")
+	defer ma1.Close(ctx)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 
-	ma1.RequireUnsubscribeAgent(agent1.ID)
+	ma1.RemoveTunnel(agent1.ID)
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
 
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
-		ma1.SendNodeWithDERP(9)
+		ma1.UpdateDERP(9)
 		agent1.AssertNeverHasDERPs(ctx, ma1.ID, 9)
 	}()
 	func() {
 		ctx, cancel := context.WithTimeout(ctx, testutil.IntervalSlow*3)
 		defer cancel()
 		agent1.UpdateDERP(8)
-		ma1.RequireNeverHasDERPs(ctx, 8)
+		ma1.AssertNeverHasDERPs(ctx, agent1.ID, 8)
 	}()
 
-	ma1.Close()
+	ma1.Disconnect()
 	agent1.UngracefulDisconnect(ctx)
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
@@ -216,19 +215,19 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator(t *testing.T) {
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord2)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord2, "client")
+	defer ma1.Close(ctx)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 
-	ma1.Close()
+	ma1.Disconnect()
 	agent1.UngracefulDisconnect(ctx)
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
@@ -266,19 +265,19 @@ func TestPGCoordinator_MultiAgent_MultiCoordinator_UpdateBeforeSubscribe(t *test
 	defer agent1.Close(ctx)
 	agent1.UpdateDERP(5)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord2)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord2, "client")
+	defer ma1.Close(ctx)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.Close()
+	ma1.Disconnect()
 	agent1.UngracefulDisconnect(ctx)
 
 	assertEventuallyNoClientsForAgent(ctx, t, store, agent1.ID)
@@ -325,26 +324,26 @@ func TestPGCoordinator_MultiAgent_TwoAgents(t *testing.T) {
 	defer agent2.Close(ctx)
 	agent2.UpdateDERP(6)
 
-	ma1 := tailnettest.NewTestMultiAgent(t, coord3)
-	defer ma1.Close()
+	ma1 := agpltest.NewPeer(ctx, t, coord3, "client")
+	defer ma1.Close(ctx)
 
-	ma1.RequireSubscribeAgent(agent1.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 5)
+	ma1.AddTunnel(agent1.ID)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 5)
 
 	agent1.UpdateDERP(1)
-	ma1.RequireEventuallyHasDERPs(ctx, 1)
+	ma1.AssertEventuallyHasDERP(agent1.ID, 1)
 
-	ma1.RequireSubscribeAgent(agent2.ID)
-	ma1.RequireEventuallyHasDERPs(ctx, 6)
+	ma1.AddTunnel(agent2.ID)
+	ma1.AssertEventuallyHasDERP(agent2.ID, 6)
 
 	agent2.UpdateDERP(2)
-	ma1.RequireEventuallyHasDERPs(ctx, 2)
+	ma1.AssertEventuallyHasDERP(agent2.ID, 2)
 
-	ma1.SendNodeWithDERP(3)
+	ma1.UpdateDERP(3)
 	agent1.AssertEventuallyHasDERP(ma1.ID, 3)
 	agent2.AssertEventuallyHasDERP(ma1.ID, 3)
 
-	ma1.Close()
+	ma1.Disconnect()
 	agent1.UngracefulDisconnect(ctx)
 	agent2.UngracefulDisconnect(ctx)
 

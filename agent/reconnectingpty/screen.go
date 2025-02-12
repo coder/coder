@@ -9,7 +9,6 @@ import (
 	"io"
 	"net"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync"
@@ -20,11 +19,13 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/agent/agentexec"
 	"github.com/coder/coder/v2/pty"
 )
 
 // screenReconnectingPTY provides a reconnectable PTY via `screen`.
 type screenReconnectingPTY struct {
+	execer  agentexec.Execer
 	command *pty.Cmd
 
 	// id holds the id of the session for both creating and attaching.  This will
@@ -59,15 +60,14 @@ type screenReconnectingPTY struct {
 // spawns the daemon with a hardcoded 24x80 size it is not a very good user
 // experience.  Instead we will let the attach command spawn the daemon on its
 // own which causes it to spawn with the specified size.
-func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.Logger) *screenReconnectingPTY {
+func newScreen(ctx context.Context, logger slog.Logger, execer agentexec.Execer, cmd *pty.Cmd, options *Options) *screenReconnectingPTY {
 	rpty := &screenReconnectingPTY{
+		execer:  execer,
 		command: cmd,
 		metrics: options.Metrics,
 		state:   newState(),
 		timeout: options.Timeout,
 	}
-
-	go rpty.lifecycle(ctx, logger)
 
 	// Socket paths are limited to around 100 characters on Linux and macOS which
 	// depending on the temporary directory can be a problem.  To give more leeway
@@ -123,6 +123,8 @@ func newScreen(ctx context.Context, cmd *pty.Cmd, options *Options, logger slog.
 		rpty.state.setState(StateDone, xerrors.Errorf("create config file: %w", err))
 		return rpty
 	}
+
+	go rpty.lifecycle(ctx, logger)
 
 	return rpty
 }
@@ -210,7 +212,7 @@ func (rpty *screenReconnectingPTY) doAttach(ctx context.Context, conn net.Conn, 
 	logger.Debug(ctx, "spawning screen client", slog.F("screen_id", rpty.id))
 
 	// Wrap the command with screen and tie it to the connection's context.
-	cmd := pty.CommandContext(ctx, "screen", append([]string{
+	cmd := rpty.execer.PTYCommandContext(ctx, "screen", append([]string{
 		// -S is for setting the session's name.
 		"-S", rpty.id,
 		// -U tells screen to use UTF-8 encoding.
@@ -327,10 +329,10 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 	defer cancel()
 
 	var lastErr error
-	run := func() bool {
+	run := func() (bool, error) {
 		var stdout bytes.Buffer
 		//nolint:gosec
-		cmd := exec.CommandContext(ctx, "screen",
+		cmd := rpty.execer.CommandContext(ctx, "screen",
 			// -x targets an attached session.
 			"-x", rpty.id,
 			// -c is the flag for the config file.
@@ -343,13 +345,13 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 		cmd.Stdout = &stdout
 		err := cmd.Run()
 		if err == nil {
-			return true
+			return true, nil
 		}
 
 		stdoutStr := stdout.String()
 		for _, se := range successErrors {
 			if strings.Contains(stdoutStr, se) {
-				return true
+				return true, nil
 			}
 		}
 
@@ -359,11 +361,15 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			lastErr = xerrors.Errorf("`screen -x %s -X %s`: %w: %s", rpty.id, command, err, stdoutStr)
 		}
 
-		return false
+		return false, nil
 	}
 
 	// Run immediately.
-	if done := run(); done {
+	done, err := run()
+	if err != nil {
+		return err
+	}
+	if done {
 		return nil
 	}
 
@@ -379,7 +385,11 @@ func (rpty *screenReconnectingPTY) sendCommand(ctx context.Context, command stri
 			}
 			return errors.Join(ctx.Err(), lastErr)
 		case <-ticker.C:
-			if done := run(); done {
+			done, err := run()
+			if err != nil {
+				return err
+			}
+			if done {
 				return nil
 			}
 		}

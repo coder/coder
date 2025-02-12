@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"net/http/httptest"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -18,6 +17,7 @@ import (
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/cli/clitest"
+	"github.com/coder/coder/v2/coderd"
 	"github.com/coder/coder/v2/coderd/coderdtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbfake"
@@ -35,7 +35,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).
@@ -71,7 +71,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AzureCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -110,7 +110,7 @@ func TestWorkspaceAgent(t *testing.T) {
 			AWSCertificates: certificates,
 		})
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -151,7 +151,7 @@ func TestWorkspaceAgent(t *testing.T) {
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
 		member, memberUser := coderdtest.CreateAnotherUser(t, client, owner.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        memberUser.ID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -205,7 +205,7 @@ func TestWorkspaceAgent(t *testing.T) {
 
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        user.UserID,
 		}).WithAgent().Do()
@@ -232,42 +232,92 @@ func TestWorkspaceAgent(t *testing.T) {
 		require.Equal(t, codersdk.AgentSubsystemEnvbox, resources[0].Agents[0].Subsystems[0])
 		require.Equal(t, codersdk.AgentSubsystemExectrace, resources[0].Agents[0].Subsystems[1])
 	})
-	t.Run("Header", func(t *testing.T) {
+	t.Run("Headers&DERPHeaders", func(t *testing.T) {
 		t.Parallel()
 
-		var url string
-		var called int64
-		srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "wow", r.Header.Get("X-Testing"))
-			assert.Equal(t, "Ethan was Here!", r.Header.Get("Cool-Header"))
-			assert.Equal(t, "very-wow-"+url, r.Header.Get("X-Process-Testing"))
-			assert.Equal(t, "more-wow", r.Header.Get("X-Process-Testing2"))
-			atomic.AddInt64(&called, 1)
-			w.WriteHeader(http.StatusGone)
+		// Create a coderd API instance the hard way since we need to change the
+		// handler to inject our custom /derp handler.
+		dv := coderdtest.DeploymentValues(t)
+		dv.DERP.Config.BlockDirect = true
+		setHandler, cancelFunc, serverURL, newOptions := coderdtest.NewOptions(t, &coderdtest.Options{
+			DeploymentValues: dv,
+		})
+
+		// We set the handler after server creation for the access URL.
+		coderAPI := coderd.New(newOptions)
+		setHandler(coderAPI.RootHandler)
+		provisionerCloser := coderdtest.NewProvisionerDaemon(t, coderAPI)
+		t.Cleanup(func() {
+			_ = provisionerCloser.Close()
+		})
+		client := codersdk.New(serverURL)
+		t.Cleanup(func() {
+			cancelFunc()
+			_ = provisionerCloser.Close()
+			_ = coderAPI.Close()
+			client.HTTPClient.CloseIdleConnections()
+		})
+
+		var (
+			admin              = coderdtest.CreateFirstUser(t, client)
+			member, memberUser = coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
+			called             int64
+			derpCalled         int64
+		)
+
+		setHandler(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			// Ignore client requests
+			if r.Header.Get("X-Testing") == "agent" {
+				assert.Equal(t, "Ethan was Here!", r.Header.Get("Cool-Header"))
+				assert.Equal(t, "very-wow-"+client.URL.String(), r.Header.Get("X-Process-Testing"))
+				assert.Equal(t, "more-wow", r.Header.Get("X-Process-Testing2"))
+				if strings.HasPrefix(r.URL.Path, "/derp") {
+					atomic.AddInt64(&derpCalled, 1)
+				} else {
+					atomic.AddInt64(&called, 1)
+				}
+			}
+			coderAPI.RootHandler.ServeHTTP(w, r)
 		}))
-		defer srv.Close()
-		url = srv.URL
+		r := dbfake.WorkspaceBuild(t, coderAPI.Database, database.WorkspaceTable{
+			OrganizationID: memberUser.OrganizationIDs[0],
+			OwnerID:        memberUser.ID,
+		}).WithAgent().Do()
+
 		coderURLEnv := "$CODER_URL"
 		if runtime.GOOS == "windows" {
 			coderURLEnv = "%CODER_URL%"
 		}
 
 		logDir := t.TempDir()
-		inv, _ := clitest.New(t,
+		agentInv, _ := clitest.New(t,
 			"agent",
 			"--auth", "token",
-			"--agent-token", "fake-token",
-			"--agent-url", srv.URL,
+			"--agent-token", r.AgentToken,
+			"--agent-url", client.URL.String(),
 			"--log-dir", logDir,
-			"--agent-header", "X-Testing=wow",
+			"--agent-header", "X-Testing=agent",
 			"--agent-header", "Cool-Header=Ethan was Here!",
 			"--agent-header-command", "printf X-Process-Testing=very-wow-"+coderURLEnv+"'\\r\\n'X-Process-Testing2=more-wow",
 		)
+		clitest.Start(t, agentInv)
+		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).
+			MatchResources(matchAgentWithVersion).Wait()
 
-		clitest.Start(t, inv)
-		require.Eventually(t, func() bool {
-			return atomic.LoadInt64(&called) > 0
-		}, testutil.WaitShort, testutil.IntervalFast)
+		ctx := testutil.Context(t, testutil.WaitLong)
+		clientInv, root := clitest.New(t,
+			"-v",
+			"--no-feature-warning",
+			"--no-version-warning",
+			"ping", r.Workspace.Name,
+			"-n", "1",
+		)
+		clitest.SetupConfig(t, member, root)
+		err := clientInv.WithContext(ctx).Run()
+		require.NoError(t, err)
+
+		require.Greater(t, atomic.LoadInt64(&called), int64(0), "expected coderd to be reached with custom headers")
+		require.Greater(t, atomic.LoadInt64(&derpCalled), int64(0), "expected /derp to be called with custom headers")
 	})
 }
 

@@ -33,7 +33,7 @@ func ReadModifyUpdate(db Store, f func(tx Store) error,
 ) error {
 	var err error
 	for retries := 0; retries < maxRetries; retries++ {
-		err = db.InTx(f, &sql.TxOptions{
+		err = db.InTx(f, &TxOptions{
 			Isolation: sql.LevelRepeatableRead,
 		})
 		var pqe *pq.Error

@@ -1,5 +1,5 @@
 import type { Interpolation, Theme } from "@emotion/react";
-import { Spinner } from "components/Spinner/Spinner";
+import { Spinner } from "components/deprecated/Spinner/Spinner";
 import type { FC, HTMLAttributes } from "react";
 
 interface LoaderProps extends HTMLAttributes<HTMLDivElement> {

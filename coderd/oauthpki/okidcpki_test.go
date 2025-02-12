@@ -13,6 +13,7 @@ import (
 
 	"github.com/coreos/go-oidc/v3/oidc"
 	"github.com/golang-jwt/jwt/v4"
+	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/oauth2"
@@ -169,6 +170,7 @@ func TestAzureAKPKIWithCoderd(t *testing.T) {
 	const email = "alice@coder.com"
 	claims := jwt.MapClaims{
 		"email": email,
+		"sub":   uuid.NewString(),
 	}
 	helper := oidctest.NewLoginHelper(owner, fake)
 	user, _ := helper.Login(t, claims)

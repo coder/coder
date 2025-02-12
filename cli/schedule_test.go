@@ -38,7 +38,7 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 	memberClient, memberUser := coderdtest.CreateAnotherUserMutators(t, ownerClient, owner.OrganizationID, nil, func(r *codersdk.CreateUserRequestWithOrgs) {
 		r.Username = "testuser2" // ensure deterministic ordering
 	})
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:              "a-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
@@ -46,19 +46,19 @@ func setupTestSchedule(t *testing.T, sched *cron.Schedule) (ownerClient, memberC
 		Ttl:               sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
 	}).WithAgent().Do()
 
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:              "b-owner",
 		OwnerID:           owner.UserID,
 		OrganizationID:    owner.OrganizationID,
 		AutostartSchedule: sql.NullString{String: sched.String(), Valid: true},
 	}).WithAgent().Do()
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:           "c-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,
 		Ttl:            sql.NullInt64{Int64: 8 * time.Hour.Nanoseconds(), Valid: true},
 	}).WithAgent().Do()
-	_ = dbfake.WorkspaceBuild(t, db, database.Workspace{
+	_ = dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		Name:           "d-member",
 		OwnerID:        memberUser.ID,
 		OrganizationID: owner.OrganizationID,
@@ -332,32 +332,46 @@ func TestScheduleModify(t *testing.T) {
 
 //nolint:paralleltest // t.Setenv
 func TestScheduleOverride(t *testing.T) {
-	// Given
-	// Set timezone to Asia/Kolkata to surface any timezone-related bugs.
-	t.Setenv("TZ", "Asia/Kolkata")
-	loc, err := tz.TimezoneIANA()
-	require.NoError(t, err)
-	require.Equal(t, "Asia/Kolkata", loc.String())
-	sched, err := cron.Weekly("CRON_TZ=Europe/Dublin 30 7 * * Mon-Fri")
-	require.NoError(t, err, "invalid schedule")
-	ownerClient, _, _, ws := setupTestSchedule(t, sched)
-	now := time.Now()
-	// To avoid the likelihood of time-related flakes, only matching up to the hour.
-	expectedDeadline := time.Now().In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
+	tests := []struct {
+		command string
+	}{
+		{command: "extend"},
+		// test for backwards compatibility
+		{command: "override-stop"},
+	}
 
-	// When: we override the stop schedule
-	inv, root := clitest.New(t,
-		"schedule", "override-stop", ws[0].OwnerName+"/"+ws[0].Name, "10h",
-	)
+	for _, tt := range tests {
+		tt := tt
 
-	clitest.SetupConfig(t, ownerClient, root)
-	pty := ptytest.New(t).Attach(inv)
-	require.NoError(t, inv.Run())
+		t.Run(tt.command, func(t *testing.T) {
+			// Given
+			// Set timezone to Asia/Kolkata to surface any timezone-related bugs.
+			t.Setenv("TZ", "Asia/Kolkata")
+			loc, err := tz.TimezoneIANA()
+			require.NoError(t, err)
+			require.Equal(t, "Asia/Kolkata", loc.String())
+			sched, err := cron.Weekly("CRON_TZ=Europe/Dublin 30 7 * * Mon-Fri")
+			require.NoError(t, err, "invalid schedule")
+			ownerClient, _, _, ws := setupTestSchedule(t, sched)
+			now := time.Now()
+			// To avoid the likelihood of time-related flakes, only matching up to the hour.
+			expectedDeadline := time.Now().In(loc).Add(10 * time.Hour).Format("2006-01-02T15:")
 
-	// Then: the updated schedule should be shown
-	pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
-	pty.ExpectMatch(sched.Humanize())
-	pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
-	pty.ExpectMatch("8h")
-	pty.ExpectMatch(expectedDeadline)
+			// When: we override the stop schedule
+			inv, root := clitest.New(t,
+				"schedule", tt.command, ws[0].OwnerName+"/"+ws[0].Name, "10h",
+			)
+
+			clitest.SetupConfig(t, ownerClient, root)
+			pty := ptytest.New(t).Attach(inv)
+			require.NoError(t, inv.Run())
+
+			// Then: the updated schedule should be shown
+			pty.ExpectMatch(ws[0].OwnerName + "/" + ws[0].Name)
+			pty.ExpectMatch(sched.Humanize())
+			pty.ExpectMatch(sched.Next(now).In(loc).Format(time.RFC3339))
+			pty.ExpectMatch("8h")
+			pty.ExpectMatch(expectedDeadline)
+		})
+	}
 }

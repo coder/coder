@@ -1,15 +1,18 @@
 import MuiAlert, {
+	type AlertColor as MuiAlertColor,
 	type AlertProps as MuiAlertProps,
 	// biome-ignore lint/nursery/noRestrictedImports: Used as base component
 } from "@mui/material/Alert";
-import Button from "@mui/material/Button";
 import Collapse from "@mui/material/Collapse";
+import { Button } from "components/Button/Button";
 import {
 	type FC,
 	type PropsWithChildren,
 	type ReactNode,
 	useState,
 } from "react";
+
+export type AlertColor = MuiAlertColor;
 
 export type AlertProps = MuiAlertProps & {
 	actions?: ReactNode;
@@ -48,8 +51,8 @@ export const Alert: FC<AlertProps> = ({
 						{/* close CTA */}
 						{dismissible && (
 							<Button
-								variant="text"
-								size="small"
+								variant="subtle"
+								size="sm"
 								onClick={() => {
 									setOpen(false);
 									onDismiss?.();

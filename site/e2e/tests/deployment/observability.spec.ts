@@ -8,9 +8,16 @@ import {
 	verifyConfigFlagEmpty,
 	verifyConfigFlagString,
 } from "../../api";
+import { login } from "../../helpers";
+import { beforeCoderTest } from "../../hooks";
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+	await setupApiCalls(page);
+});
 
 test("enabled observability settings", async ({ page }) => {
-	await setupApiCalls(page);
 	const config = await API.getDeploymentConfig();
 
 	await page.goto("/deployment/observability", {

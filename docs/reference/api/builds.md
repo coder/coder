@@ -16,7 +16,7 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 ### Parameters
 
 | Name            | In   | Type           | Required | Description          |
-| --------------- | ---- | -------------- | -------- | -------------------- |
+|-----------------|------|----------------|----------|----------------------|
 | `user`          | path | string         | true     | User ID, name, or me |
 | `workspacename` | path | string         | true     | Workspace name       |
 | `buildnumber`   | path | string(number) | true     | Build number         |
@@ -27,162 +27,191 @@ curl -X GET http://coder-server:8080/api/v2/users/{user}/workspace/{workspacenam
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"hidden": true,
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"display_name": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "error": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "type": "template_version_import",
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "matched_provisioners": {
+    "available": 0,
+    "count": 0,
+    "most_recently_seen": "2019-08-24T14:15:22Z"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "hidden": true,
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "open_in": "slim-window",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": [
+            "vscode"
+          ],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "display_name": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": [
+            "envbox"
+          ],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -203,7 +232,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
+|------------------|------|--------|----------|--------------------|
 | `workspacebuild` | path | string | true     | Workspace build ID |
 
 ### Example responses
@@ -212,162 +241,191 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild} \
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"hidden": true,
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"display_name": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "error": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "type": "template_version_import",
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "matched_provisioners": {
+    "available": 0,
+    "count": 0,
+    "most_recently_seen": "2019-08-24T14:15:22Z"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "hidden": true,
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "open_in": "slim-window",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": [
+            "vscode"
+          ],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "display_name": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": [
+            "envbox"
+          ],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -388,7 +446,7 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
+|------------------|------|--------|----------|--------------------|
 | `workspacebuild` | path | string | true     | Workspace build ID |
 
 ### Example responses
@@ -397,21 +455,21 @@ curl -X PATCH http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/c
 
 ```json
 {
-	"detail": "string",
-	"message": "string",
-	"validations": [
-		{
-			"detail": "string",
-			"field": "string"
-		}
-	]
+  "detail": "string",
+  "message": "string",
+  "validations": [
+    {
+      "detail": "string",
+      "field": "string"
+    }
+  ]
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                           |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.Response](schemas.md#codersdkresponse) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -431,12 +489,12 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ### Parameters
 
-| Name             | In    | Type    | Required | Description           |
-| ---------------- | ----- | ------- | -------- | --------------------- |
-| `workspacebuild` | path  | string  | true     | Workspace build ID    |
-| `before`         | query | integer | false    | Before Unix timestamp |
-| `after`          | query | integer | false    | After Unix timestamp  |
-| `follow`         | query | boolean | false    | Follow log stream     |
+| Name             | In    | Type    | Required | Description        |
+|------------------|-------|---------|----------|--------------------|
+| `workspacebuild` | path  | string  | true     | Workspace build ID |
+| `before`         | query | integer | false    | Before log id      |
+| `after`          | query | integer | false    | After log id       |
+| `follow`         | query | boolean | false    | Follow log stream  |
 
 ### Example responses
 
@@ -444,21 +502,21 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 
 ```json
 [
-	{
-		"created_at": "2019-08-24T14:15:22Z",
-		"id": 0,
-		"log_level": "trace",
-		"log_source": "provisioner_daemon",
-		"output": "string",
-		"stage": "string"
-	}
+  {
+    "created_at": "2019-08-24T14:15:22Z",
+    "id": 0,
+    "log_level": "trace",
+    "log_source": "provisioner_daemon",
+    "output": "string",
+    "stage": "string"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.ProvisionerJobLog](schemas.md#codersdkprovisionerjoblog) |
 
 <h3 id="get-workspace-build-logs-responseschema">Response Schema</h3>
@@ -466,7 +524,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/log
 Status Code **200**
 
 | Name           | Type                                               | Required | Restrictions | Description |
-| -------------- | -------------------------------------------------- | -------- | ------------ | ----------- |
+|----------------|----------------------------------------------------|----------|--------------|-------------|
 | `[array item]` | array                                              | false    |              |             |
 | `» created_at` | string(date-time)                                  | false    |              |             |
 | `» id`         | integer                                            | false    |              |             |
@@ -478,7 +536,7 @@ Status Code **200**
 #### Enumerated Values
 
 | Property     | Value                |
-| ------------ | -------------------- |
+|--------------|----------------------|
 | `log_level`  | `trace`              |
 | `log_level`  | `debug`              |
 | `log_level`  | `info`               |
@@ -505,7 +563,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
+|------------------|------|--------|----------|--------------------|
 | `workspacebuild` | path | string | true     | Workspace build ID |
 
 ### Example responses
@@ -514,17 +572,17 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 
 ```json
 [
-	{
-		"name": "string",
-		"value": "string"
-	}
+  {
+    "name": "string",
+    "value": "string"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                                  |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceBuildParameter](schemas.md#codersdkworkspacebuildparameter) |
 
 <h3 id="get-build-parameters-for-workspace-build-responseschema">Response Schema</h3>
@@ -532,7 +590,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/par
 Status Code **200**
 
 | Name           | Type   | Required | Restrictions | Description |
-| -------------- | ------ | -------- | ------------ | ----------- |
+|----------------|--------|----------|--------------|-------------|
 | `[array item]` | array  | false    |              |             |
 | `» name`       | string | false    |              |             |
 | `» value`      | string | false    |              |             |
@@ -555,7 +613,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
+|------------------|------|--------|----------|--------------------|
 | `workspacebuild` | path | string | true     | Workspace build ID |
 
 ### Example responses
@@ -564,123 +622,128 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 
 ```json
 [
-	{
-		"agents": [
-			{
-				"api_version": "string",
-				"apps": [
-					{
-						"command": "string",
-						"display_name": "string",
-						"external": true,
-						"health": "disabled",
-						"healthcheck": {
-							"interval": 0,
-							"threshold": 0,
-							"url": "string"
-						},
-						"hidden": true,
-						"icon": "string",
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"sharing_level": "owner",
-						"slug": "string",
-						"subdomain": true,
-						"subdomain_name": "string",
-						"url": "string"
-					}
-				],
-				"architecture": "string",
-				"connection_timeout_seconds": 0,
-				"created_at": "2019-08-24T14:15:22Z",
-				"directory": "string",
-				"disconnected_at": "2019-08-24T14:15:22Z",
-				"display_apps": ["vscode"],
-				"environment_variables": {
-					"property1": "string",
-					"property2": "string"
-				},
-				"expanded_directory": "string",
-				"first_connected_at": "2019-08-24T14:15:22Z",
-				"health": {
-					"healthy": false,
-					"reason": "agent has lost connection"
-				},
-				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-				"instance_id": "string",
-				"last_connected_at": "2019-08-24T14:15:22Z",
-				"latency": {
-					"property1": {
-						"latency_ms": 0,
-						"preferred": true
-					},
-					"property2": {
-						"latency_ms": 0,
-						"preferred": true
-					}
-				},
-				"lifecycle_state": "created",
-				"log_sources": [
-					{
-						"created_at": "2019-08-24T14:15:22Z",
-						"display_name": "string",
-						"icon": "string",
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-					}
-				],
-				"logs_length": 0,
-				"logs_overflowed": true,
-				"name": "string",
-				"operating_system": "string",
-				"ready_at": "2019-08-24T14:15:22Z",
-				"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-				"scripts": [
-					{
-						"cron": "string",
-						"display_name": "string",
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"log_path": "string",
-						"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-						"run_on_start": true,
-						"run_on_stop": true,
-						"script": "string",
-						"start_blocks_login": true,
-						"timeout": 0
-					}
-				],
-				"started_at": "2019-08-24T14:15:22Z",
-				"startup_script_behavior": "blocking",
-				"status": "connecting",
-				"subsystems": ["envbox"],
-				"troubleshooting_url": "string",
-				"updated_at": "2019-08-24T14:15:22Z",
-				"version": "string"
-			}
-		],
-		"created_at": "2019-08-24T14:15:22Z",
-		"daily_cost": 0,
-		"hide": true,
-		"icon": "string",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-		"metadata": [
-			{
-				"key": "string",
-				"sensitive": true,
-				"value": "string"
-			}
-		],
-		"name": "string",
-		"type": "string",
-		"workspace_transition": "start"
-	}
+  {
+    "agents": [
+      {
+        "api_version": "string",
+        "apps": [
+          {
+            "command": "string",
+            "display_name": "string",
+            "external": true,
+            "health": "disabled",
+            "healthcheck": {
+              "interval": 0,
+              "threshold": 0,
+              "url": "string"
+            },
+            "hidden": true,
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "open_in": "slim-window",
+            "sharing_level": "owner",
+            "slug": "string",
+            "subdomain": true,
+            "subdomain_name": "string",
+            "url": "string"
+          }
+        ],
+        "architecture": "string",
+        "connection_timeout_seconds": 0,
+        "created_at": "2019-08-24T14:15:22Z",
+        "directory": "string",
+        "disconnected_at": "2019-08-24T14:15:22Z",
+        "display_apps": [
+          "vscode"
+        ],
+        "environment_variables": {
+          "property1": "string",
+          "property2": "string"
+        },
+        "expanded_directory": "string",
+        "first_connected_at": "2019-08-24T14:15:22Z",
+        "health": {
+          "healthy": false,
+          "reason": "agent has lost connection"
+        },
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "instance_id": "string",
+        "last_connected_at": "2019-08-24T14:15:22Z",
+        "latency": {
+          "property1": {
+            "latency_ms": 0,
+            "preferred": true
+          },
+          "property2": {
+            "latency_ms": 0,
+            "preferred": true
+          }
+        },
+        "lifecycle_state": "created",
+        "log_sources": [
+          {
+            "created_at": "2019-08-24T14:15:22Z",
+            "display_name": "string",
+            "icon": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+          }
+        ],
+        "logs_length": 0,
+        "logs_overflowed": true,
+        "name": "string",
+        "operating_system": "string",
+        "ready_at": "2019-08-24T14:15:22Z",
+        "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+        "scripts": [
+          {
+            "cron": "string",
+            "display_name": "string",
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "log_path": "string",
+            "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+            "run_on_start": true,
+            "run_on_stop": true,
+            "script": "string",
+            "start_blocks_login": true,
+            "timeout": 0
+          }
+        ],
+        "started_at": "2019-08-24T14:15:22Z",
+        "startup_script_behavior": "blocking",
+        "status": "connecting",
+        "subsystems": [
+          "envbox"
+        ],
+        "troubleshooting_url": "string",
+        "updated_at": "2019-08-24T14:15:22Z",
+        "version": "string"
+      }
+    ],
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "hide": true,
+    "icon": "string",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+    "metadata": [
+      {
+        "key": "string",
+        "sensitive": true,
+        "value": "string"
+      }
+    ],
+    "name": "string",
+    "type": "string",
+    "workspace_transition": "start"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                      |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceResource](schemas.md#codersdkworkspaceresource) |
 
 <h3 id="removed:-get-workspace-resources-for-workspace-build-responseschema">Response Schema</h3>
@@ -688,7 +751,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/res
 Status Code **200**
 
 | Name                            | Type                                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| ------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|---------------------------------|--------------------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                  | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» agents`                      | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» api_version`                | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
@@ -704,6 +767,7 @@ Status Code **200**
 | `»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -777,11 +841,13 @@ Status Code **200**
 #### Enumerated Values
 
 | Property                  | Value              |
-| ------------------------- | ------------------ |
+|---------------------------|--------------------|
 | `health`                  | `disabled`         |
 | `health`                  | `initializing`     |
 | `health`                  | `healthy`          |
 | `health`                  | `unhealthy`        |
+| `open_in`                 | `slim-window`      |
+| `open_in`                 | `tab`              |
 | `sharing_level`           | `owner`            |
 | `sharing_level`           | `authenticated`    |
 | `sharing_level`           | `public`           |
@@ -822,7 +888,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 ### Parameters
 
 | Name             | In   | Type   | Required | Description        |
-| ---------------- | ---- | ------ | -------- | ------------------ |
+|------------------|------|--------|----------|--------------------|
 | `workspacebuild` | path | string | true     | Workspace build ID |
 
 ### Example responses
@@ -831,162 +897,191 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/sta
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"hidden": true,
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"display_name": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "error": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "type": "template_version_import",
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "matched_provisioners": {
+    "available": 0,
+    "count": 0,
+    "most_recently_seen": "2019-08-24T14:15:22Z"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "hidden": true,
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "open_in": "slim-window",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": [
+            "vscode"
+          ],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "display_name": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": [
+            "envbox"
+          ],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1007,7 +1102,7 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
 ### Parameters
 
 | Name             | In   | Type         | Required | Description        |
-| ---------------- | ---- | ------------ | -------- | ------------------ |
+|------------------|------|--------------|----------|--------------------|
 | `workspacebuild` | path | string(uuid) | true     | Workspace build ID |
 
 ### Example responses
@@ -1016,34 +1111,45 @@ curl -X GET http://coder-server:8080/api/v2/workspacebuilds/{workspacebuild}/tim
 
 ```json
 {
-	"agent_script_timings": [
-		{
-			"display_name": "string",
-			"ended_at": "2019-08-24T14:15:22Z",
-			"exit_code": 0,
-			"stage": "string",
-			"started_at": "2019-08-24T14:15:22Z",
-			"status": "string"
-		}
-	],
-	"provisioner_timings": [
-		{
-			"action": "string",
-			"ended_at": "2019-08-24T14:15:22Z",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"resource": "string",
-			"source": "string",
-			"stage": "string",
-			"started_at": "2019-08-24T14:15:22Z"
-		}
-	]
+  "agent_connection_timings": [
+    {
+      "ended_at": "2019-08-24T14:15:22Z",
+      "stage": "init",
+      "started_at": "2019-08-24T14:15:22Z",
+      "workspace_agent_id": "string",
+      "workspace_agent_name": "string"
+    }
+  ],
+  "agent_script_timings": [
+    {
+      "display_name": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "exit_code": 0,
+      "stage": "init",
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "string",
+      "workspace_agent_id": "string",
+      "workspace_agent_name": "string"
+    }
+  ],
+  "provisioner_timings": [
+    {
+      "action": "string",
+      "ended_at": "2019-08-24T14:15:22Z",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "resource": "string",
+      "source": "string",
+      "stage": "init",
+      "started_at": "2019-08-24T14:15:22Z"
+    }
+  ]
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                     |
-| ------ | ------------------------------------------------------- | ----------- | -------------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|----------------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuildTimings](schemas.md#codersdkworkspacebuildtimings) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).
@@ -1064,7 +1170,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 ### Parameters
 
 | Name        | In    | Type              | Required | Description     |
-| ----------- | ----- | ----------------- | -------- | --------------- |
+|-------------|-------|-------------------|----------|-----------------|
 | `workspace` | path  | string(uuid)      | true     | Workspace ID    |
 | `after_id`  | query | string(uuid)      | false    | After ID        |
 | `limit`     | query | integer           | false    | Page limit      |
@@ -1077,164 +1183,193 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 [
-	{
-		"build_number": 0,
-		"created_at": "2019-08-24T14:15:22Z",
-		"daily_cost": 0,
-		"deadline": "2019-08-24T14:15:22Z",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-		"initiator_name": "string",
-		"job": {
-			"canceled_at": "2019-08-24T14:15:22Z",
-			"completed_at": "2019-08-24T14:15:22Z",
-			"created_at": "2019-08-24T14:15:22Z",
-			"error": "string",
-			"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-			"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"queue_position": 0,
-			"queue_size": 0,
-			"started_at": "2019-08-24T14:15:22Z",
-			"status": "pending",
-			"tags": {
-				"property1": "string",
-				"property2": "string"
-			},
-			"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-		},
-		"max_deadline": "2019-08-24T14:15:22Z",
-		"reason": "initiator",
-		"resources": [
-			{
-				"agents": [
-					{
-						"api_version": "string",
-						"apps": [
-							{
-								"command": "string",
-								"display_name": "string",
-								"external": true,
-								"health": "disabled",
-								"healthcheck": {
-									"interval": 0,
-									"threshold": 0,
-									"url": "string"
-								},
-								"hidden": true,
-								"icon": "string",
-								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-								"sharing_level": "owner",
-								"slug": "string",
-								"subdomain": true,
-								"subdomain_name": "string",
-								"url": "string"
-							}
-						],
-						"architecture": "string",
-						"connection_timeout_seconds": 0,
-						"created_at": "2019-08-24T14:15:22Z",
-						"directory": "string",
-						"disconnected_at": "2019-08-24T14:15:22Z",
-						"display_apps": ["vscode"],
-						"environment_variables": {
-							"property1": "string",
-							"property2": "string"
-						},
-						"expanded_directory": "string",
-						"first_connected_at": "2019-08-24T14:15:22Z",
-						"health": {
-							"healthy": false,
-							"reason": "agent has lost connection"
-						},
-						"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-						"instance_id": "string",
-						"last_connected_at": "2019-08-24T14:15:22Z",
-						"latency": {
-							"property1": {
-								"latency_ms": 0,
-								"preferred": true
-							},
-							"property2": {
-								"latency_ms": 0,
-								"preferred": true
-							}
-						},
-						"lifecycle_state": "created",
-						"log_sources": [
-							{
-								"created_at": "2019-08-24T14:15:22Z",
-								"display_name": "string",
-								"icon": "string",
-								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-								"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-							}
-						],
-						"logs_length": 0,
-						"logs_overflowed": true,
-						"name": "string",
-						"operating_system": "string",
-						"ready_at": "2019-08-24T14:15:22Z",
-						"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-						"scripts": [
-							{
-								"cron": "string",
-								"display_name": "string",
-								"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-								"log_path": "string",
-								"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-								"run_on_start": true,
-								"run_on_stop": true,
-								"script": "string",
-								"start_blocks_login": true,
-								"timeout": 0
-							}
-						],
-						"started_at": "2019-08-24T14:15:22Z",
-						"startup_script_behavior": "blocking",
-						"status": "connecting",
-						"subsystems": ["envbox"],
-						"troubleshooting_url": "string",
-						"updated_at": "2019-08-24T14:15:22Z",
-						"version": "string"
-					}
-				],
-				"created_at": "2019-08-24T14:15:22Z",
-				"daily_cost": 0,
-				"hide": true,
-				"icon": "string",
-				"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-				"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-				"metadata": [
-					{
-						"key": "string",
-						"sensitive": true,
-						"value": "string"
-					}
-				],
-				"name": "string",
-				"type": "string",
-				"workspace_transition": "start"
-			}
-		],
-		"status": "pending",
-		"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-		"template_version_name": "string",
-		"transition": "start",
-		"updated_at": "2019-08-24T14:15:22Z",
-		"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-		"workspace_name": "string",
-		"workspace_owner_avatar_url": "string",
-		"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-		"workspace_owner_name": "string"
-	}
+  {
+    "build_number": 0,
+    "created_at": "2019-08-24T14:15:22Z",
+    "daily_cost": 0,
+    "deadline": "2019-08-24T14:15:22Z",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+    "initiator_name": "string",
+    "job": {
+      "available_workers": [
+        "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+      ],
+      "canceled_at": "2019-08-24T14:15:22Z",
+      "completed_at": "2019-08-24T14:15:22Z",
+      "created_at": "2019-08-24T14:15:22Z",
+      "error": "string",
+      "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+      "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "input": {
+        "error": "string",
+        "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+        "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+      },
+      "metadata": {
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+        "template_name": "string",
+        "template_version_name": "string",
+        "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+        "workspace_name": "string"
+      },
+      "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+      "queue_position": 0,
+      "queue_size": 0,
+      "started_at": "2019-08-24T14:15:22Z",
+      "status": "pending",
+      "tags": {
+        "property1": "string",
+        "property2": "string"
+      },
+      "type": "template_version_import",
+      "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+    },
+    "matched_provisioners": {
+      "available": 0,
+      "count": 0,
+      "most_recently_seen": "2019-08-24T14:15:22Z"
+    },
+    "max_deadline": "2019-08-24T14:15:22Z",
+    "reason": "initiator",
+    "resources": [
+      {
+        "agents": [
+          {
+            "api_version": "string",
+            "apps": [
+              {
+                "command": "string",
+                "display_name": "string",
+                "external": true,
+                "health": "disabled",
+                "healthcheck": {
+                  "interval": 0,
+                  "threshold": 0,
+                  "url": "string"
+                },
+                "hidden": true,
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "open_in": "slim-window",
+                "sharing_level": "owner",
+                "slug": "string",
+                "subdomain": true,
+                "subdomain_name": "string",
+                "url": "string"
+              }
+            ],
+            "architecture": "string",
+            "connection_timeout_seconds": 0,
+            "created_at": "2019-08-24T14:15:22Z",
+            "directory": "string",
+            "disconnected_at": "2019-08-24T14:15:22Z",
+            "display_apps": [
+              "vscode"
+            ],
+            "environment_variables": {
+              "property1": "string",
+              "property2": "string"
+            },
+            "expanded_directory": "string",
+            "first_connected_at": "2019-08-24T14:15:22Z",
+            "health": {
+              "healthy": false,
+              "reason": "agent has lost connection"
+            },
+            "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+            "instance_id": "string",
+            "last_connected_at": "2019-08-24T14:15:22Z",
+            "latency": {
+              "property1": {
+                "latency_ms": 0,
+                "preferred": true
+              },
+              "property2": {
+                "latency_ms": 0,
+                "preferred": true
+              }
+            },
+            "lifecycle_state": "created",
+            "log_sources": [
+              {
+                "created_at": "2019-08-24T14:15:22Z",
+                "display_name": "string",
+                "icon": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+              }
+            ],
+            "logs_length": 0,
+            "logs_overflowed": true,
+            "name": "string",
+            "operating_system": "string",
+            "ready_at": "2019-08-24T14:15:22Z",
+            "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+            "scripts": [
+              {
+                "cron": "string",
+                "display_name": "string",
+                "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+                "log_path": "string",
+                "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+                "run_on_start": true,
+                "run_on_stop": true,
+                "script": "string",
+                "start_blocks_login": true,
+                "timeout": 0
+              }
+            ],
+            "started_at": "2019-08-24T14:15:22Z",
+            "startup_script_behavior": "blocking",
+            "status": "connecting",
+            "subsystems": [
+              "envbox"
+            ],
+            "troubleshooting_url": "string",
+            "updated_at": "2019-08-24T14:15:22Z",
+            "version": "string"
+          }
+        ],
+        "created_at": "2019-08-24T14:15:22Z",
+        "daily_cost": 0,
+        "hide": true,
+        "icon": "string",
+        "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+        "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+        "metadata": [
+          {
+            "key": "string",
+            "sensitive": true,
+            "value": "string"
+          }
+        ],
+        "name": "string",
+        "type": "string",
+        "workspace_transition": "start"
+      }
+    ],
+    "status": "pending",
+    "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+    "template_version_name": "string",
+    "transition": "start",
+    "updated_at": "2019-08-24T14:15:22Z",
+    "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+    "workspace_name": "string",
+    "workspace_owner_avatar_url": "string",
+    "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+    "workspace_owner_name": "string"
+  }
 ]
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                                |
-| ------ | ------------------------------------------------------- | ----------- | --------------------------------------------------------------------- |
+|--------|---------------------------------------------------------|-------------|-----------------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | array of [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 <h3 id="get-workspace-builds-by-workspace-id-responseschema">Response Schema</h3>
@@ -1242,7 +1377,7 @@ curl -X GET http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 Status Code **200**
 
 | Name                             | Type                                                                                                   | Required | Restrictions | Description                                                                                                                                                                                                                                    |
-| -------------------------------- | ------------------------------------------------------------------------------------------------------ | -------- | ------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+|----------------------------------|--------------------------------------------------------------------------------------------------------|----------|--------------|------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------|
 | `[array item]`                   | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `» build_number`                 | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `» created_at`                   | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1252,6 +1387,7 @@ Status Code **200**
 | `» initiator_id`                 | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `» initiator_name`               | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» job`                          | [codersdk.ProvisionerJob](schemas.md#codersdkprovisionerjob)                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» available_workers`           | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
 | `»» canceled_at`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» completed_at`                | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» created_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
@@ -1259,13 +1395,31 @@ Status Code **200**
 | `»» error_code`                  | [codersdk.JobErrorCode](schemas.md#codersdkjoberrorcode)                                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» file_id`                     | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» id`                          | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» input`                       | [codersdk.ProvisionerJobInput](schemas.md#codersdkprovisionerjobinput)                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» error`                      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_version_id`        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_build_id`         | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»» metadata`                    | [codersdk.ProvisionerJobMetadata](schemas.md#codersdkprovisionerjobmetadata)                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_display_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_icon`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_id`                | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_name`              | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» template_version_name`      | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_id`               | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»» workspace_name`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» organization_id`             | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_position`              | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» queue_size`                  | integer                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»» started_at`                  | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `»» status`                      | [codersdk.ProvisionerJobStatus](schemas.md#codersdkprovisionerjobstatus)                               | false    |              |                                                                                                                                                                                                                                                |
 | `»» tags`                        | object                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `»»» [any property]`             | string                                                                                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» type`                        | [codersdk.ProvisionerJobType](schemas.md#codersdkprovisionerjobtype)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»» worker_id`                   | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `» matched_provisioners`         | [codersdk.MatchedProvisioners](schemas.md#codersdkmatchedprovisioners)                                 | false    |              |                                                                                                                                                                                                                                                |
+| `»» available`                   | integer                                                                                                | false    |              | Available is the number of provisioner daemons that are available to take jobs. This may be less than the count if some provisioners are busy or have been stopped.                                                                            |
+| `»» count`                       | integer                                                                                                | false    |              | Count is the number of provisioner daemons that matched the given tags. If the count is 0, it means no provisioner daemons matched the requested tags.                                                                                         |
+| `»» most_recently_seen`          | string(date-time)                                                                                      | false    |              | Most recently seen is the most recently seen time of the set of matched provisioners. If no provisioners matched, this field will be null.                                                                                                     |
 | `» max_deadline`                 | string(date-time)                                                                                      | false    |              |                                                                                                                                                                                                                                                |
 | `» reason`                       | [codersdk.BuildReason](schemas.md#codersdkbuildreason)                                                 | false    |              |                                                                                                                                                                                                                                                |
 | `» resources`                    | array                                                                                                  | false    |              |                                                                                                                                                                                                                                                |
@@ -1283,6 +1437,7 @@ Status Code **200**
 | `»»»» hidden`                    | boolean                                                                                                | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» icon`                      | string                                                                                                 | false    |              | Icon is a relative path or external URL that specifies an icon to be displayed in the dashboard.                                                                                                                                               |
 | `»»»» id`                        | string(uuid)                                                                                           | false    |              |                                                                                                                                                                                                                                                |
+| `»»»» open_in`                   | [codersdk.WorkspaceAppOpenIn](schemas.md#codersdkworkspaceappopenin)                                   | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» sharing_level`             | [codersdk.WorkspaceAppSharingLevel](schemas.md#codersdkworkspaceappsharinglevel)                       | false    |              |                                                                                                                                                                                                                                                |
 | `»»»» slug`                      | string                                                                                                 | false    |              | Slug is a unique identifier within the agent.                                                                                                                                                                                                  |
 | `»»»» subdomain`                 | boolean                                                                                                | false    |              | Subdomain denotes whether the app should be accessed via a path on the `coder server` or via a hostname-based dev URL. If this is set to true and there is no app wildcard configured on the server, the app will not be accessible in the UI. |
@@ -1366,7 +1521,7 @@ Status Code **200**
 #### Enumerated Values
 
 | Property                  | Value                         |
-| ------------------------- | ----------------------------- |
+|---------------------------|-------------------------------|
 | `error_code`              | `REQUIRED_TEMPLATE_VARIABLES` |
 | `status`                  | `pending`                     |
 | `status`                  | `running`                     |
@@ -1374,6 +1529,9 @@ Status Code **200**
 | `status`                  | `canceling`                   |
 | `status`                  | `canceled`                    |
 | `status`                  | `failed`                      |
+| `type`                    | `template_version_import`     |
+| `type`                    | `workspace_build`             |
+| `type`                    | `template_version_dry_run`    |
 | `reason`                  | `initiator`                   |
 | `reason`                  | `autostart`                   |
 | `reason`                  | `autostop`                    |
@@ -1381,6 +1539,8 @@ Status Code **200**
 | `health`                  | `initializing`                |
 | `health`                  | `healthy`                     |
 | `health`                  | `unhealthy`                   |
+| `open_in`                 | `slim-window`                 |
+| `open_in`                 | `tab`                         |
 | `sharing_level`           | `owner`                       |
 | `sharing_level`           | `authenticated`               |
 | `sharing_level`           | `public`                      |
@@ -1436,25 +1596,27 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 {
-	"dry_run": true,
-	"log_level": "debug",
-	"orphan": true,
-	"rich_parameter_values": [
-		{
-			"name": "string",
-			"value": "string"
-		}
-	],
-	"state": [0],
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"transition": "create"
+  "dry_run": true,
+  "log_level": "debug",
+  "orphan": true,
+  "rich_parameter_values": [
+    {
+      "name": "string",
+      "value": "string"
+    }
+  ],
+  "state": [
+    0
+  ],
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "transition": "start"
 }
 ```
 
 ### Parameters
 
 | Name        | In   | Type                                                                                   | Required | Description                    |
-| ----------- | ---- | -------------------------------------------------------------------------------------- | -------- | ------------------------------ |
+|-------------|------|----------------------------------------------------------------------------------------|----------|--------------------------------|
 | `workspace` | path | string(uuid)                                                                           | true     | Workspace ID                   |
 | `body`      | body | [codersdk.CreateWorkspaceBuildRequest](schemas.md#codersdkcreateworkspacebuildrequest) | true     | Create workspace build request |
 
@@ -1464,162 +1626,191 @@ curl -X POST http://coder-server:8080/api/v2/workspaces/{workspace}/builds \
 
 ```json
 {
-	"build_number": 0,
-	"created_at": "2019-08-24T14:15:22Z",
-	"daily_cost": 0,
-	"deadline": "2019-08-24T14:15:22Z",
-	"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-	"initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
-	"initiator_name": "string",
-	"job": {
-		"canceled_at": "2019-08-24T14:15:22Z",
-		"completed_at": "2019-08-24T14:15:22Z",
-		"created_at": "2019-08-24T14:15:22Z",
-		"error": "string",
-		"error_code": "REQUIRED_TEMPLATE_VARIABLES",
-		"file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
-		"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-		"queue_position": 0,
-		"queue_size": 0,
-		"started_at": "2019-08-24T14:15:22Z",
-		"status": "pending",
-		"tags": {
-			"property1": "string",
-			"property2": "string"
-		},
-		"worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
-	},
-	"max_deadline": "2019-08-24T14:15:22Z",
-	"reason": "initiator",
-	"resources": [
-		{
-			"agents": [
-				{
-					"api_version": "string",
-					"apps": [
-						{
-							"command": "string",
-							"display_name": "string",
-							"external": true,
-							"health": "disabled",
-							"healthcheck": {
-								"interval": 0,
-								"threshold": 0,
-								"url": "string"
-							},
-							"hidden": true,
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"sharing_level": "owner",
-							"slug": "string",
-							"subdomain": true,
-							"subdomain_name": "string",
-							"url": "string"
-						}
-					],
-					"architecture": "string",
-					"connection_timeout_seconds": 0,
-					"created_at": "2019-08-24T14:15:22Z",
-					"directory": "string",
-					"disconnected_at": "2019-08-24T14:15:22Z",
-					"display_apps": ["vscode"],
-					"environment_variables": {
-						"property1": "string",
-						"property2": "string"
-					},
-					"expanded_directory": "string",
-					"first_connected_at": "2019-08-24T14:15:22Z",
-					"health": {
-						"healthy": false,
-						"reason": "agent has lost connection"
-					},
-					"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-					"instance_id": "string",
-					"last_connected_at": "2019-08-24T14:15:22Z",
-					"latency": {
-						"property1": {
-							"latency_ms": 0,
-							"preferred": true
-						},
-						"property2": {
-							"latency_ms": 0,
-							"preferred": true
-						}
-					},
-					"lifecycle_state": "created",
-					"log_sources": [
-						{
-							"created_at": "2019-08-24T14:15:22Z",
-							"display_name": "string",
-							"icon": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
-						}
-					],
-					"logs_length": 0,
-					"logs_overflowed": true,
-					"name": "string",
-					"operating_system": "string",
-					"ready_at": "2019-08-24T14:15:22Z",
-					"resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
-					"scripts": [
-						{
-							"cron": "string",
-							"display_name": "string",
-							"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-							"log_path": "string",
-							"log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
-							"run_on_start": true,
-							"run_on_stop": true,
-							"script": "string",
-							"start_blocks_login": true,
-							"timeout": 0
-						}
-					],
-					"started_at": "2019-08-24T14:15:22Z",
-					"startup_script_behavior": "blocking",
-					"status": "connecting",
-					"subsystems": ["envbox"],
-					"troubleshooting_url": "string",
-					"updated_at": "2019-08-24T14:15:22Z",
-					"version": "string"
-				}
-			],
-			"created_at": "2019-08-24T14:15:22Z",
-			"daily_cost": 0,
-			"hide": true,
-			"icon": "string",
-			"id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-			"job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
-			"metadata": [
-				{
-					"key": "string",
-					"sensitive": true,
-					"value": "string"
-				}
-			],
-			"name": "string",
-			"type": "string",
-			"workspace_transition": "start"
-		}
-	],
-	"status": "pending",
-	"template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
-	"template_version_name": "string",
-	"transition": "start",
-	"updated_at": "2019-08-24T14:15:22Z",
-	"workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
-	"workspace_name": "string",
-	"workspace_owner_avatar_url": "string",
-	"workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
-	"workspace_owner_name": "string"
+  "build_number": 0,
+  "created_at": "2019-08-24T14:15:22Z",
+  "daily_cost": 0,
+  "deadline": "2019-08-24T14:15:22Z",
+  "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+  "initiator_id": "06588898-9a84-4b35-ba8f-f9cbd64946f3",
+  "initiator_name": "string",
+  "job": {
+    "available_workers": [
+      "497f6eca-6276-4993-bfeb-53cbbbba6f08"
+    ],
+    "canceled_at": "2019-08-24T14:15:22Z",
+    "completed_at": "2019-08-24T14:15:22Z",
+    "created_at": "2019-08-24T14:15:22Z",
+    "error": "string",
+    "error_code": "REQUIRED_TEMPLATE_VARIABLES",
+    "file_id": "8a0cfb4f-ddc9-436d-91bb-75133c583767",
+    "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+    "input": {
+      "error": "string",
+      "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+      "workspace_build_id": "badaf2eb-96c5-4050-9f1d-db2d39ca5478"
+    },
+    "metadata": {
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_id": "c6d67e98-83ea-49f0-8812-e4abae2b68bc",
+      "template_name": "string",
+      "template_version_name": "string",
+      "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+      "workspace_name": "string"
+    },
+    "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
+    "queue_position": 0,
+    "queue_size": 0,
+    "started_at": "2019-08-24T14:15:22Z",
+    "status": "pending",
+    "tags": {
+      "property1": "string",
+      "property2": "string"
+    },
+    "type": "template_version_import",
+    "worker_id": "ae5fa6f7-c55b-40c1-b40a-b36ac467652b"
+  },
+  "matched_provisioners": {
+    "available": 0,
+    "count": 0,
+    "most_recently_seen": "2019-08-24T14:15:22Z"
+  },
+  "max_deadline": "2019-08-24T14:15:22Z",
+  "reason": "initiator",
+  "resources": [
+    {
+      "agents": [
+        {
+          "api_version": "string",
+          "apps": [
+            {
+              "command": "string",
+              "display_name": "string",
+              "external": true,
+              "health": "disabled",
+              "healthcheck": {
+                "interval": 0,
+                "threshold": 0,
+                "url": "string"
+              },
+              "hidden": true,
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "open_in": "slim-window",
+              "sharing_level": "owner",
+              "slug": "string",
+              "subdomain": true,
+              "subdomain_name": "string",
+              "url": "string"
+            }
+          ],
+          "architecture": "string",
+          "connection_timeout_seconds": 0,
+          "created_at": "2019-08-24T14:15:22Z",
+          "directory": "string",
+          "disconnected_at": "2019-08-24T14:15:22Z",
+          "display_apps": [
+            "vscode"
+          ],
+          "environment_variables": {
+            "property1": "string",
+            "property2": "string"
+          },
+          "expanded_directory": "string",
+          "first_connected_at": "2019-08-24T14:15:22Z",
+          "health": {
+            "healthy": false,
+            "reason": "agent has lost connection"
+          },
+          "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+          "instance_id": "string",
+          "last_connected_at": "2019-08-24T14:15:22Z",
+          "latency": {
+            "property1": {
+              "latency_ms": 0,
+              "preferred": true
+            },
+            "property2": {
+              "latency_ms": 0,
+              "preferred": true
+            }
+          },
+          "lifecycle_state": "created",
+          "log_sources": [
+            {
+              "created_at": "2019-08-24T14:15:22Z",
+              "display_name": "string",
+              "icon": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "workspace_agent_id": "7ad2e618-fea7-4c1a-b70a-f501566a72f1"
+            }
+          ],
+          "logs_length": 0,
+          "logs_overflowed": true,
+          "name": "string",
+          "operating_system": "string",
+          "ready_at": "2019-08-24T14:15:22Z",
+          "resource_id": "4d5215ed-38bb-48ed-879a-fdb9ca58522f",
+          "scripts": [
+            {
+              "cron": "string",
+              "display_name": "string",
+              "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+              "log_path": "string",
+              "log_source_id": "4197ab25-95cf-4b91-9c78-f7f2af5d353a",
+              "run_on_start": true,
+              "run_on_stop": true,
+              "script": "string",
+              "start_blocks_login": true,
+              "timeout": 0
+            }
+          ],
+          "started_at": "2019-08-24T14:15:22Z",
+          "startup_script_behavior": "blocking",
+          "status": "connecting",
+          "subsystems": [
+            "envbox"
+          ],
+          "troubleshooting_url": "string",
+          "updated_at": "2019-08-24T14:15:22Z",
+          "version": "string"
+        }
+      ],
+      "created_at": "2019-08-24T14:15:22Z",
+      "daily_cost": 0,
+      "hide": true,
+      "icon": "string",
+      "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
+      "job_id": "453bd7d7-5355-4d6d-a38e-d9e7eb218c3f",
+      "metadata": [
+        {
+          "key": "string",
+          "sensitive": true,
+          "value": "string"
+        }
+      ],
+      "name": "string",
+      "type": "string",
+      "workspace_transition": "start"
+    }
+  ],
+  "status": "pending",
+  "template_version_id": "0ba39c92-1f1b-4c32-aa3e-9925d7713eb1",
+  "template_version_name": "string",
+  "transition": "start",
+  "updated_at": "2019-08-24T14:15:22Z",
+  "workspace_id": "0967198e-ec7b-4c6b-b4d3-f71244cadbe9",
+  "workspace_name": "string",
+  "workspace_owner_avatar_url": "string",
+  "workspace_owner_id": "e7078695-5279-4c86-8774-3ac2367a2fc7",
+  "workspace_owner_name": "string"
 }
 ```
 
 ### Responses
 
 | Status | Meaning                                                 | Description | Schema                                                       |
-| ------ | ------------------------------------------------------- | ----------- | ------------------------------------------------------------ |
+|--------|---------------------------------------------------------|-------------|--------------------------------------------------------------|
 | 200    | [OK](https://tools.ietf.org/html/rfc7231#section-6.3.1) | OK          | [codersdk.WorkspaceBuild](schemas.md#codersdkworkspacebuild) |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

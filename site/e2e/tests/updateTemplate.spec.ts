@@ -7,9 +7,15 @@ import {
 	requiresLicense,
 	updateTemplateSettings,
 } from "../helpers";
+import { login } from "../helpers";
 import { beforeCoderTest } from "../hooks";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.describe.configure({ mode: "parallel" });
+
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test("template update with new name redirects on successful submit", async ({
 	page,
@@ -24,8 +30,8 @@ test("add and remove a group", async ({ page }) => {
 	requiresLicense();
 
 	const orgName = defaultOrganizationName;
-	const templateName = await createTemplate(page, undefined, orgName);
-	const groupName = await createGroup(page);
+	const templateName = await createTemplate(page);
+	const groupName = await createGroup(page, orgName);
 
 	await page.goto(
 		`/templates/${orgName}/${templateName}/settings/permissions`,
@@ -61,7 +67,7 @@ test("require latest version", async ({ page }) => {
 	await expectUrl(page).toHavePathName(`/templates/${templateName}/settings`);
 	let checkbox = await page.waitForSelector("#require_active_version");
 	await checkbox.click();
-	await page.getByTestId("form-submit").click();
+	await page.getByRole("button", { name: /save/i }).click();
 
 	await page.goto(`/templates/${templateName}/settings`, {
 		waitUntil: "domcontentloaded",

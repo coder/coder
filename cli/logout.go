@@ -68,7 +68,7 @@ func (r *RootCmd) logout() *serpent.Command {
 				errorString := strings.TrimRight(errorStringBuilder.String(), "\n")
 				return xerrors.New("Failed to log out.\n" + errorString)
 			}
-			_, _ = fmt.Fprintf(inv.Stdout, Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
+			_, _ = fmt.Fprint(inv.Stdout, Caret+"You are no longer logged in. You can log in using 'coder login <url>'.\n")
 			return nil
 		},
 	}

@@ -1,0 +1,27 @@
+coder v0.0.0-devel
+
+USAGE:
+  coder provisioner jobs list [flags]
+
+  List provisioner jobs
+
+  Aliases: ls
+
+OPTIONS:
+  -O, --org string, $CODER_ORGANIZATION
+          Select which organization (uuid or name) to use.
+
+  -c, --column [id|created at|started at|completed at|canceled at|error|error code|status|worker id|file id|tags|queue position|queue size|organization id|template version id|workspace build id|type|available workers|template version name|template id|template name|template display name|template icon|workspace id|workspace name|organization|queue] (default: created at,id,organization,status,type,queue,tags)
+          Columns to display in table output.
+
+  -l, --limit int, $CODER_PROVISIONER_JOB_LIST_LIMIT (default: 50)
+          Limit the number of jobs returned.
+
+  -o, --output table|json (default: table)
+          Output format.
+
+  -s, --status [pending|running|succeeded|canceling|canceled|failed|unknown], $CODER_PROVISIONER_JOB_LIST_STATUS
+          Filter by job status.
+
+———
+Run `coder --help` for a list of global options.

@@ -13,8 +13,6 @@ import (
 
 	"cdr.dev/slog"
 	"cdr.dev/slog/sloggers/sloghuman"
-	"cdr.dev/slog/sloggers/slogtest"
-
 	"github.com/coder/coder/v2/codersdk"
 	"github.com/coder/coder/v2/testutil"
 	"github.com/coder/serpent"
@@ -24,7 +22,7 @@ func Test_configureServerTLS(t *testing.T) {
 	t.Parallel()
 	t.Run("DefaultNoInsecureCiphers", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil)
+		logger := testutil.Logger(t)
 		cfg, err := configureServerTLS(context.Background(), logger, "tls12", "none", nil, nil, "", nil, false)
 		require.NoError(t, err)
 
@@ -251,7 +249,7 @@ func TestRedirectHTTPToHTTPSDeprecation(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			ctx := testutil.Context(t, testutil.WaitShort)
-			logger := slogtest.Make(t, nil)
+			logger := testutil.Logger(t)
 			flags := pflag.NewFlagSet("test", pflag.ContinueOnError)
 			_ = flags.Bool("tls-redirect-http-to-https", true, "")
 			err := flags.Parse(tc.flags)
@@ -353,13 +351,23 @@ func TestEscapePostgresURLUserInfo(t *testing.T) {
 			output: "",
 			err:    xerrors.New("parse postgres url: parse \"postgres://local host:5432/coder\": invalid character \" \" in host name"),
 		},
+		{
+			input:  "postgres://coder:co?der@localhost:5432/coder",
+			output: "postgres://coder:co%3Fder@localhost:5432/coder",
+			err:    nil,
+		},
+		{
+			input:  "postgres://coder:co#der@localhost:5432/coder",
+			output: "postgres://coder:co%23der@localhost:5432/coder",
+			err:    nil,
+		},
 	}
 	for _, tc := range testcases {
 		tc := tc
 		t.Run(tc.input, func(t *testing.T) {
 			t.Parallel()
 			o, err := escapePostgresURLUserInfo(tc.input)
-			require.Equal(t, tc.output, o)
+			assert.Equal(t, tc.output, o)
 			if tc.err != nil {
 				require.Error(t, err)
 				require.EqualValues(t, tc.err.Error(), err.Error())

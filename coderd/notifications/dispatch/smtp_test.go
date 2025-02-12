@@ -26,7 +26,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestSMTP(t *testing.T) {
@@ -440,13 +440,9 @@ func TestSMTP(t *testing.T) {
 
 			var hp serpent.HostPort
 			require.NoError(t, hp.Set(listen.Addr().String()))
-			tc.cfg.Smarthost = hp
+			tc.cfg.Smarthost = serpent.String(hp.String())
 
-			helpers := map[string]any{
-				"base_url":     func() string { return "http://test.com" },
-				"current_year": func() string { return "2024" },
-			}
-			handler := dispatch.NewSMTPHandler(tc.cfg, helpers, logger.Named("smtp"))
+			handler := dispatch.NewSMTPHandler(tc.cfg, logger.Named("smtp"))
 
 			// Start mock SMTP server in the background.
 			var wg sync.WaitGroup
@@ -484,7 +480,7 @@ func TestSMTP(t *testing.T) {
 				Labels:    make(map[string]string),
 			}
 
-			dispatchFn, err := handler.Dispatcher(payload, subject, body)
+			dispatchFn, err := handler.Dispatcher(payload, subject, body, helpers())
 			require.NoError(t, err)
 
 			msgID := uuid.New()

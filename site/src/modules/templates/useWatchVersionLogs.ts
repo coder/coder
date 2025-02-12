@@ -20,7 +20,10 @@ export const useWatchVersionLogs = (
 			return;
 		}
 
-		if (templateVersionStatus !== "running") {
+		if (
+			templateVersionStatus !== "running" &&
+			templateVersionStatus !== "pending"
+		) {
 			return;
 		}
 

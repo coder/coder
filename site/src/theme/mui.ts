@@ -375,6 +375,11 @@ export const components = {
 			sx: {
 				marginLeft: 0,
 				marginTop: 1,
+				"&::first-letter": {
+					// Server errors are returned in all lowercase. To display them as
+					// field errors in the UI, we capitalize the first letter.
+					textTransform: "uppercase",
+				},
 			},
 		},
 	},

@@ -3,8 +3,6 @@
 package terraform_test
 
 import (
-	"archive/tar"
-	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -28,6 +26,7 @@ import (
 	"github.com/coder/coder/v2/provisioner/terraform"
 	"github.com/coder/coder/v2/provisionersdk"
 	"github.com/coder/coder/v2/provisionersdk/proto"
+	"github.com/coder/coder/v2/testutil"
 )
 
 type provisionerServeOptions struct {
@@ -46,7 +45,7 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 		opts.workDir = t.TempDir()
 	}
 	if opts.logger == nil {
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		opts.logger = &logger
 	}
 	client, server := drpc.MemTransportPipe()
@@ -76,25 +75,6 @@ func setupProvisioner(t *testing.T, opts *provisionerServeOptions) (context.Cont
 	api := proto.NewDRPCProvisionerClient(client)
 
 	return ctx, api
-}
-
-func makeTar(t *testing.T, files map[string]string) []byte {
-	t.Helper()
-	var buffer bytes.Buffer
-	writer := tar.NewWriter(&buffer)
-	for name, content := range files {
-		err := writer.WriteHeader(&tar.Header{
-			Name: name,
-			Size: int64(len(content)),
-			Mode: 0o644,
-		})
-		require.NoError(t, err)
-		_, err = writer.Write([]byte(content))
-		require.NoError(t, err)
-	}
-	err := writer.Flush()
-	require.NoError(t, err)
-	return buffer.Bytes()
 }
 
 func configure(ctx context.Context, t *testing.T, client proto.DRPCProvisionerClient, config *proto.Config) proto.DRPCProvisioner_SessionClient {
@@ -186,7 +166,7 @@ func TestProvision_Cancel(t *testing.T) {
 				binaryPath: binPath,
 			})
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, nil),
+				TemplateSourceArchive: testutil.CreateTar(t, nil),
 			})
 
 			err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -257,7 +237,7 @@ func TestProvision_CancelTimeout(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	// provisioner requires plan before apply, so test cancel with plan.
@@ -346,7 +326,7 @@ func TestProvision_TextFileBusy(t *testing.T) {
 	})
 
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, nil),
+		TemplateSourceArchive: testutil.CreateTar(t, nil),
 	})
 
 	err = sendPlan(sess, proto.WorkspaceTransition_START)
@@ -383,6 +363,8 @@ func TestProvision(t *testing.T) {
 		ExpectLogContains string
 		// If Apply is true, then send an Apply request and check we get the same Resources as in Response.
 		Apply bool
+		// Some tests may need to be skipped until the relevant provider version is released.
+		SkipReason string
 	}{
 		{
 			Name: "missing-variable",
@@ -703,6 +685,85 @@ func TestProvision(t *testing.T) {
 				}},
 			},
 		},
+		{
+			Name:       "workspace-owner-login-type",
+			SkipReason: "field will be added in provider version 1.1.0",
+			Files: map[string]string{
+				"main.tf": `terraform {
+					required_providers {
+					  coder = {
+						source  = "coder/coder"
+						version = "1.1.0"
+					  }
+					}
+				}
+
+				resource "null_resource" "example" {}
+				data "coder_workspace_owner" "me" {}
+				resource "coder_metadata" "example" {
+					resource_id = null_resource.example.id
+					item {
+						key = "login_type"
+						value = data.coder_workspace_owner.me.login_type
+					}
+				}
+				`,
+			},
+			Request: &proto.PlanRequest{
+				Metadata: &proto.Metadata{
+					WorkspaceOwnerLoginType: "github",
+				},
+			},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name: "example",
+					Type: "null_resource",
+					Metadata: []*proto.Resource_Metadata{{
+						Key:   "login_type",
+						Value: "github",
+					}},
+				}},
+			},
+		},
+		{
+			Name: "returns-modules",
+			Files: map[string]string{
+				"main.tf": `module "hello" {
+                    source = "./module"
+                  }`,
+				"module/module.tf": `
+				  resource "null_resource" "example" {}
+
+				  module "there" {
+					source = "./inner_module"
+				  }
+				`,
+				"module/inner_module/inner_module.tf": `
+				  resource "null_resource" "inner_example" {}
+				`,
+			},
+			Request: &proto.PlanRequest{},
+			Response: &proto.PlanComplete{
+				Resources: []*proto.Resource{{
+					Name:       "example",
+					Type:       "null_resource",
+					ModulePath: "module.hello",
+				}, {
+					Name:       "inner_example",
+					Type:       "null_resource",
+					ModulePath: "module.hello.module.there",
+				}},
+				Modules: []*proto.Module{{
+					Key:     "hello",
+					Version: "",
+					Source:  "./module",
+				}, {
+					Key:     "hello.there",
+					Version: "",
+					Source:  "./inner_module",
+				}},
+			},
+		},
 	}
 
 	for _, testCase := range testCases {
@@ -710,9 +771,13 @@ func TestProvision(t *testing.T) {
 		t.Run(testCase.Name, func(t *testing.T) {
 			t.Parallel()
 
+			if testCase.SkipReason != "" {
+				t.Skip(testCase.SkipReason)
+			}
+
 			ctx, api := setupProvisioner(t, nil)
 			sess := configure(ctx, t, api, &proto.Config{
-				TemplateSourceArchive: makeTar(t, testCase.Files),
+				TemplateSourceArchive: testutil.CreateTar(t, testCase.Files),
 			})
 
 			planRequest := &proto.Request{Type: &proto.Request_Plan{Plan: &proto.PlanRequest{
@@ -753,7 +818,7 @@ func TestProvision(t *testing.T) {
 			if testCase.Response != nil {
 				require.Equal(t, testCase.Response.Error, planComplete.Error)
 
-				// Remove randomly generated data.
+				// Remove randomly generated data and sort by name.
 				normalizeResources(planComplete.Resources)
 				resourcesGot, err := json.Marshal(planComplete.Resources)
 				require.NoError(t, err)
@@ -766,6 +831,12 @@ func TestProvision(t *testing.T) {
 				parametersWant, err := json.Marshal(testCase.Response.Parameters)
 				require.NoError(t, err)
 				require.Equal(t, string(parametersWant), string(parametersGot))
+
+				modulesGot, err := json.Marshal(planComplete.Modules)
+				require.NoError(t, err)
+				modulesWant, err := json.Marshal(testCase.Response.Modules)
+				require.NoError(t, err)
+				require.Equal(t, string(modulesWant), string(modulesGot))
 			}
 
 			if testCase.Apply {
@@ -806,6 +877,9 @@ func normalizeResources(resources []*proto.Resource) {
 			agent.Auth = &proto.Agent_Token{}
 		}
 	}
+	sort.Slice(resources, func(i, j int) bool {
+		return resources[i].Name < resources[j].Name
+	})
 }
 
 // nolint:paralleltest
@@ -817,7 +891,7 @@ func TestProvision_ExtraEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": `resource "null_resource" "A" {}`}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
@@ -867,7 +941,7 @@ func TestProvision_SafeEnv(t *testing.T) {
 
 	ctx, api := setupProvisioner(t, nil)
 	sess := configure(ctx, t, api, &proto.Config{
-		TemplateSourceArchive: makeTar(t, map[string]string{"main.tf": echoResource}),
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{"main.tf": echoResource}),
 	})
 
 	err := sendPlan(sess, proto.WorkspaceTransition_START)
@@ -882,4 +956,21 @@ func TestProvision_SafeEnv(t *testing.T) {
 	require.Contains(t, log, passedValue)
 	require.NotContains(t, log, secretValue)
 	require.Contains(t, log, "CODER_")
+}
+
+func TestProvision_MalformedModules(t *testing.T) {
+	t.Parallel()
+
+	ctx, api := setupProvisioner(t, nil)
+	sess := configure(ctx, t, api, &proto.Config{
+		TemplateSourceArchive: testutil.CreateTar(t, map[string]string{
+			"main.tf":          `module "hello" { source = "./module" }`,
+			"module/module.tf": `resource "null_`,
+		}),
+	})
+
+	err := sendPlan(sess, proto.WorkspaceTransition_START)
+	require.NoError(t, err)
+	log := readProvisionLog(t, sess)
+	require.Contains(t, log, "Invalid block definition")
 }

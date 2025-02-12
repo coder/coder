@@ -11,6 +11,7 @@ import (
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/coderd/database"
+	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
 	"github.com/coder/quartz"
 )
@@ -53,10 +54,12 @@ func WithKeyDuration(keyDuration time.Duration) RotatorOption {
 // StartRotator starts a background process that rotates keys in the database.
 // It ensures there's at least one valid key per feature prior to returning.
 // Canceling the provided context will stop the background process.
-func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) error {
+func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, opts ...RotatorOption) {
+	//nolint:gocritic // KeyRotator can only rotate crypto keys.
+	ctx = dbauthz.AsKeyRotator(ctx)
 	kr := &rotator{
 		db:          db,
-		logger:      logger,
+		logger:      logger.Named("keyrotator"),
 		clock:       quartz.NewReal(),
 		keyDuration: DefaultKeyDuration,
 		features:    database.AllCryptoKeyFeatureValues(),
@@ -68,12 +71,10 @@ func StartRotator(ctx context.Context, logger slog.Logger, db database.Store, op
 
 	err := kr.rotateKeys(ctx)
 	if err != nil {
-		return xerrors.Errorf("rotate keys: %w", err)
+		kr.logger.Critical(ctx, "failed to rotate keys", slog.Error(err))
 	}
 
 	go kr.start(ctx)
-
-	return nil
 }
 
 // start begins the process of rotating keys.
@@ -161,8 +162,9 @@ func (k *rotator) rotateKeys(ctx context.Context) error {
 				}
 			}
 			return nil
-		}, &sql.TxOptions{
-			Isolation: sql.LevelRepeatableRead,
+		}, &database.TxOptions{
+			Isolation:    sql.LevelRepeatableRead,
+			TxIdentifier: "rotate_keys",
 		})
 }
 
@@ -226,9 +228,11 @@ func (k *rotator) rotateKey(ctx context.Context, tx database.Store, key database
 
 func generateNewSecret(feature database.CryptoKeyFeature) (string, error) {
 	switch feature {
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return generateKey(32)
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
+		return generateKey(64)
+	case database.CryptoKeyFeatureOIDCConvert:
 		return generateKey(64)
 	case database.CryptoKeyFeatureTailnetResume:
 		return generateKey(64)
@@ -247,9 +251,11 @@ func generateKey(length int) (string, error) {
 
 func tokenDuration(feature database.CryptoKeyFeature) time.Duration {
 	switch feature {
-	case database.CryptoKeyFeatureWorkspaceApps:
+	case database.CryptoKeyFeatureWorkspaceAppsAPIKey:
 		return WorkspaceAppsTokenDuration
-	case database.CryptoKeyFeatureOidcConvert:
+	case database.CryptoKeyFeatureWorkspaceAppsToken:
+		return WorkspaceAppsTokenDuration
+	case database.CryptoKeyFeatureOIDCConvert:
 		return OIDCConvertTokenDuration
 	case database.CryptoKeyFeatureTailnetResume:
 		return TailnetResumeTokenDuration

@@ -2,6 +2,8 @@ import { API } from "api/api";
 import type {
 	AuthorizationResponse,
 	CreateOrganizationRequest,
+	GroupSyncSettings,
+	RoleSyncSettings,
 	UpdateOrganizationRequest,
 } from "api/typesGenerated";
 import type { QueryClient } from "react-query";
@@ -115,16 +117,18 @@ export const organizations = () => {
 	};
 };
 
-export const getProvisionerDaemonsKey = (organization: string) => [
-	"organization",
-	organization,
-	"provisionerDaemons",
-];
+export const getProvisionerDaemonsKey = (
+	organization: string,
+	tags?: Record<string, string>,
+) => ["organization", organization, tags, "provisionerDaemons"];
 
-export const provisionerDaemons = (organization: string) => {
+export const provisionerDaemons = (
+	organization: string,
+	tags?: Record<string, string>,
+) => {
 	return {
-		queryKey: getProvisionerDaemonsKey(organization),
-		queryFn: () => API.getProvisionerDaemonsByOrganization(organization),
+		queryKey: getProvisionerDaemonsKey(organization, tags),
+		queryFn: () => API.getProvisionerDaemonsByOrganization(organization, tags),
 	};
 };
 
@@ -154,6 +158,18 @@ export const groupIdpSyncSettings = (organization: string) => {
 	};
 };
 
+export const patchGroupSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: GroupSyncSettings) =>
+			API.patchGroupIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(groupIdpSyncSettings(organization)),
+	};
+};
+
 export const getRoleIdpSyncSettingsKey = (organization: string) => [
 	"organizations",
 	organization,
@@ -164,6 +180,20 @@ export const roleIdpSyncSettings = (organization: string) => {
 	return {
 		queryKey: getRoleIdpSyncSettingsKey(organization),
 		queryFn: () => API.getRoleIdpSyncSettingsByOrganization(organization),
+	};
+};
+
+export const patchRoleSyncSettings = (
+	organization: string,
+	queryClient: QueryClient,
+) => {
+	return {
+		mutationFn: (request: RoleSyncSettings) =>
+			API.patchRoleIdpSyncSettings(request, organization),
+		onSuccess: async () =>
+			await queryClient.invalidateQueries(
+				getRoleIdpSyncSettingsKey(organization),
+			),
 	};
 };
 
@@ -306,5 +336,21 @@ export const organizationsPermissions = (
 				{} as Record<string, AuthorizationResponse>,
 			);
 		},
+	};
+};
+
+export const getOrganizationIdpSyncClaimFieldValuesKey = (
+	organization: string,
+	field: string,
+) => [organization, "idpSync", "fieldValues", field];
+
+export const organizationIdpSyncClaimFieldValues = (
+	organization: string,
+	field: string,
+) => {
+	return {
+		queryKey: getOrganizationIdpSyncClaimFieldValuesKey(organization, field),
+		queryFn: () =>
+			API.getOrganizationIdpSyncClaimFieldValues(organization, field),
 	};
 };

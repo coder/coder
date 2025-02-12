@@ -26,6 +26,7 @@ import {
 	ActiveUserChart,
 	ActiveUsersTitle,
 } from "components/ActiveUserChart/ActiveUserChart";
+import { Avatar } from "components/Avatar/Avatar";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -35,7 +36,6 @@ import {
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
 import { Stack } from "components/Stack/Stack";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
 import {
 	addHours,
 	addWeeks,
@@ -249,7 +249,7 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 		<Panel {...panelProps}>
 			<PanelHeader>
 				<PanelTitle>
-					<ActiveUsersTitle />
+					<ActiveUsersTitle interval={interval} />
 				</PanelTitle>
 			</PanelHeader>
 			<PanelContent>
@@ -258,7 +258,6 @@ const ActiveUsersPanel: FC<ActiveUsersPanelProps> = ({
 				{data && data.length > 0 && (
 					<ActiveUserChart
 						interval={interval}
-						userLimit={userLimit}
 						data={data.map((d) => ({
 							amount: d.active_users,
 							date: d.start_time,
@@ -317,10 +316,7 @@ const UsersLatencyPanel: FC<UsersLatencyPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div
@@ -388,10 +384,7 @@ const UsersActivityPanel: FC<UsersActivityPanelProps> = ({
 								}}
 							>
 								<div css={{ display: "flex", alignItems: "center", gap: 12 }}>
-									<UserAvatar
-										username={row.username}
-										avatarURL={row.avatar_url}
-									/>
+									<Avatar fallback={row.username} src={row.avatar_url} />
 									<div css={{ fontWeight: 500 }}>{row.username}</div>
 								</div>
 								<div

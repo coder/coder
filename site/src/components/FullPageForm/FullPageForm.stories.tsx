@@ -1,8 +1,8 @@
 import TextField from "@mui/material/TextField";
-import { action } from "@storybook/addon-actions";
 import type { Meta, StoryObj } from "@storybook/react";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import type { FC } from "react";
-import { FormFooter } from "../FormFooter/FormFooter";
 import { Stack } from "../Stack/Stack";
 import { FullPageForm, type FullPageFormProps } from "./FullPageForm";
 
@@ -16,7 +16,10 @@ const Template: FC<FullPageFormProps> = (props) => (
 			<Stack>
 				<TextField fullWidth label="Field 1" name="field1" />
 				<TextField fullWidth label="Field 2" name="field2" />
-				<FormFooter isLoading={false} onCancel={action("cancel")} />
+				<FormFooter>
+					<Button variant="outline">Cancel</Button>
+					<Button type="submit">Save</Button>
+				</FormFooter>
 			</Stack>
 		</form>
 	</FullPageForm>

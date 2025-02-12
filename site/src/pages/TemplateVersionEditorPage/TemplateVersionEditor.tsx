@@ -2,13 +2,11 @@ import { type Interpolation, type Theme, useTheme } from "@emotion/react";
 import CreateIcon from "@mui/icons-material/AddOutlined";
 import ArrowBackOutlined from "@mui/icons-material/ArrowBackOutlined";
 import CloseOutlined from "@mui/icons-material/CloseOutlined";
-import PlayArrowOutlined from "@mui/icons-material/PlayArrowOutlined";
 import WarningOutlined from "@mui/icons-material/WarningOutlined";
-import AlertTitle from "@mui/material/AlertTitle";
 import Button from "@mui/material/Button";
-import ButtonGroup from "@mui/material/ButtonGroup";
 import IconButton from "@mui/material/IconButton";
 import Tooltip from "@mui/material/Tooltip";
+import { getErrorDetail, getErrorMessage } from "api/errors";
 import type {
 	ProvisionerJobLog,
 	Template,
@@ -17,7 +15,7 @@ import type {
 	VariableValue,
 	WorkspaceResource,
 } from "api/typesGenerated";
-import { Alert, AlertDetail } from "components/Alert/Alert";
+import { Alert } from "components/Alert/Alert";
 import { Sidebar } from "components/FullPageLayout/Sidebar";
 import {
 	Topbar,
@@ -27,8 +25,13 @@ import {
 	TopbarDivider,
 	TopbarIconButton,
 } from "components/FullPageLayout/Topbar";
+import { displayError } from "components/GlobalSnackbar/utils";
 import { Loader } from "components/Loader/Loader";
+import { PlayIcon } from "lucide-react";
 import { linkToTemplate, useLinks } from "modules/navigation";
+import { ProvisionerAlert } from "modules/provisioners/ProvisionerAlert";
+import { AlertVariant } from "modules/provisioners/ProvisionerAlert";
+import { ProvisionerStatusAlert } from "modules/provisioners/ProvisionerStatusAlert";
 import { TemplateFileTree } from "modules/templates/TemplateFiles/TemplateFileTree";
 import { isBinaryData } from "modules/templates/TemplateFiles/isBinaryData";
 import { TemplateResourcesTable } from "modules/templates/TemplateResourcesTable/TemplateResourcesTable";
@@ -126,10 +129,19 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 	const [deleteFileOpen, setDeleteFileOpen] = useState<string>();
 	const [renameFileOpen, setRenameFileOpen] = useState<string>();
 	const [dirty, setDirty] = useState(false);
+	const matchingProvisioners = templateVersion.matched_provisioners?.count;
+	const availableProvisioners = templateVersion.matched_provisioners?.available;
 
 	const triggerPreview = useCallback(async () => {
-		await onPreview(fileTree);
-		setSelectedTab("logs");
+		try {
+			await onPreview(fileTree);
+			setSelectedTab("logs");
+		} catch (error) {
+			displayError(
+				getErrorMessage(error, "Error on previewing the template"),
+				getErrorDetail(error),
+			);
+		}
 	}, [fileTree, onPreview]);
 
 	// Stop ctrl+s from saving files and make ctrl+enter trigger a preview.
@@ -192,6 +204,8 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 		linkToTemplate(template.organization_name, template.name),
 	);
 
+	const gotBuildLogs = buildLogs && buildLogs.length > 0;
+
 	return (
 		<>
 			<div css={{ height: "100%", display: "flex", flexDirection: "column" }}>
@@ -211,7 +225,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					</div>
 
 					<TopbarData>
-						<TopbarAvatar src={template.icon} />
+						<TopbarAvatar
+							src={template.icon}
+							fallback={template.display_name || template.name}
+						/>
 						<RouterLink
 							to={templateLink}
 							css={{
@@ -242,28 +259,15 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 					>
 						<TemplateVersionStatusBadge version={templateVersion} />
 
-						<ButtonGroup
-							variant="outlined"
-							css={{
-								// Workaround to make the border transitions smoothly on button groups
-								"& > button:hover + button": {
-									borderLeft: "1px solid #FFF",
-								},
-							}}
-							disabled={!canBuild}
-						>
+						<div className="flex gap-1 items-center">
 							<TopbarButton
-								startIcon={
-									<PlayArrowOutlined
-										css={{ color: theme.palette.success.light }}
-									/>
-								}
 								title="Build template (Ctrl + Enter)"
 								disabled={!canBuild}
 								onClick={async () => {
 									await triggerPreview();
 								}}
 							>
+								<PlayIcon />
 								Build
 							</TopbarButton>
 							<ProvisionerTagsPopover
@@ -280,10 +284,10 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									onUpdateProvisionerTags(newTags);
 								}}
 							/>
-						</ButtonGroup>
+						</div>
 
 						<TopbarButton
-							variant="contained"
+							variant="default"
 							disabled={dirty || !canPublish}
 							onClick={onPublish}
 						>
@@ -537,6 +541,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									}}
 								>
 									<button
+										type="button"
 										disabled={!buildLogs}
 										css={styles.tab}
 										className={selectedTab === "logs" ? "active" : ""}
@@ -548,6 +553,7 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									</button>
 
 									<button
+										type="button"
 										disabled={!canPublish}
 										css={styles.tab}
 										className={selectedTab === "resources" ? "active" : ""}
@@ -581,31 +587,36 @@ export const TemplateVersionEditor: FC<TemplateVersionEditorProps> = ({
 									css={[styles.logs, styles.tabContent]}
 									ref={logsContentRef}
 								>
-									{templateVersion.job.error && (
+									{templateVersion.job.error ? (
 										<div>
-											<Alert
+											<ProvisionerAlert
+												title="Error during the build"
+												detail={templateVersion.job.error}
 												severity="error"
-												css={{
-													borderRadius: 0,
-													border: 0,
-													borderBottom: `1px solid ${theme.palette.divider}`,
-													borderLeft: `2px solid ${theme.palette.error.main}`,
-												}}
-											>
-												<AlertTitle>Error during the build</AlertTitle>
-												<AlertDetail>{templateVersion.job.error}</AlertDetail>
-											</Alert>
+												tags={templateVersion.job.tags}
+												variant={AlertVariant.Inline}
+											/>
 										</div>
+									) : (
+										!gotBuildLogs && (
+											<>
+												<ProvisionerStatusAlert
+													matchingProvisioners={matchingProvisioners}
+													availableProvisioners={availableProvisioners}
+													tags={templateVersion.job.tags}
+													variant={AlertVariant.Inline}
+												/>
+												<Loader css={{ height: "100%" }} />
+											</>
+										)
 									)}
 
-									{buildLogs && buildLogs.length > 0 ? (
+									{gotBuildLogs && (
 										<WorkspaceBuildLogs
 											css={styles.buildLogs}
 											hideTimestamps
 											logs={buildLogs}
 										/>
-									) : (
-										<Loader css={{ height: "100%" }} />
 									)}
 								</div>
 							)}

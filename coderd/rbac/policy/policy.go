@@ -133,8 +133,8 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"template": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("create a template"),
-			// TODO: Create a use permission maybe?
+			ActionCreate:       actDef("create a template"),
+			ActionUse:          actDef("use the template to initially create a workspace, then workspace lifecycle permissions take over"),
 			ActionRead:         actDef("read template"),
 			ActionUpdate:       actDef("update a template"),
 			ActionDelete:       actDef("delete a template"),
@@ -167,6 +167,11 @@ var RBACPermissions = map[string]PermissionDefinition{
 			ActionRead:   actDef("read provisioner daemon"),
 			ActionUpdate: actDef("update a provisioner daemon"),
 			ActionDelete: actDef("delete a provisioner daemon"),
+		},
+	},
+	"provisioner_jobs": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead: actDef("read provisioner jobs"),
 		},
 	},
 	"provisioner_keys": {
@@ -215,10 +220,10 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"tailnet_coordinator": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionUpdate: actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create a Tailnet coordinator"),
+			ActionRead:   actDef("view info about a Tailnet coordinator"),
+			ActionUpdate: actDef("update a Tailnet coordinator"),
+			ActionDelete: actDef("delete a Tailnet coordinator"),
 		},
 	},
 	"assign_role": {
@@ -241,25 +246,33 @@ var RBACPermissions = map[string]PermissionDefinition{
 	},
 	"oauth2_app": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef("make an OAuth2 app."),
+			ActionCreate: actDef("make an OAuth2 app"),
 			ActionRead:   actDef("read OAuth2 apps"),
-			ActionUpdate: actDef("update the properties of the OAuth2 app."),
+			ActionUpdate: actDef("update the properties of the OAuth2 app"),
 			ActionDelete: actDef("delete an OAuth2 app"),
 		},
 	},
 	"oauth2_app_secret": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionUpdate: actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create an OAuth2 app secret"),
+			ActionRead:   actDef("read an OAuth2 app secret"),
+			ActionUpdate: actDef("update an OAuth2 app secret"),
+			ActionDelete: actDef("delete an OAuth2 app secret"),
 		},
 	},
 	"oauth2_app_code_token": {
 		Actions: map[Action]ActionDefinition{
-			ActionCreate: actDef(""),
-			ActionRead:   actDef(""),
-			ActionDelete: actDef(""),
+			ActionCreate: actDef("create an OAuth2 app code token"),
+			ActionRead:   actDef("read an OAuth2 app code token"),
+			ActionDelete: actDef("delete an OAuth2 app code token"),
+		},
+	},
+	"notification_message": {
+		Actions: map[Action]ActionDefinition{
+			ActionCreate: actDef("create notification messages"),
+			ActionRead:   actDef("read notification messages"),
+			ActionUpdate: actDef("update notification messages"),
+			ActionDelete: actDef("delete notification messages"),
 		},
 	},
 	"notification_template": {
@@ -287,6 +300,12 @@ var RBACPermissions = map[string]PermissionDefinition{
 		Actions: map[Action]ActionDefinition{
 			ActionRead:   actDef("read IdP sync settings"),
 			ActionUpdate: actDef("update IdP sync settings"),
+		},
+	},
+	"workspace_agent_resource_monitor": {
+		Actions: map[Action]ActionDefinition{
+			ActionRead:   actDef("read workspace agent resource monitor"),
+			ActionCreate: actDef("create workspace agent resource monitor"),
 		},
 	},
 }

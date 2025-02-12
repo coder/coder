@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from "@testing-library/react";
+import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { API } from "api/api";
 import {
@@ -8,6 +8,7 @@ import {
 	MockTemplateVersionVariable1,
 	MockTemplateVersionVariable2,
 	MockTemplateVersionVariable3,
+	mockApiError,
 } from "testHelpers/entities";
 import { renderWithAuth } from "testHelpers/renderHelpers";
 import CreateTemplatePage from "./CreateTemplatePage";
@@ -60,9 +61,7 @@ test("Create template from starter template", async () => {
 			MockTemplateVersionVariable3,
 		]);
 	await userEvent.type(screen.getByLabelText(/Name/), "my-template");
-	await userEvent.click(
-		within(form).getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 
 	// Wait for the drawer error to be rendered
 	await screen.findByRole("heading", { name: /missing variables/i });
@@ -91,9 +90,7 @@ test("Create template from starter template", async () => {
 		.mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
-	await userEvent.click(
-		within(form).getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(within(form).getByRole("button", { name: /save/i }));
 	await waitFor(() => expect(API.createTemplate).toBeCalledTimes(1));
 	expect(router.state.location.pathname).toEqual(
 		`/templates/${MockTemplate.name}/files`,
@@ -141,12 +138,37 @@ test("Create template from duplicating a template", async () => {
 		.mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "getTemplateVersion").mockResolvedValue(MockTemplateVersion);
 	jest.spyOn(API, "createTemplate").mockResolvedValue(MockTemplate);
-	await userEvent.click(
-		screen.getByRole("button", { name: /create template/i }),
-	);
+	await userEvent.click(screen.getByRole("button", { name: /save/i }));
 	await waitFor(() => {
 		expect(router.state.location.pathname).toEqual(
 			`/templates/${MockTemplate.name}/files`,
 		);
 	});
+});
+
+test("The page displays an error if the upload fails", async () => {
+	const errMsg = "Unsupported content type header";
+	jest.spyOn(API, "uploadFile").mockRejectedValueOnce(
+		mockApiError({
+			message: errMsg,
+		}),
+	);
+	await renderPage(new URLSearchParams());
+
+	const file = new File([""], "invalidfile.tar");
+	const dropZone = screen.getByTestId("drop-zone");
+
+	fireEvent.drop(dropZone, {
+		dataTransfer: { files: [file] },
+	});
+
+	await waitFor(() => expect(API.uploadFile).toHaveBeenCalledTimes(1));
+
+	// Error toast should be displayed
+	expect(await screen.findByText(errMsg)).toBeInTheDocument();
+
+	// The upload box should have reset itself
+	expect(
+		await screen.findByText(/The template has to be a .tar or .zip file/),
+	).toBeInTheDocument();
 });

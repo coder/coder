@@ -3,7 +3,6 @@ package oidctest
 import (
 	"context"
 	"database/sql"
-	"encoding/json"
 	"net/http"
 	"net/url"
 	"testing"
@@ -89,7 +88,7 @@ func (*LoginHelper) ExpireOauthToken(t *testing.T, db database.Store, user *code
 		OAuthExpiry:            time.Now().Add(time.Hour * -1),
 		UserID:                 link.UserID,
 		LoginType:              link.LoginType,
-		DebugContext:           json.RawMessage("{}"),
+		Claims:                 database.UserLinkClaims{},
 	})
 	require.NoError(t, err, "expire user link")
 

@@ -18,15 +18,19 @@ import {
 	groupPermissions,
 	removeMember,
 } from "api/queries/groups";
-import type { Group, ReducedUser, User } from "api/typesGenerated";
+import type {
+	Group,
+	OrganizationMemberWithUserData,
+	ReducedUser,
+} from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { AvatarData } from "components/AvatarData/AvatarData";
+import { Avatar } from "components/Avatar/Avatar";
+import { AvatarData } from "components/Avatar/AvatarData";
 import { DeleteDialog } from "components/Dialogs/DeleteDialog/DeleteDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
 import { LastSeen } from "components/LastSeen/LastSeen";
 import { Loader } from "components/Loader/Loader";
-import { Margins } from "components/Margins/Margins";
 import {
 	MoreMenu,
 	MoreMenuContent,
@@ -34,18 +38,13 @@ import {
 	MoreMenuTrigger,
 	ThreeDotsButton,
 } from "components/MoreMenu/MoreMenu";
-import {
-	PageHeader,
-	PageHeaderSubtitle,
-	PageHeaderTitle,
-} from "components/PageHeader/PageHeader";
+import { SettingsHeader } from "components/SettingsHeader/SettingsHeader";
 import { Stack } from "components/Stack/Stack";
 import {
 	PaginationStatus,
 	TableToolbar,
 } from "components/TableToolbar/TableToolbar";
-import { UserAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
-import { UserAvatar } from "components/UserAvatar/UserAvatar";
+import { MemberAutocomplete } from "components/UserAutocomplete/UserAutocomplete";
 import { type FC, useState } from "react";
 import { Helmet } from "react-helmet-async";
 import { useMutation, useQuery, useQueryClient } from "react-query";
@@ -54,19 +53,19 @@ import { isEveryoneGroup } from "utils/groups";
 import { pageTitle } from "utils/page";
 
 export const GroupPage: FC = () => {
-	const { groupName } = useParams() as {
+	const { organization = "default", groupName } = useParams() as {
+		organization?: string;
 		groupName: string;
 	};
 	const queryClient = useQueryClient();
 	const navigate = useNavigate();
-	const groupQuery = useQuery(group("default", groupName));
+	const groupQuery = useQuery(group(organization, groupName));
 	const groupData = groupQuery.data;
 	const { data: permissions } = useQuery(
-		groupData !== undefined
-			? groupPermissions(groupData.id)
-			: { enabled: false },
+		groupData ? groupPermissions(groupData.id) : { enabled: false },
 	);
 	const addMemberMutation = useMutation(addMember(queryClient));
+	const removeMemberMutation = useMutation(removeMember(queryClient));
 	const deleteGroupMutation = useMutation(deleteGroup(queryClient));
 	const [isDeletingGroup, setIsDeletingGroup] = useState(false);
 	const isLoading = groupQuery.isLoading || !groupData || !permissions;
@@ -100,106 +99,115 @@ export const GroupPage: FC = () => {
 		<>
 			{helmet}
 
-			<Margins>
-				<PageHeader
-					actions={
-						canUpdateGroup && (
-							<>
-								<Button
-									startIcon={<SettingsOutlined />}
-									to="settings"
-									component={RouterLink}
-								>
-									Settings
-								</Button>
-								<Button
-									disabled={groupData?.id === groupData?.organization_id}
-									onClick={() => {
-										setIsDeletingGroup(true);
-									}}
-									startIcon={<DeleteOutline />}
-									css={styles.removeButton}
-								>
-									Delete&hellip;
-								</Button>
-							</>
-						)
-					}
-				>
-					<PageHeaderTitle>
-						{groupData?.display_name || groupData?.name}
-					</PageHeaderTitle>
-					<PageHeaderSubtitle>
-						{/* Show the name if it differs from the display name. */}
-						{groupData?.display_name &&
-						groupData?.display_name !== groupData?.name
-							? groupData?.name
-							: ""}{" "}
-					</PageHeaderSubtitle>
-				</PageHeader>
-
-				<Stack spacing={1}>
-					{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
-						<AddGroupMember
-							isLoading={addMemberMutation.isLoading}
-							onSubmit={async (user, reset) => {
-								try {
-									await addMemberMutation.mutateAsync({
-										groupId,
-										userId: user.id,
-									});
-									reset();
-									await groupQuery.refetch();
-								} catch (error) {
-									displayError(getErrorMessage(error, "Failed to add member."));
-								}
+			<Stack
+				alignItems="baseline"
+				direction="row"
+				justifyContent="space-between"
+			>
+				<SettingsHeader
+					title={groupData?.display_name || groupData?.name}
+					description="Manage members for this group."
+				/>
+				{canUpdateGroup && (
+					<Stack direction="row" spacing={2}>
+						<Button
+							role="button"
+							component={RouterLink}
+							startIcon={<SettingsOutlined />}
+							to="settings"
+						>
+							Settings
+						</Button>
+						<Button
+							disabled={groupData?.id === groupData?.organization_id}
+							onClick={() => {
+								setIsDeletingGroup(true);
 							}}
-						/>
-					)}
-					<TableToolbar>
-						<PaginationStatus
-							isLoading={Boolean(isLoading)}
-							showing={groupData?.members.length ?? 0}
-							total={groupData?.members.length ?? 0}
-							label="members"
-						/>
-					</TableToolbar>
+							startIcon={<DeleteOutline />}
+							css={styles.removeButton}
+						>
+							Delete&hellip;
+						</Button>
+					</Stack>
+				)}
+			</Stack>
 
-					<TableContainer>
-						<Table>
-							<TableHead>
+			<Stack spacing={1}>
+				{canUpdateGroup && groupData && !isEveryoneGroup(groupData) && (
+					<AddGroupMember
+						isLoading={addMemberMutation.isLoading}
+						organizationId={groupData.organization_id}
+						onSubmit={async (member, reset) => {
+							try {
+								await addMemberMutation.mutateAsync({
+									groupId,
+									userId: member.user_id,
+								});
+								reset();
+								await groupQuery.refetch();
+							} catch (error) {
+								displayError(getErrorMessage(error, "Failed to add member."));
+							}
+						}}
+					/>
+				)}
+				<TableToolbar>
+					<PaginationStatus
+						isLoading={Boolean(isLoading)}
+						showing={groupData?.members.length ?? 0}
+						total={groupData?.members.length ?? 0}
+						label="members"
+					/>
+				</TableToolbar>
+
+				<TableContainer>
+					<Table>
+						<TableHead>
+							<TableRow>
+								<TableCell width="59%">User</TableCell>
+								<TableCell width="40">Status</TableCell>
+								<TableCell width="1%" />
+							</TableRow>
+						</TableHead>
+
+						<TableBody>
+							{groupData?.members.length === 0 ? (
 								<TableRow>
-									<TableCell width="59%">User</TableCell>
-									<TableCell width="40">Status</TableCell>
-									<TableCell width="1%"></TableCell>
-								</TableRow>
-							</TableHead>
-
-							<TableBody>
-								{groupData?.members.length === 0 ? (
-									<TableRow>
-										<TableCell colSpan={999}>
-											<EmptyState
-												message="No members yet"
-												description="Add a member using the controls above"
-											/>
-										</TableCell>
-									</TableRow>
-								) : (
-									groupData?.members.map((member) => (
-										<GroupMemberRow
-											member={member}
-											group={groupData}
-											key={member.id}
-											canUpdate={canUpdateGroup}
+									<TableCell colSpan={999}>
+										<EmptyState
+											message="No members yet"
+											description="Add a member using the controls above"
 										/>
-									))
-								)}
-							</TableBody>
-						</Table>
-					</TableContainer>
-				</Stack>
-			</Margins>
+									</TableCell>
+								</TableRow>
+							) : (
+								groupData?.members.map((member) => (
+									<GroupMemberRow
+										member={member}
+										group={groupData}
+										key={member.id}
+										canUpdate={canUpdateGroup}
+										onRemove={async () => {
+											try {
+												await removeMemberMutation.mutateAsync({
+													groupId: groupData.id,
+													userId: member.id,
+												});
+												await groupQuery.refetch();
+												displaySuccess("Member removed successfully.");
+											} catch (error) {
+												displayError(
+													getErrorMessage(error, "Failed to remove member."),
+												);
+											}
+										}}
+									/>
+								))
+							)}
+						</TableBody>
+					</Table>
+				</TableContainer>
+			</Stack>
 
 			{groupQuery.data && (
 				<DeleteDialog
@@ -211,7 +219,7 @@ export const GroupPage: FC = () => {
 						try {
 							await deleteGroupMutation.mutateAsync(groupId);
 							displaySuccess("Group deleted successfully.");
-							navigate("/groups");
+							navigate("..");
 						} catch (error) {
 							displayError(getErrorMessage(error, "Failed to delete group."));
 						}
@@ -227,11 +235,17 @@ export const GroupPage: FC = () => {
 
 interface AddGroupMemberProps {
 	isLoading: boolean;
-	onSubmit: (user: User, reset: () => void) => void;
+	onSubmit: (user: OrganizationMemberWithUserData, reset: () => void) => void;
+	organizationId: string;
 }
 
-const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
-	const [selectedUser, setSelectedUser] = useState<User | null>(null);
+const AddGroupMember: FC<AddGroupMemberProps> = ({
+	isLoading,
+	onSubmit,
+	organizationId,
+}) => {
+	const [selectedUser, setSelectedUser] =
+		useState<OrganizationMemberWithUserData | null>(null);
 
 	const resetValues = () => {
 		setSelectedUser(null);
@@ -248,9 +262,10 @@ const AddGroupMember: FC<AddGroupMemberProps> = ({ isLoading, onSubmit }) => {
 			}}
 		>
 			<Stack direction="row" alignItems="center" spacing={1}>
-				<UserAutocomplete
+				<MemberAutocomplete
 					css={styles.autoComplete}
 					value={selectedUser}
+					organizationId={organizationId}
 					onChange={(newValue) => {
 						setSelectedUser(newValue);
 					}}
@@ -274,26 +289,20 @@ interface GroupMemberRowProps {
 	member: ReducedUser;
 	group: Group;
 	canUpdate: boolean;
+	onRemove: () => void;
 }
 
 const GroupMemberRow: FC<GroupMemberRowProps> = ({
 	member,
 	group,
 	canUpdate,
+	onRemove,
 }) => {
-	const queryClient = useQueryClient();
-	const removeMemberMutation = useMutation(removeMember(queryClient));
-
 	return (
 		<TableRow key={member.id}>
 			<TableCell width="59%">
 				<AvatarData
-					avatar={
-						<UserAvatar
-							username={member.username}
-							avatarURL={member.avatar_url}
-						/>
-					}
+					avatar={<Avatar fallback={member.username} src={member.avatar_url} />}
 					title={member.username}
 					subtitle={member.email}
 				/>
@@ -314,19 +323,7 @@ const GroupMemberRow: FC<GroupMemberRowProps> = ({
 						<MoreMenuContent>
 							<MoreMenuItem
 								danger
-								onClick={async () => {
-									try {
-										await removeMemberMutation.mutateAsync({
-											groupId: group.id,
-											userId: member.id,
-										});
-										displaySuccess("Member removed successfully.");
-									} catch (error) {
-										displayError(
-											getErrorMessage(error, "Failed to remove member."),
-										);
-									}
-								}}
+								onClick={onRemove}
 								disabled={group.id === group.organization_id}
 							>
 								Remove

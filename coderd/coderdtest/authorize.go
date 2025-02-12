@@ -358,6 +358,7 @@ func (s *PreparedRecorder) CompileToSQL(ctx context.Context, cfg regosql.Convert
 // Meaning 'FakeAuthorizer' by default will never return "unauthorized".
 type FakeAuthorizer struct {
 	ConditionalReturn func(context.Context, rbac.Subject, policy.Action, rbac.Object) error
+	sqlFilter         string
 }
 
 var _ rbac.Authorizer = (*FakeAuthorizer)(nil)
@@ -367,6 +368,12 @@ func (d *FakeAuthorizer) AlwaysReturn(err error) *FakeAuthorizer {
 	d.ConditionalReturn = func(_ context.Context, _ rbac.Subject, _ policy.Action, _ rbac.Object) error {
 		return err
 	}
+	return d
+}
+
+// OverrideSQLFilter sets the SQL filter that will always be returned by CompileToSQL.
+func (d *FakeAuthorizer) OverrideSQLFilter(filter string) *FakeAuthorizer {
+	d.sqlFilter = filter
 	return d
 }
 
@@ -400,10 +407,12 @@ func (f *fakePreparedAuthorizer) Authorize(ctx context.Context, object rbac.Obje
 	return f.Original.Authorize(ctx, f.Subject, f.Action, object)
 }
 
-// CompileToSQL returns a compiled version of the authorizer that will work for
-// in memory databases. This fake version will not work against a SQL database.
-func (*fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
-	return "not a valid sql string", nil
+func (f *fakePreparedAuthorizer) CompileToSQL(_ context.Context, _ regosql.ConvertConfig) (string, error) {
+	if f.Original.sqlFilter != "" {
+		return f.Original.sqlFilter, nil
+	}
+	// By default, allow all SQL queries.
+	return "TRUE", nil
 }
 
 // Random rbac helper funcs

@@ -1,5 +1,4 @@
 import { useTheme } from "@emotion/react";
-import ExpandMoreOutlined from "@mui/icons-material/ExpandMoreOutlined";
 import Button from "@mui/material/Button";
 import visuallyHidden from "@mui/utils/visuallyHidden";
 import { API } from "api/api";
@@ -17,14 +16,15 @@ import {
 	HelpTooltipTitle,
 } from "components/HelpTooltip/HelpTooltip";
 import { Loader } from "components/Loader/Loader";
+import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
 import {
 	Popover,
 	PopoverContent,
 	PopoverTrigger,
 	usePopover,
-} from "components/Popover/Popover";
-import { RichParameterInput } from "components/RichParameterInput/RichParameterInput";
+} from "components/deprecated/Popover/Popover";
 import { useFormik } from "formik";
+import { ChevronDownIcon } from "lucide-react";
 import type { FC } from "react";
 import { useQuery } from "react-query";
 import { docs } from "utils/docs";
@@ -61,10 +61,9 @@ export const BuildParametersPopover: FC<BuildParametersPopoverProps> = ({
 				<TopbarButton
 					data-testid="build-parameters-button"
 					disabled={disabled}
-					color="neutral"
-					css={{ paddingLeft: 0, paddingRight: 0, minWidth: "28px !important" }}
+					className="min-w-fit"
 				>
-					<ExpandMoreOutlined css={{ fontSize: 14 }} />
+					<ChevronDownIcon />
 					<span css={{ ...visuallyHidden }}>{label}</span>
 				</TopbarButton>
 			</PopoverTrigger>

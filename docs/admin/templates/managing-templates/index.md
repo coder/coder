@@ -1,8 +1,8 @@
 # Working with templates
 
-You create and edit Coder templates as [Terraform](../../../start/coder-tour.md)
-configuration files (`.tf`) and any supporting files, like a README or
-configuration files for other services.
+You create and edit Coder templates as
+[Terraform](../../../tutorials/quickstart.md) configuration files (`.tf`) and
+any supporting files, like a README or configuration files for other services.
 
 ## Who creates templates?
 
@@ -58,9 +58,16 @@ infrastructure, software, or security patches. Learn more about
 
 ![Updating a template](../../../images/templates/update.png)
 
-### Template update policies (enterprise) (premium)
+### Template update policies
 
-Enterprise template admins may want workspaces to always remain on the latest
+<blockquote class="info">
+
+Template update policies are an Enterprise and Premium feature.
+[Learn more](https://coder.com/pricing#compare-plans).
+
+</blockquote>
+
+Licensed template admins may want workspaces to always remain on the latest
 version of their parent template. To do so, enable **Template Update Policies**
 in the template's general settings. All non-admin users of the template will be
 forced to update their workspaces before starting them once the setting is
@@ -91,5 +98,5 @@ coder templates delete <template-name>
 ## Next steps
 
 - [Image management](./image-management.md)
-- [Devcontainer templates](./devcontainers.md)
+- [Devcontainer templates](./devcontainers/index.md)
 - [Change management](./change-management.md)

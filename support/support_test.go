@@ -30,7 +30,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 func TestRun(t *testing.T) {
@@ -50,7 +50,7 @@ func TestRun(t *testing.T) {
 
 		bun, err := support.Run(ctx, &support.Deps{
 			Client:      client,
-			Log:         slogtest.Make(t, nil).Named("bundle").Leveled(slog.LevelDebug),
+			Log:         testutil.Logger(t).Named("bundle"),
 			WorkspaceID: ws.ID,
 			AgentID:     agt.ID,
 		})
@@ -149,7 +149,7 @@ func TestRun(t *testing.T) {
 		memberClient, _ := coderdtest.CreateAnotherUser(t, client, admin.OrganizationID)
 		bun, err := support.Run(ctx, &support.Deps{
 			Client: memberClient,
-			Log:    slogtest.Make(t, nil).Named("bundle").Leveled(slog.LevelDebug),
+			Log:    testutil.Logger(t).Named("bundle"),
 		})
 		require.ErrorContains(t, err, "failed authorization check")
 		require.NotEmpty(t, bun)
@@ -199,7 +199,7 @@ func setupWorkspaceAndAgent(ctx context.Context, t *testing.T, client *codersdk.
 			CreatedBy:      user.UserID,
 		}).
 		Do()
-	wbr := dbfake.WorkspaceBuild(t, db, database.Workspace{
+	wbr := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 		OrganizationID: user.OrganizationID,
 		OwnerID:        user.UserID,
 		TemplateID:     tv.Template.ID,

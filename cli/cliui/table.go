@@ -9,6 +9,8 @@ import (
 	"github.com/fatih/structtag"
 	"github.com/jedib0t/go-pretty/v6/table"
 	"golang.org/x/xerrors"
+
+	"github.com/coder/coder/v2/codersdk"
 )
 
 // Table creates a new table with standardized styles.
@@ -195,6 +197,16 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				if val != nil {
 					v = val.Format(time.RFC3339)
 				}
+			case codersdk.NullTime:
+				if val.Valid {
+					v = val.Time.Format(time.RFC3339)
+				} else {
+					v = nil
+				}
+			case *string:
+				if val != nil {
+					v = *val
+				}
 			case *int64:
 				if val != nil {
 					v = *val
@@ -204,8 +216,13 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 					v = val.String()
 				}
 			case fmt.Stringer:
-				if val != nil {
+				// Protect against typed nils since fmt.Stringer is an interface.
+				vv := reflect.ValueOf(v)
+				nilPtr := vv.Kind() == reflect.Ptr && vv.IsNil()
+				if val != nil && !nilPtr {
 					v = val.String()
+				} else if nilPtr {
+					v = nil
 				}
 			}
 
@@ -225,6 +242,18 @@ func renderTable(out any, sort string, headers table.Row, filterColumns []string
 				default:
 					// Leave it as it is
 				}
+			}
+
+			// Last resort, just get the interface value to avoid printing
+			// pointer values. For example, if we have a `*MyType("value")`
+			// which is defined as `type MyType string`, we want to print
+			// the string value, not the pointer.
+			if v != nil {
+				vv := reflect.ValueOf(v)
+				for vv.Kind() == reflect.Ptr && !vv.IsNil() {
+					vv = vv.Elem()
+				}
+				v = vv.Interface()
 			}
 
 			rowSlice[i] = v

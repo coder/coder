@@ -1,39 +1,73 @@
 # FAQs
 
-Frequently asked questions on Coder OSS and Enterprise deployments. These FAQs
-come from our community and enterprise customers, feel free to
+Frequently asked questions on Coder OSS and licensed deployments. These FAQs
+come from our community and customers, feel free to
 [contribute to this page](https://github.com/coder/coder/edit/main/docs/tutorials/faqs.md).
 
 For other community resources, see our
-[Github discussions](https://github.com/coder/coder/discussions), or join our
+[GitHub discussions](https://github.com/coder/coder/discussions), or join our
 [Discord server](https://discord.gg/coder).
 
-### How do I add a Premium trial license?
+## How do I add a Premium trial license?
 
-Visit https://coder.com/trial or contact
+Visit <https://coder.com/trial> or contact
 [sales@coder.com](mailto:sales@coder.com?subject=License) to get a trial key.
 
-You can add a license through the UI or CLI.
+<details>
 
-In the UI, click the Deployment tab -> Licenses and upload the `jwt` license
-file.
+<summary>You can add a license through the UI or CLI</summary>
 
-> To add the license with the CLI, first
-> [install the Coder CLI](../install/cli.md) and server to the latest release.
+<!-- copied from docs/admin/licensing/index.md -->
 
-If the license is a text string:
+<div class="tabs">
 
-```sh
-coder licenses add -l 1f5...765
-```
+### Coder UI
 
-If the license is in a file:
+1. With an `Owner` account, go to **Admin settings** > **Deployment**.
 
-```sh
-coder licenses add -f <path/filename>
-```
+1. Select **Licenses** from the sidebar, then **Add a license**:
 
-### I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket
+   ![Add a license from the licenses screen](../images/admin/licenses/licenses-nolicense.png)
+
+1. On the **Add a license** screen, drag your `.jwt` license file into the
+   **Upload Your License** section, or paste your license in the
+   **Paste Your License** text box, then select **Upload License**:
+
+   ![Add a license screen](../images/admin/licenses/add-license-ui.png)
+
+### Coder CLI
+
+1. Ensure you have the [Coder CLI](../install/cli.md) installed.
+1. Save your license key to disk and make note of the path.
+1. Open a terminal.
+1. Log in to your Coder deployment:
+
+   ```shell
+   coder login <access url>
+   ```
+
+1. Run `coder licenses add`:
+
+   - For a `.jwt` license file:
+
+     ```shell
+     coder licenses add -f <path to your license key>
+     ```
+
+   - For a text string:
+
+     ```sh
+     coder licenses add -l 1f5...765
+     ```
+
+</div>
+
+</details>
+
+Visit the [licensing documentation](../admin/licensing/index.md) for more
+information about licenses.
+
+## I'm experiencing networking issues, so want to disable Tailscale, STUN, Direct connections and force use of websocket
 
 The primary developer use case is a local IDE connecting over SSH to a Coder
 workspace.
@@ -55,18 +89,18 @@ Setting the following flags as shown disables this logic to simplify
 troubleshooting.
 
 | Flag                                                                                          | Value       | Meaning                               |
-| --------------------------------------------------------------------------------------------- | ----------- | ------------------------------------- |
+|-----------------------------------------------------------------------------------------------|-------------|---------------------------------------|
 | [`CODER_BLOCK_DIRECT`](../reference/cli/server.md#--block-direct-connections)                 | `true`      | Blocks direct connections             |
 | [`CODER_DERP_SERVER_STUN_ADDRESSES`](../reference/cli/server.md#--derp-server-stun-addresses) | `"disable"` | Disables STUN                         |
 | [`CODER_DERP_FORCE_WEBSOCKETS`](../reference/cli/server.md#--derp-force-websockets)           | `true`      | Forces websockets over Tailscale DERP |
 
-### How do I configure NGINX as the reverse proxy in front of Coder?
+## How do I configure NGINX as the reverse proxy in front of Coder?
 
 [This tutorial](./reverse-proxy-nginx.md) in our docs explains in detail how to
 configure NGINX with Coder so that our Tailscale Wireguard networking functions
 properly.
 
-### How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
+## How do I hide some of the default icons in a workspace like VS Code Desktop, Terminal, SSH, Ports?
 
 The visibility of Coder apps is configurable in the template. To change the
 default (shows all), add this block inside the
@@ -87,7 +121,7 @@ This example will hide all built-in
 [`coder_app`](https://registry.terraform.io/providers/coder/coder/latest/docs/resources/app)
 icons except the web terminal.
 
-### I want to allow code-server to be accessible by other users in my deployment.
+## I want to allow code-server to be accessible by other users in my deployment
 
 > It is **not** recommended to share a web IDE, but if required, the following
 > deployment environment variable settings are required.
@@ -117,7 +151,7 @@ resource "coder_app" "code-server" {
 }
 ```
 
-### I installed Coder and created a workspace but the icons do not load.
+## I installed Coder and created a workspace but the icons do not load
 
 An important concept to understand is that Coder creates workspaces which have
 an agent that must be able to reach the `coder server`.
@@ -138,9 +172,9 @@ coder server --access-url http://localhost:3000 --address 0.0.0.0:3000
 ```
 
 > Even `coder server` which creates a reverse proxy, will let you use
-> http://localhost to access Coder from a browser.
+> <http://localhost> to access Coder from a browser.
 
-### I updated a template, and an existing workspace based on that template fails to start.
+## I updated a template, and an existing workspace based on that template fails to start
 
 When updating a template, be aware of potential issues with input variables. For
 example, if a template prompts users to choose options like a
@@ -160,7 +194,7 @@ workspace from a failed status.
 coder update --always-prompt <workspace name>
 ```
 
-### I'm running coder on a VM with systemd but latest release installed isn't showing up.
+## I'm running coder on a VM with systemd but latest release installed isn't showing up
 
 Take, for example, a Coder deployment on a VM with a 2 shared vCPU systemd
 service. In this scenario, it's necessary to reload the daemon and then restart
@@ -175,7 +209,7 @@ sudo systemctl daemon-reload
 sudo systemctl restart coder.service
 ```
 
-### I'm using the built-in Postgres database and forgot admin email I set up.
+## I'm using the built-in Postgres database and forgot admin email I set up
 
 1. Run the `coder server` command below to retrieve the `psql` connection URL
    which includes the database user and password.
@@ -188,7 +222,7 @@ coder server postgres-builtin-url
 psql "postgres://coder@localhost:53737/coder?sslmode=disable&password=I2S...pTk"
 ```
 
-### How to find out Coder's latest Terraform provider version?
+## How to find out Coder's latest Terraform provider version?
 
 [Coder is on the HashiCorp's Terraform registry](https://registry.terraform.io/providers/coder/coder/latest).
 Check this frequently to make sure you are on the latest version.
@@ -197,7 +231,7 @@ Sometimes, the version may change and `resource` configurations will either
 become deprecated or new ones will be added when you get warnings or errors
 creating and pushing templates.
 
-### How can I set up TLS for my deployment and not create a signed certificate?
+## How can I set up TLS for my deployment and not create a signed certificate?
 
 Caddy is an easy-to-configure reverse proxy that also automatically creates
 certificates from Let's Encrypt.
@@ -222,7 +256,7 @@ coder.example.com {
 }
 ```
 
-### I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
+## I'm using Caddy as my reverse proxy in front of Coder. How do I set up a wildcard domain for port forwarding?
 
 Caddy requires your DNS provider's credentials to create wildcard certificates.
 This involves building the Caddy binary
@@ -252,7 +286,7 @@ The updated Caddyfile configuration will look like this:
 }
 ```
 
-### Can I use local or remote Terraform Modules in Coder templates?
+## Can I use local or remote Terraform Modules in Coder templates?
 
 One way is to reference a Terraform module from a GitHub repo to avoid
 duplication and then just extend it or pass template-specific
@@ -291,11 +325,11 @@ tar -cvh -C ./template_1 | coder templates <push|create> -d - <name>
 
 References:
 
-- [Public Github Issue 6117](https://github.com/coder/coder/issues/6117)
-- [Public Github Issue 5677](https://github.com/coder/coder/issues/5677)
+- [Public GitHub Issue 6117](https://github.com/coder/coder/issues/6117)
+- [Public GitHub Issue 5677](https://github.com/coder/coder/issues/5677)
 - [Coder docs: Templates/Change Management](../admin/templates/managing-templates/change-management.md)
 
-### Can I run Coder in an air-gapped or offline mode? (no Internet)?
+## Can I run Coder in an air-gapped or offline mode? (no Internet)?
 
 Yes, Coder can be deployed in
 [air-gapped or offline mode](../install/offline.md).
@@ -309,7 +343,7 @@ defaults to Google's STUN servers, so you can either create your STUN server in
 your network or disable and force all traffic through the control plane's DERP
 proxy.
 
-### Create a randomized computer_name for an Azure VM
+## Create a randomized computer_name for an Azure VM
 
 Azure VMs have a 15 character limit for the `computer_name` which can lead to
 duplicate name errors.
@@ -324,7 +358,7 @@ locals {
 }
 ```
 
-### Do you have example JetBrains Gateway templates?
+## Do you have example JetBrains Gateway templates?
 
 In August 2023, JetBrains certified the Coder plugin signifying enhanced
 stability and reliability.
@@ -343,10 +377,7 @@ the IDE can be baked into the container image and manually open Gateway (or
 IntelliJ which has Gateway built-in), using a session token to Coder and then
 open the IDE.
 
-- [IntelliJ IDEA](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea)
-- [IntelliJ IDEA with Icon](https://github.com/sharkymark/v2-templates/tree/main/src/pod-idea-icon)
-
-### What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
+## What options do I have for adding VS Code extensions into code-server, VS Code Desktop or Microsoft's Code Server?
 
 Coder has an open-source project called
 [`code-marketplace`](https://github.com/coder/code-marketplace) which is a
@@ -356,21 +387,14 @@ Artifactory.
 - [Blog post](https://coder.com/blog/running-a-private-vs-code-extension-marketplace)
 - [OSS project](https://github.com/coder/code-marketplace)
 
-[See this example template](https://github.com/sharkymark/v2-templates/blob/main/src/code-marketplace/main.tf#L229C1-L232C12)
-where the agent specifies the URL and config environment variables which
-code-server picks up and points the developer to.
-
-Another option is to use Microsoft's code-server - which is like Coder's, but it
+You can also use Microsoft's code-server - which is like Coder's, but it
 can connect to Microsoft's extension marketplace so Copilot and chat can be
 retrieved there.
 
 Another option is to use VS Code Desktop (local) and that connects to
 Microsoft's marketplace.
 
-> Note: these are example templates with no SLAs on them and are not guaranteed
-> for long-term support.
-
-### I want to run Docker for my workspaces but not install Docker Desktop.
+## I want to run Docker for my workspaces but not install Docker Desktop
 
 [Colima](https://github.com/abiosoft/colima) is a Docker Desktop alternative.
 
@@ -403,9 +427,9 @@ colima start --arch x86_64  --cpu 4 --memory 8 --disk 10
 
 Colima will show the path to the docker socket so we have a
 [community template](https://github.com/sharkymark/v2-templates/tree/main/src/docker-code-server)
-that prompts the Coder admin to enter the docker socket as a Terraform variable.
+that prompts the Coder admin to enter the Docker socket as a Terraform variable.
 
-### How to make a `coder_app` optional?
+## How to make a `coder_app` optional?
 
 An example use case is the user should decide if they want a browser-based IDE
 like code-server when creating the workspace.
@@ -413,57 +437,57 @@ like code-server when creating the workspace.
 1. Add a `coder_parameter` with type `bool` to ask the user if they want the
    code-server IDE
 
-```tf
-data "coder_parameter" "code_server" {
-  name        = "Do you want code-server in your workspace?"
-  description = "Use VS Code in a browser."
-  type        = "bool"
-  default     = false
-  mutable     = true
-  icon        = "/icon/code.svg"
-  order       = 6
-}
-```
+    ```tf
+    data "coder_parameter" "code_server" {
+        name        = "Do you want code-server in your workspace?"
+        description = "Use VS Code in a browser."
+        type        = "bool"
+        default     = false
+        mutable     = true
+        icon        = "/icon/code.svg"
+        order       = 6
+    }
+    ```
 
 2. Add conditional logic to the `startup_script` to install and start
    code-server depending on the value of the added `coder_parameter`
 
-```sh
-# install and start code-server, VS Code in a browser
+    ```sh
+    # install and start code-server, VS Code in a browser
 
-if [ ${data.coder_parameter.code_server.value} = true ]; then
-  echo "🧑🏼‍💻 Downloading and installing the latest code-server IDE..."
-  curl -fsSL https://code-server.dev/install.sh | sh
-  code-server --auth none --port 13337 >/dev/null 2>&1 &
-fi
-```
+    if [ ${data.coder_parameter.code_server.value} = true ]; then
+    echo "🧑🏼‍💻 Downloading and installing the latest code-server IDE..."
+    curl -fsSL https://code-server.dev/install.sh | sh
+    code-server --auth none --port 13337 >/dev/null 2>&1 &
+    fi
+    ```
 
 3. Add a Terraform meta-argument
    [`count`](https://developer.hashicorp.com/terraform/language/meta-arguments/count)
    in the `coder_app` resource so it will only create the resource if the
    `coder_parameter` is `true`
 
-```tf
-# code-server
-resource "coder_app" "code-server" {
-  count         = data.coder_parameter.code_server.value ? 1 : 0
-  agent_id      = coder_agent.coder.id
-  slug          = "code-server"
-  display_name  = "code-server"
-  icon          = "/icon/code.svg"
-  url           = "http://localhost:13337?folder=/home/coder"
-  subdomain = false
-  share     = "owner"
+    ```tf
+    # code-server
+    resource "coder_app" "code-server" {
+    count         = data.coder_parameter.code_server.value ? 1 : 0
+    agent_id      = coder_agent.coder.id
+    slug          = "code-server"
+    display_name  = "code-server"
+    icon          = "/icon/code.svg"
+    url           = "http://localhost:13337?folder=/home/coder"
+    subdomain = false
+    share     = "owner"
 
-  healthcheck {
-    url       = "http://localhost:13337/healthz"
-    interval  = 3
-    threshold = 10
-  }
-}
-```
+    healthcheck {
+        url       = "http://localhost:13337/healthz"
+        interval  = 3
+        threshold = 10
+    }
+    }
+    ```
 
-### Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
+## Why am I getting this "remote host doesn't meet VS Code Server's prerequisites" error when opening up VSCode remote in a Linux environment?
 
 ![VS Code Server prerequisite](https://github.com/coder/coder/assets/10648092/150c5996-18b1-4fae-afd0-be2b386a3239)
 
@@ -472,9 +496,9 @@ or VM/VPS doesn't have the proper C libraries to run the VS Code Server. For
 instance, Alpine is not supported at all. If so, you need to find a container
 image or supported OS for the VS Code Server. For more information on OS
 prerequisites for Linux, please look at the VSCode docs.
-https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites
+<https://code.visualstudio.com/docs/remote/linux#_local-linux-prerequisites>
 
-### How can I resolve disconnects when connected to Coder via JetBrains Gateway?
+## How can I resolve disconnects when connected to Coder via JetBrains Gateway?
 
 If your JetBrains IDE is disconnected for a long period of time due to a network
 change (for example turning off a VPN), you may find that the IDE will not
@@ -503,7 +527,7 @@ config file will be overwritten by the JetBrains Gateway client when it
 re-authenticates to your Coder deployment so you must add the above config as a
 separate block and not add it to any existing ones.
 
-### How can I restrict inbound/outbound file transfers from Coder workspaces?
+## How can I restrict inbound/outbound file transfers from Coder workspaces?
 
 In certain environments, it is essential to keep confidential files within
 workspaces and prevent users from uploading or downloading resources using tools
@@ -525,7 +549,7 @@ resource "docker_container" "workspace" {
 }
 ```
 
-#### Important Notice
+### Important Notice
 
 This control operates at the `ssh-exec` level or during `sftp` sessions. While
 it can help prevent automated file transfers using the specified tools, users

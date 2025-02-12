@@ -49,6 +49,32 @@ describe("Setup Page", () => {
 		);
 	});
 
+	it("renders the password validation error", async () => {
+		server.use(
+			http.post("/api/v2/users/validate-password", () => {
+				return HttpResponse.json({
+					valid: false,
+					details: "Password is too short",
+				});
+			}),
+		);
+
+		renderWithRouter(
+			createMemoryRouter(
+				[
+					{
+						path: "/setup",
+						element: <SetupPage />,
+					},
+				],
+				{ initialEntries: ["/setup"] },
+			),
+		);
+		await waitForLoaderToBeRemoved();
+		await fillForm({ password: "short" });
+		await waitFor(() => screen.findByText("Password is too short"));
+	});
+
 	it("redirects to the app when setup is successful", async () => {
 		let userHasBeenCreated = false;
 
@@ -99,6 +125,7 @@ describe("Setup Page", () => {
 		await fillForm();
 		await waitFor(() => screen.findByText("Templates"));
 	});
+
 	it("calls sendBeacon with telemetry", async () => {
 		const sendBeacon = jest.fn();
 		Object.defineProperty(window.navigator, "sendBeacon", {

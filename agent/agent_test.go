@@ -21,9 +21,7 @@ import (
 	"runtime"
 	"strconv"
 	"strings"
-	"sync"
 	"sync/atomic"
-	"syscall"
 	"testing"
 	"time"
 
@@ -37,7 +35,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/goleak"
-	"go.uber.org/mock/gomock"
 	"golang.org/x/crypto/ssh"
 	"golang.org/x/exp/slices"
 	"golang.org/x/xerrors"
@@ -45,11 +42,8 @@ import (
 	"tailscale.com/tailcfg"
 
 	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/sloghuman"
 	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
-	"github.com/coder/coder/v2/agent/agentproc"
-	"github.com/coder/coder/v2/agent/agentproc/agentproctest"
 	"github.com/coder/coder/v2/agent/agentssh"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -64,7 +58,7 @@ import (
 )
 
 func TestMain(m *testing.M) {
-	goleak.VerifyTestMain(m)
+	goleak.VerifyTestMain(m, testutil.GoleakOptions...)
 }
 
 // NOTE: These tests only work when your default shell is bash for some reason.
@@ -983,7 +977,7 @@ func TestAgent_FileTransferBlocked(t *testing.T) {
 		isErr := strings.Contains(errorMessage, agentssh.BlockedFileTransferErrorMessage) ||
 			strings.Contains(errorMessage, "EOF") ||
 			strings.Contains(errorMessage, "Process exited with status 65")
-		require.True(t, isErr, fmt.Sprintf("Message: "+errorMessage))
+		require.True(t, isErr, "Message: "+errorMessage)
 	}
 
 	t.Run("SFTP", func(t *testing.T) {
@@ -1508,7 +1502,7 @@ func TestAgent_Lifecycle(t *testing.T) {
 
 	t.Run("ShutdownScriptOnce", func(t *testing.T) {
 		t.Parallel()
-		logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+		logger := testutil.Logger(t)
 		expected := "this-is-shutdown"
 		derpMap, _ := tailnettest.RunDERPAndSTUN(t)
 
@@ -1863,7 +1857,7 @@ func TestAgent_Dial(t *testing.T) {
 func TestAgent_UpdatedDERP(t *testing.T) {
 	t.Parallel()
 
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 
 	originalDerpMap, _ := tailnettest.RunDERPAndSTUN(t)
 	require.NotNil(t, originalDerpMap)
@@ -1918,10 +1912,10 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		testCtx, testCtxCancel := context.WithCancel(context.Background())
 		t.Cleanup(testCtxCancel)
 		clientID := uuid.New()
-		coordination := tailnet.NewInMemoryCoordination(
-			testCtx, logger,
-			clientID, agentID,
-			coordinator, conn)
+		ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+		ctrl.AddDestination(agentID)
+		auth := tailnet.ClientCoordinateeAuth{AgentID: agentID}
+		coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(logger, clientID, auth, coordinator))
 		t.Cleanup(func() {
 			t.Logf("closing coordination %s", name)
 			cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
@@ -1968,7 +1962,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 	// Push a new DERP map to the agent.
 	err := client.PushDERPMapUpdate(newDerpMap)
 	require.NoError(t, err)
-	t.Logf("pushed DERPMap update to agent")
+	t.Log("pushed DERPMap update to agent")
 
 	require.Eventually(t, func() bool {
 		conn := uut.TailnetConn()
@@ -1980,7 +1974,7 @@ func TestAgent_UpdatedDERP(t *testing.T) {
 		t.Logf("agent Conn DERPMap with regionIDs %v, PreferredDERP %d", regionIDs, preferredDERP)
 		return len(regionIDs) == 1 && regionIDs[0] == 2 && preferredDERP == 2
 	}, testutil.WaitLong, testutil.IntervalFast)
-	t.Logf("agent got the new DERPMap")
+	t.Log("agent got the new DERPMap")
 
 	// Connect from a second client and make sure it uses the new DERP map.
 	conn2 := newClientConn(newDerpMap, "client2")
@@ -2019,7 +2013,7 @@ func TestAgent_Speedtest(t *testing.T) {
 
 func TestAgent_Reconnect(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	// After the agent is disconnected from a coordinator, it's supposed
 	// to reconnect!
 	coordinator := tailnet.NewCoordinator(logger)
@@ -2060,7 +2054,7 @@ func TestAgent_Reconnect(t *testing.T) {
 
 func TestAgent_WriteVSCodeConfigs(t *testing.T) {
 	t.Parallel()
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	coordinator := tailnet.NewCoordinator(logger)
 	defer coordinator.Close()
 
@@ -2409,10 +2403,11 @@ func setupAgent(t *testing.T, metadata agentsdk.Manifest, ptyTimeout time.Durati
 	testCtx, testCtxCancel := context.WithCancel(context.Background())
 	t.Cleanup(testCtxCancel)
 	clientID := uuid.New()
-	coordination := tailnet.NewInMemoryCoordination(
-		testCtx, logger,
-		clientID, metadata.AgentID,
-		coordinator, conn)
+	ctrl := tailnet.NewTunnelSrcCoordController(logger, conn)
+	ctrl.AddDestination(metadata.AgentID)
+	auth := tailnet.ClientCoordinateeAuth{AgentID: metadata.AgentID}
+	coordination := ctrl.New(tailnet.NewInMemoryCoordinatorClient(
+		logger, clientID, auth, coordinator))
 	t.Cleanup(func() {
 		cctx, ccancel := context.WithTimeout(testCtx, testutil.WaitShort)
 		defer ccancel()
@@ -2667,242 +2662,6 @@ func TestAgent_Metrics_SSH(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestAgent_ManageProcessPriority(t *testing.T) {
-	t.Parallel()
-
-	t.Run("OK", func(t *testing.T) {
-		t.Parallel()
-
-		if runtime.GOOS != "linux" {
-			t.Skip("Skipping non-linux environment")
-		}
-
-		var (
-			expectedProcs = map[int32]agentproc.Process{}
-			fs            = afero.NewMemMapFs()
-			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
-			ticker        = make(chan time.Time)
-			modProcs      = make(chan []*agentproc.Process)
-			logger        = slog.Make(sloghuman.Sink(io.Discard))
-		)
-
-		requireFileWrite(t, fs, "/proc/self/oom_score_adj", "-500")
-
-		// Create some processes.
-		for i := 0; i < 4; i++ {
-			// Create a prioritized process.
-			var proc agentproc.Process
-			if i == 0 {
-				proc = agentproctest.GenerateProcess(t, fs,
-					func(p *agentproc.Process) {
-						p.CmdLine = "./coder\x00agent\x00--no-reap"
-						p.PID = int32(i)
-					},
-				)
-			} else {
-				proc = agentproctest.GenerateProcess(t, fs,
-					func(p *agentproc.Process) {
-						// Make the cmd something similar to a prioritized
-						// process but differentiate the arguments.
-						p.CmdLine = "./coder\x00stat"
-					},
-				)
-
-				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
-				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
-			}
-			syscaller.EXPECT().
-				Kill(proc.PID, syscall.Signal(0)).
-				Return(nil)
-
-			expectedProcs[proc.PID] = proc
-		}
-
-		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.Syscaller = syscaller
-			o.ModifiedProcesses = modProcs
-			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
-			o.Filesystem = fs
-			o.Logger = logger
-			o.ProcessManagementTick = ticker
-		})
-		actualProcs := <-modProcs
-		require.Len(t, actualProcs, len(expectedProcs)-1)
-		for _, proc := range actualProcs {
-			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "0")
-		}
-	})
-
-	t.Run("IgnoreCustomNice", func(t *testing.T) {
-		t.Parallel()
-
-		if runtime.GOOS != "linux" {
-			t.Skip("Skipping non-linux environment")
-		}
-
-		var (
-			expectedProcs = map[int32]agentproc.Process{}
-			fs            = afero.NewMemMapFs()
-			ticker        = make(chan time.Time)
-			syscaller     = agentproctest.NewMockSyscaller(gomock.NewController(t))
-			modProcs      = make(chan []*agentproc.Process)
-			logger        = slog.Make(sloghuman.Sink(io.Discard))
-		)
-
-		err := afero.WriteFile(fs, "/proc/self/oom_score_adj", []byte("0"), 0o644)
-		require.NoError(t, err)
-
-		// Create some processes.
-		for i := 0; i < 3; i++ {
-			proc := agentproctest.GenerateProcess(t, fs)
-			syscaller.EXPECT().
-				Kill(proc.PID, syscall.Signal(0)).
-				Return(nil)
-
-			if i == 0 {
-				// Set a random nice score. This one should not be adjusted by
-				// our management loop.
-				syscaller.EXPECT().GetPriority(proc.PID).Return(25, nil)
-			} else {
-				syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
-				syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
-			}
-
-			expectedProcs[proc.PID] = proc
-		}
-
-		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.Syscaller = syscaller
-			o.ModifiedProcesses = modProcs
-			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
-			o.Filesystem = fs
-			o.Logger = logger
-			o.ProcessManagementTick = ticker
-		})
-		actualProcs := <-modProcs
-		// We should ignore the process with a custom nice score.
-		require.Len(t, actualProcs, 2)
-		for _, proc := range actualProcs {
-			_, ok := expectedProcs[proc.PID]
-			require.True(t, ok)
-			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "998")
-		}
-	})
-
-	t.Run("CustomOOMScore", func(t *testing.T) {
-		t.Parallel()
-
-		if runtime.GOOS != "linux" {
-			t.Skip("Skipping non-linux environment")
-		}
-
-		var (
-			fs        = afero.NewMemMapFs()
-			ticker    = make(chan time.Time)
-			syscaller = agentproctest.NewMockSyscaller(gomock.NewController(t))
-			modProcs  = make(chan []*agentproc.Process)
-			logger    = slog.Make(sloghuman.Sink(io.Discard))
-		)
-
-		err := afero.WriteFile(fs, "/proc/self/oom_score_adj", []byte("0"), 0o644)
-		require.NoError(t, err)
-
-		// Create some processes.
-		for i := 0; i < 3; i++ {
-			proc := agentproctest.GenerateProcess(t, fs)
-			syscaller.EXPECT().
-				Kill(proc.PID, syscall.Signal(0)).
-				Return(nil)
-			syscaller.EXPECT().GetPriority(proc.PID).Return(20, nil)
-			syscaller.EXPECT().SetPriority(proc.PID, 10).Return(nil)
-		}
-
-		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.Syscaller = syscaller
-			o.ModifiedProcesses = modProcs
-			o.EnvironmentVariables = map[string]string{
-				agent.EnvProcPrioMgmt: "1",
-				agent.EnvProcOOMScore: "-567",
-			}
-			o.Filesystem = fs
-			o.Logger = logger
-			o.ProcessManagementTick = ticker
-		})
-		actualProcs := <-modProcs
-		// We should ignore the process with a custom nice score.
-		require.Len(t, actualProcs, 3)
-		for _, proc := range actualProcs {
-			requireFileEquals(t, fs, fmt.Sprintf("/proc/%d/oom_score_adj", proc.PID), "-567")
-		}
-	})
-
-	t.Run("DisabledByDefault", func(t *testing.T) {
-		t.Parallel()
-
-		if runtime.GOOS != "linux" {
-			t.Skip("Skipping non-linux environment")
-		}
-
-		var (
-			buf bytes.Buffer
-			wr  = &syncWriter{
-				w: &buf,
-			}
-		)
-		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
-
-		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.Logger = log
-		})
-
-		require.Eventually(t, func() bool {
-			wr.mu.Lock()
-			defer wr.mu.Unlock()
-			return strings.Contains(buf.String(), "process priority not enabled")
-		}, testutil.WaitLong, testutil.IntervalFast)
-	})
-
-	t.Run("DisabledForNonLinux", func(t *testing.T) {
-		t.Parallel()
-
-		if runtime.GOOS == "linux" {
-			t.Skip("Skipping linux environment")
-		}
-
-		var (
-			buf bytes.Buffer
-			wr  = &syncWriter{
-				w: &buf,
-			}
-		)
-		log := slog.Make(sloghuman.Sink(wr)).Leveled(slog.LevelDebug)
-
-		_, _, _, _, _ = setupAgent(t, agentsdk.Manifest{}, 0, func(c *agenttest.Client, o *agent.Options) {
-			o.Logger = log
-			// Try to enable it so that we can assert that non-linux
-			// environments are truly disabled.
-			o.EnvironmentVariables = map[string]string{agent.EnvProcPrioMgmt: "1"}
-		})
-		require.Eventually(t, func() bool {
-			wr.mu.Lock()
-			defer wr.mu.Unlock()
-
-			return strings.Contains(buf.String(), "process priority not enabled")
-		}, testutil.WaitLong, testutil.IntervalFast)
-	})
-}
-
-type syncWriter struct {
-	mu sync.Mutex
-	w  io.Writer
-}
-
-func (s *syncWriter) Write(p []byte) (int, error) {
-	s.mu.Lock()
-	defer s.mu.Unlock()
-	return s.w.Write(p)
-}
-
 // echoOnce accepts a single connection, reads 4 bytes and echos them back
 func echoOnce(t *testing.T, ll net.Listener) {
 	t.Helper()
@@ -2931,18 +2690,4 @@ func requireEcho(t *testing.T, conn net.Conn) {
 	_, err = conn.Read(b)
 	require.NoError(t, err)
 	require.Equal(t, "test", string(b))
-}
-
-func requireFileWrite(t testing.TB, fs afero.Fs, fp, data string) {
-	t.Helper()
-	err := afero.WriteFile(fs, fp, []byte(data), 0o600)
-	require.NoError(t, err)
-}
-
-func requireFileEquals(t testing.TB, fs afero.Fs, fp, expect string) {
-	t.Helper()
-	actual, err := afero.ReadFile(fs, fp)
-	require.NoError(t, err)
-
-	require.Equal(t, expect, string(actual))
 }

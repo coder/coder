@@ -2,11 +2,11 @@
   description = "Development environments on your infrastructure";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/nixos-unstable";
+    nixpkgs.url = "github:nixos/nixpkgs/nixos-24.11";
     nixpkgs-pinned.url = "github:nixos/nixpkgs/5deee6281831847857720668867729617629ef1f";
     flake-utils.url = "github:numtide/flake-utils";
     pnpm2nix = {
-      url = "github:nzbr/pnpm2nix-nzbr";
+      url = "github:ThomasK33/pnpm2nix-nzbr";
       inputs.nixpkgs.follows = "nixpkgs";
       inputs.flake-utils.follows = "flake-utils";
     };
@@ -17,8 +17,17 @@
     };
   };
 
-  outputs = { self, nixpkgs, nixpkgs-pinned, flake-utils, drpc, pnpm2nix }:
-    flake-utils.lib.eachDefaultSystem (system:
+  outputs =
+    {
+      self,
+      nixpkgs,
+      nixpkgs-pinned,
+      flake-utils,
+      drpc,
+      pnpm2nix,
+    }:
+    flake-utils.lib.eachDefaultSystem (
+      system:
       let
         pkgs = import nixpkgs {
           inherit system;
@@ -32,99 +41,135 @@
           inherit system;
         };
 
-        nodejs = pkgs.nodejs-18_x;
+        formatter = pkgs.nixfmt-rfc-style;
+
+        nodejs = pkgs.nodejs_20;
+        pnpm = pkgs.pnpm_9.override {
+          inherit nodejs; # Ensure it points to the above nodejs version
+        };
+
         # Check in https://search.nixos.org/packages to find new packages.
         # Use `nix --extra-experimental-features nix-command --extra-experimental-features flakes flake update`
         # to update the lock file if packages are out-of-date.
 
         # From https://nixos.wiki/wiki/Google_Cloud_SDK
-        gdk = pkgs.google-cloud-sdk.withExtraComponents ([ pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin ]);
+        gdk = pkgs.google-cloud-sdk.withExtraComponents [
+          pkgs.google-cloud-sdk.components.gke-gcloud-auth-plugin
+        ];
 
         proto_gen_go_1_30 = pkgs.buildGoModule rec {
           name = "protoc-gen-go";
           owner = "protocolbuffers";
           repo = "protobuf-go";
-          rev = "v1.30.0"; 
+          rev = "v1.30.0";
           src = pkgs.fetchFromGitHub {
-            owner = "protocolbuffers";
-            repo = "protobuf-go";
-            rev = rev;
+            inherit owner repo rev;
             # Updated with ./scripts/update-flake.sh`.
             sha256 = "sha256-GTZQ40uoi62Im2F4YvlZWiSNNJ4fEAkRojYa0EYz9HU=";
           };
           subPackages = [ "cmd/protoc-gen-go" ];
           vendorHash = null;
-          proxyVendor = true;
-          preBuild = ''
-            export GOPROXY=https://proxy.golang.org,direct
-            go mod download
-          '';
         };
 
+        # Packages required to build the frontend
+        frontendPackages =
+          with pkgs;
+          [
+            cairo
+            pango
+            pixman
+            libpng
+            libjpeg
+            giflib
+            librsvg
+            python312Packages.setuptools # Needed for node-gyp
+          ]
+          ++ (lib.optionals stdenv.targetPlatform.isDarwin [
+            darwin.apple_sdk.frameworks.Foundation
+            xcbuild
+          ]);
+
         # The minimal set of packages to build Coder.
-        devShellPackages = with pkgs; [
-          # google-chrome is not available on OSX and aarch64 linux
-          (if pkgs.stdenv.hostPlatform.isDarwin || pkgs.stdenv.hostPlatform.isAarch64 then null else google-chrome)
-          # strace is not available on OSX
-          (if pkgs.stdenv.hostPlatform.isDarwin then null else strace)
-          bat
-          cairo
-          curl
-          delve
-          drpc.defaultPackage.${system}
-          gcc
-          gdk
-          getopt
-          gh
-          git
-          gnumake
-          gnused
-          go_1_22
-          go-migrate
-          (pinnedPkgs.golangci-lint)
-          gopls
-          gotestsum
-          jq
-          kubectl
-          kubectx
-          kubernetes-helm
-          less
-          mockgen
-          nfpm
-          nodejs
-          pnpm
-          openssh
-          openssl
-          pango
-          pixman
-          pkg-config
-          playwright-driver.browsers
-          postgresql_16
-          protobuf
-          proto_gen_go_1_30
-          ripgrep
-          # This doesn't build on latest nixpkgs (July 10 2024)
-          (pinnedPkgs.sapling)
-          shellcheck
-          (pinnedPkgs.shfmt)
-          sqlc
-          terraform
-          typos
-          # Needed for many LD system libs!
-          util-linux
-          vim
-          wget
-          yq-go
-          zip
-          zsh
-          zstd
-        ];
+        devShellPackages =
+          with pkgs;
+          [
+            # google-chrome is not available on aarch64 linux
+            (lib.optionalDrvAttr (!stdenv.isLinux || !stdenv.isAarch64) google-chrome)
+            # strace is not available on OSX
+            (lib.optionalDrvAttr (!pkgs.stdenv.isDarwin) strace)
+            bat
+            cairo
+            curl
+            delve
+            dive
+            drpc.defaultPackage.${system}
+            formatter
+            fzf
+            gawk
+            gcc13
+            gdk
+            getopt
+            gh
+            git
+            (lib.optionalDrvAttr stdenv.isLinux glibcLocales)
+            gnumake
+            gnused
+            gnugrep
+            gnutar
+            go_1_22
+            go-migrate
+            (pinnedPkgs.golangci-lint)
+            gopls
+            gotestsum
+            jq
+            kubectl
+            kubectx
+            kubernetes-helm
+            lazygit
+            less
+            mockgen
+            moreutils
+            neovim
+            nfpm
+            nix-prefetch-git
+            nodejs
+            openssh
+            openssl
+            pango
+            pixman
+            pkg-config
+            playwright-driver.browsers
+            pnpm
+            postgresql_16
+            proto_gen_go_1_30
+            protobuf_23
+            ripgrep
+            shellcheck
+            (pinnedPkgs.shfmt)
+            sqlc
+            terraform
+            typos
+            which
+            # Needed for many LD system libs!
+            (lib.optional stdenv.isLinux util-linux)
+            vim
+            wget
+            yq-go
+            zip
+            zsh
+            zstd
+          ]
+          ++ frontendPackages;
+
+        docker = pkgs.callPackage ./nix/docker.nix { };
 
         # buildSite packages the site directory.
         buildSite = pnpm2nix.packages.${system}.mkPnpmPackage {
+          inherit nodejs pnpm;
+
           src = ./site/.;
           # Required for the `canvas` package!
-          extraBuildInputs = with pkgs; [ pkgs.cairo pkgs.pango pkgs.pixman ];
+          extraBuildInputs = frontendPackages;
           installInPlace = true;
           distDir = "out";
         };
@@ -133,15 +178,20 @@
 
         # To make faster subsequent builds, you could extract the `.zst`
         # slim bundle into it's own derivation.
-        buildFat = osArch:
+        buildFat =
+          osArch:
           pkgs.buildGo122Module {
             name = "coder-${osArch}";
             # Updated with ./scripts/update-flake.sh`.
             # This should be updated whenever go.mod changes!
-            vendorHash = "sha256-kPXRp7l05iJd4IdvQeOFOgg2UNzBcloy3tA9Meep9VI=";
+            vendorHash = "sha256-QjqF+QZ5JKMnqkpNh6ZjrJU2QcSqiT4Dip1KoicwLYc=";
             proxyVendor = true;
             src = ./.;
-            nativeBuildInputs = with pkgs; [ getopt openssl zstd ];
+            nativeBuildInputs = with pkgs; [
+              getopt
+              openssl
+              zstd
+            ];
             preBuild = ''
               # Replaces /usr/bin/env with an absolute path to the interpreter.
               patchShebangs ./scripts
@@ -150,12 +200,15 @@
               runHook preBuild
 
               # Unpack the site contents.
-              mkdir -p ./site/out
+              mkdir -p ./site/out ./site/node_modules/
               cp -r ${buildSite.out}/* ./site/out
+              touch ./site/node_modules/.installed
 
               # Build and copy the binary!
               export CODER_FORCE_VERSION=${version}
-              make -j build/coder_${osArch}
+              # Flagging 'site/node_modules/.installed' as an old file,
+              # as we do not want to trigger codegen during a build.
+              make -j -o 'site/node_modules/.installed' build/coder_${osArch}
             '';
             installPhase = ''
               mkdir -p $out/bin
@@ -163,30 +216,76 @@
             '';
           };
       in
-      {
-        devShell = pkgs.mkShell {
-          buildInputs = devShellPackages;
-          shellHook = ''
-            export PLAYWRIGHT_BROWSERS_PATH=${pkgs.playwright-driver.browsers}
-            export PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS=true
-          '';
-        };
-        packages = {
-          proto_gen_go = proto_gen_go_1_30;  
-          all = pkgs.buildEnv {
-            name = "all-packages";
-            paths = devShellPackages;
-          };
-          site = buildSite;
+      rec {
+        inherit formatter;
 
-          # Copying `OS_ARCHES` from the Makefile.
-          linux_amd64 = buildFat "linux_amd64";
-          linux_arm64 = buildFat "linux_arm64";
-          darwin_amd64 = buildFat "darwin_amd64";
-          darwin_arm64 = buildFat "darwin_arm64";
-          windows_amd64 = buildFat "windows_amd64.exe";
-          windows_arm64 = buildFat "windows_arm64.exe";
+        devShells = {
+          default = pkgs.mkShell {
+            buildInputs = devShellPackages;
+
+            PLAYWRIGHT_BROWSERS_PATH = pkgs.playwright-driver.browsers;
+            PLAYWRIGHT_SKIP_VALIDATE_HOST_REQUIREMENTS = true;
+
+            LOCALE_ARCHIVE =
+              with pkgs;
+              lib.optionalDrvAttr stdenv.isLinux "${glibcLocales}/lib/locale/locale-archive";
+
+            NODE_OPTIONS = "--max-old-space-size=8192";
+            GOPRIVATE = "coder.com,cdr.dev,go.coder.com,github.com/cdr,github.com/coder";
+          };
         };
+
+        packages =
+          {
+            default = packages.${system};
+
+            proto_gen_go = proto_gen_go_1_30;
+            site = buildSite;
+
+            # Copying `OS_ARCHES` from the Makefile.
+            x86_64-linux = buildFat "linux_amd64";
+            aarch64-linux = buildFat "linux_arm64";
+            x86_64-darwin = buildFat "darwin_amd64";
+            aarch64-darwin = buildFat "darwin_arm64";
+            x86_64-windows = buildFat "windows_amd64.exe";
+            aarch64-windows = buildFat "windows_arm64.exe";
+          }
+          // (pkgs.lib.optionalAttrs pkgs.stdenv.isLinux {
+            dev_image = docker.buildNixShellImage rec {
+              name = "codercom/oss-dogfood-nix";
+              tag = "latest-${system}";
+
+              # (ThomasK33): Workaround for images with too many layers (>64 layers) causing sysbox
+              # to have issues on dogfood envs.
+              maxLayers = 32;
+
+              uname = "coder";
+              homeDirectory = "/home/${uname}";
+
+              drv = devShells.default.overrideAttrs (oldAttrs: {
+                buildInputs =
+                  (with pkgs; [
+                    coreutils
+                    nix
+                    curl.bin # Ensure the actual curl binary is included in the PATH
+                    glibc.bin # Ensure the glibc binaries are included in the PATH
+                    jq.bin
+                    binutils # ld and strings
+                    filebrowser # Ensure that we're not redownloading filebrowser on each launch
+                    systemd.out
+                    service-wrapper
+                    docker_26
+                    shadow.out
+                    su
+                    ncurses.out # clear
+                    unzip
+                    zip
+                    gzip
+                  ])
+                  ++ oldAttrs.buildInputs;
+              });
+            };
+          });
       }
     );
 }

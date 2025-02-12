@@ -233,6 +233,17 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:    "UseTemplates",
+			Actions: []policy.Action{policy.ActionUse},
+			Resource: rbac.ResourceTemplate.InOrg(orgID).WithGroupACL(map[string][]policy.Action{
+				groupID.String(): {policy.ActionUse},
+			}),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgAdmin, templateAdmin, orgTemplateAdmin, groupMemberMe},
+				false: {setOtherOrg, orgAuditor, orgUserAdmin, memberMe, userAdmin, orgMemberMe},
+			},
+		},
+		{
 			Name:     "Files",
 			Actions:  []policy.Action{policy.ActionCreate},
 			Resource: rbac.ResourceFile.WithID(fileID),
@@ -554,6 +565,15 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "ProvisionerJobs",
+			Actions:  []policy.Action{policy.ActionRead},
+			Resource: rbac.ResourceProvisionerJobs.InOrg(orgID),
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true:  {owner, orgTemplateAdmin, orgAdmin},
+				false: {setOtherOrg, memberMe, orgMemberMe, templateAdmin, userAdmin, orgUserAdmin, orgAuditor},
+			},
+		},
+		{
 			Name:     "System",
 			Actions:  crud,
 			Resource: rbac.ResourceSystem,
@@ -648,6 +668,21 @@ func TestRolePermissions(t *testing.T) {
 			},
 		},
 		{
+			Name:     "NotificationMessages",
+			Actions:  []policy.Action{policy.ActionCreate, policy.ActionRead, policy.ActionUpdate, policy.ActionDelete},
+			Resource: rbac.ResourceNotificationMessage,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
+				},
+			},
+		},
+		{
 			// Notification preferences are currently not organization-scoped
 			// Any owner/admin may access any users' preferences
 			// Members may not access other members' preferences
@@ -718,12 +753,42 @@ func TestRolePermissions(t *testing.T) {
 			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
 			Resource: rbac.ResourceIdpsyncSettings.InOrg(orgID),
 			AuthorizeMap: map[bool][]hasAuthSubjects{
-				true: {owner, orgAdmin, orgUserAdmin},
+				true: {owner, orgAdmin, orgUserAdmin, userAdmin},
 				false: {
 					orgMemberMe, otherOrgAdmin,
-					memberMe, userAdmin, templateAdmin,
+					memberMe, templateAdmin,
 					orgAuditor, orgTemplateAdmin,
 					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "OrganizationIDPSyncSettings",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionUpdate},
+			Resource: rbac.ResourceIdpsyncSettings,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner, userAdmin},
+				false: {
+					orgAdmin, orgUserAdmin,
+					orgMemberMe, otherOrgAdmin,
+					memberMe, templateAdmin,
+					orgAuditor, orgTemplateAdmin,
+					otherOrgMember, otherOrgAuditor, otherOrgUserAdmin, otherOrgTemplateAdmin,
+				},
+			},
+		},
+		{
+			Name:     "ResourceMonitor",
+			Actions:  []policy.Action{policy.ActionRead, policy.ActionCreate},
+			Resource: rbac.ResourceWorkspaceAgentResourceMonitor,
+			AuthorizeMap: map[bool][]hasAuthSubjects{
+				true: {owner},
+				false: {
+					memberMe, orgMemberMe, otherOrgMember,
+					orgAdmin, otherOrgAdmin,
+					orgAuditor, otherOrgAuditor,
+					templateAdmin, orgTemplateAdmin, otherOrgTemplateAdmin,
+					userAdmin, orgUserAdmin, otherOrgUserAdmin,
 				},
 			},
 		},

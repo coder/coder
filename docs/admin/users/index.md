@@ -143,7 +143,12 @@ Confirm the user activation by typing **yes** and pressing **enter**.
 
 ## Reset a password
 
-To reset a user's via the web UI:
+As of 2.17.0, users can reset their password independently on the login screen
+by clicking "Forgot Password." This feature requires
+[email notifications](../monitoring/notifications/index.md#smtp-email) to be
+configured on the deployment.
+
+To reset a user's password as an administrator via the web UI:
 
 1. Go to **Users**.
 2. Find the user whose password you want to reset, click the vertical ellipsis
@@ -180,8 +185,10 @@ to use the Coder's filter query:
 
 - To find active users, use the filter `status:active`.
 - To find admin users, use the filter `role:admin`.
-- To find users have not been active since July 2023:
+- To find users who have not been active since July 2023:
   `status:active last_seen_before:"2023-07-01T00:00:00Z"`
+- To find users who were created between January 1 and January 18, 2023:
+  `created_before:"2023-01-18T00:00:00Z" created_after:"2023-01-01T23:59:59Z"`
 
 The following filters are supported:
 
@@ -190,6 +197,8 @@ The following filters are supported:
 - `role` - Represents the role of the user. You can refer to the
   [TemplateRole documentation](https://pkg.go.dev/github.com/coder/coder/v2/codersdk#TemplateRole)
   for a list of supported user roles.
-- `last_seen_before` and `last_seen_after` - The last time a used has used the
+- `last_seen_before` and `last_seen_after` - The last time a user has used the
   platform (e.g. logging in, any API requests, connecting to workspaces). Uses
   the RFC3339Nano format.
+- `created_before` and `created_after` - The time a user was created. Uses the
+  RFC3339Nano format.

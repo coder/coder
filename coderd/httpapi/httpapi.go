@@ -268,7 +268,7 @@ const websocketCloseMaxLen = 123
 func WebsocketCloseSprintf(format string, vars ...any) string {
 	msg := fmt.Sprintf(format, vars...)
 
-	// Cap msg length at 123 bytes. nhooyr/websocket only allows close messages
+	// Cap msg length at 123 bytes. coder/websocket only allows close messages
 	// of this length.
 	if len(msg) > websocketCloseMaxLen {
 		// Trim the string to 123 bytes. If we accidentally cut in the middle of

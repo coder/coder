@@ -864,24 +864,34 @@ func TestCreateValidateRichParameters(t *testing.T) {
 		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
 		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
 
-		inv, root := clitest.New(t, "create", "my-workspace", "--template", template.Name)
-		clitest.SetupConfig(t, member, root)
-		pty := ptytest.New(t).Attach(inv)
-		clitest.Start(t, inv)
+		t.Run("Prompt", func(t *testing.T) {
+			inv, root := clitest.New(t, "create", "my-workspace-1", "--template", template.Name)
+			clitest.SetupConfig(t, member, root)
+			pty := ptytest.New(t).Attach(inv)
+			clitest.Start(t, inv)
 
-		matches := []string{
-			listOfStringsParameterName, "",
-			"aaa, bbb, ccc", "",
-			"Confirm create?", "yes",
-		}
-		for i := 0; i < len(matches); i += 2 {
-			match := matches[i]
-			value := matches[i+1]
-			pty.ExpectMatch(match)
-			if value != "" {
-				pty.WriteLine(value)
-			}
-		}
+			pty.ExpectMatch(listOfStringsParameterName)
+			pty.ExpectMatch("aaa, bbb, ccc")
+			pty.ExpectMatch("Confirm create?")
+			pty.WriteLine("yes")
+		})
+
+		t.Run("Default", func(t *testing.T) {
+			t.Parallel()
+			inv, root := clitest.New(t, "create", "my-workspace-2", "--template", template.Name, "--yes")
+			clitest.SetupConfig(t, member, root)
+			clitest.Run(t, inv)
+		})
+
+		t.Run("CLIOverride/DoubleQuote", func(t *testing.T) {
+			t.Parallel()
+
+			// Note: see https://go.dev/play/p/vhTUTZsVrEb for how to escape this properly
+			parameterArg := fmt.Sprintf(`"%s=[""ddd=foo"",""eee=bar"",""fff=baz""]"`, listOfStringsParameterName)
+			inv, root := clitest.New(t, "create", "my-workspace-3", "--template", template.Name, "--parameter", parameterArg, "--yes")
+			clitest.SetupConfig(t, member, root)
+			clitest.Run(t, inv)
+		})
 	})
 
 	t.Run("ValidateListOfStrings_YAMLFile", func(t *testing.T) {

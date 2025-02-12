@@ -129,12 +129,29 @@ message Agent {
 	repeated Script scripts = 21;
 	repeated Env extra_envs = 22;
 	int64 order = 23;
+	ResourcesMonitoring resources_monitoring = 24;
 }
 
 enum AppSharingLevel {
     OWNER = 0;
     AUTHENTICATED = 1;
     PUBLIC = 2;
+}
+
+message ResourcesMonitoring {
+	MemoryResourceMonitor memory = 1;
+	repeated VolumeResourceMonitor volumes = 2;
+}
+
+message MemoryResourceMonitor {
+	bool enabled = 1;
+	int32 threshold = 2;
+}
+
+message VolumeResourceMonitor {
+	string path = 1;
+	bool enabled = 2;
+	int32 threshold = 3;
 }
 
 message DisplayApps {
@@ -163,6 +180,12 @@ message Script {
 	string log_path = 9;
 }
 
+enum AppOpenIn {
+    WINDOW = 0 [deprecated = true];
+    SLIM_WINDOW = 1;
+    TAB = 2;
+}
+
 // App represents a dev-accessible application on the workspace.
 message App {
     // slug is the unique identifier for the app, usually the name from the
@@ -178,6 +201,7 @@ message App {
     bool external = 9;
     int64 order = 10;
     bool hidden = 11;
+    AppOpenIn open_in = 12;
 }
 
 // Healthcheck represents configuration for checking for app readiness.
@@ -204,6 +228,13 @@ message Resource {
     string icon = 6;
     string instance_type = 7;
     int32 daily_cost = 8;
+    string module_path = 9;
+}
+
+message Module {
+    string source = 1;
+    string version = 2;
+    string key = 3;
 }
 
 // WorkspaceTransition is the desired outcome of a build
@@ -232,6 +263,7 @@ message Metadata {
     string workspace_owner_ssh_public_key = 15;
     string workspace_owner_ssh_private_key = 16;
     string workspace_build_id = 17;
+    string workspace_owner_login_type =  18;
 }
 
 // Config represents execution configuration shared by all subsequent requests in the Session
@@ -270,6 +302,7 @@ message PlanComplete {
     repeated RichParameter parameters = 3;
     repeated ExternalAuthProviderResource external_auth_providers = 4;
     repeated Timing timings = 6;
+    repeated Module modules = 7;
 }
 
 // ApplyRequest asks the provisioner to apply the changes.  Apply MUST be preceded by a successful plan request/response

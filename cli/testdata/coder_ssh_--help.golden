@@ -30,6 +30,12 @@ OPTIONS:
   -l, --log-dir string, $CODER_SSH_LOG_DIR
           Specify the directory containing SSH diagnostic log files.
 
+      --network-info-dir string
+          Specifies a directory to write network information periodically.
+
+      --network-info-interval duration (default: 5s)
+          Specifies the interval to update network information.
+
       --no-wait bool, $CODER_SSH_NO_WAIT
           Enter workspace immediately after the agent has connected. This is the
           default if the template has configured the agent startup script
@@ -38,6 +44,11 @@ OPTIONS:
 
   -R, --remote-forward string-array, $CODER_SSH_REMOTE_FORWARD
           Enable remote port forwarding (remote_port:local_address:local_port).
+
+      --ssh-host-prefix string, $CODER_SSH_SSH_HOST_PREFIX
+          Strip this prefix from the provided hostname to determine the
+          workspace name. This is useful when used as part of an OpenSSH proxy
+          command.
 
       --stdio bool, $CODER_SSH_STDIO
           Specifies whether to emit SSH output over stdin/stdout.

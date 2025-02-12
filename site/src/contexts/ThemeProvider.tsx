@@ -1,4 +1,6 @@
+import createCache from "@emotion/cache";
 import { ThemeProvider as EmotionThemeProvider } from "@emotion/react";
+import { CacheProvider } from "@emotion/react";
 import CssBaseline from "@mui/material/CssBaseline";
 import {
 	ThemeProvider as MuiThemeProvider,
@@ -55,6 +57,20 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	// The janky casting here is find because of the much more type safe fallback
 	// We need to support `themePreference` being wrong anyway because the database
 	// value could be anything, like an empty string.
+
+	useEffect(() => {
+		const root = document.documentElement;
+		if (themePreference === "auto") {
+			root.classList.add(preferredColorScheme);
+		} else {
+			root.classList.add(themePreference);
+		}
+
+		return () => {
+			root.classList.remove("light", "dark");
+		};
+	}, [themePreference, preferredColorScheme]);
+
 	const theme =
 		themes[themePreference as keyof typeof themes] ??
 		themes[preferredColorScheme];
@@ -66,6 +82,12 @@ export const ThemeProvider: FC<PropsWithChildren> = ({ children }) => {
 	);
 };
 
+// This is being added to allow Tailwind classes to be used with MUI components. https://mui.com/material-ui/integrations/interoperability/#tailwind-css
+const cache = createCache({
+	key: "css",
+	prepend: true,
+});
+
 interface ThemeOverrideProps {
 	theme: Theme;
 	children?: ReactNode;
@@ -73,11 +95,13 @@ interface ThemeOverrideProps {
 
 export const ThemeOverride: FC<ThemeOverrideProps> = ({ theme, children }) => {
 	return (
-		<MuiThemeProvider theme={theme}>
-			<EmotionThemeProvider theme={theme}>
-				<CssBaseline enableColorScheme />
-				{children}
-			</EmotionThemeProvider>
-		</MuiThemeProvider>
+		<CacheProvider value={cache}>
+			<MuiThemeProvider theme={theme}>
+				<EmotionThemeProvider theme={theme}>
+					<CssBaseline enableColorScheme />
+					{children}
+				</EmotionThemeProvider>
+			</MuiThemeProvider>
+		</CacheProvider>
 	);
 };

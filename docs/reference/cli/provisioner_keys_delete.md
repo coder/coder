@@ -1,12 +1,11 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # provisioner keys delete
 
 Delete a provisioner key
 
 Aliases:
 
-- rm
+* rm
 
 ## Usage
 
@@ -19,7 +18,7 @@ coder provisioner keys delete [flags] <name>
 ### -y, --yes
 
 |      |                   |
-| ---- | ----------------- |
+|------|-------------------|
 | Type | <code>bool</code> |
 
 Bypass prompts.
@@ -27,7 +26,7 @@ Bypass prompts.
 ### -O, --org
 
 |             |                                  |
-| ----------- | -------------------------------- |
+|-------------|----------------------------------|
 | Type        | <code>string</code>              |
 | Environment | <code>$CODER_ORGANIZATION</code> |
 

@@ -5,6 +5,7 @@ import (
 	_ "embed"
 	"io"
 	"net"
+	"slices"
 	"sync"
 	"time"
 
@@ -53,11 +54,22 @@ func (b *Backend) NewSession(c *smtp.Conn) (smtp.Session, error) {
 	return &Session{conn: c, backend: b}, nil
 }
 
+// LastMessage returns a copy of the last message received by the
+// backend.
 func (b *Backend) LastMessage() *Message {
-	return b.lastMsg
+	b.mu.Lock()
+	defer b.mu.Unlock()
+	if b.lastMsg == nil {
+		return nil
+	}
+	clone := *b.lastMsg
+	clone.To = slices.Clone(b.lastMsg.To)
+	return &clone
 }
 
 func (b *Backend) Reset() {
+	b.mu.Lock()
+	defer b.mu.Unlock()
 	b.lastMsg = nil
 }
 
@@ -84,6 +96,9 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 	switch mech {
 	case sasl.Plain:
 		return sasl.NewPlainServer(func(identity, username, password string) error {
+			s.backend.mu.Lock()
+			defer s.backend.mu.Unlock()
+
 			s.backend.lastMsg.Identity = identity
 			s.backend.lastMsg.Username = username
 			s.backend.lastMsg.Password = password
@@ -102,6 +117,9 @@ func (s *Session) Auth(mech string) (sasl.Server, error) {
 		}), nil
 	case sasl.Login:
 		return sasl.NewLoginServer(func(username, password string) error {
+			s.backend.mu.Lock()
+			defer s.backend.mu.Unlock()
+
 			s.backend.lastMsg.Username = username
 			s.backend.lastMsg.Password = password
 

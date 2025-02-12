@@ -1,5 +1,4 @@
 <!-- DO NOT EDIT | GENERATED CONTENT -->
-
 # open vscode
 
 Open a workspace in VS Code Desktop
@@ -15,7 +14,7 @@ coder open vscode [flags] <workspace> [<directory in workspace>]
 ### --generate-token
 
 |             |                                                |
-| ----------- | ---------------------------------------------- |
+|-------------|------------------------------------------------|
 | Type        | <code>bool</code>                              |
 | Environment | <code>$CODER_OPEN_VSCODE_GENERATE_TOKEN</code> |
 

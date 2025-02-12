@@ -10,11 +10,11 @@ page describes possible deployments, challenges, and risks associated with them.
 
 ![Architecture Diagram](../../images/architecture-diagram.png)
 
-## Enterprise
+## Premium
 
 ![Single Region Architecture Diagram](../../images/architecture-single-region.png)
 
-## Multi-Region Enterprise
+## Multi-Region Premium
 
 ![Multi Region Architecture Diagram](../../images/architecture-multi-region.png)
 
@@ -94,7 +94,8 @@ external PostgreSQL 13+ database for production deployments.
 
 A managed PostgreSQL database, with daily backups, is recommended:
 
-- For AWS: Amazon RDS for PostgreSQL
+- For AWS: Amazon RDS for PostgreSQL (preferably using
+  [RDS IAM authentication](../../reference/cli/server.md#--postgres-auth)).
 - For Azure: Azure Database for PostgreSQL
 - Flexible Server For GCP: Cloud SQL for PostgreSQL
 

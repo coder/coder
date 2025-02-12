@@ -139,6 +139,8 @@ type CreateUserRequestWithOrgs struct {
 	Password string `json:"password"`
 	// UserLoginType defaults to LoginTypePassword.
 	UserLoginType LoginType `json:"login_type"`
+	// UserStatus defaults to UserStatusDormant.
+	UserStatus *UserStatus `json:"user_status"`
 	// OrganizationIDs is a list of organization IDs that the user should be a member of.
 	OrganizationIDs []uuid.UUID `json:"organization_ids" validate:"" format:"uuid"`
 }
@@ -174,6 +176,15 @@ func (r *CreateUserRequestWithOrgs) UnmarshalJSON(data []byte) error {
 type UpdateUserProfileRequest struct {
 	Username string `json:"username" validate:"required,username"`
 	Name     string `json:"name" validate:"user_real_name"`
+}
+
+type ValidateUserPasswordRequest struct {
+	Password string `json:"password" validate:"required"`
+}
+
+type ValidateUserPasswordResponse struct {
+	Valid   bool   `json:"valid"`
+	Details string `json:"details"`
 }
 
 type UpdateUserAppearanceSettingsRequest struct {
@@ -402,6 +413,20 @@ func (c *Client) UpdateUserProfile(ctx context.Context, user string, req UpdateU
 		return User{}, ReadBodyAsError(res)
 	}
 	var resp User
+	return resp, json.NewDecoder(res.Body).Decode(&resp)
+}
+
+// ValidateUserPassword validates the complexity of a user password and that it is secured enough.
+func (c *Client) ValidateUserPassword(ctx context.Context, req ValidateUserPasswordRequest) (ValidateUserPasswordResponse, error) {
+	res, err := c.Request(ctx, http.MethodPost, "/api/v2/users/validate-password", req)
+	if err != nil {
+		return ValidateUserPasswordResponse{}, err
+	}
+	defer res.Body.Close()
+	if res.StatusCode != http.StatusOK {
+		return ValidateUserPasswordResponse{}, ReadBodyAsError(res)
+	}
+	var resp ValidateUserPasswordResponse
 	return resp, json.NewDecoder(res.Body).Decode(&resp)
 }
 

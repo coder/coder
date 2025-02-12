@@ -32,9 +32,8 @@ func TestResetPassword(t *testing.T) {
 	const newPassword = "MyNewPassword!"
 
 	// start postgres and coder server processes
-	connectionURL, closeFunc, err := dbtestutil.Open()
+	connectionURL, err := dbtestutil.Open(t)
 	require.NoError(t, err)
-	defer closeFunc()
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	serverDone := make(chan struct{})
 	serverinv, cfg := clitest.New(t,

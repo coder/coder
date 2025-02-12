@@ -74,6 +74,8 @@ coder:
     annotations: {}
     # coder.serviceAccount.name -- The service account name
     name: coder-provisioner
+    # coder.serviceAccount.disableCreate -- Whether to create the service account or use existing service account.
+    disableCreate: false
 
   # coder.securityContext -- Fields related to the container's security
   # context (as opposed to the pod). Some fields are also present in the pod
@@ -204,14 +206,23 @@ provisionerDaemon:
   # provisionerDaemon.keySecretName -- The name of the Kubernetes
   # secret that contains a provisioner key to use to authenticate with Coder.
   # See: https://coder.com/docs/admin/provisioners#authentication
+  # NOTE: it is not permitted to specify both provisionerDaemon.keySecretName
+  # and provisionerDaemon.pskSecretName. An exception is made for the purposes
+  # of backwards-compatibility: if provisionerDaemon.pskSecretName is unchanged
+  # from the default value and provisionerDaemon.keySecretName is set, then
+  # provisionerDaemon.keySecretName and provisionerDaemon.keySecretKey will take
+  # precedence over provisionerDaemon.pskSecretName.
   keySecretName: ""
   # provisionerDaemon.keySecretKey -- The key of the Kubernetes
   # secret specified in provisionerDaemon.keySecretName that contains
   # the provisioner key. Defaults to "key".
   keySecretKey: "key"
 
-  # provisionerDaemon.tags -- Tags to filter provisioner jobs by.
+  # provisionerDaemon.tags -- If using a PSK, specify the set of provisioner
+  # job tags for which this provisioner daemon is responsible.
   # See: https://coder.com/docs/admin/provisioners#provisioner-tags
+  # NOTE: it is not permitted to specify both provisionerDaemon.tags and
+  # provsionerDaemon.keySecretName.
   tags:
     {}
     # location: usa

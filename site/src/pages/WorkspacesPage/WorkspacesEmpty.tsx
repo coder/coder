@@ -1,7 +1,7 @@
 import ArrowForwardOutlined from "@mui/icons-material/ArrowForwardOutlined";
-import Button from "@mui/material/Button";
 import type { Template } from "api/typesGenerated";
 import { Avatar } from "components/Avatar/Avatar";
+import { Button } from "components/Button/Button";
 import { TableEmpty } from "components/TableEmpty/TableEmpty";
 import { linkToTemplate, useLinks } from "modules/navigation";
 import type { FC } from "react";
@@ -53,13 +53,8 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 				message={defaultTitle}
 				description={`${defaultMessage} To create a workspace, you first need to create a template.`}
 				cta={
-					<Button
-						component={Link}
-						to="/templates"
-						variant="contained"
-						startIcon={<ArrowForwardOutlined />}
-					>
-						Go to templates
+					<Button asChild>
+						<Link to="/templates">Go to templates</Link>
 					</Button>
 				}
 				css={{
@@ -122,14 +117,7 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 								})}
 							>
 								<div css={{ flexShrink: 0, paddingTop: 4 }}>
-									<Avatar
-										variant={t.icon ? "square" : undefined}
-										fitImage={Boolean(t.icon)}
-										src={t.icon}
-										size="sm"
-									>
-										{t.name}
-									</Avatar>
+									<Avatar variant="icon" src={t.icon} fallback={t.name} />
 								</div>
 
 								<div css={{ width: "100%", minWidth: "0" }}>
@@ -169,13 +157,8 @@ export const WorkspacesEmpty: FC<WorkspacesEmptyProps> = ({
 					</div>
 
 					{templates && templates.length > totalFeaturedTemplates && (
-						<Button
-							component={Link}
-							to="/templates"
-							variant="contained"
-							startIcon={<ArrowForwardOutlined />}
-						>
-							See all templates
+						<Button asChild>
+							<Link to="/templates">See all templates</Link>
 						</Button>
 					)}
 				</div>

@@ -12,8 +12,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agenttest"
 	"github.com/coder/coder/v2/agent/proto"
@@ -258,10 +256,10 @@ func setupAppReporter(
 	// We use a proper fake agent API so we can test the conversion code and the
 	// request code as well. Before we were bypassing these by using a custom
 	// post function.
-	fakeAAPI := agenttest.NewFakeAgentAPI(t, slogtest.Make(t, nil), nil, nil)
+	fakeAAPI := agenttest.NewFakeAgentAPI(t, testutil.Logger(t), nil, nil)
 
 	go agent.NewAppHealthReporterWithClock(
-		slogtest.Make(t, nil).Leveled(slog.LevelDebug),
+		testutil.Logger(t),
 		apps, agentsdk.AppHealthPoster(fakeAAPI), clk,
 	)(ctx)
 

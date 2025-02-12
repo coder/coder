@@ -255,7 +255,7 @@ resource "coder_app" "rstudio" {
 ```
 
 If you cannot enable a
-[wildcard subdomain](https://coder.com/docs/admin/configure#wildcard-access-url),
+[wildcard subdomain](https://coder.com/docs/admin/setup#wildcard-access-url),
 you can configure the template to run RStudio on a path using an NGINX reverse
 proxy in the template. There is however
 [security risk](https://coder.com/docs/reference/cli/server#--dangerous-allow-path-app-sharing)

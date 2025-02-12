@@ -8,12 +8,12 @@ package provisionersdk_test
 
 import (
 	"bytes"
-	"context"
 	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"os"
 	"os/exec"
 	"runtime"
 	"strings"
@@ -47,12 +47,10 @@ func TestAgentScript(t *testing.T) {
 	t.Run("Valid", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		script := serveScript(t, bashEcho)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		t.Cleanup(cancel)
-
-		var output bytes.Buffer
+		var output safeBuffer
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec
@@ -84,12 +82,10 @@ func TestAgentScript(t *testing.T) {
 	t.Run("Invalid", func(t *testing.T) {
 		t.Parallel()
 
+		ctx := testutil.Context(t, testutil.WaitShort)
 		script := serveScript(t, unexpectedEcho)
 
-		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitShort)
-		t.Cleanup(cancel)
-
-		var output bytes.Buffer
+		var output safeBuffer
 		// This is intentionally ran in single quotes to mimic how a customer may
 		// embed our script. Our scripts should not include any single quotes.
 		// nolint:gosec
@@ -124,8 +120,10 @@ func TestAgentScript(t *testing.T) {
 
 		// Kill the command, wait for the command to yield.
 		err := cmd.Cancel()
-		if err != nil {
-			t.Fatalf("unable to cancel the command, see logs:\n%s", output.String())
+		if errors.Is(err, os.ErrProcessDone) {
+			t.Log("script has already finished execution")
+		} else if err != nil {
+			t.Fatalf("unable to cancel the command: %v, see logs:\n%s", err, output.String())
 		}
 		wg.Wait()
 
@@ -158,4 +156,34 @@ func serveScript(t *testing.T, in string) string {
 	script = strings.ReplaceAll(script, "${ACCESS_URL}", srvURL.String()+"/")
 	script = strings.ReplaceAll(script, "${AUTH_TYPE}", "token")
 	return script
+}
+
+// safeBuffer is a concurrency-safe bytes.Buffer
+type safeBuffer struct {
+	mu  sync.Mutex
+	buf bytes.Buffer
+}
+
+func (sb *safeBuffer) Write(p []byte) (n int, err error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Write(p)
+}
+
+func (sb *safeBuffer) Read(p []byte) (n int, err error) {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Read(p)
+}
+
+func (sb *safeBuffer) Bytes() []byte {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.Bytes()
+}
+
+func (sb *safeBuffer) String() string {
+	sb.mu.Lock()
+	defer sb.mu.Unlock()
+	return sb.buf.String()
 }

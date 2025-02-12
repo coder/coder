@@ -14,6 +14,7 @@ import (
 	"golang.org/x/xerrors"
 
 	"cdr.dev/slog"
+	"github.com/coder/coder/v2/coderd/database/db2sdk"
 
 	"github.com/coder/coder/v2/coderd/audit"
 	"github.com/coder/coder/v2/coderd/database"
@@ -140,7 +141,8 @@ func (api *API) notifyTemplateDeleted(ctx context.Context, template database.Tem
 		templateNameLabel = template.Name
 	}
 
-	if _, err := api.NotificationsEnqueuer.Enqueue(ctx, receiverID, notifications.TemplateTemplateDeleted,
+	// nolint:gocritic // Need notifier actor to enqueue notifications
+	if _, err := api.NotificationsEnqueuer.Enqueue(dbauthz.AsNotifier(ctx), receiverID, notifications.TemplateTemplateDeleted,
 		map[string]string{
 			"name":      templateNameLabel,
 			"initiator": initiator.Username,
@@ -381,7 +383,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 	if !createTemplate.DisableEveryoneGroupAccess {
 		// The organization ID is used as the group ID for the everyone group
 		// in this organization.
-		defaultsGroups[organization.ID.String()] = []policy.Action{policy.ActionRead}
+		defaultsGroups[organization.ID.String()] = db2sdk.TemplateRoleActions(codersdk.TemplateRoleUse)
 	}
 	err = api.Database.InTx(func(tx database.Store) error {
 		now := dbtime.Now()
@@ -467,7 +469,7 @@ func (api *API) postTemplateByOrganization(rw http.ResponseWriter, r *http.Reque
 		templateVersionAudit.New = newTemplateVersion
 
 		return nil
-	}, nil)
+	}, database.DefaultTXOptions().WithID("postTemplate"))
 	if err != nil {
 		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
 			Message: "Internal error inserting template.",
@@ -841,8 +843,24 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 		return nil
 	}, nil)
 	if err != nil {
-		httpapi.InternalServerError(rw, err)
+		if database.IsUniqueViolation(err, database.UniqueTemplatesOrganizationIDNameIndex) {
+			httpapi.Write(ctx, rw, http.StatusConflict, codersdk.Response{
+				Message: fmt.Sprintf("Template with name %q already exists.", req.Name),
+				Validations: []codersdk.ValidationError{{
+					Field:  "name",
+					Detail: "This value is already in use and should be unique.",
+				}},
+			})
+		} else {
+			httpapi.InternalServerError(rw, err)
+		}
 		return
+	}
+
+	if template.Deprecated != updated.Deprecated && updated.Deprecated != "" {
+		if err := api.notifyUsersOfTemplateDeprecation(ctx, updated); err != nil {
+			api.Logger.Error(ctx, "failed to notify users of template deprecation", slog.Error(err))
+		}
 	}
 
 	if updated.UpdatedAt.IsZero() {
@@ -853,6 +871,42 @@ func (api *API) patchTemplateMeta(rw http.ResponseWriter, r *http.Request) {
 	aReq.New = updated
 
 	httpapi.Write(ctx, rw, http.StatusOK, api.convertTemplate(updated))
+}
+
+func (api *API) notifyUsersOfTemplateDeprecation(ctx context.Context, template database.Template) error {
+	workspaces, err := api.Database.GetWorkspaces(ctx, database.GetWorkspacesParams{
+		TemplateIDs: []uuid.UUID{template.ID},
+	})
+	if err != nil {
+		return xerrors.Errorf("get workspaces by template id: %w", err)
+	}
+
+	users := make(map[uuid.UUID]struct{})
+	for _, workspace := range workspaces {
+		users[workspace.OwnerID] = struct{}{}
+	}
+
+	errs := []error{}
+
+	for userID := range users {
+		_, err = api.NotificationsEnqueuer.Enqueue(
+			//nolint:gocritic // We need the notifier auth context to be able to send the deprecation notification.
+			dbauthz.AsNotifier(ctx),
+			userID,
+			notifications.TemplateTemplateDeprecated,
+			map[string]string{
+				"template":     template.Name,
+				"message":      template.Deprecated,
+				"organization": template.OrganizationName,
+			},
+			"notify-users-of-template-deprecation",
+		)
+		if err != nil {
+			errs = append(errs, xerrors.Errorf("enqueue notification: %w", err))
+		}
+	}
+
+	return errors.Join(errs...)
 }
 
 // @Summary Get template DAUs by ID

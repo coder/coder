@@ -1,0 +1,8 @@
+coder:
+  image:
+    tag: latest
+
+  service:
+    type: NodePort
+    httpNodePort: 30080
+    httpsNodePort: 30043

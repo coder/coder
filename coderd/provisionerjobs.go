@@ -12,18 +12,127 @@ import (
 
 	"github.com/google/uuid"
 	"golang.org/x/xerrors"
-	"nhooyr.io/websocket"
 
 	"cdr.dev/slog"
-
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/db2sdk"
 	"github.com/coder/coder/v2/coderd/database/dbauthz"
 	"github.com/coder/coder/v2/coderd/database/pubsub"
 	"github.com/coder/coder/v2/coderd/httpapi"
+	"github.com/coder/coder/v2/coderd/httpmw"
+	"github.com/coder/coder/v2/coderd/rbac"
+	"github.com/coder/coder/v2/coderd/rbac/policy"
+	"github.com/coder/coder/v2/coderd/util/slice"
 	"github.com/coder/coder/v2/codersdk"
+	"github.com/coder/coder/v2/codersdk/wsjson"
 	"github.com/coder/coder/v2/provisionersdk"
+	"github.com/coder/websocket"
 )
+
+// @Summary Get provisioner job
+// @ID get-provisioner-job
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param job path string true "Job ID" format(uuid)
+// @Success 200 {object} codersdk.ProvisionerJob
+// @Router /organizations/{organization}/provisionerjobs/{job} [get]
+func (api *API) provisionerJob(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	jobID, ok := httpmw.ParseUUIDParam(rw, r, "job")
+	if !ok {
+		return
+	}
+
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, []uuid.UUID{jobID})
+	if !ok {
+		return
+	}
+	if len(jobs) == 0 {
+		httpapi.ResourceNotFound(rw)
+		return
+	}
+	if len(jobs) > 1 || jobs[0].ProvisionerJob.ID != jobID {
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner job.",
+			Detail:  "Database returned an unexpected job.",
+		})
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, convertProvisionerJobWithQueuePosition(jobs[0]))
+}
+
+// @Summary Get provisioner jobs
+// @ID get-provisioner-jobs
+// @Security CoderSessionToken
+// @Produce json
+// @Tags Organizations
+// @Param organization path string true "Organization ID" format(uuid)
+// @Param limit query int false "Page limit"
+// @Param status query codersdk.ProvisionerJobStatus false "Filter results by status" enums(pending,running,succeeded,canceling,canceled,failed)
+// @Success 200 {array} codersdk.ProvisionerJob
+// @Router /organizations/{organization}/provisionerjobs [get]
+func (api *API) provisionerJobs(rw http.ResponseWriter, r *http.Request) {
+	ctx := r.Context()
+
+	jobs, ok := api.handleAuthAndFetchProvisionerJobs(rw, r, nil)
+	if !ok {
+		return
+	}
+
+	httpapi.Write(ctx, rw, http.StatusOK, db2sdk.List(jobs, convertProvisionerJobWithQueuePosition))
+}
+
+// handleAuthAndFetchProvisionerJobs is an internal method shared by
+// provisionerJob and provisionerJobs. If ok is false the caller should
+// return immediately because the response has already been written.
+func (api *API) handleAuthAndFetchProvisionerJobs(rw http.ResponseWriter, r *http.Request, ids []uuid.UUID) (_ []database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow, ok bool) {
+	ctx := r.Context()
+	org := httpmw.OrganizationParam(r)
+
+	// For now, only owners and template admins can access provisioner jobs.
+	if !api.Authorize(r, policy.ActionRead, rbac.ResourceProvisionerJobs.InOrg(org.ID)) {
+		httpapi.ResourceNotFound(rw)
+		return nil, false
+	}
+
+	qp := r.URL.Query()
+	p := httpapi.NewQueryParamParser()
+	limit := p.PositiveInt32(qp, 50, "limit")
+	status := p.Strings(qp, nil, "status")
+	p.ErrorExcessParams(qp)
+	if len(p.Errors) > 0 {
+		httpapi.Write(ctx, rw, http.StatusBadRequest, codersdk.Response{
+			Message:     "Invalid query parameters.",
+			Validations: p.Errors,
+		})
+		return nil, false
+	}
+
+	jobs, err := api.Database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisioner(ctx, database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerParams{
+		OrganizationID: uuid.NullUUID{UUID: org.ID, Valid: true},
+		Status:         slice.StringEnums[database.ProvisionerJobStatus](status),
+		Limit:          sql.NullInt32{Int32: limit, Valid: limit > 0},
+		IDs:            ids,
+	})
+	if err != nil {
+		if httpapi.Is404Error(err) {
+			httpapi.ResourceNotFound(rw)
+			return nil, false
+		}
+
+		httpapi.Write(ctx, rw, http.StatusInternalServerError, codersdk.Response{
+			Message: "Internal error fetching provisioner jobs.",
+			Detail:  err.Error(),
+		})
+		return nil, false
+	}
+
+	return jobs, true
+}
 
 // Returns provisioner logs based on query parameters.
 // The intended usage for a client to stream all logs (with JS API):
@@ -236,14 +345,16 @@ func convertProvisionerJobLog(provisionerJobLog database.ProvisionerJobLog) code
 func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionRow) codersdk.ProvisionerJob {
 	provisionerJob := pj.ProvisionerJob
 	job := codersdk.ProvisionerJob{
-		ID:            provisionerJob.ID,
-		CreatedAt:     provisionerJob.CreatedAt,
-		Error:         provisionerJob.Error.String,
-		ErrorCode:     codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
-		FileID:        provisionerJob.FileID,
-		Tags:          provisionerJob.Tags,
-		QueuePosition: int(pj.QueuePosition),
-		QueueSize:     int(pj.QueueSize),
+		ID:             provisionerJob.ID,
+		OrganizationID: provisionerJob.OrganizationID,
+		CreatedAt:      provisionerJob.CreatedAt,
+		Type:           codersdk.ProvisionerJobType(provisionerJob.Type),
+		Error:          provisionerJob.Error.String,
+		ErrorCode:      codersdk.JobErrorCode(provisionerJob.ErrorCode.String),
+		FileID:         provisionerJob.FileID,
+		Tags:           provisionerJob.Tags,
+		QueuePosition:  int(pj.QueuePosition),
+		QueueSize:      int(pj.QueueSize),
 	}
 	// Applying values optional to the struct.
 	if provisionerJob.StartedAt.Valid {
@@ -260,6 +371,34 @@ func convertProvisionerJob(pj database.GetProvisionerJobsByIDsWithQueuePositionR
 	}
 	job.Status = codersdk.ProvisionerJobStatus(pj.ProvisionerJob.JobStatus)
 
+	// Only unmarshal input if it exists, this should only be zero in testing.
+	if len(provisionerJob.Input) > 0 {
+		if err := json.Unmarshal(provisionerJob.Input, &job.Input); err != nil {
+			job.Input.Error = xerrors.Errorf("decode input %s: %w", provisionerJob.Input, err).Error()
+		}
+	}
+
+	return job
+}
+
+func convertProvisionerJobWithQueuePosition(pj database.GetProvisionerJobsByOrganizationAndStatusWithQueuePositionAndProvisionerRow) codersdk.ProvisionerJob {
+	job := convertProvisionerJob(database.GetProvisionerJobsByIDsWithQueuePositionRow{
+		ProvisionerJob: pj.ProvisionerJob,
+		QueuePosition:  pj.QueuePosition,
+		QueueSize:      pj.QueueSize,
+	})
+	job.AvailableWorkers = pj.AvailableWorkers
+	job.Metadata = codersdk.ProvisionerJobMetadata{
+		TemplateVersionName: pj.TemplateVersionName,
+		TemplateID:          pj.TemplateID.UUID,
+		TemplateName:        pj.TemplateName,
+		TemplateDisplayName: pj.TemplateDisplayName,
+		TemplateIcon:        pj.TemplateIcon,
+		WorkspaceName:       pj.WorkspaceName,
+	}
+	if pj.WorkspaceID.Valid {
+		job.Metadata.WorkspaceID = &pj.WorkspaceID.UUID
+	}
 	return job
 }
 
@@ -312,6 +451,7 @@ type logFollower struct {
 	r      *http.Request
 	rw     http.ResponseWriter
 	conn   *websocket.Conn
+	enc    *wsjson.Encoder[codersdk.ProvisionerJobLog]
 
 	jobID         uuid.UUID
 	after         int64
@@ -391,6 +531,7 @@ func (f *logFollower) follow() {
 	}
 	defer f.conn.Close(websocket.StatusNormalClosure, "done")
 	go httpapi.Heartbeat(f.ctx, f.conn)
+	f.enc = wsjson.NewEncoder[codersdk.ProvisionerJobLog](f.conn, websocket.MessageText)
 
 	// query for logs once right away, so we can get historical data from before
 	// subscription
@@ -488,11 +629,7 @@ func (f *logFollower) query() error {
 		return xerrors.Errorf("error fetching logs: %w", err)
 	}
 	for _, log := range logs {
-		logB, err := json.Marshal(convertProvisionerJobLog(log))
-		if err != nil {
-			return xerrors.Errorf("error marshaling log: %w", err)
-		}
-		err = f.conn.Write(f.ctx, websocket.MessageText, logB)
+		err := f.enc.Encode(convertProvisionerJobLog(log))
 		if err != nil {
 			return xerrors.Errorf("error writing to websocket: %w", err)
 		}

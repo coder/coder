@@ -76,24 +76,6 @@ test("update password with incorrect old password", async () => {
 	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
 });
 
-test("update password with invalid password", async () => {
-	jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce(
-		mockApiError({
-			message: "Invalid password.",
-			validations: [{ detail: "Invalid password.", field: "password" }],
-		}),
-	);
-
-	const { user } = await renderPage();
-	fillAndSubmitSecurityForm();
-
-	const errorMessage = await screen.findAllByText("Invalid password.");
-	expect(errorMessage).toBeDefined();
-	expect(errorMessage).toHaveLength(2);
-	expect(API.updateUserPassword).toBeCalledTimes(1);
-	expect(API.updateUserPassword).toBeCalledWith(user.id, newSecurityFormValues);
-});
-
 test("update password when submit returns an unknown error", async () => {
 	jest.spyOn(API, "updateUserPassword").mockRejectedValueOnce({
 		data: "unknown error",

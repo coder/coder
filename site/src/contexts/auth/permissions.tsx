@@ -1,3 +1,5 @@
+import type { AuthorizationCheck } from "api/typesGenerated";
+
 export const checks = {
 	viewAllUsers: "viewAllUsers",
 	updateUsers: "updateUsers",
@@ -11,13 +13,21 @@ export const checks = {
 	viewUpdateCheck: "viewUpdateCheck",
 	viewExternalAuthConfig: "viewExternalAuthConfig",
 	viewDeploymentStats: "viewDeploymentStats",
+	readWorkspaceProxies: "readWorkspaceProxies",
 	editWorkspaceProxies: "editWorkspaceProxies",
 	createOrganization: "createOrganization",
 	editAnyOrganization: "editAnyOrganization",
 	viewAnyGroup: "viewAnyGroup",
 	createGroup: "createGroup",
 	viewAllLicenses: "viewAllLicenses",
-} as const;
+	viewNotificationTemplate: "viewNotificationTemplate",
+	viewOrganizationIDPSyncSettings: "viewOrganizationIDPSyncSettings",
+} as const satisfies Record<string, string>;
+
+// Type expression seems a little redundant (`keyof typeof checks` has the same
+// result), just because each key-value pair is currently symmetrical; this may
+// change down the line
+type PermissionValue = (typeof checks)[keyof typeof checks];
 
 export const permissionsToCheck = {
 	[checks.viewAllUsers]: {
@@ -94,6 +104,12 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
+	[checks.readWorkspaceProxies]: {
+		object: {
+			resource_type: "workspace_proxy",
+		},
+		action: "read",
+	},
 	[checks.editWorkspaceProxies]: {
 		object: {
 			resource_type: "workspace_proxy",
@@ -116,7 +132,6 @@ export const permissionsToCheck = {
 	[checks.viewAnyGroup]: {
 		object: {
 			resource_type: "group",
-			org_id: "any",
 		},
 		action: "read",
 	},
@@ -132,6 +147,18 @@ export const permissionsToCheck = {
 		},
 		action: "read",
 	},
-} as const;
+	[checks.viewNotificationTemplate]: {
+		object: {
+			resource_type: "notification_template",
+		},
+		action: "read",
+	},
+	[checks.viewOrganizationIDPSyncSettings]: {
+		object: {
+			resource_type: "idpsync_settings",
+		},
+		action: "read",
+	},
+} as const satisfies Record<PermissionValue, AuthorizationCheck>;
 
-export type Permissions = Record<keyof typeof permissionsToCheck, boolean>;
+export type Permissions = Record<PermissionValue, boolean>;

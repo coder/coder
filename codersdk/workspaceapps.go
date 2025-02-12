@@ -34,6 +34,18 @@ var MapWorkspaceAppSharingLevels = map[WorkspaceAppSharingLevel]struct{}{
 	WorkspaceAppSharingLevelPublic:        {},
 }
 
+type WorkspaceAppOpenIn string
+
+const (
+	WorkspaceAppOpenInSlimWindow WorkspaceAppOpenIn = "slim-window"
+	WorkspaceAppOpenInTab        WorkspaceAppOpenIn = "tab"
+)
+
+var MapWorkspaceAppOpenIns = map[WorkspaceAppOpenIn]struct{}{
+	WorkspaceAppOpenInSlimWindow: {},
+	WorkspaceAppOpenInTab:        {},
+}
+
 type WorkspaceApp struct {
 	ID uuid.UUID `json:"id" format:"uuid"`
 	// URL is the address being proxied to inside the workspace.
@@ -62,6 +74,7 @@ type WorkspaceApp struct {
 	Healthcheck Healthcheck        `json:"healthcheck"`
 	Health      WorkspaceAppHealth `json:"health"`
 	Hidden      bool               `json:"hidden"`
+	OpenIn      WorkspaceAppOpenIn `json:"open_in"`
 }
 
 type Healthcheck struct {

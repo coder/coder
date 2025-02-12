@@ -8,19 +8,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/coder/coder/v2/coderd/util/ptr"
-
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/mock/gomock"
-	"nhooyr.io/websocket"
 
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbmock"
 	"github.com/coder/coder/v2/coderd/database/dbtime"
+	"github.com/coder/coder/v2/coderd/util/ptr"
+	"github.com/coder/coder/v2/coderd/wspubsub"
 	"github.com/coder/coder/v2/testutil"
+	"github.com/coder/websocket"
 )
 
 func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
@@ -31,7 +29,7 @@ func TestAgentConnectionMonitor_ContextCancel(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	fUpdater := &fakeUpdater{}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	agent := database.WorkspaceAgent{
 		ID: uuid.New(),
 		FirstConnectedAt: sql.NullTime{
@@ -105,7 +103,7 @@ func TestAgentConnectionMonitor_PingTimeout(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	fUpdater := &fakeUpdater{}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	agent := database.WorkspaceAgent{
 		ID: uuid.New(),
 		FirstConnectedAt: sql.NullTime{
@@ -165,7 +163,7 @@ func TestAgentConnectionMonitor_BuildOutdated(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	fUpdater := &fakeUpdater{}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	agent := database.WorkspaceAgent{
 		ID: uuid.New(),
 		FirstConnectedAt: sql.NullTime{
@@ -246,7 +244,7 @@ func TestAgentConnectionMonitor_StartClose(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	mDB := dbmock.NewMockStore(ctrl)
 	fUpdater := &fakeUpdater{}
-	logger := slogtest.Make(t, nil).Leveled(slog.LevelDebug)
+	logger := testutil.Logger(t)
 	agent := database.WorkspaceAgent{
 		ID: uuid.New(),
 		FirstConnectedAt: sql.NullTime{
@@ -356,10 +354,10 @@ type fakeUpdater struct {
 	updates []uuid.UUID
 }
 
-func (f *fakeUpdater) publishWorkspaceUpdate(_ context.Context, workspaceID uuid.UUID) {
+func (f *fakeUpdater) publishWorkspaceUpdate(_ context.Context, _ uuid.UUID, event wspubsub.WorkspaceEvent) {
 	f.Lock()
 	defer f.Unlock()
-	f.updates = append(f.updates, workspaceID)
+	f.updates = append(f.updates, event.WorkspaceID)
 }
 
 func (f *fakeUpdater) requireEventuallySomeUpdates(t *testing.T, workspaceID uuid.UUID) {

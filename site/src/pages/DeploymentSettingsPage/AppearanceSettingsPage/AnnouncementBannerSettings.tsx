@@ -1,6 +1,4 @@
 import { type CSSObject, useTheme } from "@emotion/react";
-import AddIcon from "@mui/icons-material/AddOutlined";
-import Button from "@mui/material/Button";
 import Link from "@mui/material/Link";
 import Table from "@mui/material/Table";
 import TableBody from "@mui/material/TableBody";
@@ -9,9 +7,11 @@ import TableContainer from "@mui/material/TableContainer";
 import TableHead from "@mui/material/TableHead";
 import TableRow from "@mui/material/TableRow";
 import type { BannerConfig } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
 import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import { EmptyState } from "components/EmptyState/EmptyState";
 import { Stack } from "components/Stack/Stack";
+import { PlusIcon } from "lucide-react";
 import { type FC, useState } from "react";
 import { AnnouncementBannerDialog } from "./AnnouncementBannerDialog";
 import { AnnouncementBannerItem } from "./AnnouncementBannerItem";
@@ -33,7 +33,7 @@ export const AnnouncementBannerSettings: FC<
 	const addBanner = () => {
 		setBanners([
 			...banners,
-			{ enabled: true, message: "", background_color: "#004852" },
+			{ enabled: true, message: "", background_color: "#ABB8C3" },
 		]);
 		setEditingBannerId(banners.length);
 	};
@@ -89,8 +89,9 @@ export const AnnouncementBannerSettings: FC<
 						<Button
 							disabled={!isEntitled}
 							onClick={() => addBanner()}
-							startIcon={<AddIcon />}
+							variant="outline"
 						>
+							<PlusIcon />
 							New
 						</Button>
 					</Stack>

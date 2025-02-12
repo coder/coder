@@ -125,13 +125,18 @@ func (r *RootCmd) CoreSubcommands() []*serpent.Command {
 		r.expCmd(),
 		r.gitssh(),
 		r.support(),
+		r.vpnDaemon(),
 		r.vscodeSSH(),
 		r.workspaceAgent(),
 	}
 }
 
 func (r *RootCmd) AGPL() []*serpent.Command {
-	all := append(r.CoreSubcommands(), r.Server( /* Do not import coderd here. */ nil))
+	all := append(
+		r.CoreSubcommands(),
+		r.Server( /* Do not import coderd here. */ nil),
+		r.Provisioners(),
+	)
 	return all
 }
 
@@ -321,6 +326,15 @@ func (r *RootCmd) Command(subcommands []*serpent.Command) (*serpent.Command, err
 			}
 			tw.Flush()
 			return nil
+		}
+	})
+
+	// Add the PrintDeprecatedOptions middleware to all commands.
+	cmd.Walk(func(cmd *serpent.Command) {
+		if cmd.Middleware == nil {
+			cmd.Middleware = PrintDeprecatedOptions()
+		} else {
+			cmd.Middleware = serpent.Chain(cmd.Middleware, PrintDeprecatedOptions())
 		}
 	})
 
@@ -1116,7 +1130,16 @@ func formatCoderSDKError(from string, err *codersdk.Error, opts *formatOpts) str
 //nolint:errorlint
 func traceError(err error) string {
 	if uw, ok := err.(interface{ Unwrap() error }); ok {
-		a, b := err.Error(), uw.Unwrap().Error()
+		var a, b string
+		if err != nil {
+			a = err.Error()
+		}
+		if uw != nil {
+			uwerr := uw.Unwrap()
+			if uwerr != nil {
+				b = uwerr.Error()
+			}
+		}
 		c := strings.TrimSuffix(a, b)
 		return c
 	}
@@ -1296,4 +1319,66 @@ func headerTransport(ctx context.Context, serverURL *url.URL, header []string, h
 		transport.Header.Add(parts[0], parts[1])
 	}
 	return transport, nil
+}
+
+// printDeprecatedOptions loops through all command options, and prints
+// a warning for usage of deprecated options.
+func PrintDeprecatedOptions() serpent.MiddlewareFunc {
+	return func(next serpent.HandlerFunc) serpent.HandlerFunc {
+		return func(inv *serpent.Invocation) error {
+			opts := inv.Command.Options
+			// Print deprecation warnings.
+			for _, opt := range opts {
+				if opt.UseInstead == nil {
+					continue
+				}
+
+				if opt.ValueSource == serpent.ValueSourceNone || opt.ValueSource == serpent.ValueSourceDefault {
+					continue
+				}
+
+				var warnStr strings.Builder
+				_, _ = warnStr.WriteString(translateSource(opt.ValueSource, opt))
+				_, _ = warnStr.WriteString(" is deprecated, please use ")
+				for i, use := range opt.UseInstead {
+					_, _ = warnStr.WriteString(translateSource(opt.ValueSource, use))
+					if i != len(opt.UseInstead)-1 {
+						_, _ = warnStr.WriteString(" and ")
+					}
+				}
+				_, _ = warnStr.WriteString(" instead.\n")
+
+				cliui.Warn(inv.Stderr,
+					warnStr.String(),
+				)
+			}
+
+			return next(inv)
+		}
+	}
+}
+
+// translateSource provides the name of the source of the option, depending on the
+// supplied target ValueSource.
+func translateSource(target serpent.ValueSource, opt serpent.Option) string {
+	switch target {
+	case serpent.ValueSourceFlag:
+		return fmt.Sprintf("`--%s`", opt.Flag)
+	case serpent.ValueSourceEnv:
+		return fmt.Sprintf("`%s`", opt.Env)
+	case serpent.ValueSourceYAML:
+		return fmt.Sprintf("`%s`", fullYamlName(opt))
+	default:
+		return opt.Name
+	}
+}
+
+func fullYamlName(opt serpent.Option) string {
+	var full strings.Builder
+	for _, name := range opt.Group.Ancestry() {
+		_, _ = full.WriteString(name.YAML)
+		_, _ = full.WriteString(".")
+	}
+	_, _ = full.WriteString(opt.YAML)
+	return full.String()
 }

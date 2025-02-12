@@ -4,6 +4,7 @@ import {
 	createTemplate,
 	createWorkspace,
 	downloadCoderVersion,
+	login,
 	sshIntoWorkspace,
 	startAgent,
 	stopAgent,
@@ -14,7 +15,10 @@ import { beforeCoderTest } from "../hooks";
 // we no longer support versions prior to Tailnet v2 API support: https://github.com/coder/coder/commit/059e533544a0268acbc8831006b2858ead2f0d8e
 const clientVersion = "v2.8.0";
 
-test.beforeEach(({ page }) => beforeCoderTest(page));
+test.beforeEach(async ({ page }) => {
+	beforeCoderTest(page);
+	await login(page);
+});
 
 test(`ssh with client ${clientVersion}`, async ({ page }) => {
 	const token = randomUUID();

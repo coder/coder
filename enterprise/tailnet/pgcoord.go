@@ -165,10 +165,6 @@ func newPGCoordInternal(
 	return c, nil
 }
 
-func (c *pgCoord) ServeMultiAgent(id uuid.UUID) agpl.MultiAgentConn {
-	return agpl.ServeMultiAgent(c, c.logger, id)
-}
-
 func (c *pgCoord) Node(id uuid.UUID) *agpl.Node {
 	// We're going to directly query the database, since we would only have the mapping stored locally if we had
 	// a tunnel peer connected, which is not always the case.
@@ -506,7 +502,7 @@ func newBinder(ctx context.Context,
 
 		b.logger.Debug(b.ctx, "updating peers to lost")
 
-		ctx, cancel := context.WithTimeout(context.Background(), time.Second*15)
+		ctx, cancel := context.WithTimeout(dbauthz.As(context.Background(), pgCoordSubject), time.Second*15)
 		defer cancel()
 		err := b.store.UpdateTailnetPeerStatusByCoordinator(ctx, database.UpdateTailnetPeerStatusByCoordinatorParams{
 			CoordinatorID: b.coordinatorID,

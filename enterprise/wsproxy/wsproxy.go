@@ -12,7 +12,6 @@ import (
 	"slices"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -24,13 +23,13 @@ import (
 	"golang.org/x/xerrors"
 	"tailscale.com/derp"
 	"tailscale.com/derp/derphttp"
-	"tailscale.com/tailcfg"
 	"tailscale.com/types/key"
 
 	"cdr.dev/slog"
 	"github.com/coder/coder/v2/buildinfo"
 	"github.com/coder/coder/v2/cli/cliutil"
 	"github.com/coder/coder/v2/coderd"
+	"github.com/coder/coder/v2/coderd/cryptokeys"
 	"github.com/coder/coder/v2/coderd/httpapi"
 	"github.com/coder/coder/v2/coderd/httpmw"
 	"github.com/coder/coder/v2/coderd/tracing"
@@ -130,13 +129,19 @@ type Server struct {
 	// the moon's token.
 	SDKClient *wsproxysdk.Client
 
+	// apiKeyEncryptionKeycache manages the encryption keys for smuggling API
+	// tokens to the alternate domain when using workspace apps.
+	apiKeyEncryptionKeycache cryptokeys.EncryptionKeycache
+	// appTokenSigningKeycache manages the signing keys for signing the app
+	// tokens we use for workspace apps.
+	appTokenSigningKeycache cryptokeys.SigningKeycache
+
 	// DERP
 	derpMesh                *derpmesh.Mesh
 	derpMeshTLSConfig       *tls.Config
 	replicaPingSingleflight singleflight.Group
 	replicaErrMut           sync.Mutex
 	replicaErr              string
-	latestDERPMap           atomic.Pointer[tailcfg.DERPMap]
 
 	// Used for graceful shutdown. Required for the dialer.
 	ctx           context.Context
@@ -195,19 +200,42 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 	derpServer := derp.NewServer(key.NewNode(), tailnet.Logger(opts.Logger.Named("net.derp")))
 
 	ctx, cancel := context.WithCancel(context.Background())
+
+	encryptionCache, err := cryptokeys.NewEncryptionCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsAPIKey,
+	)
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("create api key encryption cache: %w", err)
+	}
+	signingCache, err := cryptokeys.NewSigningCache(ctx,
+		opts.Logger,
+		&ProxyFetcher{Client: client},
+		codersdk.CryptoKeyFeatureWorkspaceAppsToken,
+	)
+	if err != nil {
+		cancel()
+		return nil, xerrors.Errorf("create api token signing cache: %w", err)
+	}
+
 	r := chi.NewRouter()
 	s := &Server{
-		Options:            opts,
-		Handler:            r,
-		DashboardURL:       opts.DashboardURL,
-		Logger:             opts.Logger.Named("net.workspace-proxy"),
-		TracerProvider:     opts.Tracing,
-		PrometheusRegistry: opts.PrometheusRegistry,
-		SDKClient:          client,
-		derpMesh:           derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
-		derpMeshTLSConfig:  meshTLSConfig,
-		ctx:                ctx,
-		cancel:             cancel,
+		ctx:    ctx,
+		cancel: cancel,
+
+		Options:                  opts,
+		Handler:                  r,
+		DashboardURL:             opts.DashboardURL,
+		Logger:                   opts.Logger.Named("net.workspace-proxy"),
+		TracerProvider:           opts.Tracing,
+		PrometheusRegistry:       opts.PrometheusRegistry,
+		SDKClient:                client,
+		derpMesh:                 derpmesh.New(opts.Logger.Named("net.derpmesh"), derpServer, meshTLSConfig),
+		derpMeshTLSConfig:        meshTLSConfig,
+		apiKeyEncryptionKeycache: encryptionCache,
+		appTokenSigningKeycache:  signingCache,
 	}
 
 	// Register the workspace proxy with the primary coderd instance and start a
@@ -240,19 +268,15 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		return nil, xerrors.Errorf("handle register: %w", err)
 	}
 
-	secKey, err := workspaceapps.KeyFromString(regResp.AppSecurityKey)
+	dialer, err := s.SDKClient.TailnetDialer()
 	if err != nil {
-		return nil, xerrors.Errorf("parse app security key: %w", err)
+		return nil, xerrors.Errorf("create tailnet dialer: %w", err)
 	}
-
 	agentProvider, err := coderd.NewServerTailnet(ctx,
 		s.Logger,
 		nil,
-		func() *tailcfg.DERPMap {
-			return s.latestDERPMap.Load()
-		},
+		dialer,
 		regResp.DERPForceWebSockets,
-		s.DialCoordinator,
 		opts.BlockDirect,
 		s.TracerProvider,
 	)
@@ -277,20 +301,21 @@ func New(ctx context.Context, opts *Options) (*Server, error) {
 		HostnameRegex: opts.AppHostnameRegex,
 		RealIPConfig:  opts.RealIPConfig,
 		SignedTokenProvider: &TokenProvider{
-			DashboardURL: opts.DashboardURL,
-			AccessURL:    opts.AccessURL,
-			AppHostname:  opts.AppHostname,
-			Client:       client,
-			SecurityKey:  secKey,
-			Logger:       s.Logger.Named("proxy_token_provider"),
+			DashboardURL:             opts.DashboardURL,
+			AccessURL:                opts.AccessURL,
+			AppHostname:              opts.AppHostname,
+			Client:                   client,
+			TokenSigningKeycache:     signingCache,
+			APIKeyEncryptionKeycache: encryptionCache,
+			Logger:                   s.Logger.Named("proxy_token_provider"),
 		},
-		AppSecurityKey: secKey,
 
 		DisablePathApps:  opts.DisablePathApps,
 		SecureAuthCookie: opts.SecureAuthCookie,
 
-		AgentProvider:  agentProvider,
-		StatsCollector: workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
+		AgentProvider:            agentProvider,
+		StatsCollector:           workspaceapps.NewStatsCollector(opts.StatsCollectorOptions),
+		APIKeyEncryptionKeycache: encryptionCache,
 	}
 
 	derpHandler := derphttp.Handler(derpServer)
@@ -419,6 +444,8 @@ func (s *Server) RegisterNow() error {
 }
 
 func (s *Server) Close() error {
+	s.Logger.Info(s.ctx, "closing workspace proxy server")
+	defer s.Logger.Debug(s.ctx, "finished closing workspace proxy server")
 	s.cancel()
 
 	var err error
@@ -433,6 +460,8 @@ func (s *Server) Close() error {
 		err = multierror.Append(err, agentProviderErr)
 	}
 	s.SDKClient.SDKClient.HTTPClient.CloseIdleConnections()
+	_ = s.appTokenSigningKeycache.Close()
+	_ = s.apiKeyEncryptionKeycache.Close()
 	return err
 }
 
@@ -449,8 +478,6 @@ func (s *Server) handleRegister(res wsproxysdk.RegisterWorkspaceProxyResponse) e
 	}
 	s.Logger.Debug(s.ctx, "setting DERP mesh sibling addresses", slog.F("addresses", addresses))
 	s.derpMesh.SetAddresses(addresses, false)
-
-	s.latestDERPMap.Store(res.DERPMap)
 
 	go s.pingSiblingReplicas(res.SiblingReplicas)
 	return nil
@@ -536,10 +563,6 @@ func (s *Server) handleRegisterFailure(err error) {
 		"failed to periodically re-register workspace proxy with primary Coder deployment",
 		slog.Error(err),
 	)
-}
-
-func (s *Server) DialCoordinator(ctx context.Context) (tailnet.MultiAgentConn, error) {
-	return s.SDKClient.DialCoordinator(ctx)
 }
 
 func (s *Server) buildInfo(rw http.ResponseWriter, r *http.Request) {

@@ -1,15 +1,16 @@
 {
 	"recommendations": [
+		"biomejs.biome",
+		"bradlc.vscode-tailwindcss",
+		"DavidAnson.vscode-markdownlint",
+		"EditorConfig.EditorConfig",
+		"emeraldwalk.runonsave",
+		"foxundermoon.shell-format",
 		"github.vscode-codeql",
 		"golang.go",
 		"hashicorp.terraform",
-		"esbenp.prettier-vscode",
-		"foxundermoon.shell-format",
-		"emeraldwalk.runonsave",
-		"zxh404.vscode-proto3",
 		"redhat.vscode-yaml",
-		"streetsidesoftware.code-spell-checker",
-		"EditorConfig.EditorConfig",
-		"biomejs.biome"
+		"tekumara.typos-vscode",
+		"zxh404.vscode-proto3"
 	]
 }

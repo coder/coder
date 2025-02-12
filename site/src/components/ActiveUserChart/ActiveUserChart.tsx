@@ -14,7 +14,6 @@ import {
 	Tooltip,
 	defaults,
 } from "chart.js";
-import annotationPlugin from "chartjs-plugin-annotation";
 import {
 	HelpTooltip,
 	HelpTooltipContent,
@@ -36,21 +35,16 @@ ChartJS.register(
 	Title,
 	Tooltip,
 	Legend,
-	annotationPlugin,
 );
-
-const USER_LIMIT_DISPLAY_THRESHOLD = 60;
 
 export interface ActiveUserChartProps {
 	data: readonly { date: string; amount: number }[];
 	interval: "day" | "week";
-	userLimit: number | undefined;
 }
 
 export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 	data,
 	interval,
-	userLimit,
 }) => {
 	const theme = useTheme();
 
@@ -64,24 +58,6 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 		responsive: true,
 		animation: false,
 		plugins: {
-			annotation: {
-				annotations: [
-					{
-						type: "line",
-						scaleID: "y",
-						display: shouldDisplayUserLimit(userLimit, chartData),
-						value: userLimit,
-						borderColor: theme.palette.secondary.contrastText,
-						borderWidth: 5,
-						label: {
-							content: "User limit",
-							color: theme.palette.primary.contrastText,
-							display: true,
-							font: { weight: "normal" },
-						},
-					},
-				],
-			},
 			legend: {
 				display: false,
 			},
@@ -103,7 +79,6 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 					precision: 0,
 				},
 			},
-
 			x: {
 				grid: { color: theme.palette.divider },
 				ticks: {
@@ -138,32 +113,26 @@ export const ActiveUserChart: FC<ActiveUserChartProps> = ({
 	);
 };
 
-export const ActiveUsersTitle: FC = () => {
+type ActiveUsersTitleProps = {
+	interval: "day" | "week";
+};
+
+export const ActiveUsersTitle: FC<ActiveUsersTitleProps> = ({ interval }) => {
 	return (
 		<div css={{ display: "flex", alignItems: "center", gap: 8 }}>
-			Active Users
+			{interval === "day" ? "Daily" : "Weekly"} Active Users
 			<HelpTooltip>
 				<HelpTooltipTrigger size="small" />
 				<HelpTooltipContent>
 					<HelpTooltipTitle>How do we calculate active users?</HelpTooltipTitle>
 					<HelpTooltipText>
 						When a connection is initiated to a user&apos;s workspace they are
-						considered an active user. e.g. apps, web terminal, SSH
+						considered an active user. e.g. apps, web terminal, SSH. This is for
+						measuring user activity and has no connection to license
+						consumption.
 					</HelpTooltipText>
 				</HelpTooltipContent>
 			</HelpTooltip>
 		</div>
 	);
 };
-
-function shouldDisplayUserLimit(
-	userLimit: number | undefined,
-	activeUsers: number[],
-): boolean {
-	if (!userLimit || activeUsers.length === 0) {
-		return false;
-	}
-	return (
-		Math.max(...activeUsers) >= (userLimit * USER_LIMIT_DISPLAY_THRESHOLD) / 100
-	);
-}

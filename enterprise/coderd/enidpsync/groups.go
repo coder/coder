@@ -10,7 +10,7 @@ import (
 	"github.com/coder/coder/v2/codersdk"
 )
 
-func (e EnterpriseIDPSync) GroupSyncEnabled() bool {
+func (e EnterpriseIDPSync) GroupSyncEntitled() bool {
 	return e.entitlements.Enabled(codersdk.FeatureTemplateRBAC)
 }
 
@@ -20,7 +20,7 @@ func (e EnterpriseIDPSync) GroupSyncEnabled() bool {
 // GroupAllowList is implemented here to prevent login by unauthorized users.
 // TODO: GroupAllowList overlaps with the default organization group sync settings.
 func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jwt.MapClaims) (idpsync.GroupParams, *idpsync.HTTPError) {
-	if !e.GroupSyncEnabled() {
+	if !e.GroupSyncEntitled() {
 		return e.AGPLIDPSync.ParseGroupClaims(ctx, mergedClaims)
 	}
 
@@ -64,7 +64,7 @@ func (e EnterpriseIDPSync) ParseGroupClaims(ctx context.Context, mergedClaims jw
 	}
 
 	return idpsync.GroupParams{
-		SyncEnabled:  true,
+		SyncEntitled: true,
 		MergedClaims: mergedClaims,
 	}, nil
 }

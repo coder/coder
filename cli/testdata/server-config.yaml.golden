@@ -16,6 +16,12 @@ networking:
     # HTTP bind address of the server. Unset to disable the HTTP endpoint.
     # (default: 127.0.0.1:3000, type: string)
     httpAddress: 127.0.0.1:3000
+    # Coder configures a Content Security Policy (CSP) to protect against XSS attacks.
+    # This setting allows you to add additional CSP directives, which can open the
+    # attack surface of the deployment. Format matches the CSP directive format, e.g.
+    # --additional-csp-policy="script-src https://example.com".
+    # (default: <unset>, type: string-array)
+    additionalCSPPolicy: []
     # The maximum lifetime duration users can specify when creating an API token.
     # (default: 876600h0m0s, type: duration)
     maxTokenLifetime: 876600h0m0s
@@ -197,7 +203,8 @@ introspection:
       - template_name
       - username
       - workspace_name
-    # Collect database metrics (may increase charges for metrics storage).
+    # Collect database query metrics (may increase charges for metrics storage). If
+    # set to false, a reduced set of database metrics are still collected.
     # (default: false, type: bool)
     collect_db_metrics: false
   pprof:
@@ -383,8 +390,8 @@ oidc:
   # (default: <unset>, type: bool)
   dangerousSkipIssuerChecks: false
 # Telemetry is critical to our ability to improve Coder. We strip all personal
-# information before sending data to our servers. Please only disable telemetry
-# when required by your organization's security policy.
+#  information before sending data to our servers. Please only disable telemetry
+#  when required by your organization's security policy.
 telemetry:
   # Whether telemetry is enabled or not. Coder collects anonymized usage data to
   # help improve our product.
@@ -439,7 +446,12 @@ cacheDir: [cache dir]
 # Controls whether data will be stored in an in-memory database.
 # (default: <unset>, type: bool)
 inMemoryDatabase: false
-# Type of auth to use when connecting to postgres.
+# Controls whether Coder data, including built-in Postgres, will be stored in a
+# temporary directory and deleted when the server is stopped.
+# (default: <unset>, type: bool)
+ephemeralDeployment: false
+# Type of auth to use when connecting to postgres. For AWS RDS, using IAM
+# authentication (awsiamrds) is recommended.
 # (default: password, type: enum[password\|awsiamrds])
 pgAuth: password
 # A URL to an external Terms of Service that must be accepted by users when
@@ -451,8 +463,8 @@ termsOfServiceURL: ""
 # (default: ed25519, type: string)
 sshKeygenAlgorithm: ed25519
 # URL to use for agent troubleshooting when not set in the template.
-# (default: https://coder.com/docs/templates/troubleshooting, type: url)
-agentFallbackTroubleshootingURL: https://coder.com/docs/templates/troubleshooting
+# (default: https://coder.com/docs/admin/templates/troubleshooting, type: url)
+agentFallbackTroubleshootingURL: https://coder.com/docs/admin/templates/troubleshooting
 # Disable workspace apps that are not served from subdomains. Path-based apps can
 # make requests to the Coder API and pose a security risk when the workspace
 # serves malicious JavaScript. This is recommended for security purposes if a
@@ -517,6 +529,51 @@ userQuietHoursSchedule:
 # compatibility reasons, this will be removed in a future release.
 # (default: false, type: bool)
 allowWorkspaceRenames: false
+# Configure how emails are sent.
+email:
+  # The sender's address to use.
+  # (default: <unset>, type: string)
+  from: ""
+  # The intermediary SMTP host through which emails are sent.
+  # (default: <unset>, type: string)
+  smarthost: ""
+  # The hostname identifying the SMTP server.
+  # (default: localhost, type: string)
+  hello: localhost
+  # Force a TLS connection to the configured SMTP smarthost.
+  # (default: false, type: bool)
+  forceTLS: false
+  # Configure SMTP authentication options.
+  emailAuth:
+    # Identity to use with PLAIN authentication.
+    # (default: <unset>, type: string)
+    identity: ""
+    # Username to use with PLAIN/LOGIN authentication.
+    # (default: <unset>, type: string)
+    username: ""
+    # File from which to load password for use with PLAIN/LOGIN authentication.
+    # (default: <unset>, type: string)
+    passwordFile: ""
+  # Configure TLS for your SMTP server target.
+  emailTLS:
+    # Enable STARTTLS to upgrade insecure SMTP connections using TLS.
+    # (default: <unset>, type: bool)
+    startTLS: false
+    # Server name to verify against the target certificate.
+    # (default: <unset>, type: string)
+    serverName: ""
+    # Skip verification of the target server's certificate (insecure).
+    # (default: <unset>, type: bool)
+    insecureSkipVerify: false
+    # CA certificate file to use.
+    # (default: <unset>, type: string)
+    caCertFile: ""
+    # Certificate file to use.
+    # (default: <unset>, type: string)
+    certFile: ""
+    # Certificate key file to use.
+    # (default: <unset>, type: string)
+    certKeyFile: ""
 # Configure how notifications are processed and delivered.
 notifications:
   # Which delivery method to use (available options: 'smtp', 'webhook').
@@ -531,13 +588,13 @@ notifications:
     # (default: <unset>, type: string)
     from: ""
     # The intermediary SMTP host through which emails are sent.
-    # (default: localhost:587, type: host:port)
-    smarthost: localhost:587
+    # (default: <unset>, type: string)
+    smarthost: ""
     # The hostname identifying the SMTP server.
-    # (default: localhost, type: string)
+    # (default: <unset>, type: string)
     hello: localhost
     # Force a TLS connection to the configured SMTP smarthost.
-    # (default: false, type: bool)
+    # (default: <unset>, type: bool)
     forceTLS: false
     # Configure SMTP authentication options.
     emailAuth:

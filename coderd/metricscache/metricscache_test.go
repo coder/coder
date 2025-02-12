@@ -10,7 +10,6 @@ import (
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/require"
 
-	"cdr.dev/slog/sloggers/slogtest"
 	"github.com/coder/coder/v2/coderd/database"
 	"github.com/coder/coder/v2/coderd/database/dbgen"
 	"github.com/coder/coder/v2/coderd/database/dbmem"
@@ -30,7 +29,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 
 	var (
 		db    = dbmem.New()
-		cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+		cache = metricscache.New(db, testutil.Logger(t), metricscache.Intervals{
 			TemplateBuildTimes: testutil.IntervalFast,
 		}, false)
 	)
@@ -49,7 +48,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		"TemplateWorkspaceOwners never populated 0 owners",
 	)
 
-	dbgen.Workspace(t, db, database.Workspace{
+	dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user1.ID,
 	})
@@ -61,7 +60,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 		"TemplateWorkspaceOwners never populated 1 owner",
 	)
 
-	workspace2 := dbgen.Workspace(t, db, database.Workspace{
+	workspace2 := dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user2.ID,
 	})
@@ -74,7 +73,7 @@ func TestCache_TemplateWorkspaceOwners(t *testing.T) {
 	)
 
 	// 3rd workspace should not be counted since we have the same owner as workspace2.
-	dbgen.Workspace(t, db, database.Workspace{
+	dbgen.Workspace(t, db, database.WorkspaceTable{
 		TemplateID: template.ID,
 		OwnerID:    user1.ID,
 	})
@@ -181,7 +180,7 @@ func TestCache_BuildTime(t *testing.T) {
 
 			var (
 				db    = dbmem.New()
-				cache = metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+				cache = metricscache.New(db, testutil.Logger(t), metricscache.Intervals{
 					TemplateBuildTimes: testutil.IntervalFast,
 				}, false)
 			)
@@ -276,7 +275,7 @@ func TestCache_BuildTime(t *testing.T) {
 func TestCache_DeploymentStats(t *testing.T) {
 	t.Parallel()
 	db := dbmem.New()
-	cache := metricscache.New(db, slogtest.Make(t, nil), metricscache.Intervals{
+	cache := metricscache.New(db, testutil.Logger(t), metricscache.Intervals{
 		DeploymentStats: testutil.IntervalFast,
 	}, false)
 	defer cache.Close()

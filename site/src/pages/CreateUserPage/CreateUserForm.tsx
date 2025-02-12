@@ -4,8 +4,11 @@ import TextField from "@mui/material/TextField";
 import { hasApiFieldErrors, isApiError } from "api/errors";
 import type * as TypesGen from "api/typesGenerated";
 import { ErrorAlert } from "components/Alert/ErrorAlert";
-import { FormFooter } from "components/FormFooter/FormFooter";
+import { Button } from "components/Button/Button";
+import { FormFooter } from "components/Form/Form";
 import { FullPageForm } from "components/FullPageForm/FullPageForm";
+import { PasswordField } from "components/PasswordField/PasswordField";
+import { Spinner } from "components/Spinner/Spinner";
 import { Stack } from "components/Stack/Stack";
 import { type FormikContextType, useFormik } from "formik";
 import type { FC } from "react";
@@ -50,7 +53,7 @@ export const authMethodLanguage = {
 				<Link
 					target="_blank"
 					rel="noopener"
-					href="https://coder.com/docs/admin/auth#disable-built-in-authentication"
+					href="https://coder.com/docs/admin/users/headless-auth"
 				>
 					documentation
 				</Link>{" "}
@@ -95,6 +98,7 @@ export const CreateUserForm: FC<
 				name: "",
 				organization_ids: ["00000000-0000-0000-0000-000000000000"],
 				login_type: "",
+				user_status: null,
 			},
 			validationSchema,
 			onSubmit,
@@ -186,7 +190,7 @@ export const CreateUserForm: FC<
 							);
 						})}
 					</TextField>
-					<TextField
+					<PasswordField
 						{...getFieldHelpers("password", {
 							helperText:
 								form.values.login_type !== "password" &&
@@ -198,14 +202,18 @@ export const CreateUserForm: FC<
 						data-testid="password-input"
 						disabled={form.values.login_type !== "password"}
 						label={Language.passwordLabel}
-						type="password"
 					/>
 				</Stack>
-				<FormFooter
-					submitLabel="Create user"
-					onCancel={onCancel}
-					isLoading={isLoading}
-				/>
+
+				<FormFooter className="mt-8">
+					<Button onClick={onCancel} variant="outline">
+						Cancel
+					</Button>
+					<Button type="submit" disabled={isLoading}>
+						<Spinner loading={isLoading} />
+						Save
+					</Button>
+				</FormFooter>
 			</form>
 		</FullPageForm>
 	);

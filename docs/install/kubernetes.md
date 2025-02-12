@@ -1,6 +1,6 @@
 # Install Coder on Kubernetes
 
-You can install Coder on Kubernetes using Helm. We run on most Kubernetes
+You can install Coder on Kubernetes (K8s) using Helm. We run on most Kubernetes
 distributions, including [OpenShift](./openshift.md).
 
 ## Requirements
@@ -104,8 +104,8 @@ coder:
 
     # (Optional) For production deployments the access URL should be set.
     # If you're just trying Coder, access the dashboard via the service IP.
-    - name: CODER_ACCESS_URL
-      value: "https://coder.example.com"
+    # - name: CODER_ACCESS_URL
+    #   value: "https://coder.example.com"
 
   #tls:
   #  secretNames:
@@ -121,27 +121,27 @@ coder:
 We support two release channels: mainline and stable - read the
 [Releases](./releases.md) page to learn more about which best suits your team.
 
-For the **mainline** Coder release:
+- **Mainline** Coder release:
 
-   <!-- autoversion(mainline): "--version [version]" -->
+  <!-- autoversion(mainline): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.15.0
-```
+  ```shell
+  helm install coder coder-v2/coder \
+      --namespace coder \
+      --values values.yaml \
+      --version 2.18.0
+  ```
 
-    	For the **stable** Coder release:
+- **Stable** Coder release:
 
-    		<!-- autoversion(stable): "--version [version]" -->
+  <!-- autoversion(stable): "--version [version]" -->
 
-```shell
-helm install coder coder-v2/coder \
-    --namespace coder \
-    --values values.yaml \
-    --version 2.15.1
-```
+  ```shell
+  helm install coder coder-v2/coder \
+      --namespace coder \
+      --values values.yaml \
+      --version 2.17.2
+  ```
 
 You can watch Coder start up by running `kubectl get pods -n coder`. Once Coder
 has started, the `coder-*` pods should enter the `Running` state.
@@ -166,6 +166,18 @@ helm upgrade coder coder-v2/coder \
   --namespace coder \
   -f values.yaml
 ```
+
+## Coder Observability Chart
+
+Use the [Observability Helm chart](https://github.com/coder/observability) for a
+pre-built set of dashboards to monitor your control plane over time. It includes
+Grafana, Prometheus, Loki, and Alert Manager out-of-the-box, and can be deployed
+on your existing Grafana instance.
+
+We recommend that all administrators deploying on Kubernetes set the
+observability bundle up with the control plane from the start. For installation
+instructions, visit the
+[observability repository](https://github.com/coder/observability?tab=readme-ov-file#installation).
 
 ## Kubernetes Security Reference
 

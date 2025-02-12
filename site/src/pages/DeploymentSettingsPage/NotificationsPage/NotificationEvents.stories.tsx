@@ -14,7 +14,7 @@ const meta: Meta<typeof NotificationEvents> = {
 		defaultMethod: "smtp",
 		availableMethods: ["smtp", "webhook"],
 		templatesByGroup: selectTemplatesByGroup(MockNotificationTemplates),
-		deploymentValues: baseMeta.parameters.deploymentValues,
+		deploymentConfig: baseMeta.parameters.deploymentValues,
 	},
 	...baseMeta,
 };
@@ -25,7 +25,7 @@ type Story = StoryObj<typeof NotificationEvents>;
 
 export const SMTPNotConfigured: Story = {
 	args: {
-		deploymentValues: {
+		deploymentConfig: {
 			notifications: {
 				webhook: {
 					endpoint: "https://example.com",
@@ -40,7 +40,7 @@ export const SMTPNotConfigured: Story = {
 
 export const WebhookNotConfigured: Story = {
 	args: {
-		deploymentValues: {
+		deploymentConfig: {
 			notifications: {
 				webhook: {
 					endpoint: "",

@@ -45,7 +45,7 @@ func TestSupportBundle(t *testing.T) {
 
 	t.Run("Workspace", func(t *testing.T) {
 		t.Parallel()
-		ctx := testutil.Context(t, testutil.WaitShort)
+
 		var dc codersdk.DeploymentConfig
 		secretValue := uuid.NewString()
 		seedSecretDeploymentOptions(t, &dc, secretValue)
@@ -53,7 +53,7 @@ func TestSupportBundle(t *testing.T) {
 			DeploymentValues: dc.Values,
 		})
 		owner := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: owner.OrganizationID,
 			OwnerID:        owner.UserID,
 		}).WithAgent(func(agents []*proto.Agent) []*proto.Agent {
@@ -61,6 +61,8 @@ func TestSupportBundle(t *testing.T) {
 			agents[0].Env["SECRET_VALUE"] = secretValue
 			return agents
 		}).Do()
+
+		ctx := testutil.Context(t, testutil.WaitShort)
 		ws, err := client.Workspace(ctx, r.Workspace.ID)
 		require.NoError(t, err)
 		tempDir := t.TempDir()
@@ -71,6 +73,8 @@ func TestSupportBundle(t *testing.T) {
 		})
 		defer agt.Close()
 		coderdtest.NewWorkspaceAgentWaiter(t, client, r.Workspace.ID).Wait()
+
+		ctx = testutil.Context(t, testutil.WaitShort) // Reset timeout after waiting for agent.
 
 		// Insert a provisioner job log
 		_, err = db.InsertProvisionerJobLogs(ctx, database.InsertProvisionerJobLogsParams{
@@ -132,7 +136,7 @@ func TestSupportBundle(t *testing.T) {
 			DeploymentValues: dc.Values,
 		})
 		admin := coderdtest.CreateFirstUser(t, client)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: admin.OrganizationID,
 			OwnerID:        admin.UserID,
 		}).Do() // without agent!
@@ -151,7 +155,7 @@ func TestSupportBundle(t *testing.T) {
 		client, db := coderdtest.NewWithDatabase(t, nil)
 		user := coderdtest.CreateFirstUser(t, client)
 		memberClient, member := coderdtest.CreateAnotherUser(t, client, user.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, db, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, db, database.WorkspaceTable{
 			OrganizationID: user.OrganizationID,
 			OwnerID:        member.ID,
 		}).WithAgent().Do()

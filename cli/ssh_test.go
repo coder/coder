@@ -17,21 +17,20 @@ import (
 	"os/exec"
 	"path"
 	"path/filepath"
+	"regexp"
 	"runtime"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/google/uuid"
+	"github.com/spf13/afero"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"golang.org/x/crypto/ssh"
 	gosshagent "golang.org/x/crypto/ssh/agent"
 	"golang.org/x/sync/errgroup"
 	"golang.org/x/xerrors"
-
-	"cdr.dev/slog"
-	"cdr.dev/slog/sloggers/slogtest"
 
 	"github.com/coder/coder/v2/agent"
 	"github.com/coder/coder/v2/agent/agentssh"
@@ -53,14 +52,14 @@ import (
 	"github.com/coder/coder/v2/testutil"
 )
 
-func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.Workspace, string) {
+func setupWorkspaceForAgent(t *testing.T, mutations ...func([]*proto.Agent) []*proto.Agent) (*codersdk.Client, database.WorkspaceTable, string) {
 	t.Helper()
 
 	client, store := coderdtest.NewWithDatabase(t, nil)
-	client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+	client.SetLogger(testutil.Logger(t).Named("client"))
 	first := coderdtest.CreateFirstUser(t, client)
 	userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-	r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+	r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 		OrganizationID: first.OrganizationID,
 		OwnerID:        user.ID,
 	}).WithAgent(mutations...).Do()
@@ -147,6 +146,101 @@ func TestSSH(t *testing.T) {
 		// Shells on Mac, Windows, and Linux all exit shells with the "exit" command.
 		pty.WriteLine("exit")
 		<-cmdDone
+	})
+	t.Run("StartStoppedWorkspaceConflict", func(t *testing.T) {
+		t.Parallel()
+
+		// Intercept builds to synchronize execution of the SSH command.
+		// The purpose here is to make sure all commands try to trigger
+		// a start build of the workspace.
+		isFirstBuild := true
+		buildURL := regexp.MustCompile("/api/v2/workspaces/.*/builds")
+		buildPause := make(chan bool)
+		buildDone := make(chan struct{})
+		buildSyncMW := func(next http.Handler) http.Handler {
+			return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				if r.Method == http.MethodPost && buildURL.MatchString(r.URL.Path) {
+					if !isFirstBuild {
+						t.Log("buildSyncMW: pausing build")
+						if shouldContinue := <-buildPause; !shouldContinue {
+							// We can't force the API to trigger a build conflict (racy) so we fake it.
+							t.Log("buildSyncMW: return conflict")
+							w.WriteHeader(http.StatusConflict)
+							return
+						}
+						t.Log("buildSyncMW: resuming build")
+						defer func() {
+							t.Log("buildSyncMW: sending build done")
+							buildDone <- struct{}{}
+							t.Log("buildSyncMW: done")
+						}()
+					} else {
+						isFirstBuild = false
+					}
+				}
+				next.ServeHTTP(w, r)
+			})
+		}
+
+		authToken := uuid.NewString()
+		ownerClient := coderdtest.New(t, &coderdtest.Options{
+			IncludeProvisionerDaemon: true,
+			APIMiddleware:            buildSyncMW,
+		})
+		owner := coderdtest.CreateFirstUser(t, ownerClient)
+		client, _ := coderdtest.CreateAnotherUser(t, ownerClient, owner.OrganizationID, rbac.RoleTemplateAdmin())
+		version := coderdtest.CreateTemplateVersion(t, client, owner.OrganizationID, &echo.Responses{
+			Parse:          echo.ParseComplete,
+			ProvisionPlan:  echo.PlanComplete,
+			ProvisionApply: echo.ProvisionApplyWithAgent(authToken),
+		})
+		coderdtest.AwaitTemplateVersionJobCompleted(t, client, version.ID)
+		template := coderdtest.CreateTemplate(t, client, owner.OrganizationID, version.ID)
+		workspace := coderdtest.CreateWorkspace(t, client, template.ID)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspace.LatestBuild.ID)
+		// Stop the workspace
+		workspaceBuild := coderdtest.CreateWorkspaceBuild(t, client, workspace, database.WorkspaceTransitionStop)
+		coderdtest.AwaitWorkspaceBuildJobCompleted(t, client, workspaceBuild.ID)
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitMedium)
+		defer cancel()
+
+		var ptys []*ptytest.PTY
+		for i := 0; i < 3; i++ {
+			// SSH to the workspace which should autostart it
+			inv, root := clitest.New(t, "ssh", workspace.Name)
+
+			pty := ptytest.New(t).Attach(inv)
+			ptys = append(ptys, pty)
+			clitest.SetupConfig(t, client, root)
+			testutil.Go(t, func() {
+				_ = inv.WithContext(ctx).Run()
+			})
+		}
+
+		for _, pty := range ptys {
+			pty.ExpectMatchContext(ctx, "Workspace was stopped, starting workspace to allow connecting to")
+		}
+
+		// Allow one build to complete.
+		testutil.RequireSendCtx(ctx, t, buildPause, true)
+		testutil.RequireRecvCtx(ctx, t, buildDone)
+
+		// Allow the remaining builds to continue.
+		for i := 0; i < len(ptys)-1; i++ {
+			testutil.RequireSendCtx(ctx, t, buildPause, false)
+		}
+
+		var foundConflict int
+		for _, pty := range ptys {
+			// Either allow the command to start the workspace or fail
+			// due to conflict (race), in which case it retries.
+			match := pty.ExpectRegexMatchContext(ctx, "Waiting for the workspace agent to connect")
+			if strings.Contains(match, "Unable to start the workspace due to conflict, the workspace may be starting, retrying without autostart...") {
+				foundConflict++
+			}
+		}
+		require.Equal(t, 2, foundConflict, "expected 2 conflicts")
 	})
 	t.Run("RequireActiveVersion", func(t *testing.T) {
 		t.Parallel()
@@ -257,10 +351,10 @@ func TestSSH(t *testing.T) {
 
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
-		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		client.SetLogger(testutil.Logger(t).Named("client"))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -355,6 +449,78 @@ func TestSSH(t *testing.T) {
 		err = sshClient.Close()
 		require.NoError(t, err)
 		_ = clientOutput.Close()
+
+		<-cmdDone
+	})
+
+	t.Run("NetworkInfo", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		fs := afero.NewMemMapFs()
+		//nolint:revive,staticcheck
+		ctx = context.WithValue(ctx, "fs", fs)
+
+		inv, root := clitest.New(t, "ssh", "--stdio", workspace.Name, "--network-info-dir", "/net", "--network-info-interval", "25ms")
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		command := "sh -c exit"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c exit"
+		}
+		err = session.Run(command)
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		assert.Eventually(t, func() bool {
+			entries, err := afero.ReadDir(fs, "/net")
+			if err != nil {
+				return false
+			}
+			return len(entries) > 0
+		}, testutil.WaitLong, testutil.IntervalFast)
 
 		<-cmdDone
 	})
@@ -653,102 +819,105 @@ func TestSSH(t *testing.T) {
 
 		tmpdir := tempDirUnixSocket(t)
 		localSock := filepath.Join(tmpdir, "local.sock")
-		l, err := net.Listen("unix", localSock)
-		require.NoError(t, err)
-		defer l.Close()
 		remoteSock := path.Join(tmpdir, "remote.sock")
 		for i := 0; i < 2; i++ {
-			t.Logf("connect %d of 2", i+1)
-			inv, root := clitest.New(t,
-				"ssh",
-				workspace.Name,
-				"--remote-forward",
-				remoteSock+":"+localSock,
-			)
-			fsn := clitest.NewFakeSignalNotifier(t)
-			inv = inv.WithTestSignalNotifyContext(t, fsn.NotifyContext)
-			inv.Stdout = io.Discard
-			inv.Stderr = io.Discard
+			func() { // Function scope for defer.
+				t.Logf("Connect %d/2", i+1)
 
-			clitest.SetupConfig(t, client, root)
-			cmdDone := tGo(t, func() {
-				err := inv.WithContext(ctx).Run()
-				assert.Error(t, err)
-			})
-
-			// accept a single connection
-			msgs := make(chan string, 1)
-			go func() {
-				conn, err := l.Accept()
-				if !assert.NoError(t, err) {
-					return
-				}
-				msg, err := io.ReadAll(conn)
-				if !assert.NoError(t, err) {
-					return
-				}
-				msgs <- string(msg)
-			}()
-
-			// Unfortunately, there is a race in crypto/ssh where it sends the request to forward
-			// unix sockets before it is prepared to receive the response, meaning that even after
-			// the socket exists on the file system, the client might not be ready to accept the
-			// channel.
-			//
-			// https://cs.opensource.google/go/x/crypto/+/master:ssh/streamlocal.go;drc=2fc4c88bf43f0ea5ea305eae2b7af24b2cc93287;l=33
-			//
-			// To work around this, we attempt to send messages in a loop until one succeeds
-			success := make(chan struct{})
-			done := make(chan struct{})
-			go func() {
-				defer close(done)
-				var (
-					conn net.Conn
-					err  error
+				inv, root := clitest.New(t,
+					"ssh",
+					workspace.Name,
+					"--remote-forward",
+					remoteSock+":"+localSock,
 				)
-				for {
-					time.Sleep(testutil.IntervalMedium)
-					select {
-					case <-ctx.Done():
-						t.Error("timeout")
+				fsn := clitest.NewFakeSignalNotifier(t)
+				inv = inv.WithTestSignalNotifyContext(t, fsn.NotifyContext)
+				inv.Stdout = io.Discard
+				inv.Stderr = io.Discard
+
+				clitest.SetupConfig(t, client, root)
+				cmdDone := tGo(t, func() {
+					err := inv.WithContext(ctx).Run()
+					assert.Error(t, err)
+				})
+
+				// accept a single connection
+				msgs := make(chan string, 1)
+				l, err := net.Listen("unix", localSock)
+				require.NoError(t, err)
+				defer l.Close()
+				go func() {
+					conn, err := l.Accept()
+					if !assert.NoError(t, err) {
 						return
-					case <-success:
+					}
+					msg, err := io.ReadAll(conn)
+					if !assert.NoError(t, err) {
 						return
-					default:
-						// Ok
 					}
-					conn, err = net.Dial("unix", remoteSock)
-					if err != nil {
-						t.Logf("dial error: %s", err)
-						continue
+					msgs <- string(msg)
+				}()
+
+				// Unfortunately, there is a race in crypto/ssh where it sends the request to forward
+				// unix sockets before it is prepared to receive the response, meaning that even after
+				// the socket exists on the file system, the client might not be ready to accept the
+				// channel.
+				//
+				// https://cs.opensource.google/go/x/crypto/+/master:ssh/streamlocal.go;drc=2fc4c88bf43f0ea5ea305eae2b7af24b2cc93287;l=33
+				//
+				// To work around this, we attempt to send messages in a loop until one succeeds
+				success := make(chan struct{})
+				done := make(chan struct{})
+				go func() {
+					defer close(done)
+					var (
+						conn net.Conn
+						err  error
+					)
+					for {
+						time.Sleep(testutil.IntervalMedium)
+						select {
+						case <-ctx.Done():
+							t.Error("timeout")
+							return
+						case <-success:
+							return
+						default:
+							// Ok
+						}
+						conn, err = net.Dial("unix", remoteSock)
+						if err != nil {
+							t.Logf("dial error: %s", err)
+							continue
+						}
+						_, err = conn.Write([]byte("test"))
+						if err != nil {
+							t.Logf("write error: %s", err)
+						}
+						err = conn.Close()
+						if err != nil {
+							t.Logf("close error: %s", err)
+						}
 					}
-					_, err = conn.Write([]byte("test"))
-					if err != nil {
-						t.Logf("write error: %s", err)
-					}
-					err = conn.Close()
-					if err != nil {
-						t.Logf("close error: %s", err)
-					}
-				}
+				}()
+
+				msg := testutil.RequireRecvCtx(ctx, t, msgs)
+				require.Equal(t, "test", msg)
+				close(success)
+				fsn.Notify()
+				<-cmdDone
+				fsn.AssertStopped()
+				// wait for dial goroutine to complete
+				_ = testutil.RequireRecvCtx(ctx, t, done)
+
+				// wait for the remote socket to get cleaned up before retrying,
+				// because cleaning up the socket happens asynchronously, and we
+				// might connect to an old listener on the agent side.
+				require.Eventually(t, func() bool {
+					_, err = os.Stat(remoteSock)
+					return xerrors.Is(err, os.ErrNotExist)
+				}, testutil.WaitShort, testutil.IntervalFast)
 			}()
-
-			msg := testutil.RequireRecvCtx(ctx, t, msgs)
-			require.Equal(t, "test", msg)
-			close(success)
-			fsn.Notify()
-			<-cmdDone
-			fsn.AssertStopped()
-			// wait for dial goroutine to complete
-			_ = testutil.RequireRecvCtx(ctx, t, done)
-
-			// wait for the remote socket to get cleaned up before retrying,
-			// because cleaning up the socket happens asynchronously, and we
-			// might connect to an old listener on the agent side.
-			require.Eventually(t, func() bool {
-				_, err = os.Stat(remoteSock)
-				return xerrors.Is(err, os.ErrNotExist)
-			}, testutil.WaitShort, testutil.IntervalFast)
 		}
 	})
 
@@ -760,10 +929,10 @@ func TestSSH(t *testing.T) {
 
 		store, ps := dbtestutil.NewDB(t)
 		client := coderdtest.New(t, &coderdtest.Options{Pubsub: ps, Database: store})
-		client.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+		client.SetLogger(testutil.Logger(t).Named("client"))
 		first := coderdtest.CreateFirstUser(t, client)
 		userClient, user := coderdtest.CreateAnotherUser(t, client, first.OrganizationID)
-		r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+		r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 			OrganizationID: first.OrganizationID,
 			OwnerID:        user.ID,
 		}).WithAgent().Do()
@@ -1053,9 +1222,10 @@ func TestSSH(t *testing.T) {
 		// started and accepting input on stdin.
 		_ = pty.Peek(ctx, 1)
 
-		// Download the test page
-		pty.WriteLine(fmt.Sprintf("ss -xl state listening src %s | wc -l", remoteSock))
-		pty.ExpectMatch("2")
+		// This needs to support most shells on Linux or macOS
+		// We can't include exactly what's expected in the input, as that will always be matched
+		pty.WriteLine(fmt.Sprintf(`echo "results: $(netstat -an | grep %s | wc -l | tr -d ' ')"`, remoteSock))
+		pty.ExpectMatchContext(ctx, "results: 1")
 
 		// And we're done.
 		pty.WriteLine("exit")
@@ -1367,10 +1537,10 @@ func TestSSH(t *testing.T) {
 					DeploymentValues: dv,
 					StatsBatcher:     batcher,
 				})
-				admin.SetLogger(slogtest.Make(t, nil).Named("client").Leveled(slog.LevelDebug))
+				admin.SetLogger(testutil.Logger(t).Named("client"))
 				first := coderdtest.CreateFirstUser(t, admin)
 				client, user := coderdtest.CreateAnotherUser(t, admin, first.OrganizationID)
-				r := dbfake.WorkspaceBuild(t, store, database.Workspace{
+				r := dbfake.WorkspaceBuild(t, store, database.WorkspaceTable{
 					OrganizationID: first.OrganizationID,
 					OwnerID:        user.ID,
 				}).WithAgent().Do()
@@ -1402,6 +1572,69 @@ func TestSSH(t *testing.T) {
 				require.EqualValues(t, tc.expectedCountVscode, batcher.LastStats.SessionCountVscode)
 			})
 		}
+	})
+
+	t.Run("SSHHostPrefix", func(t *testing.T) {
+		t.Parallel()
+		client, workspace, agentToken := setupWorkspaceForAgent(t)
+		_, _ = tGoContext(t, func(ctx context.Context) {
+			// Run this async so the SSH command has to wait for
+			// the build and agent to connect!
+			_ = agenttest.New(t, client.URL, agentToken)
+			<-ctx.Done()
+		})
+
+		clientOutput, clientInput := io.Pipe()
+		serverOutput, serverInput := io.Pipe()
+		defer func() {
+			for _, c := range []io.Closer{clientOutput, clientInput, serverOutput, serverInput} {
+				_ = c.Close()
+			}
+		}()
+
+		ctx, cancel := context.WithTimeout(context.Background(), testutil.WaitLong)
+		defer cancel()
+
+		user, err := client.User(ctx, codersdk.Me)
+		require.NoError(t, err)
+
+		inv, root := clitest.New(t, "ssh", "--stdio", "--ssh-host-prefix", "coder.dummy.com--", fmt.Sprintf("coder.dummy.com--%s--%s", user.Username, workspace.Name))
+		clitest.SetupConfig(t, client, root)
+		inv.Stdin = clientOutput
+		inv.Stdout = serverInput
+		inv.Stderr = io.Discard
+
+		cmdDone := tGo(t, func() {
+			err := inv.WithContext(ctx).Run()
+			assert.NoError(t, err)
+		})
+
+		conn, channels, requests, err := ssh.NewClientConn(&stdioConn{
+			Reader: serverOutput,
+			Writer: clientInput,
+		}, "", &ssh.ClientConfig{
+			// #nosec
+			HostKeyCallback: ssh.InsecureIgnoreHostKey(),
+		})
+		require.NoError(t, err)
+		defer conn.Close()
+
+		sshClient := ssh.NewClient(conn, channels, requests)
+		session, err := sshClient.NewSession()
+		require.NoError(t, err)
+		defer session.Close()
+
+		command := "sh -c exit"
+		if runtime.GOOS == "windows" {
+			command = "cmd.exe /c exit"
+		}
+		err = session.Run(command)
+		require.NoError(t, err)
+		err = sshClient.Close()
+		require.NoError(t, err)
+		_ = clientOutput.Close()
+
+		<-cmdDone
 	})
 }
 

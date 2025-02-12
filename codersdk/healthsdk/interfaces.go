@@ -68,11 +68,14 @@ func generateInterfacesReport(st *interfaces.State) (report InterfacesReport) {
 			continue
 		}
 		report.Interfaces = append(report.Interfaces, healthIface)
-		if iface.MTU < safeMTU {
+		// Some loopback interfaces on Windows have a negative MTU, which we can
+		// safely ignore in diagnostics.
+		if iface.MTU > 0 && iface.MTU < safeMTU {
 			report.Severity = health.SeverityWarning
 			report.Warnings = append(report.Warnings,
 				health.Messagef(health.CodeInterfaceSmallMTU,
-					"Network interface %s has MTU %d (less than %d), which may degrade the quality of direct connections", iface.Name, iface.MTU, safeMTU),
+					"Network interface %s has MTU %d (less than %d), which may degrade the quality of direct "+
+						"connections or render them unusable.", iface.Name, iface.MTU, safeMTU),
 			)
 		}
 	}
