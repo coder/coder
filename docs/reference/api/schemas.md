@@ -4432,16 +4432,24 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "id": "string",
-  "name": "string"
+  "name": "string",
+  "parameters": [
+    {
+      "name": "string",
+      "presetID": "string",
+      "value": "string"
+    }
+  ]
 }
 ```
 
 ### Properties
 
-| Name   | Type   | Required | Restrictions | Description |
-|--------|--------|----------|--------------|-------------|
-| `id`   | string | false    |              |             |
-| `name` | string | false    |              |             |
+| Name         | Type                                                          | Required | Restrictions | Description |
+|--------------|---------------------------------------------------------------|----------|--------------|-------------|
+| `id`         | string                                                        | false    |              |             |
+| `name`       | string                                                        | false    |              |             |
+| `parameters` | array of [codersdk.PresetParameter](#codersdkpresetparameter) | false    |              |             |
 
 ## codersdk.PresetParameter
 
