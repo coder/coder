@@ -56,6 +56,10 @@ func (m *monitor) Start(ctx context.Context) error {
 		}
 
 		for _, volume := range m.config.Volumes {
+			if !volume.Enabled {
+				continue
+			}
+
 			volTotal, volUsed, err := m.fetchResourceMonitoredVolume(volume.Path)
 			if err != nil {
 				m.logger.Error(ctx, "failed to fetch volume", slog.Error(err))
