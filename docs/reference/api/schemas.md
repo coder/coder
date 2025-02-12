@@ -4530,7 +4530,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "created_at": "2019-08-24T14:15:22Z",
   "current_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
   "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4540,7 +4543,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
   "previous_job": {
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-    "status": "pending"
+    "status": "pending",
+    "template_display_name": "string",
+    "template_icon": "string",
+    "template_name": "string"
   },
   "provisioners": [
     "string"
@@ -4587,16 +4593,22 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-  "status": "pending"
+  "status": "pending",
+  "template_display_name": "string",
+  "template_icon": "string",
+  "template_name": "string"
 }
 ```
 
 ### Properties
 
-| Name     | Type                                                           | Required | Restrictions | Description |
-|----------|----------------------------------------------------------------|----------|--------------|-------------|
-| `id`     | string                                                         | false    |              |             |
-| `status` | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| Name                    | Type                                                           | Required | Restrictions | Description |
+|-------------------------|----------------------------------------------------------------|----------|--------------|-------------|
+| `id`                    | string                                                         | false    |              |             |
+| `status`                | [codersdk.ProvisionerJobStatus](#codersdkprovisionerjobstatus) | false    |              |             |
+| `template_display_name` | string                                                         | false    |              |             |
+| `template_icon`         | string                                                         | false    |              |             |
+| `template_name`         | string                                                         | false    |              |             |
 
 #### Enumerated Values
 
@@ -4852,7 +4864,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "created_at": "2019-08-24T14:15:22Z",
       "current_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
       "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -4862,7 +4877,10 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
       "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
       "previous_job": {
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-        "status": "pending"
+        "status": "pending",
+        "template_display_name": "string",
+        "template_icon": "string",
+        "template_name": "string"
       },
       "provisioners": [
         "string"
@@ -9870,7 +9888,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "created_at": "2019-08-24T14:15:22Z",
           "current_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
           "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -9880,7 +9901,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
           "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
           "previous_job": {
             "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-            "status": "pending"
+            "status": "pending",
+            "template_display_name": "string",
+            "template_icon": "string",
+            "template_name": "string"
           },
           "provisioners": [
             "string"
@@ -10006,7 +10030,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "created_at": "2019-08-24T14:15:22Z",
         "current_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
         "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -10016,7 +10043,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
         "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
         "previous_job": {
           "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-          "status": "pending"
+          "status": "pending",
+          "template_display_name": "string",
+          "template_icon": "string",
+          "template_name": "string"
         },
         "provisioners": [
           "string"
@@ -10073,7 +10103,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "created_at": "2019-08-24T14:15:22Z",
     "current_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
     "key_id": "1e779c8a-6786-4c89-b7c3-a6666f5fd6b5",
@@ -10083,7 +10116,10 @@ Zero means unspecified. There might be a limit, but the client need not try to r
     "organization_id": "7c60d51f-b44e-4682-87d6-449835ea4de6",
     "previous_job": {
       "id": "497f6eca-6276-4993-bfeb-53cbbbba6f08",
-      "status": "pending"
+      "status": "pending",
+      "template_display_name": "string",
+      "template_icon": "string",
+      "template_name": "string"
     },
     "provisioners": [
       "string"

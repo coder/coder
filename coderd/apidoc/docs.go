@@ -13175,6 +13175,15 @@ const docTemplate = `{
                             "$ref": "#/definitions/codersdk.ProvisionerJobStatus"
                         }
                     ]
+                },
+                "template_display_name": {
+                    "type": "string"
+                },
+                "template_icon": {
+                    "type": "string"
+                },
+                "template_name": {
+                    "type": "string"
                 }
             }
         },
