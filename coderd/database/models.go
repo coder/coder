@@ -3012,6 +3012,20 @@ type TemplateVersionParameter struct {
 	Ephemeral bool `db:"ephemeral" json:"ephemeral"`
 }
 
+type TemplateVersionPreset struct {
+	ID                uuid.UUID `db:"id" json:"id"`
+	TemplateVersionID uuid.UUID `db:"template_version_id" json:"template_version_id"`
+	Name              string    `db:"name" json:"name"`
+	CreatedAt         time.Time `db:"created_at" json:"created_at"`
+}
+
+type TemplateVersionPresetParameter struct {
+	ID                      uuid.UUID `db:"id" json:"id"`
+	TemplateVersionPresetID uuid.UUID `db:"template_version_preset_id" json:"template_version_preset_id"`
+	Name                    string    `db:"name" json:"name"`
+	Value                   string    `db:"value" json:"value"`
+}
+
 type TemplateVersionTable struct {
 	ID             uuid.UUID     `db:"id" json:"id"`
 	TemplateID     uuid.NullUUID `db:"template_id" json:"template_id"`
@@ -3347,22 +3361,23 @@ type WorkspaceAppStat struct {
 
 // Joins in the username + avatar url of the initiated by user.
 type WorkspaceBuild struct {
-	ID                   uuid.UUID           `db:"id" json:"id"`
-	CreatedAt            time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt            time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID          uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID    uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber          int32               `db:"build_number" json:"build_number"`
-	Transition           WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID          uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState     []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID                uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline             time.Time           `db:"deadline" json:"deadline"`
-	Reason               BuildReason         `db:"reason" json:"reason"`
-	DailyCost            int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline          time.Time           `db:"max_deadline" json:"max_deadline"`
-	InitiatorByAvatarUrl string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
-	InitiatorByUsername  string              `db:"initiator_by_username" json:"initiator_by_username"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
+	InitiatorByAvatarUrl    string              `db:"initiator_by_avatar_url" json:"initiator_by_avatar_url"`
+	InitiatorByUsername     string              `db:"initiator_by_username" json:"initiator_by_username"`
 }
 
 type WorkspaceBuildParameter struct {
@@ -3374,20 +3389,21 @@ type WorkspaceBuildParameter struct {
 }
 
 type WorkspaceBuildTable struct {
-	ID                uuid.UUID           `db:"id" json:"id"`
-	CreatedAt         time.Time           `db:"created_at" json:"created_at"`
-	UpdatedAt         time.Time           `db:"updated_at" json:"updated_at"`
-	WorkspaceID       uuid.UUID           `db:"workspace_id" json:"workspace_id"`
-	TemplateVersionID uuid.UUID           `db:"template_version_id" json:"template_version_id"`
-	BuildNumber       int32               `db:"build_number" json:"build_number"`
-	Transition        WorkspaceTransition `db:"transition" json:"transition"`
-	InitiatorID       uuid.UUID           `db:"initiator_id" json:"initiator_id"`
-	ProvisionerState  []byte              `db:"provisioner_state" json:"provisioner_state"`
-	JobID             uuid.UUID           `db:"job_id" json:"job_id"`
-	Deadline          time.Time           `db:"deadline" json:"deadline"`
-	Reason            BuildReason         `db:"reason" json:"reason"`
-	DailyCost         int32               `db:"daily_cost" json:"daily_cost"`
-	MaxDeadline       time.Time           `db:"max_deadline" json:"max_deadline"`
+	ID                      uuid.UUID           `db:"id" json:"id"`
+	CreatedAt               time.Time           `db:"created_at" json:"created_at"`
+	UpdatedAt               time.Time           `db:"updated_at" json:"updated_at"`
+	WorkspaceID             uuid.UUID           `db:"workspace_id" json:"workspace_id"`
+	TemplateVersionID       uuid.UUID           `db:"template_version_id" json:"template_version_id"`
+	BuildNumber             int32               `db:"build_number" json:"build_number"`
+	Transition              WorkspaceTransition `db:"transition" json:"transition"`
+	InitiatorID             uuid.UUID           `db:"initiator_id" json:"initiator_id"`
+	ProvisionerState        []byte              `db:"provisioner_state" json:"provisioner_state"`
+	JobID                   uuid.UUID           `db:"job_id" json:"job_id"`
+	Deadline                time.Time           `db:"deadline" json:"deadline"`
+	Reason                  BuildReason         `db:"reason" json:"reason"`
+	DailyCost               int32               `db:"daily_cost" json:"daily_cost"`
+	MaxDeadline             time.Time           `db:"max_deadline" json:"max_deadline"`
+	TemplateVersionPresetID uuid.NullUUID       `db:"template_version_preset_id" json:"template_version_preset_id"`
 }
 
 type WorkspaceModule struct {

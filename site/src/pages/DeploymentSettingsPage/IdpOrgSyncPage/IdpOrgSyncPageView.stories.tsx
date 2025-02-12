@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { userEvent, within } from "@storybook/test";
+import { expect, userEvent, within } from "@storybook/test";
 import {
 	MockOrganization,
 	MockOrganization2,
@@ -45,9 +45,15 @@ export const MissingGroups: Story = {
 	},
 };
 
-export const MissingClaim: Story = {
+export const MissingClaims: Story = {
 	args: {
 		claimFieldValues: [],
+	},
+	play: async ({ canvasElement }) => {
+		const user = userEvent.setup();
+		const warning = canvasElement.querySelector(".lucide-triangle-alert")!;
+		expect(warning).not.toBe(null);
+		await user.hover(warning);
 	},
 };
 

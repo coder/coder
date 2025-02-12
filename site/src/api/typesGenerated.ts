@@ -1591,6 +1591,9 @@ export interface ProvisionerDaemon {
 export interface ProvisionerDaemonJob {
 	readonly id: string;
 	readonly status: ProvisionerJobStatus;
+	readonly template_name: string;
+	readonly template_icon: string;
+	readonly template_display_name: string;
 }
 
 // From codersdk/client.go
@@ -1638,7 +1641,7 @@ export interface ProvisionerJob {
 	readonly input: ProvisionerJobInput;
 	readonly type: ProvisionerJobType;
 	readonly available_workers?: readonly string[];
-	readonly metadata?: ProvisionerJobMetadata;
+	readonly metadata: ProvisionerJobMetadata;
 }
 
 // From codersdk/provisionerdaemons.go
@@ -1664,6 +1667,7 @@ export interface ProvisionerJobMetadata {
 	readonly template_id: string;
 	readonly template_name: string;
 	readonly template_display_name: string;
+	readonly template_icon: string;
 	readonly workspace_id?: string;
 	readonly workspace_name?: string;
 }
@@ -2927,6 +2931,19 @@ export interface WorkspaceAgent {
 }
 
 // From codersdk/workspaceagents.go
+export interface WorkspaceAgentDevcontainer {
+	readonly created_at: string;
+	readonly id: string;
+	readonly name: string;
+	readonly image: string;
+	readonly labels: Record<string, string>;
+	readonly running: boolean;
+	readonly ports: readonly WorkspaceAgentListeningPort[];
+	readonly status: string;
+	readonly volumes: Record<string, string>;
+}
+
+// From codersdk/workspaceagents.go
 export interface WorkspaceAgentHealth {
 	readonly healthy: boolean;
 	readonly reason?: string;
@@ -2955,6 +2972,12 @@ export const WorkspaceAgentLifecycles: WorkspaceAgentLifecycle[] = [
 	"start_timeout",
 	"starting",
 ];
+
+// From codersdk/workspaceagents.go
+export interface WorkspaceAgentListContainersResponse {
+	readonly containers: readonly WorkspaceAgentDevcontainer[];
+	readonly warnings?: readonly string[];
+}
 
 // From codersdk/workspaceagents.go
 export interface WorkspaceAgentListeningPort {

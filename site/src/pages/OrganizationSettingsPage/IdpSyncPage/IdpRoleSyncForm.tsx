@@ -1,7 +1,6 @@
-import TableCell from "@mui/material/TableCell";
-import TableRow from "@mui/material/TableRow";
 import type { Organization, Role, RoleSyncSettings } from "api/typesGenerated";
 import { Button } from "components/Button/Button";
+import { Combobox } from "components/Combobox/Combobox";
 import { Input } from "components/Input/Input";
 import { Label } from "components/Label/Label";
 import {
@@ -9,21 +8,20 @@ import {
 	type Option,
 } from "components/MultiSelectCombobox/MultiSelectCombobox";
 import { Spinner } from "components/Spinner/Spinner";
+import { TableCell, TableRow } from "components/Table/Table";
+import {
+	Tooltip,
+	TooltipContent,
+	TooltipProvider,
+	TooltipTrigger,
+} from "components/Tooltip/Tooltip";
 import { useFormik } from "formik";
-import { Plus, Trash } from "lucide-react";
-import { type FC, useId, useState } from "react";
+import { Plus, Trash, TriangleAlert } from "lucide-react";
+import { type FC, type KeyboardEventHandler, useId, useState } from "react";
 import * as Yup from "yup";
 import { ExportPolicyButton } from "./ExportPolicyButton";
 import { IdpMappingTable } from "./IdpMappingTable";
 import { IdpPillList } from "./IdpPillList";
-
-interface IdpRoleSyncFormProps {
-	roleSyncSettings: RoleSyncSettings;
-	roleMappingCount: number;
-	organization: Organization;
-	roles: Role[];
-	onSubmit: (data: RoleSyncSettings) => void;
-}
 
 const roleSyncValidationSchema = Yup.object({
 	field: Yup.string().trim(),
@@ -48,13 +46,25 @@ const roleSyncValidationSchema = Yup.object({
 		.default({}),
 });
 
-export const IdpRoleSyncForm = ({
+interface IdpRoleSyncFormProps {
+	roleSyncSettings: RoleSyncSettings;
+	claimFieldValues: readonly string[] | undefined;
+	roleMappingCount: number;
+	organization: Organization;
+	roles: Role[];
+	onSubmit: (data: RoleSyncSettings) => void;
+	onSyncFieldChange: (value: string) => void;
+}
+
+export const IdpRoleSyncForm: FC<IdpRoleSyncFormProps> = ({
 	roleSyncSettings,
+	claimFieldValues,
 	roleMappingCount,
 	organization,
 	roles,
 	onSubmit,
-}: IdpRoleSyncFormProps) => {
+	onSyncFieldChange,
+}) => {
 	const form = useFormik<RoleSyncSettings>({
 		initialValues: {
 			field: roleSyncSettings?.field ?? "",
@@ -67,6 +77,8 @@ export const IdpRoleSyncForm = ({
 	const [idpRoleName, setIdpRoleName] = useState("");
 	const [coderRoles, setCoderRoles] = useState<Option[]>([]);
 	const id = useId();
+	const [comboInputValue, setComboInputValue] = useState("");
+	const [open, setOpen] = useState(false);
 
 	const handleDelete = async (idpOrg: string) => {
 		const newMapping = Object.fromEntries(
@@ -80,6 +92,21 @@ export const IdpRoleSyncForm = ({
 		};
 		void form.setFieldValue("mapping", newSyncSettings.mapping);
 		form.handleSubmit();
+	};
+
+	const handleKeyDown: KeyboardEventHandler<HTMLInputElement> = (event) => {
+		if (
+			event.key === "Enter" &&
+			comboInputValue &&
+			!claimFieldValues?.some(
+				(value) => value === comboInputValue.toLowerCase(),
+			)
+		) {
+			event.preventDefault();
+			setIdpRoleName(comboInputValue);
+			setComboInputValue("");
+			setOpen(false);
+		}
 	};
 
 	return (
@@ -106,6 +133,7 @@ export const IdpRoleSyncForm = ({
 								value={form.values.field}
 								onChange={(event) => {
 									void form.setFieldValue("field", event.target.value);
+									onSyncFieldChange(event.target.value);
 								}}
 								className="w-72"
 							/>
@@ -135,14 +163,31 @@ export const IdpRoleSyncForm = ({
 						<Label className="text-sm" htmlFor={`${id}-idp-role-name`}>
 							IdP role name
 						</Label>
-						<Input
-							id={`${id}-idp-role-name`}
-							value={idpRoleName}
-							className="w-72"
-							onChange={(event) => {
-								setIdpRoleName(event.target.value);
-							}}
-						/>
+						{claimFieldValues ? (
+							<Combobox
+								value={idpRoleName}
+								options={claimFieldValues}
+								placeholder="Select IdP role"
+								open={open}
+								onOpenChange={setOpen}
+								inputValue={comboInputValue}
+								onInputChange={setComboInputValue}
+								onKeyDown={handleKeyDown}
+								onSelect={(value) => {
+									setIdpRoleName(value);
+									setOpen(false);
+								}}
+							/>
+						) : (
+							<Input
+								id={`${id}-idp-role-name`}
+								value={idpRoleName}
+								className="w-72"
+								onChange={(event) => {
+									setIdpRoleName(event.target.value);
+								}}
+							/>
+						)}
 					</div>
 					<div className="grid items-center gap-1 flex-1">
 						<Label className="text-sm" htmlFor={`${id}-coder-role`}>
@@ -210,6 +255,7 @@ export const IdpRoleSyncForm = ({
 								<RoleRow
 									key={idpRole}
 									idpRole={idpRole}
+									exists={claimFieldValues?.includes(idpRole)}
 									coderRoles={roles}
 									onDelete={handleDelete}
 								/>
@@ -222,17 +268,48 @@ export const IdpRoleSyncForm = ({
 
 interface RoleRowProps {
 	idpRole: string;
+	exists: boolean | undefined;
 	coderRoles: readonly string[];
 	onDelete: (idpOrg: string) => void;
 }
 
-const RoleRow: FC<RoleRowProps> = ({ idpRole, coderRoles, onDelete }) => {
+const RoleRow: FC<RoleRowProps> = ({
+	idpRole,
+	exists = true,
+	coderRoles,
+	onDelete,
+}) => {
 	return (
 		<TableRow data-testid={`role-${idpRole}`}>
-			<TableCell>{idpRole}</TableCell>
+			<TableCell>
+				<div className="flex flex-row items-center gap-2 text-content-primary">
+					{idpRole}
+					{!exists && (
+						<TooltipProvider>
+							<Tooltip>
+								<TooltipTrigger asChild>
+									<TriangleAlert className="size-icon-xs cursor-pointer text-content-warning" />
+								</TooltipTrigger>
+								<TooltipContent
+									align="start"
+									alignOffset={-8}
+									sideOffset={8}
+									className="p-2 text-xs text-content-secondary max-w-sm"
+								>
+									This value has not be seen in the specified claim field
+									before. You might want to check your IdP configuration and
+									ensure that this value is not misspelled.
+								</TooltipContent>
+							</Tooltip>
+						</TooltipProvider>
+					)}
+				</div>
+			</TableCell>
+
 			<TableCell>
 				<IdpPillList roles={coderRoles} />
 			</TableCell>
+
 			<TableCell>
 				<Button
 					variant="outline"
