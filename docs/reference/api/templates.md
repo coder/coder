@@ -2703,7 +2703,6 @@ curl -X GET http://coder-server:8080/api/v2/templateversions/{templateversion}/p
     "parameters": [
       {
         "name": "string",
-        "presetID": "string",
         "value": "string"
       }
     ]
@@ -2728,7 +2727,6 @@ Status Code **200**
 | `» name`       | string | false    |              |             |
 | `» parameters` | array  | false    |              |             |
 | `»» name`      | string | false    |              |             |
-| `»» presetID`  | string | false    |              |             |
 | `»» value`     | string | false    |              |             |
 
 To perform this operation, you must be authenticated. [Learn more](authentication.md).

@@ -13028,9 +13028,6 @@ const docTemplate = `{
                 "name": {
                     "type": "string"
                 },
-                "presetID": {
-                    "type": "string"
-                },
                 "value": {
                     "type": "string"
                 }

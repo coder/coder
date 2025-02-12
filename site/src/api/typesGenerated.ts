@@ -1559,7 +1559,6 @@ export interface Preset {
 
 // From codersdk/presets.go
 export interface PresetParameter {
-	readonly PresetID: string;
 	readonly Name: string;
 	readonly Value: string;
 }

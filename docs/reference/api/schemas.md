@@ -4436,7 +4436,6 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
   "parameters": [
     {
       "name": "string",
-      "presetID": "string",
       "value": "string"
     }
   ]
@@ -4456,18 +4455,16 @@ Git clone makes use of this by parsing the URL from: 'Username for "https://gith
 ```json
 {
   "name": "string",
-  "presetID": "string",
   "value": "string"
 }
 ```
 
 ### Properties
 
-| Name       | Type   | Required | Restrictions | Description |
-|------------|--------|----------|--------------|-------------|
-| `name`     | string | false    |              |             |
-| `presetID` | string | false    |              |             |
-| `value`    | string | false    |              |             |
+| Name    | Type   | Required | Restrictions | Description |
+|---------|--------|----------|--------------|-------------|
+| `name`  | string | false    |              |             |
+| `value` | string | false    |              |             |
 
 ## codersdk.PrometheusConfig
 
