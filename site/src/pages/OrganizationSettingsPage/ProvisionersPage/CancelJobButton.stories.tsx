@@ -1,7 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { CancelJobButton } from "./CancelJobButton";
-import { MockProvisionerJob } from "testHelpers/entities";
 import { userEvent, waitFor, within } from "@storybook/test";
+import { MockProvisionerJob } from "testHelpers/entities";
+import { CancelJobButton } from "./CancelJobButton";
 
 const meta: Meta<typeof CancelJobButton> = {
 	title: "pages/OrganizationSettingsPage/ProvisionersPage/CancelJobButton",

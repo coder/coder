@@ -23,10 +23,10 @@ import { useQuery } from "react-query";
 import { cn } from "utils/cn";
 import { docs } from "utils/docs";
 import { relativeTime } from "utils/time";
+import { CancelJobButton } from "./CancelJobButton";
 import { DataGrid } from "./DataGrid";
 import { JobStatusIndicator } from "./JobStatusIndicator";
 import { ShrinkTags, Tag, Tags } from "./Tags";
-import { CancelJobButton } from "./CancelJobButton";
 
 type ProvisionerJobsPageProps = {
 	org: Organization;

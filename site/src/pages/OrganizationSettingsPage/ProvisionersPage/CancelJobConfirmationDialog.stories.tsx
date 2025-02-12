@@ -1,9 +1,9 @@
 import type { Meta, StoryObj } from "@storybook/react";
-import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
-import { MockProvisionerJob } from "testHelpers/entities";
-import { fn, userEvent, within, expect, waitFor } from "@storybook/test";
-import { withGlobalSnackbar } from "testHelpers/storybook";
+import { expect, fn, userEvent, waitFor, within } from "@storybook/test";
 import type { Response } from "api/typesGenerated";
+import { MockProvisionerJob } from "testHelpers/entities";
+import { withGlobalSnackbar } from "testHelpers/storybook";
+import { CancelJobConfirmationDialog } from "./CancelJobConfirmationDialog";
 
 const meta: Meta<typeof CancelJobConfirmationDialog> = {
 	title:

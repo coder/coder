@@ -1,16 +1,16 @@
+import { API } from "api/api";
+import {
+	getProvisionerDaemonsKey,
+	provisionerJobQueryKey,
+} from "api/queries/organizations";
 import type { ProvisionerJob } from "api/typesGenerated";
 import {
 	ConfirmDialog,
 	type ConfirmDialogProps,
 } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
-import type { FC } from "react";
-import { API } from "api/api";
-import { useMutation, useQueryClient } from "react-query";
-import {
-	getProvisionerDaemonsKey,
-	provisionerJobQueryKey,
-} from "api/queries/organizations";
 import { displayError, displaySuccess } from "components/GlobalSnackbar/utils";
+import type { FC } from "react";
+import { useMutation, useQueryClient } from "react-query";
 
 type CancelJobConfirmationDialogProps = Omit<
 	ConfirmDialogProps,

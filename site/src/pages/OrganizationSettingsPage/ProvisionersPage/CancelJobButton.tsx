@@ -1,14 +1,14 @@
-import { useState, type FC } from "react";
+import type { ProvisionerJob } from "api/typesGenerated";
+import { Button } from "components/Button/Button";
+import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
 import {
 	Tooltip,
 	TooltipContent,
 	TooltipProvider,
 	TooltipTrigger,
 } from "components/Tooltip/Tooltip";
-import { Button } from "components/Button/Button";
 import { BanIcon } from "lucide-react";
-import type { ProvisionerJob } from "api/typesGenerated";
-import { ConfirmDialog } from "components/Dialogs/ConfirmDialog/ConfirmDialog";
+import { type FC, useState } from "react";
 
 type CancelJobButtonProps = {
 	job: ProvisionerJob;
