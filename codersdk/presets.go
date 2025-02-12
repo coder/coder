@@ -17,9 +17,8 @@ type Preset struct {
 }
 
 type PresetParameter struct {
-	PresetID uuid.UUID
-	Name     string
-	Value    string
+	Name  string
+	Value string
 }
 
 // TemplateVersionPresets returns the presets associated with a template version.

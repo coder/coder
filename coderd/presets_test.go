@@ -19,7 +19,7 @@ func TestTemplateVersionPresets(t *testing.T) {
 
 	t.Parallel()
 
-	sdkPreset := codersdk.Preset{
+	givenPreset := codersdk.Preset{
 		Name: "My Preset",
 		Parameters: []codersdk.PresetParameter{
 			{
@@ -41,20 +41,20 @@ func TestTemplateVersionPresets(t *testing.T) {
 	// nolint:gocritic // This is a test
 	provisionerCtx := dbauthz.AsProvisionerd(ctx)
 
-	preset, err := db.InsertPreset(provisionerCtx, database.InsertPresetParams{
-		Name:              sdkPreset.Name,
+	dbPreset, err := db.InsertPreset(provisionerCtx, database.InsertPresetParams{
+		Name:              givenPreset.Name,
 		TemplateVersionID: version.ID,
 	})
 	require.NoError(t, err)
 
 	var presetParameterNames []string
 	var presetParameterValues []string
-	for _, presetParameter := range sdkPreset.Parameters {
+	for _, presetParameter := range givenPreset.Parameters {
 		presetParameterNames = append(presetParameterNames, presetParameter.Name)
 		presetParameterValues = append(presetParameterValues, presetParameter.Value)
 	}
 	_, err = db.InsertPresetParameters(provisionerCtx, database.InsertPresetParametersParams{
-		TemplateVersionPresetID: preset.ID,
+		TemplateVersionPresetID: dbPreset.ID,
 		Names:                   presetParameterNames,
 		Values:                  presetParameterValues,
 	})
@@ -64,13 +64,13 @@ func TestTemplateVersionPresets(t *testing.T) {
 	require.NoError(t, err)
 	userCtx := dbauthz.As(ctx, userSubject)
 
-	presets, err := client.TemplateVersionPresets(userCtx, version.ID)
+	gotPresets, err := client.TemplateVersionPresets(userCtx, version.ID)
 	require.NoError(t, err)
 
-	require.Equal(t, 1, len(presets))
-	require.Equal(t, sdkPreset.Name, presets[0].Name)
+	require.Equal(t, 1, len(gotPresets))
+	require.Equal(t, givenPreset.Name, gotPresets[0].Name)
 
-	for _, presetParameter := range sdkPreset.Parameters {
-		require.Contains(t, presets[0].Parameters, presetParameter)
+	for _, presetParameter := range givenPreset.Parameters {
+		require.Contains(t, gotPresets[0].Parameters, presetParameter)
 	}
 }
